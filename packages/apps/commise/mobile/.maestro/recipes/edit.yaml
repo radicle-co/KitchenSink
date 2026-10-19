@@ -19,18 +19,22 @@ appId: ${APP_ID}
 
 - assertVisible: 'Recipes'
 
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailScreen: the owner's edit entry point sits in the detail's TITLE BAND, beside the recipe name
 # (it used to sit at the foot of the detail). The band is below the hero image, so it is not guaranteed to be
 # in the first viewport — reach it rather than asserting blind.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 
 # Details — the editor opens seeded with the recipe's current title/difficulty. Its × is the entry checkpoint.
@@ -45,10 +49,12 @@ appId: ${APP_ID}
 # Details, so scroll defensively rather than assume it is on screen. The scroll is to the chip, not to the group's label:
 # with the keyboard closed, a scroll to the label stops with the label at the action bar's edge and the chips under the
 # bar (seen on a local emulator, 2026-10-13).
-- scrollUntilVisible:
-      element: 'Hard'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Hard'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Hard'
 # iOS cannot read `checked` from a radio (`visibility.yaml` says why), so iOS asserts the phrase on the one chip right
 # of Medium and below the meal types' last row.
@@ -87,10 +93,12 @@ appId: ${APP_ID}
 # Ingredients — the seeded recipe already carries five lines, so this add is no longer what satisfies the >= 1 a
 # save needs; it is this flow's coverage of a line declared "as written" (no food-service dependency).
 # Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field, AFTER the last seeded line.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
@@ -138,11 +146,13 @@ appId: ${APP_ID}
 # rather than derived because Maestro has no "last match" selector. Typing into `Step 1` does not merely assert the
 # wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY, which the save below
 # then has to refuse ('Fill in or remove the empty step').
-- scrollUntilVisible:
-      element: 'Add step'
-      # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
-      direction: DOWN
-      timeout: 20000
+# DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 5'
 - inputText: 'Combine everything and simmer.'

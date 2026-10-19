@@ -28,19 +28,22 @@ appId: ${APP_ID}
 # every flow), so scroll to it rather than a `when: visible` guard that would silently SKIP when the row is
 # below the fold (the Discover feed scrolls; only ~1 tall cover card fits at a time). Anchored (`^…$`) so it
 # selects the row's title, NOT the card's "Save a copy of Herb Risotto" button whose label also contains the title.
-- scrollUntilVisible:
-      element:
-          text: '^${E2E_RECIPE_RISOTTO}$'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_RISOTTO}$'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 # Open the recipe's detail.
 - tapOn:
       text: '^${E2E_RECIPE_RISOTTO}$'
 # The page of a public recipe the caller does not own offers Save a copy, in its action row under the title.
-- scrollUntilVisible:
-      element: 'Save a copy'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Save a copy'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Save a copy'
 # The copy opens in the editor (FR-005b).
 - extendedWaitUntil:

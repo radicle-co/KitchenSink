@@ -36,10 +36,12 @@ appId: ${APP_ID}
 
 # Ingredients, below Details. Declare a line "as written" from the trailing field (no food-service dependency in this
 # job — same rationale as `create.yaml`), then state a RANGE across its two bounds.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
@@ -55,11 +57,17 @@ appId: ${APP_ID}
       timeout: 30000
 
 # The line reads quietly; its open control opens the row editor sheet (§7.5.1, §7.5.2).
-- scrollUntilVisible:
-      element: 'Edit Tomato'
-      # The line lands above the add field the cook is at: one page, so it is UP.
-      direction: UP
-      timeout: 30000
+# The line lands above the add field the cook is at: one page, so it is UP.
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit Tomato'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
 - tapOn: 'Edit Tomato'
 - tapOn: 'Amount'
 - inputText: '2'
@@ -73,10 +81,12 @@ appId: ${APP_ID}
 - assertVisible: 'Edit 2–3 cups Tomato'
 
 # Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Mix and bake.'
@@ -103,16 +113,20 @@ appId: ${APP_ID}
       timeout: 20000
 
 # Re-open the editor: the seed must carry BOTH bounds. Dropping the upper one here is the narrowing defect.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
-- scrollUntilVisible:
-      element: 'Edit 2–3 cups Tomato'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit 2–3 cups Tomato'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit 2–3 cups Tomato'
 # A TextInput's own value is matchable text in this suite (see `searchNavigation.yaml`), so the seeded
 # bounds are assertable directly.

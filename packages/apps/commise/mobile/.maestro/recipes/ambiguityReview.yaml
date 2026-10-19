@@ -22,10 +22,12 @@ appId: ${APP_ID}
       element: 'Choose a match'
       direction: DOWN
       timeout: 20000
-- scrollUntilVisible:
-      element: 'Review ingredient matches'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Review ingredient matches'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Review ingredient matches'
 
 # One row per ambiguous line, named by its amount and its words ("1 cup apple sauce"); its shortlist is the food

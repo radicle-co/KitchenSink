@@ -24,29 +24,14 @@ appId: ${APP_ID}
       env:
           TITLE: 'Maestro Weeknight Soup'
 
-# State a difficulty (FR-001b): the chip row sits further down Details, so scroll defensively rather than assume it
-# is already on screen. To the chip, not the label, for `edit.yaml`'s reason.
-- scrollUntilVisible:
-      element: 'Hard'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Hard'
-
-# State a MEAL TYPE (U34) — the one CLOSED classification axis on this form. It reuses the difficulty chip
-# group's shape deliberately, and its "not stated" option is named 'No meal type' rather than 'Not stated'
-# precisely so the two chips do not share one accessible name inside one form (WCAG 3.3.2).
-- scrollUntilVisible:
-      element: 'Dinner'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Dinner'
-
 # A-009 / P3 (UI walk 2026-10-13): Cuisine is a combobox that opens its curated list on focus, and the chip fields' Add
 # buttons read as whole sentences. Pick a cuisine from the list, and see both Add buttons.
-- scrollUntilVisible:
-      element: 'Cuisine'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Cuisine'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Cuisine'
 # The list is bounded to five and a half rows (`cuisineField.md` §3.4), so "Italian" is on screen only once the text
 # narrows it. A cuisine is required to publish (2026-10-13).
@@ -62,6 +47,35 @@ appId: ${APP_ID}
       # Centred, so the tap cannot land on the sticky Sections bar over the top of the page.
       centerElement: true
 - tapOn: 'Kind of dish'
+
+# Meal type, then difficulty: the Details fields in PAGE ORDER, top to bottom, so each target is below the last one.
+# A target ABOVE can sit under the sticky Sections bar, where iOS still calls it visible and a tap opens the bar
+# instead (full local iOS run, 2026-10-19: Hard was tapped first and centred, which put Dinner under the bar, and the
+# page jumped back to the top).
+# State a MEAL TYPE (U34) — the one CLOSED classification axis on this form. It reuses the difficulty chip
+# group's shape deliberately, and its "not stated" option is named 'No meal type' rather than 'Not stated'
+# precisely so the two chips do not share one accessible name inside one form (WCAG 3.3.2).
+# Centre the group's label, not the chip: the chip can already count as visible on iOS while it sits under the pinned
+# action bar, so the shared step would leave it there (full local iOS run, 2026-10-19: the tap hit the bar). The
+# chips sit just below their label, so a centred label puts them clear of both bars.
+- scrollUntilVisible:
+      element: 'Meal type'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
+- tapOn: 'Dinner'
+
+# State a difficulty (FR-001b): the chip row sits further down Details, so scroll defensively rather than assume it
+# is already on screen. To the chip, not the label, for `edit.yaml`'s reason.
+# Centre the group's label, not the chip: the chip can already count as visible on iOS while it sits under the pinned
+# action bar, so the shared step would leave it there (full local iOS run, 2026-10-19: the tap hit the bar). The
+# chips sit just below their label, so a centred label puts them clear of both bars.
+- scrollUntilVisible:
+      element: 'Difficulty'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
+- tapOn: 'Hard'
 - scrollUntilVisible:
       element: 'Add a tag'
       direction: DOWN
@@ -72,10 +86,12 @@ appId: ${APP_ID}
 # lines yet it is the section's first control. Type a name and declare it "as written": that path mints a
 # real binding through POST /api/v1/ingredients, which is what Publish validation requires, and needs no food
 # service.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 
 # 003-FR-010a (plan U37) — below the three-character minimum no suggestion, and no "as written" option keyed on the
@@ -106,10 +122,12 @@ appId: ${APP_ID}
       timeout: 30000
 
 # Steps, below Ingredients. A new recipe has no steps, so this is `Step 1`.
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Combine everything and simmer.'
@@ -120,15 +138,19 @@ appId: ${APP_ID}
 - runFlow: common/closeEditorKeyboard.yaml
 # F1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the timer is entered in hours and minutes, no longer
 # in seconds. The boxes appear once the step's 'Add a timer' is pressed. Read back on the detail below.
-- scrollUntilVisible:
-      element: 'Add a timer'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add a timer'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add a timer'
-- scrollUntilVisible:
-      element: 'Step 1 timer, hours'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Step 1 timer, hours'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Step 1 timer, hours'
 - inputText: '3'
 

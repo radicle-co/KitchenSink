@@ -53,19 +53,27 @@ appId: ${APP_ID}
       text: 'Every ingredient needs an item picked from the list.'
 
 # A step FIRST, so the only thing Publish can refuse below is the typed text (a recipe with no steps is refused too).
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Slice and serve.'
 
 # ⛔ (2) Typed text is not a line. Publish refuses it, the editor stays open, and the field says why.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: UP
-      timeout: 20000
+# The step's field still holds the keyboard, and the ingredient field above can sit under the sticky header, where iOS
+# still calls it visible and the tap misses it (full local iOS run, 2026-10-19). Closing the keyboard puts the page back
+# at the top, and the field then arrives from below, clear of the bars.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 # E1 (`docs/design/rowEditorOpenDecisions.md`): the list opens as the cook types, and the field and its first options

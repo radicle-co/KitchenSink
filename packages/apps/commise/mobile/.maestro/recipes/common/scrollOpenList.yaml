@@ -127,6 +127,19 @@ appId: ${APP_ID}
                                     start: 50%, 55%
                                     end: 50%, 35%
                                     duration: 500
+          # ⛔ Maestro's `above` compares TOP edges only (`maestro.Filters.above`: element.y < anchor.y, read from the
+          # maestro-client bytecode, 2026-10-18). An option whose top has just cleared the keyboard passes while its lower
+          # half, where the tap lands, is still under it: ingredientArrival on the full local iOS shard 1 tapped the
+          # suggestion strip. One short drag inside the list lifts the whole row clear. Not going UP: then the target
+          # enters at the top of the list, away from the keyboard.
+          - runFlow:
+                when:
+                    true: ${DIRECTION != 'UP'}
+                commands:
+                    - swipe:
+                          start: 50%, 55%
+                          end: 50%, 49%
+                          duration: 500
           - assertVisible:
                 text: ${TARGET}
                 above:

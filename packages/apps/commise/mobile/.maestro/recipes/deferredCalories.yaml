@@ -67,10 +67,12 @@ appId: ${APP_ID}
 # A failed/absent figure must cost the CARD nothing: the row is still complete and still navigable. (Without
 # this, "no skeleton" would also pass on a screen that rendered no cards at all.)
 - assertVisible: 'Recipes'
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 - assertVisible: 'Ingredients'
 # The detail's Back is a disc over the hero photo, named for where it goes ("Back to My recipes"), so it is UNIQUE: under

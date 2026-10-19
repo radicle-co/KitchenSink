@@ -39,10 +39,12 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'My recipes'
       timeout: 20000
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 - extendedWaitUntil:
       notVisible: 'My recipes'
@@ -72,10 +74,12 @@ appId: ${APP_ID}
       timeout: 20000
 
 # The avatar ("Profile, {name}", or "Profile" with no name) pushes Profile onto the Home tab, under the same tab bar.
-- scrollUntilVisible:
-      element: 'Profile.*'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Profile.*'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn: 'Profile.*'
 - extendedWaitUntil:
       visible: 'Display name'

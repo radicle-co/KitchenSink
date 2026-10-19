@@ -59,19 +59,22 @@ appId: ${APP_ID}
 # skipped the checkpoint on a system Back, this wait goes red (the native new-recipe screen always opens blank, so
 # a draft never sent would be unrecoverable).
 # Sorted by recently edited, the new draft is the FIRST card, above where the list kept its scroll: so UP.
-- scrollUntilVisible:
-      element:
-          text: 'System Back Guard Draft.*'
-      direction: UP
-      timeout: 40000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'System Back Guard Draft.*'
+          DIRECTION: UP
+          TIMEOUT: 40000
 
 # Leave the library as found: open the draft and discard it through the editor's own header menu.
 - tapOn:
       text: 'System Back Guard Draft.*'
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 - runFlow: common/discardDraft.yaml
@@ -86,15 +89,19 @@ appId: ${APP_ID}
 - assertVisible: 'Recipes'
 
 # ── LEG 3: the EDIT editor on the PUBLISHED lamb. Back leaves at once; the edit stays on the device (D1). ──
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 
@@ -121,10 +128,12 @@ appId: ${APP_ID}
 
 # ⛔ AND NOT LOST: the next open offers them back (the resume notice), and Discard there drops them, leaving the seed
 # as found. Against an editor that dropped the device draft on Back, the notice never appears.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - extendedWaitUntil:
       visible:

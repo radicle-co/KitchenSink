@@ -93,9 +93,11 @@ appId: ${APP_ID}
       cropOn: 'Today’s nutrition'
       label: 'baseline: FR-046/CR-001 roadmap skeleton placeholder'
 
-- scrollUntilVisible:
-      element: 'See all recipes'
-      direction: UP
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'See all recipes'
+          DIRECTION: UP
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

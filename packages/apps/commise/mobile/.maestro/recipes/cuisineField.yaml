@@ -37,10 +37,12 @@ appId: ${APP_ID}
 
 # The cook's own words. The list shows all 90 on focus; typing filters it, and with no match it says so and offers
 # the text as the cuisine, in the spelling it will be saved in.
-- scrollUntilVisible:
-      element: 'Cuisine'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Cuisine'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn: 'Cuisine'
 - assertVisible: 'Afghan'
 - inputText: 'nyonya'

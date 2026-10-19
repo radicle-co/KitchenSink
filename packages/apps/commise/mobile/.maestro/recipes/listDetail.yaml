@@ -49,10 +49,12 @@ appId: ${APP_ID}
 # in a `when: visible` guard: the seed cards are full-bleed 4:3, so only ~1 fits the viewport, and that
 # guard therefore SKIPPED the entire detail leg — silently, and still green — whenever the row happened to
 # sit below the fold. `scrollUntilVisible` brings it into view and fails if the seed really is missing.
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailView's first section heading. This is CHROME: a static heading that renders whatever the recipe
 # contains, so on its own it proves the component mounted and NOT that this recipe's data arrived. The content
@@ -168,11 +170,12 @@ appId: ${APP_ID}
 # The detail's Back is off the top of the screen after the walk above — scroll back UP to it rather than tapping
 # blind. It is NAMED FOR WHERE IT GOES ("Back to My recipes", this flow opened the recipe from the list), which is
 # unique: the Android system bar's node is named exactly `Back`, so this full-match selector can never reach it.
-- scrollUntilVisible:
-      element:
-          text: 'Back to My recipes'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Back to My recipes'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn:
       text: 'Back to My recipes'
 - assertVisible: 'Recipes'

@@ -33,9 +33,11 @@ appId: ${APP_ID}
 
 # Tapping the recipe widget's entry point navigates into the recipes surface. It heads the Home surface, above the
 # placeholders, so scroll back up to it.
-- scrollUntilVisible:
-      element: 'See all recipes'
-      direction: UP
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'See all recipes'
+          DIRECTION: UP
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

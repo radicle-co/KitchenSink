@@ -28,10 +28,12 @@ appId: ${APP_ID}
 
 # The probe food, then an amount the cook chose, set in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet
 # on a phone).
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Flou'
 - extendedWaitUntil:
@@ -39,11 +41,13 @@ appId: ${APP_ID}
           text: 'Your foods'
       timeout: 30000
 - tapOn: 'Flour, your food'
-- scrollUntilVisible:
-      element: 'Edit Flour'
-      # The line lands above the add field the cook is at: one page, so it is UP.
-      direction: UP
-      timeout: 30000
+# The line lands above the add field the cook is at: one page, so it is UP.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit Flour'
+          DIRECTION: UP
+          TIMEOUT: 30000
 - tapOn: 'Edit Flour'
 - tapOn: 'Amount'
 - inputText: '3'

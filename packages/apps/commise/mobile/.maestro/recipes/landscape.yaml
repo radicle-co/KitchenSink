@@ -48,10 +48,12 @@ onFlowComplete:
           text: '^1 recipe$'
       timeout: 20000
 - pressKey: Enter
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 
 # List → detail → back, on the seeded recipe the search left.
 - tapOn: '${E2E_RECIPE_LAMB}'
@@ -67,11 +69,12 @@ onFlowComplete:
       timeout: 20000
 # The detail's Back is named for where it goes ("Back to My recipes"), so it is unique: the system navigation bar
 # publishes a node named exactly `Back`, and in landscape it sits on a side edge (see maestroBackSelectorAnchoring.test.ts).
-- scrollUntilVisible:
-      element:
-          text: 'Back to My recipes'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Back to My recipes'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn:
       text: 'Back to My recipes'
 - assertVisible: 'Recipes'
@@ -91,19 +94,34 @@ onFlowComplete:
       visible: 'Discover'
       timeout: 40000
 - tapOn: 'Filters.*'
-# Sideways, the sheet's content scrolls under its pinned button and the ingredient field starts below the fold.
+# Sideways, the sheet's content scrolls under its pinned "Show {n} recipes" button, and the ingredient field starts
+# BEHIND that button: on iOS its frame is [218,336][696,382] in a 874x402 window, the button's own frame, so XCUITest
+# calls it visible, `scrollUntilVisible` stops at once, and the tap on its centre lands on the button and closes the
+# sheet (measured on lane 2, 2026-10-19). Android drops what the button covers, so it scrolls. The field is therefore
+# brought to the middle of the sheet before anything is tapped. The field is named by its example text, as in
+# `common/typeIngredientFilter.yaml`; the centring is optional because it gives up at a page end.
 - scrollUntilVisible:
-      element: 'Has ingredient'
+      element: 'chicken'
       direction: DOWN
+      centerElement: true
       timeout: 20000
+      optional: true
 - runFlow:
       file: common/typeIngredientFilter.yaml
       env:
           QUERY: '${E2E_PROBE_INGREDIENT}'
+# The result row is drawn behind the pinned "Show {n} recipes" button too (frame [173,342][701,386] against the button's
+# [336..382]), and `common/scrollIntoTapView.yaml` leaves an on-screen target where it is, so the tap would land on the
+# button and close the sheet. The row is waited for, then brought to the middle of the sheet, as the field was above.
+- extendedWaitUntil:
+      visible: 'Filter by ${E2E_PROBE_INGREDIENT}'
+      timeout: 40000
 - scrollUntilVisible:
       element: 'Filter by ${E2E_PROBE_INGREDIENT}'
       direction: DOWN
-      timeout: 40000
+      centerElement: true
+      timeout: 20000
+      optional: true
 - tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
 # ⛔ The ingredient field keeps the soft keyboard up, and sideways it covers everything below ~46% of the screen, which is
 # where `scrollUntilVisible` swipes (the screen's centre): the swipe lands on a key and moves nothing, and the unpinned
@@ -127,15 +145,19 @@ onFlowComplete:
 
 # Clear the filter again, as searchNavigation.yaml does.
 - tapOn: 'Filters.*'
-- scrollUntilVisible:
-      element: 'Remove ${E2E_PROBE_INGREDIENT}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Remove ${E2E_PROBE_INGREDIENT}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
-- scrollUntilVisible:
-      element: 'Show \d+ recipes?|Show recipes'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Show \d+ recipes?|Show recipes'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - assertNotVisible: 'No recipes match these filters'
 
@@ -152,15 +174,35 @@ onFlowComplete:
 
 # Sideways, the Title FIELD starts below the pinned bar while its label shows above it, so `tapOn: 'Title'` taps the
 # label, which focuses nothing, and the typed keys go to whatever control has focus (a Space presses it). The field is
-# reached by its placeholder, which names only the field, and is proved focused before anything is typed.
-- scrollUntilVisible:
-      element: 'e.g. Weeknight Pasta'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'e.g. Weeknight Pasta'
-- assertVisible:
-      text: 'e.g. Weeknight Pasta'
-      focused: true
+# reached by its placeholder, which names only the field, and is proved focused before anything is typed. iOS reports the
+# field's name as "Title e.g. Weeknight Pasta" (label and placeholder in one node, lane 2, 2026-10-19) and Maestro matches
+# the WHOLE text, so the placeholder is matched with a leading `.*`; Android reports the placeholder alone, which it also
+# matches.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '.*Weeknight Pasta'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '.*Weeknight Pasta'
+# Focus, per platform. Android reports which element has focus, so it is asserted directly. iOS reports no focus at all
+# (no element in an XCUITest hierarchy carries it; lane 2 dumps, 2026-10-19), so there the proof is that the keyboard is
+# up with the Title still on screen, which is the landscape defect this step guards. On both, the typing below lands in
+# the Title and the field is read back, which proves where the focus went.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '.*Weeknight Pasta'
+                focused: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                id: inputView
+          - assertVisible: '.*Weeknight Pasta'
 - inputText: 'Maestro Landscape Draft'
 # The FIELD's copy: the editor's header names the TASK ('New recipe'), never the recipe, so only the field holds it.
 - assertVisible:
@@ -171,15 +213,34 @@ onFlowComplete:
 # `common/closeEditorKeyboard.yaml`'s centred scroll would start on a key. The cook drags the strip that shows instead:
 # from the label down, the page scrolls back to the heading. Not a tap on the label: that focuses its field
 # (`labelFocus.native.ts`), and the keyboard stays.
-- repeat:
-      while:
-          notVisible: 'About the recipe'
-      times: 4
+# On iOS the drag cannot stop on "visible": XCUITest calls the heading visible while it is still under the sticky
+# header, and the tap then lands on the header and the keyboard stays (lane 2, 2026-10-19). So iOS drags to the page's
+# top, where the heading sits clear below the header. Three drags of 24% cover more than the Title's distance from the
+# top, and a drag at the top moves nothing.
+- runFlow:
+      when:
+          platform: Android
       commands:
-          - swipe:
-                start: 50%, 20%
-                end: 50%, 44%
-                duration: 500
+          - repeat:
+                while:
+                    notVisible: 'About the recipe'
+                times: 4
+                commands:
+                    - swipe:
+                          start: 50%, 20%
+                          end: 50%, 44%
+                          duration: 500
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - repeat:
+                times: 3
+                commands:
+                    - swipe:
+                          start: 50%, 20%
+                          end: 50%, 44%
+                          duration: 500
 - tapOn: 'About the recipe'
 
 # The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,
@@ -195,6 +256,18 @@ onFlowComplete:
       direction: DOWN
       speed: 10
       timeout: 40000
+# ⛔ On iOS the field counts as visible while the pinned action bar covers it: with the label at [94,298][780,315] and
+# the field at [95,341][624,389], the bar at [62,306][812,382] hides the field and the tap on the label lands on the bar's
+# edge, so nothing is focused, "Flou" goes nowhere, and the later swipes scroll the page to Photos (lane 2, 2026-10-19).
+# The label is brought to the middle of the page, which lifts the field clear of the bar; the label's tap focuses it.
+# Optional: it gives up at a page end, where nothing covers the field either.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      speed: 10
+      centerElement: true
+      timeout: 15000
+      optional: true
 - tapOn: 'Add an ingredient'
 - inputText: 'Flou'
 - runFlow:
@@ -208,10 +281,32 @@ onFlowComplete:
 # down to it, and the scroll up from there ran out of time below the Title (run 38447859313). Focused, the Title is the
 # field the page keeps in view.
 - setOrientation: PORTRAIT
-- scrollUntilVisible:
-      element: 'Maestro Landscape Draft'
-      direction: UP
-      timeout: 20000
+# On iOS the Title's node stays in the tree while the page is scrolled away from it, with bounds [0,0][0,0] and its text,
+# so XCUITest calls it visible, `scrollIntoTapView` does nothing, and the tap lands at the screen's corner and focuses
+# nothing (lane 2, 2026-10-19). The ingredient field still has the keyboard, so the page is dragged to its top in the
+# band above the keyboard, as for the heading above (more drags than the distance needs; a drag at the top moves
+# nothing). Android drops the node, so it scrolls to it.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - runFlow:
+                file: common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Maestro Landscape Draft'
+                    DIRECTION: UP
+                    TIMEOUT: 20000
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - repeat:
+                times: 6
+                commands:
+                    - swipe:
+                          start: 50%, 20%
+                          end: 50%, 44%
+                          duration: 500
 - tapOn: 'Maestro Landscape Draft'
 - setOrientation: LANDSCAPE_LEFT
 - scrollUntilVisible:

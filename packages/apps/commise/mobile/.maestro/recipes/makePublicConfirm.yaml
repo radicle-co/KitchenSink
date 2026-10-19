@@ -40,15 +40,19 @@ onFlowComplete:
 - assertVisible: 'Recipes'
 
 # ── The recipe page's ⋯ Make public ──────────────────────────────────────────────────────────────────────────────────
-- scrollUntilVisible:
-      element: '${E2E_DOWNGRADED_RECIPE}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_DOWNGRADED_RECIPE}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_DOWNGRADED_RECIPE}'
-- scrollUntilVisible:
-      element: 'More actions for .*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - tapOn: 'Make public'
 - assertVisible: 'Make this recipe public?'
@@ -61,16 +65,20 @@ onFlowComplete:
 - assertVisible: '^Private$'
 
 # ── The editor's "Who can see it" ────────────────────────────────────────────────────────────────────────────────────
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: UP
-      timeout: 10000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 10000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
-- scrollUntilVisible:
-      element: 'Public, Anyone can find it in Discover.*'
-      direction: DOWN
-      timeout: 30000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Public, Anyone can find it in Discover.*'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
 - tapOn: 'Public, Anyone can find it in Discover.*'
 - assertVisible: 'Make this recipe public?'
 - tapOn: 'Keep private'

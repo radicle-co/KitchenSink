@@ -22,9 +22,11 @@ appId: ${APP_ID}
 - assertVisible: 'What should we call you?'
 - tapOn: 'Close'
 - assertNotVisible: 'What should we call you?'
-- scrollUntilVisible:
-      element: 'Food data sources'
-      direction: DOWN
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Food data sources'
+          DIRECTION: DOWN
 - tapOn: 'Food data sources'
 
 # The page: its title, both intro sentences, and the sources a stored value cites.

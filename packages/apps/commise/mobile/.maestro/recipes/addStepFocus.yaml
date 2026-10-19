@@ -14,10 +14,12 @@ appId: ${APP_ID}
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
 
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 # No tap on the step: the field already has focus.
 - inputText: 'Fold in the cheese.'

@@ -19,10 +19,12 @@ appId: ${APP_ID}
       file: common/typeTitle.yaml
       env:
           TITLE: 'Maestro Remove Rows'
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 
 # Two declared lines, through "as written" (`create.yaml`'s prelude).
 - tapOn: 'Add an ingredient'
@@ -36,10 +38,12 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'Use .*Maestro Alpha.* as written.*'
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Beta'
 - runFlow:
@@ -53,11 +57,17 @@ appId: ${APP_ID}
       timeout: 30000
 
 # Remove the FIRST row only, from its `⋮` menu.
-- scrollUntilVisible:
-      element: 'Actions for Maestro Alpha'
-      # The line lands above the add field the cook is at: one page, so it is UP.
-      direction: UP
-      timeout: 20000
+# The line lands above the add field the cook is at: one page, so it is UP.
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for Maestro Alpha'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Alpha'
 - tapOn: 'Remove ingredient'
 - assertNotVisible: 'Actions for Maestro Alpha'

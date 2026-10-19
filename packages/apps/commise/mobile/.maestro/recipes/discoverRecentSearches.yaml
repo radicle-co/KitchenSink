@@ -48,7 +48,9 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000
-- assertVisible: 'Risotto ${E2E_RUN_KEY}'
+# The entry's button by its accessible name, not the bare words: iOS exposes the row as ONE button named
+# 'Search for “…”', so no node reads only the query (full local iOS shard 3, 2026-10-18; CI run 39165813897).
+- assertVisible: 'Search for “Risotto ${E2E_RUN_KEY}”'
 
 # 3. Tapping the entry re-runs it: the result list returns.
 - tapOn: 'Search for “Risotto ${E2E_RUN_KEY}”'
@@ -69,7 +71,9 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000
-- assertVisible: 'Risotto ${E2E_RUN_KEY}'
+# The entry's button by its accessible name, not the bare words: iOS exposes the row as ONE button named
+# 'Search for “…”', so no node reads only the query (full local iOS shard 3, 2026-10-18; CI run 39165813897).
+- assertVisible: 'Search for “Risotto ${E2E_RUN_KEY}”'
 
 # 5. Clear forgets everything — the panel goes away, and the rails are still there behind it.
 - tapOn: 'Clear recent searches'

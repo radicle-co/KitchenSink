@@ -22,10 +22,12 @@ onFlowComplete:
 - launchApp:
       clearState: true
 - runFlow: auth/signin.yaml
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 - assertVisible: 'Ingredients'
 
@@ -38,9 +40,11 @@ onFlowComplete:
 
 # Cook A signs out from the Profile page. The auth gate puts the sign-in form back.
 - tapOn: 'Profile.*'
-- scrollUntilVisible:
-      element: 'Sign out'
-      direction: DOWN
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign out'
+          DIRECTION: DOWN
 - tapOn: 'Sign out'
 - extendedWaitUntil:
       visible: 'you@example.com'
@@ -51,9 +55,11 @@ onFlowComplete:
       file: auth/signinHome.yaml
       env:
           E2E_SIGNIN_EMAIL: ${E2E_COAUTHOR_EMAIL}
-- scrollUntilVisible:
-      element: 'See all recipes'
-      direction: DOWN
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'See all recipes'
+          DIRECTION: DOWN
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

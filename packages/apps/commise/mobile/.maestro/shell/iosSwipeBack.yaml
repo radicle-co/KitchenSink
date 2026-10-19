@@ -4,10 +4,12 @@ appId: ${APP_ID}
 # does. It needs the iOS Simulator, which does not run on the owner's Linux machine (blueprint Q4), so it is NOT under
 # `config.yaml`'s discovery and runs by name on a Mac: `maestro test .maestro/shell/iosSwipeBack.yaml`.
 - runFlow: ../auth/signin.yaml
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 - extendedWaitUntil:
       notVisible: 'My recipes'

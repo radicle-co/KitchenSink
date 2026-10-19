@@ -81,10 +81,12 @@ appId: ${APP_ID}
 # PAGINATE. The load-more control (W5/C7 — server-paged, no infinite scroll) renders below the 20th row.
 # 60 s: twenty cards with covers are ten rows on a phone, and run 38433716728 reached the end of them only as a 20 s
 # timeout ran out (the failure's own hierarchy shows the control on screen).
-- scrollUntilVisible:
-      element: 'Load more'
-      direction: DOWN
-      timeout: 60000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Load more'
+          DIRECTION: DOWN
+          TIMEOUT: 60000
 - tapOn: 'Load more'
 
 # The one row that was NEVER on page 1 is now in the list — proof the second page actually loaded, not merely
@@ -113,7 +115,13 @@ appId: ${APP_ID}
       while:
           visible: 'Maestro pagination filler(, .*)?'
       commands:
-          - tapOn: 'Maestro pagination filler(, .*)?'
+          # Below the count line, never the first match anywhere: after a delete the grid keeps its scroll, its top row is
+          # clipped behind the sticky search and count, and iOS still reports that card visible, so the tap landed on the
+          # header and opened nothing (full local iOS shard 2, 2026-10-18). Maestro's `below` compares top edges, so a
+          # card whose top is under the count's top has its centre, where the tap lands, clear of the header.
+          - tapOn:
+                text: 'Maestro pagination filler(, .*)?'
+                below: '\d+ collections?'
           - tapOn: 'More actions for Maestro pagination filler'
           - tapOn: 'Delete collection'
           - tapOn: 'Delete collection'

@@ -21,9 +21,11 @@ appId: ${APP_ID}
 # `assertVisible: 'Recipes'` with no per-flow change.
 # The recipe widget heads the Home surface (the roadmap placeholders follow it, `buildSpec.md` §4.2). The scroll
 # stays as a guard for a short screen; it returns at once when the entry is already visible.
-- scrollUntilVisible:
-      element: 'See all recipes'
-      direction: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'See all recipes'
+          DIRECTION: DOWN
 - tapOn: 'See all recipes'
 
 # The recipes surface: RecipesScreen renders the "Recipes" list heading (it then fetches from the recipe

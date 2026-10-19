@@ -53,10 +53,12 @@ appId: ${APP_ID}
 # next flow can meet: every flow is reseeded, and a draft with no title never reaches the server.
 - tapOn: 'New recipe'
 - assertVisible: 'Close editor'
-- scrollUntilVisible:
-      element: 'Private, Only you can see it'
-      direction: DOWN
-      timeout: 30000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Private, Only you can see it'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
 - tapOn: 'Private, Only you can see it'
 - assertNotVisible: 'Private recipes are part of Premium.'
 # Maestro reads `checked` on iOS only from a switch's `1`/`0` value; a React Native radio's value is the phrase
@@ -81,10 +83,12 @@ appId: ${APP_ID}
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
 # than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
 # this the assertions below could vacuously pass on a non-owned detail. The owner block is in the detail's
@@ -95,10 +99,12 @@ appId: ${APP_ID}
       timeout: 20000
 # The visibility change is a secondary owner action in the ⋯ menu (§6.4): "Make public" on a private recipe,
 # "Make private" on a public one. The recipe is seeded private.
-- scrollUntilVisible:
-      element: 'More actions for .*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 # C-004 for a PREMIUM owner nothing is gated; a private recipe offers the way to public.
 - tapOn: 'Make public'

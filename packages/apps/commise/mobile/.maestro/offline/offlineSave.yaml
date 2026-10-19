@@ -19,17 +19,21 @@ tags:
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # The owner's edit entry point sits in the detail's TITLE BAND, below the hero, so reach it rather than
 # asserting blind.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 

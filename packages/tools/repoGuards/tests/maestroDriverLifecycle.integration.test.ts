@@ -49,6 +49,18 @@ import { consumableSlots } from '@kitchensink/e2e-fixtures/testPool';
 import { deriveFixtureManifest, manifestToEnvLines } from '@kitchensink/e2e-seed';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+/** What `provision` decides at run time: the leased erasure subject and the verified remote probe words. */
+const provisioned = (erasureEmail: string | null): Parameters<typeof manifestToEnvLines>[1] => ({
+    erasureEmail,
+    probeWords: {
+        appendWord: 'paneer',
+        appendFood: 'paneer run',
+        changeWord: 'gochujang',
+        unresolvedWord: 'halloumi',
+        noMatchFood: 'Maestro Zorbleflax',
+    },
+});
+
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const SCRIPT = join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
 
@@ -111,7 +123,7 @@ beforeAll(() => {
     manifest = deriveFixtureManifest(RUN_KEY, 'android', 1);
     const manifestFile = join(dir, 'fixture.env');
 
-    writeFileSync(manifestFile, `${manifestToEnvLines(manifest, ERASURE_SUBJECT).join('\n')}\n`, 'utf8');
+    writeFileSync(manifestFile, `${manifestToEnvLines(manifest, provisioned(ERASURE_SUBJECT)).join('\n')}\n`, 'utf8');
 
     // Run ONE flow through the real loop. `run-one` keeps the harness honest: the loop under test is the
     // same one CI runs, not a reimplementation.
@@ -171,7 +183,7 @@ describe('maestro driver lifecycle', () => {
         // printed-and-word-split form turned each into several arguments. Asserting the WHOLE expected pair
         // list — in order — is what makes this falsifiable in both directions: a lost `-e`, a split value,
         // or a key silently dropped from the manifest all fail it.
-        const expected = manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]);
+        const expected = manifestToEnvLines(manifest, provisioned(ERASURE_SUBJECT)).flatMap((pair) => ['-e', pair]);
 
         expect(expected.length, 'the manifest produced no pairs — the harness would be vacuous').toBeGreaterThan(0);
         expect(maestroArgv().slice(1, expected.length + 1)).toEqual(expected);
@@ -187,7 +199,7 @@ describe('maestro driver lifecycle', () => {
 
         expect(maestroArgv()).toEqual([
             'test',
-            ...manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]),
+            ...manifestToEnvLines(manifest, provisioned(ERASURE_SUBJECT)).flatMap((pair) => ['-e', pair]),
             '-e',
             'APP_ID=io.commise.mobile', // Android: the package, not the iOS bundle (maestroAppId.test.ts)
             '--driver-host-port',
@@ -247,7 +259,7 @@ describe('maestro flow loop — the first failed reset stops the shard, a failed
 
             writeFileSync(
                 manifestFile,
-                `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 'android', 1), ERASURE_SUBJECT).join('\n')}\n`,
+                `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 'android', 1), provisioned(ERASURE_SUBJECT)).join('\n')}\n`,
                 'utf8',
             );
 
@@ -332,7 +344,7 @@ describe('maestro flow loop — the first failed reset stops the shard, a failed
  * ⛔ THE LOOP REFUSES AN ERASING FLOW WHEN THE MANIFEST NAMES NO SUBJECT — before the reset, and before Maestro.
  *
  * Only the erasure shard leases a subject (`maestroErasureSlots`, testPool.ts), so every other shard's manifest is
- * written with `manifestToEnvLines(manifest, null)` and omits `E2E_ERASURE_EMAIL`. `maestroShardPartition.test.ts`
+ * written with `manifestToEnvLines(manifest, provisioned(null))` and omits `E2E_ERASURE_EMAIL`. `maestroShardPartition.test.ts`
  * executes the decision; this proves the REAL loop applies it: no `npx` (the per-flow reset) and no `maestro` call is
  * recorded, the loop exits non-zero, and it says why.
  */
@@ -365,7 +377,7 @@ describe('maestro flow loop — an erasing flow with no leased subject is never 
 
         writeFileSync(
             manifestFile,
-            `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 'android', 2), null).join('\n')}\n`,
+            `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 'android', 2), provisioned(null)).join('\n')}\n`,
             'utf8',
         );
 

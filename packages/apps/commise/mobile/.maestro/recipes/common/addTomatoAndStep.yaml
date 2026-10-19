@@ -3,10 +3,12 @@ appId: ${APP_ID}
 # Reusable sub-flow: from the editor with a title set, add one ingredient declared as written ("Tomato", no food service
 # needed) and one step, the least a recipe needs to publish but its cuisine. Called with
 # `runFlow: common/addTomatoAndStep.yaml`; it ends with the keyboard closed and the action bar reachable.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
@@ -19,11 +21,17 @@ appId: ${APP_ID}
       element: 'Edit Tomato'
       direction: UP
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
+# Into the new step's own field before typing, as `create.yaml` does. Add step moves focus there by itself
+# (`addStepFocus.yaml` proves that), but on a slow runner the text arrived first and went into the ingredient field
+# (CI run 39165813897, iOS shard 5, cuisineField: "Simmer.a" in the add field, and Publish off screen).
+- tapOn: 'Step 1'
 - inputText: 'Simmer.'
 # The step field keeps the soft keyboard up over the action bar on both platforms; a tap on the section heading closes it
 # (`common/typeTitle.yaml` says why a heading, and why not Return or `hideKeyboard`).

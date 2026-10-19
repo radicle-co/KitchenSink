@@ -36,10 +36,12 @@ appId: ${APP_ID}
 # Ingredients, below Details. REWRITTEN for UI overhaul slice 8 (build spec §7.5.3, §7.5.5): name a group first, then
 # type the amount, the food and, after a comma, the preparation into that group's add field, and declare the line "as
 # written" (no food-service dependency in this job — same rationale as `create.yaml`).
-- scrollUntilVisible:
-      element: 'Add a group'
-      direction: DOWN
-      timeout: 20000
+# To the Ingredients section through the section index (`common/jumpToSection.yaml` says why): a free scroll on this
+# short page left "Add a group" under the Sections bar on iOS, and the tap opened the bar instead.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
 - tapOn: 'Add a group'
 - tapOn: 'Group name'
 - inputText: 'For the marinade'
@@ -65,19 +67,23 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'Use .*Tomato.* as written.*'
       timeout: 30000
-# The line reads amount first, its preparation after the name (§7.5.1).
+# The line reads amount first, its preparation after the name (§7.5.1), and its open control SAYS the preparation:
+# `Edit 2 cups Tomato, finely chopped`. That accessible name is asserted, not the visible `Tomato · finely chopped`: iOS
+# exposes the row as one element named by the control, so the visible text is no node there, and the name is what a
+# screen reader speaks on both platforms (the preparation was missing from it until 2026-10-18).
 - scrollUntilVisible:
-      element: 'Edit 2 cups Tomato'
+      element: 'Edit 2 cups Tomato, finely chopped'
       direction: UP
       timeout: 20000
-- assertVisible:
-      text: '.*Tomato · finely chopped.*'
+- assertVisible: 'Edit 2 cups Tomato, finely chopped'
 
 # Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Marinate and grill.'
@@ -93,10 +99,13 @@ appId: ${APP_ID}
           text: 'Maestro Marinade Bowl.*'
       timeout: 40000
 
-# ⛔ THE PREPARATION IS ON THE SURFACE A COOK COOKS FROM. Without this the field round-trips and is invisible.
+# ⛔ THE PREPARATION IS ON THE SURFACE A COOK COOKS FROM. Without this the field round-trips and is invisible. Matched as
+# the row's checkbox name, `{amount} {food}, {preparation}` (`ingredientRowName`): iOS exposes the row as that one
+# element, so the visible `finely chopped` is no node there (full local iOS run, 2026-10-19), and Android names the
+# checkbox the same, so the one selector holds on both and still proves the preparation is its own part.
 - scrollUntilVisible:
       element:
-          text: 'finely chopped'
+          text: '2 cups Tomato, finely chopped'
       direction: DOWN
       timeout: 20000
 # ⛔ And it is its OWN text, never welded into the food's name.
@@ -104,17 +113,19 @@ appId: ${APP_ID}
       text: 'Tomato finely chopped'
 
 # Re-open the editor: the seed must carry BOTH. Dropping either here is the narrowing defect.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 # The read row carries the preparation, and the group heading the fold re-derives from the line's label returns.
 # The scroll is to the preparation itself, not to the row's name: run 38447859313 stopped with the name a 16 px sliver
 # at the action bar's edge (Maestro counts a clipped element's visible part as all of it) and the line under it hidden.
 - scrollUntilVisible:
-      element: '.*Tomato · finely chopped.*'
+      element: 'Edit 2 cups Tomato, finely chopped'
       direction: DOWN
       timeout: 20000
 - scrollUntilVisible:
@@ -122,8 +133,14 @@ appId: ${APP_ID}
           text: 'For the marinade'
       direction: UP
       timeout: 20000
-# And its editor holds the preparation in its own field. A TextInput's own value is matchable text in this suite.
-- tapOn: 'Edit 2 cups Tomato'
+# And its editor holds the preparation in its own field. A TextInput's own value is matchable text in this suite. The row
+# is reached through the section index first: the scroll up to the group heading leaves the heading at the top edge and
+# the row beside the sticky Sections bar, which took the tap on iOS (full local iOS run, 2026-10-19).
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
+- tapOn: 'Edit 2 cups Tomato, finely chopped'
 - assertVisible: 'Preparation'
 - assertVisible:
       text: 'finely chopped'

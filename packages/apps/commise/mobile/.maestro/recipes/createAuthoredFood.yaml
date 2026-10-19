@@ -19,7 +19,7 @@ appId: ${APP_ID}
 # is gone. Under the 2026-09-05 owner ruling (ADR-0032, CLAUDE.md), every end-to-end tier drives the PR's
 # DEPLOYED sandbox. The APK is built with `EXPO_PUBLIC_RECIPE_API_URL` set to `recipe-pr-{N}`, whose food service is
 # the live `food-pr-{N}` (`_ci-heavy.yml`, the `resolve-mobile-target` outputs). Run 34863424203 proved it: the
-# create SUCCEEDED ("Added Maestro Zorbleflax", line 1 `Resolved`) and the flow failed waiting for a failure that
+# create SUCCEEDED ("Added <the name>", line 1 `Resolved`) and the flow failed waiting for a failure that
 # could not happen. The refusal path is now the one no device can reach, and it stays covered by
 # `AuthoredFoodSheet.native.test.tsx` in `@commise/features-recipes`.
 #
@@ -42,10 +42,12 @@ appId: ${APP_ID}
       env:
           TITLE: 'Maestro Authored Food'
 
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 
 # A name deliberately absent from the stage's foods, so the list ends in its "Not listed?" ways, where U16's door
@@ -53,7 +55,10 @@ appId: ${APP_ID}
 # ⛔ Not 'Maestro Nut Butter': 'nut' and 'butter' are words the catalog and USDA both carry, so the list ran past a screen
 # and the option sat under the soft keyboard (iOS reports it visible there, and a tap lands on a key). One made-up word
 # has no match anywhere, so the whole list is short and the option is on screen with no scrolling.
-- inputText: 'Maestro Zorbleflax'
+# The name comes from `e2e-seed provision` (`NO_MATCH_FOOD_NAME`), which VERIFIES it before any flow runs: the real search
+# answers it with no catalog food, none of the signer's own foods and no USDA food. A food by this name left behind by a
+# purge that did not finish fails provision, so this flow never meets it.
+- inputText: '${E2E_NO_MATCH_FOOD}'
 
 # ⛔ THE DOOR ITSELF. `Use “{text}” as written` and `Create my own food` sit in the same group, and they are NOT the
 # same affordance: the first keeps an unbacked name, the second authors a real food with macros. Tapping the wrong
@@ -105,10 +110,12 @@ appId: ${APP_ID}
 
 # Re-anchor: the refused submit added a `Required` line under each field and filling them took the lines away again,
 # so the action row may have moved. `scrollUntilVisible` is a no-op when it is already in view.
-- scrollUntilVisible:
-      element: 'Create and add'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Create and add'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Create and add'
 
 # ⛔ THE FALSIFIABLE CORE. The create goes to the deployed food service and must come back as a line: the sheet
@@ -121,7 +128,7 @@ appId: ${APP_ID}
 # the control is above the sticky header and `extendedWaitUntil` waits on a node that is off screen. Scrolling up
 # still waits up to the same 40 s for the line to EXIST, so it stays the falsifiable core; `edit.yaml` does the same.
 - scrollUntilVisible:
-      element: 'Edit Maestro Zorbleflax'
+      element: 'Edit ${E2E_NO_MATCH_FOOD}'
       direction: UP
       timeout: 40000
 - assertNotVisible: 'Nutrition per 100 g'
@@ -136,13 +143,13 @@ appId: ${APP_ID}
           platform: Android
       commands:
           - assertVisible:
-                text: '^Maestro Zorbleflax$'
+                text: '^${E2E_NO_MATCH_FOOD}$'
 - runFlow:
       when:
           platform: iOS
       commands:
           - assertVisible:
-                text: 'Edit Maestro Zorbleflax'
+                text: 'Edit ${E2E_NO_MATCH_FOOD}'
 - assertNotVisible:
       text: '^Resolved$'
 

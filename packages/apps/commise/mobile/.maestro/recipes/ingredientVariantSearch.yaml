@@ -24,10 +24,12 @@ appId: ${APP_ID}
           TITLE: 'Maestro Variant Search'
 
 # One variant named: the result is the root carrying it, its option named with the part after the food (§S2).
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'fried boneless skinless chicken breasts'
 - extendedWaitUntil:

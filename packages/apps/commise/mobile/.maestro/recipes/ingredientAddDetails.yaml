@@ -24,10 +24,12 @@ appId: ${APP_ID}
 
 # The root, from the food catalog, through the trailing field. A prefix, so the field's own text never matches the
 # option's name.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'boneless skinless chicken brea'
 - extendedWaitUntil:
@@ -85,10 +87,12 @@ appId: ${APP_ID}
 # Remove it: the line is the root again.
 - tapOn: 'Actions for boneless skinless chicken breasts, roasted'
 - tapOn: 'Edit details'
-- scrollUntilVisible:
-      element: 'Remove details'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Remove details'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Remove details'
 - extendedWaitUntil:
       visible:

@@ -10,10 +10,12 @@ appId: ${APP_ID}
 # type, then pick. A pick ends the entry (`typedText="isValue"`) and dismisses the keyboard; the tap on the group's plain
 # heading stays as a belt for iOS, for `typeTitle.yaml`'s reason. After the pick the field sits at the top of the page,
 # which can leave the heading above the screen (run 38835438945, six flows), so it is scrolled back into view first.
-- scrollUntilVisible:
-      element: 'Cuisine'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Cuisine'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Cuisine'
 - inputText: 'Ital'
 - tapOn: 'Italian'

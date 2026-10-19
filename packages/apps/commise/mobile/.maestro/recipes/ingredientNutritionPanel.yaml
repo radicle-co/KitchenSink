@@ -25,10 +25,12 @@ appId: ${APP_ID}
       env:
           TITLE: 'Maestro Nutrition Panel'
 
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Flour'
 # The cook's own food is named for them (L4.2), which also keeps the tap off the field that holds the typed text.

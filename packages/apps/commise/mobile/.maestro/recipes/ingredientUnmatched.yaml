@@ -26,10 +26,12 @@ appId: ${APP_ID}
       env:
           TITLE: 'Maestro Unmatched'
 
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Glorp'
 - runFlow:

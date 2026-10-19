@@ -23,16 +23,20 @@ appId: ${APP_ID}
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
 # The INNER conflict guard below stays conditional on purpose — a single-writer run has no conflict view.
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # The edit entry point is in the owner-action block in the detail's title band.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 
 # Details — the one-page editor opens here; its × is the entry checkpoint. Every section is on the same page
@@ -50,10 +54,12 @@ appId: ${APP_ID}
 # as the create flow) so this pass makes a CONTENT change, not only a title change — but both checkpoints had to be re-aimed
 # at the row/step this flow itself adds, since the ones written against the empty fixture now land on seeded
 # content (see `edit.yaml` for the full argument).
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
@@ -83,11 +89,13 @@ appId: ${APP_ID}
       # `edit.yaml` carries the same selector and direction.
       direction: UP
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Add step'
-      # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
-      direction: DOWN
-      timeout: 20000
+# DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 # ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
 # (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
@@ -151,9 +159,11 @@ appId: ${APP_ID}
           - assertVisible:
                 text: 'Save merged version'
                 enabled: true
-          - scrollUntilVisible:
-                element: 'Save merged version'
-                direction: DOWN
+          - runFlow:
+                file: common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Save merged version'
+                    DIRECTION: DOWN
           - tapOn: 'Save merged version'
 # Back on the detail with the user's title preserved by the merge (regex tolerates the last-char input dup).
 - extendedWaitUntil:

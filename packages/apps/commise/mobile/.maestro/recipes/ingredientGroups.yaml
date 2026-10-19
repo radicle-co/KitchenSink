@@ -17,10 +17,12 @@ appId: ${APP_ID}
       env:
           TITLE: 'Maestro Groups'
 
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Cumin'
 - runFlow:
@@ -45,10 +47,16 @@ appId: ${APP_ID}
       timeout: 30000
 
 # Move up: Garlic leads, Cumin follows. An ungrouped list shows no group chrome, so the ⋯ offers no Move to group yet.
-- scrollUntilVisible:
-      element: 'Actions for Maestro Garlic'
-      direction: UP
-      timeout: 20000
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for Maestro Garlic'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Garlic'
 - assertNotVisible: 'Move to group…'
 - tapOn: 'Move up'
@@ -63,10 +71,12 @@ appId: ${APP_ID}
       above: 'Edit Maestro Cumin'
 
 # + Add a group: a name, then an empty group with its own add field.
-- scrollUntilVisible:
-      element: 'Add a group'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add a group'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add a group'
 - tapOn: 'Group name'
 - inputText: 'Paste'
@@ -76,10 +86,16 @@ appId: ${APP_ID}
 - assertVisible: 'Add to Paste'
 
 # Move to group…: Garlic joins the group, under its heading.
-- scrollUntilVisible:
-      element: 'Actions for Maestro Garlic'
-      direction: UP
-      timeout: 20000
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for Maestro Garlic'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Garlic'
 - tapOn: 'Move to group…'
 - assertVisible: 'Move to group'

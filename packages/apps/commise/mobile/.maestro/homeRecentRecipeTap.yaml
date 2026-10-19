@@ -90,11 +90,12 @@ appId: ${APP_ID}
           # (slice 3, ADR-0056), so Back pops it there. The detail's Back is off the top after the walk above, so scroll up
           # to it. It is NAMED FOR WHERE IT GOES ("Back to Home": the parent is Home), which is unique — the Android
           # system bar's node is named exactly `Back`, and a selector matches the whole string.
-          - scrollUntilVisible:
-                element:
-                    text: 'Back to Home'
-                direction: UP
-                timeout: 20000
+          - runFlow:
+                file: recipes/common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Back to Home'
+                    DIRECTION: UP
+                    TIMEOUT: 20000
           - tapOn:
                 text: 'Back to Home'
           - scrollUntilVisible:

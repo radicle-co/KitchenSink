@@ -20,10 +20,12 @@ appId: ${APP_ID}
           visible: 'Profile.*'
       commands:
           - tapOn: 'Profile.*'
-          - scrollUntilVisible:
-                element: 'Sign out'
-                direction: DOWN
-                timeout: 20000
+          - runFlow:
+                file: ../recipes/common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Sign out'
+                    DIRECTION: DOWN
+                    TIMEOUT: 20000
           - tapOn: 'Sign out'
           - extendedWaitUntil:
                 visible: 'you@example\.com'

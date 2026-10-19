@@ -24,10 +24,12 @@ appId: ${APP_ID}
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to it rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 
 # ── EDIT 1 (creates version 2) ── the seeded recipe now arrives WITH five ingredient lines and four steps of
@@ -35,10 +37,12 @@ appId: ${APP_ID}
 # satisfied when the editor opens. An ingredient and a step are still added here — exactly as `edit.yaml` does
 # — so that v2 differs from the seed in CONTENT as well as title, which is what makes the version-history
 # assertions further down about a real edit rather than a title rename.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 # Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
@@ -46,10 +50,12 @@ appId: ${APP_ID}
 - inputText: '${E2E_RECIPE_LAMB} (v2)'
 # Close the keyboard before moving on, as `common/typeTitle.yaml` does and for its reason.
 - tapOn: 'About the recipe'
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
@@ -82,11 +88,13 @@ appId: ${APP_ID}
       # `edit.yaml` carries the same selector and direction.
       direction: UP
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Add step'
-      # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
-      direction: DOWN
-      timeout: 20000
+# DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 # ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
 # (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
@@ -109,10 +117,12 @@ appId: ${APP_ID}
 # ── EDIT 2 (creates version 3, the new current) ── the ingredient/step added in EDIT 1 already persist, so
 # this pass changes ONLY the title and saves. It is the lighter second pass (no ingredient/step work), keeping this
 # flow's cost down while still producing a second, DIFFERENT version to preview/compare/restore against.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 - runFlow: common/clearTitle.yaml
@@ -127,10 +137,12 @@ appId: ${APP_ID}
 
 # ── VERSION HISTORY ── the owner's entry point is the ⋯ "More actions for {title}" menu beside "Edit recipe" in the
 # detail's action row (build spec §6.4); the menu is a bottom sheet of menu items.
-- scrollUntilVisible:
-      element: 'More actions for .*'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - tapOn: 'Version history'
 - assertVisible: 'Version history'

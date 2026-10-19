@@ -32,6 +32,18 @@ import { MAESTRO_ERASURE_SHARD, maestroErasureSlots } from '@kitchensink/e2e-fix
 import { deriveFixtureManifest, manifestToEnvLines } from '@kitchensink/e2e-seed';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+/** What `provision` decides at run time: the leased erasure subject and the verified remote probe words. */
+const provisioned = (erasureEmail: string | null): Parameters<typeof manifestToEnvLines>[1] => ({
+    erasureEmail,
+    probeWords: {
+        appendWord: 'paneer',
+        appendFood: 'paneer run',
+        changeWord: 'gochujang',
+        unresolvedWord: 'halloumi',
+        noMatchFood: 'Maestro Zorbleflax',
+    },
+});
+
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const SCRIPT = join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
 const UDID = 'AAAAAAAA-1111-2222-3333-444444444444';
@@ -94,7 +106,7 @@ function runWithStubs(args: readonly string[], env: Readonly<Record<string, stri
     const manifest = deriveFixtureManifest('pr91-ios-lifecycle', 'ios', 1);
     const manifestFile = join(dir, 'fixture.env');
 
-    writeFileSync(manifestFile, `${manifestToEnvLines(manifest, ERASURE_SUBJECT).join('\n')}\n`, 'utf8');
+    writeFileSync(manifestFile, `${manifestToEnvLines(manifest, provisioned(ERASURE_SUBJECT)).join('\n')}\n`, 'utf8');
 
     const app = join(dir, 'Commise.app');
 
@@ -152,7 +164,7 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
             '--device',
             UDID,
             'test',
-            ...manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]),
+            ...manifestToEnvLines(manifest, provisioned(ERASURE_SUBJECT)).flatMap((pair) => ['-e', pair]),
             '-e',
             'APP_ID=com.radicle-co.commise', // the iOS bundle, not the Android package (maestroAppId.test.ts)
             '--driver-host-port',

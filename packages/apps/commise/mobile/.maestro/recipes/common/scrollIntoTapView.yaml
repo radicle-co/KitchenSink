@@ -1,0 +1,63 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: scroll until `TARGET` (a full-match regex on an element's text) is on screen AND clear of the sticky
+# chrome, so the caller's tap lands on it. Called as
+# `runFlow: { file: common/scrollIntoTapView.yaml, env: { TARGET: '…', DIRECTION: UP|DOWN } }`, then the caller's own
+# `tapOn`, which keeps its own selector (index, below, childOf).
+#
+# ⛔ WHY NOT A BARE `scrollUntilVisible`. It stops the moment the element counts as visible, which is when it has just
+# come in at the screen's edge. iOS (XCUITest) counts an element visible while the sticky editor header, the pinned
+# action bar or the tab bar covers it, so the tap lands on the covering control (ingredientGroups, full local iOS shard 1,
+# 2026-10-18: the row's ⋯ was under the header's ⋯ and the header's menu opened). Android drops what an overlay covers.
+#
+# ⛔ WHY CENTRING IS OPTIONAL. Maestro's `centerElement` keeps swiping until the element is near the screen's centre or
+# the timeout ends, and never notices the end of the page (`Orchestra.scrollUntilVisible`, read from maestro-orchestra's
+# bytecode, 2026-10-18). An element at the top or bottom of a page can never reach the centre, but nothing sticky covers
+# it there either. So the first scroll is REQUIRED (the element must exist), and the centring pass is optional and short:
+# mid-page it centres the element, at a page end it gives up and the caller taps where the element already is.
+#
+# ⛔ WHY NOTHING SCROLLS WHEN THE TARGET IS ALREADY ON SCREEN. A target that comes in from off screen arrives at the
+# edge it was scrolled toward, so a centring pass in the SAME direction moves it toward the middle. A target already on
+# screen can sit on the far side of the middle, and the same pass pushes it away: with the add-ingredient field still
+# focused, it pushed the row under the iOS keyboard, which XCUITest still calls visible, and the tap typed a letter
+# instead (full local iOS shard 1, 2026-10-18: ingredientGroups typed "P", ingredientRowEditor typed "F"). An
+# on-screen target is left where it is, which is what the bare `scrollUntilVisible` this step replaced did.
+#
+# `maestroScrollThenTap.test.ts` refuses a bare `scrollUntilVisible` followed by a tap on the same element anywhere else,
+# and holds the on-screen rule above.
+- runFlow:
+      when:
+          true: ${DIRECTION == 'UP'}
+          notVisible:
+              text: ${TARGET}
+      commands:
+          - scrollUntilVisible:
+                element:
+                    text: ${TARGET}
+                direction: UP
+                timeout: "${typeof TIMEOUT === 'undefined' ? 20000 : TIMEOUT}"
+          - scrollUntilVisible:
+                element:
+                    text: ${TARGET}
+                direction: UP
+                centerElement: true
+                timeout: 4000
+                optional: true
+- runFlow:
+      when:
+          true: ${DIRECTION != 'UP'}
+          notVisible:
+              text: ${TARGET}
+      commands:
+          - scrollUntilVisible:
+                element:
+                    text: ${TARGET}
+                direction: DOWN
+                timeout: "${typeof TIMEOUT === 'undefined' ? 20000 : TIMEOUT}"
+          - scrollUntilVisible:
+                element:
+                    text: ${TARGET}
+                direction: DOWN
+                centerElement: true
+                timeout: 4000
+                optional: true

@@ -7,8 +7,10 @@ appId: ${APP_ID}
 # 60 s, the time `pinnedActionBar.yaml` measured for the same page: from the foot of a long recipe the heading arrives
 # only as a 30 s timeout runs out on CI's slower emulator (run 39153198436, conflictMerge: the failure's screenshot shows
 # the heading on screen).
-- scrollUntilVisible:
-      element: 'About the recipe'
-      direction: UP
-      timeout: 60000
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'About the recipe'
+          DIRECTION: UP
+          TIMEOUT: 60000
 - tapOn: 'About the recipe'

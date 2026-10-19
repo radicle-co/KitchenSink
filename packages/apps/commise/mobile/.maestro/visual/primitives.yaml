@@ -40,15 +40,19 @@ appId: ${APP_ID}
 
 # A recipe the signer OWNS (the salad; the lamb is the co-author's, so it has no owner menu): the More-actions
 # popover, then the delete ConfirmDialog, LEFT with "Keep recipe", so this capture flow deletes nothing.
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_SALAD}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_SALAD}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_SALAD}'
-- scrollUntilVisible:
-      element: 'More actions for .*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - extendedWaitUntil:
       visible: 'Delete recipe'

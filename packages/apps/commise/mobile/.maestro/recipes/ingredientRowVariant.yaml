@@ -23,10 +23,12 @@ appId: ${APP_ID}
           TITLE: 'Maestro Row Variant'
 
 # A variant-bound line: the root carrying its one "fried" variant.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'fried boneless skinless chicken breasts'
 - extendedWaitUntil:

@@ -1,0 +1,372 @@
+/**
+ * A BARE `scrollUntilVISIBLE` FOLLOWED BY A TAP ON THE SAME ELEMENT TAPS WHATEVER COVERS IT ON iOS.
+ *
+ * `scrollUntilVisible` stops the moment the element counts as visible, which is when it has just come in at the screen's
+ * edge. iOS (XCUITest) counts an element visible while the sticky editor header, the pinned action bar or the tab bar
+ * covers it, so the `tapOn` that follows lands on the covering control (ingredientGroups, full local iOS shard 1,
+ * 2026-10-18: a row's ⋯ was under the header's ⋯ and the header's menu opened). Android drops what an overlay covers, so
+ * it never shows.
+ *
+ * Maestro's `centerElement: true` would fix the middle of a page, but it keeps swiping until the element is near the
+ * centre or the timeout ends and never notices the end of a page (`Orchestra.scrollUntilVisible`, read from
+ * maestro-orchestra's bytecode), so a blanket `centerElement` fails at a page's end. The fix is ONE shared step,
+ * `common/scrollIntoTapView.yaml`: a required scroll, then an OPTIONAL short centring pass.
+ *
+ * The rule, over every committed flow, parsed as YAML (not grepped, so comments and quoting cannot hide a pair): a
+ * `scrollUntilVisible` immediately followed, in the same command list, by a `tapOn` of the same text is refused unless
+ * the scroll has `centerElement: true`.
+ *
+ * Exempt by rule: the shared step's own file, and LEFT/RIGHT scrolls. A horizontal rail is covered by neither the
+ * sticky header nor the bars, which sit above and below the page, never beside it.
+ *
+ * A flow that does not parse FAILS this suite. Prettier ignores `.maestro`, so this is the only syntax check a scripted
+ * edit of the flows gets before Maestro loads them.
+ */
+
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { describe, expect, it } from 'vitest';
+import { parseAllDocuments } from 'yaml';
+
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const FLOW_ROOT = 'packages/apps/commise/mobile/.maestro';
+const SHARED_STEP = 'common/scrollIntoTapView.yaml';
+const SHARED_STEP_NAME = 'scrollIntoTapView.yaml';
+
+/**
+ * Whether a path names the shared step. By file NAME, not by `common/…`: the flows beside it in `recipes/common/` call
+ * it as plain `scrollIntoTapView.yaml`, and a suffix test on `common/…` silently missed those five calls. Pure.
+ */
+const isSharedStep = (path: string): boolean => path === SHARED_STEP_NAME || path.endsWith(`/${SHARED_STEP_NAME}`);
+
+/**
+ * How many bare pairs the suite held when the shared step was introduced (136 found, 6 already centred). The floor
+ * keeps the scan honest: a parser change that stopped seeing pairs would otherwise pass with nothing to refuse.
+ */
+const MIN_SHARED_STEP_CALLS = 125;
+
+/**
+ * Pairs that stay bare on purpose, because the shared step cannot carry them. Closed: keyed by flow and element text,
+ * each entry needs a reason, and an entry that matches no pair fails the suite. Empty now: the last entry,
+ * `landscape.yaml`'s slow scroll to "Add an ingredient", is followed by a centring pass since the iOS run of 2026-10-19.
+ */
+const BARE_ALLOWED: ReadonlyArray<{ readonly file: string; readonly text: string; readonly reason: string }> = [];
+
+/** One `scrollUntilVisible` directly followed by a `tapOn` of the same text. */
+interface ScrollTapPair {
+    readonly file: string;
+    readonly text: string;
+    readonly direction: string;
+    readonly centered: boolean;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** The text a scroll's `element` or a tap's selector names: a bare string, or a `{ text }` selector. Pure. */
+function textOf(selector: unknown): string | undefined {
+    if (typeof selector === 'string') {
+        return selector;
+    }
+
+    return isRecord(selector) && typeof selector['text'] === 'string' ? selector['text'] : undefined;
+}
+
+/** Every array in a parsed YAML value (every command list, however deeply a runFlow or repeat nests it). Pure. */
+function* commandLists(value: unknown): Generator<readonly unknown[]> {
+    if (Array.isArray(value)) {
+        yield value;
+
+        for (const item of value) {
+            yield* commandLists(item);
+        }
+    } else if (isRecord(value)) {
+        for (const item of Object.values(value)) {
+            yield* commandLists(item);
+        }
+    }
+}
+
+/**
+ * Parse every YAML document in a flow, failing on any syntax error. Pure.
+ *
+ * @param file - The flow's path, for the error.
+ * @param source - The flow's YAML.
+ * @returns One parsed value per document.
+ * @throws When the source does not parse.
+ */
+export function parseFlow(file: string, source: string): readonly unknown[] {
+    return parseAllDocuments(source).map((document) => {
+        if (document.errors.length > 0) {
+            throw new Error(`${file} does not parse: ${document.errors.map((e) => e.message).join('; ')}`);
+        }
+
+        return document.toJS() as unknown;
+    });
+}
+
+/**
+ * Every scroll-then-tap pair in one flow, vertical or not. Pure.
+ *
+ * @param file - The flow's path, for the report.
+ * @param source - The flow's YAML.
+ * @returns One entry per `scrollUntilVisible` whose very next command taps the same text.
+ */
+export function scrollTapPairsIn(file: string, source: string): readonly ScrollTapPair[] {
+    return parseFlow(file, source).flatMap((document) =>
+        [...commandLists(document)].flatMap((commands) =>
+            commands.flatMap((command, index): ScrollTapPair[] => {
+                const next = commands[index + 1];
+
+                if (!isRecord(command) || !isRecord(command['scrollUntilVisible']) || !isRecord(next)) {
+                    return [];
+                }
+
+                const scroll = command['scrollUntilVisible'];
+                const scrolled = textOf(scroll['element']);
+
+                if (scrolled === undefined || scrolled !== textOf(next['tapOn'])) {
+                    return [];
+                }
+
+                const direction = typeof scroll['direction'] === 'string' ? scroll['direction'].toUpperCase() : 'DOWN';
+
+                return [{ file, text: scrolled, direction, centered: scroll['centerElement'] === true }];
+            }),
+        ),
+    );
+}
+
+/** Whether a direction is horizontal: a rail, which neither sticky chrome nor the bars cover. Pure. */
+const isHorizontal = (direction: string): boolean => direction === 'LEFT' || direction === 'RIGHT';
+
+/** Whether the pair is on the closed allowlist. Pure. */
+const isAllowed = (pair: ScrollTapPair): boolean =>
+    BARE_ALLOWED.some(({ file, text }) => pair.file === file && pair.text === text);
+
+/**
+ * The pairs this rule refuses. Pure.
+ *
+ * @param pairs - Every pair found.
+ * @returns One message per vertical, uncentred, unallowlisted pair, outside the shared step's own file.
+ */
+export function refusedPairs(pairs: readonly ScrollTapPair[]): readonly string[] {
+    return pairs
+        .filter(({ file }) => !isSharedStep(file))
+        .filter((pair) => !pair.centered && !isHorizontal(pair.direction) && !isAllowed(pair))
+        .map(
+            ({ file, text, direction }) =>
+                `${file}: scrolls ${direction} to ${JSON.stringify(text)} and taps it bare; use runFlow ${SHARED_STEP}`,
+        );
+}
+
+/** One call to the shared step, with the env it passes. */
+interface StepCall {
+    readonly file: string;
+    readonly env: Record<string, unknown>;
+}
+
+/**
+ * Every call to the shared step in one flow. Pure.
+ *
+ * @param file - The flow's path, for the report.
+ * @param source - The flow's YAML.
+ * @returns One entry per `runFlow` whose file is the shared step.
+ */
+export function stepCallsIn(file: string, source: string): readonly StepCall[] {
+    return parseFlow(file, source).flatMap((document) =>
+        [...commandLists(document)].flatMap((commands) =>
+            commands.flatMap((command): StepCall[] => {
+                if (!isRecord(command) || !isRecord(command['runFlow'])) {
+                    return [];
+                }
+
+                const call = command['runFlow'];
+                const target = call['file'];
+
+                return typeof target === 'string' && isSharedStep(target)
+                    ? [{ file, env: isRecord(call['env']) ? call['env'] : {} }]
+                    : [];
+            }),
+        ),
+    );
+}
+
+/** Calls that omit a TARGET, or pass a DIRECTION the step does not take. Pure. */
+export function malformedCalls(calls: readonly StepCall[]): readonly string[] {
+    return calls
+        .filter(
+            ({ env }) =>
+                typeof env['TARGET'] !== 'string' ||
+                env['TARGET'] === '' ||
+                (env['DIRECTION'] !== 'UP' && env['DIRECTION'] !== 'DOWN'),
+        )
+        .map(({ file, env }) => `${file}: ${SHARED_STEP} called with ${JSON.stringify(env)}`);
+}
+
+/** Every committed flow, repo-relative. */
+function flowFiles(): readonly string[] {
+    return execFileSync('git', ['ls-files', `${FLOW_ROOT}/**/*.yaml`, `${FLOW_ROOT}/*.yaml`], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+    })
+        .split('\n')
+        .filter((line) => line.length > 0);
+}
+
+const flow = (body: string): string => `appId: x\n---\n${body}`;
+const PAIR = "- scrollUntilVisible:\n    element: 'Save'\n    direction: DOWN\n- tapOn: 'Save'\n";
+
+describe('the rules themselves', () => {
+    it('refuses a bare pair', () => {
+        expect(refusedPairs(scrollTapPairsIn('a.yaml', flow(PAIR)))).toHaveLength(1);
+    });
+
+    it('finds a pair nested inside runFlow commands, a repeat and a when block', () => {
+        const nested = flow(
+            `- runFlow:\n    when:\n      platform: iOS\n    commands:\n      - repeat:\n          times: 2\n          commands:\n            - scrollUntilVisible:\n                element: 'Save'\n                direction: UP\n            - tapOn: 'Save'\n`,
+        );
+
+        expect(refusedPairs(scrollTapPairsIn('a.yaml', nested))).toHaveLength(1);
+    });
+
+    it('reads dict selectors on both sides, and a direction left at its DOWN default', () => {
+        const dict = flow(
+            "- scrollUntilVisible:\n    element:\n      text: 'Save'\n- tapOn:\n    text: 'Save'\n    index: 1\n",
+        );
+        const [pair] = scrollTapPairsIn('a.yaml', dict);
+
+        expect(pair).toMatchObject({ text: 'Save', direction: 'DOWN', centered: false });
+        expect(refusedPairs([pair as ScrollTapPair])).toHaveLength(1);
+    });
+
+    it('ignores a pair that is only in a comment', () => {
+        const commented = flow("# - scrollUntilVisible:\n#     element: 'Save'\n# - tapOn: 'Save'\n- tapOn: 'Other'\n");
+
+        expect(scrollTapPairsIn('a.yaml', commented)).toEqual([]);
+    });
+
+    it('ignores a scroll followed by a tap on a different element, or by something else', () => {
+        expect(scrollTapPairsIn('a.yaml', flow(PAIR.replace("- tapOn: 'Save'", "- tapOn: 'Cancel'")))).toEqual([]);
+        expect(scrollTapPairsIn('a.yaml', flow(PAIR.replace("- tapOn: 'Save'", "- assertVisible: 'Save'")))).toEqual(
+            [],
+        );
+    });
+
+    it('accepts a centred pair', () => {
+        const centred = PAIR.replace('direction: DOWN', 'direction: DOWN\n    centerElement: true');
+
+        expect(refusedPairs(scrollTapPairsIn('a.yaml', flow(centred)))).toEqual([]);
+    });
+
+    it('does not accept centerElement: false as centred', () => {
+        const off = PAIR.replace('direction: DOWN', 'direction: DOWN\n    centerElement: false');
+
+        expect(refusedPairs(scrollTapPairsIn('a.yaml', flow(off)))).toHaveLength(1);
+    });
+
+    it('exempts horizontal rails, in either direction', () => {
+        for (const direction of ['LEFT', 'RIGHT']) {
+            expect(refusedPairs(scrollTapPairsIn('a.yaml', flow(PAIR.replace('DOWN', direction))))).toEqual([]);
+        }
+    });
+
+    it('exempts the shared step’s own file', () => {
+        expect(refusedPairs(scrollTapPairsIn(`x/${SHARED_STEP}`, flow(PAIR)))).toEqual([]);
+    });
+
+    it('finds a call written beside the step, by its bare file name, and ignores a look-alike name', () => {
+        const call = (file: string): string =>
+            flow(`- runFlow:\n    file: ${file}\n    env:\n      TARGET: 'Save'\n      DIRECTION: UP\n`);
+
+        expect(stepCallsIn('a.yaml', call('scrollIntoTapView.yaml'))).toHaveLength(1);
+        expect(stepCallsIn('a.yaml', call('../recipes/common/scrollIntoTapView.yaml'))).toHaveLength(1);
+        expect(stepCallsIn('a.yaml', call('notscrollIntoTapView.yaml'))).toEqual([]);
+    });
+
+    it('fails, rather than skips, a flow that does not parse', () => {
+        expect(() => scrollTapPairsIn('broken.yaml', flow("- tapOn: 'Save\n- tapOn: [\n"))).toThrow(
+            /broken.yaml does not parse/,
+        );
+    });
+
+    it('finds shared-step calls and refuses one with no TARGET or a bad DIRECTION', () => {
+        const call = (env: string): string => flow(`- runFlow:\n    file: ../${SHARED_STEP}\n    env:\n${env}`);
+        const good = stepCallsIn('a.yaml', call("      TARGET: 'Save'\n      DIRECTION: UP\n"));
+        const bad = stepCallsIn('a.yaml', call("      TARGET: 'Save'\n      DIRECTION: LEFT\n"));
+        const none = stepCallsIn('a.yaml', call('      DIRECTION: UP\n'));
+
+        expect(good).toHaveLength(1);
+        expect(malformedCalls(good)).toEqual([]);
+        expect(malformedCalls(bad)).toHaveLength(1);
+        expect(malformedCalls(none)).toHaveLength(1);
+    });
+});
+
+describe('every scroll-then-tap in the Maestro suite is centred', () => {
+    const flows = flowFiles().map((file) => ({ file, source: readFileSync(join(REPO_ROOT, file), 'utf8') }));
+    const pairs = flows.flatMap(({ file, source }) => scrollTapPairsIn(file, source));
+    const calls = flows.flatMap(({ file, source }) => stepCallsIn(file, source));
+
+    it('parses every flow and finds the shared step', () => {
+        expect(flows.length).toBeGreaterThan(20);
+        expect(flows.some(({ file }) => isSharedStep(file))).toBe(true);
+    });
+
+    it('leaves no bare scroll-then-tap on the same element', () => {
+        expect(refusedPairs(pairs)).toEqual([]);
+    });
+
+    it('still calls the shared step at least as often as the suite needed it (non-vacuity)', () => {
+        expect(calls.length).toBeGreaterThanOrEqual(MIN_SHARED_STEP_CALLS);
+    });
+
+    it('calls the shared step with a TARGET and an UP or DOWN DIRECTION', () => {
+        expect(malformedCalls(calls)).toEqual([]);
+    });
+
+    it('keeps every allowlist entry live, so the allowlist cannot grow stale', () => {
+        const live = (entry: (typeof BARE_ALLOWED)[number]): boolean =>
+            pairs.some((pair) => pair.file === entry.file && pair.text === entry.text && !pair.centered);
+
+        expect(BARE_ALLOWED.filter((entry) => !live(entry)).map(({ file, text }) => `${file}: ${text}`)).toEqual([]);
+        expect(BARE_ALLOWED.filter(({ reason }) => reason.trim() === '')).toEqual([]);
+    });
+});
+
+/**
+ * The shared step scrolls ONLY when its target is not on screen yet. A target that arrives from off screen comes in at
+ * the edge it was scrolled toward, so the centring pass (in the same direction) moves it toward the middle. A target
+ * already on screen may sit on the FAR side of the middle, and the same pass then pushes it away: on iOS, with the
+ * add-ingredient field still focused, it pushed the row under the keyboard, and the tap typed a letter instead
+ * (full local iOS shard 1, 2026-10-18: ingredientGroups typed "P", ingredientRowEditor typed "F"). Leaving an
+ * on-screen target where it is is what the bare `scrollUntilVisible` did, which passed there.
+ */
+describe('the shared step leaves an on-screen target where it is', () => {
+    const source = readFileSync(join(REPO_ROOT, FLOW_ROOT, 'recipes', SHARED_STEP), 'utf8');
+    const steps = parseAllDocuments(source).at(-1)?.toJS() as unknown;
+    const blocks = (Array.isArray(steps) ? steps : []).flatMap((step: unknown) => {
+        const run = isRecord(step) ? step['runFlow'] : undefined;
+
+        return isRecord(run) && Array.isArray(run['commands']) ? [run] : [];
+    });
+
+    it('has one scroll block per direction', () => {
+        expect(blocks).toHaveLength(2);
+    });
+
+    it('gates every scroll block on the target NOT being visible yet', () => {
+        const ungated = blocks.filter((block) => {
+            const when = isRecord(block['when']) ? block['when'] : {};
+            const notVisible = when['notVisible'];
+            const target = isRecord(notVisible) ? notVisible['text'] : notVisible;
+
+            return target !== '${TARGET}';
+        });
+
+        expect(ungated).toEqual([]);
+    });
+});

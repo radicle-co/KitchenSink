@@ -19,6 +19,12 @@ appId: ${APP_ID}
           text: 'Discard draft'
           enabled: true
       timeout: 30000
+# The menu is a native Modal that slides up (`Sheet.native.tsx`), and iOS ignores touches until a modal finishes
+# presenting. The item is in the hierarchy, and so "visible", from the first frame of the slide, so a tap can land
+# mid-slide and do nothing: the sheet then sits open with the item showing (full local iOS run, 2026-10-19). Waiting for
+# the screen to stop moving puts the tap on a presented sheet.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Discard draft'
 - assertVisible: 'Discard this draft?'
 - tapOn: 'Discard'

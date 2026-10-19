@@ -38,18 +38,22 @@ appId: ${APP_ID}
 - runFlow: common/chooseCuisine.yaml
 
 # The Ingredients section, on the same page: with no lines yet, the trailing field is its first control.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 
-# A PREFIX of the run's probe food `Flour` (`e2e-seed provision`), so "Your foods" has something to keep; never 'Flour',
-# because the field's own value is matchable text.
-# ⛔ 'Flo', not 'Flou'. The service hides a USDA hit whose root the catalog already carries (ADR-0055 point 4), and the
-# curated catalog carries the flours, so a real flour word shows no USDA group at all. Measured on pr-91, 2026-10-18:
-# 'Flou' 0 USDA foods shown, 'flour' 1, 'Flo' 13 (branded products the catalog does not carry).
-- inputText: 'Flo'
+# The append word, chosen at provision (`e2e-seed provision`, `ensureRemoteProbeWords`) by asking the REAL search as the
+# signer: it showed at least three USDA foods. Provision also authored the signer's own food `<word> <run key>`
+# (`E2E_REMOTE_APPEND_FOOD`), so "Your foods" has something to keep. The field holds the bare word and the food carries the
+# run key after it, so the field's own value never matches the food's row.
+# ⛔ Not a literal. The service hides a USDA hit whose root the catalog already carries (ADR-0055 point 4), so a literal
+# word goes stale as the catalog grows ('Flou' showed no USDA group, 'butter' two foods and then none, on pr-91 on
+# 2026-10-18). A stage that has outgrown every candidate fails provision, naming the words, instead of this flow.
+- inputText: '${E2E_REMOTE_APPEND_WORD}'
 - extendedWaitUntil:
       visible:
           text: 'Your foods'
@@ -62,13 +66,13 @@ appId: ${APP_ID}
       file: common/scrollOpenList.yaml
       env:
           TARGET: 'From USDA'
-      label: 'USDA answered the progressive search for "flo" on this stage'
+      label: 'USDA answered the progressive search for the append word on this stage'
 - assertNotVisible: 'Search USDA for .*'
 # It appended: the cook's own food is still listed.
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
-          TARGET: 'Flour, your food'
+          TARGET: '${E2E_REMOTE_APPEND_FOOD}, your food'
           DIRECTION: UP
 
 # One remote pick. Its name ends in its source (`hitName`), which no database option's does.
@@ -87,26 +91,28 @@ appId: ${APP_ID}
 
 # Change food on that line, to a second remote food. The field opens on the food's name with the caret at its end, so
 # the name is erased first; a branded name can run past 70 characters.
-# 'gochujang', for the reason 'Flo' is used above: 'butter' showed only 2 USDA foods on pr-91 (2026-10-18), and one more
-# catalog row would take it to none. 'gochujang' showed 20.
+# The change word, chosen at provision like the append word, with one more condition: the FIRST USDA food names it, because
+# this flow taps index 0 and then asserts the row is named for the word.
 # iOS: after a pick the keyboard may still be on its way down (or up again, when the keyboard's first-use card was
 # dismissed), and the page shifts by the keyboard's height as it moves. A tap on the row's menu lands on the position the
 # row had when it was read, so the menu did not open and "Change food" was never on screen (2 of 3 runs, 2026-10-18).
 # Closing the keyboard first, as `edit.yaml` does, makes the layout still before the tap.
 - runFlow: common/closeEditorKeyboard.yaml
-- scrollUntilVisible:
-      element: 'Actions for .*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for .*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Actions for .*'
 - tapOn: 'Change food'
 - eraseText: 120
-- inputText: 'gochujang'
+- inputText: '${E2E_REMOTE_CHANGE_WORD}'
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
           TARGET: 'From USDA'
-      label: 'USDA answered the progressive search for "gochujang" on this stage'
+      label: 'USDA answered the progressive search for the change word on this stage'
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
@@ -115,19 +121,21 @@ appId: ${APP_ID}
       text: '.*, from USDA'
       index: 0
 # The pick closed the list and left Change food. The row's open control is named for the line's food, so it names
-# gochujang only once the second remote pick has moved the line (before it, it names the first pick's food).
+# the change word only once the second remote pick has moved the line (before it, it names the first pick's food).
 - extendedWaitUntil:
       visible:
-          text: 'Edit .*[Gg]ochujang.*'
+          text: 'Edit .*${E2E_REMOTE_CHANGE_WORD}.*'
       timeout: 40000
       label: 'the second remote pick moved the line to its root'
 - assertNotVisible: '.*, from USDA'
 
 # Finish the recipe, so the remote foods are proven usable.
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add step'
 - tapOn: 'Step 1'
 - inputText: 'Whisk and rest.'

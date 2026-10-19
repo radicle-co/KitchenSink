@@ -44,17 +44,21 @@ appId: ${APP_ID}
 
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # RecipeDetailScreen: the owner's edit entry point sits in the detail's TITLE BAND, beside the recipe name
 # (it used to sit at the foot of the detail); the band is below the hero, so it may still need a scroll.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 
 # REWRITTEN for slice 7: the one-page editor. Its × ('Close editor') is the header's deliberate exit and the entry
@@ -72,12 +76,16 @@ appId: ${APP_ID}
 # Anchored on "Add photos" — the LAST element of the manager block — not on "Photos": the section index names the
 # section too, so a scroll anchored there could settle without ever moving (the same wrong-anchor trap `rating.yaml`
 # fell into). Reaching "Add photos" puts the whole manager, empty state included, on screen.
-- scrollUntilVisible:
-      element: 'Add photos'
-      direction: DOWN
-      # ⚠️ 60 s, not 20: the one-page editor puts Photos below every step, and at speed 40 the lamb's four steps
-      # outlast 20 s on the swiftshader AVD (measured 2026-10-09: two runs stopped at Step 4).
-      timeout: 60000
+# ⚠️ 60 s, not 20: the one-page editor puts Photos below every step, and at speed 40 the lamb's four steps outlast 20 s
+# on the swiftshader AVD (measured 2026-10-09: two runs stopped at Step 4). Through the shared step, not a bare scroll:
+# a bare scroll stops with "Add photos" at the bottom edge, under the pinned action bar, and iOS still calls it visible
+# there, so the tap below opened Preview instead (full local iOS run, 2026-10-19).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add photos'
+          DIRECTION: DOWN
+          TIMEOUT: 60000
 # A-010 (buildSpec §7.7): the empty state previews the recipe's own cover and says what happens.
 # ⚠️ Maestro reads the text as a REGEX, so the question mark is escaped: unescaped, `photo?` makes the "o" optional and
 # the literal "?" on screen would not match.

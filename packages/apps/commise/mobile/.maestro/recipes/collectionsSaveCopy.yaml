@@ -53,7 +53,14 @@ appId: ${APP_ID}
 # CLEANUP (hermetic). Delete the copy first, while its name still collides with the source's (the action passes no name
 # override) — no name-based lookup is needed here since we are already ON its detail. Back on the list, the source is
 # now the ONLY "Maestro clone source" row, so it can be found by name and deleted too.
+# The copy's detail arrives by a native push, and the source's detail, with the SAME "More actions for …" label, stays
+# mounted under it. iOS ignores a tap while the push or the menu's slide-up still runs, so a tap there opened nothing
+# (full local iOS run, 2026-10-19). Let each transition finish before the tap that depends on it.
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'More actions for Maestro clone source'
+- waitForAnimationToEnd:
+      timeout: 3000
 - tapOn: 'Delete collection'
 - tapOn: 'Delete collection'
 - extendedWaitUntil:

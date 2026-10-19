@@ -29,15 +29,19 @@ appId: ${APP_ID}
 
 - assertVisible: 'Recipes'
 
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 # The editor's own × is the entry checkpoint. Unlike a bare `Back`, it cannot be satisfied by Android's three-button
 # navigation bar, which publishes a node named exactly `Back` (`com.android.systemui:id/back`) — the selector trap
@@ -53,10 +57,12 @@ appId: ${APP_ID}
 - repeat:
       times: 3
       commands:
-          - scrollUntilVisible:
-                element: 'Add an ingredient'
-                direction: DOWN
-                timeout: 20000
+          - runFlow:
+                file: common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Add an ingredient'
+                    DIRECTION: DOWN
+                    TIMEOUT: 20000
           - tapOn: 'Add an ingredient'
           - inputText: 'Tamarind'
           - runFlow:
@@ -107,10 +113,12 @@ appId: ${APP_ID}
 # real device. The keyboard is closed again by the next tap, never by `hideKeyboard` (a BACK event on Android).
 # 60 s: from the foot of a published recipe's whole page to its Title is a long way at Maestro's scroll speed, and run
 # 38447859313 reached it only as a 30 s timeout ran out (the failure's own hierarchy shows the Title on screen).
-- scrollUntilVisible:
-      element: 'Title'
-      direction: UP
-      timeout: 60000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Title'
+          DIRECTION: UP
+          TIMEOUT: 60000
 - tapOn: 'Title'
 - assertNotVisible:
       text: 'Sections\. Current: .*'

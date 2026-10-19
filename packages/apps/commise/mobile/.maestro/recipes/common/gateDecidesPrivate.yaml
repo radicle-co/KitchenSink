@@ -13,8 +13,14 @@ appId: ${APP_ID}
 ---
 - runFlow: ../../auth/signinHome.yaml
 # A role user with no recipes sees Home's first run, which hides the floating button and offers "Add your first recipe"
-# in its place (build spec §3.4); both open the same empty editor.
-- tapOn: 'New recipe|Add your first recipe'
+# in its place (build spec §3.4). The role users author nothing, so their Home is always first run. ⛔ Wait for it rather
+# than tap either control: until the recipe list has loaded, `useHomeFirstRun` reads false and the floating "New recipe"
+# shows, then it is removed when the empty list arrives, and a tap in that window lands on a button that is gone
+# (full local Android shard 2, 2026-10-18: the editor never opened).
+- extendedWaitUntil:
+      visible: 'Add your first recipe'
+      timeout: 30000
+- tapOn: 'Add your first recipe'
 - assertVisible: 'Close editor'
 - scrollUntilVisible:
       element: 'Who can see it.*'

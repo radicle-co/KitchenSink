@@ -29,10 +29,12 @@ appId: ${APP_ID}
 - assertVisible: 'Recipe published.'
 
 # A published recipe's primary is Save changes.
-- scrollUntilVisible:
-      element: 'Edit recipe'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
 # ⚠️ A tap on a filled Android field puts the caret where the finger landed, not at the end (run 38973223138 read

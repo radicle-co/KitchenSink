@@ -37,11 +37,12 @@ appId: ${APP_ID}
       file: common/searchDiscover.yaml
       env:
           QUERY: 'Risotto ${E2E_RUN_KEY}'
-- scrollUntilVisible:
-      element:
-          text: '^${E2E_RECIPE_RISOTTO}$'
-      direction: DOWN
-      timeout: 30000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_RISOTTO}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
 # Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the card's "Save a copy of Herb Risotto"
 # button whose label also contains the title. The result list renders each recipe once, so the old
 # `above: 'New'` rail disambiguation no longer has anything to disambiguate.
@@ -104,9 +105,11 @@ appId: ${APP_ID}
 # `Remove my rating` lands just off-screen and a bare `assertVisible` passes or fails on where
 # the scroll increments happened to stop. It is still an assertion that the control APPEARS;
 # `scrollUntilVisible` fails if it does not exist.
-- scrollUntilVisible:
-      element: 'Remove my rating'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Remove my rating'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Remove my rating'
 - assertNotVisible: 'Remove my rating'

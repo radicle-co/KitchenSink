@@ -211,10 +211,12 @@ appId: ${APP_ID}
       file: common/typeIngredientFilter.yaml
       env:
           QUERY: '${E2E_PROBE_INGREDIENT}'
-- scrollUntilVisible:
-      element: 'Filter by ${E2E_PROBE_INGREDIENT}'
-      direction: DOWN
-      timeout: 40000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Filter by ${E2E_PROBE_INGREDIENT}'
+          DIRECTION: DOWN
+          TIMEOUT: 40000
 - tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:

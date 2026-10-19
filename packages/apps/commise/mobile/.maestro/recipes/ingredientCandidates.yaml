@@ -9,14 +9,20 @@ appId: ${APP_ID}
 # makes one: "Find nutrition for" admits the words by name, and a name that OUR database's search finds nothing for lands
 # `UNRESOLVED` and is committed as it is (`useLineCommit`; the cascade's lexical tier binds any hit).
 #
-# ⛔ THE WORDS ARE THE ONE FIXED WORD `halloumi`, and that is repeatable only because the run's reset takes the pick back.
-# USDA matches ANY word of a query (`requireAllWords: false`), so a lookup of `halloumi` lands `UNRESOLVED` with USDA's
-# halloumi foods as candidates. The remote pick below turns one of them into a new catalog root, and that root then hides
-# its hit from every later search (ADR-0055 point 4), so a second run would find nothing to pick. Owner ruling 2026-10-16
-# ("Clean up test-picked foods"): `e2e-seed resetPool --tier maestro` (before AND after the tier) calls food-service's
-# test-purge door, which deletes the roots THIS slot's own pick created, and only those (ADR-0040;
-# `testPickedRootPolicy.ts`). The slot's author-scoped correction for the word goes with the recipe purge. Do NOT
-# make the word random again: a per-run suffix hid the leak instead of closing it, and it left a root behind per run.
+# ⛔ THE WORD IS CHOSEN AND VERIFIED AT PROVISION (`E2E_UNRESOLVED_WORD`; `e2e-seed provision`, `ensureRemoteProbeWords`), and
+# it is repeatable only because the run's reset takes the pick back. USDA matches ANY word of a query
+# (`requireAllWords: false`), so a lookup of the word lands `UNRESOLVED` with USDA's foods as candidates. The remote pick
+# below turns one of them into a new catalog root, and that root then hides its hit from every later search (ADR-0055
+# point 4), so a second run would find nothing to pick. Owner ruling 2026-10-16 ("Clean up test-picked foods"):
+# `e2e-seed resetPool --tier maestro` (before AND after the tier) calls food-service's test-purge door, which deletes the
+# roots THIS slot's own pick created, and only those (ADR-0040; `testPickedRootPolicy.ts`). The slot's author-scoped
+# correction for the word goes with the recipe purge. Do NOT make the word random again: a per-run suffix hid the leak
+# instead of closing it, and it left a root behind per run.
+# Provision rejects a word when (a) our database already holds it, (b) fewer than three USDA foods show, or (c) a shown
+# USDA food has the word as its whole name. (c) matters because "Find nutrition for" leaves a PENDING catalog root under
+# the word, and a pick named exactly like it would COMPLETE that root instead of creating one: the purge only takes roots a
+# pick CREATED, so the word would then bind on the next run and this line would never land `UNRESOLVED`. There is no
+# fallback word: a failure here is a finding about the purge, not something to walk past.
 #
 # It spends one name lookup and one remote pick from the signer's source budget. Leaving with × leaves one draft
 # recipe, which the next flow's reset deletes.
@@ -32,10 +38,12 @@ appId: ${APP_ID}
           TITLE: 'Maestro Row Candidates'
 
 # A row to work on: the run's probe food `Flour` (`e2e-seed provision`).
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Flou'
 - extendedWaitUntil:
@@ -54,16 +62,16 @@ appId: ${APP_ID}
 - tapOn: 'Actions for Flour'
 - tapOn: 'Change food'
 - eraseText: 20
-- inputText: 'halloumi'
+- inputText: '${E2E_UNRESOLVED_WORD}'
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
-          TARGET: 'Find nutrition for “halloumi”'
-- tapOn: 'Find nutrition for “halloumi”'
+          TARGET: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
+- tapOn: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
 
 # UI overhaul slice 8 (build spec §7.5.1): the row says it needs a choice in an attention line under its name.
 - extendedWaitUntil:
-      # iOS reads the line as one label, "Choose a match: halloumi", so the words after the colon are allowed.
+      # iOS reads the line as one label, "Choose a match: <word>", so the words after the colon are allowed.
       visible:
           text: 'Choose a match.*'
       timeout: 60000

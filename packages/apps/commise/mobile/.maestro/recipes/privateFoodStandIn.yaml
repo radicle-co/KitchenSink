@@ -27,11 +27,12 @@ appId: ${APP_ID}
       file: common/searchDiscover.yaml
       env:
           QUERY: 'Crostini ${E2E_RUN_KEY}'
-- scrollUntilVisible:
-      element:
-          text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
-      direction: DOWN
-      timeout: 30000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
 - tapOn:
       text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
 
@@ -53,10 +54,12 @@ appId: ${APP_ID}
 
 # Save a copy from the page, as in `discoverDetailSaveCopy`. The copy opens in the editor (FR-005b) over its own
 # detail; leaving the untouched editor lands on that detail. The editor landmark is its own × ('Close editor').
-- scrollUntilVisible:
-      element: 'Save a copy'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Save a copy'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn: 'Save a copy'
 - extendedWaitUntil:
       visible: 'Close editor'

@@ -6,10 +6,12 @@ appId: ${APP_ID}
 # It needs NO food service (`create.yaml`'s prelude). It scrolls to the field first, because a flow that has added a
 # line stands wherever the last pick left the page. It ENDS on the line committed, with the field still focused, so a
 # caller can assert where the page is left without any scroll of its own.
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'Add an ingredient'
 - inputText: ${NAME}
 - runFlow:

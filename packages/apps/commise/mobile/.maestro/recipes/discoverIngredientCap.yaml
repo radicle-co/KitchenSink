@@ -31,11 +31,12 @@ appId: ${APP_ID}
 - repeat:
       times: 6
       commands:
-          - scrollUntilVisible:
-                element:
-                    text: '^Filter by ${E2E_CAP_FOOD_PREFIX} .+$'
-                direction: DOWN
-                timeout: 40000
+          - runFlow:
+                file: common/scrollIntoTapView.yaml
+                env:
+                    TARGET: '^Filter by ${E2E_CAP_FOOD_PREFIX} .+$'
+                    DIRECTION: DOWN
+                    TIMEOUT: 40000
           - tapOn:
                 text: '^Filter by ${E2E_CAP_FOOD_PREFIX} .+$'
 

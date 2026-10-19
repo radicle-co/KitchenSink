@@ -55,9 +55,11 @@ appId: ${APP_ID}
 
 # Cross into the recipes surface and open the recipe editor. `scrollUntilVisible` first: the recipe widget's
 # entry heads Home, above the roadmap placeholders this flow just scrolled down to.
-- scrollUntilVisible:
-      element: 'See all recipes'
-      direction: UP
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'See all recipes'
+          DIRECTION: UP
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

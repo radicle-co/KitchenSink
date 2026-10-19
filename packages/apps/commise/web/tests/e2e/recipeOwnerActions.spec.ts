@@ -32,6 +32,8 @@ import { signInWithTicket } from './utils/auth';
  */
 const RECIPE_ID = 'ec000000-0000-4000-8000-000000000018';
 const RECIPE_TITLE = 'Ember Roast Chicken';
+const SIBLING_RECIPE_ID = 'ec000000-0000-4000-8000-000000000019';
+const SIBLING_TITLE = 'Cold Lemon Tart';
 
 /** The computed facts that distinguish a design-system control from bare text. */
 interface ControlSurface {
@@ -86,13 +88,19 @@ async function expectDesignSystemSurface(locator: Locator): Promise<void> {
 }
 
 /** Sign in, seed ONE recipe owned by the live viewer, and land on its detail. */
-async function openOwnRecipe(page: Page): Promise<void> {
+async function openOwnRecipe(page: Page, siblingTitle?: string): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
         paidFeatures: 'granted',
-        recipes: [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title: RECIPE_TITLE })],
+        recipes: [
+            makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title: RECIPE_TITLE }),
+            // A second owned recipe, so a test can prove the list rendered after a delete (audit 2026-10-19, A3.13).
+            ...(siblingTitle === undefined
+                ? []
+                : [makeRecipeDetail({ id: SIBLING_RECIPE_ID, ownerId: viewerId, title: siblingTitle })]),
+        ],
     });
 
     await page.goto(route(`/recipes/${RECIPE_ID}`));
@@ -183,7 +191,7 @@ test.describe('recipe-detail owner actions', () => {
     });
 
     test('Delete confirms in an alertdialog, then deletes and returns to the recipes list', async ({ page }) => {
-        await openOwnRecipe(page);
+        await openOwnRecipe(page, SIBLING_TITLE);
 
         await page.getByRole('button', { name: /^More actions for /u }).click();
 
@@ -212,9 +220,13 @@ test.describe('recipe-detail owner actions', () => {
         // Confirming deletes and lands back on the recipes list — WITHOUT the recipe.
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        await expect(page.getByRole('button', { name: RECIPE_TITLE })).toHaveCount(0);
-        // Owner 2026-10-13: the screen the cook lands on says so.
+        // Owner 2026-10-13: the screen the cook lands on says so. This is also the settle anchor for the absence below.
         await expect(page.getByRole('status').filter({ hasText: 'Recipe deleted' })).toBeVisible();
+        // Audit 2026-10-19, A3.13: the card title on the list is a link inside an `article`, never a button, so the old
+        // `getByRole('button', …)` count of 0 matched nothing and passed whether or not the delete worked. The sibling
+        // card proves the list rendered; only then is the deleted card's absence a real answer.
+        await expect(page.getByRole('article', { name: SIBLING_TITLE })).toBeVisible();
+        await expect(page.getByRole('article', { name: RECIPE_TITLE })).toHaveCount(0);
     });
 
     test('a NON-owner sees no owner actions at all', async ({ page }) => {

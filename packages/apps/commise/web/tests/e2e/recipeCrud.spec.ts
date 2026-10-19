@@ -134,6 +134,11 @@ test.describe('recipe CRUD (T079)', () => {
             .getByRole('button', { name: 'Delete recipe' })
             .click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
-        await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toHaveCount(0);
+        // Audit 2026-10-19, A3.14: the heading absence used to run straight after the URL change, before the list drew,
+        // and the list was cached before the recipe existed. Anchor on the settled list (the seed card and the
+        // "Recipe deleted" status), then look for the deleted card as an article, which is what the list renders.
+        await expect(page.getByRole('status').filter({ hasText: 'Recipe deleted' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Seed Recipe' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'E2E Ratatouille (edited)' })).toHaveCount(0);
     });
 });

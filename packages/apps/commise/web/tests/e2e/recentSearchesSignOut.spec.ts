@@ -39,8 +39,16 @@ test.describe('discovery recent searches — ended by sign-out (D23)', () => {
         await signInWithTicket(page, { force: true });
         await page.goto(route('/discover'));
         await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
-        await page.getByRole('searchbox', { name: 'Search recipes' }).click();
-        await expect(page.getByRole('region', { name: 'Recent searches' })).toHaveCount(0);
+        const freshBox = page.getByRole('searchbox', { name: 'Search recipes' });
+        await freshBox.click();
+        // Audit 2026-10-19, A3.19: the history read is a promise, so an absence check right after the click can pass
+        // before the read lands. Run a new search (not “paella”) so the panel offers it, which proves the store has loaded; only then
+        // is the missing "paella" a real answer.
+        await freshBox.fill('seafood');
+        await expect(page.getByText('1 recipe for “seafood”', { exact: true })).toHaveCount(1);
+        await freshBox.fill('');
+        await expect(page.getByRole('button', { name: 'Search for “seafood”' })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Recent searches' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Search for “paella”' })).toHaveCount(0);
     });
 });

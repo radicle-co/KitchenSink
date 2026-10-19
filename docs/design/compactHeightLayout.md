@@ -80,6 +80,10 @@ matters. Every iPad and every upright phone is 480 dp tall or more.
 **Keyed on the window, never on the keyboard.** The input is `useWindowDimensions().height`. ⛔ Never use the height
 left above the keyboard. A layout that changes with the keyboard can remount the focused field. Then the field
 loses focus, the keyboard closes, and the layout changes back. The keyboard has its own input (`useKeyboardShown`).
+`useKeyboardShown` moves with the keyboard avoider's padding: on iOS it follows `keyboardWillShow` and
+`keyboardWillHide` and reads the height from the event (`Keyboard.isVisible()` and `Keyboard.metrics()` change only
+on `keyboardDidShow`), so the chrome collapses in the same moment the padding arrives. Android sends only the Did
+events and keeps them.
 ⚠️ A device check is owed (§13.3). Opening the keyboard on Android must leave `useWindowDimensions().height`
 unchanged.
 

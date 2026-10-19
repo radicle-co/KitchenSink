@@ -13,16 +13,23 @@
 import { useId, type FC } from 'react';
 
 import { FIELD_CLASS } from '../input/fieldClass.js';
+import { DURATION_BOX_MIN_WIDTH_CSS } from './boxWidth.js';
 import { durationBoxes, durationFromBoxes } from './duration.js';
 import type { DurationFieldProps } from './props.js';
 
 /**
  * The box chrome: the shared field surface (the Input rules, spec §1.11), narrowed to a number's width. Each box takes
- * an equal share of its cell (`flex-1`) rather than a fixed width, so the whole field fits the 136 px a
- * half-width cell has at 320 (build spec §7.4), and gives back half the surface's side padding (`px-2!`: `FIELD_CLASS`
- * sets `px-4`, and the stylesheet's emission order would decide a plain clash) so two digits still fit in it.
+ * an equal share of its cell (`flex-1`) rather than a fixed width, so the whole field fits the 136 px a half-width cell
+ * has at 320 (build spec §7.4). It gives back half the surface's side padding (`px-2!`: `FIELD_CLASS` sets `px-4`, and
+ * the stylesheet's emission order would decide a plain clash), and draws no spin buttons, which take the digits' room
+ * and are too small to tap. Its least width is two digits (`./boxWidth.ts`).
  */
-const box = `min-w-0 flex-1 px-2! text-ink ${FIELD_CLASS}`;
+const box =
+    `flex-1 px-2! text-ink [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none ` +
+    `[&::-webkit-outer-spin-button]:appearance-none ${FIELD_CLASS}`;
+
+/** A box and its unit stay on one line together; the row wraps between the two pairs at large text sizes. */
+const pair = 'flex flex-1 items-center gap-1';
 
 export const DurationField: FC<DurationFieldProps> = ({
     label,
@@ -41,33 +48,39 @@ export const DurationField: FC<DurationFieldProps> = ({
             <span id={labelId} className="text-label text-ink-muted">
                 {label}
             </span>
-            <div className="flex items-center gap-2">
-                <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    aria-label={hoursLabel}
-                    value={shown.hours}
-                    onChange={(event) => onChange(durationFromBoxes(event.target.value, shown.minutes))}
-                    className={box}
-                />
-                <span aria-hidden="true" className="text-meta text-ink-muted">
-                    {hoursUnit}
-                </span>
-                <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    aria-label={minutesLabel}
-                    value={shown.minutes}
-                    onChange={(event) => onChange(durationFromBoxes(shown.hours, event.target.value))}
-                    className={box}
-                />
-                <span aria-hidden="true" className="text-meta text-ink-muted">
-                    {minutesUnit}
-                </span>
+            <div className="flex flex-wrap items-center gap-2">
+                <div className={pair}>
+                    <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        aria-label={hoursLabel}
+                        value={shown.hours}
+                        onChange={(event) => onChange(durationFromBoxes(event.target.value, shown.minutes))}
+                        style={{ minWidth: DURATION_BOX_MIN_WIDTH_CSS }}
+                        className={box}
+                    />
+                    <span aria-hidden="true" className="text-meta text-ink-muted">
+                        {hoursUnit}
+                    </span>
+                </div>
+                <div className={pair}>
+                    <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        aria-label={minutesLabel}
+                        value={shown.minutes}
+                        onChange={(event) => onChange(durationFromBoxes(shown.hours, event.target.value))}
+                        style={{ minWidth: DURATION_BOX_MIN_WIDTH_CSS }}
+                        className={box}
+                    />
+                    <span aria-hidden="true" className="text-meta text-ink-muted">
+                        {minutesUnit}
+                    </span>
+                </div>
             </div>
         </div>
     );

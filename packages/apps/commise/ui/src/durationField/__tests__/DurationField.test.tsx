@@ -112,8 +112,53 @@ describe('DurationField (web)', () => {
             const classes = box.className.split(/\s+/u);
 
             expect(classes).not.toContain('w-20');
-            expect(classes).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'px-2!']));
+            expect(classes).toEqual(expect.arrayContaining(['flex-1', 'px-2!']));
         }
+    });
+
+    // Owner, the step timer on a phone: "the input for hour and minute ... are too skinny. They need to support at
+    // least two digits." Rewritten from `min-w-0`, which let a box in an auto-width row collapse to one character.
+    it('never narrows a box below two of the face’s widest digit, in em so it grows with the text', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            // jsdom reorders a `calc()` sum, so the terms are compared as a set.
+            const terms = box.style.minWidth
+                .replace(/^calc\((.*)\)$/u, '$1')
+                .split(' + ')
+                .sort();
+
+            expect(terms).toEqual(['1.3em', '1rem', '2px']);
+            expect(box.className.split(/\s+/u)).not.toContain('min-w-0');
+        }
+    });
+
+    it('draws no spin buttons, which would take the digits’ room and are too small to tap', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            expect(box.className.split(/\s+/u)).toEqual(
+                expect.arrayContaining([
+                    '[appearance:textfield]',
+                    '[&::-webkit-inner-spin-button]:appearance-none',
+                    '[&::-webkit-outer-spin-button]:appearance-none',
+                ]),
+            );
+        }
+    });
+
+    // At 200% text the two pairs no longer fit a 136 px cell, so the minutes pair moves under the hours pair whole: a
+    // unit never parts from its box, and nothing scrolls sideways.
+    it('keeps each box with its unit, and lets the minutes pair wrap under the hours pair', () => {
+        renderField();
+
+        const hoursPair = hours().parentElement as HTMLElement;
+        const minutesPair = minutes().parentElement as HTMLElement;
+
+        expect(hoursPair).toBe(screen.getByText('h').parentElement);
+        expect(minutesPair).toBe(screen.getByText('min').parentElement);
+        expect(hoursPair.parentElement).toBe(minutesPair.parentElement);
+        expect((hoursPair.parentElement as HTMLElement).className.split(/\s+/u)).toContain('flex-wrap');
     });
 
     // UI-overhaul slice 2: the boxes take the Input rules (`FIELD_CLASS`) rather than a geometry of their own.

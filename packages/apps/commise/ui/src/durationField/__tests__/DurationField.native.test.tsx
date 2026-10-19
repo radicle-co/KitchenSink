@@ -9,12 +9,27 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const env = vi.hoisted(() => ({ fontScale: 1 }));
+
+// The system text size (Android font scale, iOS Dynamic Type). react-native-web always answers 1.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: env.fontScale }),
+    };
+});
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { role } from '../../tokens/colors.js';
 import { DurationField } from '../DurationField.native.js';
 import type { DurationFieldProps } from '../props.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    env.fontScale = 1;
+});
 
 function renderField(overrides: Partial<DurationFieldProps> = {}) {
     const onChange = vi.fn();
@@ -41,7 +56,7 @@ const minutes = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>(
 describe('DurationField (native) — a 136 px cell (A-009)', () => {
     // A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 px each at 320"): two boxes at a fixed
     // 80 dp plus their units are about 220 dp, which wrapped Cook onto its own line. The boxes share the room instead.
-    it('has no fixed box width: the boxes share the room the cell gives them, and still hold two digits', () => {
+    it('has no fixed box width: the boxes share the room the cell gives them, with the tighter number padding', () => {
         renderField();
 
         for (const box of [hours(), minutes()]) {
@@ -49,9 +64,41 @@ describe('DurationField (native) — a 136 px cell (A-009)', () => {
 
             expect(style.width).not.toBe('80px');
             expect(style.flexGrow).toBe('1');
-            expect(style.minWidth).toBe('0px');
             expect(style.paddingLeft).toBe('8px');
         }
+    });
+
+    // Owner, the step timer on a phone: "the input for hour and minute ... are too skinny. They need to support at
+    // least two digits." Rewritten from `minWidth: 0`, which let a box in an auto-width row collapse to one character.
+    it('never narrows a box below two of the widest digit at the body size, plus its padding and edges', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            expect(getComputedStyle(box).minWidth).toBe('38.8px');
+        }
+    });
+
+    it('grows that least width with the system text size, so two digits still fit at 200%', () => {
+        env.fontScale = 2;
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            expect(getComputedStyle(box).minWidth).toBe('59.6px');
+        }
+    });
+
+    // At 200% text the two pairs no longer fit a 136 dp cell, so the minutes pair moves under the hours pair whole: a
+    // unit never parts from its box, and nothing scrolls sideways.
+    it('keeps each box with its unit, and lets the minutes pair wrap under the hours pair', () => {
+        renderField();
+
+        const hoursPair = hours().parentElement as HTMLElement;
+        const minutesPair = minutes().parentElement as HTMLElement;
+
+        expect(hoursPair).toBe(screen.getByText('h').parentElement);
+        expect(minutesPair).toBe(screen.getByText('min').parentElement);
+        expect(hoursPair.parentElement).toBe(minutesPair.parentElement);
+        expect(getComputedStyle(hoursPair.parentElement as HTMLElement).flexWrap).toBe('wrap');
     });
 });
 

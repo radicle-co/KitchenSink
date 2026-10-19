@@ -221,6 +221,7 @@ describe('resetSlots', () => {
             client: (handle) => libraries.get(handle.email)!.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes).toEqual([
@@ -232,6 +233,7 @@ describe('resetSlots', () => {
                 deletedCollections: 1,
                 authoredFoods: 'notPurged',
                 pickedRoots: 'notPurged',
+                settings: 'notReset',
             },
             {
                 slot: bravo,
@@ -241,6 +243,7 @@ describe('resetSlots', () => {
                 deletedCollections: 0,
                 authoredFoods: 'notPurged',
                 pickedRoots: 'notPurged',
+                settings: 'notReset',
             },
         ]);
         expect(libraries.get(alfa?.email)?.state).toMatchObject({ posts: 1, polls: 3, recipes: [], collections: [] });
@@ -255,6 +258,7 @@ describe('resetSlots', () => {
             client: () => library.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(library.state.deleted).toEqual([]);
@@ -292,6 +296,7 @@ describe('resetSlots', () => {
             client: (handle) => libraries.get(handle.email)!.client,
             purge: { intervalMs: 1, deadlineMs: 400 },
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes.map((outcome) => outcome.ok)).toEqual([true, true]);
@@ -307,6 +312,7 @@ describe('resetSlots', () => {
             client: (handle) => (handle.email === alfa?.email ? failing.client : healthy.client),
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes[0]).toMatchObject({ slot: alfa, ok: false, reason: expect.stringMatching(/failed/u) });
@@ -322,6 +328,7 @@ describe('resetSlots', () => {
             client: () => stuck.client,
             purge: { intervalMs: 1, deadlineMs: 30 },
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/did not complete within/u) });
@@ -336,6 +343,7 @@ describe('resetSlots', () => {
             client: () => lying.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/2 recipes and 1 collections/u) });
@@ -349,6 +357,7 @@ describe('resetSlots', () => {
             client: () => racing.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: true });
@@ -363,6 +372,7 @@ describe('resetSlots', () => {
             client: () => absent.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/test principal/u) });
@@ -380,6 +390,7 @@ describe('resetSlots', () => {
             client: () => blip.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: true });
@@ -393,6 +404,7 @@ describe('resetSlots', () => {
             client: () => refused.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false });
@@ -413,6 +425,7 @@ describe('resetSlots', () => {
             client: () => healthy.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes[0]).toEqual({ slot: alfa, ok: false, reason: 'Clerk refused the sign-in create' });
@@ -445,6 +458,7 @@ describe('resetSlots', () => {
                         : { authoredFoods: 0, pickedRoots: 0 };
                 },
             },
+            settings: undefined,
         });
 
         expect(outcomes[0]).toMatchObject({ ok: true, authoredFoods: 3 });
@@ -465,6 +479,7 @@ describe('resetSlots', () => {
                     throw new Error('food-service answered 503');
                 },
             },
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/authored foods.*503/u) });
@@ -479,6 +494,7 @@ describe('resetSlots', () => {
             client: () => library.client,
             purge: fastPurge,
             authoredFoods: { purgeOwn },
+            settings: undefined,
         });
 
         expect(purgeOwn).not.toHaveBeenCalled();
@@ -495,6 +511,98 @@ describe('resetSlots', () => {
         expect(main).not.toMatch(/authoredFoods: undefined/u);
     });
 
+    it("⛔ resets the slot's SETTINGS as that slot, AFTER the recipe purge completes (ADR-0059)", async () => {
+        const events: string[] = [];
+        const libraries = new Map([
+            [
+                alfa?.email,
+                fakeLibrary(['r1'], [], {
+                    polls: ['running', 'completed'],
+                    onEvent: (event) => events.push(`alfa ${event}`),
+                }),
+            ],
+            [bravo?.email, fakeLibrary(['r2'], [])],
+        ]);
+
+        const outcomes = await resetSlots([alfa!, bravo!], {
+            session: async (slot) => handleFor(slot.email),
+            client: (handle) => libraries.get(handle.email)!.client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings: {
+                reset: async (handle) => {
+                    events.push(`settings ${handle.email}`);
+                },
+            },
+        });
+
+        expect(outcomes).toMatchObject([
+            { slot: alfa, ok: true, settings: 'reset' },
+            { slot: bravo, ok: true, settings: 'reset' },
+        ]);
+        expect(events).toContain(`settings ${alfa?.email}`);
+        expect(events).toContain(`settings ${bravo?.email}`);
+        expect(events.indexOf(`settings ${alfa?.email}`)).toBeGreaterThan(events.indexOf('alfa GET completed'));
+    });
+
+    it('⛔ a settings reset that fails fails the slot, saying which half failed, and never abandons the next slot', async () => {
+        const settings = {
+            reset: vi.fn(async (handle: SessionHandle) => {
+                if (handle.email === alfa?.email) {
+                    throw new Error('identity answered 404');
+                }
+            }),
+        };
+        const libraries = new Map([
+            [alfa?.email, fakeLibrary(['r1'], [])],
+            [bravo?.email, fakeLibrary(['r2'], [])],
+        ]);
+
+        const outcomes = await resetSlots([alfa!, bravo!], {
+            session: async (slot) => handleFor(slot.email),
+            client: (handle) => libraries.get(handle.email)!.client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings,
+        });
+
+        expect(outcomes[0]).toMatchObject({
+            ok: false,
+            reason: expect.stringMatching(/settings.*identity answered 404/u),
+        });
+        expect(outcomes[1]).toMatchObject({ ok: true, settings: 'reset' });
+        expect(settings.reset).toHaveBeenCalledTimes(2);
+    });
+
+    it('never resets the settings of a slot whose recipe purge failed', async () => {
+        const library = fakeLibrary(['r1'], [], { polls: ['failed'] });
+        const reset = vi.fn(async () => undefined);
+
+        await resetSlots([alfa!], {
+            session: async (slot) => handleFor(slot.email),
+            client: () => library.client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings: { reset },
+        });
+
+        expect(reset).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the CLI wires the identity adapter — a reset that skipped settings must not be the shipped one', () => {
+        const cli = readFileSync(fileURLToPath(new URL('../src/resetPool.ts', import.meta.url)), 'utf8');
+        const main = cli.slice(cli.indexOf('async function main'));
+
+        expect(main).toMatch(/settings: settingsResetVia\(/u);
+        expect(main).not.toMatch(/settings: undefined/u);
+    });
+
+    it("⛔ the per-flow reset (reset.ts) resets the signer's settings too, through the same adapter", () => {
+        const perFlow = readFileSync(fileURLToPath(new URL('../src/reset.ts', import.meta.url)), 'utf8');
+
+        expect(perFlow).toMatch(/settingsResetVia\(readIdentityOrigin\(process\.env\)\)\.reset\(state\.signer\)/u);
+    });
+
     it('reports a slot whose library cannot be read as failed, having requested no purge', async () => {
         const broken = fakeLibrary(['r1'], [], { failList: true });
 
@@ -503,6 +611,7 @@ describe('resetSlots', () => {
             client: () => broken.client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/503/u) });
@@ -565,15 +674,33 @@ describe('describeOutcomes', () => {
                 deletedCollections: 0,
                 authoredFoods: 4,
                 pickedRoots: 1,
+                settings: 'reset',
             },
             { slot: bravo!, ok: false, reason: 'boom' },
         ]);
 
         expect(lines).toEqual([
-            'reset k6/alfa: purged by job job-1, -2 recipes, -0 collections, -4 authored foods, -1 picked roots',
+            'reset k6/alfa: purged by job job-1, -2 recipes, -0 collections, -4 authored foods, -1 picked roots, settings reset',
             'FAILED k6/bravo: boom',
             '1 of 2 slots could NOT be reset',
         ]);
+    });
+
+    it('⛔ says so when settings were NOT reset (no identity port wired) — a green reset claims only what it did', () => {
+        const [line] = describeOutcomes([
+            {
+                slot: alfa!,
+                ok: true,
+                jobId: 'job-1',
+                deletedRecipes: 0,
+                deletedCollections: 0,
+                authoredFoods: 0,
+                pickedRoots: 0,
+                settings: 'notReset',
+            },
+        ]);
+
+        expect(line).toMatch(/settings NOT reset/u);
     });
 
     it('⛔ says in every line that authored foods were NOT purged when no door is wired — a green reset claims only what it did', () => {
@@ -586,6 +713,7 @@ describe('describeOutcomes', () => {
                 deletedCollections: 0,
                 authoredFoods: 'notPurged',
                 pickedRoots: 'notPurged',
+                settings: 'notReset',
             },
         ]);
 
@@ -603,6 +731,7 @@ describe('describeOutcomes', () => {
                     deletedCollections: 0,
                     authoredFoods: 0,
                     pickedRoots: 0,
+                    settings: 'reset',
                 },
             ]).at(-1),
         ).toBe('all 1 slots reset');

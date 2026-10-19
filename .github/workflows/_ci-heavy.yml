@@ -1038,6 +1038,7 @@ jobs:
               env:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
@@ -1229,6 +1230,7 @@ jobs:
                   # used, because it is the same seeder.
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   # Per-vertical FLOW SELECTION, passed as an ENVIRONMENT VARIABLE and never expanded into
                   # the `script:` body below. That is not style: a `${{ … }}` interpolated into a shell body
@@ -1316,6 +1318,7 @@ jobs:
               env:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
@@ -1683,6 +1686,7 @@ jobs:
               env:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
@@ -1763,6 +1767,7 @@ jobs:
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   # ⛔ MID-SHARD STOP - the Android step's, for its reason: only `stopped=true` turns a failed
                   # flow or reset into a skip, and earlier failures stand.
@@ -1782,6 +1787,7 @@ jobs:
               env:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
@@ -2236,6 +2242,7 @@ jobs:
                   CLERK_SECRET_KEY: ${{ env.CLERK_SECRET_KEY }}
                   CLERK_PUBLISHABLE_KEY: ${{ env.CLERK_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ steps.target.outputs.recipe }}
+                  E2E_SEED_IDENTITY_URL: ${{ steps.target.outputs.identity }}
                   E2E_SEED_FOOD_URL: ${{ steps.target.outputs.food }}
                   E2E_SEED_WEB_ORIGIN: ${{ steps.target.outputs.web_origin }}
                   HANDLES: ${{ runner.temp }}/k6-pool/handles.json
@@ -2342,6 +2349,7 @@ jobs:
                   CLERK_SECRET_KEY: ${{ env.CLERK_SECRET_KEY }}
                   CLERK_PUBLISHABLE_KEY: ${{ env.CLERK_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ steps.target.outputs.recipe }}
+                  E2E_SEED_IDENTITY_URL: ${{ steps.target.outputs.identity }}
                   E2E_SEED_FOOD_URL: ${{ steps.target.outputs.food }}
                   E2E_SEED_WEB_ORIGIN: ${{ steps.target.outputs.web_origin }}
                   HANDLES: ${{ runner.temp }}/k6-pool/handles.json

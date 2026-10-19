@@ -23,6 +23,7 @@ import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { authoredFoodPurgeVia, resetSlots } from '../src/resetPool.js';
+import { settingsResetVia } from '../src/settingsReset.js';
 
 /** Each bearer's library. A bearer the map does not hold answers 401, as the service would. */
 let libraries: Map<string, { recipes: string[]; collections: string[] }>;
@@ -45,6 +46,10 @@ let authoredFoods: Map<string, string[]>;
 let pickedRoots: Map<string, number>;
 /** How many food-purge calls answer 503 before the door answers, per bearer (a cold food-service task). */
 let coldFoodCalls: Map<string, number>;
+/** Each bearer's chosen `recipeViewMode` on the fake identity service; absent means "never chosen" (no row). */
+let chosenViews: Map<string, 'grid' | 'list'>;
+/** When true the fake identity predates `DELETE /users/me/settings` and answers it 404, as an undeployed server does. */
+let identityPredatesRoute: boolean;
 /** `bearer METHOD path` for every request, so a test asserts on the traffic, not only the outcome. */
 let traffic: string[];
 
@@ -213,6 +218,20 @@ beforeAll(async () => {
             return;
         }
 
+        if (req.method === 'DELETE' && url.pathname === '/api/v1/users/me/settings') {
+            if (identityPredatesRoute) {
+                send(404, { code: 'NOT_FOUND', message: `Cannot DELETE ${url.pathname}` });
+
+                return;
+            }
+
+            // Scoped to the bearer, as the route is: it names no one else's row, and no row is still a 204.
+            chosenViews.delete(bearer);
+            send(204);
+
+            return;
+        }
+
         if (req.method === 'DELETE') {
             const id = url.pathname.split('/').at(-1) ?? '';
             const owned = url.pathname.startsWith('/api/v1/recipes/') ? library.recipes : library.collections;
@@ -252,6 +271,8 @@ beforeEach(() => {
     authoredFoods = new Map();
     pickedRoots = new Map();
     coldFoodCalls = new Map();
+    chosenViews = new Map();
+    identityPredatesRoute = false;
 });
 
 const handle = (bearer: string): SessionHandle => ({
@@ -283,6 +304,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes.map((outcome) => outcome.ok)).toEqual([true, true]);
@@ -308,6 +330,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes[0]).toMatchObject({ ok: false, reason: expect.stringMatching(/failed on the worker/u) });
@@ -324,6 +347,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: { intervalMs: 5, deadlineMs: 60 },
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({
@@ -342,6 +366,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: true, deletedRecipes: 1 });
@@ -357,6 +382,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/registered test principal/u) });
@@ -386,6 +412,7 @@ describe('resetSlots over a real wire', () => {
                 client,
                 purge: fastPurge,
                 authoredFoods: foods,
+                settings: undefined,
             });
 
             expect(outcomes).toMatchObject([
@@ -413,6 +440,7 @@ describe('resetSlots over a real wire', () => {
                 client,
                 purge: fastPurge,
                 authoredFoods: foods,
+                settings: undefined,
             });
 
             expect(outcome).toMatchObject({ ok: true, authoredFoods: 1 });
@@ -428,6 +456,7 @@ describe('resetSlots over a real wire', () => {
                 client,
                 purge: fastPurge,
                 authoredFoods: foods,
+                settings: undefined,
             });
 
             expect(outcome).toMatchObject({ ok: false, reason: expect.stringMatching(/authored foods were not/u) });
@@ -442,6 +471,7 @@ describe('resetSlots over a real wire', () => {
                 client,
                 purge: fastPurge,
                 authoredFoods: foods,
+                settings: undefined,
             });
 
             expect(traffic.filter((line) => line === 'alfa POST /api/v1/foods/authored/test-purge')).toHaveLength(1);
@@ -455,12 +485,88 @@ describe('resetSlots over a real wire', () => {
                 client,
                 purge: fastPurge,
                 authoredFoods: foods,
+                settings: undefined,
             });
 
             expect(outcome).toMatchObject({
                 ok: false,
                 reason: expect.stringMatching(/authored foods were not.*test principal/u),
             });
+        });
+    });
+
+    describe('the settings half, through the SHIPPED identity adapter (ADR-0059)', () => {
+        // The shipped adapter, authenticating with the handle's session id as its bearer. Built per test because
+        // `baseUrl` is assigned in `beforeAll`.
+        const adapter = () =>
+            settingsResetVia(baseUrl, {
+                token: (session) => async () => session.sessionId,
+                retry: { retries: 2, intervalMs: 5, attemptDeadlineMs: 2_000 },
+            });
+
+        it("restores each slot to never chosen AFTER its purge, and leaves another user's choice alone", async () => {
+            libraries.set('alfa', { recipes: ['a1'], collections: [] });
+            libraries.set('bravo', { recipes: [], collections: [] });
+            libraries.set('realUser', { recipes: [], collections: [] });
+            chosenViews.set('alfa', 'grid');
+            chosenViews.set('realUser', 'list');
+
+            const outcomes = await resetSlots([alfa!, bravo!], {
+                session: async (slot) => handle(slot.id),
+                client,
+                purge: fastPurge,
+                authoredFoods: undefined,
+                settings: adapter(),
+            });
+
+            expect(outcomes).toMatchObject([
+                { ok: true, settings: 'reset' },
+                { ok: true, settings: 'reset' },
+            ]);
+            expect(chosenViews.has('alfa')).toBe(false);
+            expect(chosenViews.get('realUser')).toBe('list');
+            const order = traffic.filter((line) => line.startsWith('alfa '));
+            const lastPoll = order.map((line) => line.includes('/account/test-reset/')).lastIndexOf(true);
+
+            expect(order.findIndex((line) => line === 'alfa DELETE /api/v1/users/me/settings')).toBeGreaterThan(
+                lastPoll,
+            );
+        });
+
+        it('⛔ fails a slot when identity predates the route (404), naming the settings half — never a green over a stale view', async () => {
+            libraries.set('alfa', { recipes: [], collections: [] });
+            chosenViews.set('alfa', 'grid');
+            identityPredatesRoute = true;
+
+            const [outcome] = await resetSlots([alfa!], {
+                session: async (slot) => handle(slot.id),
+                client,
+                purge: fastPurge,
+                authoredFoods: undefined,
+                settings: adapter(),
+            });
+
+            expect(outcome).toMatchObject({
+                ok: false,
+                reason: expect.stringMatching(/settings were not reset.*answered 404/u),
+            });
+            expect(chosenViews.get('alfa')).toBe('grid');
+            // A refusal is final: asked once, not retried.
+            expect(traffic.filter((line) => line === 'alfa DELETE /api/v1/users/me/settings')).toHaveLength(1);
+        });
+
+        it('is idempotent: a slot that never chose anything is reset to the same state', async () => {
+            libraries.set('alfa', { recipes: [], collections: [] });
+
+            const [outcome] = await resetSlots([alfa!], {
+                session: async (slot) => handle(slot.id),
+                client,
+                purge: fastPurge,
+                authoredFoods: undefined,
+                settings: adapter(),
+            });
+
+            expect(outcome).toMatchObject({ ok: true, settings: 'reset' });
         });
     });
 
@@ -475,6 +581,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes.map((outcome) => outcome.ok)).toEqual([true, false, true]);
@@ -488,6 +595,7 @@ describe('resetSlots over a real wire', () => {
             client,
             purge: fastPurge,
             authoredFoods: undefined,
+            settings: undefined,
         });
 
         expect(outcomes[0]?.ok).toBe(false);

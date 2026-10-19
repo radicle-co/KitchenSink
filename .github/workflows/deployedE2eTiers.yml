@@ -627,6 +627,8 @@ jobs:
             - name: Confirm every resolved target is under this repository's own domain
               env:
                   DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+                  # The reset steps below DELETE the slot's settings at identity (ADR-0059), so it is a target too.
+                  IDENTITY_ORIGIN: ${{ inputs.identity_origin }}
               run: |
                   set -euo pipefail
                   # ⛔ ONE PREDICATE, in `.github/scripts/targetScope.sh`, regression-tested for real by
@@ -642,7 +644,7 @@ jobs:
                   # inline copies were collapsed — the extraction read origins by name shape and this one
                   # is not spelled `*_ORIGIN` or `*_URL`, which is why the guard below now derives them
                   # from the job's own env rather than from a naming convention.
-                  target_scope_assert "${DOMAIN_NAME}" "${LINKAGE_RECIPE_URL}" "${LINKAGE_FOOD_URL}" "${LINKAGE_AZP}"
+                  target_scope_assert "${DOMAIN_NAME}" "${LINKAGE_RECIPE_URL}" "${LINKAGE_FOOD_URL}" "${LINKAGE_AZP}" "${IDENTITY_ORIGIN}"
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
@@ -711,6 +713,7 @@ jobs:
               if: steps.secrets.outcome == 'success'
               env:
                   E2E_SEED_RECIPE_URL: ${{ inputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ inputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ inputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ inputs.web_origin }}
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier linkage
@@ -772,6 +775,7 @@ jobs:
               continue-on-error: true
               env:
                   E2E_SEED_RECIPE_URL: ${{ inputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ inputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ inputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ inputs.web_origin }}
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier linkage
@@ -1145,11 +1149,13 @@ jobs:
                   # way `LINKAGE_AZP` went missing one job over.
                   SEED_RECIPE_ORIGIN: ${{ inputs.recipe_origin }}
                   SEED_FOOD_ORIGIN: ${{ inputs.food_origin }}
+                  # The shard's reset steps DELETE the slot's settings at identity (ADR-0059): a target as well.
+                  SEED_IDENTITY_ORIGIN: ${{ inputs.identity_origin }}
               run: |
                   set -euo pipefail
                   # The same one predicate every other tier calls — see `.github/scripts/targetScope.sh`.
                   . .github/scripts/targetScope.sh
-                  target_scope_assert "${DOMAIN_NAME}" "${PLAYWRIGHT_BASE_URL}" "${SEED_RECIPE_ORIGIN}" "${SEED_FOOD_ORIGIN}"
+                  target_scope_assert "${DOMAIN_NAME}" "${PLAYWRIGHT_BASE_URL}" "${SEED_RECIPE_ORIGIN}" "${SEED_FOOD_ORIGIN}" "${SEED_IDENTITY_ORIGIN}"
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
@@ -1328,6 +1334,7 @@ jobs:
               if: steps.secrets.outcome == 'success'
               env:
                   E2E_SEED_RECIPE_URL: ${{ inputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ inputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ inputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ inputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
@@ -1359,6 +1366,7 @@ jobs:
               continue-on-error: true
               env:
                   E2E_SEED_RECIPE_URL: ${{ inputs.recipe_origin }}
+                  E2E_SEED_IDENTITY_URL: ${{ inputs.identity_origin }}
                   E2E_SEED_FOOD_URL: ${{ inputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ inputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}

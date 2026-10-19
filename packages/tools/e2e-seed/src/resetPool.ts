@@ -39,6 +39,14 @@
  * after the recipe purge completes; a refusal there fails the slot like a refusal of the recipe purge. A seed root, a
  * real cook's root and a root a real cook has been answered with are never reached (`testPickedRootPolicy.ts`).
  *
+ * ## Settings (ADR-0059)
+ *
+ * Settings live in identity, which the recipe purge cannot reach, and `PATCH` can choose a setting but never un-choose
+ * it. A pool user is reused, so a run that left `recipeViewMode = grid` changed what the next run saw (CI run
+ * 39165813897, `iossigner02`, `recipes/delete`). After the food half, each slot calls identity's
+ * `DELETE /api/v1/users/me/settings` AS the slot (`settingsReset.ts`). A refusal — a `404` from an identity that
+ * predates the route included — fails the slot; it is never read as "nothing to reset".
+ *
  * ## Sessions
  *
  * A stored handle (`--handles <file>`, the `Record<slotId, SessionHandle>` the k6 pool writes) is re-minted
@@ -46,7 +54,7 @@
  * checked against its provisioning, and signed in (`leaseSession`).
  *
  * Usage: `resetPool --tier web --shard N | --tier maestro --platform android|ios --shard N | --tier k6 --vus N | --tier linkage [--handles file]`,
- * with `E2E_SEED_RECIPE_URL`, `E2E_SEED_FOOD_URL` and `E2E_SEED_WEB_ORIGIN` naming the stage.
+ * with `E2E_SEED_RECIPE_URL`, `E2E_SEED_FOOD_URL`, `E2E_SEED_IDENTITY_URL` and `E2E_SEED_WEB_ORIGIN` naming the stage.
  *
  * ⛔ EXIT STATUS: non-zero when any slot could not be reset, after attempting every slot. Whether that reddens the
  * job is the WORKFLOW's decision — the before-step must, the after-step reports.
@@ -78,9 +86,10 @@ import pRetry from 'p-retry';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 
 import { clientFor, foodClientFor } from './client.js';
-import { readFoodOrigin, readSeedEnvironment } from './env.js';
+import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from './env.js';
 import { assertPlatformsAgree, assertShardsAgree } from './shard.js';
 import { readWorld } from './recipeWorld.js';
+import { settingsResetVia, type SettingsResetPort } from './settingsReset.js';
 import { awaitPurge, DEFAULT_PURGE_TIMING, requestPurge, type PurgeTiming } from './testReset.js';
 import { isTransientStatus } from './transientStatus.js';
 
@@ -105,6 +114,8 @@ export type SlotResetOutcome =
           readonly authoredFoods: number | 'notPurged';
           /** The catalog roots the slot's own remote picks created, which the same door took back. */
           readonly pickedRoots: number | 'notPurged';
+          /** Whether identity's `DELETE /users/me/settings` restored the slot to "never chosen", or no port was passed. */
+          readonly settings: 'reset' | 'notReset';
       }
     | { readonly slot: PoolSlot; readonly ok: false; readonly reason: string };
 
@@ -208,6 +219,11 @@ export interface SlotResetDeps {
      * purged — and every outcome line then says so rather than letting a green reset imply it.
      */
     readonly authoredFoods: AuthoredFoodPurgePort | undefined;
+    /**
+     * REQUIRED, `undefined` written out, for the same reason: a caller decides, visibly, that settings are not reset
+     * (ADR-0059). A pool user is reused, and a setting a run chose is residue the recipe purge cannot reach.
+     */
+    readonly settings: SettingsResetPort | undefined;
 }
 
 const positiveInteger = (raw: string | undefined): number | undefined => {
@@ -346,7 +362,7 @@ export async function resetSlots(
                         before: { recipes: world.recipes.length, collections: world.collections.length },
                     },
                     timing,
-                    deps.authoredFoods,
+                    deps,
                 ),
             );
         } catch (error) {
@@ -365,17 +381,18 @@ export async function resetSlots(
 
 /**
  * Await one requested purge, confirm through the owner API that it removed what the slot listed, then purge the
- * slot's authored foods.
+ * slot's authored foods and restore its settings.
  *
- * Foods go LAST: by then no recipe the slot owned can still reference one, so there is no window in which a recipe
- * line points at a food that is already gone.
+ * Foods go after the recipes: by then no recipe the slot owned can still reference one, so there is no window in which
+ * a recipe line points at a food that is already gone. Settings go last; they reference nothing.
  *
- * @sideEffect Polls the job, re-reads the slot's library, and purges its authored foods through the port.
+ * @sideEffect Polls the job, re-reads the slot's library, purges its authored foods through the port, and deletes
+ *   its settings row through the other.
  */
 async function settle(
     purge: RequestedPurge,
     timing: PurgeTiming,
-    authoredFoods: AuthoredFoodPurgePort | undefined,
+    deps: Pick<SlotResetDeps, 'authoredFoods' | 'settings'>,
 ): Promise<SlotResetOutcome> {
     try {
         await awaitPurge(purge.client, purge.jobId, timing);
@@ -392,7 +409,12 @@ async function settle(
             };
         }
 
-        const foods = authoredFoods === undefined ? undefined : await purgeAuthoredFoods(authoredFoods, purge);
+        const foods =
+            deps.authoredFoods === undefined ? undefined : await purgeAuthoredFoods(deps.authoredFoods, purge);
+
+        if (deps.settings !== undefined) {
+            await resetSettings(deps.settings, purge);
+        }
 
         return {
             slot: purge.slot,
@@ -402,6 +424,7 @@ async function settle(
             deletedCollections: purge.before.collections,
             authoredFoods: foods?.authoredFoods ?? 'notPurged',
             pickedRoots: foods?.pickedRoots ?? 'notPurged',
+            settings: deps.settings === undefined ? 'notReset' : 'reset',
         };
     } catch (error) {
         return { slot: purge.slot, ok: false, reason: reasonOf(error) };
@@ -421,6 +444,21 @@ async function purgeAuthoredFoods(
         return await port.purgeOwn(purge.handle);
     } catch (error) {
         throw new Error(`recipe data purged by job ${purge.jobId}, but authored foods were not: ${reasonOf(error)}`, {
+            cause: error,
+        });
+    }
+}
+
+/**
+ * Restore one slot's settings to "never chosen", naming the half that failed.
+ *
+ * @sideEffect Calls identity through the port.
+ */
+async function resetSettings(port: SettingsResetPort, purge: RequestedPurge): Promise<void> {
+    try {
+        await port.reset(purge.handle);
+    } catch (error) {
+        throw new Error(`recipe data purged by job ${purge.jobId}, but settings were not reset: ${reasonOf(error)}`, {
             cause: error,
         });
     }
@@ -470,7 +508,8 @@ export function describeOutcomes(outcomes: readonly SlotResetOutcome[]): readonl
                   `-${outcome.deletedRecipes} recipes, -${outcome.deletedCollections} collections, ` +
                   (outcome.authoredFoods === 'notPurged'
                       ? 'authored foods NOT purged (no food-service port passed)'
-                      : `-${outcome.authoredFoods} authored foods, -${outcome.pickedRoots} picked roots`)
+                      : `-${outcome.authoredFoods} authored foods, -${outcome.pickedRoots} picked roots`) +
+                  (outcome.settings === 'reset' ? ', settings reset' : ', settings NOT reset (no identity port passed)')
                 : `FAILED ${outcome.slot.tier}/${outcome.slot.id}: ${outcome.reason}`,
         ),
         failed === 0
@@ -506,6 +545,7 @@ async function main(): Promise<void> {
     const argv = process.argv.slice(2);
     const env = readSeedEnvironment(process.env);
     const foodOrigin = readFoodOrigin(process.env);
+    const identityOrigin = readIdentityOrigin(process.env);
     const request = parseResetArgs(argv);
 
     // ⛔ BEFORE THE FIRST PURGE. `--shard` and `COMMISE_E2E_SHARD` (and `--platform` and `MAESTRO_PLATFORM`) are two
@@ -535,6 +575,7 @@ async function main(): Promise<void> {
         }),
         client: (handle) => clientFor(env.recipeOrigin, handle),
         authoredFoods: authoredFoodPurgeVia((handle) => foodClientFor(foodOrigin, handle)),
+        settings: settingsResetVia(identityOrigin),
     });
 
     for (const line of describeOutcomes(outcomes)) {

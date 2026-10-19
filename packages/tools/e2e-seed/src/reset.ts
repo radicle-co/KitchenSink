@@ -10,13 +10,17 @@
  *
  * Usage: `e2e-seed reset [--mode seeded|empty]`
  *
- * @sideEffect Mints a Clerk token, and creates/deletes recipes and collections.
+ * It also restores the signer's SETTINGS to "never chosen" (ADR-0059, `DELETE /api/v1/users/me/settings`): a flow that
+ * chose a view must not change what the next flow sees. That needs `E2E_SEED_IDENTITY_URL`.
+ *
+ * @sideEffect Mints a Clerk token, creates/deletes recipes and collections, and deletes the signer's settings row.
  */
 import { clientFor } from './client.js';
-import { readSeedEnvironment } from './env.js';
+import { readIdentityOrigin, readSeedEnvironment } from './env.js';
 import { deriveFixtureManifest } from './fixtureManifest.js';
 import { applyPlan, readWorld } from './recipeWorld.js';
 import { readSessionState, sessionStatePath } from './sessionState.js';
+import { settingsResetVia } from './settingsReset.js';
 import { assertPlatformsAgree } from './shard.js';
 import { planWorldReset, type ResetMode } from './worldResetPlan.js';
 
@@ -48,6 +52,7 @@ const before = await readWorld(client);
 const plan = planWorldReset(before, manifest, mode);
 
 await applyPlan(client, plan);
+await settingsResetVia(readIdentityOrigin(process.env)).reset(state.signer);
 
 console.error(
     `e2e-seed reset (${mode}): -${plan.deleteRecipeIds.length} recipes, ` +

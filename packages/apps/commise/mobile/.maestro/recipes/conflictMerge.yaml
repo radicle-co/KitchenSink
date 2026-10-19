@@ -74,7 +74,10 @@ appId: ${APP_ID}
       timeout: 30000
 - scrollUntilVisible:
       element:
-          text: '^Tomato'
+          # iOS fact: the committed row is ONE element labelled `Edit <amount> <name>` (here `Edit Tomato`), not a text
+          # node starting with the name, so `^Tomato` matched nothing and the scroll ran to the top. Open end kept for the
+          # emulator's last-character duplication.
+          text: 'Edit Tomato.*'
       # ⛔ UP, not DOWN (owner decision D1: the editor is ONE page). The declared line lands ABOVE the trailing "Add an
       # ingredient" field the cook is at, so scrolling down overshoots to "Photos & publish" and never finds it.
       # `edit.yaml` carries the same selector and direction.

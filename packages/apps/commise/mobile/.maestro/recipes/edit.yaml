@@ -121,7 +121,10 @@ appId: ${APP_ID}
       timeout: 30000
 - scrollUntilVisible:
       element:
-          text: '^Tomato'
+          # iOS fact: the committed row is ONE element labelled `Edit <amount> <name>` (here `Edit Tomato`), not a text
+          # node starting with the name, so `^Tomato` matched nothing and the scroll ran to the top. Open end kept for the
+          # emulator's last-character duplication.
+          text: 'Edit Tomato.*'
       # The line lands above the add field the cook is at: one page, so it is UP.
       direction: UP
       timeout: 30000

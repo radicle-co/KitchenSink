@@ -63,9 +63,45 @@ appId: ${APP_ID}
                                     duration: 500
           - assertVisible:
                 text: ${TARGET}
+# ⚠️ THE ANCHOR NEEDS A KEYBOARD. A list whose search field is not focused (the shortlist panel opened from a row's
+# "Choose a match" line) raises no soft keyboard, so `inputView` is not in the tree and `above: inputView` can never be
+# met: the loop swiped ten times for an option that was on screen (ingredientCandidates, ingredientShortlist, 2026-10-18).
+# With no keyboard up, plain visibility means "on screen", exactly as on Android, so that case takes the Android body.
 - runFlow:
       when:
           platform: iOS
+          notVisible:
+              id: inputView
+      commands:
+          - repeat:
+                while:
+                    notVisible:
+                        text: ${TARGET}
+                times: 10
+                commands:
+                    - runFlow:
+                          when:
+                              true: ${DIRECTION == 'UP'}
+                          commands:
+                              - swipe:
+                                    start: 50%, 35%
+                                    end: 50%, 55%
+                                    duration: 500
+                    - runFlow:
+                          when:
+                              true: ${DIRECTION != 'UP'}
+                          commands:
+                              - swipe:
+                                    start: 50%, 55%
+                                    end: 50%, 35%
+                                    duration: 500
+          - assertVisible:
+                text: ${TARGET}
+- runFlow:
+      when:
+          platform: iOS
+          visible:
+              id: inputView
       commands:
           - repeat:
                 while:

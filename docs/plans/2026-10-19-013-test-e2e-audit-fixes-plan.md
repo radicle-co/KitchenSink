@@ -204,3 +204,73 @@ Each item starts with a failing test on web and mobile. The fix goes at the shar
 - During a pass, run only the affected flows. Do not run a full suite per fix.
 - Group B items land with their failing test first, then the fix, then the same device passes.
 - Group C items wait for the owner. The rows in Group A that depend on them (A1.3, A3.22) stay todo until the decision.
+
+## 8. Group D: every e2e suite reads its targets from one resolver (owner ruling 2026-10-19)
+
+Owner ruling, verbatim: "the playwright tests, as with all e2e tests (including maestro) should provide the ability for
+their remote sources to be overridden/changed by the environment in which they are running and by the actor (optionally -
+the actor takes precedence over environment and environment takes precedence over defaults). The defaults should point to
+localhost. Within the Github job runners, the environment should override the urls to point to the sandbox urls; if the
+sandbox is not up then all e2e tests (which include playwright) should be skipped. When running the e2e tests (which
+include playwright and maestro) locally, you as the agent can override the urls to point to things like the sandbox or
+localstack or something else either through the CLI or via the environment."
+
+staff-architect designed it on 2026-10-19 (PLAN + BLUEPRINT). The shape:
+
+- One new package, `@kitchensink/e2e-targets`. It holds a registry of the remote targets (recipe, identity, food, web,
+  remote search) and one pure resolver. Precedence per target is a flag (`--e2e-<target>=`, `--e2e-stage=`), then the
+  environment (`E2E_<TARGET>_URL`, `E2E_STAGE`), then a localhost default. In CI a default or loopback value is refused,
+  a production origin is refused unless the suite allows it, and a mixed set of stages is refused.
+- Mobile reads its targets at launch from Maestro launch arguments, through a local Expo module, behind a build flag that
+  only the test-app build sets, with five production-safety layers. One test app then serves every PR.
+- The 85 mocked web specs (about 407 tests) split: 362 convert to real services, 40 move down to vitest + RTL + MSW
+  integration tests, 4 need a decision, and 1 is re-homed. The stubbed-API lane is deleted at the end.
+- Guards: pass-through env equals the registry, default ports equal each service's own, no e2e source reads an origin
+  outside the registry, every `launchApp` carries the launch keys, and a shrinking list of mocked specs that ends empty.
+- ADR-0067 (Proposed) records it, and amends ADR-0032 section 7.
+- Size: about 4 to 6 weeks of agent work in 10 steps, each leaving CI green.
+
+Open questions for the owner, from the design:
+
+1. During the migration, keep the stubbed-API lane running on every PR until the list of mocked specs is empty
+   (recommended), or gate it on the sandbox at once?
+2. Each batch PR needs one deployed run before merge, which needs Sandbox Up pressed by hand. Accept that cost?
+3. The 4 layout tests that need data no service can produce: a local-only design-system check, or a pool lane with a
+   60-character email?
+4. May Vercel preview builds set `COMMISE_PSEUDO_LOCALE=1`, for the `controlLabels` spec?
+5. Add a web erasure lane to the pool, for `accountDangerZone`?
+6. Keep `DATABASE_ADMIN_URL` and `AWS_ENDPOINT_URL` outside the resolver, with their fail-when-absent rule (recommended)?
+7. With live services, should a preview's server HTML carry data or the loading frame (`ssrPrefetch`)?
+
+Status: designed, not started. It starts after PR 91's CI is green. This section records the design's decisions. The full blueprint, with the draft ADR text, is kept outside the repo in `~/Development/ksAuditNotes/e2eTargetsBlueprint.md`. Step 0 commits it as ADR-0067.
+
+## 9. Group E: fewer test users, and an instance that cannot fill up
+
+On 2026-10-19 the sandbox Clerk development instance hit its hard cap of 100 users. That blocked the erasure refill and
+the hand-off peers. Thirteen stale users were deleted with the owner's approval (11 k6 users in the pre-pool email form,
+and 2 old fixtures), and `poolAdmin --apply` then reported a healthy pool at 93 users.
+
+Owner, verbatim: "I want you to critically evaluate if we can be more efficient with our users in the setup and tear down
+before, during, and after tests. I highly doubt we need 100 test users".
+
+The review found that the roster declares 92 users and nothing checks the total. The target is 44:
+
+| Tier    | Today | Target | Why                                                                                        |
+| ------- | ----- | ------ | ------------------------------------------------------------------------------------------ |
+| web     | 8     | 2      | Only 8 deployed spec files remain, so 2 shards are enough                                  |
+| webStub | 6     | 2      | Its API is faked, so its users hold no real data; one Clerk per-user limit is not measured |
+| webPeer | 8     | 0      | The hand-off peer can be the other stub lane                                               |
+| maestro | 42    | 22     | iOS stops at 5 shards, and only one flow erases, so one subject per platform is enough     |
+| k6      | 21    | 11     | Manual only; 10 virtual users cover food's per-user limit at the default peak              |
+| linkage | 1     | 1      |                                                                                            |
+| roles   | 6     | 6      | One user per role                                                                          |
+
+Steps, each leaving CI green:
+
+1. Add a prune mode to `poolAdmin`, which deletes users of retired lanes. Sweep the users `signUpFlow.yaml` creates.
+2. Add the guards: a roster test that fails above 50 users, and a pre-run user count that warns at 75 and fails at 90.
+3. Make the erasure refill recreate a used subject, then cut erasure to one subject per platform.
+4. Cut the tiers in the table, one tier per change, with the matching shard counts in the workflows and
+   `runMaestroFlows.sh`.
+
+Status: reviewed, not started. This section records the review's decisions. The working report is kept outside the repo, in `~/Development/ksAuditNotes/testUsers.md` on the owner's machine.

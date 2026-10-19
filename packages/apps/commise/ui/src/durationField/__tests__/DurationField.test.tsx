@@ -103,34 +103,38 @@ describe('DurationField (web)', () => {
     });
 
     // A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 px each at 320"): two boxes at a
-    // fixed 80 px plus their units are about 220 px, which wrapped Cook onto its own line. The boxes share the room
-    // the cell gives them instead, and give back padding so a two-digit number still fits in 136 px.
-    it('fits a 136 px cell: the boxes have no fixed width and share the room, with the tighter number padding', () => {
+    // fixed 80 px plus their units are about 220 px, which wrapped Cook onto its own line. The boxes give back padding
+    // so a two-digit number fits a narrower box.
+    it('fits a 136 px cell: no 80 px box, and the tighter number padding', () => {
         renderField();
 
         for (const box of [hours(), minutes()]) {
             const classes = box.className.split(/\s+/u);
 
             expect(classes).not.toContain('w-20');
-            expect(classes).toEqual(expect.arrayContaining(['flex-1', 'px-2!']));
+            expect(classes).toContain('px-2!');
         }
     });
 
     // Owner, the step timer on a phone: "the input for hour and minute ... are too skinny. They need to support at
-    // least two digits." Rewritten from `min-w-0`, which let a box in an auto-width row collapse to one character.
-    it('never narrows a box below two of the face’s widest digit, in em so it grows with the text', () => {
+    // least two digits." Rewritten twice: `min-w-0` let a box collapse to one character, and then `flex-1` with a least
+    // width stretched each box across the row, the hours box wider than the minutes box beside a shorter unit.
+    it('gives both boxes one width, never stretched: two digits, padding, edges and caret room, in em', () => {
         renderField();
 
         for (const box of [hours(), minutes()]) {
             // jsdom reorders a `calc()` sum, so the terms are compared as a set.
-            const terms = box.style.minWidth
+            const terms = box.style.width
                 .replace(/^calc\((.*)\)$/u, '$1')
                 .split(' + ')
                 .sort();
 
-            expect(terms).toEqual(['1.3em', '1rem', '2px']);
+            expect(terms).toEqual(['1.3em', '1rem', '6px']);
+            expect(box.className.split(/\s+/u)).not.toEqual(expect.arrayContaining(['flex-1']));
             expect(box.className.split(/\s+/u)).not.toContain('min-w-0');
         }
+
+        expect(hours().style.width).toBe(minutes().style.width);
     });
 
     it('draws no spin buttons, which would take the digits’ room and are too small to tap', () => {
@@ -149,7 +153,7 @@ describe('DurationField (web)', () => {
 
     // At 200% text the two pairs no longer fit a 136 px cell, so the minutes pair moves under the hours pair whole: a
     // unit never parts from its box, and nothing scrolls sideways.
-    it('keeps each box with its unit, and lets the minutes pair wrap under the hours pair', () => {
+    it('keeps each box with its unit, and wraps the minutes pair under the hours pair only when they do not fit', () => {
         renderField();
 
         const hoursPair = hours().parentElement as HTMLElement;
@@ -159,6 +163,11 @@ describe('DurationField (web)', () => {
         expect(minutesPair).toBe(screen.getByText('min').parentElement);
         expect(hoursPair.parentElement).toBe(minutesPair.parentElement);
         expect((hoursPair.parentElement as HTMLElement).className.split(/\s+/u)).toContain('flex-wrap');
+
+        // Each pair takes only its own width, so the row wraps only when the two pairs do not fit side by side.
+        for (const pair of [hoursPair, minutesPair]) {
+            expect(pair.className.split(/\s+/u)).not.toContain('flex-1');
+        }
     });
 
     // UI-overhaul slice 2: the boxes take the Input rules (`FIELD_CLASS`) rather than a geometry of their own.

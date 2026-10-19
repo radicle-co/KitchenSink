@@ -23,10 +23,10 @@ import type { CreateFabProps } from './props.js';
 import { useFabPresentation } from './useFabPresentation.native.js';
 
 /** The native design-system floating create button. */
-export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, firstRun = false }) => {
+export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = false }) => {
     const [focused, setFocused] = useState(false);
     const [labelWidthPx, setLabelWidthPx] = useState(0);
-    const presentation = useFabPresentation({ firstRun, focused, labelWidthPx });
+    const presentation = useFabPresentation({ yielded, focused, labelWidthPx });
     const margin = viewportClassOf(useWindowWidth()) === 'compact' ? PHONE_MARGIN : TABLET_MARGIN;
     const insets = useSafeAreaInsets();
     const sideInset = I18nManager.isRTL ? insets.left : insets.right;

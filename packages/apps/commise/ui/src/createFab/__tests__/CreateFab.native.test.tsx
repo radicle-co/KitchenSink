@@ -1,7 +1,7 @@
 /**
  * The native CreateFab (buildSpec §3.4; D13): named by its label in every form; seafoam-tinted interactive Liquid Glass
  * on iOS 26 and a solid `action` surface elsewhere; a disc while a phone scrolls down; a tablet keeps its label; hidden
- * with the keyboard and in first run.
+ * with the keyboard and while it yields.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function renderFab(firstRun = false, onPress = vi.fn()): { scroll: (y: number) => void } {
+function renderFab(yielded = false, onPress = vi.fn()): { scroll: (y: number) => void } {
     const seen: { bind?: ScrollBind } = {};
 
     render(
@@ -58,7 +58,7 @@ function renderFab(firstRun = false, onPress = vi.fn()): { scroll: (y: number) =
             {(bind) => {
                 seen.bind = bind;
 
-                return <CreateFab label="New recipe" icon="plus" onPress={onPress} firstRun={firstRun} />;
+                return <CreateFab label="New recipe" icon="plus" onPress={onPress} yielded={yielded} />;
             }}
         </ScrollHost>,
     );
@@ -142,7 +142,7 @@ describe('CreateFab (native)', () => {
         expect(fab()).toBeTruthy();
     });
 
-    it('hides with the keyboard and in first run', () => {
+    it('hides with the keyboard and while it yields', () => {
         env.keyboard = true;
         renderFab();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();

@@ -33,8 +33,11 @@ export interface FabInputs {
     readonly focused: boolean;
     /** Whether the on-screen keyboard is open. */
     readonly keyboardOpen: boolean;
-    /** Whether the screen shows its first-run state, whose own start buttons take the button's place. */
-    readonly firstRun: boolean;
+    /**
+     * Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose
+     * own start buttons take its place.
+     */
+    readonly yielded: boolean;
     /** The label's laid-out width, px. */
     readonly labelWidthPx: number;
     /** The window's width, px. */
@@ -51,7 +54,7 @@ export interface FabInputs {
  * @returns The presentation. Pure.
  */
 export function fabPresentationOf(inputs: FabInputs): FabPresentation {
-    if (inputs.chrome === 'sidebar' || inputs.keyboardOpen || inputs.firstRun) {
+    if (inputs.chrome === 'sidebar' || inputs.keyboardOpen || inputs.yielded) {
         return 'hidden';
     }
 

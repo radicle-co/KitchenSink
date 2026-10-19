@@ -1,7 +1,7 @@
 /**
  * The web CreateFab (buildSpec §3.4): named by its label in every form; extended at the top, a disc while a phone
- * scrolls down; hidden with the keyboard and in first run; a disc when its label takes more than half the window; gone
- * from 840 (the sidebar holds it); solid `action` (D13: web is never glass).
+ * scrolls down; hidden with the keyboard and while it yields; a disc when its label takes more than half the window;
+ * gone from 840 (the sidebar holds it); solid `action` (D13: web is never glass).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -31,11 +31,11 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-const renderFab = (firstRun = false, onPress = vi.fn()) =>
+const renderFab = (yielded = false, onPress = vi.fn()) =>
     render(
         <ScrollHost>
             <input aria-label="Search your recipes" />
-            <CreateFab label="New recipe" icon="plus" onPress={onPress} firstRun={firstRun} />
+            <CreateFab label="New recipe" icon="plus" onPress={onPress} yielded={yielded} />
         </ScrollHost>,
     );
 
@@ -78,7 +78,7 @@ describe('CreateFab (web)', () => {
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 
-    it('is not drawn in the first-run state', () => {
+    it('is not drawn while it yields', () => {
         renderFab(true);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();

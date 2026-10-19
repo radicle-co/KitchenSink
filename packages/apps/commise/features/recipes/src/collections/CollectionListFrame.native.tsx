@@ -67,7 +67,7 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
                       })}
             />
             {children}
-            <CreateFab label={list.createCta} icon="plus" onPress={onCreate} firstRun={firstRun} />
+            <CreateFab label={list.createCta} icon="plus" onPress={onCreate} yielded={firstRun} />
         </View>
     );
 };

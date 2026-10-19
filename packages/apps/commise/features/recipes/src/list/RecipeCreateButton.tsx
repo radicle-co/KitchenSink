@@ -52,7 +52,7 @@ export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe
                     label={list.createCta}
                     icon="plus"
                     onPress={onCreateRecipe}
-                    {...(firstRun === undefined ? {} : { firstRun })}
+                    {...(firstRun === undefined ? {} : { yielded: firstRun })}
                 />
             );
         case 'sidebar':

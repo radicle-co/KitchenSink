@@ -13,7 +13,7 @@ import { fabPresentationOf, type FabPresentation } from './createFabPolicy.js';
 import type { FabSelf } from './props.js';
 
 /**
- * @param self - Whether the screen is in first run, whether the control has focus, and its label's width.
+ * @param self - Whether the button yields its place, whether the control has focus, and its label's width.
  * @returns The presentation.
  */
 export function useFabPresentation(self: FabSelf): FabPresentation {
@@ -31,7 +31,7 @@ export function useFabPresentation(self: FabSelf): FabPresentation {
         atTop,
         focused: self.focused,
         keyboardOpen,
-        firstRun: self.firstRun,
+        yielded: self.yielded,
         labelWidthPx: self.labelWidthPx,
         windowWidthPx,
     });

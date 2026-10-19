@@ -13,7 +13,7 @@ const BASE: FabInputs = {
     atTop: true,
     focused: false,
     keyboardOpen: false,
-    firstRun: false,
+    yielded: false,
     labelWidthPx: 100,
     windowWidthPx: 390,
 };
@@ -33,7 +33,11 @@ describe('fabPresentationOf', () => {
         ],
         ['the sidebar holds New recipe, so there is no floating button', { chrome: 'sidebar' }, 'hidden'],
         ['the keyboard hides it', { keyboardOpen: true }, 'hidden'],
-        ['the first-run state hides it (its own start buttons take its place)', { firstRun: true }, 'hidden'],
+        [
+            'yielding hides it (a first load in flight, or a first run whose own start buttons take its place)',
+            { yielded: true },
+            'hidden',
+        ],
         ['a label wider than half the window stays icon-only', { labelWidthPx: 196, windowWidthPx: 390 }, 'icon'],
         ['a label of exactly half the window still fits', { labelWidthPx: 195, windowWidthPx: 390 }, 'extended'],
         [

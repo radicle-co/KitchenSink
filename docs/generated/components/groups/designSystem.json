@@ -2969,7 +2969,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.tsx",
                     "dir": "packages/apps/commise/ui/src/createFab",
-                    "moduleDoc": "@commise/ui/create-fab — the web design-system {@link CreateFab} (see `props.ts`). It reads its presentation\nfrom `createFabPolicy` through `useFabPresentation`, so it shrinks to a disc while a phone scrolls down, grows back on\nscroll up, at the top or on focus, hides with the keyboard and in first run, and stays a disc when its label would\ntake more than half the window. Place it right after the page's H1 (`LargeTitleHeader.afterTitle`).\n\nPresentational about data — it fetches and mutates nothing — though its presentation reads the screen's scroll,\nkeyboard and window.",
+                    "moduleDoc": "@commise/ui/create-fab — the web design-system {@link CreateFab} (see `props.ts`). It reads its presentation\nfrom `createFabPolicy` through `useFabPresentation`, so it shrinks to a disc while a phone scrolls down, grows back on\nscroll up, at the top or on focus, hides with the keyboard and while it yields, and stays a disc when its label\nwould take more than half the window. Place it right after the page's H1 (`LargeTitleHeader.afterTitle`).\n\nPresentational about data — it fetches and mutates nothing — though its presentation reads the screen's scroll,\nkeyboard and window.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2985,15 +2985,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "firstRun",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "false",
-                            "description": "Whether the screen shows its first-run state, whose own start buttons take this button's place.",
-                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
-                        },
                         {
                             "name": "icon",
                             "type": "enum",
@@ -3071,6 +3062,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Run the create action.",
+                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
+                        },
+                        {
+                            "name": "yielded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose\nown start buttons take its place.",
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         }
                     ],
@@ -3103,15 +3103,6 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "firstRun",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "false",
-                            "description": "Whether the screen shows its first-run state, whose own start buttons take this button's place.",
-                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
-                        },
-                        {
                             "name": "icon",
                             "type": "enum",
                             "typeDetail": [
@@ -3188,6 +3179,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Run the create action.",
+                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
+                        },
+                        {
+                            "name": "yielded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose\nown start buttons take its place.",
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         }
                     ],

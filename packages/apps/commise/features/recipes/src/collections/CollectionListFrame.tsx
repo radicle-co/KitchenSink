@@ -50,7 +50,7 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
                                 {list.createCta}
                             </Button>
                         </div>
-                        <CreateFab label={list.createCta} icon="plus" onPress={onCreate} firstRun={firstRun} />
+                        <CreateFab label={list.createCta} icon="plus" onPress={onCreate} yielded={firstRun} />
                     </>
                 }
                 {...(segments === undefined

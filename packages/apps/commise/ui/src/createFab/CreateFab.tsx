@@ -3,8 +3,8 @@
 /**
  * @module @commise/ui/create-fab — the web design-system {@link CreateFab} (see `props.ts`). It reads its presentation
  * from `createFabPolicy` through `useFabPresentation`, so it shrinks to a disc while a phone scrolls down, grows back on
- * scroll up, at the top or on focus, hides with the keyboard and in first run, and stays a disc when its label would
- * take more than half the window. Place it right after the page's H1 (`LargeTitleHeader.afterTitle`).
+ * scroll up, at the top or on focus, hides with the keyboard and while it yields, and stays a disc when its label
+ * would take more than half the window. Place it right after the page's H1 (`LargeTitleHeader.afterTitle`).
  *
  * Presentational about data — it fetches and mutates nothing — though its presentation reads the screen's scroll,
  * keyboard and window.
@@ -19,10 +19,10 @@ import { fabSurfaceClass } from './fabSurfaceClass.js';
 import { useFabPresentation } from './useFabPresentation.js';
 
 /** The web design-system floating create button. */
-export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, firstRun = false }) => {
+export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = false }) => {
     const [focused, setFocused] = useState(false);
     const [labelWidthPx, setLabelWidthPx] = useState(0);
-    const presentation = useFabPresentation({ firstRun, focused, labelWidthPx });
+    const presentation = useFabPresentation({ yielded, focused, labelWidthPx });
 
     if (presentation === 'hidden') {
         return null;

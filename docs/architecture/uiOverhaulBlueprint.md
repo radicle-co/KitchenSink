@@ -796,7 +796,7 @@ ReactNode }`. This makes "at most one button plus one ⋯, or the avatar" struct
 4. **CreateFab policy + primitive.**
     - `ui/src/createFab/{createFabPolicy.ts, CreateFab(.native).tsx, props.ts, index.ts}` · `./create-fab`.
     - `createFabPolicy.ts` (pure): `fabPresentationOf({ viewportClass, scrollingDown, atTop, focused,
-keyboardOpen, firstRun, labelWidthPx, windowWidthPx }): 'hidden' | 'icon' | 'extended'`, and
+keyboardOpen, yielded, labelWidthPx, windowWidthPx }): 'hidden' | 'icon' | 'extended'`, and
       `FAB_RESERVED_BOTTOM_PX` (height + 32).
     - `CreateFabProps { label; icon: IconName; onPress; presentation }`. Rendered by the screen **right after the
       H1** in DOM and accessibility order; visually fixed bottom-trailing; RTL corner.

@@ -23,8 +23,11 @@ export interface CreateFabProps {
     readonly icon: IconName;
     /** Run the create action. */
     readonly onPress: () => void;
-    /** Whether the screen shows its first-run state, whose own start buttons take this button's place. */
-    readonly firstRun?: boolean;
+    /**
+     * Whether the button yields its place: while the screen's first load is in flight, or in its first-run state, whose
+     * own start buttons take its place.
+     */
+    readonly yielded?: boolean;
 }
 
 /** The face the floating create control (`CreateFab`) draws. */
@@ -39,7 +42,7 @@ export interface FabFaceProps {
 
 /** What the presentation hook reads from the control itself. */
 export interface FabSelf {
-    readonly firstRun: boolean;
+    readonly yielded: boolean;
     readonly focused: boolean;
     readonly labelWidthPx: number;
 }

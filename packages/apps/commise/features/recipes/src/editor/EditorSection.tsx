@@ -21,7 +21,7 @@ import { SectionPresenceContext } from './sectionPresence.js';
 /** One section of the web editor. */
 export const EditorSection: FC<EditorSectionProps> = ({ id, title, action, current, children }) => (
     <section aria-labelledby={id} className="flex flex-col gap-4">
-        <div className="flex min-h-11 items-center justify-between gap-2">
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 gap-y-1">
             <h2 id={id} tabIndex={-1} className="scroll-mt-4 text-section-title text-ink focus:outline-none">
                 {title}
             </h2>

@@ -58,7 +58,7 @@ export const EditorActionBar: FC<WebEditorActionBarProps> = ({
         <LiveRegion politeness="polite" className="text-body-sm text-ink-muted">
             {readyLine ?? ''}
         </LiveRegion>
-        <div role="group" aria-label={label} className="flex items-center justify-end gap-3">
+        <div role="group" aria-label={label} className="flex flex-wrap items-center justify-end gap-3">
             <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>
                 {previewLabel}
             </Button>

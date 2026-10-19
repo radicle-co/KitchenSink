@@ -75,6 +75,9 @@ const styles = StyleSheet.create({
     fix: { ...nativeTokens.type.meta },
     controls: {
         flexDirection: 'row',
+        // Wrap, never shrink-and-overflow: at 200% text the two buttons can be wider than the bar, and an unwrapped
+        // end-aligned row pushes the first one off the leading edge. Wrapped, Preview sits above Publish (build spec §1.1).
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'flex-end',
         gap: nativeTokens.spacing[3],

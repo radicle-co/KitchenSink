@@ -47,3 +47,21 @@ describe('EditorActionBar (native): the bottom inset', () => {
         expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
     });
 });
+
+describe('EditorActionBar (native): large text and narrow widths (build spec §1.1, §7.1)', () => {
+    it('⛔ lets the controls wrap, so a row too wide for the bar stacks instead of pushing Preview off the left edge', () => {
+        render(<EditorActionBar {...props} />);
+
+        const controls = screen.getByRole('group', { name: 'Recipe actions' });
+
+        expect(getComputedStyle(controls).flexWrap).toBe('wrap');
+    });
+
+    it('keeps Publish after Preview, so a stacked bar leaves the primary at the bottom, nearest the thumb', () => {
+        render(<EditorActionBar {...props} />);
+
+        const buttons = screen.getAllByRole('button').map((b) => b.textContent);
+
+        expect(buttons.indexOf('Publish')).toBeGreaterThan(buttons.indexOf('Preview'));
+    });
+});

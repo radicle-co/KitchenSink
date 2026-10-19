@@ -39,6 +39,16 @@ export const EditorSection: FC<EditorSectionProps> = ({ title, action, focusSign
 
 const styles = StyleSheet.create({
     section: { gap: nativeTokens.spacing[4] },
-    headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+    // Wrap: at 200% text the heading and its action can be wider than the row. Unwrapped, the action keeps its width
+    // and the heading shrinks to a sliver, breaking inside a word ("Ste" / "ps"); wrapped, the action drops under it.
+    headingRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: nativeTokens.spacing[2],
+        rowGap: nativeTokens.spacing[1],
+        minHeight: 44,
+    },
     heading: { ...nativeTokens.type.sectionTitle, flexShrink: 1 },
 });

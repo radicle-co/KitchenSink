@@ -407,8 +407,14 @@ const wait = (ms: number): Promise<void> =>
 /** A full commit sha. A short one could match more than one commit, so it is never accepted. */
 const COMMIT_SHA = /^[0-9a-f]{40}$/u;
 
-/** How many times the pushed commit's build is looked for. 40 x 15s = 10 minutes: a normal Next build, with headroom. */
-const DEFAULT_RESOLVE_ATTEMPTS = 40;
+/**
+ * How many times the pushed commit's build is looked for. 80 x 15s = 20 minutes. Vercel can queue a deployment and
+ * only CREATE it 10+ minutes after the push (CI run 39333403320), and it then still has to build, so the earlier 10
+ * minutes gave up on a build that was merely late. 20 minutes fits inside `previewDomain.yml`'s `timeout-minutes: 30`
+ * with room left for the claim, the DNS write and the alias's own 5-minute certificate retry after it. A build that
+ * FAILS does not wait this out: ERROR / CANCELED stop the loop at once.
+ */
+const DEFAULT_RESOLVE_ATTEMPTS = 80;
 
 const DEFAULT_RESOLVE_DELAY_MS = 15_000;
 
@@ -419,6 +425,9 @@ const DEFAULT_RESOLVE_DELAY_MS = 15_000;
  *   validated here, at the boundary, rather than declared as a contract of ours. `meta` is absent on a deployment
  *   not made from the repository; `projectId` is re-checked because the server-side filter is not the guarantee.
  */
+/** Vercel `readyState` values after which a deployment can never become READY: waiting for it is pointless. */
+const TERMINAL_FAILURE_STATES: ReadonlySet<string> = new Set(['ERROR', 'CANCELED', 'DELETED']);
+
 const deploymentListSchema = z.object({
     deployments: z.array(
         z.object({
@@ -440,6 +449,9 @@ export interface DeploymentResolutionOptions {
 /**
  * Find the Vercel deployment built from exactly `commitSha`, waiting for it to be READY.
  *
+ * The wait follows Vercel's own state: QUEUED / INITIALIZING / BUILDING (or no deployment yet) retries, READY returns,
+ * and ERROR / CANCELED of the newest build throw at once rather than sleeping out the budget.
+ *
  * A push moves the preview address (owner ruling 2026-10-16), and the alias must land on the deployment of THAT
  * push. Taking "the newest deployment of the branch" names the previous build for as long as the new one is still
  * being created, and the address then serves the commit before the one under test. So the deployment is chosen by
@@ -454,7 +466,8 @@ export interface DeploymentResolutionOptions {
  * @param commitSha - The full 40-hex head sha of the PR.
  * @param options - Attempt budget and delay between attempts.
  * @returns The `dpl_…` id of the newest READY deployment of this project at that commit.
- * @throws Error When the sha is not a full commit sha, Vercel fails, or no such deployment is READY in budget.
+ * @throws Error When the sha is not a full commit sha, Vercel fails, the newest build failed or was cancelled, or no
+ *   such deployment is READY in budget.
  * @sideEffect Calls the Vercel API.
  */
 export async function resolveDeploymentForCommit(
@@ -473,7 +486,6 @@ export async function resolveDeploymentForCommit(
     const url = new URL(vercelApiUrl('/v6/deployments', config));
     url.searchParams.set('projectId', config.projectId);
     url.searchParams.set('meta-githubCommitSha', commitSha);
-    url.searchParams.set('state', 'READY');
     url.searchParams.set('limit', '20');
 
     for (let attempt = 1; ; attempt++) {
@@ -489,22 +501,34 @@ export async function resolveDeploymentForCommit(
         }
 
         const { deployments } = deploymentListSchema.parse(JSON.parse(await response.text()));
-        const match = deployments
+        const ofThisCommit = deployments
             .filter(
                 (candidate) =>
                     candidate.meta?.githubCommitSha === commitSha &&
-                    (candidate.readyState ?? candidate.state) === 'READY' &&
                     (candidate.projectId === undefined || candidate.projectId === config.projectId),
             )
-            .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0];
+            .sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+        const stateOf = (candidate: { readyState?: string | undefined; state?: string | undefined }): string =>
+            candidate.readyState ?? candidate.state ?? 'UNKNOWN';
 
-        if (match) {
-            return match.uid;
+        const ready = ofThisCommit.find((candidate) => stateOf(candidate) === 'READY');
+
+        if (ready) {
+            return ready.uid;
+        }
+
+        const newest = ofThisCommit[0];
+        const lastSeen = newest ? `${newest.uid} is ${stateOf(newest)}` : 'no deployment of this commit exists yet';
+
+        if (newest && TERMINAL_FAILURE_STATES.has(stateOf(newest))) {
+            throw new Error(
+                `create-preview-domain: the build of commit ${commitSha} will never be READY — deployment ${newest.uid} is ${stateOf(newest)}`,
+            );
         }
 
         if (attempt >= attempts) {
             throw new Error(
-                `create-preview-domain: no READY deployment of commit ${commitSha} after ${attempts} attempts — the build is still running, failed, or Vercel never built this commit`,
+                `create-preview-domain: no READY deployment of commit ${commitSha} after ${attempts} attempts — last seen: ${lastSeen}`,
             );
         }
 

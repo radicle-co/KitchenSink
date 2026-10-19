@@ -670,7 +670,7 @@ describe('resolveDeploymentForCommit — the alias targets the deployment built 
     const page = (...deployments: Record<string, unknown>[]): ReturnType<typeof response> =>
         okResponse(JSON.stringify({ deployments }));
 
-    it('asks Vercel for READY deployments of this project at exactly this commit', async () => {
+    it('asks Vercel for ALL deployments of this project at exactly this commit, so a failed build is visible', async () => {
         const http = vi.fn().mockResolvedValue(page(deployment()));
 
         const id = await resolveDeploymentForCommit({ http, sleep: vi.fn() }, VERCEL, SHA);
@@ -680,7 +680,8 @@ describe('resolveDeploymentForCommit — the alias targets the deployment built 
         expect(url.pathname).toBe('/v6/deployments');
         expect(url.searchParams.get('projectId')).toBe(VERCEL.projectId);
         expect(url.searchParams.get('meta-githubCommitSha')).toBe(SHA);
-        expect(url.searchParams.get('state')).toBe('READY');
+        expect(url.searchParams.has('state')).toBe(false);
+        expect(url.searchParams.get('limit')).toBe('20');
         expect(url.searchParams.get('teamId')).toBe(VERCEL.teamId);
         expect(http.mock.calls[0]?.[1]).toMatchObject({
             method: 'GET',
@@ -741,6 +742,126 @@ describe('resolveDeploymentForCommit — the alias targets the deployment built 
         ).rejects.toThrow(new RegExp(`no READY deployment.*${SHA}.*3 attempts`, 'u'));
         expect(http).toHaveBeenCalledTimes(3);
         expect(sleep).toHaveBeenCalledTimes(2);
+    });
+
+    it('follows Vercel state: QUEUED, INITIALIZING then BUILDING are waited out, then the READY uid is returned', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValueOnce(page(deployment({ readyState: 'QUEUED' })))
+            .mockResolvedValueOnce(page(deployment({ readyState: undefined, state: 'INITIALIZING' })))
+            .mockResolvedValueOnce(page(deployment({ readyState: 'BUILDING' })))
+            .mockResolvedValueOnce(page(deployment({ readyState: 'BUILDING' })))
+            .mockResolvedValueOnce(page(deployment({ uid: 'dpl_done', readyState: 'READY' })));
+        const sleep = vi.fn().mockResolvedValue(undefined);
+
+        const id = await resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA, { attempts: 10, delayMs: 3 });
+
+        expect(id).toBe('dpl_done');
+        expect(http).toHaveBeenCalledTimes(5);
+        expect(sleep).toHaveBeenCalledTimes(4);
+    });
+
+    it.each(['ERROR', 'CANCELED'])(
+        'stops at once when the newest build of the commit is %s, naming the deployment and the state',
+        async (state) => {
+            const http = vi.fn().mockResolvedValue(page(deployment({ uid: 'dpl_dead', readyState: state })));
+            const sleep = vi.fn().mockResolvedValue(undefined);
+
+            await expect(resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA)).rejects.toThrow(
+                new RegExp(`dpl_dead.*${state}`, 'u'),
+            );
+            expect(http).toHaveBeenCalledTimes(1);
+            expect(sleep).not.toHaveBeenCalled();
+        },
+    );
+
+    it('reads a terminal state from `state` when `readyState` is absent', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValue(page(deployment({ uid: 'dpl_dead', readyState: undefined, state: 'ERROR' })));
+        const sleep = vi.fn();
+
+        await expect(resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA)).rejects.toThrow(/dpl_dead.*ERROR/u);
+        expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it('a READY redeploy wins over an older failed build of the same commit', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValue(
+                page(
+                    deployment({ uid: 'dpl_failed', readyState: 'ERROR', created: 1_000 }),
+                    deployment({ uid: 'dpl_redeploy', readyState: 'READY', created: 3_000 }),
+                ),
+            );
+
+        expect(await resolveDeploymentForCommit({ http, sleep: vi.fn() }, VERCEL, SHA)).toBe('dpl_redeploy');
+    });
+
+    it('a failed build of ANOTHER commit or project never stops the wait for this one', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValueOnce(
+                page(
+                    deployment({ uid: 'dpl_old', readyState: 'ERROR', meta: { githubCommitSha: OTHER_SHA } }),
+                    deployment({ uid: 'dpl_foreign', readyState: 'CANCELED', projectId: 'prj_other' }),
+                ),
+            )
+            .mockResolvedValueOnce(page(deployment()));
+        const sleep = vi.fn().mockResolvedValue(undefined);
+
+        expect(await resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA, { delayMs: 1 })).toBe('dpl_current');
+        expect(sleep).toHaveBeenCalledTimes(1);
+    });
+
+    it('never returns a READY deployment of another commit or project, even for the whole budget', async () => {
+        const http = vi
+            .fn()
+            .mockResolvedValue(
+                page(
+                    deployment({ uid: 'dpl_other_commit', meta: { githubCommitSha: OTHER_SHA } }),
+                    deployment({ uid: 'dpl_other_project', projectId: 'prj_other' }),
+                ),
+            );
+        const sleep = vi.fn().mockResolvedValue(undefined);
+
+        await expect(
+            resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA, { attempts: 4, delayMs: 1 }),
+        ).rejects.toThrow(new RegExp(`no READY deployment of commit ${SHA} after 4 attempts`, 'u'));
+        expect(http).toHaveBeenCalledTimes(4);
+        expect(sleep).toHaveBeenCalledTimes(3);
+    });
+
+    it('reports the last state seen when the budget runs out on a build that never finished', async () => {
+        const http = vi.fn().mockResolvedValue(page(deployment({ readyState: 'BUILDING' })));
+
+        await expect(
+            resolveDeploymentForCommit({ http, sleep: vi.fn().mockResolvedValue(undefined) }, VERCEL, SHA, {
+                attempts: 2,
+                delayMs: 1,
+            }),
+        ).rejects.toThrow(/2 attempts.*BUILDING/u);
+    });
+
+    it('says no deployment ever appeared when none did', async () => {
+        const http = vi.fn().mockResolvedValue(page());
+
+        await expect(
+            resolveDeploymentForCommit({ http, sleep: vi.fn().mockResolvedValue(undefined) }, VERCEL, SHA, {
+                attempts: 2,
+                delayMs: 1,
+            }),
+        ).rejects.toThrow(/2 attempts.*no deployment/u);
+    });
+
+    it('defaults to 80 attempts x 15 s: 20 minutes, inside the 30-minute job with room for the alias retry', async () => {
+        const http = vi.fn().mockResolvedValue(page());
+        const sleep = vi.fn().mockResolvedValue(undefined);
+
+        await expect(resolveDeploymentForCommit({ http, sleep }, VERCEL, SHA)).rejects.toThrow(/80 attempts/u);
+        expect(http).toHaveBeenCalledTimes(80);
+        expect(sleep).toHaveBeenCalledTimes(79);
+        expect(sleep).toHaveBeenCalledWith(15_000);
     });
 
     it('does not retry a permanent Vercel failure', async () => {

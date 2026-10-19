@@ -21,11 +21,12 @@ appId: ${APP_ID}
 
 # Reach the recipe by search, as `discoverDetailSaveCopy` and `rating` do: a rail's order is data about the whole sandbox.
 # 'Crostini' is a word of the fixture's base title (`PRIVATE_FOOD_RECIPE` in e2e-seed). Anchored (`^…$`) so the tap selects the row's title, not the
-# card's "Save a copy of …" button whose label also contains it. The run key in the title keeps other runs' rows out.
+# card's "Save a copy of …" button whose label also contains it. The query carries the run key because every lane's
+# co-author publishes its own crostini (`maestroDiscoverQueryScoped.test.ts`).
 - runFlow:
       file: common/searchDiscover.yaml
       env:
-          QUERY: 'Crostini'
+          QUERY: 'Crostini ${E2E_RUN_KEY}'
 - scrollUntilVisible:
       element:
           text: '^${E2E_RECIPE_PRIVATE_FOOD}$'

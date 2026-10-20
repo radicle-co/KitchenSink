@@ -1231,6 +1231,8 @@ jobs:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
+                  # `reset --mode ambiguity` (ambiguityReview's per-flow reset) seeds an authored food through the food service.
+                  E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   # Per-vertical FLOW SELECTION, passed as an ENVIRONMENT VARIABLE and never expanded into
                   # the `script:` body below. That is not style: a `${{ … }}` interpolated into a shell body
@@ -1768,6 +1770,8 @@ jobs:
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
                   E2E_SEED_IDENTITY_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
+                  # `reset --mode ambiguity` (ambiguityReview's per-flow reset) seeds an authored food through the food service.
+                  E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   # ⛔ MID-SHARD STOP - the Android step's, for its reason: only `stopped=true` turns a failed
                   # flow or reset into a skip, and earlier failures stand.

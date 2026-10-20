@@ -1442,6 +1442,19 @@ maestro_seed_reset() {
     bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/reset.ts --mode "$1"
 }
 
+# True when a `maestro test` output file shows the iOS XCUITest driver NEVER STARTED, so no flow step ran. Pure: reads
+# the one file it is given, prints nothing, answers by exit status (0 = never started).
+#
+# CI run 39376194588, iOS shard 4: the first flow (`auth/loginFlow`) died with
+# `xcuitest.installer.LocalXCTestInstaller$IOSDriverTimeoutException: iOS driver not ready in time` after 5.7 minutes,
+# before ANY step ran, and every later flow on the shard passed. That red says nothing about the app, so the loop
+# retries it once. Both the exception class and its message are matched: either alone survives a reword of the other.
+#
+# @param $1 - The file holding the flow's combined stdout and stderr.
+maestro_driver_never_started() {
+    [ -r "${1-}" ] && grep -Eq 'IOSDriverTimeoutException|iOS driver not ready in time' "$1"
+}
+
 # Run each named flow through the full per-flow lifecycle.
 #
 # Split out of `maestro_run_flows` so the `run-one` subcommand — and therefore
@@ -1450,7 +1463,7 @@ maestro_seed_reset() {
 #
 # @sideEffect Resets the driver, reseeds the database, runs Maestro, and dumps diagnostics on failure.
 maestro_run_flow_list() {
-    local rc=0 f reseed_mode flows="$*" platform app_id driver_args=()
+    local rc=0 f reseed_mode flows="$*" platform app_id driver_args=() flow_log flow_rc
 
     if ! platform=$(maestro_platform); then
         echo "::error::unknown MAESTRO_PLATFORM '${MAESTRO_PLATFORM:-}' — refusing to guess which device to drive"
@@ -1544,7 +1557,22 @@ maestro_run_flow_list() {
         # `${a[@]+"${a[@]}"}` rather than a bare `"${a[@]}"`: under `set -u` an EMPTY array is an unbound
         # variable on bash 3.2 (still the system bash on macOS), and the `run-one` seam runs with no
         # manifest. Every element stays individually quoted, so titles keep their spaces.
-        if maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        # The output is teed to a file so the decision below can read it; maestro's status is PIPESTATUS[0], not tee's.
+        flow_log="$(mktemp)"
+        maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml" 2>&1 | tee "$flow_log"
+        flow_rc=${PIPESTATUS[0]}
+        # ⛔ iOS ONLY, ONCE: a driver that never started ran no step, so the flow is retried on a freshly reset driver. The
+        # world is NOT reseeded (nothing ran to dirty it). Any other failure, and every Android failure, is the flow's result.
+        if [ "$flow_rc" -ne 0 ] && [ "$platform" = 'ios' ] && maestro_driver_never_started "$flow_log"; then
+            echo "::warning::${f}: the iOS driver never started (IOSDriverTimeoutException), so no step ran - resetting the driver and running it once more"
+            maestro_reset_driver
+            maestro_scope_device_log
+            : >"$flow_log"
+            maestro ${device_args[@]+"${device_args[@]}"} test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"
+            flow_rc=$?
+        fi
+        rm -f "$flow_log"
+        if [ "$flow_rc" -eq 0 ]; then
             driver_trusted=1
             runner_before='the previous flow passed'
         else

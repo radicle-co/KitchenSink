@@ -422,3 +422,184 @@ describe('maestro flow loop — an erasing flow with no leased subject is never 
         expect(refusedOutput).toMatch(/::error::accountErasure ERASES a pool slot/u);
     });
 });
+
+/**
+ * ⛔ AN iOS DRIVER THAT NEVER STARTED IS RETRIED ONCE; NOTHING ELSE IS.
+ *
+ * CI run 39376194588, iOS shard 4: the first flow (`auth/loginFlow`) died with Maestro's
+ * `xcuitest.installer.LocalXCTestInstaller$IOSDriverTimeoutException: iOS driver not ready in time` after 5.7 minutes,
+ * before ANY flow step ran, while every later flow passed. That red says nothing about the app, so the loop resets the
+ * driver and runs the SAME flow once more (no reseed: the first attempt ran no step). Four directions are held, because
+ * each alone is satisfied by the wrong loop: "retries on the timeout" by a loop that retries every failure, "runs once on
+ * an assertion failure" by a loop that never retries, and the Android row by a loop that forgets the platform.
+ */
+describe('maestro flow loop — a driver that never started is retried once, on iOS only', () => {
+    const FLOW = 'auth/loginFlow';
+    const TIMEOUT_TEXT =
+        'xcuitest.installer.LocalXCTestInstaller$IOSDriverTimeoutException: iOS driver not ready in time\n';
+    const ASSERTION_TEXT = 'Assertion is false: "Welcome" is visible\n';
+
+    /**
+     * Run the real loop over {@link FLOW} with a `maestro` stub whose Nth call prints and exits as `attempts[N-1]`
+     * (the last entry repeats).
+     *
+     * @sideEffect Writes stubs to a temp directory, spawns bash, removes the directory.
+     */
+    function runFlow(
+        platform: 'ios' | 'android',
+        attempts: readonly { readonly text: string; readonly exit: number }[],
+    ): { calls: string[]; output: string; status: number } {
+        const dir = mkdtempSync(join(tmpdir(), 'maestro-driver-retry-'));
+
+        try {
+            const log = join(dir, 'calls.log');
+
+            writeFileSync(log, '', 'utf8');
+
+            for (const name of ['adb', 'node', 'npx', 'xcrun']) {
+                stub(dir, name, log);
+            }
+
+            // One script per attempt, picked by a counter file: bash 3.2 compatible and easy to read in a failure.
+            attempts.forEach((attempt, index) => {
+                writeFileSync(join(dir, `attempt${index + 1}.txt`), attempt.text, 'utf8');
+            });
+            const last = attempts.length;
+
+            writeFileSync(
+                join(dir, 'maestro'),
+                [
+                    '#!/usr/bin/env bash',
+                    `{ printf '%s' maestro; printf '\\t%s' "$@"; printf '\\n'; } >> "${log}"`,
+                    `counter="${dir}/count"`,
+                    'n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))',
+                    'echo "$n" > "$counter"',
+                    `[ "$n" -gt ${last} ] && n=${last}`,
+                    `cat "${dir}/attempt\${n}.txt" >&2`,
+                    `case "$n" in ${attempts.map((a, i) => `${i + 1}) exit ${a.exit} ;;`).join(' ')} esac`,
+                    '',
+                ].join('\n'),
+                'utf8',
+            );
+            chmodSync(join(dir, 'maestro'), 0o755);
+
+            const manifestFile = join(dir, 'fixture.env');
+
+            writeFileSync(
+                manifestFile,
+                `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, platform, 1), provisioned(null)).join('\n')}\n`,
+                'utf8',
+            );
+
+            const result = spawnSync('bash', [SCRIPT, 'run-one', FLOW], {
+                cwd: REPO_ROOT,
+                encoding: 'utf8',
+                env: {
+                    ...process.env,
+                    PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+                    E2E_SEED_CLI_DIR: '',
+                    MAESTRO_FIXTURE_ENV_FILE: manifestFile,
+                    MAESTRO_PLATFORM: platform,
+                    MAESTRO_IOS_UDID: 'TEST-UDID',
+                },
+            });
+
+            return {
+                calls: readFileSync(log, 'utf8')
+                    .split('\n')
+                    .filter((line) => line.trim().length > 0),
+                output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
+                status: result.status ?? -1,
+            };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+
+    const flowRuns = (calls: readonly string[]) => calls.filter((call) => /^maestro\t.*\btest\b/u.test(call));
+    const seedResets = (calls: readonly string[]) =>
+        calls.filter((call) => /^npx\t.*e2e-seed\/src\/reset\.ts/u.test(call));
+    const driverUninstalls = (calls: readonly string[]) =>
+        calls.filter((call) => /^xcrun\tsimctl\tuninstall/u.test(call));
+
+    describe('iOS, the driver times out once and then the flow passes', () => {
+        let run: ReturnType<typeof runFlow>;
+
+        beforeAll(() => {
+            run = runFlow('ios', [
+                { text: TIMEOUT_TEXT, exit: 1 },
+                { text: '', exit: 0 },
+            ]);
+        }, 60_000);
+
+        it('⛔ runs the flow twice, the second time with a freshly reset driver, and passes the shard', () => {
+            const runs = flowRuns(run.calls);
+
+            expect(runs, run.output).toHaveLength(2);
+            expect(runs[0]).not.toContain('--no-reinstall-driver');
+            expect(runs[1]).not.toContain('--no-reinstall-driver');
+            expect(runs[1]).toBe(runs[0]);
+            // Reset before the first attempt AND before the retry.
+            expect(driverUninstalls(run.calls), run.output).toHaveLength(2);
+            expect(run.status, run.output).toBe(0);
+            expect(run.output).not.toContain(`FLOW FAILED: ${FLOW}`);
+        });
+
+        it('⛔ does not reseed for the retry — the first attempt ran no step', () => {
+            expect(seedResets(run.calls)).toHaveLength(1);
+        });
+
+        it('warns, naming the flow and that no step ran', () => {
+            expect(run.output).toMatch(new RegExp(`::warning::.*${FLOW}.*driver.*never started.*no step`, 'u'));
+        });
+    });
+
+    describe('iOS, the driver times out on both attempts', () => {
+        let run: ReturnType<typeof runFlow>;
+
+        beforeAll(() => {
+            run = runFlow('ios', [{ text: TIMEOUT_TEXT, exit: 1 }]);
+        }, 60_000);
+
+        it('⛔ retries ONCE only, then reports FLOW FAILED and fails the shard', () => {
+            expect(flowRuns(run.calls), run.output).toHaveLength(2);
+            expect(run.output).toContain(`FLOW FAILED: ${FLOW}`);
+            expect(run.status).not.toBe(0);
+        });
+    });
+
+    describe('iOS, an ordinary assertion failure', () => {
+        let run: ReturnType<typeof runFlow>;
+
+        beforeAll(() => {
+            run = runFlow('ios', [
+                { text: ASSERTION_TEXT, exit: 1 },
+                { text: '', exit: 0 },
+            ]);
+        }, 60_000);
+
+        it('⛔ is never retried', () => {
+            expect(flowRuns(run.calls), run.output).toHaveLength(1);
+            expect(run.output).toContain(`FLOW FAILED: ${FLOW}`);
+            expect(run.output).not.toContain('::warning::');
+            expect(run.status).not.toBe(0);
+        });
+    });
+
+    describe('Android, with the driver text in the output', () => {
+        let run: ReturnType<typeof runFlow>;
+
+        beforeAll(() => {
+            run = runFlow('android', [
+                { text: TIMEOUT_TEXT, exit: 1 },
+                { text: '', exit: 0 },
+            ]);
+        }, 60_000);
+
+        it('⛔ is never retried', () => {
+            expect(flowRuns(run.calls), run.output).toHaveLength(1);
+            expect(run.output).toContain(`FLOW FAILED: ${FLOW}`);
+            expect(run.status).not.toBe(0);
+        });
+    });
+});

@@ -48,6 +48,7 @@
         "@kitchensink/food-service-client": "*",
         "@kitchensink/recipe-core": "*",
         "@kitchensink/recipe-service-client": "*",
+        "@kitchensink/retry-after": "*",
         "p-retry": "^8.0.0"
     }
 }

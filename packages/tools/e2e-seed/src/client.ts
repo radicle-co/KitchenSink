@@ -9,6 +9,7 @@ import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
 
+import { idempotentRetryFetch } from './idempotentFetch.js';
 import { memoizingTokenSource } from './tokenSource.js';
 
 /**
@@ -27,6 +28,8 @@ export function clientWithToken(
         // against a shared `db.t4g.micro`, and the first write after an idle period meets a cold pool — a
         // timeout there would fail a whole emulator job for a latency figure nobody is measuring.
         timeoutMs: 30_000,
+        // One gateway blip must not stop a shard: GET/HEAD repeat on 502/503/504, nothing else does.
+        fetch: idempotentRetryFetch(),
     });
 }
 
@@ -51,5 +54,6 @@ export function foodClientFor(baseUrl: string, handle: SessionHandle): FoodServi
         token: memoizingTokenSource(handle, { remint: remintFromSession }),
         // The recipe client's cold-preview allowance, for the same stage shape (one Spot task, a shared micro RDS).
         timeoutMs: 30_000,
+        fetch: idempotentRetryFetch(),
     });
 }

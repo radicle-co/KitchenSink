@@ -209,7 +209,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await applyTextScale(page, testInfo);
 
-        await page.getByRole('button', { name: 'Review ingredient matches' }).click();
+        await page.getByRole('button', { name: /Review ingredient matches$/u }).click();
         await expect(page.getByRole('button', { name: 'Pepper, black, ground' })).toBeVisible();
         await expectNoSidewaysScroll(page);
     });

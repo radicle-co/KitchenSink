@@ -215,7 +215,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         });
 
         await page.goto(route(`/recipes/${recipe.id}`));
-        await page.getByRole('button', { name: 'Review ingredient matches' }).click();
+        await page.getByRole('button', { name: /Review ingredient matches$/u }).click();
         const spoonRow = page.getByRole('group', { name: '2 tbsp apple sauce' });
 
         await spoonRow
@@ -268,7 +268,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         });
 
         await page.goto(route(`/recipes/${recipe.id}`));
-        await page.getByRole('button', { name: 'Review ingredient matches' }).click();
+        await page.getByRole('button', { name: /Review ingredient matches$/u }).click();
         const spoonRow = page.getByRole('group', { name: '2 tbsp apple sauce' });
         const cupRow = page.getByRole('group', { name: '1 cup apple sauce' });
 

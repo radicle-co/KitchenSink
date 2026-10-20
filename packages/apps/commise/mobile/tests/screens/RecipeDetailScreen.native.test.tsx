@@ -837,7 +837,7 @@ describe('RecipeDetailScreen — the ambiguity review is the owner’s alone', (
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.getByRole('button', { name: 'Review ingredient matches' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: /Review ingredient matches$/u })).toBeTruthy();
     });
 
     it('offers a viewer who does not own the recipe no review: the rebind would refuse every pick', () => {
@@ -847,7 +847,7 @@ describe('RecipeDetailScreen — the ambiguity review is the owner’s alone', (
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.getByRole('button', { name: 'Save a copy' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Review ingredient matches' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Review ingredient matches$/u })).toBeNull();
     });
 });
 

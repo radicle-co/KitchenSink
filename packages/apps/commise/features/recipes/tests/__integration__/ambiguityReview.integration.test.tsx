@@ -149,7 +149,7 @@ describe('the recipe detail ambiguity review, composed over the real clients (in
         });
 
         renderDetail(origins);
-        await user.click(await screen.findByRole('button', { name: en.ambiguousReviewToggle }));
+        await user.click(await screen.findByRole('button', { name: new RegExp(`${en.ambiguousReviewToggle}$`, 'u') }));
         await user.click(
             await within(screen.getByRole('group', { name: '2 tbsp apple sauce' })).findByRole('button', {
                 name: CANNED.name,
@@ -191,7 +191,7 @@ describe('the recipe detail ambiguity review, composed over the real clients (in
         });
 
         renderDetail(origins);
-        await user.click(await screen.findByRole('button', { name: en.ambiguousReviewToggle }));
+        await user.click(await screen.findByRole('button', { name: new RegExp(`${en.ambiguousReviewToggle}$`, 'u') }));
 
         const spoonRow = (): HTMLElement => screen.getByRole('group', { name: '2 tbsp apple sauce' });
 
@@ -236,7 +236,7 @@ describe('the recipe detail ambiguity review, composed over the real clients (in
         const origins = twoOrigins({ recipe: () => json(recipeAt(4)), food: remote });
 
         renderDetail(origins);
-        await user.click(await screen.findByRole('button', { name: en.ambiguousReviewToggle }));
+        await user.click(await screen.findByRole('button', { name: new RegExp(`${en.ambiguousReviewToggle}$`, 'u') }));
         const spoonRow = screen.getByRole('group', { name: '2 tbsp apple sauce' });
 
         await user.click(

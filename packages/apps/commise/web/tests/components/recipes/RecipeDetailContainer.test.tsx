@@ -1021,7 +1021,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            expect(await screen.findByRole('button', { name: 'Review ingredient matches' })).toBeInTheDocument();
+            expect(await screen.findByRole('button', { name: /Review ingredient matches$/u })).toBeInTheDocument();
         });
 
         it('offers a viewer who does not own the recipe no review: the rebind would refuse every pick', async () => {
@@ -1032,7 +1032,7 @@ describe('RecipeDetailContainer', () => {
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
             await screen.findByRole('button', { name: 'Save a copy' });
-            expect(screen.queryByRole('button', { name: 'Review ingredient matches' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /Review ingredient matches$/u })).not.toBeInTheDocument();
         });
     });
 

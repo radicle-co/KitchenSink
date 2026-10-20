@@ -190,10 +190,11 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
                         type="button"
                         onClick={() => setOpen((value) => !value)}
                         aria-expanded={open}
-                        aria-label={detail.ambiguousReviewToggle}
                         className="flex items-center gap-2 rounded-xl border border-line-divider bg-paper p-3 text-left"
                     >
-                        <span className="flex-1 text-body-sm font-medium text-ink">{notice}</span>
+                        {/* The name is the content in visible order, the count sentence then the badge (WCAG 1.3.1, 2.5.3);
+                            the space keeps the two apart where a name is joined from inline boxes. */}
+                        <span className="flex-1 text-body-sm font-medium text-ink">{notice}</span>{' '}
                         <span className="shrink-0 rounded-full bg-action/10 px-3 py-1 text-caption font-semibold text-action-text">
                             {detail.ambiguousReviewToggle}
                         </span>

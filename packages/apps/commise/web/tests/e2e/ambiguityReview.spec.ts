@@ -77,7 +77,10 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         ).toBeVisible();
 
         // Open the surface: the two same-named lines are TWO rows, each named by its own amount.
-        await page.getByRole('button', { name: 'Review ingredient matches' }).click();
+        // The entry's name is its content in visible order, the count sentence then the badge (WCAG 1.3.1, 2.5.3).
+        const entry = page.getByRole('button', { name: /Review ingredient matches$/u });
+        await expect(entry).toHaveAccessibleName(/2 ingredients could match more than one food/u);
+        await entry.click();
         const cupRow = page.getByRole('group', { name: '1 cup apple sauce' });
         const spoonRow = page.getByRole('group', { name: '2 tbsp apple sauce' });
 
@@ -123,7 +126,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000004'));
         await expect(page.getByRole('heading', { name: 'Someone Else’s Probe' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Save a copy' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Review ingredient matches' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /Review ingredient matches$/u })).toHaveCount(0);
     });
 
     test('a private-food line reads as a private ingredient, and its copy says so once (plan 002)', async ({

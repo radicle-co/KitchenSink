@@ -153,7 +153,9 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
                 <>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={detail.ambiguousReviewToggle}
+                        // The count sentence then the badge, as drawn (WCAG 1.3.1, 2.5.3); written out because React
+                        // Native on Android does not reliably compute a Pressable's name from its children.
+                        accessibilityLabel={`${notice} ${detail.ambiguousReviewToggle}`}
                         accessibilityState={{ expanded: open }}
                         aria-expanded={open}
                         onPress={() => setOpen((value) => !value)}

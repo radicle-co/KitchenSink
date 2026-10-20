@@ -37,24 +37,27 @@ appId: ${APP_ID}
       element: 'Choose a match'
       direction: DOWN
       timeout: 20000
+# The entry sits at the BOTTOM of the detail, below the rating, so the scroll is DOWN. Its sentence is part of the
+# button's NAME (WCAG 1.3.1/2.5.3): Android exposes the Pressable's label, iOS merges the children, so the pattern is the
+# sentence then anything then the badge text, and matches both.
 - scrollUntilVisible:
-      element: '2 ingredients could match more than one food\. Review them to sharpen the nutrition\.'
-      direction: UP
+      element: '2 ingredients could match more than one food\. Review them to sharpen the nutrition\..*'
+      direction: DOWN
       timeout: 20000
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: 'Review ingredient matches'
+          TARGET: '.*Review ingredient matches'
           DIRECTION: DOWN
           TIMEOUT: 20000
-- tapOn: 'Review ingredient matches'
+- tapOn: '.*Review ingredient matches'
 
 # One row per ambiguous line, named by its amount and its words ("1 cup apple sauce"); its shortlist is the food
 # search's for the line's words.
 - extendedWaitUntil:
       visible:
           text: '.+ apple sauce'
-          below: 'Review ingredient matches'
+          below: '.*Review ingredient matches'
       timeout: 30000
       label: 'the owner’s recipe carries two AMBIGUOUS "apple sauce" lines, and their review rows are open'
 
@@ -78,8 +81,9 @@ appId: ${APP_ID}
       timeout: 30000
 # audit 2026-10-19, C3: the pick fixed ONE line and left the other under review. The entry counted two before the pick
 # and counts one after, so this text is ABSENT before and PRESENT after, and the saved sentence alone could not say it.
+# The entry is ABOVE the open rows and the saved sentence, so after a pick in a row the scroll back to it is UP.
 - scrollUntilVisible:
-      element: '1 ingredient could match more than one food\. Review it to sharpen the nutrition\.'
+      element: '1 ingredient could match more than one food\. Review it to sharpen the nutrition\..*'
       direction: UP
       timeout: 30000
 

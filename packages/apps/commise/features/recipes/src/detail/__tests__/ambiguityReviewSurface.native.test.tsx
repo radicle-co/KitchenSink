@@ -216,9 +216,12 @@ function renderReview(recipe: RecipeDetail, viewerIsOwner = true) {
     };
 }
 
+/** The entry's name ends in the toggle text; its start is the count sentence, asserted by the naming tests. */
+const ENTRY_NAME = new RegExp(`${en.ambiguousReviewToggle}$`, 'u');
+
 /** Open the review. */
 const open = (): void => {
-    fireEvent.click(screen.getByRole('button', { name: en.ambiguousReviewToggle }));
+    fireEvent.click(screen.getByRole('button', { name: ENTRY_NAME }));
 };
 
 /** The review row for one line, through its header, which says the line's own words. */
@@ -249,7 +252,7 @@ describe('AmbiguityReview (native) — every state', () => {
     it('⛔ offers a viewer who does not own the recipe NO review: only the owner can re-point a line', () => {
         const { container } = renderReview(SIBLINGS, false);
 
-        expect(screen.queryByRole('button', { name: en.ambiguousReviewToggle })).toBeNull();
+        expect(screen.queryByRole('button', { name: ENTRY_NAME })).toBeNull();
         expect(container.innerHTML).toBe('');
     });
 
@@ -341,7 +344,7 @@ describe('AmbiguityReview (native) — every state', () => {
         await waitFor(() => expect(rebind).toHaveBeenCalledTimes(1));
         await held.resolve(recipeOf([FLOUR, SPOON_REPOINTED]));
 
-        await waitFor(() => expect(screen.queryByRole('button', { name: en.ambiguousReviewToggle })).toBeNull());
+        await waitFor(() => expect(screen.queryByRole('button', { name: ENTRY_NAME })).toBeNull());
         expect(queryHeadedGroup(SPOON_ROW)).toBeNull();
         const saved = screen.getByText(en.ambiguousReviewSaved);
         await waitFor(() => expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenLastCalledWith(saved, 'focus'));
@@ -604,17 +607,36 @@ describe('AmbiguityReview (native) — every state', () => {
         expect(rebind).not.toHaveBeenCalled();
     });
 
+    /** REWRITTEN (2026-10-19): the entry's name now carries the count sentence, WCAG 1.3.1/2.5.3; the toggle text alone hid the count from screen readers. */
+    it.each([
+        ['one line', recipeOf([CUP]), en.ambiguousNoticeOne],
+        ['two lines', SIBLINGS, en.ambiguousNoticeMany.replace('{count}', '2')],
+    ])(
+        '⛔ the entry’s accessible name carries the count sentence AND the toggle text (%s)',
+        (_label, recipe, sentence) => {
+            renderReview(recipe);
+            const sentenceThenToggle = (name: string): boolean =>
+                name.includes(sentence) &&
+                name.includes(en.ambiguousReviewToggle) &&
+                name.indexOf(sentence) < name.indexOf(en.ambiguousReviewToggle);
+
+            expect(screen.getByRole('button', { name: sentenceThenToggle })).toBeTruthy();
+            expect(screen.getByRole('button', { name: ENTRY_NAME }).getAttribute('aria-label')).toBe(
+                `${sentence} ${en.ambiguousReviewToggle}`,
+            );
+        },
+    );
+
+    // REWRITTEN (2026-10-19): the entry's name now carries the count sentence, WCAG 1.3.1/2.5.3; the toggle text alone hid the count from screen readers.
     // V3-m4, 4.1.2: the toggle says whether the review it discloses is open, as the web leaf's `aria-expanded` does.
     it('the toggle exposes whether the review is open', () => {
         renderReview(recipeOf([CUP]));
-        const toggle = screen.getByRole('button', { name: en.ambiguousReviewToggle });
+        const toggle = screen.getByRole('button', { name: ENTRY_NAME });
 
         expect(toggle.getAttribute('aria-expanded')).toBe('false');
         open();
 
-        expect(screen.getByRole('button', { name: en.ambiguousReviewToggle }).getAttribute('aria-expanded')).toBe(
-            'true',
-        );
+        expect(screen.getByRole('button', { name: ENTRY_NAME }).getAttribute('aria-expanded')).toBe('true');
     });
 
     it('offline, the row says the search waits for a connection, politely (P6)', () => {
@@ -747,12 +769,15 @@ describe('AmbiguityReview (native) — N1: each name is said once', () => {
         open();
     };
 
-    /** The review's name is labelled on one node, the toggle. */
+    /**
+     * REWRITTEN (2026-10-19): the entry's name now carries the count sentence, WCAG 1.3.1/2.5.3; the toggle text alone hid the count from screen readers.
+     * The review's name (its heading text) is still said on one node only, the toggle, now as the end of its label.
+     */
     const namedByTheToggleAlone = (): void => {
-        const named = screen.queryAllByLabelText(en.ambiguousReviewHeading);
+        const named = screen.queryAllByLabelText(new RegExp(`${en.ambiguousReviewHeading}$`, 'u'));
 
         expect(named).toHaveLength(1);
-        expect(named[0]).toBe(screen.getByRole('button', { name: en.ambiguousReviewToggle }));
+        expect(named[0]).toBe(screen.getByRole('button', { name: ENTRY_NAME }));
     };
 
     it('says the review’s name through its toggle alone, closed and open', () => {
@@ -801,7 +826,7 @@ describe.each(['light', 'dark'] as const)('AmbiguityReview (native) — the %s s
     it('draws the entry as a paper card in a lineDivider edge, its badge actionText on the action tint', () => {
         systemScheme.current = scheme;
         renderReview(recipeOf([CUP]));
-        const entry = screen.getByRole('button', { name: en.ambiguousReviewToggle });
+        const entry = screen.getByRole('button', { name: ENTRY_NAME });
         const badge = within(entry).getByText(en.ambiguousReviewToggle);
         const card = window.getComputedStyle(entry);
 

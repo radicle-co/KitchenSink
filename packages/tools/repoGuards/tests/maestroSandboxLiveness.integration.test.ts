@@ -21,7 +21,7 @@
  * flow that failed into the outage reds (a) (exit 1); forgetting earlier live failures reds (b).
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +41,11 @@ interface Scenario {
     readonly failResetAt?: number;
     /** One answer per probe call, in order. Absent means the env var is UNSET (a local run). */
     readonly probe?: readonly ProbeAnswer[];
+    /**
+     * Run the per-flow reset as a CI shard does: `E2E_SEED_CLI_DIR` names a bundle directory, so the reset is
+     * `node …/reset.mjs` through `runCli.sh` rather than `npx tsx …/reset.ts`. Absent means unset (a local run).
+     */
+    readonly bundled?: boolean;
 }
 
 interface Outcome {
@@ -79,7 +84,14 @@ function run(flows: readonly string[], scenario: Scenario): Outcome {
     writeFileSync(probeQueue, `${(scenario.probe ?? []).join('\n')}\n`, 'utf8');
 
     executable('adb', 'exit 0');
-    executable('node', 'exit 0');
+    // In a bundled run the per-flow reset is `node --enable-source-maps …/reset.mjs`; fail the Nth one, as `npx` below.
+    executable(
+        'node',
+        `case "$*" in *reset.mjs*) ;; *) exit 0 ;; esac
+n=$(( $(cat "${resets}") + 1 )); echo "$n" > "${resets}"
+[ "$n" = "${scenario.failResetAt ?? 0}" ] && exit 1
+exit 0`,
+    );
     // `maestro test … <path>.yaml`: the LAST argument names the flow.
     executable(
         'maestro',
@@ -89,9 +101,10 @@ case " ${(scenario.failFlows ?? []).join(' ')} " in *" $name "*) exit 1 ;; esac
 exit 0`,
     );
     // The per-flow reset is `npx tsx …/reset.ts`; fail the Nth one.
+    // A bundled run must never reach `npx`: there it fails every call, so a fallback to tsx cannot pass for the bundle.
     executable(
         'npx',
-        `n=$(( $(cat "${resets}") + 1 )); echo "$n" > "${resets}"
+        `${scenario.bundled === true ? 'exit 97\n' : ''}n=$(( $(cat "${resets}") + 1 )); echo "$n" > "${resets}"
 [ "$n" = "${scenario.failResetAt ?? 0}" ] && exit 1
 exit 0`,
     );
@@ -109,6 +122,20 @@ echo "reason=scripted"; echo "$answer"`,
     };
 
     delete env['MAESTRO_SANDBOX_STOPPED'];
+    // Never inherited: a value leaking in from the caller would route every reset away from the stub that fails it.
+    delete env['E2E_SEED_CLI_DIR'];
+
+    if (scenario.bundled === true) {
+        const bundles = join(dir, 'seedCli');
+
+        mkdirSync(bundles);
+        writeFileSync(
+            join(bundles, 'seedCli.manifest'),
+            'commit 0\nentry packages/tools/e2e-seed/src/reset.ts reset.mjs\n',
+        );
+        writeFileSync(join(bundles, 'reset.mjs'), '');
+        env['E2E_SEED_CLI_DIR'] = bundles;
+    }
 
     if (scenario.probe !== undefined) {
         env['MAESTRO_SANDBOX_STOPPED'] = join(dir, 'probe');
@@ -169,6 +196,22 @@ describe('a red is attributed to absence only when the probe confirms the sandbo
         expect(notice, outcome.log).toBeDefined();
         expect(notice).toContain('a/two');
         expect(notice).toContain('a/three');
+    });
+
+    it('(c-bundled) the same, when the reset runs as CI runs it — the bundle, through runCli.sh', () => {
+        const outcome = run(FLOWS, { failResetAt: 2, probe: ['stopped=true'], bundled: true });
+
+        expect(outcome.status, outcome.log).toBe(0);
+        expect(outcome.driven).toEqual(['a/one']);
+        expect(stoppedNotice(outcome.log), outcome.log).toBeDefined();
+    });
+
+    it('(c2-bundled) a bundled reset that fails while the sandbox is up stops the shard red, like the tsx one', () => {
+        const outcome = run(FLOWS, { failResetAt: 2, probe: ['stopped=false'], bundled: true });
+
+        expect(outcome.status, outcome.log).toBe(1);
+        expect(outcome.driven).toEqual(['a/one']);
+        expect(outcome.log).toMatch(/::error::e2e-seed reset failed before a\/two/u);
     });
 
     it('(c2) a reset fails while the probe does not confirm a stop: still the stage failing, so red', () => {

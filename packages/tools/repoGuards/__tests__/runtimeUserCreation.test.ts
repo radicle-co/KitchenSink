@@ -201,9 +201,12 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
      * The admitted spelling: apply, scoped to one PLATFORM's shard's erasure subjects, the shard from the matrix. One
      * spelling per Maestro job, because the platform is a literal in each (REWRITTEN 2026-10-13, when the ten erasure
      * subjects were split between the platforms: a refill that did not name its platform would be refused outright).
+     * REWRITTEN 2026-10-19: the Maestro jobs install no `node_modules`, so the refill runs through the seed CLI door
+     * (`packages/tools/e2e-seed/runCli.sh`), which runs the bundle CI built from the same source. The arguments — the
+     * part this guard is about — are unchanged.
      */
     const refillFor = (platform: 'android' | 'ios'): string =>
-        `npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform ${platform} --shard "\${SHARD_INDEX}"`;
+        `bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform ${platform} --shard "\${SHARD_INDEX}"`;
     /** The jobs that refill — one per Maestro platform — and the platform each names. */
     const REFILLING_JOBS = {
         '_ci-heavy.yml::e2e-mobile-maestro': 'android',
@@ -281,6 +284,7 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
     it('the matcher sees each spelling of an invocation and ignores a comment (mutation check)', () => {
         for (const sample of [
             'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply',
+            'bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-fixtures/src/poolAdmin.ts --apply',
             'npm run pool:admin --workspace=packages/tools/e2e-fixtures -- --apply',
         ]) {
             expect(INVOKES_WRITER.test(commands(sample)), sample).toBe(true);

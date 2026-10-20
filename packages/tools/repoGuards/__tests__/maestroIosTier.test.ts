@@ -286,18 +286,22 @@ describe('⛔ the toolchain is pinned by name and refused when absent', () => {
     }
 
     /**
-     * ADDED 2026-10-13 (boot overlap). Booting a Simulator takes 2-3 minutes and nothing about it needs the dependencies,
-     * so it is STARTED right after the Xcode check and runs while `npm ci`, the liveness probe and the secrets load do their
-     * work; a later step only WAITS for it. That is a saving only if the start really is early and the wait really is late.
+     * ADDED 2026-10-13 (boot overlap). Booting a Simulator takes 2-3 minutes and nothing about it needs Node, the liveness
+     * answer or the secrets, so it is STARTED right after the Xcode check; a later step only WAITS for it. That is a saving
+     * only if the start really is early and the wait really is late.
+     * REWRITTEN 2026-10-19: the job installs nothing now (`maestroSeedCli.test.ts`), so the anchor is no longer `npm ci`:
+     * the start precedes Node's setup and the AWS sign-in, the first steps that take real time.
      */
-    it('⛔ starts the Simulator booting right after the Xcode check, before the dependencies are installed', () => {
+    it('⛔ starts the Simulator booting right after the Xcode check, before Node is set up and AWS is signed in to', () => {
         const xcode = stepRunning(/xcodebuild -version/u).index;
         const create = stepRunning(/simctl\s+create/u).index;
-        const install = stepRunning(/^npm ci$/mu).index;
+        const node = steps.findIndex((step) => /^actions\/setup-node@/u.test(step.uses ?? ''));
+        const signIn = steps.findIndex((step) => /awsAuth/u.test(step.uses ?? ''));
 
         expect(xcode).toBeGreaterThan(-1);
         expect(create).toBe(xcode + 1);
-        expect(create).toBeLessThan(install);
+        expect(create).toBeLessThan(node);
+        expect(create).toBeLessThan(signIn);
     });
 
     it('⛔ the start step only STARTS the boot — it does not wait, or there is no overlap to speak of', () => {
@@ -612,8 +616,12 @@ describe('⛔ caching cannot go stale and cannot escape the prune', () => {
  * ADDED 2026-10-13 (plan 2026-10-13-006, cuts 1 and 5): what the shard pays before its first flow.
  *
  * The shard's `setup-node` restored a 616 MB npm cache at 3 to 5 MB/s (122 to 350 s) and `npm ci` then still took 3 to 4
- * minutes, so the restore bought nothing the install did not redo. The cache is off for THIS job only (the Linux jobs read
- * a fast, same-OS cache and are not measured here), and `npm ci` is timed so the next run says whether it got slower.
+ * minutes, so the restore bought nothing the install did not redo, and the cache went off.
+ *
+ * REWRITTEN 2026-10-19: the `npm ci` itself is gone (8m26s on run 39345702996). The shard runs the seed CLIs as bundles
+ * built on Linux, so it installs nothing; the case that timed `npm ci` was DELETED with the step it timed, and "installs
+ * nothing, cache off" is now asserted for BOTH Maestro jobs by `maestroSeedCli.test.ts`. The cache-off case stays here too,
+ * because it is the iOS-specific measurement that started this.
  *
  * Maestro's own CLI is deliberately NOT cached: `maestro.zip` is 313 MB (GitHub release asset, `cli-2.6.1`), which at the
  * same 3 to 5 MB/s would restore slower than the release download it replaces, and a cache hit would skip the download the
@@ -626,36 +634,6 @@ describe('⛔ the shard’s fixed setup cost', () => {
     it('turns the npm cache OFF on the iOS job’s setup-node, by the input the pinned action declares', () => {
         expect(setupNode, 'the iOS job has no setup-node').toBeDefined();
         expect(String(setupNode?.with?.['package-manager-cache'])).toBe('false');
-    });
-
-    it('times npm ci and reports the duration, so the saving is read off the log rather than assumed', () => {
-        const { step } = stepRunning(/^npm ci$/mu);
-        const dir = mkdtempSync(join(tmpdir(), 'maestro-ios-npmci-'));
-
-        scratch.push(dir);
-
-        const calls = join(dir, 'calls.log');
-
-        writeFileSync(
-            join(dir, 'npm'),
-            `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit \${NPM_EXIT:-0}\n`,
-        );
-        chmodSync(join(dir, 'npm'), 0o755);
-        writeFileSync(join(dir, 'step.sh'), scalarText(step?.run));
-
-        const run = (npmExit: string) =>
-            spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', 'step.sh'], {
-                cwd: dir,
-                encoding: 'utf8',
-                env: { PATH: `${dir}:${process.env['PATH'] ?? ''}`, HOME: dir, NPM_EXIT: npmExit },
-            });
-        const ok = run('0');
-
-        expect(ok.status, `${ok.stdout}${ok.stderr}`).toBe(0);
-        expect(readFileSync(calls, 'utf8')).toBe('ci\n');
-        expect(ok.stdout).toMatch(/::notice::npm ci took \d+s/u);
-        // A failed install is still a failed step, not a timing line over a broken tree.
-        expect(run('1').status).not.toBe(0);
     });
 
     it('switches Maestro CLI analytics off for every Maestro job, in the one top-level env', () => {
@@ -748,20 +726,24 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
      * after a first boot, so writing them there would force a `bootstatus` wait in front of `npm ci` and give the whole
      * 2-3 minute overlap back (see 'the start step only STARTS the boot').
      */
-    it('runs right after npm ci and before AWS sign-in, outside the secrets valve, on the early-booted UDID', () => {
+    /**
+     * REWRITTEN 2026-10-19 (the install is gone). Right after `npm ci` the first boot had always finished; with no install
+     * there, that position would wait out the whole 2-3 minute boot on the critical path. So the step moved to after the
+     * app is unpacked — by then Node, the AWS sign-in, the liveness probe, the secrets load and the app download have run
+     * alongside the first boot — and before the first pool reset, so the second boot overlaps the reset, the refill, the
+     * seed, the Maestro install and the JDK. It is behind the valve now, like every step after the secrets load.
+     */
+    it('runs after the app is unpacked and before the first pool reset, behind the valve, on the early-booted UDID', () => {
         const autofill = stepRunning(/allowPasswordAutoFill/u);
-        const install = stepRunning(/^npm ci$/mu);
+        const unpack = stepRunning(/tar -xzf/u);
+        const firstReset = stepRunning(/e2e-seed\/src\/resetPool\.ts/u);
         const wait = waitStep();
         const flows = stepRunning(/runMaestroFlows\.sh/u);
-        const signIn = steps.findIndex((step) => /awsAuth/u.test(step.uses ?? ''));
-        const secrets = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
 
         expect(autofill.index, 'the iOS job has no step that switches password AutoFill off').toBeGreaterThan(-1);
-        expect(autofill.index).toBeGreaterThan(install.index);
-        expect(autofill.index).toBeLessThan(signIn);
-        expect(autofill.index).toBeLessThan(secrets);
-        // It touches nothing remote and needs no secret, so a skipped shard costs nothing: no valve on it.
-        expect(autofill.step?.if).toBeUndefined();
+        expect(autofill.index).toBeGreaterThan(unpack.index);
+        expect(autofill.index).toBeLessThan(firstReset.index);
+        expect(scalarText(autofill.step?.if)).toContain("steps.secrets.outcome == 'success'");
         expect(scalarText(autofill.step?.env?.['MAESTRO_IOS_UDID'])).toBe('${{ steps.simulator.outputs.udid }}');
         // The wait that covers its second boot is later, behind the valve, and before the flows.
         expect(wait.index).toBeGreaterThan(autofill.index);

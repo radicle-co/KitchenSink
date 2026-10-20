@@ -398,89 +398,21 @@ MAESTRO_ERASURE_SHARD=1
 # membership. The guard derives this set from the flows' own YAML and holds this list to it in both directions.
 MAESTRO_ERASING_FLOWS=' accountErasure '
 
-# What each flow COSTS, in seconds. REFRESHED 2026-10-13 from run 38322183404: the wall-clock span of each flow's log group
-# (its reset, driver start and flow, as the runner prints them) for every Android flow that PASSED on either shard — 44
-# flows. The table used to hold the 23 flows timed on run 35220684252; the plan has since grown to 55, and an untimed flow
-# is packed at the default. A flow that FAILED in that run keeps its earlier measurement where it had one (its time-to-fail
-# is not its cost) and is otherwise untimed: seven flows are, until a green run times them. The packing below is
-# least-loaded-first over these, which is what keeps `recipes/collectionsPagination` — 432s, the largest flow by far —
-# from deciding the wall clock on its own.
+# What each flow COSTS, in seconds, per platform. The table lives in `maestroFlowSeconds.tsv` beside this script (its header
+# records the columns, how a row is measured and which runs it came from), NOT in this file: it is DATA that a measurement
+# refreshes, and an iOS flow is timed on iOS rather than modelled as its Android time plus a constant. REPLACED 2026-10-20:
+# the table used to be an Android-only list from run 38322183404 plus `MAESTRO_IOS_FLOW_OVERHEAD`, packed least-loaded-first
+# in PLAN order, which left the Android shards 17 to 26 minutes apart on today's times (the heaviest flow had doubled).
+# The packing is now longest-processing-time-first over this table, in `maestro_pack_flows`.
 #
-# ⚠️ A STALE ENTRY COSTS BALANCE, NEVER CORRECTNESS: every flow still runs on exactly one shard whatever the
-# weights say, so drift makes a run slower and never wrong. What the guard does forbid is an entry naming a
-# flow the plan does not run, because that is a rename nobody followed through.
-# ⚠️ COVERAGE IS PARTIAL AND THE GUARD ONLY SEES ONE DIRECTION. These weights cover only the flows timed above; every
-# other planned flow is untimed and takes the default. The guard catches an entry naming a flow the plan
-# does NOT run (currently 0) — it does NOT catch a flow the plan runs with no entry, which is the direction a
-# NEW flow drifts in. Consequence is balance only, never correctness: every flow still runs on exactly one
-# shard whatever the table says. ⚠️ And the wall-clock figure quoted in `_ci-heavy.yml` was derived from a
-# 23-flow run, so re-measure it rather than trusting it after the plan grows.
-MAESTRO_FLOW_WEIGHTS="auth/loginFlow=62
-home=26
-recipes/rating=49
-recipes/listDetail=60
-shell/tabBar=52
-recipes/servingScale=37
-recipes/detailCooking=51
-recipes/deferredCalories=32
-recipes/emptyLibrary=30
-recipes/searchNavigation=157
-recipes/edit=157
-recipes/versions=146
-recipes/visibility=36
-recipes/discoverBrowse=72
-recipes/discoverRecentSearches=81
-recipes/discoverIngredientCap=59
-recipes/discoverSaveCopy=36
-recipes/discoverDetailSaveCopy=42
-recipes/privateFoodStandIn=58
-recipes/conflictMerge=94
-recipes/collections=96
-recipes/collectionAddRemoveUndo=63
-recipes/collectionsPagination=432
-recipes/collectionsVisibility=58
-recipes/collectionsSaveCopy=56
-recipes/collectionsPull=110
-recipes/newCollectionSheet=44
-recipes/createEntry=29
-recipes/systemBackGuard=180
-recipes/editorSections=59
-recipes/editorDescriptionLimit=40
-recipes/create=127
-recipes/publishFeedback=90
-recipes/pasteList=57
-recipes/pasteListSettle=120
-recipes/quantityRange=159
-recipes/addIngredientLoop=87
-recipes/addStepFocus=45
-recipes/ingredientUnmatched=75
-recipes/ingredientNutritionPanel=85
-recipes/ingredientRemove=88
-recipes/ingredientAddDetails=97
-recipes/ingredientVariantSearch=103
-recipes/ingredientRowVariant=82
-recipes/ingredientRowEditor=144
-recipes/ingredientCandidates=93
-recipes/photos=60
-recipes/accessibility=31
-dataSources=32
-accountDangerZone=35
-recipes/delete=38
-accountErasure=66"
-
-# The seconds an iOS flow costs ON TOP of its Android timing in `MAESTRO_FLOW_WEIGHTS` (plan 2026-10-13-006, cut 3). Measured
-# from the shard logs of runs 38433716728 and 38447859313: a median 86 s of fixed cost per flow on iOS against 23 s on Android
-# (the XCUITest runner start, a slower sign-in, a slower teardown), none of which depends on what the flow does. It is
-# ADDED to the Android time rather than replacing it with a flow COUNT: counting flows throws away the one fact the weights
-# hold (`recipes/collectionsPagination` is 432 s) and modelled worse than the Android weights at three shards. 65 is the
-# plan's rounded figure for the 63 s gap. WARNING: cut 2 (keeping the runner across flows) should shrink the real gap, so
-# re-measure after a run: a stale constant costs BALANCE, never correctness, because every flow still runs on exactly one
-# shard whatever it says.
-MAESTRO_IOS_FLOW_OVERHEAD=65
-
-# The cost assumed for a flow nobody has timed — the MEDIAN of the measured set, not its mean (the mean is
-# dragged up by the 432s outlier) and not zero (a flow assumed free is a flow the packer ignores).
-MAESTRO_DEFAULT_FLOW_WEIGHT=61
+# ⚠️ A STALE OR MISSING ROW COSTS BALANCE, NEVER CORRECTNESS: every flow still runs on exactly one shard whatever the table
+# says, and a flow with no row for its platform is packed at that platform's `*` row. What the guard
+# (`maestroShardPartition.test.ts`) does forbid is a runnable flow with no row (a new flow must be timed or added at the
+# median) and a row naming a flow the plan does not run (a rename nobody followed through).
+#
+# `MAESTRO_FLOW_SECONDS_FILE` points the packer at another table: a test seam, never set by CI.
+MAESTRO_E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MAESTRO_FLOW_SECONDS_FILE="${MAESTRO_FLOW_SECONDS_FILE:-${MAESTRO_E2E_DIR}/maestroFlowSeconds.tsv}"
 
 # Flows whose state under test is a GENUINELY EMPTY library (the first-run screen a new account opens on).
 # The reset truncates for every flow; for these it also SKIPS the re-seed, which is the only way to reach
@@ -831,30 +763,50 @@ maestro_positive_integer() {
     [ "$1" -ge 1 ]
 }
 
-# maestro_flow_weight <plan-free flow name>
+# maestro_seconds_rows <platform>
 #
-# The flow's measured cost in seconds, or MAESTRO_DEFAULT_FLOW_WEIGHT. Pure.
+# The platform's rows of the seconds table as `<flow><TAB><seconds>` lines, comments and blank lines dropped. Pure (reads
+# the table, writes nothing). A missing or unreadable table is a hard failure (exit 2): packing on no data would answer
+# "every flow costs the same" and look like a working planner.
 #
-# Matched by whole-key EQUALITY rather than with `sed`/`grep`: a flow name contains `/`, and a regex over a
-# value that also feeds the packing is one escaping mistake away from silently weighting the wrong flow.
-maestro_flow_weight() {
-    local line
-    while IFS= read -r line; do
-        if [ "${line%%=*}" = "$1" ]; then
-            printf '%s\n' "${line#*=}"
+# Matched by whole-field EQUALITY in awk, the platform passed through the ENVIRONMENT: `awk -v` would interpret backslash
+# escapes in a value, and a flow name contains `/`, so a regex over it is one escaping mistake from weighting the wrong flow.
+maestro_seconds_rows() {
+    if [ ! -r "$MAESTRO_FLOW_SECONDS_FILE" ]; then
+        echo "runMaestroFlows.sh: cannot read the flow-seconds table '${MAESTRO_FLOW_SECONDS_FILE}' - refusing to pack shards on no measurements" >&2
 
-            return 0
-        fi
-    done <<<"$MAESTRO_FLOW_WEIGHTS"
+        return 2
+    fi
 
-    printf '%s\n' "$MAESTRO_DEFAULT_FLOW_WEIGHT"
+    MAESTRO_ROWS_PLATFORM="$1" awk -F '\t' '
+        /^#/ || NF < 3 { next }
+        $1 == ENVIRON["MAESTRO_ROWS_PLATFORM"] { print $2 "\t" $3 }
+    ' "$MAESTRO_FLOW_SECONDS_FILE"
+}
+
+# maestro_default_weight <platform>
+#
+# What a flow with no row of its own costs on the platform: the table's `*` row. Pure. Exit 2 when the table has none,
+# because a default of zero would make the packer ignore every untimed flow.
+maestro_default_weight() {
+    local rows seconds
+    rows="$(maestro_seconds_rows "$1")" || return 2
+    seconds="$(printf '%s\n' "$rows" | awk -F '\t' '$1 == "*" { print $2; exit }')"
+
+    if ! maestro_positive_integer "$seconds"; then
+        echo "runMaestroFlows.sh: the flow-seconds table has no usable '*' row for '${1}' - refusing to cost an untimed flow as free" >&2
+
+        return 2
+    fi
+
+    printf '%s\n' "$seconds"
 }
 
 # maestro_flow_cost <platform> <plan-free flow name>
 #
-# What the PACKER charges a shard for running the flow on that platform: its measured Android time, plus
-# `MAESTRO_IOS_FLOW_OVERHEAD` on iOS. Pure. The platform is a PARAMETER, never read from the environment, so the packer's
-# answer is a function of its arguments, and an unknown platform is refused (exit 2) instead of costed as Android.
+# What the PACKER charges a shard for running the flow on that platform: the platform's measured row for it, else the
+# platform's `*` row. Pure. The platform is a PARAMETER, never read from the environment, so the packer's answer is a
+# function of its arguments, and an unknown platform is refused (exit 2) instead of costed as Android.
 maestro_flow_cost() {
     if [ "$#" -ne 2 ] || ! maestro_known_platform "$1"; then
         echo "runMaestroFlows.sh: unknown platform '${1-}' (expected one of: ${MAESTRO_PLATFORMS}) - refusing to cost a flow for a device it does not know" >&2
@@ -862,13 +814,15 @@ maestro_flow_cost() {
         return 2
     fi
 
-    local seconds
-    seconds="$(maestro_flow_weight "$2")"
+    local rows seconds
+    rows="$(maestro_seconds_rows "$1")" || return 2
+    seconds="$(MAESTRO_COST_FLOW="$2" awk -F '\t' '$1 == ENVIRON["MAESTRO_COST_FLOW"] { print $2; exit }' <<<"$rows")"
 
-    case "$1" in
-        ios) printf '%s\n' "$((seconds + MAESTRO_IOS_FLOW_OVERHEAD))" ;;
-        *) printf '%s\n' "$seconds" ;;
-    esac
+    if maestro_positive_integer "$seconds"; then
+        printf '%s\n' "$seconds"
+    else
+        maestro_default_weight "$1"
+    fi
 }
 
 # maestro_shard_flows <plan> <index> <count> [<flow> …]
@@ -886,10 +840,12 @@ maestro_flow_cost() {
 # charged to that shard BEFORE the packing starts, so the packer balances the rest around it, and it keeps its plan
 # position — `accountErasure` is last in the plan, so it stays last on its shard.
 #
-# ⛔ The packing is LEAST-LOADED-FIRST over `MAESTRO_FLOW_WEIGHTS`, walked in plan order, and it is
+# ⛔ The packing is LONGEST-PROCESSING-TIME-FIRST over the measured seconds table: the packable flows are sorted heaviest
+# first (ties by flow NAME, byte order) and each goes to the least-loaded shard (ties to the lowest index). It is
 # DETERMINISTIC — every shard of a run computes the identical assignment from the identical inputs, so no
-# shard has to be told what the others took. Round-robin was rejected on the measurement: it lands the 432s
-# pagination flow in one half and leaves the two shards ~40% out of balance.
+# shard has to be told what the others took. Walking the PLAN order instead (the previous packer) strands the big flows
+# late in the walk, when every shard is already loaded; heaviest-first is the classic 4/3-approximation for the makespan,
+# which is the wall clock. Round-robin was rejected earlier on the measurement and still is.
 #
 # The only hard failures (exit 2) are a broken matrix (`index`/`count` not a shard of anything) and an empty
 # flow list — both are a broken caller rather than a selection, and answering "run nothing" to either is the
@@ -901,8 +857,8 @@ maestro_shard_flows() {
 # maestro_pack_flows <platform> <plan> <index> <count> [<flow> …]
 #
 # `maestro_shard_flows` for a stated platform: the same pure partition, each flow charged `maestro_flow_cost` for that
-# platform. `maestro_shard_flows` is the Android answer and stays byte-identical; `maestro_shard_selection` passes its own
-# platform here, so the iOS shards are packed on what an iOS flow costs.
+# platform. `maestro_shard_flows` is the Android answer; `maestro_shard_selection` passes its own platform here, so the iOS
+# shards are packed on what an iOS flow costs.
 maestro_pack_flows() {
     if [ "$#" -lt 4 ]; then
         echo 'usage: runMaestroFlows.sh shard-plan <plan> <index> <count> [<flow> …]' >&2
@@ -947,17 +903,56 @@ maestro_pack_flows() {
         loads+=(0)
     done
 
-    local flow weight
+    # The spine runs on EVERY shard, so it adds the same to each load and cannot change who gets what; it is charged so
+    # the reason line states the shard's whole predicted time.
+    local flow weight spine_seconds=0
     for flow in "$@"; do
-        case "$MAESTRO_ERASING_FLOWS" in
+        case "$spine" in
             *" ${flow} "*)
                 weight="$(maestro_flow_cost "$platform" "$flow")" || return 2
-                loads[MAESTRO_ERASURE_SHARD - 1]=$((loads[MAESTRO_ERASURE_SHARD - 1] + weight))
+                spine_seconds=$((spine_seconds + weight))
                 ;;
         esac
     done
+    for ((position = 0; position < count; position += 1)); do
+        loads[position]=$((loads[position] + spine_seconds))
+    done
 
-    local mine=() theirs=() lightest owner
+    # An erasing flow is pinned to the erasure shard and charged to it BEFORE the packing starts.
+    local packable=''
+    for flow in "$@"; do
+        weight="$(maestro_flow_cost "$platform" "$flow")" || return 2
+        case "$spine" in
+            *" ${flow} "*) continue ;;
+        esac
+        case "$MAESTRO_ERASING_FLOWS" in
+            *" ${flow} "*)
+                loads[MAESTRO_ERASURE_SHARD - 1]=$((loads[MAESTRO_ERASURE_SHARD - 1] + weight))
+                continue
+                ;;
+        esac
+        packable="${packable}${weight}"$'\t'"${flow}"$'\n'
+    done
+
+    # Longest first; equal weights by flow NAME in byte order (`LC_ALL=C`, so the locale of the runner cannot reorder
+    # them), then each to the least-loaded shard, the lowest index on a tie. `owned` holds `<flow>\t<shard>` lines.
+    local owned='' lightest line
+    while IFS=$'\t' read -r weight flow; do
+        if [ -z "$flow" ]; then
+            continue
+        fi
+
+        lightest=0
+        for ((position = 1; position < count; position += 1)); do
+            if [ "${loads[position]}" -lt "${loads[lightest]}" ]; then
+                lightest="$position"
+            fi
+        done
+        loads[lightest]=$((loads[lightest] + weight))
+        owned="${owned}${flow}"$'\t'"$((lightest + 1))"$'\n'
+    done < <(printf '%s' "$packable" | LC_ALL=C sort -t $'\t' -k1,1nr -k2,2)
+
+    local mine=() theirs=() owner
     for flow in "$@"; do
         case "$spine" in
             *" ${flow} "*)
@@ -968,26 +963,19 @@ maestro_pack_flows() {
 
         case "$MAESTRO_ERASING_FLOWS" in
             *" ${flow} "*)
-                if [ "$index" -eq "$MAESTRO_ERASURE_SHARD" ]; then
-                    mine+=("$flow")
-                else
-                    theirs+=("$flow")
-                fi
-                continue
+                owner="$MAESTRO_ERASURE_SHARD"
+                ;;
+            *)
+                owner=''
+                while IFS=$'\t' read -r line position; do
+                    if [ "$line" = "$flow" ]; then
+                        owner="$position"
+                    fi
+                done <<<"$owned"
                 ;;
         esac
 
-        weight="$(maestro_flow_cost "$platform" "$flow")" || return 2
-        lightest=0
-        for ((position = 1; position < count; position += 1)); do
-            if [ "${loads[position]}" -lt "${loads[lightest]}" ]; then
-                lightest="$position"
-            fi
-        done
-        loads[lightest]=$((loads[lightest] + weight))
-        owner=$((lightest + 1))
-
-        if [ "$owner" -eq "$index" ]; then
+        if [ "$owner" = "$index" ]; then
             mine+=("$flow")
         else
             theirs+=("$flow")
@@ -1442,6 +1430,18 @@ maestro_announce_sandbox_stopped() {
     echo "::notice::the sandbox stopped mid-shard (the stop probe now confirms it) - $1. Not run: $2. This is absence, not an app defect, so it is a SKIP and not a failure; failures recorded earlier, while the sandbox still answered, stand."
 }
 
+# maestro_seed_reset <mode>
+#
+# Reset the shard's seeded world before one flow (`e2e-seed reset --mode <mode>`: `seeded`, `empty` or `ambiguity`). The
+# ONE place this script runs Node: it goes through `packages/tools/e2e-seed/runCli.sh`, which runs the bundle CI built
+# when `E2E_SEED_CLI_DIR` is set (a Maestro shard installs no `node_modules`) and the source through `tsx` when it is not
+# (a developer's machine). `maestroSeedCli.test.ts` holds that this is the script's only call to it.
+#
+# @sideEffect Reconciles the signer's library on the deployed stage through the recipe, food and identity APIs.
+maestro_seed_reset() {
+    bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/reset.ts --mode "$1"
+}
+
 # Run each named flow through the full per-flow lifecycle.
 #
 # Split out of `maestro_run_flows` so the `run-one` subcommand — and therefore
@@ -1519,7 +1519,7 @@ maestro_run_flow_list() {
         # answered `400 INVALID_VISIBILITY`, and skipping flow by flow still reported one red per flow. A FLOW's
         # failure below is that flow's own result and does not stop the loop. `maestroDriverLifecycle.integration.test.ts`
         # holds both directions.
-        if ! npx tsx packages/tools/e2e-seed/src/reset.ts --mode "$reseed_mode"; then
+        if ! maestro_seed_reset "$reseed_mode"; then
             # `pending` is single-space padded, so trimming one space from each end leaves the list.
             not_run="${not_run# }"
             not_run="${not_run% }"
@@ -1639,17 +1639,15 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             maestro_erasure_subject_check "$@"
             ;;
         weights)
-            printf '%s\n' "$MAESTRO_FLOW_WEIGHTS"
+            # `<flow>=<seconds>` for the platform's measured rows (Android when none is named).
+            maestro_seconds_rows "${2:-android}" | awk -F '\t' '$1 != "*" { print $1 "=" $2 }'
             ;;
         default-weight)
-            printf '%s\n' "$MAESTRO_DEFAULT_FLOW_WEIGHT"
+            maestro_default_weight "${2:-android}"
             ;;
         flow-cost)
             shift
             maestro_flow_cost "$@"
-            ;;
-        ios-flow-overhead)
-            printf '%s\n' "$MAESTRO_IOS_FLOW_OVERHEAD"
             ;;
         driver-port)
             printf '%s\n' "$MAESTRO_DRIVER_PORT"
@@ -1670,7 +1668,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|ios-flow-overhead|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

@@ -485,6 +485,39 @@ jobs:
             # dependency needs no edit here — the lesson `sandbox-deploy.yml` paid for twice.
             - name: Build the workspace packages the origin resolver imports
               run: npx turbo run build --filter='@kitchensink/loadtest^...'
+            # ⛔ THE MAESTRO JOBS' NODE IS BUILT HERE, NOT INSTALLED THERE (run 39345702996). Before the first iOS flow a shard
+            # spent 8m26s on `npm ci` of the WHOLE monorepo (a 3-core macOS runner) and 57s on a turbo build, and the Android
+            # shard paid a `node_modules` restore and the same build — to run four CLIs: `resetPool`, `poolAdmin`, `provision`,
+            # and `reset` before every flow. So this job, which already holds the install on Linux, bundles those four into
+            # self-contained ES modules with esbuild (`cliBundle.mjs`), and the shards run them with plain `node`.
+            #
+            # WHY BUNDLES, of the three ways considered. A `node_modules` cache keyed on the lockfile was rejected because the
+            # restore on macOS is itself slow (this job's iOS twin measured a 616 MB npm cache at 3 to 5 MB/s, 122 to 350 s)
+            # and a multi-GB macOS entry would sit under the repository's shared 10 GB cache cap. A workspace-scoped `npm ci`
+            # was rejected because it shortens the install rather than removing it: it still installs the dependencies of
+            # every workspace package in the closure on the slow runner, and still leaves `tsx` and the turbo build in
+            # every shard. Bundling had no blocker: the closure has no native module, no dynamic `require`, and reads no file
+            # beside its own source at run time (`tests/cliBundle.integration.test.ts` runs each bundle with no
+            # `node_modules` and no environment to prove it).
+            #
+            # Unconditional, so the output exists whenever this job succeeds; the bundles carry the commit they were built
+            # from, which each shard checks against its own `GITHUB_SHA` before the first CLI (`runCli.sh verify`).
+            # `maestroSeedCli.test.ts` holds the producer, the downloads and the verification.
+            - name: Bundle the seed and pool CLIs the Maestro jobs run
+              run: node packages/tools/e2e-seed/cliBundle.mjs --outdir "${RUNNER_TEMP}/seedCli" --commit "${GITHUB_SHA}"
+            # A literal name, the same in the two downloads: `workflowInvariants` invariant 2 pairs every download with an
+            # upload of that name in its `needs` closure, so a misspelling on either side is a red guard, not an empty
+            # directory. `overwrite`: re-running this job uploads the same name again, which `upload-artifact@v4` otherwise
+            # refuses. Seven days, like the test app it pairs with: a re-run of a red shard reads this run's copy, and the
+            # owner's rule is "re-run on red", so it must outlive the day.
+            - name: Upload the seed and pool CLI bundles
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: e2e-seed-cli
+                  path: ${{ runner.temp }}/seedCli
+                  retention-days: 7
+                  overwrite: true
+                  if-no-files-found: error
             # ⛔ NO HOST LITERAL. The recipe origin comes from `publicServiceOriginForStage` through
             # `printPublicOrigin.mjs` (ADR-0003 / ADR-0006: prod is the bare label `recipe.{apex}`, every
             # other stage the DASH form `recipe-{stage}.{apex}`, because a 3-label `recipe.pr-7.{apex}`
@@ -876,37 +909,15 @@ jobs:
                   # suffix-confusion host, a plaintext `http://` origin, and an unset `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${RECIPE_ORIGIN}" "${IDENTITY_ORIGIN}" "${FOOD_ORIGIN}" "${WEB_ORIGIN}"
+            # ⛔ NODE, AND NOTHING INSTALLED. All this job runs on Node is the four seed and pool CLIs, as bundles
+            # `resolve-mobile-target` built (its "Bundle the seed and pool CLIs" step says why bundles), so there is no
+            # `node_modules` to restore, no `npm ci` on a miss and no turbo build (`maestroSeedCli.test.ts`). The
+            # package-manager cache is switched OFF: the pinned action restores the npm cache by itself when the input is
+            # absent, which here is a download for nothing.
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-            - name: Restore dependencies
-              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
-            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
-            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
-            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
-            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
-            # exactly what made it look like flake instead of a missing fallback.
-            #
-            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
-            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
-            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
-            # eviction rate, which is the number worth watching.
-            - name: Install dependencies if the cache missed
-              run: |
-                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
-                      exit 0
-                  fi
-                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
-                  npm ci
+                  package-manager-cache: false
             # ⛔ RE-ASK LIVENESS HERE, IN THIS JOB, BEFORE A STAGE SECRET IS LOADED (owner ruling
             # 2026-10-06: "Maestro should not run if the sandbox is not up"). The job-level `if` above reads
             # `needs.resolve-mobile-target.outputs.live`, and that answer is FROZEN: a GitHub re-run (`gh run
@@ -930,7 +941,7 @@ jobs:
             # every stateful step below already keys on `steps.secrets.outcome == 'success'`, which reads
             # `skipped` when this gate closes, and the `always()` reset-after carries the same term so it
             # skips too — a closed gate must not run a pool reset against a stage that no longer exists.
-            # The prep steps above (checkout, cache, `npm ci`) sit deliberately outside the
+            # The prep steps above (checkout, the target check, Node) sit deliberately outside the
             # valve: they touch nothing remote, and re-running them on the rare skip path is harmless.
             - name: Sign in to AWS
               id: aws
@@ -1008,6 +1019,23 @@ jobs:
                   export EXPECT_CONTENT_KEY
                   bash "${script}" verify-manifest "${RUNNER_TEMP}/testApp/testApp.manifest" android
                   test -f "${RUNNER_TEMP}/testApp/app.apk"
+            # ⛔ THE SEED AND POOL CLIs, AND PROOF THAT THEY ARE THIS COMMIT'S — the bundles `resolve-mobile-target` built, from
+            # THIS run (no `run-id`), verified before the first pool reset. `runCli.sh verify` refuses a manifest whose commit
+            # is not this job's `GITHUB_SHA`, or that lists a file the download did not bring; only then is `E2E_SEED_CLI_DIR`
+            # exported, so every later `runCli.sh` (the steps below and `runMaestroFlows.sh`'s per-flow reset) runs the bundle,
+            # and nothing else sets it (`maestroSeedCli.test.ts`).
+            - name: Download the seed and pool CLI bundles
+              if: steps.secrets.outcome == 'success'
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: e2e-seed-cli
+                  path: ${{ runner.temp }}/seedCli
+            - name: Verify the seed and pool CLI bundles were built from this commit
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -euo pipefail
+                  bash packages/tools/e2e-seed/runCli.sh verify "${RUNNER_TEMP}/seedCli" "${GITHUB_SHA}"
+                  echo "E2E_SEED_CLI_DIR=${RUNNER_TEMP}/seedCli" >>"$GITHUB_ENV"
             # ⛔ PROVISION THIS RUN'S WORLD — lease the tier's three FIXED pool slots (no Clerk user is created),
             # the sessions every per-flow reset re-mints from, and the co-authored public recipe — and write the
             # fixture MANIFEST the flows are parameterised with.
@@ -1044,7 +1072,7 @@ jobs:
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: android
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
+              run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
             # ⛔ REFILL THE ERASURE SUBJECTS, then provision (owner ruling 2026-10-08 — `poolAdmin.ts`'s header states
             # it). Each real erasure destroys its subject, so the pool tops itself up here, through the single writer,
             # scoped to the subjects THIS shard of THIS platform may lease: all of Android's five on its erasure shard,
@@ -1057,7 +1085,7 @@ jobs:
               if: steps.secrets.outcome == 'success'
               env:
                   SHARD_INDEX: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform android --shard "${SHARD_INDEX}"
+              run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform android --shard "${SHARD_INDEX}"
             # `COMMISE_E2E_SHARD` is LOAD-BEARING here, not decoration: `provision` leases THIS shard's signer and
             # co-author from it (and, on the erasure shard only, the erasure subject), `deriveRunKey` appends it so the
             # two shards' recipe TITLES differ, and `deriveFixtureManifest` puts this shard's signer address in the
@@ -1076,7 +1104,7 @@ jobs:
                   MAESTRO_PLATFORM: android
               run: |
                   mkdir -p "${RUNNER_TEMP}/e2e-seed"
-                  npx tsx packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
+                  bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
             # ── Maestro CLI: VERSION-PINNED and CHECKSUM-VERIFIED ──────────────────────────────────────
             # This step used to be `curl -Ls https://get.maestro.mobile.dev | bash`, which is wrong twice
             # over (code-quality backlog #139 — NOT a github.com issue number in this repo):
@@ -1142,11 +1170,6 @@ jobs:
               with:
                   distribution: temurin
                   java-version: '17'
-            # The seed tools' dependency closure only (`provision` and the per-flow `reset` run through `tsx`). The app's own
-            # workspace closure is built by `_mobileAppBuild.yml`, in the job that compiles the app.
-            - name: Build the workspace packages the seed tools import
-              if: steps.secrets.outcome == 'success'
-              run: npx turbo run build --filter='@kitchensink/e2e-seed^...'
             # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
             # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
             # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but
@@ -1326,7 +1349,7 @@ jobs:
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: android
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
+              run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
             # `cancelled()` too: a shard stopped by `timeout-minutes` is cancelled, not failed, and is the one whose report matters.
             - name: Upload Maestro artifacts
               if: (failure() || cancelled()) && steps.secrets.outcome == 'success'
@@ -1386,8 +1409,6 @@ jobs:
     # arm64 standard image; `macos-latest` would migrate to the next OS without a diff.
     #
     # WHAT IS DIFFERENT FROM ANDROID, and why:
-    #   • No `node_modules` cache restore. The Linux `install` job's entry is keyed `Linux-…`, so on macOS it
-    #     could never hit — and the cache-miss warning would fire on every run and train readers to ignore it.
     #   • The Maestro install verifies with `shasum -a 256`, macOS's tool; the pin is the same pair.
     #   • The app is NOT built here: `_mobileAppBuild.yml` builds it once per run (`expo prebuild` + `xcodebuild`, Release,
     #     Simulator SDK), and this job downloads, verifies and unpacks it. The script installs it.
@@ -1476,8 +1497,7 @@ jobs:
             # ⛔ THE PINNED XCODE MUST BE THE ONE IN USE. `DEVELOPER_DIR` (job env) selects it for every step; this
             # fails the job, with the reason, if the image no longer carries that path — rather than letting
             # `xcodebuild` resolve some other Xcode, or the build die later on a message that blames the app. It
-            # runs BEFORE `npm ci` because a native module's install compiles through this same developer
-            # directory, and touches nothing remote, so it needs no valve.
+            # touches nothing remote, so it needs no valve.
             - name: Confirm the pinned Xcode is the one in use
               run: |
                   set -euo pipefail
@@ -1489,8 +1509,8 @@ jobs:
                   xcodebuild -version
             # THE BOOT OVERLAP (2026-10-13): started HERE, right after the Xcode check, because nothing about booting needs the
             # dependencies, the liveness answer or the Clerk keys, and a Simulator takes 2-3 minutes to boot. It is created and
-            # booted while `npm ci` runs; 'Wait for the iOS Simulator to finish booting' further down is the only part on the
-            # path to the flows. It sits OUTSIDE the secrets valve for that reason, and costs nothing when the liveness probe
+            # booted while Node is set up, AWS is signed in to, the liveness probe and the secrets load run and the app is
+            # downloaded; 'Wait for the iOS Simulator to finish booting' further down is the only part on the path to the flows. It sits OUTSIDE the secrets valve for that reason, and costs nothing when the liveness probe
             # then skips the shard (a runner is discarded). It touches no remote.
             # ⛔ CREATE THE PINNED SIMULATOR AND START IT BOOTING — by NAME, resolved to identifiers on this image, REFUSED if
             # absent or unavailable (`maestroIosTier.test.ts` executes this body against a stubbed `xcrun`). It is
@@ -1535,61 +1555,15 @@ jobs:
                   xcrun simctl boot "${udid}"
                   echo "udid=${udid}" >> "$GITHUB_OUTPUT"
                   echo "booting ${IOS_SIMULATOR_DEVICE} on ${IOS_SIMULATOR_RUNTIME} as ${udid}"
-            # ⛔ NO npm CACHE ON THIS JOB (plan 2026-10-13-006, cut 1). `setup-node`'s automatic cache restored 616 MB at 3 to 5
-            # MB/s (122 to 350 s) and `npm ci` then still took 3 to 4 minutes, so the restore saved nothing the install does
-            # not redo. `package-manager-cache` is the input the pinned action declares for turning it off.
+            # ⛔ NODE, AND NOTHING INSTALLED. This job ran `npm ci` of the whole monorepo here — 8m26s on run 39345702996, the
+            # largest single cost before the first flow — to run four CLIs. They now arrive as bundles `resolve-mobile-target`
+            # built on Linux (its "Bundle the seed and pool CLIs" step says why bundles), so nothing is installed or built on
+            # this runner (`maestroSeedCli.test.ts`). The npm cache stays OFF (plan 2026-10-13-006, cut 1: `setup-node`'s automatic cache
+            # restored 616 MB at 3 to 5 MB/s); `package-manager-cache` is the input the pinned action declares for that.
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   package-manager-cache: false
-            # A plain `npm ci`: there is no macOS `node_modules` entry to restore (see the job header), and saving
-            # one would put a second multi-GB entry per lockfile under the repository's shared 10 GB cache cap. It is TIMED,
-            # because the cache above was never measured against the install without it: the log line is how the next run
-            # says whether dropping it cost anything.
-            - name: Install dependencies
-              run: |
-                  set -euo pipefail
-                  started="${SECONDS}"
-                  npm ci
-                  echo "::notice::npm ci took $((SECONDS - started))s (no npm cache)"
-            # ⛔ PASSWORD AUTOFILL OFF, so iOS never raises "Save Password?" over the sign-in's code step. The sheet is another
-            # process: Maestro's hierarchy holds only the status bar while it is up, so no flow can tap "Not Now", and it
-            # covered `Verify` on every iOS sign-in of run 38407211276 (`maestroIosTier.test.ts`). The restriction lives in
-            # the device's configuration-profile files, which exist only once it has booted, hence after a first boot.
-            # ⚠️ Best-effort, like the keyboard preferences: the three paths are the ones Detox users edit (wix/Detox#3761)
-            # and are unverified on this runtime until a real run; a missing one WARNS by name.
-            # ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it. Run 38433716728 read `false` back from all
-            # three files on all four shards, and shard 2 still got the sheet on every sign-in: a running Simulator had
-            # already read the restriction, so a write under it changed the file and not the device. So only the file writes
-            # are best-effort: a shutdown that fails fails the step, because the write behind it would change nothing.
-            # ⛔ OFF THE CRITICAL PATH (plan 2026-10-13-006, cut 4). It runs right after `npm ci`, outside the secrets valve (it
-            # touches nothing remote), so the early boot has had the whole install to finish and the leading `bootstatus -b`
-            # returns at once. It does NOT wait for the second boot: 'Wait for the iOS Simulator to finish booting' below does,
-            # after the liveness probe, the secrets load, the pool reset, the app download, the seed and the Maestro install
-            # have run alongside it. It is not folded into the create step because the files exist only after a first boot, and
-            # waiting for one there would put the 2-3 minute boot back in front of `npm ci`.
-            - name: Switch password AutoFill off on the iOS Simulator
-              env:
-                  MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
-              run: |
-                  set -euo pipefail
-                  data="$HOME/Library/Developer/CoreSimulator/Devices/${MAESTRO_IOS_UDID}/data"
-                  xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
-                  xcrun simctl shutdown "${MAESTRO_IOS_UDID}"
-                  for file in \
-                      Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
-                      Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
-                      Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
-                      if [ ! -f "${data}/${file}" ]; then
-                          echo "::warning::${file} is not on this Simulator — password AutoFill may stay on, and iOS may cover the sign-in with Save Password"
-                          continue
-                      fi
-                      plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
-                          echo "::warning::could not switch password AutoFill off in ${file}"
-                      # Read back, so the log says whether the write took rather than only that it was tried.
-                      echo "${file}: allowPasswordAutoFill=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" || echo unreadable)"
-                  done
-                  xcrun simctl boot "${MAESTRO_IOS_UDID}"
             # ⛔ RE-ASK LIVENESS IN THIS JOB, BEFORE A STAGE SECRET IS LOADED — the Android job's re-probe, for its
             # reason (a re-run reads the resolver's FROZEN `live`). `maestroRerunLiveness.test.ts` holds the
             # question below byte-identical to the resolver's, so the stack lists cannot drift one copy at a time.
@@ -1679,6 +1653,60 @@ jobs:
                       exit 1
                   fi
                   echo "app=${apps[0]}" >> "$GITHUB_OUTPUT"
+            # The seed and pool CLIs, from THIS run, verified before the first pool reset — the Android job's pair, for its
+            # reason.
+            - name: Download the seed and pool CLI bundles
+              if: steps.secrets.outcome == 'success'
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: e2e-seed-cli
+                  path: ${{ runner.temp }}/seedCli
+            - name: Verify the seed and pool CLI bundles were built from this commit
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -euo pipefail
+                  bash packages/tools/e2e-seed/runCli.sh verify "${RUNNER_TEMP}/seedCli" "${GITHUB_SHA}"
+                  echo "E2E_SEED_CLI_DIR=${RUNNER_TEMP}/seedCli" >>"$GITHUB_ENV"
+            # ⛔ PASSWORD AUTOFILL OFF, so iOS never raises "Save Password?" over the sign-in's code step. The sheet is another
+            # process: Maestro's hierarchy holds only the status bar while it is up, so no flow can tap "Not Now", and it
+            # covered `Verify` on every iOS sign-in of run 38407211276 (`maestroIosTier.test.ts`). The restriction lives in
+            # the device's configuration-profile files, which exist only once it has booted, hence after a first boot.
+            # ⚠️ Best-effort, like the keyboard preferences: the three paths are the ones Detox users edit (wix/Detox#3761)
+            # and are unverified on this runtime until a real run; a missing one WARNS by name.
+            # ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it. Run 38433716728 read `false` back from all
+            # three files on all four shards, and shard 2 still got the sheet on every sign-in: a running Simulator had
+            # already read the restriction, so a write under it changed the file and not the device. So only the file writes
+            # are best-effort: a shutdown that fails fails the step, because the write behind it would change nothing.
+            # ⛔ OFF THE CRITICAL PATH (plan 2026-10-13-006, cut 4). It used to run right after `npm ci`, which hid the first
+            # boot; with no install there, that position would wait 2-3 minutes for it. So it runs HERE, after the app is
+            # unpacked and before the first pool reset: the first boot has had Node, the AWS sign-in, the liveness probe, the
+            # secrets load and the app download to finish, so the leading `bootstatus -b` returns at once, and the second boot
+            # overlaps the pool reset, the refill, the seed, the Maestro install and the JDK. 'Wait for the iOS Simulator to
+            # finish booting' below waits for it. Behind the valve now, like every step after the secrets load: a shard that
+            # skips needs no Simulator. It is not folded into the create step because the files exist only after a first boot.
+            - name: Switch password AutoFill off on the iOS Simulator
+              if: steps.secrets.outcome == 'success'
+              env:
+                  MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
+              run: |
+                  set -euo pipefail
+                  data="$HOME/Library/Developer/CoreSimulator/Devices/${MAESTRO_IOS_UDID}/data"
+                  xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
+                  xcrun simctl shutdown "${MAESTRO_IOS_UDID}"
+                  for file in \
+                      Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
+                      Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
+                      Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
+                      if [ ! -f "${data}/${file}" ]; then
+                          echo "::warning::${file} is not on this Simulator — password AutoFill may stay on, and iOS may cover the sign-in with Save Password"
+                          continue
+                      fi
+                      plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
+                          echo "::warning::could not switch password AutoFill off in ${file}"
+                      # Read back, so the log says whether the write took rather than only that it was tried.
+                      echo "${file}: allowPasswordAutoFill=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" || echo unreadable)"
+                  done
+                  xcrun simctl boot "${MAESTRO_IOS_UDID}"
             # ⛔ RESET BEFORE, AND IT FAILS THE JOB — this lane's slots only (iOS shard N: `iossigner0N` and
             # `ioscoauthor0N`). The Android job's note says why; `--platform ios` is what keeps this reset off Android's
             # live world, which is running right now on `signer`/`coauthor`.
@@ -1694,14 +1722,14 @@ jobs:
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: ios
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
+              run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
             # ⛔ REFILL THE ERASURE SUBJECTS, then provision — the Android job's note says why. The two platforms refill
             # DISJOINT sets (iOS: `erasure06-10`), so this refill and the Android one may now run at the same time.
             - name: Refill the Maestro erasure subjects before provisioning (shard ${{ matrix.shard }}, poolAdmin)
               if: steps.secrets.outcome == 'success'
               env:
                   SHARD_INDEX: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform ios --shard "${SHARD_INDEX}"
+              run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform ios --shard "${SHARD_INDEX}"
             - name: Lease the shard's Maestro pool slots and seed its world (shard ${{ matrix.shard }}, e2e-seed provision)
               if: steps.secrets.outcome == 'success'
               env:
@@ -1716,7 +1744,7 @@ jobs:
                   MAESTRO_PLATFORM: ios
               run: |
                   mkdir -p "${RUNNER_TEMP}/e2e-seed"
-                  npx tsx packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
+                  bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
             # The pinned CLI — version and digest from this file's top-level `env:`, the Android job's reasoning.
             # `shasum -a 256` because macOS ships no `sha256sum`; `--check --strict` is the same verification.
             - name: Install Maestro CLI (pinned)
@@ -1741,14 +1769,10 @@ jobs:
               with:
                   distribution: temurin
                   java-version: '17'
-            # The seed tools' dependency closure only — the Android job's step, for its reason.
-            - name: Build the workspace packages the seed tools import
-              if: steps.secrets.outcome == 'success'
-              run: npx turbo run build --filter='@kitchensink/e2e-seed^...'
             # ⛔ WAIT FOR THE SIMULATOR STARTED EARLIER (see 'Create the pinned iOS Simulator and start it booting' above). It is
-            # the SECOND boot that this waits for: 'Switch password AutoFill off' restarts the device after `npm ci` and does
-            # not wait. By here that boot has been running through the liveness probe, the secrets load, the pool reset, the
-            # app download, the seed and the Maestro install, so this normally returns at once; it is a separate step because
+            # the SECOND boot that this waits for: 'Switch password AutoFill off' restarts the device after the app is unpacked
+            # and does not wait. By here that boot has been running through the pool reset, the refill, the seed, the Maestro
+            # install and the JDK, so this normally returns at once; it is a separate step because
             # waiting is the only part of the boot that has to sit on the path to the flows. `-b` boots the device if it is
             # not booting and waits for it either way.
             - name: Wait for the iOS Simulator to finish booting
@@ -1797,7 +1821,7 @@ jobs:
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: ios
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
+              run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
             # `cancelled()` too: a shard stopped by `timeout-minutes` is cancelled, not failed, and is the one whose report matters.
             - name: Upload Maestro artifacts
               if: (failure() || cancelled()) && steps.secrets.outcome == 'success'

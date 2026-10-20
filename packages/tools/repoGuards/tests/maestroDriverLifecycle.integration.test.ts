@@ -128,10 +128,13 @@ beforeAll(() => {
     // Run ONE flow through the real loop. `run-one` keeps the harness honest: the loop under test is the
     // same one CI runs, not a reimplementation.
     const result = spawnSync('bash', [SCRIPT, 'run-one', 'recipes/discoverDetailSaveCopy'], {
+        cwd: REPO_ROOT, // where CI runs it: the script names the flows and the seed door by repository path
         encoding: 'utf8',
         env: {
             ...process.env,
             PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+            // Empty is unset to `runCli.sh`: a caller's bundle directory must not route the resets away from the `npx` stub.
+            E2E_SEED_CLI_DIR: '',
             MAESTRO_FIXTURE_ENV_FILE: manifestFile,
         },
     });
@@ -264,10 +267,13 @@ describe('maestro flow loop — the first failed reset stops the shard, a failed
             );
 
             const result = spawnSync('bash', [SCRIPT, 'run-one', ...FLOWS], {
+                cwd: REPO_ROOT, // where CI runs it: the script names the flows and the seed door by repository path
                 encoding: 'utf8',
                 env: {
                     ...process.env,
                     PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+                    // Empty is unset to `runCli.sh`: a caller's bundle directory must not route the resets away from the `npx` stub.
+                    E2E_SEED_CLI_DIR: '',
                     MAESTRO_FIXTURE_ENV_FILE: manifestFile,
                 },
             });
@@ -382,10 +388,13 @@ describe('maestro flow loop — an erasing flow with no leased subject is never 
         );
 
         const result = spawnSync('bash', [SCRIPT, 'run-one', 'accountErasure'], {
+            cwd: REPO_ROOT, // where CI runs it: the script names the flows and the seed door by repository path
             encoding: 'utf8',
             env: {
                 ...process.env,
                 PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+                // Empty is unset to `runCli.sh`: a caller's bundle directory must not route the resets away from the `npx` stub.
+                E2E_SEED_CLI_DIR: '',
                 MAESTRO_FIXTURE_ENV_FILE: manifestFile,
             },
         });

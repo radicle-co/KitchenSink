@@ -51,7 +51,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -834,9 +834,100 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
     });
 });
 
-/** The script's committed per-flow cost hints, in seconds. */
-function weightTable(): ReadonlyMap<string, number> {
-    const outcome = spawnSync('bash', [SCRIPT, 'weights'], { encoding: 'utf8' });
+/** The measured-seconds table the packer reads, committed beside the runner. */
+const SECONDS_FILE = join(dirname(SCRIPT), 'maestroFlowSeconds.tsv');
+
+/** The platform key a flow with NO row is weighted by. */
+const DEFAULT_ROW = '*';
+
+interface SecondsRow {
+    readonly platform: string;
+    readonly flow: string;
+    readonly seconds: number;
+    readonly samples: number;
+}
+
+/** Parse a seconds table (`platform<TAB>flow<TAB>seconds<TAB>samples`, `#` comments) the way the runner does. */
+function parseSeconds(text: string): readonly SecondsRow[] {
+    return text
+        .split('\n')
+        .filter((line) => line.trim().length > 0 && !line.startsWith('#'))
+        .map((line) => {
+            const [platform = '', flow = '', seconds = '', samples = ''] = line.split('\t');
+
+            return { platform, flow, seconds: Number(seconds), samples: Number(samples) };
+        });
+}
+
+/** The committed table, read from disk by the TEST (not through the script), so the script cannot grade itself. */
+const SECONDS: readonly SecondsRow[] = parseSeconds(readFileSync(SECONDS_FILE, 'utf8'));
+
+/** What the table says a flow costs on a platform: its row, else the platform's `*` row. */
+function tableCost(platform: string, flow: string, rows: readonly SecondsRow[] = SECONDS): number {
+    const own = rows.find((row) => row.platform === platform && row.flow === flow);
+    const fallback = rows.find((row) => row.platform === platform && row.flow === DEFAULT_ROW);
+
+    return (own ?? fallback)?.seconds ?? Number.NaN;
+}
+
+/** One of the script's subcommands as a platform, optionally with another seconds table. */
+function runAs(platform: string, args: readonly string[], secondsFile?: string): Sharded {
+    const result = spawnSync('bash', [SCRIPT, ...args], {
+        encoding: 'utf8',
+        env: {
+            ...process.env,
+            MAESTRO_PLATFORM: platform,
+            ...(secondsFile === undefined ? {} : { MAESTRO_FLOW_SECONDS_FILE: secondsFile }),
+        },
+    });
+
+    if (result.error) {
+        throw result.error;
+    }
+
+    const lines = (result.stdout ?? '').split('\n');
+    const valuesOf = (key: string): readonly string[] =>
+        lines.flatMap((line) => (line.startsWith(`${key}=`) ? [line.slice(key.length + 1)] : []));
+
+    return {
+        flows: valuesOf('flow'),
+        deferred: valuesOf('deferred'),
+        reason: valuesOf('shard-reason')[0] ?? '',
+        status: result.status ?? -1,
+        stderr: result.stderr ?? '',
+    };
+}
+
+/** The flows a platform runs on a full run: the script's own answer (plan minus the platform's exclusions). */
+function runnableFlows(platform: string): readonly string[] {
+    const outcome = runAs(platform, ['shard-selection', '1', '1', 'full=true']);
+
+    expect(outcome.status, outcome.stderr).toBe(0);
+
+    return outcome.flows;
+}
+
+/** Every shard of a full run on a platform, as the CI matrix would run it. */
+function shardsOf(platform: string, count: number): readonly (readonly string[])[] {
+    return Array.from({ length: count }, (_, index) => {
+        const outcome = runAs(platform, ['shard-selection', String(index + 1), String(count), 'full=true']);
+
+        expect(outcome.status, outcome.stderr).toBe(0);
+
+        return outcome.flows;
+    });
+}
+
+/** Each shard's predicted seconds under the committed table, the spine included (it runs on every shard). */
+function predictedSeconds(platform: string, count: number): readonly number[] {
+    return shardsOf(platform, count).map((flows) =>
+        flows.reduce((total, flow) => total + tableCost(platform, flow), 0),
+    );
+}
+
+/** The script's committed Android cost hints, in seconds, as `weights` prints them (`flow=seconds`). */
+function weightTable(platform = 'android'): ReadonlyMap<string, number> {
+    const outcome = spawnSync('bash', [SCRIPT, 'weights', platform], { encoding: 'utf8' });
 
     return new Map(
         (outcome.stdout ?? '')
@@ -847,159 +938,249 @@ function weightTable(): ReadonlyMap<string, number> {
     );
 }
 
-/** The weight the script assumes for a flow nobody has timed. */
-function defaultWeight(): number {
-    const outcome = spawnSync('bash', [SCRIPT, 'default-weight'], { encoding: 'utf8' });
+/** The weight the script assumes for a flow nobody has timed on a platform. */
+function defaultWeight(platform = 'android'): number {
+    const outcome = spawnSync('bash', [SCRIPT, 'default-weight', platform], { encoding: 'utf8' });
 
     return Number((outcome.stdout ?? '').trim());
 }
 
 /**
- * ADDED 2026-10-13 (plan 2026-10-13-006, cut 3). The weights above are ANDROID wall-clock times, and an iOS flow costs about
- * 63 s more than the same flow on Android on top of them (median fixed cost 86 s per flow on iOS against 23 s: the XCUITest
- * runner start, a slower sign-in and a slower teardown, none of which depend on what the flow does). Packing the iOS shards
- * on the Android numbers therefore balanced the wrong quantity: the shards ranged from 2103 s to 2935 s on the measured run,
- * and the slowest one is the wall clock.
+ * ADDED 2026-10-20 - THE SHARDS ARE BALANCED BY MEASURED FLOW TIME (longest-processing-time-first), over a committed
+ * table of seconds per flow per platform (`maestroFlowSeconds.tsv`, medians over the Maestro shard logs of six runs).
  *
- * ⛔ THE MODEL IS "ANDROID TIME + A FIXED PER-FLOW OVERHEAD", NOT FLOW COUNT. Modelled over the iOS selection (the full plan
- * minus the four flows iOS cannot run), with the true iOS cost taken as Android time + 63 s, four shards end up:
+ * ## The measurement this exists for
  *
- *     packing model             | slowest shard | spread
- *     Android weights (before)  | 2099 s        | 406 s
- *     flow count only           | 2142 s        | 361 s   (and 641 s at three shards - worse than before)
- *     Android weight + 65 s     | 1994 s        |  91 s
+ * The packer used to walk the plan in PLAN ORDER, giving each flow to the least-loaded shard, over Android weights from
+ * run 38322183404 (the plan then held 55 flows and `recipes/collectionsPagination` took 432 s) plus a constant 65 s per
+ * iOS flow. Flow times have since moved (that flow now takes ~885 s on Android, and the plan holds 68 flows), and the
+ * constant hid how differently iOS flows scale. Predicted per-shard minutes under TODAY's measured table, full run
+ * (sum of each shard's flows, the spine included):
  *
- * so counting flows alone throws away the one fact the weights hold (`recipes/collectionsPagination` is 432 s) and does worse
- * than the code it was meant to improve. The overhead is a constant added to every iOS flow, nothing else about the packer
- * changes, and Android's packing stays byte-identical.
+ *     platform / shards | plan-order packer, stale weights (before)              | LPT, measured table (after)
+ *     iOS (5)           | 42.6 / 46.8 / 47.5 / 45.7 / 44.5 min   max/mean 1.045     | 45.7 / 45.6 / 45.6 / 45.6 / 44.7   max/mean 1.007
+ *     Android (8)       | 23.9 / 26.1 / 24.0 / 17.2 / 19.5 / 19.8 / 22.6 / 22.6 min |
+ *                       |                                        max/mean 1.187     | 21.9 / 21.8 / 22.1 / 22.0 / 21.5 / 22.0 / 22.0 / 22.2   max/mean 1.011
+ *
+ * The heaviest shard sets the wall clock, so the assertion is `max <= 1.15 * mean`, judged with the TEST's own reading of
+ * the table (never the script's), so tuning the script cannot satisfy it by echoing itself.
+ *
+ * ## Mutation evidence
+ *
+ * Written before the LPT packer: the Android 8-shard case, the plan-order trap, the name tie-break, the
+ * `MAESTRO_FLOW_SECONDS_FILE` cases and the iOS own-row case all failed on the plan-order packer. Walking the plan
+ * instead of the weight-sorted list reds the trap case; breaking ties by plan position instead of name reds the
+ * tie-break case; reading the weights without the platform column reds the iOS case.
  */
-describe('maestro_shard_flows - the iOS shards are packed on what an iOS flow really costs', () => {
-    /** The measured iOS-minus-Android fixed cost per flow (86 s - 23 s): the TEST's own statement of the truth. */
-    const MEASURED_IOS_EXTRA_SECONDS = 63;
+describe('maestro shard packing - balanced by MEASURED flow time, longest-processing-time-first', () => {
+    const CASES = [
+        ['android', 8],
+        ['ios', 5],
+        ['android', 3],
+        ['android', 4],
+        ['ios', 3],
+        ['ios', 4],
+    ] as const;
 
-    /** One of the script's subcommands, with `MAESTRO_PLATFORM` set. */
-    function runAs(platform: string, ...args: readonly string[]): Sharded {
-        const result = spawnSync('bash', [SCRIPT, ...args], {
-            encoding: 'utf8',
-            env: { ...process.env, MAESTRO_PLATFORM: platform },
-        });
+    it.each(CASES)(
+        '%s, %i shards: every flow lands on exactly one shard and the spine on every shard',
+        (platform, count) => {
+            const shards = shardsOf(platform, count);
+            const runnable = runnableFlows(platform);
+            const packed = shards.flatMap((flows) => flows.filter((flow) => flow !== SPINE));
 
-        if (result.error) {
-            throw result.error;
+            expect(shards.every((flows) => flows[0] === SPINE)).toBe(true);
+            expect(packed.slice().sort()).toStrictEqual(runnable.filter((flow) => flow !== SPINE).sort());
+            expect(new Set(packed).size).toBe(packed.length);
+        },
+    );
+
+    it.each(CASES)('%s, %i shards: no shard is empty (it runs more than the spine)', (platform, count) => {
+        for (const [position, flows] of shardsOf(platform, count).entries()) {
+            expect(flows.length, `shard ${position + 1}/${count} runs only the spine`).toBeGreaterThan(1);
         }
-
-        const lines = (result.stdout ?? '').split('\n');
-        const valuesOf = (key: string): readonly string[] =>
-            lines.flatMap((line) => (line.startsWith(`${key}=`) ? [line.slice(key.length + 1)] : []));
-
-        return {
-            flows: valuesOf('flow'),
-            deferred: valuesOf('deferred'),
-            reason: valuesOf('shard-reason')[0] ?? '',
-            status: result.status ?? -1,
-            stderr: result.stderr ?? '',
-        };
-    }
-
-    function costOf(platform: string, flow: string): number {
-        const outcome = spawnSync('bash', [SCRIPT, 'flow-cost', platform, flow], { encoding: 'utf8' });
-
-        expect(outcome.status, `flow-cost ${platform} ${flow}: ${outcome.stderr}`).toBe(0);
-
-        return Number((outcome.stdout ?? '').trim());
-    }
-
-    it('costs an Android flow at its measured time, exactly as the weight table says', () => {
-        const weights = weightTable();
-
-        for (const [flow, seconds] of weights) {
-            expect(costOf('android', flow)).toBe(seconds);
-        }
-
-        expect(costOf('android', 'a/flow/nobody/timed')).toBe(defaultWeight());
     });
 
-    it('costs an iOS flow at its Android time PLUS one fixed overhead - for a timed flow and an untimed one alike', () => {
-        const overhead = Number(
-            (spawnSync('bash', [SCRIPT, 'ios-flow-overhead'], { encoding: 'utf8' }).stdout ?? '').trim(),
+    it.each(CASES)('%s, %i shards: the assignment is deterministic', (platform, count) => {
+        expect(shardsOf(platform, count)).toStrictEqual(shardsOf(platform, count));
+    });
+
+    it.each(CASES)('%s, %i shards: each shard stays a subsequence of the plan', (platform, count) => {
+        for (const flows of shardsOf(platform, count)) {
+            const positions = flows.map((flow) => PLANNED.indexOf(flow));
+
+            expect(positions.every((position) => position >= 0)).toBe(true);
+            expect(positions).toStrictEqual([...positions].sort((a, b) => a - b));
+        }
+    });
+
+    it.each(CASES)(
+        '⛔ %s, %i shards: the heaviest shard is within 15% of the mean predicted time',
+        (platform, count) => {
+            const totals = predictedSeconds(platform, count);
+            const mean = totals.reduce((sum, seconds) => sum + seconds, 0) / totals.length;
+            const minutes = totals.map((seconds) => (seconds / 60).toFixed(1)).join(' / ');
+
+            expect(Math.max(...totals) / mean, `predicted minutes per shard: ${minutes}`).toBeLessThanOrEqual(1.15);
+        },
+    );
+
+    describe('against a synthetic table, so the packing ORDER is what is asserted', () => {
+        let directory = '';
+        const plan = ['spine:s0', ...['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7'].map((flow) => `recipes:${flow}`)].join(
+            '\n',
         );
 
-        expect(Number.isInteger(overhead) && overhead > 0, `ios-flow-overhead printed ${overhead}`).toBe(true);
-        expect(costOf('ios', 'home')).toBe(costOf('android', 'home') + overhead);
-        expect(costOf('ios', 'a/flow/nobody/timed')).toBe(defaultWeight() + overhead);
+        function table(rows: Readonly<Record<string, number>>): string {
+            directory = mkdtempSync(join(tmpdir(), 'maestroSeconds-'));
+            const file = join(directory, 'seconds.tsv');
+
+            writeFileSync(
+                file,
+                [
+                    `android\t${DEFAULT_ROW}\t50\t0`,
+                    ...Object.entries(rows).map(([flow, seconds]) => `android\t${flow}\t${seconds}\t3`),
+                ].join('\n'),
+            );
+
+            return file;
+        }
+
+        function shardPlan(
+            file: string,
+            index: number,
+            count: number,
+            flows: readonly string[],
+            planText: string = plan,
+        ): Sharded {
+            const result = spawnSync('bash', [SCRIPT, 'shard-plan', planText, String(index), String(count), ...flows], {
+                encoding: 'utf8',
+                env: { ...process.env, MAESTRO_FLOW_SECONDS_FILE: file },
+            });
+            const lines = (result.stdout ?? '').split('\n');
+            const valuesOf = (key: string): readonly string[] =>
+                lines.flatMap((line) => (line.startsWith(`${key}=`) ? [line.slice(key.length + 1)] : []));
+
+            return {
+                flows: valuesOf('flow'),
+                deferred: valuesOf('deferred'),
+                reason: valuesOf('reason')[0] ?? '',
+                status: result.status ?? -1,
+                stderr: result.stderr ?? '',
+            };
+        }
+
+        afterAll(() => {
+            if (directory !== '') {
+                rmSync(directory, { recursive: true, force: true });
+            }
+        });
+
+        it('⛔ packs the HEAVIEST flows first: six 1 s flows ahead of one 6 s flow in the plan still balance 6 / 6', () => {
+            const file = table({ f1: 1, f2: 1, f3: 1, f4: 1, f5: 1, f6: 1, f7: 6 });
+            const flows = ['s0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7'];
+            const mine = [1, 2].map((index) => shardPlan(file, index, 2, flows).flows.filter((flow) => flow !== 's0'));
+            const seconds = mine.map((shard) => shard.reduce((total, flow) => total + (flow === 'f7' ? 6 : 1), 0));
+
+            expect(seconds, `shards: ${JSON.stringify(mine)}`).toStrictEqual([6, 6]);
+        });
+
+        it('breaks equal weights by flow NAME, not by plan position', () => {
+            const file = table({ z1: 10, a1: 10, m1: 10 });
+            const oddPlan = ['spine:s0', 'recipes:z1', 'recipes:a1', 'recipes:m1'].join('\n');
+            const first = shardPlan(file, 1, 2, ['s0', 'z1', 'a1', 'm1'], oddPlan);
+
+            // Name order a1, m1, z1: a1 -> shard 1, m1 -> shard 2, z1 ties and goes to the lowest shard. Plan order would give z1, m1.
+            expect(first.flows.filter((flow) => flow !== 's0')).toStrictEqual(['z1', 'a1']);
+        });
+
+        it('schedules a flow with NO row at the platform default rather than dropping it', () => {
+            const file = table({ f1: 100, f2: 100 });
+            const flows = ['s0', 'f1', 'f2', 'f3'];
+            const everyShard = [1, 2].flatMap((index) => shardPlan(file, index, 2, flows).flows);
+
+            expect(everyShard.filter((flow) => flow === 'f3')).toHaveLength(1);
+        });
+    });
+});
+
+describe('the measured-seconds table stays honest', () => {
+    const PLATFORMS = ['android', 'ios'] as const;
+
+    it('has a well-formed row per line: a known platform, a positive integer of seconds, a sample count', () => {
+        expect(SECONDS.length).toBeGreaterThan(0);
+
+        for (const row of SECONDS) {
+            expect(PLATFORMS, `${row.flow}: unknown platform '${row.platform}'`).toContain(row.platform);
+            expect(Number.isInteger(row.seconds) && row.seconds > 0, `${row.platform} ${row.flow} seconds`).toBe(true);
+            expect(Number.isInteger(row.samples) && row.samples >= 0, `${row.platform} ${row.flow} samples`).toBe(true);
+        }
     });
 
-    it('refuses a platform it does not know rather than costing the flow as Android', () => {
+    it.each(PLATFORMS)(
+        '⛔ %s: every flow the platform runs has a row - a NEW flow must be timed (or added at the median)',
+        (platform) => {
+            const missing = runnableFlows(platform).filter(
+                (flow) => !SECONDS.some((row) => row.platform === platform && row.flow === flow),
+            );
+
+            expect(
+                missing,
+                `${platform} runs flows with no row in maestroFlowSeconds.tsv; they are packed at the default weight until you add one`,
+            ).toStrictEqual([]);
+        },
+    );
+
+    it.each(PLATFORMS)(
+        '%s: has exactly one default row (flow "*") and no row for a flow the plan does not run',
+        (platform) => {
+            const rows = SECONDS.filter((row) => row.platform === platform);
+            const planned = new Set(PLANNED);
+
+            expect(rows.filter((row) => row.flow === DEFAULT_ROW)).toHaveLength(1);
+            expect(new Set(rows.map((row) => row.flow)).size).toBe(rows.length);
+
+            for (const row of rows.filter((candidate) => candidate.flow !== DEFAULT_ROW)) {
+                expect(planned.has(row.flow), `${platform} ${row.flow} has a row but is not in the plan`).toBe(true);
+            }
+        },
+    );
+
+    it('costs a flow at its own platform row: iOS is measured, not Android plus a constant', () => {
+        for (const platform of PLATFORMS) {
+            for (const row of SECONDS.filter((candidate) => candidate.platform === platform)) {
+                if (row.flow !== DEFAULT_ROW) {
+                    const outcome = spawnSync('bash', [SCRIPT, 'flow-cost', platform, row.flow], { encoding: 'utf8' });
+
+                    expect(Number((outcome.stdout ?? '').trim()), `${platform} ${row.flow}`).toBe(row.seconds);
+                }
+            }
+        }
+
+        expect(defaultWeight('ios')).toBe(tableCost('ios', DEFAULT_ROW));
+        expect(defaultWeight('android')).toBe(tableCost('android', DEFAULT_ROW));
+        expect(
+            Number(
+                (
+                    spawnSync('bash', [SCRIPT, 'flow-cost', 'ios', 'a/flow/nobody/timed'], { encoding: 'utf8' })
+                        .stdout ?? ''
+                ).trim(),
+            ),
+        ).toBe(tableCost('ios', DEFAULT_ROW));
+    });
+
+    it('prints the Android rows from `weights` and refuses an unknown platform', () => {
+        const weights = weightTable();
+
+        expect(weights.size).toBeGreaterThan(10);
+        for (const [flow, seconds] of weights) {
+            expect(seconds, flow).toBe(tableCost('android', flow));
+        }
+
         const outcome = spawnSync('bash', [SCRIPT, 'flow-cost', 'windows', 'home'], { encoding: 'utf8' });
 
         expect(outcome.status).toBe(2);
         expect(outcome.stdout).toBe('');
         expect(outcome.stderr).toMatch(/unknown platform 'windows'/u);
-    });
-
-    /**
-     * The assertion that fails when the packing ignores the overhead. The cost used to JUDGE the shards is the test's own
-     * (Android time + the measured 63 s), not the script's, so tuning the script's constant cannot satisfy it by echoing
-     * itself.
-     */
-    it.each([3, 4])('⛔ balances %i iOS shards on the real iOS cost: slowest and fastest within 10%%', (count) => {
-        const weights = weightTable();
-        const shards = Array.from({ length: count }, (_, index) => {
-            const outcome = runAs('ios', 'shard-selection', String(index + 1), String(count), 'full=true');
-
-            expect(outcome.status, outcome.stderr).toBe(0);
-
-            return outcome.flows
-                .filter((flow) => flow !== SPINE)
-                .reduce(
-                    (total, flow) => total + (weights.get(flow) ?? defaultWeight()) + MEASURED_IOS_EXTRA_SECONDS,
-                    0,
-                );
-        });
-        const [slowest, fastest] = [Math.max(...shards), Math.min(...shards)];
-
-        expect((slowest - fastest) / slowest, `iOS shard costs: ${shards.join('/')}`).toBeLessThan(0.1);
-    });
-
-    it('⛔ still runs every iOS-runnable flow exactly once across the shards, and the spine on each', () => {
-        const everyShard = Array.from({ length: 4 }, (_, index) => {
-            const outcome = runAs('ios', 'shard-selection', String(index + 1), '4', 'full=true');
-
-            expect(outcome.status, outcome.stderr).toBe(0);
-
-            return outcome.flows;
-        });
-        const union = everyShard.flat();
-
-        expect(everyShard.every((flows) => flows[0] === SPINE)).toBe(true);
-        expect(union.filter((flow) => flow === SPINE)).toHaveLength(4);
-        // Four flows are excluded on iOS; everything else is a true partition.
-        expect(new Set(union.filter((flow) => flow !== SPINE)).size).toBe(union.length - 4);
-        expect(union.length - 4).toBeGreaterThan(PLANNED.length - 10);
-    });
-
-    it('leaves the Android partition byte-identical when the platform is Android or unset', () => {
-        const selection = fullSelection();
-        const viaDefault = shardAll(4, selection);
-
-        for (let index = 0; index < 4; index += 1) {
-            const viaAndroid = runAs('android', 'shard', String(index + 1), '4', ...selection);
-
-            expect(viaAndroid.flows).toStrictEqual(viaDefault[index]);
-        }
-    });
-});
-
-describe('the cost hints stay honest', () => {
-    it('⛔ times only flows the plan actually runs — a stale entry mis-packs every shard, silently', () => {
-        const planned = new Set(PLANNED);
-
-        for (const flow of weightTable().keys()) {
-            expect(planned.has(flow), `${flow} carries a cost hint but is not in the plan`).toBe(true);
-        }
-    });
-
-    it('assumes a positive cost for an untimed flow, so a new flow is packed rather than treated as free', () => {
-        expect(defaultWeight()).toBeGreaterThan(0);
     });
 });

@@ -118,6 +118,8 @@ function runWithStubs(args: readonly string[], env: Readonly<Record<string, stri
         env: {
             ...process.env,
             PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+            // Empty is unset to `runCli.sh`: a caller's bundle directory must not route the resets away from the `npx` stub.
+            E2E_SEED_CLI_DIR: '',
             MAESTRO_FIXTURE_ENV_FILE: manifestFile,
             MAESTRO_IOS_APP: app,
             ...env,

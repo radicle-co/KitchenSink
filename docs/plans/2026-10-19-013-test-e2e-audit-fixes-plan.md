@@ -318,3 +318,15 @@ The design:
 The first run after this lands records the hashes, so it still deploys everything once.
 
 Status: in progress.
+
+## 12. Group H: one missed purge must not fail every shard
+
+Found on 2026-10-20 (CI run 39438589869, iOS shards 1, 3 and 5). Each platform shares ONE `unresolved` probe word
+across all its shards, and every shard's provision judges it. Only the slot that picked can take its root back, at its
+own next purge. So one slot that misses its purge breaks provision for every shard. That day it was a local lane that
+ran before the local lanes purged after a run, and CI shard 2 then skipped its own reset when food answered 503 during
+a redeploy. The root ("LABNEH IN OIL", picked at 14:20 UTC by iOS slot 2) came back with a purge of slot 2.
+
+Fix, not started: a shard judges only the probe roles its own flows use, and `ingredientCandidates` is pinned to one
+shard per platform, the way `MAESTRO_ERASURE_SHARD` pins the erasure flows. That shard's own before-run purge then
+always clears what its last run left. Also make the `catalog-holds-matches` refusal name the matching food ids.

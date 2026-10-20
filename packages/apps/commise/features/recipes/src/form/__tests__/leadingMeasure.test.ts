@@ -375,6 +375,19 @@ describe('readLeadingMeasure — a count unit after the food (E15)', () => {
     });
 });
 
+describe('readAmountField — a long run of dots or digits (CodeQL js/polynomial-redos, alert 483)', () => {
+    // The comma-run pattern used to retry every position of a run with no comma in it: quadratic in the run.
+    it.each([
+        ['dots', '.'.repeat(50_000)],
+        ['digits and dots', '1.'.repeat(25_000)],
+    ])('reads a run of %s in linear time', (_name, typed) => {
+        const started = performance.now();
+
+        readAmountField(typed);
+        expect(performance.now() - started).toBeLessThan(250);
+    });
+});
+
 describe('readLeadingMeasure — the comma inside an amount', () => {
     it.each(COMMA_SHAPES)('reads "$typed" — $why', ({ typed, reading }) => {
         expect(readLeadingMeasure(typed)).toEqual(reading);

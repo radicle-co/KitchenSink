@@ -78,6 +78,19 @@ describe('composeAvatarUrl', () => {
         expect(composeAvatarUrl(profile, cdn)).toBe(expected);
     });
 
+    it('strips a long run of slashes that is not at the end in linear time (CodeQL js/polynomial-redos, alert 487)', () => {
+        // `/\/+$/` retries every position of a run that is followed by something else: quadratic in the run.
+        const cdnUrl = `https://media.commise.app${'/'.repeat(100_000)}x`;
+        const started = performance.now();
+
+        expect(composeAvatarUrl({ avatarKey: 'k', avatarUrl: null }, cdnUrl)).toBe(`${cdnUrl}/k`);
+        expect(performance.now() - started).toBeLessThan(250);
+    });
+
+    it('strips every trailing slash, not only one', () => {
+        expect(composeAvatarUrl({ avatarKey: 'k', avatarUrl: null }, `${cdn}///`)).toBe(`${cdn}/k`);
+    });
+
     it('does not double the slash when the CDN url carries a trailing one', () => {
         expect(composeAvatarUrl({ avatarKey: `avatars/${USER}/1.png`, avatarUrl: null }, `${cdn}/`)).toBe(
             `${cdn}/avatars/${USER}/1.png`,

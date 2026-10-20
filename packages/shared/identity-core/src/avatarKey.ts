@@ -60,6 +60,21 @@ export function isOwnAvatarKey(userId: string, key: string): boolean {
 }
 
 /**
+ * `value` with every trailing `/` removed. A LOOP, NOT `/\/+$/`: that pattern retries every position of a run of
+ * slashes that is followed by anything else, so it is quadratic in the run (CodeQL `js/polynomial-redos`, alert 487).
+ * The same loop as `withoutTrailingSlashes` in the service clients. Pure.
+ */
+function withoutTrailingSlashes(value: string): string {
+    let end = value.length;
+
+    while (end > 0 && value.charAt(end - 1) === '/') {
+        end -= 1;
+    }
+
+    return value.slice(0, end);
+}
+
+/**
  * The URL a profile's avatar is shown from: the CDN URL of a stored key, else the Clerk picture URL, else nothing.
  *
  * @param profile - The profile's two avatar columns.
@@ -71,7 +86,7 @@ export function composeAvatarUrl(
     cdnUrl: string,
 ): string | null {
     if (profile.avatarKey !== null) {
-        return `${cdnUrl.replace(/\/+$/, '')}/${profile.avatarKey}`;
+        return `${withoutTrailingSlashes(cdnUrl)}/${profile.avatarKey}`;
     }
 
     return profile.avatarUrl;

@@ -25,6 +25,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 import {
     ACTIONS_DIR,
@@ -96,11 +97,32 @@ function unsyncedDeploys(body: string, owners: ReadonlySet<string>): readonly st
         .map((site) => site.entrypoint);
 }
 
-/** Whether a workflow declares itself production-only: a workflow-level `STAGE: prod`. */
+/**
+ * Whether workflow text declares itself production-only: a workflow-level `STAGE: prod`. Read from the parsed YAML,
+ * not with a regex: the pattern this replaced backtracked exponentially on an `env:` followed by many indented blank
+ * lines (CodeQL `js/redos`, alert 502). Text that does not parse as YAML declares nothing. Pure.
+ */
+function declaresProdStage(text: string): boolean {
+    let workflow: unknown;
+
+    try {
+        workflow = parse(text);
+    } catch {
+        return false;
+    }
+
+    if (typeof workflow !== 'object' || workflow === null || !('env' in workflow)) {
+        return false;
+    }
+
+    const { env } = workflow;
+
+    return typeof env === 'object' && env !== null && 'STAGE' in env && env.STAGE === 'prod';
+}
+
+/** Whether a workflow file declares itself production-only (see {@link declaresProdStage}). */
 function isProdWorkflow(workflow: string): boolean {
-    return /^env:\s*\n(?:[ \t]+.*\n)*?[ \t]+STAGE:\s*prod\s*$/mu.test(
-        readFileSync(path.join(repoRoot, WORKFLOWS_DIR, workflow), 'utf8'),
-    );
+    return declaresProdStage(readFileSync(path.join(repoRoot, WORKFLOWS_DIR, workflow), 'utf8'));
 }
 
 describe('every non-prod deploy of an app owning a scheduled rule is followed by a sync (ADR-0060)', () => {
@@ -133,6 +155,27 @@ describe('every non-prod deploy of an app owning a scheduled rule is followed by
         expect(isProdWorkflow('prod-deploy.yml')).toBe(true);
         expect(isProdWorkflow('sandbox-identity-deploy.yml')).toBe(false);
         expect(isProdWorkflow('deployInfra.yml')).toBe(false);
+    });
+
+    describe('declaresProdStage, on workflow text', () => {
+        it.each([
+            ['a workflow-level STAGE: prod', 'name: x\nenv:\n    STAGE: prod\njobs: {}\n', true],
+            ['STAGE among other workflow-level variables', 'env:\n    A: 1\n    STAGE: prod\n', true],
+            ['a job-level STAGE only', 'jobs:\n    a:\n        env:\n            STAGE: prod\n', false],
+            ['a sandbox STAGE', 'env:\n    STAGE: sandbox\n', false],
+            ['no env block', 'name: x\n', false],
+        ])('%s', (_name, text, expected) => {
+            expect(declaresProdStage(text)).toBe(expected);
+        });
+
+        it('reads a hostile env block in linear time (CodeQL js/redos, alert 502)', () => {
+            // The regex this replaced backtracked exponentially on `env:` followed by many indented blank lines.
+            const text = `env:\n${'\t\t\n'.repeat(30)}x`;
+            const started = performance.now();
+
+            expect(declaresProdStage(text)).toBe(false);
+            expect(performance.now() - started).toBeLessThan(250);
+        });
     });
 
     describe('the predicate, on shapes the tree does not hold', () => {

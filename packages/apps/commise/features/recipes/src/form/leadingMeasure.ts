@@ -94,8 +94,14 @@ function preparationCommaOf(text: string): number {
     return -1;
 }
 
-/** A run of digits that holds a comma (`1,5`, `1,000`), and the one shape each comma reading allows. */
-const COMMA_RUN = /[\p{Nd}.]*,[\p{Nd},.]*/gu;
+/**
+ * A run of digits, points and commas, and the one shape each comma reading allows. The runs that hold a comma (`1,5`,
+ * `1,000`) are the ones read. Matched as one maximal run and FILTERED for a comma, not as `[\p{Nd}.]*,[\p{Nd},.]*`:
+ * that pattern retries every position of a run with no comma in it, so it was quadratic in the run (CodeQL
+ * `js/polynomial-redos`, alert 483). The two give the same runs: a run holding a comma is matched from its first
+ * character either way.
+ */
+const NUMBER_RUN = /[\p{Nd},.]+/gu;
 const THOUSANDS = /^\p{Nd}{1,3}(?:,\p{Nd}{3})+$/u;
 const DECIMAL_COMMA = /^\p{Nd}+,\p{Nd}{1,2}$/u;
 
@@ -107,7 +113,7 @@ const DECIMAL_COMMA = /^\p{Nd}+,\p{Nd}{1,2}$/u;
  * ambiguous: no amount is read rather than a wrong one. Pure.
  */
 function decimalSeparatorOf(text: string): ',' | '.' | undefined {
-    const runs = text.match(COMMA_RUN) ?? [];
+    const runs = (text.match(NUMBER_RUN) ?? []).filter((run) => run.includes(','));
 
     if (runs.every((run) => THOUSANDS.test(run))) {
         return '.';

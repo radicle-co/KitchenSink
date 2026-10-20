@@ -1173,6 +1173,7 @@ describe('the measured-seconds table stays honest', () => {
         const weights = weightTable();
 
         expect(weights.size).toBeGreaterThan(10);
+
         for (const [flow, seconds] of weights) {
             expect(seconds, flow).toBe(tableCost('android', flow));
         }

@@ -13,8 +13,13 @@
  */
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type { CreateAuthoredFoodInput, FoodServiceClient } from '@kitchensink/food-service-client';
+import {
+    isFetchUnavailableError,
+    type CreateAuthoredFoodInput,
+    type FoodServiceClient,
+} from '@kitchensink/food-service-client';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import pRetry from 'p-retry';
 
 import type { FixtureRecipe } from './fixtureManifest.js';
 import {
@@ -135,12 +140,17 @@ export const PROBE_FOOD_MACROS: CreateAuthoredFoodInput['macros'] = {
  *
  * @param clients - Clients authenticated as the identity the device signs in as.
  * @param name - The probe's name, exactly as the flow types and taps it (`Filter by ${name}`).
+ * @param retry - The bound on a busy answer to the create; tests shrink it.
  * @returns The food-backed binding.
  * @throws {Error} As {@link ensureAuthoredFood} does.
  * @sideEffect May author one food, and binds it.
  */
-export async function ensureProbeFood(clients: ProbeFoodClients, name: string): Promise<FoodBinding> {
-    return ensureAuthoredFood(clients, name, 'the discovery probe');
+export async function ensureProbeFood(
+    clients: ProbeFoodClients,
+    name: string,
+    retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
+): Promise<FoodBinding> {
+    return ensureAuthoredFood(clients, name, 'the discovery probe', retry);
 }
 
 /**
@@ -150,6 +160,7 @@ export async function ensureProbeFood(clients: ProbeFoodClients, name: string): 
  *
  * @param clients - Clients authenticated as the identity the device signs in as.
  * @param names - `manifest.capFoodNames` — see `CAP_FOOD_BASE_NAME`.
+ * @param retry - The bound on a busy answer to each create; tests shrink it.
  * @returns The food-backed bindings, one per name.
  * @throws {Error} As {@link ensureAuthoredFood} does, for the first name it refuses.
  * @sideEffect May author up to one food per name, and binds each.
@@ -157,15 +168,35 @@ export async function ensureProbeFood(clients: ProbeFoodClients, name: string): 
 export async function ensureCapFoods(
     clients: ProbeFoodClients,
     names: readonly string[],
+    retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
 ): Promise<readonly FoodBinding[]> {
     const foods: FoodBinding[] = [];
 
     for (const name of names) {
-        foods.push(await ensureAuthoredFood(clients, name, 'a cap food'));
+        foods.push(await ensureAuthoredFood(clients, name, 'a cap food', retry));
     }
 
     return foods;
 }
+
+/** The bound on how long {@link ensureAuthoredFood} keeps asking while food answers that it is busy. */
+export interface AuthoredFoodRetry {
+    /** Retries after the first attempt, so `retries + 1` attempts in all. */
+    readonly retries: number;
+    /** The first backoff in milliseconds; it doubles each retry, with jitter. */
+    readonly minTimeoutMs: number;
+    /** The longest single backoff, and the ceiling on a `Retry-After` food names. */
+    readonly maxTimeoutMs: number;
+}
+
+/**
+ * Five attempts, backing off 1s, 2s, 4s, 8s (each up to twice that with jitter), so the waits total 15s to 30s and,
+ * with a request timeout per attempt, stay well under a minute. Thirteen Maestro shards provision at once, and food's
+ * busy window is a short shed rather than an outage: a few spaced, jittered tries clear it, while a longer bound would
+ * only hide a food service that is really down behind a slow job. Jitter matters here, since the shards start together
+ * and would otherwise retry together.
+ */
+const DEFAULT_AUTHORED_FOOD_RETRY: AuthoredFoodRetry = { retries: 4, minTimeoutMs: 1_000, maxTimeoutMs: 8_000 };
 
 /**
  * Author a food as the caller at food, or take the one they already authored under `name`, and bind it.
@@ -173,16 +204,45 @@ export async function ensureCapFoods(
  * Food answers a name the caller already authored with the EXISTING food's id. Either food is bound through recipe's
  * `by-food`, which converges on its one shared binding: food's create makes a food, never a binding.
  *
+ * ⛔ THE CREATE IS RETRIED ON "FOOD IS NOT USABLY AVAILABLE" AND NOTHING ELSE. Food sheds load with a `503`
+ * (`SourceBusyError`, plan 002 S5), and CI run 39438589869 (iOS Maestro shard 4) lost its whole shard to one such
+ * answer because 13 shards provision at once. Retrying is safe because the create is idempotent by name: a repeat of
+ * a create that did commit (a dropped socket, a timeout) is answered with `authored.kind !== 'created'` and the
+ * existing food's id, so a retry can never make a second food. Every other error is the service's own answer (a
+ * `400`, a `401`) and a retry would only hide it, so it surfaces at once. A `Retry-After` food names is honoured,
+ * capped at the retry bound's longest backoff.
+ *
  * @param clients - Clients authenticated as the food's author.
  * @param name - The food's name, exactly as a flow looks for it.
  * @param label - What the food is for, to name it in an error (`the discovery probe`).
+ * @param retry - The bound on a busy answer.
  * @returns The food-backed binding.
- * @throws {Error} When the result carries no food id, or a name other than `name`. A flow finds these foods by their
+ * @throws {Error} The busy error, once the bound is spent; any other error from food or recipe as it came; or an
+ *   `Error` when the result carries no food id, or a name other than `name`. A flow finds these foods by their
  *   exact name, so either would fail it on a step that reads like an app defect.
- * @sideEffect May author one food, and binds it.
+ * @sideEffect May author one food, and binds it. Sleeps between retries.
  */
-async function ensureAuthoredFood(clients: ProbeFoodClients, name: string, label: string): Promise<FoodBinding> {
-    const authored = await clients.food.createAuthoredFood({ name, macros: PROBE_FOOD_MACROS });
+async function ensureAuthoredFood(
+    clients: ProbeFoodClients,
+    name: string,
+    label: string,
+    retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
+): Promise<FoodBinding> {
+    const authored = await pRetry(() => clients.food.createAuthoredFood({ name, macros: PROBE_FOOD_MACROS }), {
+        retries: retry.retries,
+        minTimeout: retry.minTimeoutMs,
+        maxTimeout: retry.maxTimeoutMs,
+        shouldRetry: ({ error }) => isFetchUnavailableError(error),
+        onFailedAttempt: async ({ error, retryDelay }) => {
+            // p-retry sleeps `retryDelay` itself; only the part of the hint it does not already cover is added.
+            const hintMs = isFetchUnavailableError(error) ? (error.retryAfterSeconds ?? 0) * 1000 : 0;
+            const extraMs = Math.min(hintMs, retry.maxTimeoutMs) - retryDelay;
+
+            if (extraMs > 0) {
+                await delay(extraMs);
+            }
+        },
+    });
     const food = await clients.recipe.addIngredientByFood(
         authored.kind === 'created' ? authored.food.id : authored.existingId,
     );

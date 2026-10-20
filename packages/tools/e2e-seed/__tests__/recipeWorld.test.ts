@@ -5,7 +5,13 @@
  * SHIPPED schemas and the client parses the answers. What only this tier proves cheaply is every ARM of the
  * probe's logic, including the refusals, without standing up a server for each.
  */
-import type { CreateAuthoredFoodInput, CreateAuthoredFoodResult } from '@kitchensink/food-service-client';
+import {
+    BadRequestError,
+    FetchUnavailableError,
+    SourceBusyError,
+    type CreateAuthoredFoodInput,
+    type CreateAuthoredFoodResult,
+} from '@kitchensink/food-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -154,6 +160,79 @@ describe('ensureProbeFood', () => {
         const { clients } = fakeClients({ kind: 'duplicate', existingId: 'food_old' }, bound({ name: 'flour' }));
 
         await expect(ensureProbeFood(clients, 'Flour')).rejects.toThrow(/"flour"/u);
+    });
+});
+
+/**
+ * ⛔ A BUSY ANSWER TO THE AUTHORING WRITE IS TRANSIENT (CI run 39438589869: iOS Maestro shard 4 failed in
+ * `provision` with `SourceBusyError`). Food sheds load with a 503 and thirteen shards provision at once. Only the two
+ * "food is not usably available" errors are retried; every other error is the service's answer and must surface at
+ * once. Delays are shrunk to a millisecond so nothing sleeps for real.
+ */
+describe('ensureProbeFood under load shedding', () => {
+    const quick = { retries: 2, minTimeoutMs: 1, maxTimeoutMs: 2 };
+
+    /** Fakes whose create throws each of `failures` in turn, then answers `created`. */
+    function flaky(failures: readonly Error[]) {
+        const { clients, calls } = fakeClients(created('food_probe', manifest.probeIngredient));
+        const create = vi.fn(async (input: CreateAuthoredFoodInput): Promise<CreateAuthoredFoodResult> => {
+            const failure = failures[create.mock.calls.length - 1];
+
+            if (failure !== undefined) {
+                throw failure;
+            }
+
+            return clients.food.createAuthoredFood(input);
+        });
+
+        return { clients: { ...clients, food: { createAuthoredFood: create } }, create, calls };
+    }
+
+    it('retries a busy answer and resolves with the binding once food accepts the create', async () => {
+        const { clients, create, calls } = flaky([new SourceBusyError()]);
+
+        const probe = await ensureProbeFood(clients, manifest.probeIngredient, quick);
+
+        expect(create).toHaveBeenCalledTimes(2);
+        expect(calls.byFood).toEqual(['food_probe']);
+        expect(probe.foodId).toBe('food_probe');
+    });
+
+    it('retries a transport failure too (FetchUnavailableError), because a repeated create cannot make a second food', async () => {
+        const { clients, create } = flaky([new FetchUnavailableError(undefined, 'timed out')]);
+
+        await expect(ensureProbeFood(clients, manifest.probeIngredient, quick)).resolves.toMatchObject({
+            foodId: 'food_probe',
+        });
+        expect(create).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up after the bound and rejects with the busy error itself, rather than hanging', async () => {
+        const busy = new SourceBusyError();
+        const { clients, create } = flaky([busy, busy, busy, busy, busy]);
+
+        await expect(ensureProbeFood(clients, manifest.probeIngredient, quick)).rejects.toBe(busy);
+
+        // retries: 2 means three attempts in all.
+        expect(create).toHaveBeenCalledTimes(3);
+    });
+
+    it('⛔ rejects at once on any other error — a 400 is the service refusing the request, not load', async () => {
+        const refusal = new BadRequestError('bad macros');
+        const { clients, create } = flaky([refusal, refusal]);
+
+        await expect(ensureProbeFood(clients, manifest.probeIngredient, quick)).rejects.toBe(refusal);
+
+        expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits at least the Retry-After food named, when that is longer than the backoff', async () => {
+        const { clients } = flaky([new SourceBusyError(0.05)]);
+        const started = Date.now();
+
+        await ensureProbeFood(clients, manifest.probeIngredient, { ...quick, maxTimeoutMs: 100 });
+
+        expect(Date.now() - started).toBeGreaterThanOrEqual(45);
     });
 });
 

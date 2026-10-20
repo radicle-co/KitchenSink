@@ -86,11 +86,14 @@ appId: ${APP_ID}
 - waitForAnimationToEnd:
       timeout: 3000
 - assertVisible: 'Rename collection'
-- tapOn: 'Name'
-- eraseText
-# Deliberately LONG: E3 (`docs/design/uiOverhaul/evaluateShellAndLists.md`) is a long name squeezed into a column
+# Through the shared step, which clears the whole field and reads the name back (a tap on a filled field leaves the
+# caret where it lands, and eraseText deletes only before it). Deliberately LONG: E3 (`docs/design/uiOverhaul/evaluateShellAndLists.md`) is a long name squeezed into a column
 # broken mid-word beside the actions. The step after the wait proves it is not.
-- inputText: 'Maestro renamed collection for the whole family on weeknights'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Name'
+          TEXT: 'Maestro renamed collection for the whole family on weeknights'
 - tapOn: 'Save name'
 # The sheet closes on a save. Waited for first: until then its own field shows the new name, so the read below would
 # pass on the field (run 38433716728 did, in 222 ms, over a save that never happened).

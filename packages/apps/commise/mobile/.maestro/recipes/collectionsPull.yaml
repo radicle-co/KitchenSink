@@ -81,9 +81,11 @@ appId: ${APP_ID}
 - waitForAnimationToEnd:
       timeout: 3000
 - assertVisible: 'Rename collection'
-- tapOn: 'Name'
-- eraseText
-- inputText: 'Maestro pull clone'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Name'
+          TEXT: 'Maestro pull clone'
 - tapOn: 'Save name'
 # The sheet closes on a save; until then its own field shows the new name (`collections.yaml`, the same step).
 - extendedWaitUntil:

@@ -51,9 +51,11 @@ appId: ${APP_ID}
 # A query matching NOTHING collapses to the NO-MATCH state — proves the filter is applied, not merely
 # reordered. "No recipes match" (not the empty library's "Your recipe box is empty"): the caller HAS recipes, the
 # search just excluded them all. Asserting the empty-vs-no-match distinction guards the copy-bug regression.
-- tapOn: 'Search your recipes'
-- eraseText
-- inputText: 'zzzznosuchrecipe'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Search your recipes'
+          TEXT: 'zzzznosuchrecipe'
 - assertVisible: 'No recipes match'
 - assertNotVisible: 'Your recipe box is empty'
 

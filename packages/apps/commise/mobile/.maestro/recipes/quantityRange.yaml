@@ -148,10 +148,12 @@ appId: ${APP_ID}
 - tapOn: 'Amount'
 - eraseText
 - tapOn: 'Remove range'
-# The unit field is wider than `cups`, so a tap at its centre puts the caret after the word: erase it, then type.
-- tapOn: 'Unit'
-- eraseText: 10
-- inputText: 'the size of an egg'
+# Through the shared step, which clears the whole field wherever the caret lands and reads the unit back.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Unit'
+          TEXT: 'the size of an egg'
 - assertVisible:
       text: '^the size of an egg$'
 - hideKeyboard

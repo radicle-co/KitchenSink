@@ -47,12 +47,14 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: 'Edit recipe'
 - assertVisible: 'Close editor'
-# ⚠️ A tap on a filled Android field puts the caret where the finger landed, not at the end (run 38973223138 read
-# "Maestro Feedback Sou twop"), so an append splits the title. Erase back from the caret and retype the whole title: the
-# saved title still starts with "Maestro Feedback Soup", and the edit is dirty whatever the caret was.
-- tapOn: 'Title'
-- eraseText: 64
-- inputText: 'Maestro Feedback Soup two'
+# ⚠️ A tap on a filled field puts the caret where the finger landed, not at the end (run 38973223138 read "Maestro
+# Feedback Sou twop"), and eraseText deletes only before the caret, so a plain erase-and-retype could still leave a tail
+# (CI run 39438589869, Android shard 1). The shared step clears the whole field and reads the new title back.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Title'
+          TEXT: 'Maestro Feedback Soup two'
 # Closes the keyboard before Save changes, for `common/typeTitle.yaml`'s reason.
 - tapOn: 'About the recipe'
 - tapOn: 'Save changes'

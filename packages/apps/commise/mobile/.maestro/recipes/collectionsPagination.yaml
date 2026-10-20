@@ -79,6 +79,14 @@ appId: ${APP_ID}
           - extendedWaitUntil:
                 visible: 'Maestro pagination filler(, .*)?'
                 timeout: 40000
+          # The pop back to Collections still moves when the next pass taps `New collection`, and iOS drops that tap
+          # or finds no button (CI run for 19262bee5, iOS shard 2, the second filler). After the first pass the filler
+          # card above already exists, so it does not prove the pop ended; let it end, then wait for the button.
+          - waitForAnimationToEnd:
+                timeout: 3000
+          - extendedWaitUntil:
+                visible: 'New collection'
+                timeout: 20000
 
 # PAGE 1: the 20 fillers are visible before any "load more" activation; the target (row 21) is proven ABSENT
 # — the assertion that a later "target visible" would otherwise prove nothing (it could just be un-paginated).

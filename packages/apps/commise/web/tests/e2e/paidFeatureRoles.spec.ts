@@ -31,10 +31,14 @@ test.use({ storageState: { cookies: [], origins: [] } });
 async function openEditorAs(page: Page, role: keyof typeof ROLE_LANE_IDS): Promise<string> {
     await signInWithTicket(page, { force: true, email: slotFor('roles', ROLE_LANE_IDS[role]).email });
 
+    // The wait starts once the editor's navigation has COMMITTED. Started before it, it matched the profile request of the
+    // page being left (the signed-in Home), whose body is gone once the navigation lands: CI run 39438589869, web shard
+    // 4, "Response body is not available for a response that was navigated away from". The editor asks for the profile
+    // from its own scripts, which run only after the commit, and a page that was left answers nothing after it.
+    await page.goto(route('/recipes/new'), { waitUntil: 'commit' });
     const profile = page.waitForResponse(
         (response) => new URL(response.url()).pathname.endsWith('/api/v1/users/me') && response.status() === 200,
     );
-    await page.goto(route('/recipes/new'));
     const body = (await (await profile).json()) as { readonly account: { readonly paidFeatures: string } };
 
     await expect(page.getByRole('heading', { level: 1, name: 'New recipe' })).toBeVisible();

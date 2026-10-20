@@ -32,11 +32,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Alpha'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Maestro Alpha.* as written.*'
-- tapOn:
-      text: 'Use .*Maestro Alpha.* as written.*'
 - extendedWaitUntil:
       notVisible: 'Use .*Maestro Alpha.* as written.*'
       timeout: 30000
@@ -49,11 +47,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Beta'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Maestro Beta.* as written.*'
-- tapOn:
-      text: 'Use .*Maestro Beta.* as written.*'
 - extendedWaitUntil:
       notVisible: 'Use .*Maestro Beta.* as written.*'
       timeout: 30000

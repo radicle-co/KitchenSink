@@ -61,11 +61,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Tomato.* as written.*'
-- tapOn:
-      text: 'Use .*Tomato.* as written.*'
 # ⛔ THE CHECKPOINT THAT THE DECLARATION REACHED THE FORM (the same pair `edit.yaml` carries, for the same
 # reason). It was `Ingredient 1 name`, which stopped proving anything the moment the seed gained lines of its
 # own: that is the FIRST SEEDED line's field, present before this flow typed a character. Instead:

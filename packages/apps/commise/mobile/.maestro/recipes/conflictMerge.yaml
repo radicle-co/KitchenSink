@@ -64,11 +64,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Tomato.* as written.*'
-- tapOn:
-      text: 'Use .*Tomato.* as written.*'
 # ⛔ NOT `Ingredient 1 name` — that is the FIRST SEEDED line's field, on screen before this flow typed a
 # character, so it passed whether or not the declaration landed. The pair below is about this flow's own
 # action: the trailing field EMPTYING (the entry clears its text only AFTER the line is committed, so

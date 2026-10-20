@@ -68,10 +68,9 @@ appId: ${APP_ID}
 # FULL-match regex, so the bare words matched nothing there and the list scrolled ten times for an option that was on
 # screen. The open end keeps both platforms on one selector.
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Create my own food.*'
-- tapOn: 'Create my own food.*'
 
 # The sheet's form. Its action row is brought into view first, because `assertVisible` does not scroll and a field
 # clipped by the viewport is not in the hierarchy at all (run 33878552289 measured that on the old inline card).

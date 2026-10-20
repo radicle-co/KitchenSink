@@ -37,10 +37,9 @@ appId: ${APP_ID}
 - inputText: 'Flour'
 # The cook's own food is named for them (L4.2), which also keeps the tap off the field that holds the typed text.
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Flour, your food'
-- tapOn: 'Flour, your food'
 
 # The matched row is quiet (UI overhaul slice 8, build spec §7.5.1): its figures open from its ⋯ Food details.
 - scrollUntilVisible:

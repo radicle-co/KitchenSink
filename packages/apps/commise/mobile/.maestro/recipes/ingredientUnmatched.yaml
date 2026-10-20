@@ -37,11 +37,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Glorp'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Maestro Glorp.* as written.*'
-- tapOn:
-      text: 'Use .*Maestro Glorp.* as written.*'
 - extendedWaitUntil:
       notVisible: 'Use .*Maestro Glorp.* as written.*'
       timeout: 30000

@@ -23,24 +23,28 @@
  * edit of the flows gets before Maestro loads them.
  */
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 import { parseAllDocuments } from 'yaml';
 
-const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const FLOW_ROOT = 'packages/apps/commise/mobile/.maestro';
+import {
+    FLOW_ROOT,
+    REPO_ROOT,
+    commandLists,
+    committedFlowFiles,
+    isRecord,
+    namesFlow,
+    parseFlow,
+    textOf,
+} from './maestroFlowYaml.js';
+
 const SHARED_STEP = 'common/scrollIntoTapView.yaml';
 const SHARED_STEP_NAME = 'scrollIntoTapView.yaml';
 
-/**
- * Whether a path names the shared step. By file NAME, not by `common/…`: the flows beside it in `recipes/common/` call
- * it as plain `scrollIntoTapView.yaml`, and a suffix test on `common/…` silently missed those five calls. Pure.
- */
-const isSharedStep = (path: string): boolean => path === SHARED_STEP_NAME || path.endsWith(`/${SHARED_STEP_NAME}`);
+/** Whether a path names the shared step, by file name (`namesFlow`). Pure. */
+const isSharedStep = (path: string): boolean => namesFlow(path, SHARED_STEP_NAME);
 
 /**
  * How many bare pairs the suite held when the shared step was introduced (136 found, 6 already centred). The floor
@@ -61,51 +65,6 @@ interface ScrollTapPair {
     readonly text: string;
     readonly direction: string;
     readonly centered: boolean;
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    value !== null && typeof value === 'object' && !Array.isArray(value);
-
-/** The text a scroll's `element` or a tap's selector names: a bare string, or a `{ text }` selector. Pure. */
-function textOf(selector: unknown): string | undefined {
-    if (typeof selector === 'string') {
-        return selector;
-    }
-
-    return isRecord(selector) && typeof selector['text'] === 'string' ? selector['text'] : undefined;
-}
-
-/** Every array in a parsed YAML value (every command list, however deeply a runFlow or repeat nests it). Pure. */
-function* commandLists(value: unknown): Generator<readonly unknown[]> {
-    if (Array.isArray(value)) {
-        yield value;
-
-        for (const item of value) {
-            yield* commandLists(item);
-        }
-    } else if (isRecord(value)) {
-        for (const item of Object.values(value)) {
-            yield* commandLists(item);
-        }
-    }
-}
-
-/**
- * Parse every YAML document in a flow, failing on any syntax error. Pure.
- *
- * @param file - The flow's path, for the error.
- * @param source - The flow's YAML.
- * @returns One parsed value per document.
- * @throws When the source does not parse.
- */
-export function parseFlow(file: string, source: string): readonly unknown[] {
-    return parseAllDocuments(source).map((document) => {
-        if (document.errors.length > 0) {
-            throw new Error(`${file} does not parse: ${document.errors.map((e) => e.message).join('; ')}`);
-        }
-
-        return document.toJS() as unknown;
-    });
 }
 
 /**
@@ -207,16 +166,6 @@ export function malformedCalls(calls: readonly StepCall[]): readonly string[] {
         .map(({ file, env }) => `${file}: ${SHARED_STEP} called with ${JSON.stringify(env)}`);
 }
 
-/** Every committed flow, repo-relative. */
-function flowFiles(): readonly string[] {
-    return execFileSync('git', ['ls-files', `${FLOW_ROOT}/**/*.yaml`, `${FLOW_ROOT}/*.yaml`], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-    })
-        .split('\n')
-        .filter((line) => line.length > 0);
-}
-
 const flow = (body: string): string => `appId: x\n---\n${body}`;
 const PAIR = "- scrollUntilVisible:\n    element: 'Save'\n    direction: DOWN\n- tapOn: 'Save'\n";
 
@@ -307,7 +256,7 @@ describe('the rules themselves', () => {
 });
 
 describe('every scroll-then-tap in the Maestro suite is centred', () => {
-    const flows = flowFiles().map((file) => ({ file, source: readFileSync(join(REPO_ROOT, file), 'utf8') }));
+    const flows = committedFlowFiles().map((file) => ({ file, source: readFileSync(join(REPO_ROOT, file), 'utf8') }));
     const pairs = flows.flatMap(({ file, source }) => scrollTapPairsIn(file, source));
     const calls = flows.flatMap(({ file, source }) => stepCallsIn(file, source));
 

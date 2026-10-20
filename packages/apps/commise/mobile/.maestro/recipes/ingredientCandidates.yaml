@@ -72,10 +72,9 @@ appId: ${APP_ID}
 - eraseText: 20
 - inputText: '${E2E_UNRESOLVED_WORD}'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
-- tapOn: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
 
 # UI overhaul slice 8 (build spec §7.5.1): the row says it needs a choice in an attention line under its name.
 - extendedWaitUntil:
@@ -105,12 +104,9 @@ appId: ${APP_ID}
 
 # One remote pick: the panel adopts it and puts the root on the line, closes, and the row no longer asks for a choice.
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: '.*, from USDA'
-- tapOn:
-      text: '.*, from USDA'
-      index: 0
 - extendedWaitUntil:
       notVisible:
           text: 'Search for another food'

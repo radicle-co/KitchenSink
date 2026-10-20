@@ -64,11 +64,9 @@ appId: ${APP_ID}
 - tapOn: 'Add to For the marinade'
 - inputText: '2 cups Tomato, finely chopped'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Tomato.* as written.*'
-- tapOn:
-      text: 'Use .*Tomato.* as written.*'
 - extendedWaitUntil:
       notVisible: 'Use .*Tomato.* as written.*'
       timeout: 30000

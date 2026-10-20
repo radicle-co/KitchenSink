@@ -68,11 +68,9 @@ appId: ${APP_ID}
           - tapOn: 'Add an ingredient'
           - inputText: 'Tamarind'
           - runFlow:
-                file: common/scrollOpenList.yaml
+                file: common/pickFromOpenList.yaml
                 env:
                     TARGET: 'Use .*Tamarind.* as written.*'
-          - tapOn:
-                text: 'Use .*Tamarind.* as written.*'
           - extendedWaitUntil:
                 notVisible: 'Use .*Tamarind.* as written.*'
                 timeout: 30000

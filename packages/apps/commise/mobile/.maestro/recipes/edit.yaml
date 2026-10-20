@@ -103,11 +103,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Tomato.* as written.*'
-- tapOn:
-      text: 'Use .*Tomato.* as written.*'
 # ⛔ THE CHECKPOINT THAT THE DECLARATION REACHED THE FORM. This was `Ingredient 1 name`, and that was a
 # real proof only while the seed inserted the recipe row ALONE: `packages/services/recipe-service/src/database/seed.ts`
 # now gives every seeded recipe its own lines (the lamb has five), so `Ingredient 1 name` is the FIRST SEEDED

@@ -15,11 +15,9 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: ${NAME}
 - runFlow:
-      file: scrollOpenList.yaml
+      file: pickFromOpenList.yaml
       env:
           TARGET: 'Use .*${NAME}.* as written.*'
-- tapOn:
-      text: 'Use .*${NAME}.* as written.*'
 # The field empties only after the line is committed, so this disappearing IS the declaration landing.
 - extendedWaitUntil:
       notVisible: 'Use .*${NAME}.* as written.*'

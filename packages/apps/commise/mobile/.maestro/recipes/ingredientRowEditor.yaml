@@ -147,10 +147,9 @@ appId: ${APP_ID}
 # The way on is the list's last option, after every food the words match, so how far down it sits depends on the
 # stage's catalog.
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use “smoked flour” as written, without nutrition'
-- tapOn: 'Use “smoked flour” as written, without nutrition'
 # The row's field may still hold focus, and the keyboard with it, which unpins the bar (build spec §7.1).
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Publish'

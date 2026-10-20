@@ -79,12 +79,9 @@ appId: ${APP_ID}
 
 # One remote pick. Its name ends in its source (`hitName`), which no database option's does.
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: '.*, from USDA'
-- tapOn:
-      text: '.*, from USDA'
-      index: 0
 - extendedWaitUntil:
       visible:
           text: 'Edit .*'
@@ -122,12 +119,9 @@ appId: ${APP_ID}
           TARGET: 'From USDA'
       label: 'USDA answered the progressive search for the change word on this stage'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: '.*, from USDA'
-- tapOn:
-      text: '.*, from USDA'
-      index: 0
 # The pick closed the list and left Change food. The row's open control is named for the line's food, so it names
 # the change word only once the second remote pick has moved the line (before it, it names the first pick's food).
 - extendedWaitUntil:

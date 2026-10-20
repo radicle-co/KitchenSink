@@ -2,6 +2,8 @@ appId: ${APP_ID}
 ---
 # Reusable sub-flow: scroll an OPEN food list until `TARGET` (a regex on an option's text) is on screen. Called with
 # `runFlow: { file: common/scrollOpenList.yaml, env: { TARGET: '…' } }`, and `DIRECTION: UP` to go back up the list.
+# To PICK the option, call `pickFromOpenList.yaml` instead: on iOS this flow promises only that the option's TOP is
+# above the keyboard, and that step taps there (`maestroOpenListPick.test.ts`).
 #
 # ⛔ It swipes from INSIDE the list, never from the screen's centre as `scrollUntilVisible` does: a drag that starts on
 # the page outside an open list closes it (UI overhaul slice 8). The list is in the page's flow on native and the
@@ -127,19 +129,9 @@ appId: ${APP_ID}
                                     start: 50%, 55%
                                     end: 50%, 35%
                                     duration: 500
-          # ⛔ Maestro's `above` compares TOP edges only (`maestro.Filters.above`: element.y < anchor.y, read from the
-          # maestro-client bytecode, 2026-10-18). An option whose top has just cleared the keyboard passes while its lower
-          # half, where the tap lands, is still under it: ingredientArrival on the full local iOS shard 1 tapped the
-          # suggestion strip. One short drag inside the list lifts the whole row clear. Not going UP: then the target
-          # enters at the top of the list, away from the keyboard.
-          - runFlow:
-                when:
-                    true: ${DIRECTION != 'UP'}
-                commands:
-                    - swipe:
-                          start: 50%, 55%
-                          end: 50%, 49%
-                          duration: 500
+          # ⛔ THE FLOW ENDS WITH NOTHING BUT THE CHECK. A drag here to lift the option's centre clear of the keyboard
+          # started on the page below a SHORT list and closed it (CI run 39400327458, iOS shard 1, `versions`), and the
+          # loop above already swipes only while the target is not found. `pickFromOpenList.yaml` taps near the top.
           - assertVisible:
                 text: ${TARGET}
                 above:

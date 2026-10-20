@@ -28,22 +28,18 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Cumin'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Maestro Cumin.* as written.*'
-- tapOn:
-      text: 'Use .*Maestro Cumin.* as written.*'
 - extendedWaitUntil:
       notVisible: 'Use .*Maestro Cumin.* as written.*'
       timeout: 30000
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Garlic'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Maestro Garlic.* as written.*'
-- tapOn:
-      text: 'Use .*Maestro Garlic.* as written.*'
 - extendedWaitUntil:
       notVisible: 'Use .*Maestro Garlic.* as written.*'
       timeout: 30000

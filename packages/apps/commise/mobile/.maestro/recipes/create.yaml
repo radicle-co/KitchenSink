@@ -108,11 +108,9 @@ appId: ${APP_ID}
 - inputText: 'mato'
 - assertNotVisible: 'Keep typing.*'
 - runFlow:
-      file: common/scrollOpenList.yaml
+      file: common/pickFromOpenList.yaml
       env:
           TARGET: 'Use .*Tomato.* as written.*'
-- tapOn:
-      text: 'Use .*Tomato.* as written.*'
 
 # The declaration is async; the line lands above the trailing field, which then empties. Scrolling to the line's
 # name field both waits for it and is the falsifiable checkpoint — if the line never landed this scroll finds nothing

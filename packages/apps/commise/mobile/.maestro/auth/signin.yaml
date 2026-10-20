@@ -26,7 +26,13 @@ appId: ${APP_ID}
       env:
           TARGET: 'See all recipes'
           DIRECTION: DOWN
-- tapOn: 'See all recipes'
+# CI run 39376194588 (iOS shard 3, visibility): the tap came about 20 s after a relaunch and did nothing, so the flow sat on
+# Home and the wait below ran out. Let the screen settle, then tap again only if the first tap changed nothing.
+- waitForAnimationToEnd:
+      timeout: 3000
+- tapOn:
+      text: 'See all recipes'
+      retryTapIfNoChange: true
 
 # The recipes surface: the list's "My recipes" segment (`tabMine`, features/recipes/src/messages.ts). Audit 2026-10-19, A1.6:
 # this used to wait for 'Recipes', which is also the TAB label, so Home satisfied it before the tap had landed and every

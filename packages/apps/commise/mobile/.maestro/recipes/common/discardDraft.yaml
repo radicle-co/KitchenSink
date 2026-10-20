@@ -10,6 +10,9 @@ appId: ${APP_ID}
 #
 # The menu item exists once the draft holds anything (`editorChrome.ts` `discardOf`), which every caller has typed.
 # It ENDS on the editor being gone, so a caller that has to assert where it landed does so after the runFlow.
+# iOS shows its one-time "slide to type" keyboard intro over the editor when a field takes focus, and it covers the
+# menu (CI run 39333403320, iOS shard 1, ingredientGroups). Dismiss it if it is there.
+- runFlow: dismissKeyboardIntro.yaml
 - tapOn: 'More editor actions'
 # Owner ruling 2026-10-17, "Don't allow users to delete while saving": a flow that typed just before calling this may have
 # its create on the wire, and then the item is disabled and reads "Saving…". Wait for it to come back before tapping,
@@ -45,6 +48,7 @@ appId: ${APP_ID}
       when:
           visible: 'Close editor'
       commands:
+          - runFlow: dismissKeyboardIntro.yaml
           - tapOn: 'More editor actions'
           - extendedWaitUntil:
                 visible:

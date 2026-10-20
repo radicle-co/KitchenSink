@@ -141,6 +141,12 @@ appId: ${APP_ID}
 # Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
 # skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
 - runFlow: common/closeEditorKeyboard.yaml
+# Jump to Steps first. A scroll alone can stop with `Add step` under the sticky Sections bar, which iOS still calls
+# visible, and the tap then opens the Sections sheet instead (CI run 39333403320, iOS shard 4, preparationGroups).
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:

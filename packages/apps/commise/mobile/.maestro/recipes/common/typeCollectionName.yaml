@@ -16,6 +16,12 @@ appId: ${APP_ID}
       when:
           notVisible: '${NAME}(${NAME.slice(-1)})?'
       commands:
+          # eraseText deletes only what is BEFORE the cursor, and a garbled first typing can leave the cursor mid-text:
+          # CI run 39387415456 (iOS shard 5) retyped in front of a leftover tail and read `Maestro clone source|tro`. After
+          # the first erase only that short tail is left, so a tap on the field lands past its end, and the second erase
+          # clears it. The field is then empty, and the name is typed once more.
+          - eraseText: 64
+          - tapOn: 'Name'
           - eraseText: 64
           - inputText: ${NAME}
 - assertVisible: '${NAME}(${NAME.slice(-1)})?'

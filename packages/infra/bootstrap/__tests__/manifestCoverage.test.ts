@@ -12,7 +12,7 @@
  * (minutes, needs the built Lambda bundles). It is a script on purpose; the reviewer who changes a construct runs it,
  * and the diff of `manifests/` is the review of what the change grants.
  */
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -203,15 +203,20 @@ describe('discoverStageApps', () => {
         const constructing: string[] = [];
 
         const walk = (directory: string): void => {
-            for (const entry of readdirSync(directory)) {
-                if (['node_modules', 'dist', 'dist-lambda', 'dist-edge', 'build', 'cdk.out', '.next'].includes(entry)) {
+            // `withFileTypes` types each entry in the same read that lists it, so no path is `stat`ed and then read
+            // after it may have changed.
+            for (const entry of readdirSync(directory, { withFileTypes: true })) {
+                if (
+                    ['node_modules', 'dist', 'dist-lambda', 'dist-edge', 'build', 'cdk.out', '.next'].includes(
+                        entry.name,
+                    )
+                ) {
                     continue;
                 }
 
-                const full = path.join(directory, entry);
-                const info = statSync(full);
+                const full = path.join(directory, entry.name);
 
-                if (info.isDirectory()) {
+                if (entry.isDirectory()) {
                     walk(full);
                 } else if (/\/bin\/[A-Za-z]+\.ts$/u.test(full) && /new App\(/u.test(readFileSync(full, 'utf8'))) {
                     constructing.push(path.relative(repoRoot, full));

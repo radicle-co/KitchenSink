@@ -200,7 +200,10 @@ describe('social sign-in config per Clerk instance', () => {
     });
 
     it('REFUSES a production key for an instance the table does not know: a prod build never quietly loses sign-in', () => {
-        expect(() => configFor(publishableKey('live', 'clerk.example.com'))).toThrow(/clerk\.example\.com/u);
+        // Anchored, and the host bounded by its quotes: the message must name THIS instance, not one that contains it.
+        expect(() => configFor(publishableKey('live', 'clerk.example.com'))).toThrow(
+            /^app\.config\.ts: the production Clerk instance 'clerk\.example\.com' has no row in /u,
+        );
     });
 
     it('REFUSES a key whose instance type disagrees with the row (a pk_test for the prod host)', () => {

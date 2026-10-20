@@ -6,7 +6,7 @@
  * missing from that list builds and tests green (jsdom never paints a class) and ships unstyled in production. This is
  * how `@commise/features-core` gained components with no `@source` line.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -25,21 +25,60 @@ export function sourcedDirectories(css: string, stylesheetDir: string): readonly
     });
 }
 
+/** Whether a filesystem error says the path is not there. */
+function isMissing(error: unknown): boolean {
+    return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
+}
+
+/**
+ * A file's text, or `undefined` when it does not exist. One read that handles absence, rather than an `existsSync`
+ * check followed by a read the file can vanish between.
+ *
+ * @sideEffect Reads the filesystem.
+ */
+function readIfPresent(path: string): string | undefined {
+    try {
+        return readFileSync(path, 'utf8');
+    } catch (error) {
+        if (isMissing(error)) {
+            return undefined;
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * A directory's entries, typed by the same read that lists them (so nothing is `stat`ed after the fact), or none when
+ * the directory does not exist.
+ *
+ * @sideEffect Reads the filesystem.
+ */
+function entriesOf(dir: string): readonly Dirent[] {
+    try {
+        return readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+        if (isMissing(error)) {
+            return [];
+        }
+
+        throw error;
+    }
+}
+
 /** Whether a directory tree holds a non-test `.tsx` file that sets a `className` (so it carries utility classes). */
 function rendersClasses(dir: string): boolean {
-    if (!existsSync(dir)) {
-        return false;
-    }
+    return entriesOf(dir).some((entry) => {
+        const path = join(dir, entry.name);
 
-    return readdirSync(dir).some((entry) => {
-        const path = join(dir, entry);
-
-        if (statSync(path).isDirectory()) {
-            return entry !== 'node_modules' && entry !== '__tests__' && rendersClasses(path);
+        if (entry.isDirectory()) {
+            return entry.name !== 'node_modules' && entry.name !== '__tests__' && rendersClasses(path);
         }
 
         return (
-            entry.endsWith('.tsx') && !entry.endsWith('.test.tsx') && readFileSync(path, 'utf8').includes('className=')
+            entry.name.endsWith('.tsx') &&
+            !entry.name.endsWith('.test.tsx') &&
+            (readIfPresent(path)?.includes('className=') ?? false)
         );
     });
 }
@@ -50,18 +89,19 @@ function renderingWorkspaceSources(): readonly string[] {
         dependencies?: Record<string, string>;
     };
     const names = Object.keys(manifest.dependencies ?? {}).filter((name) => name.startsWith('@commise/'));
-    const packageDirs = ['packages/apps/commise/ui', 'packages/apps/commise/query', 'packages/apps/commise/i18n']
+
+    return ['packages/apps/commise/ui', 'packages/apps/commise/query', 'packages/apps/commise/i18n']
         .concat(
             readdirSync(join(ROOT, 'packages/apps/commise/features')).map((d) => `packages/apps/commise/features/${d}`),
         )
         .map((dir) => join(ROOT, dir))
-        .filter((dir) => existsSync(join(dir, 'package.json')));
+        .flatMap((dir) => {
+            const packageJson = readIfPresent(join(dir, 'package.json'));
 
-    return packageDirs
-        .filter((dir) =>
-            names.includes((JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { name: string }).name),
-        )
-        .map((dir) => join(dir, 'src'))
+            return packageJson !== undefined && names.includes((JSON.parse(packageJson) as { name: string }).name)
+                ? [join(dir, 'src')]
+                : [];
+        })
         .filter(rendersClasses);
 }
 

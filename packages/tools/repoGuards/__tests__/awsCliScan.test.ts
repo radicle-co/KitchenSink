@@ -132,6 +132,20 @@ const shapes: readonly Shape[] = [
         ['cloudwatch get-metric-statistics'],
     ],
     ['argv held in a variable that is never declared', 'script', `execFileAsync('aws', someArgs, {})`, ['? ?']],
+    // `$` is legal in an identifier and is a regex metacharacter: the declaration and wrapper lookups build a pattern
+    // from the name, so an unescaped `$` would read as an anchor and these would come back unresolved.
+    [
+        'argv held in a variable whose name carries a $',
+        'script',
+        `const $args = ['ecs', 'list-tasks'];\nawait execFileAsync('aws', $args, {});`,
+        ['ecs list-tasks'],
+    ],
+    [
+        'a wrapper and parameter whose names carry a $ resolve through the callers',
+        'script',
+        `function $aws(a$rgs) {\n  return execFileSync('aws', [...a$rgs]);\n}\n$aws(['sns', 'list-topics']);`,
+        ['sns list-topics'],
+    ],
     ['a spread-led argv cannot be resolved', 'script', `spawnSync('aws', [...args], {})`, ['? ?']],
     [
         'a wrapper function taking the binary first',

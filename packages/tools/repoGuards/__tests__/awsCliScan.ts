@@ -385,10 +385,9 @@ function argvTarget(text: string, afterComma: number): ArgvTarget {
         return { elements: undefined, identifier: undefined };
     }
 
-    const declaration = new RegExp(
-        `(?:const|let|var)\\s+${identifier.replace(/\$/gu, '\\$')}\\b[^=;]*=\\s*\\[`,
-        'u',
-    ).exec(text);
+    const declaration = new RegExp(`(?:const|let|var)\\s+${RegExp.escape(identifier)}\\b[^=;]*=\\s*\\[`, 'u').exec(
+        text,
+    );
 
     return {
         elements: declaration === null ? undefined : arrayElements(text, declaration.index + declaration[0].length - 1),
@@ -412,14 +411,11 @@ function wrapperCalls(
     ].sort((a, b) => a.index - b.index);
     const enclosing = definitions.at(-1);
 
-    if (
-        enclosing === undefined ||
-        !new RegExp(`\\b${parameter.replace(/\$/gu, '\\$')}\\b`, 'u').test(enclosing[2] ?? '')
-    ) {
+    if (enclosing === undefined || !new RegExp(`\\b${RegExp.escape(parameter)}\\b`, 'u').test(enclosing[2] ?? '')) {
         return [];
     }
 
-    const name = (enclosing[1] ?? '').replace(/\$/gu, '\\$');
+    const name = RegExp.escape(enclosing[1] ?? '');
     const calls: { elements: readonly string[]; line: number }[] = [];
 
     for (const call of text.matchAll(new RegExp(`(?<![\\w$.])(?<!function\\s+)${name}\\(\\s*\\[`, 'gu'))) {

@@ -74,6 +74,11 @@ export interface FoodFake {
     readonly requests: FakeFoodRequest[];
     /** While `true`, every food route answers `503`, standing in for a food service that is down. */
     down: boolean;
+    /**
+     * Awaited before the next food API (`/api/…`) request is answered, then cleared: holds a command's food call in
+     * flight while the suite commits other work, so a race between two writers is deterministic.
+     */
+    beforeNext: (() => Promise<void>) | undefined;
     /** Stop the server. */
     close(): Promise<void>;
 }
@@ -165,6 +170,7 @@ export async function startFoodFake(): Promise<FoodFake> {
         names,
         requests,
         down: false,
+        beforeNext: undefined,
         close: async (): Promise<void> => undefined,
     } satisfies FoodFake as FoodFake;
 
@@ -185,6 +191,13 @@ export async function startFoodFake(): Promise<FoodFake> {
                 send(200, { status: 'ok', service: 'food' });
 
                 return;
+            }
+
+            const hold = fake.beforeNext;
+
+            if (hold !== undefined && path.startsWith('/api/')) {
+                fake.beforeNext = undefined;
+                await hold();
             }
 
             if (fake.down) {

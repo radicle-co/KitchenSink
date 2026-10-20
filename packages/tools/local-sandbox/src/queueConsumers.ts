@@ -255,7 +255,7 @@ export function consumerEnvironment(
     let usesDatabase = false;
 
     for (const [key, raw] of Object.entries(consumer.variables)) {
-        if (/^SENTRY_|_DSN$/u.test(key) || Object.hasOwn(consumer.decision.bindings, key)) {
+        if (key.startsWith('SENTRY_') || key.endsWith('_DSN') || Object.hasOwn(consumer.decision.bindings, key)) {
             continue;
         }
 

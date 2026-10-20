@@ -1208,6 +1208,8 @@ describe('the edge mode — one tokenless GET from the web origin and one from a
 describe('media delivery smoke (ADR-0064)', () => {
     const CDN = 'https://media-sandbox.commise.app';
     const BUCKET = 'https://kitchensink-data-sandbox-mediabucket.s3.us-east-1.amazonaws.com';
+    /** Whether a request went to the CDN, by its parsed origin: a raw-string prefix also admits `${CDN}.evil.example`. */
+    const toCdn = (input: string | URL): boolean => new URL(String(input)).origin === new URL(CDN).origin;
 
     describe('classifyMediaObject', () => {
         it('passes a 200 from the CDN', () => {
@@ -1307,7 +1309,7 @@ describe('media delivery smoke (ADR-0064)', () => {
                     return Promise.resolve(corsFor(originOf(init)));
                 }
 
-                return Promise.resolve(new Response('', { status: url.startsWith(CDN) ? cdnStatus : rawStatus }));
+                return Promise.resolve(new Response('', { status: toCdn(url) ? cdnStatus : rawStatus }));
             });
 
             return seen;
@@ -1434,7 +1436,7 @@ describe('media delivery smoke (ADR-0064)', () => {
                                   },
                               })
                             : new Response(null, { status: 403 })
-                        : new Response('', { status: String(input).startsWith(CDN) ? 200 : 403 }),
+                        : new Response('', { status: toCdn(input) ? 200 : 403 }),
                 ),
             );
             vi.spyOn(console, 'log').mockImplementation(() => undefined);

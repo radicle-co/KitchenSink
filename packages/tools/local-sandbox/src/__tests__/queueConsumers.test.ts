@@ -223,6 +223,24 @@ describe('consumerEnvironment', () => {
         expect(Object.keys(environment()).filter((key) => key.startsWith('SENTRY_'))).toEqual([]);
     });
 
+    it('drops a name that STARTS with SENTRY_ or ENDS with _DSN, and keeps one that only contains either', () => {
+        const template = workersTemplate();
+
+        Object.assign(template.Resources.ErasureFunction.Properties.Environment.Variables, {
+            // A DSN that is not called SENTRY_*: the identity log forwarder's drain is one.
+            LOG_DRAIN_DSN: 'https://key@o1.ingest.us.sentry.io/1',
+            SENTRY_RELEASE: 'r1',
+            APP_SENTRY_SAMPLING: 'on',
+            DSN_PROXY_HOST: 'proxy',
+        });
+
+        const env = consumerEnvironment(runnable(template), context);
+
+        expect(env).not.toHaveProperty('LOG_DRAIN_DSN');
+        expect(env).not.toHaveProperty('SENTRY_RELEASE');
+        expect(env).toMatchObject({ APP_SENTRY_SAMPLING: 'on', DSN_PROXY_HOST: 'proxy' });
+    });
+
     it('keeps a literal the template states', () => {
         expect(environment()['LOG_LEVEL']).toBe('info');
     });

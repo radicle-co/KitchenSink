@@ -7,12 +7,9 @@
  * version, no line and no correction; and when another writer commits while food is asked, the answer still names the
  * version the caller sent, so the caller's next save meets that writer's change instead of overwriting it.
  *
- * The other writer is made deterministic by a hop in front of the food fake ({@link startFoodGate}) that holds the
- * command's first food request until a PATCH through the same app has committed.
+ * The other writer is made deterministic by the food fake's {@link FoodFake.beforeNext} hold, which keeps the
+ * command's first food request unanswered until a PATCH through the same app has committed.
  */
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import type { AddressInfo } from 'node:net';
-
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { versionConflictDetailsSchema } from '@kitchensink/recipe-core';
@@ -35,100 +32,9 @@ interface RecipeBody {
     readonly ingredients: readonly { readonly ingredientId: string }[];
 }
 
-/** What a test sets on a {@link FoodGate}, and what it reads back. */
-interface FoodGateState {
-    /** Awaited before the next food API request is forwarded, then cleared. */
-    beforeNext: (() => Promise<void>) | undefined;
-    /** How many times a `beforeNext` ran. */
-    fired: number;
-}
-
-/** A hop in front of the food fake that can hold one food API request until other work has finished. */
-interface FoodGate extends FoodGateState {
-    readonly origin: string;
-    close(): Promise<void>;
-}
-
-/**
- * Start a gate that forwards every request to `upstream`, running {@link FoodGate.beforeNext} first when it is set.
- *
- * @param upstream - The food fake's origin.
- * @returns The running gate.
- * @sideEffect Opens an HTTP listener.
- */
-async function startFoodGate(upstream: string): Promise<FoodGate> {
-    const state: FoodGateState = { beforeNext: undefined, fired: 0 };
-
-    const forward = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-        const chunks: Buffer[] = [];
-
-        for await (const chunk of req) {
-            chunks.push(chunk as Buffer);
-        }
-
-        const hold = state.beforeNext;
-
-        if (hold !== undefined && req.url?.startsWith('/api/') === true) {
-            state.beforeNext = undefined;
-            state.fired += 1;
-            await hold();
-        }
-
-        const headers: Record<string, string> = {};
-
-        for (const name of ['authorization', 'content-type']) {
-            const value = req.headers[name];
-
-            if (typeof value === 'string') {
-                headers[name] = value;
-            }
-        }
-
-        // Only a path is forwarded, and only to the fake's own origin.
-        const target = new URL(req.url ?? '/', upstream);
-
-        if (target.origin !== new URL(upstream).origin) {
-            res.writeHead(400).end();
-
-            return;
-        }
-
-        const answer = await fetch(target, {
-            method: req.method ?? 'GET',
-            headers,
-            ...(chunks.length === 0 ? {} : { body: Buffer.concat(chunks) }),
-        });
-
-        res.writeHead(answer.status, { 'content-type': answer.headers.get('content-type') ?? 'application/json' });
-        res.end(Buffer.from(await answer.arrayBuffer()));
-    };
-
-    const server = createServer((req, res) => {
-        forward(req, res).catch((error: unknown) => {
-            res.writeHead(500, { 'content-type': 'text/plain' });
-            res.end(`food gate: ${String(error)}`);
-        });
-    });
-
-    await new Promise<void>((resolve) => {
-        server.listen(0, '127.0.0.1', resolve);
-    });
-
-    const { port } = server.address() as AddressInfo;
-
-    return Object.assign(state, {
-        origin: `http://127.0.0.1:${String(port)}`,
-        close: async () =>
-            new Promise<void>((resolve, reject) => {
-                server.close((error) => (error === undefined ? resolve() : reject(error)));
-            }),
-    });
-}
-
 let booted: BootedRecipeApp;
 let pool: pg.Pool;
 let food: FoodFake;
-let gate: FoodGate;
 let brisketLookup: string;
 
 async function call(method: string, path: string, body?: unknown): Promise<Response> {
@@ -210,8 +116,7 @@ describe('a rebind that changes nothing (e2e, assembled app + food fake)', () =>
     beforeAll(async () => {
         food = await startFoodFake();
         food.foods.set(BRISKET, { name: 'Beef brisket', status: 'RESOLVED' });
-        gate = await startFoodGate(food.origin);
-        process.env['FOOD_SERVICE_URL'] = gate.origin;
+        process.env['FOOD_SERVICE_URL'] = food.origin;
 
         booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: AUTHOR });
         pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 3 });
@@ -228,7 +133,6 @@ describe('a rebind that changes nothing (e2e, assembled app + food fake)', () =>
         }
 
         await booted?.close();
-        await gate?.close();
         await food?.close();
     });
 
@@ -282,7 +186,7 @@ describe('a rebind that changes nothing (e2e, assembled app + food fake)', () =>
         const otherTitle = `${SCOPE} the other writer`;
         let otherWrite: number | undefined;
 
-        gate.beforeNext = async () => {
+        food.beforeNext = async () => {
             otherWrite = (
                 await call('PATCH', `/api/v1/recipes/${recipe.id}`, {
                     expectedVersion: recipe.currentVersion,
@@ -294,8 +198,9 @@ describe('a rebind that changes nothing (e2e, assembled app + food fake)', () =>
         const response = await rebindToSameFood(recipe.id, recipe.currentVersion);
         const body = (await response.json()) as RecipeBody;
 
-        expect(gate.fired).toBe(1);
+        // Set only by the hold, so a 200 here also proves the hold ran.
         expect(otherWrite).toBe(200);
+        expect(food.beforeNext).toBeUndefined();
         expect(response.status).toBe(200);
         expect(body.currentVersion).toBe(recipe.currentVersion);
 

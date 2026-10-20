@@ -146,11 +146,17 @@ describe('media delivery (shape)', () => {
     });
 
     it('grants cloudfront.amazonaws.com EXACTLY s3:GetObject, conditioned on this distribution', () => {
-        const [policy] = resourcesOf(dataTemplate('prod'), 'AWS::S3::BucketPolicy').filter((candidate) =>
-            JSON.stringify(candidate).includes('cloudfront.amazonaws.com'),
+        // Selected by the statement's PRINCIPAL, not by the service name appearing anywhere in the policy's text.
+        const grantsCloudFront = (statement: TemplateStatement): boolean =>
+            statement.Principal?.Service === 'cloudfront.amazonaws.com';
+        const policies = resourcesOf(dataTemplate('prod'), 'AWS::S3::BucketPolicy').filter((candidate) =>
+            (candidate.Properties?.PolicyDocument.Statement ?? []).some(grantsCloudFront),
         );
-        const statements = policy?.Properties?.PolicyDocument.Statement ?? [];
-        const grants = statements.filter((statement) => statement.Principal?.Service === 'cloudfront.amazonaws.com');
+
+        expect(policies).toHaveLength(1);
+
+        const statements = policies[0]?.Properties?.PolicyDocument.Statement ?? [];
+        const grants = statements.filter(grantsCloudFront);
 
         expect(grants).toHaveLength(1);
         expect(grants[0]).toMatchObject({ Effect: 'Allow', Action: 's3:GetObject' });

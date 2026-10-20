@@ -92,9 +92,14 @@ appId: ${APP_ID}
 - tapOn:
       text: '.*, from USDA'
       index: 0
-- extendedWaitUntil:
-      visible: 'Saved — future recipes will use this match.'
+# The sentence is drawn after the review rows (`AmbiguityReview.native.tsx`), so the row still open above it can push it
+# below the screen, where Android reports nothing (CI run 39400327458, Android shard 7: the pick took, the count read
+# "1 ingredient", and the sentence was below a long USDA list). The scroll keeps polling while the save lands.
+- scrollUntilVisible:
+      element: 'Saved — future recipes will use this match.'
+      direction: DOWN
       timeout: 30000
+      centerElement: true
 # audit 2026-10-19, C3: the pick fixed ONE line and left the other under review. The entry counted two before the pick
 # and counts one after, so this text is ABSENT before and PRESENT after, and the saved sentence alone could not say it.
 # The entry is ABOVE the open rows and the saved sentence, so after a pick in a row the scroll back to it is UP.

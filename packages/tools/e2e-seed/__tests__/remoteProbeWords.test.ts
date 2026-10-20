@@ -16,6 +16,7 @@ import type { ProgressiveAnswer, ProgressiveFrame } from '@kitchensink/food-serv
 
 import { MAX_PROBE_SEARCHES } from '../src/ensureRemoteProbeWords.js';
 import {
+    AMBIGUITY_GATE_MEASUREMENT,
     SEED_WORLD,
     UNATTACHED_PROBE_INGREDIENT,
     CAP_FOOD_BASE_NAME,
@@ -489,6 +490,26 @@ describe('the candidate lists', () => {
         },
     );
 
+    /**
+     * ⛔ Sharing no WORD is not enough: the gate calls a line AMBIGUOUS only when it judges the food plainly NOT the line's
+     * food, and a food the bound word is MADE of is judged otherwise. `2 tbsp olive oil` read RESOLVED against
+     * `tzatziki` on pr-91 (2026-10-20), which failed iOS lane 1's reset. So every pair the probe can make must be one a
+     * live stage MEASURED as AMBIGUOUS; a new word or a new source line fails here until it is measured.
+     */
+    it.each(['android', 'ios'] as const)(
+        '%s: every ambiguity word was measured AMBIGUOUS against every probe source line',
+        (platform) => {
+            for (const word of PROBE_CANDIDATES[platform].ambiguity) {
+                expect(AMBIGUITY_GATE_MEASUREMENT.words, word).toContain(word);
+
+                for (const line of probeFor(word).ingredients) {
+                    expect(AMBIGUITY_GATE_MEASUREMENT.ambiguousSourceLines, word).toContain(line.sourceLine);
+                    expect(Object.keys(AMBIGUITY_GATE_MEASUREMENT.notAmbiguous), word).not.toContain(line.sourceLine);
+                }
+            }
+        },
+    );
+
     it('collides with nothing a flow already types: the probe food, the cap foods, kale, the seed world', () => {
         const seedWords = SEED_WORLD.flatMap((recipe) => recipe.ingredients.map((line) => line.name))
             .flatMap((name) => name.toLowerCase().split(/[^a-z]+/u))
@@ -497,7 +518,7 @@ describe('the candidate lists', () => {
             ...seedWords,
             ...UNATTACHED_PROBE_INGREDIENT.toLowerCase().split(' '),
             ...CAP_FOOD_BASE_NAME.toLowerCase().split(' '),
-            // The ambiguity probe's own source lines ('chicken stock', 'olive oil'): a word sharing one would agree.
+            // The ambiguity probe's own source lines ('chicken stock', 'cocoa powder'): a word sharing one would agree.
             ...sourceLineWords('placeholder'),
             ...RESERVED_WORDS,
         ]);

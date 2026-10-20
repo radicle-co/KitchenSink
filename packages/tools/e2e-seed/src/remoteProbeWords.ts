@@ -82,12 +82,13 @@ export const PROBE_CANDIDATES = {
         change: ['gochujang', 'harissa', 'tamarind'],
         // ⛔ ONE word, no fallback (see `unresolved` above). `halloumi` is the word the flow has always used.
         unresolved: ['halloumi'],
-        // ⚠️ UNMEASURED on a stage. The placeholder rule rejects a word when either of the two foods the legs tap is named
+        // ⚠️ USDA's side is UNMEASURED on a stage. The placeholder rule rejects a word when either of the two foods the legs tap is named
         // the word alone, and USDA's Branded data often leads with such a food: a raw USDA search (2026-10-20, top 20,
         // all four data types) found one for wasabi, chorizo, mascarpone, sriracha, polenta, couscous, edamame, pancetta
         // and prosciutto, and none for `mirin` (18 distinct names). So `mirin` leads; the other two are guesses at words
         // USDA names only inside a longer one. Not stocks, broths, oils or fats: the gate must judge the
-        // food plainly unlike the probe's source lines ("chicken stock", "olive oil"). Not `ponzu`: "yuzu ponzu" is a
+        // food plainly unlike the probe's source lines ("chicken stock", "cocoa powder"); every pair was measured
+        // AMBIGUOUS on pr-91 (`AMBIGUITY_GATE_MEASUREMENT`). Not `ponzu`: "yuzu ponzu" is a
         // common product, so it would share USDA foods with iOS's `yuzu`.
         ambiguity: ['mirin', 'furikake', 'achiote'],
     },
@@ -97,7 +98,7 @@ export const PROBE_CANDIDATES = {
         // UNMEASURED: no stage has been asked for it yet. With no fallback, a stage that has outgrown it fails provision
         // by name, and the fix is to change this one word.
         unresolved: ['labneh'],
-        // UNMEASURED on a stage, like android's ambiguity list (see there).
+        // Measured against the probe's source lines like android's ambiguity list (see there); USDA's side is unmeasured.
         ambiguity: ['teriyaki', 'tzatziki', 'chutney'],
     },
 } as const satisfies Record<

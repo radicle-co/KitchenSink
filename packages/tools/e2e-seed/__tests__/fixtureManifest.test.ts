@@ -613,7 +613,10 @@ describe('the ambiguity probe', () => {
      * verified line is never AMBIGUOUS. The candidate lists are held off these words by `remoteProbeWords.test.ts`.
      */
     it('gives every line a fixed source line that names a DIFFERENT food than the word', () => {
-        expect(probe.ingredients.map((line) => line.sourceLine)).toEqual(['1 cup chicken stock', '2 tbsp olive oil']);
+        expect(probe.ingredients.map((line) => line.sourceLine)).toEqual([
+            '1 cup chicken stock',
+            '2 tbsp cocoa powder',
+        ]);
 
         for (const line of probe.ingredients) {
             expect(line.sourceLine?.toLowerCase()).not.toContain(WORD);

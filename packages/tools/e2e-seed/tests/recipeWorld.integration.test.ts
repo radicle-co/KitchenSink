@@ -779,7 +779,7 @@ describe('ensureAmbiguityProbe over a real wire', () => {
             visibility: 'private',
             ingredients: [
                 { unit: 'cup', sourceLine: '1 cup chicken stock' },
-                { unit: 'tbsp', sourceLine: '2 tbsp olive oil' },
+                { unit: 'tbsp', sourceLine: '2 tbsp cocoa powder' },
             ],
         });
         // Both lines are bound to the ONE binding food minted for the authored food.

@@ -314,6 +314,29 @@ export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
 export const AMBIGUITY_PROBE_BASE_TITLE = 'Ambiguity Probe';
 
 /**
+ * What a live stage answered when asked to judge the ambiguity probe's candidate source lines against every `ambiguity`
+ * word (`PROBE_CANDIDATES`): each line was bound to the word's food and left until the worker's verdict settled.
+ * `recipes/ambiguityReview` needs EVERY pair AMBIGUOUS, so the probe may use only lines measured that way against every
+ * word, and a new word or line is measured before it is used (`remoteProbeWords.test.ts` holds both lists to it).
+ *
+ * ⚠️ One run of an LLM's verdict per pair, not a rate: a pair that flips on a fresh key fails the reset by name.
+ */
+export const AMBIGUITY_GATE_MEASUREMENT = Object.freeze({
+    measured: 'pr-91, 2026-10-20: each verdict settled within 35 s and held for 5 min',
+    words: Object.freeze(['mirin', 'furikake', 'achiote', 'teriyaki', 'tzatziki', 'chutney']),
+    ambiguousSourceLines: Object.freeze([
+        '1 cup chicken stock',
+        '2 tbsp cocoa powder',
+        '2 tbsp rolled oats',
+        '2 tbsp grated parmesan',
+    ]),
+    /** A line that read something other than AMBIGUOUS for at least one word, and why. */
+    notAmbiguous: Object.freeze({
+        '2 tbsp olive oil': 'RESOLVED against tzatziki, which is made with olive oil',
+    }),
+});
+
+/**
  * The signer's recipe whose two lines the verification gate calls AMBIGUOUS (audit 2026-10-19, plan 013 C3; owner
  * decision "Seed it and run them"), made from the word `provision` chose for the `ambiguity` role. `recipes/ambiguityReview`
  * opens it, picks a match for one line in the detail's review, then picks for the other in the editor. Pure, and frozen.
@@ -339,7 +362,8 @@ export const AMBIGUITY_PROBE_BASE_TITLE = 'Ambiguity Probe';
  *
  * ⛔ Two lines, not one: each pick re-points ONE line, and the flow picks twice. ⛔ The source lines share no word with the
  * food: a source line that agrees with the food is `verified`, and a verified line is never AMBIGUOUS. The candidate
- * lists are held off those words by `remoteProbeWords.test.ts`.
+ * lists are held off those words by `remoteProbeWords.test.ts`. ⛔ Nor may a line name what a candidate is MADE of:
+ * `2 tbsp olive oil` read RESOLVED against `tzatziki`. Every pair is one {@link AMBIGUITY_GATE_MEASUREMENT} measured.
  *
  * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
  * library. `planWorldReset` therefore treats the probe as residue in every mode, BY ITS TITLE, which is why the title is
@@ -372,7 +396,7 @@ export function deriveAmbiguityProbe(
         totalTimeMinutes: 10,
         ingredients: Object.freeze([
             Object.freeze({ name: foodName, quantity: 1, unit: 'cup', sourceLine: '1 cup chicken stock' }),
-            Object.freeze({ name: foodName, quantity: 2, unit: 'tbsp', sourceLine: '2 tbsp olive oil' }),
+            Object.freeze({ name: foodName, quantity: 2, unit: 'tbsp', sourceLine: '2 tbsp cocoa powder' }),
         ]),
         steps: Object.freeze([
             Object.freeze({ instruction: 'Stir the first line into the pot.', timerSeconds: undefined }),

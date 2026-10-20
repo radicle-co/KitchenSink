@@ -9,7 +9,7 @@ appId: ${APP_ID}
 #
 # THE FIXTURE is `deriveAmbiguityProbe` (`packages/tools/e2e-seed/src/fixtureManifest.ts`): the signer's private
 # recipe "Ambiguity Probe" with TWO lines (1 cup, 2 tbsp) named for `${E2E_AMBIGUITY_WORD}`, each bound to the signer's
-# own food of that name while its source line names another food ("1 cup chicken stock", "2 tbsp olive oil"). The
+# own food of that name while its source line names another food ("1 cup chicken stock", "2 tbsp cocoa powder"). The
 # verification worker calls such a line AMBIGUOUS. The runner makes it in this flow's own reset (`reset --mode
 # ambiguity`), which waits for the worker's verdict and FAILS THE RESET, not this flow, if the verdict never comes.
 #

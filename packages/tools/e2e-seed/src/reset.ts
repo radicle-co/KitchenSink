@@ -11,7 +11,8 @@
  * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity]`
  *
  * `ambiguity` reconciles like `seeded`, then creates the signer's gate-AMBIGUOUS probe and waits for the gate's verdict
- * (`ensureAmbiguityProbe`). It needs `E2E_SEED_FOOD_URL`, which the probe's food is authored at.
+ * (`ensureAmbiguityProbe`). The probe is named for the word `provision` chose, read from the session state. It needs
+ * `E2E_SEED_FOOD_URL`, which the probe's food is authored at.
  *
  * It also restores the signer's SETTINGS to "never chosen" (ADR-0059, `DELETE /api/v1/users/me/settings`): a flow that
  * chose a view must not change what the next flow sees. That needs `E2E_SEED_IDENTITY_URL`.
@@ -20,7 +21,7 @@
  */
 import { clientFor, foodClientFor } from './client.js';
 import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from './env.js';
-import { AMBIGUITY_PROBE_FOOD_NAME, deriveFixtureManifest } from './fixtureManifest.js';
+import { deriveAmbiguityProbe, deriveFixtureManifest } from './fixtureManifest.js';
 import { applyPlan, ensureAmbiguityProbe, readWorld } from './recipeWorld.js';
 import { readSessionState, sessionStatePath } from './sessionState.js';
 import { settingsResetVia } from './settingsReset.js';
@@ -58,12 +59,16 @@ await applyPlan(client, plan);
 
 if (mode === 'ambiguity') {
     // After the reconcile, so the probe is never mistaken for residue. Throws when the gate does not answer in time.
+    // ⛔ The word is the one `provision` chose and verified; `readSessionState` already refused a state without it.
+    const probe = deriveAmbiguityProbe(manifest, state.ambiguityWord);
     const probeId = await ensureAmbiguityProbe(
         { food: foodClientFor(readFoodOrigin(process.env), state.signer), recipe: client },
-        manifest.ambiguityProbe,
-        AMBIGUITY_PROBE_FOOD_NAME,
+        probe,
+        state.ambiguityWord,
     );
-    console.error(`e2e-seed reset (ambiguity): "${manifest.ambiguityProbe.title}" is ${probeId}, every line AMBIGUOUS`);
+    console.error(
+        `e2e-seed reset (ambiguity): "${probe.title}" is ${probeId}, both "${state.ambiguityWord}" lines AMBIGUOUS`,
+    );
 }
 
 await settingsResetVia(readIdentityOrigin(process.env)).reset(state.signer);

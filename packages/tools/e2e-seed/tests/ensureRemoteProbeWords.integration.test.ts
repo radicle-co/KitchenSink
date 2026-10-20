@@ -55,6 +55,8 @@ const busy = (seconds: number): string =>
 const COMPLETE = line({ type: 'complete' });
 const body = (...parts: string[]): string => [...parts, COMPLETE].join('');
 const THREE = (first: string): string => usda(first, 'Second thing', 'Third thing');
+/** The android ambiguity role's first candidate, named once so the fake world follows the list. */
+const AMBIGUITY_FIRST = candidates.ambiguity[0] ?? '';
 
 /** The progressive terms asked, in order, as they went on the wire. */
 let asked: string[];
@@ -128,7 +130,9 @@ describe('ensureRemoteProbeWords — the choice', () => {
                   ? body(database(0), THREE('Gochujang sauce'))
                   : term === 'halloumi'
                     ? body(database(0), THREE('Halloumi cheese'))
-                    : body(database(0), usda()),
+                    : term === AMBIGUITY_FIRST
+                      ? body(database(0), usda(`${AMBIGUITY_FIRST} seasoning`, 'Rice wine'))
+                      : body(database(0), usda()),
         );
 
         const words = await run(food);
@@ -138,10 +142,11 @@ describe('ensureRemoteProbeWords — the choice', () => {
             appendFood: 'paneer run-abc',
             changeWord: 'gochujang',
             unresolvedWord: 'halloumi',
+            ambiguityWord: AMBIGUITY_FIRST,
             noMatchFood: NO_MATCH_FOOD_NAME,
         });
         // The canonical (lowercase) term, as the device's search puts it on the wire; nothing past the first winner.
-        expect(asked).toEqual(['paneer', 'gochujang', 'halloumi', NO_MATCH_TERM]);
+        expect(asked).toEqual(['paneer', 'gochujang', 'halloumi', AMBIGUITY_FIRST, NO_MATCH_TERM]);
     });
 
     it('authors the append food as the signer AFTER the word is chosen, and confirms it with the authored search', async () => {
@@ -227,6 +232,62 @@ describe('ensureRemoteProbeWords — unresolved has no fallback and cannot compl
         });
 
         expect((await run(food)).unresolvedWord).toBe('halloumi');
+    });
+});
+
+/**
+ * `recipes/ambiguityReview` makes its lines from the ambiguity word and picks a USDA food in each of its two legs, so the
+ * word needs two shown foods, and a pick it makes must be one the purge can take back.
+ */
+describe('ensureRemoteProbeWords — the ambiguity word', () => {
+    it('falls back past a word whose shown food would complete a placeholder, and warns naming it and why', async () => {
+        const second = candidates.ambiguity[1] ?? '';
+        const food = clientAnswering((term) => {
+            if (term === AMBIGUITY_FIRST) {
+                return body(database(0), usda('Seasoning, other', AMBIGUITY_FIRST.toUpperCase()));
+            }
+
+            return term === NO_MATCH_TERM ? body(database(0), usda()) : body(database(0), THREE(`${term} x`));
+        });
+
+        const words = await run(food);
+
+        expect(words.ambiguityWord).toBe(second);
+        expect(logs.find((each) => each.startsWith('::warning::') && each.includes('ambiguity'))).toContain(
+            `${AMBIGUITY_FIRST} (item-would-complete-placeholder)`,
+        );
+    });
+
+    it('takes a word with only two USDA foods and a catalog that already matches it', async () => {
+        const food = clientAnswering((term) => {
+            if (term === AMBIGUITY_FIRST) {
+                return body(database(3), usda(`${AMBIGUITY_FIRST} seasoning`, 'Rice wine'));
+            }
+
+            return term === NO_MATCH_TERM ? body(database(0), usda()) : body(database(0), THREE(`${term} x`));
+        });
+
+        expect((await run(food)).ambiguityWord).toBe(AMBIGUITY_FIRST);
+    });
+
+    it('fails provision, naming the role and every word, when no candidate shows two USDA foods', async () => {
+        const food = clientAnswering((term) => {
+            if (candidates.ambiguity.includes(term)) {
+                return body(database(0), usda(`${term} only`));
+            }
+
+            return term === NO_MATCH_TERM ? body(database(0), usda()) : body(database(0), THREE(`${term} x`));
+        });
+
+        const failure = await run(food).catch((error: unknown) => error);
+
+        expect(isRemoteProbeExhaustedError(failure)).toBe(true);
+        expect(failure).toMatchObject({
+            role: 'ambiguity',
+            exhaustion: 'candidates',
+            rejections: candidates.ambiguity.map((word) => ({ word, reason: 'too-few-usda-items' })),
+        });
+        expect(asked).not.toContain(NO_MATCH_TERM);
     });
 });
 

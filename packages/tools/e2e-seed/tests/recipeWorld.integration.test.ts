@@ -28,7 +28,7 @@ import {
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AMBIGUITY_PROBE_FOOD_NAME, deriveFixtureManifest } from '../src/fixtureManifest.js';
+import { deriveAmbiguityProbe, deriveFixtureManifest } from '../src/fixtureManifest.js';
 import {
     applyPlan,
     ensureAmbiguityProbe,
@@ -756,6 +756,9 @@ describe('the private-food recipe over a real wire', () => {
  * AMBIGUOUS for these lines: only the Maestro run does.
  */
 describe('ensureAmbiguityProbe over a real wire', () => {
+    /** The word `provision` chose for the run; the probe's food and both lines carry it. */
+    const WORD = 'mirin';
+    const probe = deriveAmbiguityProbe(manifest, WORD);
     const fast = {
         intervalMs: 5,
         deadlineMs: 300,
@@ -767,12 +770,12 @@ describe('ensureAmbiguityProbe over a real wire', () => {
         state = freshState();
         state.lineStatusOnRead = (readsBefore) => (readsBefore < 2 ? 'PENDING_VERIFICATION' : 'AMBIGUOUS');
 
-        const id = await ensureAmbiguityProbe(foodClients(), manifest.ambiguityProbe, AMBIGUITY_PROBE_FOOD_NAME, fast);
+        const id = await ensureAmbiguityProbe(foodClients(), probe, WORD, fast);
 
         expect(state.schemaFailures).toEqual([]);
         expect(state.createdBodies).toHaveLength(1);
         expect(state.createdBodies[0]).toMatchObject({
-            title: manifest.ambiguityProbe.title,
+            title: manifest.ambiguityProbeTitle,
             visibility: 'private',
             ingredients: [
                 { unit: 'cup', sourceLine: '1 cup chicken stock' },
@@ -792,22 +795,20 @@ describe('ensureAmbiguityProbe over a real wire', () => {
         state = freshState();
         state.lineStatusOnRead = () => 'PENDING_VERIFICATION';
 
-        await expect(
-            ensureAmbiguityProbe(foodClients(), manifest.ambiguityProbe, AMBIGUITY_PROBE_FOOD_NAME, fast),
-        ).rejects.toThrow(/PENDING_VERIFICATION, PENDING_VERIFICATION/u);
+        await expect(ensureAmbiguityProbe(foodClients(), probe, WORD, fast)).rejects.toThrow(
+            /PENDING_VERIFICATION, PENDING_VERIFICATION/u,
+        );
     });
 
     it('⛔ a recipe whose lines carry no status at all is not ambiguous', async () => {
         state = freshState();
 
-        await expect(
-            ensureAmbiguityProbe(foodClients(), manifest.ambiguityProbe, AMBIGUITY_PROBE_FOOD_NAME, fast),
-        ).rejects.toThrow(/none, none/u);
+        await expect(ensureAmbiguityProbe(foodClients(), probe, WORD, fast)).rejects.toThrow(/none, none/u);
     });
 
     it('plans the probe as residue in ambiguity mode, so a re-pointed probe is deleted before a fresh one is made', async () => {
         state = freshState();
-        state.recipes = [{ id: 'old-probe', title: manifest.ambiguityProbe.title, visibility: 'private' }];
+        state.recipes = [{ id: 'old-probe', title: manifest.ambiguityProbeTitle, visibility: 'private' }];
 
         await applyPlan(
             client(),

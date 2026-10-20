@@ -310,58 +310,76 @@ export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
     ],
 };
 
-/**
- * The signer's own food that BOTH lines of {@link AMBIGUITY_PROBE_RECIPE} are bound to, and the words the review's
- * shortlist is searched for. Plain letters and one space, because the flow puts it inside a Maestro pattern.
- */
-export const AMBIGUITY_PROBE_FOOD_NAME = 'apple sauce';
+/** The ambiguity probe's title before it is scoped to a run: `<base> <runKey>`, whatever word made its lines. */
+export const AMBIGUITY_PROBE_BASE_TITLE = 'Ambiguity Probe';
 
 /**
  * The signer's recipe whose two lines the verification gate calls AMBIGUOUS (audit 2026-10-19, plan 013 C3; owner
- * decision "Seed it and run them"). `recipes/ambiguityReview` opens it, picks a match for one line in the detail's
- * review, then picks for the other in the editor.
+ * decision "Seed it and run them"), made from the word `provision` chose for the `ambiguity` role. `recipes/ambiguityReview`
+ * opens it, picks a match for one line in the detail's review, then picks for the other in the editor. Pure, and frozen.
+ *
+ * ## Why the food is a WORD chosen per run, not a fixed name
+ *
+ * The flow picks a USDA food in each leg, and a pick adopts its hit into the stage's catalog, which the search then hides
+ * (ADR-0055 point 4). The fixed `apple sauce` ran out of shown USDA foods that way, and an Android and an iOS lane raced on
+ * it. So the word is chosen and VERIFIED against the live search at provision (`remoteProbeWords.ts`, role `ambiguity`),
+ * from platform-disjoint lists, and carried to the per-flow reset in the session state. There is no fallback to a
+ * literal: a reset with no word fails.
  *
  * ## How an HTTP caller can make a line AMBIGUOUS
  *
  * It cannot say so. `AMBIGUOUS` is DERIVED at read (`resolveLineStatus`): the worker's verdict for the line is a
- * `contradicted` band, at `high` certainty, with the identity aspect in `disagree`
- * (`identityContradictedOf`). What the caller controls is the input the verdict is made from. Each line is bound to the
- * authored food {@link AMBIGUITY_PROBE_FOOD_NAME} while its `sourceLine` names a plainly different food, so the gate is
- * asked "is this apple sauce?" of a line that says chicken stock, and answers `disagree` with high certainty.
+ * `contradicted` band, at `high` certainty, with the identity aspect in `disagree` (`identityContradictedOf`). What the
+ * caller controls is the input the verdict is made from. Each line is bound to the signer's authored food named
+ * `foodName` while its `sourceLine` names a plainly different food, so the gate is asked "is this <word>?" of a line that
+ * says chicken stock, and answers `disagree` with high certainty.
  *
  * ⚠️ The verdict is an LLM's, so `ensureAmbiguityProbe` waits for it and fails loudly when it does not come. It is keyed
  * by the line's content, so once a stage holds it, a re-created probe reads it at once.
  *
  * ⛔ Two lines, not one: each pick re-points ONE line, and the flow picks twice. ⛔ The source lines share no word with the
- * food: a source line that agrees with the food is `verified`, and a verified line is never AMBIGUOUS.
+ * food: a source line that agrees with the food is `verified`, and a verified line is never AMBIGUOUS. The candidate
+ * lists are held off those words by `remoteProbeWords.test.ts`.
  *
  * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
- * library. `planWorldReset` therefore treats the probe as residue in every mode, and `reset --mode ambiguity` creates it
- * AFTER the reconcile, for the one flow that opens it. The pick is a real write (a new version with the line re-pointed),
- * so the probe cannot be kept between flows; the next reset deletes it.
+ * library. `planWorldReset` therefore treats the probe as residue in every mode, BY ITS TITLE, which is why the title is
+ * the manifest's and never carries the word. `reset --mode ambiguity` creates it AFTER the reconcile, for the one flow
+ * that opens it. The pick is a real write (a new version with the line re-pointed), so the probe cannot be kept between
+ * flows; the next reset deletes it.
  *
  * Private, because the review is the owner's alone and a public row would show up in every Discover rail.
+ *
+ * @param manifest - This run's world, for the probe's run-scoped title.
+ * @param foodName - The ambiguity word: the signer's own food both lines are bound to, and the words the review's
+ *   shortlist is searched for. Plain lowercase letters, because the flow puts it inside a Maestro pattern.
+ * @returns The run-scoped probe.
  */
-export const AMBIGUITY_PROBE_RECIPE: FixtureRecipeDefinition = {
-    key: 'ambiguityProbe',
-    owner: 'signer',
-    baseTitle: 'Ambiguity Probe',
-    cuisine: 'American',
-    description: 'A recipe with two lines to review.',
-    visibility: 'private',
-    servings: 2,
-    prepTimeMinutes: 5,
-    cookTimeMinutes: 5,
-    totalTimeMinutes: 10,
-    ingredients: [
-        { name: AMBIGUITY_PROBE_FOOD_NAME, quantity: 1, unit: 'cup', sourceLine: '1 cup chicken stock' },
-        { name: AMBIGUITY_PROBE_FOOD_NAME, quantity: 2, unit: 'tbsp', sourceLine: '2 tbsp olive oil' },
-    ],
-    steps: [
-        { instruction: 'Stir the first line into the pot.', timerSeconds: undefined },
-        { instruction: 'Stir the second line in.', timerSeconds: undefined },
-    ],
-};
+export function deriveAmbiguityProbe(
+    manifest: Pick<FixtureManifest, 'ambiguityProbeTitle'>,
+    foodName: string,
+): FixtureRecipe {
+    return Object.freeze({
+        key: 'ambiguityProbe',
+        owner: 'signer',
+        baseTitle: AMBIGUITY_PROBE_BASE_TITLE,
+        title: manifest.ambiguityProbeTitle,
+        cuisine: 'American',
+        description: 'A recipe with two lines to review.',
+        visibility: 'private',
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 5,
+        totalTimeMinutes: 10,
+        ingredients: Object.freeze([
+            Object.freeze({ name: foodName, quantity: 1, unit: 'cup', sourceLine: '1 cup chicken stock' }),
+            Object.freeze({ name: foodName, quantity: 2, unit: 'tbsp', sourceLine: '2 tbsp olive oil' }),
+        ]),
+        steps: Object.freeze([
+            Object.freeze({ instruction: 'Stir the first line into the pot.', timerSeconds: undefined }),
+            Object.freeze({ instruction: 'Stir the second line in.', timerSeconds: undefined }),
+        ]),
+    } as const);
+}
 
 /**
  * The fixed world. The names are plain letters and spaces, because the Maestro flow puts them inside a pattern, and they
@@ -419,6 +437,8 @@ export const FIXTURE_ENV_KEYS = {
     privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
     // The signer's gate-AMBIGUOUS recipe, made by `reset --mode ambiguity` for `recipes/ambiguityReview` alone.
     ambiguityProbeRecipe: 'E2E_RECIPE_AMBIGUITY_PROBE',
+    // The word that recipe's food and lines are named for; chosen and verified at provision, like the words below.
+    ambiguityWord: 'E2E_AMBIGUITY_WORD',
     capFoodPrefix: 'E2E_CAP_FOOD_PREFIX',
     // The remote-food probe words (owner ruling 2026-10-18): chosen and verified against the live search by `provision`
     // (`ensureRemoteProbeWords`), so they come from `provisioned.probeWords`, never from the run key.
@@ -466,8 +486,11 @@ export interface FixtureManifest {
     /** The co-author's public recipe bound to a private food. Kept apart from `recipes` — see {@link PRIVATE_FOOD_RECIPE}. */
     readonly privateFoodRecipe: FixtureRecipe;
     readonly privateFoodName: string;
-    /** The signer's gate-AMBIGUOUS recipe. Kept apart from `recipes` — see {@link AMBIGUITY_PROBE_RECIPE}. */
-    readonly ambiguityProbe: FixtureRecipe;
+    /**
+     * The run-scoped title of the signer's gate-AMBIGUOUS recipe. Only the title: its lines are named for a word
+     * `provision` chooses, which the run key cannot derive, so the recipe is {@link deriveAmbiguityProbe}'s.
+     */
+    readonly ambiguityProbeTitle: string;
     /** `<CAP_FOOD_BASE_NAME> <runKey>` — what the cap flow types, and the start of every name in `capFoodNames`. */
     readonly capFoodPrefix: string;
     /** The signer's cap foods, `<capFoodPrefix> N` — see {@link CAP_FOOD_BASE_NAME}. */
@@ -520,10 +543,7 @@ export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform,
             title: runScopedTitle(PRIVATE_FOOD_RECIPE.baseTitle, runKey),
         }),
         privateFoodName: PRIVATE_FOOD_NAME,
-        ambiguityProbe: Object.freeze({
-            ...AMBIGUITY_PROBE_RECIPE,
-            title: runScopedTitle(AMBIGUITY_PROBE_RECIPE.baseTitle, runKey),
-        }),
+        ambiguityProbeTitle: runScopedTitle(AMBIGUITY_PROBE_BASE_TITLE, runKey),
         capFoodPrefix,
         capFoodNames: Object.freeze(
             Array.from({ length: MAX_SEARCH_FOOD_FILTERS }, (_, index) => `${capFoodPrefix} ${index + 1}`),
@@ -589,7 +609,8 @@ export function manifestToEnvLines(
         `${FIXTURE_ENV_KEYS.risotto}=${byKey.get('risotto') ?? ''}`,
         `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${manifest.privateFoodRecipe.title}`,
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
-        `${FIXTURE_ENV_KEYS.ambiguityProbeRecipe}=${manifest.ambiguityProbe.title}`,
+        `${FIXTURE_ENV_KEYS.ambiguityProbeRecipe}=${manifest.ambiguityProbeTitle}`,
+        `${FIXTURE_ENV_KEYS.ambiguityWord}=${probeWords.ambiguityWord}`,
         `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
         `${FIXTURE_ENV_KEYS.remoteAppendWord}=${probeWords.appendWord}`,
         `${FIXTURE_ENV_KEYS.remoteAppendFood}=${probeWords.appendFood}`,

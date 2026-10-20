@@ -57,6 +57,7 @@ const provisioned = (erasureEmail: string | null): Parameters<typeof manifestToE
         appendFood: 'paneer run',
         changeWord: 'gochujang',
         unresolvedWord: 'halloumi',
+        ambiguityWord: 'mirin',
         noMatchFood: 'Maestro Zorbleflax',
     },
 });

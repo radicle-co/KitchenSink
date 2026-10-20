@@ -103,10 +103,6 @@ const coAuthorSession = (
 ).handle;
 console.error(`${new Date().toISOString()} e2e-seed provision: signed in ${manifest.coAuthorEmail}`);
 
-const statePath = sessionStatePath(process.env);
-writeSessionState(statePath, { runKey, platform, shard, signer: signerSession, coAuthor: coAuthorSession });
-console.error(`e2e-seed provision: sessions established for the signer and co-author; state ${statePath}`);
-
 // The discovery probe. `searchNavigation` filters discovery by it and asserts the feed collapses, so it must be a
 // FOOD the signer can pick (the filter keys on food ids — plan 002 R45) and attach to NOTHING. Authored AS THE
 // SIGNER, because the device signs in as the signer and an authored food is visible to its author only.
@@ -136,8 +132,23 @@ const probeWords = await ensureRemoteProbeWords(
     { candidates: candidatesFor(platform), runKey, stage: env.recipeOrigin },
 );
 console.error(
-    `e2e-seed provision: remote probe words append "${probeWords.appendWord}", change "${probeWords.changeWord}"`,
+    `e2e-seed provision: remote probe words append "${probeWords.appendWord}", change "${probeWords.changeWord}", ` +
+        `ambiguity "${probeWords.ambiguityWord}"`,
 );
+
+// ⛔ Written AFTER the probe words, because the per-flow reset reads the ambiguity word from it (`reset --mode
+// ambiguity` names the probe's food and lines for it) and must never choose one itself. A provision that failed before
+// here leaves no state file, and every reset then refuses to run, which is the loud failure that case needs.
+const statePath = sessionStatePath(process.env);
+writeSessionState(statePath, {
+    runKey,
+    platform,
+    shard,
+    signer: signerSession,
+    coAuthor: coAuthorSession,
+    ambiguityWord: probeWords.ambiguityWord,
+});
+console.error(`e2e-seed provision: sessions established for the signer and co-author; state ${statePath}`);
 
 const coAuthorClient = clientFor(env.recipeOrigin, coAuthorSession);
 

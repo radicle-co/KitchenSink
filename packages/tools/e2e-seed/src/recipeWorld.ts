@@ -348,8 +348,8 @@ export const DEFAULT_AMBIGUITY_TIMING: AmbiguityTiming = {
  * Does not delete an older probe: `planWorldReset` already did, as residue, before this runs.
  *
  * @param clients - Clients authenticated as the SIGNER, the food's author and the recipe's owner.
- * @param recipe - The run-scoped fixture (`manifest.ambiguityProbe`).
- * @param foodName - The food both lines are bound to (`AMBIGUITY_PROBE_FOOD_NAME`).
+ * @param recipe - The run-scoped fixture (`deriveAmbiguityProbe`).
+ * @param foodName - The food both lines are bound to: the ambiguity word `provision` chose.
  * @param timing - How the verdict is waited on.
  * @returns The recipe's id.
  * @throws {Error} When the food is not a food or has another name, or when the lines are not all AMBIGUOUS by the deadline.

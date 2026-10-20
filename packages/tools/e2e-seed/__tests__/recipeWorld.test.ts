@@ -9,7 +9,7 @@ import type { CreateAuthoredFoodInput, CreateAuthoredFoodResult } from '@kitchen
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AMBIGUITY_PROBE_FOOD_NAME, deriveFixtureManifest } from '../src/fixtureManifest.js';
+import { deriveAmbiguityProbe, deriveFixtureManifest } from '../src/fixtureManifest.js';
 import {
     ensureAmbiguityProbe,
     ensureCapFoods,
@@ -314,8 +314,9 @@ describe('ensurePrivateFoodRecipe', () => {
  * would otherwise run against a recipe with nothing to review, and its red would read like an app defect.
  */
 describe('ensureAmbiguityProbe', () => {
-    const recipe = manifest.ambiguityProbe;
-    const name = AMBIGUITY_PROBE_FOOD_NAME;
+    /** The word `provision` chose for the run; the probe's food and both lines carry it. */
+    const name = 'mirin';
+    const recipe = deriveAmbiguityProbe(manifest, name);
     type Line = { resolutionStatus?: string };
 
     /** A clock the fake `sleep` advances, so a deadline is reached without waiting. */
@@ -333,7 +334,7 @@ describe('ensureAmbiguityProbe', () => {
     /** Fake clients: food authors `name`, recipe binds it, creates the probe and then answers each read from `reads`. */
     function probeClients(reads: readonly (readonly Line[])[], byFood = bound({ name })) {
         const food = {
-            createAuthoredFood: async (): Promise<CreateAuthoredFoodResult> => created('food_apple_sauce', name),
+            createAuthoredFood: async (): Promise<CreateAuthoredFoodResult> => created('food_mirin', name),
         };
         const client = createFakeRecipeServiceClient();
         let read = 0;
@@ -360,7 +361,7 @@ describe('ensureAmbiguityProbe', () => {
 
         await ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() });
 
-        expect(spies.byFood).toHaveBeenCalledWith('food_apple_sauce');
+        expect(spies.byFood).toHaveBeenCalledWith('food_mirin');
         const request = spies.create.mock.calls[0]?.[0];
 
         expect(request?.title).toBe(recipe.title);

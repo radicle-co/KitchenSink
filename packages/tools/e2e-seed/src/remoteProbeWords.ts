@@ -28,15 +28,25 @@ import type { MaestroPlatform } from '@kitchensink/e2e-fixtures/testPool';
  * - `unresolved` — `ingredientCandidates.yaml` makes a line by this word that OUR database finds nothing for, so it lands
  *   `UNRESOLVED` with USDA's foods as candidates, and picks one. NO FALLBACK: it proves the test purge works, so a word
  *   that fails is a finding, not something to walk past.
+ * - `ambiguity` — `recipes/ambiguityReview.yaml` reviews two AMBIGUOUS lines made from it (`deriveAmbiguityProbe`, made
+ *   by `reset --mode ambiguity`) and picks a USDA food in each of its two legs; at least {@link MIN_AMBIGUITY_USDA_ITEMS}
+ *   must show.
  * - `noMatch` — the create-a-food story types a name nothing matches, so the create offer is the only option.
  */
-export const PROBE_ROLES = ['append', 'change', 'unresolved', 'noMatch'] as const;
+export const PROBE_ROLES = ['append', 'change', 'unresolved', 'ambiguity', 'noMatch'] as const;
 
 /** A key of {@link PROBE_ROLES}. */
 export type ProbeRole = (typeof PROBE_ROLES)[number];
 
 /** The most USDA foods the flows need on screen to scroll to and tap one. */
 export const MIN_USDA_ITEMS = 3;
+
+/**
+ * The USDA foods the ambiguity word must show: ONE PER LEG. `recipes/ambiguityReview` picks a USDA food in the detail's
+ * review and again in the editor's row, and the first pick adopts its hit into the catalog, which the search then hides
+ * (ADR-0055 point 4). So the second leg's search shows one food fewer than the first did.
+ */
+export const MIN_AMBIGUITY_USDA_ITEMS = 2;
 
 /**
  * The name `createAuthoredFood.yaml` types to reach the create offer. ONE invented token, because the USDA source
@@ -54,8 +64,8 @@ export const NO_MATCH_FOOD_NAME = 'Zorbleflax';
 export const RESERVED_WORDS: readonly string[] = ['flour', 'flou', 'flo', 'cap', 'probe', 'kale'];
 
 /**
- * Ordered candidates for the two chosen roles, per platform. The first that answers right wins and the rest are never
- * asked, so a stage whose catalog has not grown costs one search per role.
+ * Ordered candidates for the roles that are chosen, per platform. The first that answers right wins and the rest are
+ * never asked, so a stage whose catalog has not grown costs one search per role.
  *
  * ⛔ DISJOINT across platforms: an Android and an iOS lane run at once against the same stage, and a word both pick
  * would be picked (and its root created) twice. Measured on pr-91 on 2026-10-18 (USDA foods shown): gochujang 20,
@@ -72,6 +82,14 @@ export const PROBE_CANDIDATES = {
         change: ['gochujang', 'harissa', 'tamarind'],
         // ⛔ ONE word, no fallback (see `unresolved` above). `halloumi` is the word the flow has always used.
         unresolved: ['halloumi'],
+        // ⚠️ UNMEASURED on a stage. The placeholder rule rejects a word when either of the two foods the legs tap is named
+        // the word alone, and USDA's Branded data often leads with such a food: a raw USDA search (2026-10-20, top 20,
+        // all four data types) found one for wasabi, chorizo, mascarpone, sriracha, polenta, couscous, edamame, pancetta
+        // and prosciutto, and none for `mirin` (18 distinct names). So `mirin` leads; the other two are guesses at words
+        // USDA names only inside a longer one. Not stocks, broths, oils or fats: the gate must judge the
+        // food plainly unlike the probe's source lines ("chicken stock", "olive oil"). Not `ponzu`: "yuzu ponzu" is a
+        // common product, so it would share USDA foods with iOS's `yuzu`.
+        ambiguity: ['mirin', 'furikake', 'achiote'],
     },
     ios: {
         append: ['yuzu', 'miso', 'tempeh'],
@@ -79,6 +97,8 @@ export const PROBE_CANDIDATES = {
         // UNMEASURED: no stage has been asked for it yet. With no fallback, a stage that has outgrown it fails provision
         // by name, and the fix is to change this one word.
         unresolved: ['labneh'],
+        // UNMEASURED on a stage, like android's ambiguity list (see there).
+        ambiguity: ['teriyaki', 'tzatziki', 'chutney'],
     },
 } as const satisfies Record<
     MaestroPlatform,
@@ -86,6 +106,7 @@ export const PROBE_CANDIDATES = {
         readonly append: readonly string[];
         readonly change: readonly string[];
         readonly unresolved: readonly string[];
+        readonly ambiguity: readonly string[];
     }
 >;
 
@@ -172,6 +193,20 @@ const ACCEPTED: ProbeVerdict = { kind: 'accepted' };
 const rejected = (reason: RejectionReason): ProbeVerdict => ({ kind: 'rejected', reason });
 
 /**
+ * Whether a pick of any of `items` would land on a catalog root under the WORD's own key. Pure.
+ *
+ * The pick looks a root up by `sanitizeFoodName(name).toLowerCase()` (`AdoptRemoteFood.pick`). A placeholder under the
+ * word's key (which "Find nutrition for <word>" leaves PENDING) is COMPLETED by such a pick, which is never attributed
+ * and so never purged. Any other key INSERTS a new, attributed, purgeable root. The caller passes the foods its flow
+ * may pick: every shown one for `unresolved`, the two tapped ones for `ambiguity`.
+ */
+function wouldCompletePlaceholder(word: string, items: readonly string[]): boolean {
+    const wordKey = rootKeyOf(word);
+
+    return items.some((name) => rootKeyOf(name) === wordKey);
+}
+
+/**
  * Whether a word does its role's job, given what its search showed. Pure and total.
  *
  * ⛔ A transient outcome (`busy`, `limited`, `unavailable`) is `undecided`, never `rejected`: the source said nothing
@@ -216,13 +251,36 @@ export function judgeProbe(role: ProbeRole, word: string, observation: ProbeObse
                 return rejected('too-few-usda-items');
             }
 
-            // The pick looks a root up by `sanitizeFoodName(name).toLowerCase()` (`AdoptRemoteFood.pick`). "Find nutrition for
-            // <word>" leaves a PENDING root under the word's own key, and a pick whose key equals it COMPLETES that root,
-            // which is never attributed and so never purged. Any other key INSERTS a new, attributed, purgeable root.
-            // Any shown food may be the one picked, so all of them are checked.
-            const wordKey = rootKeyOf(word);
+            // "Find nutrition for <word>" leaves a PENDING root under the word's own key, so here the placeholder is
+            // certain: the flow makes it.
+            return wouldCompletePlaceholder(word, observation.items)
+                ? rejected('item-would-complete-placeholder')
+                : ACCEPTED;
+        }
 
-            return observation.items.some((name) => rootKeyOf(name) === wordKey)
+        case 'ambiguity': {
+            // A food under the word at provision is one the last purge did not take back: the fixture's own is authored
+            // later, by `reset --mode ambiguity`. Refused for the reason `unresolved` and `noMatch` refuse one.
+            if (observation.authoredCount > 0) {
+                return rejected('authored-food-present');
+            }
+
+            // The catalog group is NOT judged: the lines are bound to the signer's authored food, so a catalog match
+            // changes nothing the flow reads. Nor is the first food's name: the flow taps index 0 of `, from USDA` and
+            // reads only the saved sentence, the count and the sheet closing, never the name of the food it picked.
+            if (observation.items.length < MIN_AMBIGUITY_USDA_ITEMS) {
+                return rejected('too-few-usda-items');
+            }
+
+            // ⚠️ The hazard is a pick that COMPLETES a pending placeholder under the word's key: never attributed, so
+            // never purged, and the word loses a food on every run. With no placeholder, a pick of an exact-name item
+            // INSERTS an attributed, purgeable root (`remoteHitTriage.ts`: "A placeholder carrying the name leaves the
+            // hit shown, because a pick completes the placeholder"). The probe cannot see a placeholder: the catalog
+            // part lists `RESOLVED` roots only (`FoodSearchDao.searchCatalog`), and a RESOLVED root under the name hides
+            // the hit anyway. So the exact-name check stands in for it, but only on the foods the flow TAPS: leg 1 taps
+            // index 0, its pick hides that hit, and leg 2 taps the food shown second. A later exact-name food is never
+            // picked, so it does not cost the word.
+            return wouldCompletePlaceholder(word, observation.items.slice(0, MIN_AMBIGUITY_USDA_ITEMS))
                 ? rejected('item-would-complete-placeholder')
                 : ACCEPTED;
         }
@@ -334,6 +392,11 @@ export interface ProvisionedProbeWords {
     readonly changeWord: string;
     /** The word `ingredientCandidates.yaml` makes an UNRESOLVED line from (`E2E_UNRESOLVED_WORD`). */
     readonly unresolvedWord: string;
+    /**
+     * The word `recipes/ambiguityReview` reviews (`E2E_AMBIGUITY_WORD`): the ambiguity probe's food and lines are named
+     * for it. The per-flow reset reads it from the session state, which `provision` writes after choosing it.
+     */
+    readonly ambiguityWord: string;
     /** The name nothing matches (`E2E_NO_MATCH_FOOD`). */
     readonly noMatchFood: string;
 }

@@ -14,9 +14,17 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_PROGRESSIVE_ANSWER, withProgressiveFrame } from '@kitchensink/food-service-client';
 import type { ProgressiveAnswer, ProgressiveFrame } from '@kitchensink/food-service-client';
 
-import { SEED_WORLD, UNATTACHED_PROBE_INGREDIENT, CAP_FOOD_BASE_NAME } from '../src/fixtureManifest.js';
+import { MAX_PROBE_SEARCHES } from '../src/ensureRemoteProbeWords.js';
+import {
+    SEED_WORLD,
+    UNATTACHED_PROBE_INGREDIENT,
+    CAP_FOOD_BASE_NAME,
+    deriveAmbiguityProbe,
+    deriveFixtureManifest,
+} from '../src/fixtureManifest.js';
 import {
     LEXICAL_SYNONYM_KEYS,
+    MIN_AMBIGUITY_USDA_ITEMS,
     NO_MATCH_FOOD_NAME,
     PROBE_CANDIDATES,
     PROBE_ROLES,
@@ -140,6 +148,82 @@ describe('judgeProbe', () => {
         });
     });
 
+    /**
+     * `recipes/ambiguityReview` makes its two lines from this word (`deriveAmbiguityProbe`), each bound to the signer's
+     * own food of that name, and picks a USDA food in EACH of its two legs. A pick adopts its hit into the catalog, and
+     * the search then hides it (`remoteHitTriage.ts`), so the second leg needs a second food.
+     */
+    describe('ambiguity: no authored food, two or more USDA foods, and none that would complete a placeholder', () => {
+        it('needs exactly two shown foods, one per leg', () => {
+            expect(MIN_AMBIGUITY_USDA_ITEMS).toBe(2);
+        });
+
+        it.each([
+            [0, 'rejected'],
+            [1, 'rejected'],
+            [2, 'accepted'],
+            [9, 'accepted'],
+        ] as const)('%i shown foods is %s', (count, kind) => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(names(count, 'Mirin seasoning'))).kind).toBe(kind);
+        });
+
+        it('names too few foods as the reason', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(['Mirin seasoning']))).toEqual({
+                kind: 'rejected',
+                reason: 'too-few-usda-items',
+            });
+        });
+
+        it('rejects an authored food still there, because the last purge did not finish', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(names(5, 'Mirin seasoning'), 0, 1))).toEqual({
+                kind: 'rejected',
+                reason: 'authored-food-present',
+            });
+        });
+
+        /** The lines are bound to an authored food, so a catalog match changes nothing the flow reads. */
+        it('does NOT reject a word the catalog already matches', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(names(2, 'Mirin seasoning'), 4, 0)).kind).toBe('accepted');
+        });
+
+        /** The flow taps index 0 of `, from USDA`, then reads only the saved sentence and the count: never a name. */
+        it('does NOT need the first food to name the word', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(['Rice wine seasoning', 'Other'])).kind).toBe('accepted');
+        });
+
+        /**
+         * Only the foods the two legs TAP: leg 1 taps index 0, and its pick hides that hit, so leg 2's index 0 is the
+         * food shown second. The catalog part lists RESOLVED roots only, so a placeholder is invisible to the probe, and
+         * the exact-name check stands in for it on exactly the foods that can be picked.
+         */
+        it.each([['Mirin'], ['MIRIN'], ['  mirin  '], ['Mi\u200brin']])(
+            'rejects a first-shown food %j whose root key equals the word, because leg 1 taps it',
+            (name) => {
+                expect(judgeProbe('ambiguity', 'mirin', answered([name, 'Aji-mirin', 'Other']))).toEqual({
+                    kind: 'rejected',
+                    reason: 'item-would-complete-placeholder',
+                });
+            },
+        );
+
+        it('rejects a second-shown food named the word, because leg 2 taps it once leg 1’s pick is hidden', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(['Aji-mirin', 'MIRIN', 'Other']))).toEqual({
+                kind: 'rejected',
+                reason: 'item-would-complete-placeholder',
+            });
+        });
+
+        it('ACCEPTS a word whose only exact-name food is shown third, which no leg taps', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(['Aji-mirin', 'Mirin seasoning', 'MIRIN'])).kind).toBe(
+                'accepted',
+            );
+        });
+
+        it('does NOT reject a food that merely contains the word', () => {
+            expect(judgeProbe('ambiguity', 'mirin', answered(['Mirin seasoning', 'Aji-mirin'])).kind).toBe('accepted');
+        });
+    });
+
     describe('noMatch: the source ANSWERED with nothing and both database groups are empty', () => {
         it.each([
             [answered([], 0, 0), 'accepted'],
@@ -175,6 +259,7 @@ describe('planNextProbe', () => {
         append: ['aaa', 'bbb'],
         change: ['ccc', 'ddd'],
         unresolved: ['hhh'],
+        ambiguity: ['mmm', 'nnn'],
         noMatch: ['zzz'],
     } as const;
     const good: ProbeObservation = answered(['aaa x', 'b', 'c']);
@@ -243,13 +328,25 @@ describe('planNextProbe', () => {
             append: { aaa: bad, bbb: good },
             change: { ccc: answered(['CCC thing', 'b', 'c']) },
             unresolved: { hhh: answered(['x', 'y', 'z']) },
+            ambiguity: { mmm: answered(['Mmm', 'b']), nnn: answered(['n x', 'b']) },
             noMatch: { zzz: answered([]) },
         };
 
         expect(planNextProbe(candidates, observed)).toEqual({
             kind: 'chosen',
-            words: { append: 'bbb', change: 'ccc', unresolved: 'hhh', noMatch: 'zzz' },
+            words: { append: 'bbb', change: 'ccc', unresolved: 'hhh', ambiguity: 'nnn', noMatch: 'zzz' },
         });
+    });
+
+    it('falls back past an ambiguity word whose shown food would complete a placeholder', () => {
+        const observed: ObservedProbes = {
+            append: { aaa: good },
+            change: { ccc: answered(['CCC thing', 'b', 'c']) },
+            unresolved: { hhh: answered(['x', 'y', 'z']) },
+            ambiguity: { mmm: answered(['MMM', 'b']) },
+        };
+
+        expect(planNextProbe(candidates, observed)).toEqual({ kind: 'search', role: 'ambiguity', term: 'nnn' });
     });
 
     it('never chooses a word whose latest outcome is transient', () => {
@@ -257,6 +354,7 @@ describe('planNextProbe', () => {
             append: { aaa: good },
             change: { ccc: answered(['CCC thing', 'b', 'c']) },
             unresolved: { hhh: answered(['x', 'y', 'z']) },
+            ambiguity: { mmm: answered(['m x', 'b']) },
             noMatch: { zzz: { kind: 'transient', cause: 'limited' } },
         };
 
@@ -336,7 +434,14 @@ describe('the candidate lists', () => {
         ...PROBE_CANDIDATES[platform].append,
         ...PROBE_CANDIDATES[platform].change,
         ...PROBE_CANDIDATES[platform].unresolved,
+        ...PROBE_CANDIDATES[platform].ambiguity,
     ];
+    /** The ambiguity probe as a reset makes it from a word: its lines' source lines are fixed, its food is the word. */
+    const probeFor = (word: string) => deriveAmbiguityProbe(deriveFixtureManifest('run-1', 'android', 1), word);
+    const sourceLineWords = (word: string): readonly string[] =>
+        probeFor(word)
+            .ingredients.flatMap((line) => (line.sourceLine ?? '').toLowerCase().split(/[^a-z]+/u))
+            .filter((each) => each !== '');
 
     it('hands each platform its own lists plus the shared no-match name', () => {
         expect(candidatesFor('ios')).toEqual({ ...PROBE_CANDIDATES.ios, noMatch: [NO_MATCH_FOOD_NAME] });
@@ -364,7 +469,25 @@ describe('the candidate lists', () => {
     it.each(['android', 'ios'] as const)('%s: has a fallback past the first candidate in each role', (platform) => {
         expect(PROBE_CANDIDATES[platform].append.length).toBeGreaterThan(1);
         expect(PROBE_CANDIDATES[platform].change.length).toBeGreaterThan(1);
+        expect(PROBE_CANDIDATES[platform].ambiguity.length).toBeGreaterThan(1);
     });
+
+    /**
+     * ⛔ A source line that names the bound food AGREES with it, and an agreeing line is `verified`, never AMBIGUOUS:
+     * the fixture would be inert and the reset would time out waiting for a verdict that cannot come.
+     */
+    it.each(['android', 'ios'] as const)(
+        '%s: no ambiguity word appears in the probe’s source lines, which must name a DIFFERENT food',
+        (platform) => {
+            for (const word of PROBE_CANDIDATES[platform].ambiguity) {
+                expect(sourceLineWords(word), word).not.toContain(word);
+                expect(
+                    probeFor(word).ingredients.some((line) => line.sourceLine?.toLowerCase().includes(word)),
+                    word,
+                ).toBe(false);
+            }
+        },
+    );
 
     it('collides with nothing a flow already types: the probe food, the cap foods, kale, the seed world', () => {
         const seedWords = SEED_WORLD.flatMap((recipe) => recipe.ingredients.map((line) => line.name))
@@ -374,6 +497,8 @@ describe('the candidate lists', () => {
             ...seedWords,
             ...UNATTACHED_PROBE_INGREDIENT.toLowerCase().split(' '),
             ...CAP_FOOD_BASE_NAME.toLowerCase().split(' '),
+            // The ambiguity probe's own source lines ('chicken stock', 'olive oil'): a word sharing one would agree.
+            ...sourceLineWords('placeholder'),
             ...RESERVED_WORDS,
         ]);
 
@@ -425,6 +550,19 @@ describe('the candidate lists', () => {
         expect(NO_MATCH_FOOD_NAME).toBe('Zorbleflax');
         expect(RESERVED_WORDS.some((word) => NO_MATCH_FOOD_NAME.toLowerCase().startsWith(word))).toBe(false);
     });
+
+    /**
+     * The budget stops a source that never answers. It must not stop a stage that legitimately walks every fallback:
+     * that stage's failure would then read as "the search budget ran out" rather than naming the words it rejected.
+     */
+    it.each(['android', 'ios'] as const)(
+        '%s: the search budget covers every candidate of every role, with room for two retries',
+        (platform) => {
+            const total = Object.values(candidatesFor(platform)).reduce((sum, list) => sum + list.length, 0);
+
+            expect(MAX_PROBE_SEARCHES).toBeGreaterThanOrEqual(total + 2);
+        },
+    );
 
     it('covers every role', () => {
         const roles: readonly ProbeRole[] = PROBE_ROLES;

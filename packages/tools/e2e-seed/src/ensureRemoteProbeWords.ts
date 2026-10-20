@@ -39,8 +39,12 @@ import {
     type ProvisionedProbeWords,
 } from './remoteProbeWords.js';
 
-/** The most searches a provision spends on probe words, retries included. A word that needs more has failed. */
-export const MAX_PROBE_SEARCHES = 10;
+/**
+ * The most searches a provision spends on probe words, retries included. A word that needs more has failed. Every
+ * candidate of every role, plus two retries, so a stage that walks every fallback fails naming the words it rejected,
+ * not the budget (a unit test holds it there).
+ */
+export const MAX_PROBE_SEARCHES = 13;
 
 /** The longest one wait on a `retryAt`, in milliseconds. A source that asks for more is treated as unreachable. */
 export const MAX_RETRY_WAIT_MS = 60_000;
@@ -157,6 +161,7 @@ export async function ensureRemoteProbeWords(
         append: {},
         change: {},
         unresolved: {},
+        ambiguity: {},
         noMatch: {},
     };
     let searches = 0;
@@ -197,7 +202,7 @@ export async function ensureRemoteProbeWords(
     }
 }
 
-/** Warn about every fallback, author the append food and confirm it, and name the words. */
+/** Warn about every fallback (three roles have one), author the append food and confirm it, and name the words. */
 async function finish(
     deps: EnsureRemoteProbeWordsDeps,
     input: {
@@ -209,7 +214,7 @@ async function finish(
 ): Promise<ProvisionedProbeWords> {
     const { candidates, observed, words, runKey } = input;
 
-    for (const role of ['append', 'change'] as const) {
+    for (const role of ['append', 'change', 'ambiguity'] as const) {
         if (words[role] !== candidates[role][0]) {
             const dropped = rejectionsOf(candidates, observed, role)
                 .map((each) => `${each.word} (${each.reason})`)
@@ -235,6 +240,7 @@ async function finish(
         appendFood,
         changeWord: words.change,
         unresolvedWord: words.unresolved,
+        ambiguityWord: words.ambiguity,
         noMatchFood: words.noMatch,
     };
 }

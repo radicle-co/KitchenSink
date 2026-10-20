@@ -17,9 +17,8 @@ import { createRecipeRequestSchema, MAX_SEARCH_FOOD_FILTERS } from '@kitchensink
 import { describe, expect, it } from 'vitest';
 
 import {
-    AMBIGUITY_PROBE_FOOD_NAME,
-    AMBIGUITY_PROBE_RECIPE,
     CAP_FOOD_BASE_NAME,
+    deriveAmbiguityProbe,
     deriveFixtureManifest,
     FIXTURE_ENV_KEYS,
     manifestToEnvLines,
@@ -45,6 +44,7 @@ const PROBE_WORDS = {
     appendFood: `paneer ${RUN}`,
     changeWord: 'gochujang',
     unresolvedWord: 'halloumi',
+    ambiguityWord: 'mirin',
     noMatchFood: 'Zorbleflax',
 } as const;
 /** What `provision` knows that the run key does not: the leased erasure subject and the chosen probe words. */
@@ -542,7 +542,9 @@ describe('manifestToEnvLines', () => {
         expect(FIXTURE_ENV_KEYS.remoteAppendFood).toBe('E2E_REMOTE_APPEND_FOOD');
         expect(FIXTURE_ENV_KEYS.remoteChangeWord).toBe('E2E_REMOTE_CHANGE_WORD');
         expect(FIXTURE_ENV_KEYS.unresolvedWord).toBe('E2E_UNRESOLVED_WORD');
+        expect(FIXTURE_ENV_KEYS.ambiguityWord).toBe('E2E_AMBIGUITY_WORD');
         expect(FIXTURE_ENV_KEYS.noMatchFood).toBe('E2E_NO_MATCH_FOOD');
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.ambiguityWord}=mirin`);
         expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteAppendWord}=paneer`);
         expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteAppendFood}=paneer ${RUN}`);
         expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteChangeWord}=gochujang`);
@@ -567,42 +569,59 @@ describe('manifestToEnvLines', () => {
  */
 describe('the ambiguity probe', () => {
     const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    /** The word `provision` chose for the ambiguity role and carried to the reset in the session state. */
+    const WORD = 'mirin';
+    const probe = deriveAmbiguityProbe(manifest, WORD);
 
     it('scopes its title to the run, with the run key last, like every other fixture title', () => {
-        expect(manifest.ambiguityProbe.title).toBe(runScopedTitle('Ambiguity Probe', RUN));
+        expect(manifest.ambiguityProbeTitle).toBe(runScopedTitle('Ambiguity Probe', RUN));
+        expect(probe.title).toBe(manifest.ambiguityProbeTitle);
+    });
+
+    /**
+     * ⛔ The title is what `planWorldReset` finds the probe by as residue, and the per-flow reset deletes it by that
+     * title whatever word made it. A title that carried the word would let a probe made from another word survive the reset.
+     */
+    it('takes its title from the manifest alone, never from the word', () => {
+        expect(deriveAmbiguityProbe(manifest, 'ponzu').title).toBe(probe.title);
     });
 
     it('is the SIGNER’s PRIVATE recipe, because the review is the owner’s alone and Discover must not list it', () => {
-        expect(manifest.ambiguityProbe.owner).toBe('signer');
-        expect(manifest.ambiguityProbe.visibility).toBe('private');
+        expect(probe.owner).toBe('signer');
+        expect(probe.visibility).toBe('private');
+        expect(probe.key).toBe('ambiguityProbe');
     });
 
     /**
      * ⛔ Two lines, not one. The merged flow picks twice (the detail’s review, then the editor’s row), and each pick
-     * re-points ONE line, so a one-line fixture leaves the second leg nothing to choose.
+     * re-points ONE line, so a one-line fixture leaves the second leg nothing to choose. ⛔ Both are named for the WORD:
+     * the review row and the editor's attention line are named by the line's words, and the shortlist searches them.
      */
-    it('has TWO lines of one food, 1 cup and 2 tbsp — the rows "1 cup apple sauce" and "2 tbsp apple sauce"', () => {
-        expect(AMBIGUITY_PROBE_RECIPE.ingredients.map((line) => [line.name, line.quantity, line.unit])).toEqual([
-            [AMBIGUITY_PROBE_FOOD_NAME, 1, 'cup'],
-            [AMBIGUITY_PROBE_FOOD_NAME, 2, 'tbsp'],
+    it('has TWO lines of the word’s food, 1 cup and 2 tbsp — the rows "1 cup <word>" and "2 tbsp <word>"', () => {
+        expect(probe.ingredients.map((line) => [line.name, line.quantity, line.unit])).toEqual([
+            [WORD, 1, 'cup'],
+            [WORD, 2, 'tbsp'],
         ]);
-        expect(AMBIGUITY_PROBE_FOOD_NAME).toBe('apple sauce');
+        expect(deriveAmbiguityProbe(manifest, 'ponzu').ingredients.map((line) => line.name)).toEqual([
+            'ponzu',
+            'ponzu',
+        ]);
     });
 
     /**
      * ⛔ THE LINES MUST CONTRADICT THEIR FOOD. A source line that agrees with the bound food is `verified`, and a
-     * verified line is never AMBIGUOUS — so a source line equal to the food's own words would make the fixture inert.
+     * verified line is never AMBIGUOUS. The candidate lists are held off these words by `remoteProbeWords.test.ts`.
      */
-    it('gives every line a source line that names a DIFFERENT food than the one it is bound to', () => {
-        for (const line of AMBIGUITY_PROBE_RECIPE.ingredients) {
-            expect(line.sourceLine).toBeDefined();
-            expect(line.sourceLine?.toLowerCase()).not.toContain('apple');
-            expect(line.sourceLine?.toLowerCase()).not.toContain('sauce');
+    it('gives every line a fixed source line that names a DIFFERENT food than the word', () => {
+        expect(probe.ingredients.map((line) => line.sourceLine)).toEqual(['1 cup chicken stock', '2 tbsp olive oil']);
+
+        for (const line of probe.ingredients) {
+            expect(line.sourceLine?.toLowerCase()).not.toContain(WORD);
         }
     });
 
     it('gives each line its own source line, so each carries its own verdict', () => {
-        const lines = AMBIGUITY_PROBE_RECIPE.ingredients.map((line) => line.sourceLine);
+        const lines = probe.ingredients.map((line) => line.sourceLine);
 
         expect(new Set(lines).size).toBe(lines.length);
     });
@@ -613,12 +632,16 @@ describe('the ambiguity probe', () => {
     });
 
     it('builds a request the shipped contract accepts, carrying each line’s source line', () => {
-        const ids = new Map([[AMBIGUITY_PROBE_FOOD_NAME, '00000000-0000-4000-8000-0000000000b1']]);
-        const request = toCreateRequest(manifest.ambiguityProbe, ids);
+        const ids = new Map([[WORD, '00000000-0000-4000-8000-0000000000b1']]);
+        const request = toCreateRequest(probe, ids);
 
         expect(createRecipeRequestSchema.safeParse(request).success).toBe(true);
+        expect(request.ingredients.map((line) => line.ingredientId)).toEqual([
+            '00000000-0000-4000-8000-0000000000b1',
+            '00000000-0000-4000-8000-0000000000b1',
+        ]);
         expect(request.ingredients.map((line) => line.sourceLine)).toEqual(
-            AMBIGUITY_PROBE_RECIPE.ingredients.map((line) => line.sourceLine),
+            probe.ingredients.map((line) => line.sourceLine),
         );
     });
 
@@ -630,10 +653,11 @@ describe('the ambiguity probe', () => {
     });
 
     it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
-        expect(manifest.ambiguityProbe.title).toMatch(/^[A-Za-z0-9 -]+$/u);
+        expect(manifest.ambiguityProbeTitle).toMatch(/^[A-Za-z0-9 -]+$/u);
     });
 
-    it('is frozen with the rest of the manifest', () => {
-        expect(Object.isFrozen(manifest.ambiguityProbe)).toBe(true);
+    it('is frozen, lines and all, like the rest of the manifest', () => {
+        expect(Object.isFrozen(probe)).toBe(true);
+        expect(Object.isFrozen(probe.ingredients)).toBe(true);
     });
 });

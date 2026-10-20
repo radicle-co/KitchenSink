@@ -18,7 +18,10 @@ import { MAESTRO_PLATFORMS, type MaestroPlatform } from '@kitchensink/e2e-fixtur
 
 import { withoutTrailingSlashes } from './env.js';
 
-/** The sessions one run holds. Keyed by role so a caller asks for the identity, not an index. */
+/**
+ * The sessions one run holds, keyed by role so a caller asks for the identity, not an index, and the one fact `provision`
+ * decides at run time that a reset needs (the ambiguity word).
+ */
 export interface SessionState {
     readonly runKey: string;
     /**
@@ -38,6 +41,15 @@ export interface SessionState {
     readonly platform: MaestroPlatform;
     readonly signer: SessionHandle;
     readonly coAuthor: SessionHandle;
+    /**
+     * The word `provision` chose and verified for the `ambiguity` probe role (`ensureRemoteProbeWords`), which
+     * `reset --mode ambiguity` names the probe's food and lines for (`deriveAmbiguityProbe`).
+     *
+     * ⛔ Carried in the FILE because it is decided once, against the live search, and no reset may decide it again: a
+     * reset makes no source call, and one that fell back to a literal would build a probe nobody verified. Parsed as
+     * strictly as the shard, for the same reason: a missing word must stop the reset, not be filled in.
+     */
+    readonly ambiguityWord: string;
 }
 
 /** Where the state file lives. `$RUNNER_TEMP` on CI; the system temp dir locally. */
@@ -101,12 +113,12 @@ export function readSessionState(path: string): SessionState {
     // let absence through while the comment above it claimed otherwise.
     const shard: unknown = (parsed as { readonly shard?: unknown }).shard;
 
-    // ⚠️ ONLY `shard` AND `platform` ARE PARSED, and the `as SessionState` below is that NARROW claim, not a total one. The
-    // asymmetry is the reason: a well-typed WRONG shard is silently destructive — it purges another pool
-    // slot's world — whereas a malformed `signer`/`coAuthor` cannot be silently wrong, because
-    // `remintFromSession` throws loudly at mint time (`e2e-fixtures/src/clerkSession.ts`), which is
-    // `reset.ts`'s "EVERY FAILURE IS LOUD AND NON-ZERO" contract already doing this job. Validating the
-    // handles here would buy a loud failure that already exists.
+    // ⚠️ ONLY `shard`, `platform` AND `ambiguityWord` ARE PARSED, and the `as SessionState` below is that NARROW
+    // claim, not a total one. The asymmetry is the reason: a well-typed WRONG shard is silently destructive — it purges
+    // another pool slot's world — and a missing word would be silently filled in, whereas a malformed
+    // `signer`/`coAuthor` cannot be silently wrong, because `remintFromSession` throws loudly at mint time
+    // (`e2e-fixtures/src/clerkSession.ts`), which is `reset.ts`'s "EVERY FAILURE IS LOUD AND NON-ZERO" contract already
+    // doing this job. Validating the handles here would buy a loud failure that already exists.
     if (typeof shard !== 'number' || !Number.isInteger(shard) || shard < 1) {
         throw new Error(
             `e2e-seed session state at ${path} carries an invalid shard: ${JSON.stringify(shard)} (expected a positive integer)`,
@@ -121,6 +133,17 @@ export function readSessionState(path: string): SessionState {
         throw new Error(
             `e2e-seed session state at ${path} carries an invalid platform: ${JSON.stringify(platform)} ` +
                 `(expected one of ${MAESTRO_PLATFORMS.join(', ')})`,
+        );
+    }
+
+    const ambiguityWord: unknown = (parsed as { readonly ambiguityWord?: unknown }).ambiguityWord;
+
+    // ⛔ One lowercase word, as every probe candidate is (`remoteProbeWords.ts`): the flow puts it inside a Maestro
+    // pattern, so anything else would match the wrong text, or nothing.
+    if (typeof ambiguityWord !== 'string' || !/^[a-z]+$/u.test(ambiguityWord)) {
+        throw new Error(
+            `e2e-seed session state at ${path} carries an invalid ambiguity word: ${JSON.stringify(ambiguityWord)} ` +
+                '(expected the one lowercase word `provision` chose; it never falls back to a literal)',
         );
     }
 

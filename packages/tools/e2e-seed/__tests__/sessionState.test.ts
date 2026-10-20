@@ -28,7 +28,14 @@ function stateFile(body: unknown): string {
 }
 
 const handle = { sessionId: 's', devJwt: 'j', fapi: 'f', origin: 'o', email: 'e' };
-const valid = { runKey: 'local-1', platform: 'android', shard: 1, signer: handle, coAuthor: handle };
+const valid = {
+    runKey: 'local-1',
+    platform: 'android',
+    shard: 1,
+    signer: handle,
+    coAuthor: handle,
+    ambiguityWord: 'mirin',
+};
 
 describe('readSessionState', () => {
     it('round-trips a well-formed state file', () => {
@@ -74,5 +81,33 @@ describe('readSessionState', () => {
 
     it('reports a bad platform as itself, not as a missing state file', () => {
         expect(() => readSessionState(stateFile({ ...valid, platform: 'windows' }))).not.toThrow(/provision/u);
+    });
+
+    /**
+     * ADDED 2026-10-20. `provision` chooses the ambiguity word against the live search, and `reset --mode ambiguity`
+     * makes the probe's food and lines from it. The state file is the one channel between the two, so the word is parsed as
+     * strictly as the shard: a reset that fell back to a literal word would make a probe nobody verified, which is the
+     * failure the probe words exist to prevent.
+     */
+    it('round-trips the ambiguity word provision chose', () => {
+        expect(readSessionState(stateFile(valid)).ambiguityWord).toBe('mirin');
+    });
+
+    it('⛔ refuses a state file with NO ambiguity word at all', () => {
+        const { ambiguityWord, ...withoutWord } = valid;
+
+        expect(ambiguityWord).toBe('mirin');
+        expect(() => readSessionState(stateFile(withoutWord))).toThrow(/ambiguity word/iu);
+    });
+
+    it.each([[''], [null], [1], ['Mirin'], ['apple sauce'], ['mirin.*'], [['mirin']]])(
+        '⛔ refuses the ambiguity word %j, which is not one lowercase word a Maestro pattern can carry',
+        (ambiguityWord) => {
+            expect(() => readSessionState(stateFile({ ...valid, ambiguityWord }))).toThrow(/ambiguity word/iu);
+        },
+    );
+
+    it('reports a bad ambiguity word as itself, not as a missing state file', () => {
+        expect(() => readSessionState(stateFile({ ...valid, ambiguityWord: '' }))).not.toThrow(/provision` must run/u);
     });
 });

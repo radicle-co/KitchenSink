@@ -295,7 +295,7 @@ describe('planWorldReset — ambiguity mode', () => {
     });
 
     it('⛔ deletes a probe left by an earlier run, whatever state its lines are in, and never plans to create one', () => {
-        const stale = row('probe', manifest.ambiguityProbe.title);
+        const stale = row('probe', manifest.ambiguityProbeTitle);
         const plan = planWorldReset(snapshot({ recipes: [...settled().recipes, stale] }), manifest, 'ambiguity');
 
         expect(plan.deleteRecipeIds).toEqual(['probe']);
@@ -303,7 +303,7 @@ describe('planWorldReset — ambiguity mode', () => {
     });
 
     it('seeded mode deletes the probe too, so every flow after the review sees "3 recipes" again', () => {
-        const stale = row('probe', manifest.ambiguityProbe.title);
+        const stale = row('probe', manifest.ambiguityProbeTitle);
         const plan = planWorldReset(snapshot({ recipes: [...settled().recipes, stale] }), manifest, 'seeded');
 
         expect(plan.deleteRecipeIds).toEqual(['probe']);

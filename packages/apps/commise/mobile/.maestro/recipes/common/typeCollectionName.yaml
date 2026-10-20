@@ -6,13 +6,16 @@ appId: ${APP_ID}
 # The text is read back and typed once more, for the iOS Simulator's dropped keystrokes (`common/typeTitle.yaml`, and
 # `auth/signinHome.yaml`): in run 38988891871 `collectionsSaveCopy` typed `Maestro clone source`, got `Ma`, and Enter
 # CREATED a collection called `Ma`, so the detail it then waited for was never named what the flow looked for. The
-# read-back allows a tail, for the Android emulator's doubled last key.
+# read-back allows ONE extra copy of the last character, for the Android emulator's doubled last key, and nothing else:
+# it used to allow any tail, so CI run 39376194588 (iOS shard 2) created `Maestro pagination fillerinat`, and the flow then
+# waited for a detail named `Maestro pagination filler`. A tail also hides the collection from the caller's cleanup, which
+# deletes by name. NAME holds letters and spaces only, so it is a safe pattern.
 - tapOn: 'Name'
 - inputText: ${NAME}
 - runFlow:
       when:
-          notVisible: ${NAME}.*
+          notVisible: '${NAME}(${NAME.slice(-1)})?'
       commands:
           - eraseText: 64
           - inputText: ${NAME}
-- assertVisible: ${NAME}.*
+- assertVisible: '${NAME}(${NAME.slice(-1)})?'

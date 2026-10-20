@@ -33,8 +33,9 @@ appId: ${APP_ID}
 # LEG 1, the detail's batched review. The badge and the entry render from the detail's own resolutionStatus, and the
 # entry counts LINES: two ambiguous lines read "2 ingredients …" (audit 2026-10-19, C3: this is the "before" the count
 # check after the pick compares against).
+# iOS merges the ingredient row into one element whose label carries the badge, so the badge is matched inside it.
 - scrollUntilVisible:
-      element: 'Choose a match'
+      element: '.*Choose a match.*'
       direction: DOWN
       timeout: 20000
 # The entry sits at the BOTTOM of the detail, below the rating, so the scroll is DOWN. Its sentence is part of the
@@ -53,7 +54,7 @@ appId: ${APP_ID}
 # search's for the line's words. The rows open BELOW the entry, which ends the page, so they arrive by scrolling down.
 - scrollUntilVisible:
       element:
-          text: '.+ apple sauce'
+          text: '.+ apple sauce.*'
           below: '.*Review ingredient matches'
       direction: DOWN
       timeout: 30000
@@ -106,7 +107,7 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - assertNotVisible: 'Search for another food'
 - tapOn:
-      text: 'Choose a match: apple sauce'
+      text: '.*Choose a match: apple sauce.*'
       index: 0
 
 # Row 7's own explanation, and the shortlist the food search finds for the line's words.

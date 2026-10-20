@@ -33,7 +33,11 @@ appId: ${APP_ID}
 # Audit 2026-10-19, A1.12: the dialog fades in, and a tap on it while it fades can be lost.
 - waitForAnimationToEnd:
       timeout: 2000
-- tapOn: 'Discard'
+# CI run 39376194588 (Android shard 7, ingredientRemove): the dialog sat idle after the tap, neither "Discarding…" nor an
+# error, so the tap was dropped. Tap again only if the screen did not change: a tap that took makes the dialog busy or close.
+- tapOn:
+      text: 'Discard'
+      retryTapIfNoChange: true
 # CI run 39313803199 (Android shard 2, ingredientGroups): the dialog closed but the editor stayed open, status "Saved". That is
 # designed: a Discard confirmed while a checkpoint write is on the wire is REFUSED by the outbox, silently, and the editor goes
 # back to editing (`useRecipeEditor.ts` discardThrough -> discardDeclined; owner ruling 2026-10-17, "Don't allow users to
@@ -61,7 +65,9 @@ appId: ${APP_ID}
           - assertVisible: 'Discard this draft?'
           - waitForAnimationToEnd:
                 timeout: 2000
-          - tapOn: 'Discard'
+          - tapOn:
+                text: 'Discard'
+                retryTapIfNoChange: true
 # Still the proof that the draft is gone.
 - extendedWaitUntil:
       notVisible: 'Close editor'

@@ -274,3 +274,47 @@ Steps, each leaving CI green:
    `runMaestroFlows.sh`.
 
 Status: reviewed, not started. This section records the review's decisions. The working report is kept outside the repo, in `~/Development/ksAuditNotes/testUsers.md` on the owner's machine.
+
+## 10. Group F: a faster iOS Maestro tier
+
+Owner, verbatim: "Think hard and creatively on how the iOS runs can be faster/take less time", then "Check what github
+caps us at. While clever, using my mac is not a viable long-term solution. Implement the other performance/runtime
+improvements you can".
+
+Measured on CI run 39333403320: one iOS shard took 61 minutes. Setup took 15 minutes, and `npm ci` alone took 8.5 of
+them. The flows took 37 minutes, at about 2.9 seconds per tap.
+
+The cap: the GitHub Team plan runs at most 5 macOS jobs at once, and larger runners share that count. GitHub support can
+raise it. A self-hosted Mac runner is out, by the owner's ruling above.
+
+Steps:
+
+1. Done locally, not pushed: the Maestro jobs run the seed CLIs from one esbuild bundle, built once in
+   `resolve-mobile-target`, so neither Maestro job runs `npm ci`.
+2. Done locally, not pushed: `runMaestroFlows.sh` packs flows into shards by measured time (longest first), from
+   `tests/e2e/maestroFlowSeconds.tsv`. The model predicts Android's slowest shard drops from 26.1 to 22.2 minutes. iOS
+   was already balanced.
+3. Open: ask GitHub support to raise the macOS concurrency cap, which is the owner's call.
+
+## 11. Group G: skip a job whose inputs did not change
+
+Owner, verbatim: "Can we optimize how long the deploys take? In general we should skip jobs if the code it involves hasn't
+changed", then "The same goes for linting, tests as well as deploys - we shouldn't run jobs or scripts if the code for
+that job or script hasn't changed".
+
+The cause: a `pull_request` `paths:` filter reads the whole PR diff, not the push. So every push to PR 91 redeploys
+identity (about 28 minutes, serialized by its concurrency group), and every push lints, typechecks and tests the whole
+tree.
+
+The design:
+
+1. Deploys: `deployGate.sh` gains an inputs term. A content hash of the files a deploy reads is stored with the deployed
+   stack. A deploy whose hash matches, and whose stack is serving, is skipped. The ensure-exists terms of ADR-0010 stay.
+2. Lint, typecheck and tests: persist Turborepo's local cache between runs, so a task whose inputs did not change
+   replays its result. Turborepo already hashes each task's inputs.
+3. Refused: `turbo --affected` and `[origin/main]` filters. Both compare against a git base, so they answer "what changed
+   on this branch", which is the same whole-PR question that causes the waste.
+
+The first run after this lands records the hashes, so it still deploys everything once.
+
+Status: in progress.

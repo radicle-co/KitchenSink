@@ -45,8 +45,11 @@ appId: ${APP_ID}
       env:
           SECTION: 'Ingredients'
 - tapOn: 'Add a group'
-- tapOn: 'Group name'
-- inputText: 'For the marinade'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Group name'
+          TEXT: 'For the marinade'
 # The keyboard's done key saves (the field's submit), and Save sits under the keyboard on a phone.
 - pressKey: Enter
 # ⛔ THE HEADING APPEARS IN THE EDITOR at once, and the add field moves under it, named for it.

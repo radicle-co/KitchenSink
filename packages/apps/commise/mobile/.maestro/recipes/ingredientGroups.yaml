@@ -87,8 +87,11 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'Add a group'
-- tapOn: 'Group name'
-- inputText: 'Paste'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Group name'
+          TEXT: 'Paste'
 # The keyboard's done key saves (the field's submit), and Save sits under the keyboard on a phone.
 - pressKey: Enter
 - assertVisible: 'Paste'
@@ -131,11 +134,17 @@ appId: ${APP_ID}
 - tapOn: 'Rename group'
 - waitForAnimationToEnd:
       timeout: 3000
-- tapOn: 'Group name'
-- eraseText: 10
-- inputText: 'Curry paste'
+# Typed through the shared step, which reads the name back: CI run 39400327458 (iOS shard 4) dropped keystrokes and
+# renamed the group `C`, and the old check after Enter still passed. The heading's own control is the proof.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Group name'
+          TEXT: 'Curry paste'
 - pressKey: Enter
-- assertVisible: 'Curry paste'
+- extendedWaitUntil:
+      visible: 'Actions for Curry paste'
+      timeout: 20000
 
 # Remove the group, keeping its line: no heading is left, and both lines are still here.
 - tapOn: 'Actions for Curry paste'

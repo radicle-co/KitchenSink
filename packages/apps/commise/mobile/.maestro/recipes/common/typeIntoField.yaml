@@ -1,0 +1,31 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: type `TEXT` into the field named `FIELD`, and read it back exactly. Called with
+# `runFlow: { file: common/typeIntoField.yaml, env: { FIELD: '…', TEXT: '…' } }`; the caller then presses Enter or taps
+# the field's own submit. Any text the field held is erased first, so a rename needs no erase of its own.
+#
+# The text is read back and typed once more, for the iOS Simulator's dropped keystrokes: in run 38988891871
+# `collectionsSaveCopy` typed `Maestro clone source`, got `Ma`, and Enter CREATED a collection called `Ma`; in CI run
+# 39400327458 (iOS shard 4) `ingredientGroups` typed `Curry paste` and renamed the group `C`. The read-back allows ONE
+# extra copy of the last character, for the Android emulator's doubled last key, and nothing else: a looser tail let CI
+# run 39376194588 (iOS shard 2) create `Maestro pagination fillerinat`, and it hides a record from a cleanup that deletes
+# by name. TEXT holds letters and spaces only, so it is a safe pattern.
+#
+# ⛔ eraseText deletes only what is BEFORE the cursor, and a garbled typing can leave the cursor mid-text: CI run
+# 39387415456 (iOS shard 5) retyped in front of a leftover tail and read `Maestro clone source|tro`. So each clear erases,
+# taps the field, and erases again: after the first erase only a short tail is left, the tap lands past its end, and the
+# second erase clears it.
+- tapOn: ${FIELD}
+- eraseText: 64
+- tapOn: ${FIELD}
+- eraseText: 64
+- inputText: ${TEXT}
+- runFlow:
+      when:
+          notVisible: '${TEXT}(${TEXT.slice(-1)})?'
+      commands:
+          - eraseText: 64
+          - tapOn: ${FIELD}
+          - eraseText: 64
+          - inputText: ${TEXT}
+- assertVisible: '${TEXT}(${TEXT.slice(-1)})?'

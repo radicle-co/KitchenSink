@@ -105,6 +105,14 @@ appId: ${APP_ID}
       timeout: 3000
 - eraseText: 40
 - inputText: 'smoked flour'
+# Close the keyboard and jump to Steps first, as `create.yaml` does. With the keyboard and the held text's list up, the
+# tap meant for `Add step` moved the page back to Details instead, and no step was added (CI run 39387415456, Android
+# shard 8). The tap on `Add step` blurred the field anyway, so the held text is kept the same way.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
 # ⚠️ Centred, so the tap lands mid-screen: with the held text's option list open the page is long, and an element
 # scrolled only just into view sits under the floating action bar, where the tap reaches Publish (run 38973223138
 # showed "Fix 2 things to publish" with no step added).

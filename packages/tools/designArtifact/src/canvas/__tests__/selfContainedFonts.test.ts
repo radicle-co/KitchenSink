@@ -11,7 +11,7 @@ import { BOARDS_DIR } from '../boards.js';
  * page may also fetch them from a font host: that is a second source for the same faces, and a network dependency
  * that made the board render flaky.
  */
-const FONT_HOST = /fonts\.(?:googleapis|gstatic)\.com/u;
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'] as const;
 
 const authoredPages = (): readonly string[] => [
     ...readdirSync(BOARDS_DIR)
@@ -26,6 +26,8 @@ describe('authored pages load fonts only from the system', () => {
     });
 
     it.each(authoredPages())('%s fetches no webfont', (page) => {
-        expect(readFileSync(page, 'utf8')).not.toMatch(FONT_HOST);
+        const text = readFileSync(page, 'utf8');
+
+        expect(FONT_HOSTS.filter((host) => text.includes(host))).toEqual([]);
     });
 });

@@ -8,7 +8,6 @@
  * different React.
  */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -77,9 +76,16 @@ export async function reactRuntime(): Promise<{ readonly react: string; readonly
     for (const script of REACT_RUNTIME) {
         const cached = join(REACT_CACHE_DIR, script.name);
 
-        if (existsSync(cached)) {
-            const bytes = await readFile(cached);
+        // Read the cache directly and treat a missing file as a miss: checking first and reading after would race.
+        const bytes = await readFile(cached).catch((error: unknown) => {
+            if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+                return undefined;
+            }
 
+            throw error;
+        });
+
+        if (bytes !== undefined) {
             assertMatches(script, bytes, cached);
             texts.push(bytes.toString('utf8'));
             continue;
@@ -91,11 +97,11 @@ export async function reactRuntime(): Promise<{ readonly react: string; readonly
             throw new Error(`Could not fetch ${script.url}: HTTP ${String(response.status)}.`);
         }
 
-        const bytes = new Uint8Array(await response.arrayBuffer());
+        const fetched = new Uint8Array(await response.arrayBuffer());
 
-        assertMatches(script, bytes, script.url);
-        await writeFile(cached, bytes);
-        texts.push(Buffer.from(bytes).toString('utf8'));
+        assertMatches(script, fetched, script.url);
+        await writeFile(cached, fetched);
+        texts.push(Buffer.from(fetched).toString('utf8'));
     }
 
     const [react, reactDom] = texts;

@@ -1118,11 +1118,45 @@ maestro_android_input_settings() {
     # harmless without a hardware keyboard. Printed back so the log says what the device holds.
     adb shell settings put secure show_ime_with_hard_keyboard 1 || true
     echo "show_ime_with_hard_keyboard=$(adb shell settings get secure show_ime_with_hard_keyboard | tr -d '\r')"
+    # Motion off (owner ruling 2026-10-20: nothing may depend on how fast a transition runs). React Native reports
+    # Reduce Motion when the transition scale is 0, so the app skips its sheet slides and dialog fades; the window and
+    # animator scales stop the platform's own transitions. `maestroReduceMotion.test.ts`.
+    adb shell settings put global window_animation_scale 0 || true
+    adb shell settings put global transition_animation_scale 0 || true
+    adb shell settings put global animator_duration_scale 0 || true
+    echo "transition_animation_scale=$(adb shell settings get global transition_animation_scale | tr -d '\r')"
+}
+
+# maestro_reduce_motion_ios
+#
+# Turn Reduce Motion on in the booted Simulator `MAESTRO_IOS_UDID`, so the app skips its sheet slides and dialog fades
+# (owner ruling 2026-10-20). Written THROUGH the booted device: the same key written into the preferences plist before
+# the first boot read back 0 after it (Mac, 2026-10-20). Read back, and a device that does not hold it fails the run
+# rather than animating silently. `maestroReduceMotion.test.ts`.
+#
+# @sideEffect Writes the Simulator's accessibility preference.
+maestro_reduce_motion_ios() {
+    if [ -z "${MAESTRO_IOS_UDID:-}" ]; then
+        echo '::error::maestro_reduce_motion_ios needs MAESTRO_IOS_UDID — the Simulator to set is never guessed'
+
+        return 1
+    fi
+
+    xcrun simctl spawn "$MAESTRO_IOS_UDID" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
+    local held
+    held=$(xcrun simctl spawn "$MAESTRO_IOS_UDID" defaults read com.apple.Accessibility ReduceMotionEnabled | tr -d '\r')
+    echo "ReduceMotionEnabled=${held}"
+
+    if [ "$held" != '1' ]; then
+        echo "::error::the Simulator does not hold Reduce Motion (read back '${held}'), so sheets and dialogs would animate"
+
+        return 1
+    fi
 }
 
 # maestro_prepare_device <platform>
 #
-# Install the app and settle the device's input settings, once per run.
+# Install the app and settle the device's input and motion settings, once per run.
 #
 # @sideEffect Installs the app on the device and writes device settings.
 maestro_prepare_device() {
@@ -1141,6 +1175,7 @@ maestro_prepare_device() {
 
                 return 1
             fi
+            maestro_reduce_motion_ios || return 1
             xcrun simctl install "$MAESTRO_IOS_UDID" "$MAESTRO_IOS_APP"
             ;;
     esac

@@ -542,6 +542,24 @@ jobs:
             # Dropping a generation removes the key CloudFront trusts, and a food still signing with it has every search
             # refused. This synthesizes the app the next step deploys and refuses while any service still runs a task
             # definition naming a key-pair id that synth no longer declares.
+            # ⛔ THE PER-STACK GATE (ADR-0067). A running leg judges each of its stacks against what is DEPLOYED and
+            # deploys only the stale ones: a usable stack whose synthesized template equals the deployed one and whose
+            # resolved SSM values still hold is left alone. Before this every running leg updated every stack (run
+            # 39627231419: all 10 global stacks, VPC, NAT and RDS included, for a change to none of them). A dispatch
+            # or a Sandbox Up call is FORCED and deploys everything, as before. `contentKeyWiring.test.ts` holds each
+            # gate to its deploy's `--app`, stack list and environment.
+            - name: Judge the global stacks against what is deployed
+              id: global-currency
+              if: steps.flags.outputs.deploy_global == 'true'
+              env:
+                  FORCED: ${{ github.event_name != 'pull_request' }}
+              run: |
+                  set -euo pipefail
+                  stacks=$(bash .github/scripts/deployGate.sh stacks-for packages/infra/global/bin/app.ts "${STAGE}")
+                  # shellcheck disable=SC2086 # one argument per stack name
+                  bash .github/scripts/stackCurrency.sh evaluate "${DEFAULT_AWS_REGION}" "${FORCED}" \
+                    packages/infra/global/node_modules/.bin/cdk "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" ${stacks}
+
             - name: Refuse to retire a remote search signing key a food service still signs with
               if: steps.flags.outputs.deploy_global == 'true'
               run: |
@@ -551,8 +569,11 @@ jobs:
                   bash .github/scripts/remoteSearchKeyRetirement.sh check "${DEFAULT_AWS_REGION}" "kitchensink-remote-search-shared-${STAGE}" "${assembly}"
 
             - name: CDK Deploy (global infra)
-              if: steps.flags.outputs.deploy_global == 'true'
-              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --no-previous-parameters --all --require-approval never
+              if: steps.flags.outputs.deploy_global == 'true' && steps.global-currency.outputs.stale != ''
+              env:
+                  STALE: ${{ steps.global-currency.outputs.stale }}
+              # shellcheck disable=SC2086 # one argument per stale stack
+              run: packages/infra/global/node_modules/.bin/cdk deploy --app "packages/infra/global/node_modules/.bin/tsx packages/infra/global/bin/app.ts" --no-previous-parameters --exclusively ${STALE} --require-approval never
 
             # ⛔ `cdk deploy` exiting 0 proves the stacks CONVERGED, not that the things inside them arrived.
             # Both stages ran this tier with 217-byte bootstrap STUBS that created no `food_app`/`recipe_app`
@@ -603,8 +624,23 @@ jobs:
             # because ADR-0035's property lives in the INVOKE — the migrations are under this service's own
             # path, so either they changed and this flag is true, or last release's runner still holds a set
             # whose digest matches the tree. A stale runner for any other reason is caught by the invoke.
-            - name: CDK Deploy (identity schema — before anything reads it)
+            - name: Judge the identity stacks against what is deployed
+              id: identity-currency
               if: steps.flags.outputs.deploy_service == 'true'
+              env:
+                  FORCED: ${{ github.event_name != 'pull_request' }}
+                  SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
+                  IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: |
+                  set -euo pipefail
+                  stacks=$(bash .github/scripts/deployGate.sh stacks-for packages/services/identity/infra/bin/app.ts "${STAGE}")
+                  # shellcheck disable=SC2086 # one argument per stack name
+                  bash .github/scripts/stackCurrency.sh evaluate "${DEFAULT_AWS_REGION}" "${FORCED}" \
+                    packages/services/identity/infra/node_modules/.bin/cdk "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" ${stacks}
+
+            - name: CDK Deploy (identity schema — before anything reads it)
+              if: steps.flags.outputs.deploy_service == 'true' && contains(steps.identity-currency.outputs.stale_names, format(' kitchensink-identity-schema-{0} ', env.STAGE))
               env:
                   IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
@@ -640,7 +676,7 @@ jobs:
             # as the old command-prefix assignments did — without building the command line out of
             # expression text. `STAGE` comes from the workflow-level `env:` (see above).
             - name: CDK Deploy (identity service)
-              if: steps.flags.outputs.deploy_service == 'true'
+              if: steps.flags.outputs.deploy_service == 'true' && contains(steps.identity-currency.outputs.stale_names, format(' kitchensink-identity-service-{0} ', env.STAGE))
               env:
                   # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
                   # lets the task serve. Set the repo/environment variable to `enforce` once the reports read
@@ -650,7 +686,7 @@ jobs:
                   SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
-              run: packages/services/identity/infra/node_modules/.bin/cdk deploy --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
+              run: packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-service-${STAGE}" --exclusively --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --require-approval never
 
             # The identity stack's RESOURCE check. The smoke at the end of this job asserts the ORIGIN and
             # says nothing about the stack's Lambdas — among them the migration runner the next step invokes,
@@ -669,12 +705,28 @@ jobs:
                   bash .github/scripts/verifyDeployment.sh drains-app "${DEFAULT_AWS_REGION}" \
                     "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts"
 
-            - name: CDK Deploy (identity-webhooks)
+            - name: Judge the identity-webhooks stacks against what is deployed
+              id: webhooks-currency
               if: steps.flags.outputs.deploy_webhooks == 'true'
+              env:
+                  FORCED: ${{ github.event_name != 'pull_request' }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  SENTRY_RELEASE: ${{ steps.content.outputs.webhooks_release }}
+              run: |
+                  set -euo pipefail
+                  stacks=$(bash .github/scripts/deployGate.sh stacks-for packages/services/identity-webhooks/infra/bin/app.ts "${STAGE}")
+                  # shellcheck disable=SC2086 # one argument per stack name
+                  bash .github/scripts/stackCurrency.sh evaluate "${DEFAULT_AWS_REGION}" "${FORCED}" \
+                    packages/services/identity-webhooks/infra/node_modules/.bin/cdk "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" ${stacks}
+
+            - name: CDK Deploy (identity-webhooks)
+              if: steps.flags.outputs.deploy_webhooks == 'true' && steps.webhooks-currency.outputs.stale != ''
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   SENTRY_RELEASE: ${{ steps.content.outputs.webhooks_release }}
-              run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
+                  STALE: ${{ steps.webhooks-currency.outputs.stale }}
+              # shellcheck disable=SC2086 # one argument per stale stack
+              run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --no-previous-parameters --exclusively ${STALE} --require-approval never
 
             # ⛔ THE only post-deploy signal this stack has ever had, and the one that needed it most: the
             # webhooks app serves no origin, so every check in this file was blind to it. It is five

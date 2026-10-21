@@ -235,6 +235,36 @@ describe('every database-backed package declares its schema stack at the call si
     });
 });
 
+/**
+ * Whether a deploy's `if:` can only be true when its bundle's `if:` is: equal to it, or it followed by `&&` and more
+ * terms with no top-level `||` (which would let a later term alone run the deploy). Syntactic and conservative: any
+ * other shape is refused. Pure.
+ */
+export function impliesBundle(deployIf: string, bundleIf: string): boolean {
+    if (deployIf === bundleIf) {
+        return true;
+    }
+
+    const prefix = `${bundleIf} && `;
+
+    return bundleIf !== '' && deployIf.startsWith(prefix) && !deployIf.slice(prefix.length).includes('||');
+}
+
+describe('impliesBundle (the rule, on inline conditions)', () => {
+    const bundle = "steps.flags.outputs.deploy_service == 'true'";
+
+    it.each([
+        ['the same condition', bundle, true],
+        ['the condition and one more conjunct', `${bundle} && contains(steps.x.outputs.stale_names, ' s ')`, true],
+        ['a condition that adds an alternative', `${bundle} && a || b`, false],
+        ['no condition at all', '', false],
+        ['a different condition', "steps.tier.outputs.up == 'true'", false],
+        ['the condition only as a suffix', `x && ${bundle}`, false],
+    ])('%s -> %s', (_label, deployIf, expected) => {
+        expect(impliesBundle(deployIf, bundle)).toBe(expected);
+    });
+});
+
 describe('a schema deploy runs under exactly the conditions that built its asset', () => {
     it('finds the schema deploys at all — a vacuous pass here would assert nothing below', () => {
         // ⛔ The ANCHOR. Was six — three in prod, two in the sandbox feature deploy, one in the sandbox
@@ -256,7 +286,10 @@ describe('a schema deploy runs under exactly the conditions that built its asset
         expect(unresolved, 'these schema deploys name no --app this guard can attribute').toStrictEqual([]);
     });
 
-    it('⛔ carries the SAME condition as the step that bundles its runner', () => {
+    // ⛔ RELAXED FROM EQUALITY TO IMPLICATION (ADR-0067, 2026-10-21): the per-stack gate deploys a schema stack only when
+    // it is stale, so the deploy's condition is now the bundle's condition AND more. The property is unchanged — the
+    // deploy runs only on a run that built its asset — and `impliesBundle` accepts only that shape.
+    it('⛔ runs only under the condition that bundles its runner, narrowed by nothing but more conjuncts', () => {
         const mismatched = schemaDeploys().flatMap((deploy) => {
             if (deploy.bundleIf === undefined) {
                 return [
@@ -265,7 +298,7 @@ describe('a schema deploy runs under exactly the conditions that built its asset
                 ];
             }
 
-            return deploy.deployIf === deploy.bundleIf
+            return impliesBundle(deploy.deployIf, deploy.bundleIf)
                 ? []
                 : [
                       `${deploy.workflow}:${deploy.job} deploys ${deploy.servicePackage}'s schema stack under ` +

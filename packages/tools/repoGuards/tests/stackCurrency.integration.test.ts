@@ -233,14 +233,17 @@ describe('stackCurrency.sh evaluate', () => {
         const run = evaluate({}, ['true']);
 
         expect(staleOf(run)).toBe('App/A App/B');
+        expect(run.stdout).toContain('stale_names= stack-a stack-b \n');
         expect(diffs(run)).toEqual([]);
         expect(synths(run)).toBe(1);
     });
 
-    it('writes the verdict to $GITHUB_OUTPUT', () => {
+    it('writes the verdict to $GITHUB_OUTPUT, with the stale stacks by path and by CloudFormation name', () => {
         const run = evaluate({ FAKE_DIFF_A: '1' });
 
         expect(run.githubOutput).toContain('stale=App/A\n');
+        // Space-padded, so a step can ask `contains(' <list> ', ' <name> ')` without matching a name inside another.
+        expect(run.githubOutput).toContain('stale_names= stack-a \n');
         expect(run.githubOutput).toMatch(/^assembly=.+$/mu);
     });
 

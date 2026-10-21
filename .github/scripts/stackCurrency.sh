@@ -19,6 +19,7 @@
 # verdict. `evaluate` does the I/O: ONE synth of <app> into a temporary assembly, then per stack its status, its
 # template diff against that assembly, and its resolved SSM values. It prints, and appends to $GITHUB_OUTPUT:
 #     stale=<construct paths of the stale stacks, space-separated, for `cdk deploy --exclusively`>
+#     stale_names= <their CloudFormation names, space-separated AND space-padded>
 #     assembly=<the synthesized assembly directory, so the deploy and its verification use exactly what was judged>
 # With <forced>=true every stack is stale and nothing is diffed (a dispatch or a Sandbox Up call deploys everything).
 # Exit 0 when the question was answered; 1 when the synth failed or a named stack is not in the app; 2 on misuse.
@@ -109,7 +110,7 @@ stack_currency_evaluate() {
         return 1
     fi
 
-    local stale=() stack path status diff_exit verdict reason triples
+    local stale=() stale_names=() stack path status diff_exit verdict reason triples
     for stack in "$@"; do
         # The construct path `cdk deploy --exclusively` selects by: the listing's id without its ` (<name>)` suffix.
         path=$(jq -r --arg name "$stack" '.[] | select(.name == $name) | .id | sub(" \\(.*\\)$"; "")' <<<"$listing")
@@ -121,6 +122,7 @@ stack_currency_evaluate() {
         if [ "$forced" = true ]; then
             echo "[stack-currency] ${stack}: stale (a forced run deploys every stack)" >&2
             stale+=("$path")
+            stale_names+=("$stack")
             continue
         fi
 
@@ -142,13 +144,16 @@ stack_currency_evaluate() {
         else
             echo "[stack-currency] ${stack}: STALE (${reason})" >&2
             stale+=("$path")
+            stale_names+=("$stack")
         fi
     done
 
-    local joined="${stale[*]-}"
-    printf 'stale=%s\nassembly=%s\n' "$joined" "$assembly"
+    # `stale_names` is space-PADDED so a step can test one stack with `contains(' <list> ', ' <name> ')`.
+    local verdict_lines
+    verdict_lines=$(printf 'stale=%s\nstale_names= %s \nassembly=%s\n' "${stale[*]-}" "${stale_names[*]-}" "$assembly")
+    printf '%s\n' "$verdict_lines"
     if [ -n "${GITHUB_OUTPUT:-}" ]; then
-        printf 'stale=%s\nassembly=%s\n' "$joined" "$assembly" >>"$GITHUB_OUTPUT"
+        printf '%s\n' "$verdict_lines" >>"$GITHUB_OUTPUT"
     fi
 }
 

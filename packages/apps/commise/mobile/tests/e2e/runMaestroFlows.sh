@@ -1269,8 +1269,11 @@ maestro_dump_device_log() {
             # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying
             # tag (native SIGSEGV/abort via libc/DEBUG, Hermes, Java via AndroidRuntime/FATAL, and our own app tag)
             # so the CI log shows the ACTUAL fault rather than only the downstream "element not visible".
+            # `Maestro:S` silences Maestro's own driver in logcat's filter: its "Skipping invisible child" line per
+            # hidden node filled the 4000 lines, so they covered seconds and no app line (local run 2026-10-20,
+            # `sessionHandoff`; `maestroDeviceLogDump.test.ts`).
             echo "--- logcat (crash tags) for ${f} ---"
-            adb logcat -d -t 4000 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
+            adb logcat -d -t 4000 'Maestro:S' '*:V' 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
             echo "--- end logcat for ${f} ---"
             ;;
     esac

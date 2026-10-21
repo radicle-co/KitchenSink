@@ -168,6 +168,24 @@ export const MANIFEST_MARKDOWN = `${MANIFEST_DIR}/README.md`;
 export const MANIFEST_DEPLOY_EDGES = `${MANIFEST_DIR}/crossAppImports.tsv`;
 
 /**
+ * The image-closure half (ADR-0067): every path a content-keyed deployable is built FROM, one
+ * `<deployable>\t<path>` per line. `.github/scripts/deployKey.sh` hashes the git objects of exactly these paths
+ * into the content key that names the image (`imageTag.sh content <key>`), so a push that changes none of them
+ * reuses the image already built. Same reason as the edges above for being a TSV: the deploy reads it with bash,
+ * before `npm ci`.
+ */
+export const MANIFEST_IMAGE_CLOSURES = `${MANIFEST_DIR}/imageClosures.tsv`;
+
+/**
+ * The deployables named by content, and the package each is built from. ⚠️ A list, deliberately small: slice 1 of
+ * ADR-0067 keys identity only. Adding a deployable here is what puts it under content keys.
+ */
+export const CONTENT_DEPLOYABLES = Object.freeze([
+    Object.freeze({ name: 'identity-service', directory: 'packages/services/identity' }),
+    Object.freeze({ name: 'identity-webhooks', directory: 'packages/services/identity-webhooks' }),
+]);
+
+/**
  * `aws-cdk-lib` module + class → the manifest's resource kind.
  *
  * ⚠️ This is CDK's taxonomy, not a list of THIS repository's resources, which is why writing it down is not
@@ -568,6 +586,173 @@ function trackedFiles(pathspec) {
     return execFileSync('git', ['ls-files', '--', pathspec], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28 })
         .split('\n')
         .filter((file) => file !== '' && existsSync(path.join(repoRoot, file)));
+}
+
+/**
+ * Every workspace package under `packages/`, by name: its directory and its runtime `dependencies`.
+ *
+ * @returns {Map<string, { directory: string, dependencies: string[], scripts: string[] }>} Keyed by package name.
+ * @sideEffect Reads the working tree.
+ */
+export function workspacePackages() {
+    const packages = new Map();
+
+    for (const file of trackedFiles('packages').filter((candidate) => candidate.endsWith('/package.json'))) {
+        const manifest = JSON.parse(readFileSync(path.join(repoRoot, file), 'utf8'));
+
+        if (typeof manifest.name === 'string') {
+            packages.set(manifest.name, {
+                directory: path.dirname(file),
+                dependencies: Object.keys(manifest.dependencies ?? {}),
+                scripts: Object.values(manifest.scripts ?? {}),
+            });
+        }
+    }
+
+    return packages;
+}
+
+/** Top-level entries of a package that never reach what it builds: its CDK app and its CDK context, its tests and
+ * their configs, its formatter ignores and its README. */
+const NOT_BUILD_INPUT =
+    /^(infra|tests|vitest\.[^/]*config\.ts|eslint\.config\.[cm]?js|cdk\.context\.json|\.prettierignore|README\.md)$/u;
+
+/**
+ * The files a tsconfig `extends`, transitively, resolved through the workspace for a package specifier.
+ *
+ * @param {string} file - A repo-relative tsconfig.
+ * @param {Map<string, { directory: string }>} packages - From {@link workspacePackages}.
+ * @param {Set<string>} into - Collects the repo-relative files reached.
+ * @sideEffect Reads the working tree.
+ */
+function extendedConfigs(file, packages, into) {
+    const { config } = ts.readConfigFile(path.join(repoRoot, file), ts.sys.readFile);
+    const targets = config?.extends === undefined ? [] : [config.extends].flat();
+
+    for (const target of targets) {
+        let resolved;
+
+        if (target.startsWith('.')) {
+            resolved = path.posix.normalize(path.posix.join(path.posix.dirname(file), target));
+        } else {
+            const owner = [...packages.keys()]
+                .filter((name) => target === name || target.startsWith(`${name}/`))
+                .sort((a, b) => b.length - a.length)[0];
+
+            if (owner === undefined) {
+                continue;
+            }
+            resolved = path.posix.join(packages.get(owner).directory, target.slice(owner.length + 1));
+        }
+
+        if (!resolved.endsWith('.json')) {
+            resolved = `${resolved}.json`;
+        }
+        if (!into.has(resolved) && existsSync(path.join(repoRoot, resolved))) {
+            into.add(resolved);
+            extendedConfigs(resolved, packages, into);
+        }
+    }
+}
+
+/**
+ * Every path each {@link CONTENT_DEPLOYABLES} entry is built from (ADR-0067):
+ *
+ *  - every package its runtime `dependencies` reach, transitively (never `devDependencies`: a lint, test or guard
+ *    change must not change what is built), each listed entry by entry minus {@link NOT_BUILD_INPUT};
+ *  - every file their tsconfigs `extends`, through the workspace;
+ *  - the root `package.json` and `package-lock.json` (the image copies the pruned root `node_modules`), and turbo's
+ *    `globalDependencies`;
+ *  - every root script a closure package's own npm scripts run (`docker:prepare` runs `prepareProdManifest.mjs`).
+ *
+ * @returns {{ deployable: string, path: string }[]} Sorted by deployable, then path.
+ * @sideEffect Reads the working tree and git.
+ */
+export function buildImageClosures() {
+    const packages = workspacePackages();
+    const byDirectory = new Map([...packages.values()].map((entry) => [entry.directory, entry]));
+    const turbo = ts.parseConfigFileTextToJson('turbo.json', readFileSync(path.join(repoRoot, 'turbo.json'), 'utf8'));
+    const globals = (turbo.config?.globalDependencies ?? []).filter((file) => existsSync(path.join(repoRoot, file)));
+    const entries = [];
+
+    for (const { name, directory } of CONTENT_DEPLOYABLES) {
+        const reached = new Set();
+        const pending = [directory];
+
+        while (pending.length > 0) {
+            const current = pending.pop();
+
+            if (reached.has(current) || !byDirectory.has(current)) {
+                continue;
+            }
+            reached.add(current);
+            for (const dependency of byDirectory.get(current).dependencies) {
+                const target = packages.get(dependency);
+
+                if (target !== undefined) {
+                    pending.push(target.directory);
+                }
+            }
+        }
+
+        const paths = new Set(['package.json', 'package-lock.json', ...globals]);
+        const configs = new Set();
+
+        for (const packageDirectory of reached) {
+            const tops = new Set(
+                trackedFiles(packageDirectory).map((file) => file.slice(packageDirectory.length + 1).split('/')[0]),
+            );
+
+            for (const top of tops) {
+                if (!NOT_BUILD_INPUT.test(top)) {
+                    paths.add(`${packageDirectory}/${top}`);
+                }
+                if (/^tsconfig[^/]*\.json$/u.test(top)) {
+                    extendedConfigs(`${packageDirectory}/${top}`, packages, configs);
+                }
+            }
+            for (const script of byDirectory.get(packageDirectory).scripts) {
+                for (const match of script.matchAll(/(?:\.\.\/)+scripts\/[\w.-]+\.(?:mjs|cjs|js|sh)/gu)) {
+                    const resolved = path.posix.normalize(path.posix.join(packageDirectory, match[0]));
+
+                    if (existsSync(path.join(repoRoot, resolved))) {
+                        paths.add(resolved);
+                    }
+                }
+            }
+        }
+        for (const config of configs) {
+            if (![...reached].some((packageDirectory) => config.startsWith(`${packageDirectory}/`))) {
+                paths.add(config);
+            }
+        }
+        for (const file of [...paths].sort()) {
+            entries.push({ deployable: name, path: file });
+        }
+    }
+
+    return entries;
+}
+
+/**
+ * The image closures as the TSV `deployKey.sh` reads.
+ *
+ * @param {{ deployable: string, path: string }[]} closures - From {@link buildImageClosures}.
+ * @returns {string} The TSV. Pure.
+ */
+export function renderImageClosures(closures) {
+    const lines = [
+        '# GENERATED FILE — DO NOT EDIT. Run `npm run infra:manifest`.',
+        '#',
+        '# Every path a content-keyed deployable is built FROM (ADR-0067). `.github/scripts/deployKey.sh` hashes the',
+        '# git objects of exactly these paths into the key that names its image, so a push that changes none of them',
+        '# reuses the image already built.',
+        '#',
+        '# deployable\tpath',
+        ...closures.map((entry) => `${entry.deployable}\t${entry.path}`),
+    ];
+
+    return `${lines.join('\n')}\n`;
 }
 
 /**
@@ -1001,6 +1186,7 @@ function main() {
         [MANIFEST_JSON, json],
         [MANIFEST_MARKDOWN, markdown],
         [MANIFEST_DEPLOY_EDGES, renderDeployEdges(manifest)],
+        [MANIFEST_IMAGE_CLOSURES, renderImageClosures(buildImageClosures())],
     ];
 
     if (process.argv.includes('--check')) {

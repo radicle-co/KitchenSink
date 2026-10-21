@@ -65,14 +65,17 @@ import { repoRoot } from './serviceSources.js';
 import {
     MANIFEST_CLAIM,
     MANIFEST_DEPLOY_EDGES,
+    MANIFEST_IMAGE_CLOSURES,
     MANIFEST_JSON,
     MANIFEST_MARKDOWN,
     MANIFEST_SCHEMA_VERSION,
+    buildImageClosures,
     buildManifest,
     canonicalStackTemplate,
     discoverCdkApps,
     readInfrastructureSource,
     renderDeployEdges,
+    renderImageClosures,
     renderManifestMarkdown,
     resolveStageNames,
 } from '../../../../scripts/infrastructureManifest.mjs';
@@ -654,7 +657,7 @@ describe('the committed manifest is not stale', () => {
         // below pass while the artifact forked from the source forever.
         const tracked = execFileSync(
             'git',
-            ['ls-files', '--', MANIFEST_JSON, MANIFEST_MARKDOWN, MANIFEST_DEPLOY_EDGES],
+            ['ls-files', '--', MANIFEST_JSON, MANIFEST_MARKDOWN, MANIFEST_DEPLOY_EDGES, MANIFEST_IMAGE_CLOSURES],
             {
                 cwd: repoRoot,
                 encoding: 'utf8',
@@ -663,7 +666,23 @@ describe('the committed manifest is not stale', () => {
             .split('\n')
             .filter((file) => file !== '');
 
-        expect(tracked.sort()).toEqual([MANIFEST_MARKDOWN, MANIFEST_JSON, MANIFEST_DEPLOY_EDGES].sort());
+        expect(tracked.sort()).toEqual(
+            [MANIFEST_MARKDOWN, MANIFEST_JSON, MANIFEST_DEPLOY_EDGES, MANIFEST_IMAGE_CLOSURES].sort(),
+        );
+    });
+
+    /**
+     * ⛔ The closure is what `deployKey.sh` hashes into an image's content key, so a stale copy means a build input
+     * the key no longer sees: two different builds under one key, and the second never built.
+     */
+    it('matches the image-closure projection the content key reads', () => {
+        const committed = existsSync(path.join(repoRoot, MANIFEST_IMAGE_CLOSURES))
+            ? readFileSync(path.join(repoRoot, MANIFEST_IMAGE_CLOSURES), 'utf8')
+            : null;
+
+        expect(committed, `${MANIFEST_IMAGE_CLOSURES} is stale. Run \`npm run infra:manifest\`.`).toBe(
+            renderImageClosures(buildImageClosures()),
+        );
     });
 
     /**

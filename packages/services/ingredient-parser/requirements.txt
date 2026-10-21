@@ -25,3 +25,12 @@ ingredient-parser-nlp==2.3.0
 # into the shipped asset like the engine's: a wheel that failed to install is a build failure, not a
 # runtime ImportError on the first invocation.
 sentry-sdk==2.69.2
+
+# nltk, the engine's own dependency, pinned EXACTLY because its behaviour reaches this service directly.
+#
+# ⛔ `ingredient-parser-nlp` asks only for `nltk>=3.9.1`, so the version used to float with every install. A patch
+# release moved under us: 3.10.3 raised a refused tagger download at import and crashed the process, 3.10.4 lets the
+# import finish and fails the line with `LookupError` instead (CI run 39622781629, 2026-10-21; local runs of both). The
+# shipped asset, CI and the parse results all changed with no change here. `infra/tests/handler.integration.test.ts`'s
+# negative control asserts THIS version's failure shape, so raising the pin is a decision that test makes visible.
+nltk==3.10.4

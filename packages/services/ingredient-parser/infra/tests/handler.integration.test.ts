@@ -297,8 +297,9 @@ describe.skipIf(!engineInstalled())('the CRF engine observability module, withou
  * filesystem outside `/tmp` is mounted read-only and `os.makedirs` reports `EROFS` (errno 30); here the
  * directory is merely mode 0555 and it reports `EACCES` (errno 13). ⚠️ Stated rather than glossed: the
  * errno differs, because a test cannot mount a read-only filesystem. What is identical is the thing that
- * matters — the same `os.makedirs` call in `nltk/downloader.py` raises `OSError`, so a build that has not
- * staged the corpus cannot pass by quietly downloading it.
+ * matters — the same `os.makedirs` call in `nltk/downloader.py` is refused, so a build that has not staged the
+ * corpus cannot pass by quietly downloading it. (nltk 3.10.4 reports that refusal as a `ValueError` and lets the import
+ * finish; the line then fails with `LookupError`. The negative control asserts that shape.)
  */
 describe.skipIf(!engineInstalled())('the staged NLTK corpus, on a filesystem the engine cannot write to', () => {
     beforeAll(() => {
@@ -313,18 +314,31 @@ describe.skipIf(!engineInstalled())('the staged NLTK corpus, on a filesystem the
         }
     }, 600_000);
 
-    it('⛔ NEGATIVE CONTROL — without it, the engine reaches for the network and dies writing to $HOME', () => {
+    it('⛔ NEGATIVE CONTROL — without it, the engine reaches for the network, cannot write to $HOME, and parses nothing', () => {
         // Without this, the test below proves nothing: on any machine with `~/nltk_data` it would pass with
         // the corpus deleted from the asset entirely, which is the state that was DEPLOYED.
         withUnwritableHome((home) => {
             const attempt = invokeWithEnvironment({ HOME: home, NLTK_DATA: undefined });
 
-            expect(attempt.status).not.toBe(0);
             // The engine's own line, then the failure. Both halves matter: the first says it decided to
             // download, the second says the filesystem refused — the production failure, one errno over.
             expect(attempt.output).toContain('Downloading required NLTK resource');
-            expect(attempt.output).toMatch(/OSError|PermissionError/u);
+            expect(attempt.output).toMatch(/Errno 13/u);
             expect(attempt.output).toContain(path.join(home, 'nltk_data'));
+
+            // ⚠️ AND THE LINE IS NOT PARSED, in the shape the pinned nltk (`requirements.txt`) gives it. nltk 3.10.3
+            // raised the refused download at import, so the process died; 3.10.4 lets the import finish and the tagger
+            // then raises `LookupError` inside `parse_ingredient`, which `parse_line` turns into a `failed` row (CI run
+            // 39622781629, the day the unpinned nltk moved to 3.10.4). The exit status is therefore not the signal:
+            // the row is.
+            // The answer is stdout's one JSON line; nltk's own messages share the captured output around it.
+            const answer = attempt.output.split('\n').find((line) => line.startsWith('{"engine"'));
+
+            expect(answer, attempt.output).toBeDefined();
+
+            const [result] = parseEngineResponse(JSON.parse(answer ?? '{}')).results;
+
+            expect(result).toMatchObject({ status: 'failed', reason: 'LookupError' });
         });
     });
 

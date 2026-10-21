@@ -500,6 +500,12 @@ describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears
         ['ssm:DeleteParameter', parameter('/kitchensink/sandbox/azp-preview-mode'), false],
         ['ssm:PutParameter', parameter('/kitchensink/pr-91/anything'), false],
         ['ssm:PutParameter', parameter('/kitchensink/prod/anything'), false],
+        // The one account-scoped value a sandbox stack resolves (`WebhooksStack`'s log drain): the per-stack gate
+        // reads it to judge that stack current (`stackCurrency.sh`, ADR-0067). Exactly that name, read only.
+        ['ssm:GetParameter', parameter('/kitchensink/global/sentry/log-drain-dsn'), true],
+        ['ssm:GetParameter', parameter('/kitchensink/global/sentry/other-dsn'), false],
+        ['ssm:GetParametersByPath', parameter('/kitchensink/global/sentry'), false],
+        ['ssm:PutParameter', parameter('/kitchensink/global/sentry/log-drain-dsn'), false],
     ];
 
     it.each(rows)('%s on %s -> admitted=%s', (action, resource, expected) => {

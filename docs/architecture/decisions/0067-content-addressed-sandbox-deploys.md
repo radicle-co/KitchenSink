@@ -92,15 +92,12 @@ path read the leg flags.
   receipt: a key over the whole tier, recorded by a successful deploy. The non-prod role cannot write one to SSM today
   (`GithubActionsAccessStack.ts` grants it writes only under the owed-drop ledger). A key recorded in each run's outputs,
   read from the newest successful run of any PR, needs no IAM change.
-- **Residual: `kitchensink-identity-webhooks-sandbox` reads stale on every run.** It resolves
-  `/kitchensink/global/sentry/log-drain-dsn`, and the non-prod role can read SSM only under `/kitchensink/sandbox/*` and
-  `/kitchensink/pr-*/*` (measured 2026-10-21). Its reason line says the parameter could not be read. The deploy then
-  moves the stack's `CommitSha` tag (`stampCommitProvenance`), which is a real stack update that re-tags its resources
-  on every run. That is safe but not free. Granting the role read on that one parameter clears it, and that is a change
-  to a stack only production deploys.
-- **Residual: until `kitchensink-identity` is made immutable, every run rebuilds the identity image.** The repository is
-  `MUTABLE` today, and only the production role may change that. The owner can apply the setting
-  `ecrEnsureRepo.sh` derives once, with admin credentials, before the next production deploy does it.
+- The non-prod CI role reads `/kitchensink/global/sentry/log-drain-dsn`, the one account-scoped value a sandbox stack
+  resolves (`WebhooksStack`), so the gate can judge the webhooks stack current (owner ruling, 2026-10-21). Without it
+  that stack read stale and updated on every run.
+- `kitchensink-identity` was `MUTABLE` until 2026-10-21, when `ecrEnsureRepo.sh` was run once with administrator
+  credentials (owner ruling). Only the production role may change that setting, so a repository created later is
+  immutable from the start and one found otherwise is only reported by a non-prod run.
 - **Residual: the workflow's `paths:` list does not cover the root of the image closure.** A change to only the root
   lockfile, `.npmrc`, `.nvmrc`, `tsconfig.json`, `prettier.config.js` or `scripts/prepareProdManifest.mjs` changes the
   image key, but it starts no identity deploy. This was true before this decision.

@@ -124,6 +124,9 @@ export const NONPROD_STACK_NAME_PATTERNS = ['kitchensink-*-sandbox', PER_PR_NAME
 /** Read a parameter or a parameter tree. */
 const PARAMETER_READ_ACTIONS = ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'] as const;
 
+/** The account-scoped log-drain DSN `WebhooksStack` resolves (`ssmParamPath('global', 'sentry', 'log-drain-dsn')`). */
+const GLOBAL_LOG_DRAIN_DSN_PARAMETER = '/kitchensink/global/sentry/log-drain-dsn';
+
 /** Read a secret. */
 const SECRET_READ_ACTIONS = ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'] as const;
 
@@ -343,6 +346,10 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
         PARAMETER_READ_ACTIONS,
         ['sandbox', 'pr-*'].map((tier) => `arn:aws:ssm:${region}:${account}:parameter/kitchensink/${tier}/*`),
     );
+    // The one account-scoped value a sandbox stack resolves: `WebhooksStack`'s log-drain DSN. The per-stack deploy gate
+    // reads every value a stack resolved to judge it current (`stackCurrency.sh`, ADR-0067), and without this read the
+    // webhooks stack is judged stale and updated on every run. Exactly this name, and only `ssm:GetParameter`.
+    allow(role, ['ssm:GetParameter'], [`arn:aws:ssm:${region}:${account}:parameter${GLOBAL_LOG_DRAIN_DSN_PARAMETER}`]);
     allow(
         role,
         ['ssm:PutParameter', 'ssm:DeleteParameter'],

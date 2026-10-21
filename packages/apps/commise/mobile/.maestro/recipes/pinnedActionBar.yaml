@@ -133,8 +133,13 @@ appId: ${APP_ID}
 - assertVisible: 'Preview'
 
 # Leave the recipe as found: throw the device changes away through the header's menu. A published recipe's item is
-# 'Discard changes', and the recipe stays as it was last saved; the editor returns to the detail.
-- tapOn: 'More editor actions'
+# 'Discard changes', and the recipe stays as it was last saved; the editor returns to the detail. Tap again only if the
+# screen did not change (iOS can drop a tap while the page still moves; see `common/discardDraft.yaml`).
+- waitForAnimationToEnd:
+      timeout: 3000
+- tapOn:
+      text: 'More editor actions'
+      retryTapIfNoChange: true
 # Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
 # a tap), so wait for the screen to settle first.
 - waitForAnimationToEnd:

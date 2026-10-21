@@ -13,7 +13,15 @@ appId: ${APP_ID}
 # iOS shows its one-time "slide to type" keyboard intro over the editor when a field takes focus, and it covers the
 # menu (CI run 39333403320, iOS shard 1, ingredientGroups). Dismiss it if it is there.
 - runFlow: dismissKeyboardIntro.yaml
-- tapOn: 'More editor actions'
+# CI run 39504625987 (iOS shard 3, ingredientAddDetails): a caller that just closed a sheet calls this while the sheet still
+# slides away, and iOS ignores touches until it is gone: the tap "COMPLETED", the menu never opened, and the wait below
+# timed out over a "Saved" editor. Let the screen settle, and tap again only if the screen did not change: a tap that took
+# opens the menu.
+- waitForAnimationToEnd:
+      timeout: 3000
+- tapOn:
+      text: 'More editor actions'
+      retryTapIfNoChange: true
 # Owner ruling 2026-10-17, "Don't allow users to delete while saving": a flow that typed just before calling this may have
 # its create on the wire, and then the item is disabled and reads "Saving…". Wait for it to come back before tapping,
 # rather than tapping a dead control (a tap on a disabled row does nothing, so the next assertion would time out).
@@ -53,7 +61,11 @@ appId: ${APP_ID}
           visible: 'Close editor'
       commands:
           - runFlow: dismissKeyboardIntro.yaml
-          - tapOn: 'More editor actions'
+          - waitForAnimationToEnd:
+                timeout: 3000
+          - tapOn:
+                text: 'More editor actions'
+                retryTapIfNoChange: true
           - extendedWaitUntil:
                 visible:
                     text: 'Discard draft'

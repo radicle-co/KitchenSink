@@ -11,7 +11,14 @@ appId: ${APP_ID}
 # signer and could not find the downgraded owner's recipe. Android's clear does empty it, so there this is a no-op.
 #
 # The sign-out is the app's own (`useSignOutAndLeave` verifies the session ended, ADR-0009), never a cleared Keychain.
-- launchApp
+#
+# ⛔ `stopApp: false`: bring the app the caller just launched to the front, never stop and start it again. Every caller but
+# one comes here straight from `launchApp: clearState: true`, and a second stop-and-start within a second of a data clear
+# lost a race with Android's own cleanup: the clear's task removal timed out and killed the NEW process ("Killing 6592:
+# io.commise.mobile ... remove task", then "failed to attach"), and the screen stayed blank (local Android suite,
+# 2026-10-20 `sessionHandoff`, 2026-10-21 `makePublicConfirm`). A caller that wants a fresh start launches the app itself.
+- launchApp:
+      stopApp: false
 - extendedWaitUntil:
       visible: 'you@example\.com|Profile.*'
       timeout: 30000

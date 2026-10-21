@@ -102,6 +102,9 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000
+# A fresh start first, so the sign-out begins on Home with no keyboard up: `signOutIfSignedIn.yaml` only brings the app to
+# the front.
+- launchApp
 - runFlow: ../auth/signOutIfSignedIn.yaml
 - runFlow: ../auth/signin.yaml
 - tapOn: 'Discover'

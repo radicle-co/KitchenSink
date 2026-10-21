@@ -264,12 +264,44 @@ describe('ecrPushVerdict.sh: a content tag already in the repository is not buil
     const verdict = (scenario: Scenario): Run => run(VERDICT, ['kitchensink-food', CONTENT_TAG], scenario);
 
     // The tag IS the content: an image under it was built from these inputs, and the tag cannot be overwritten.
-    it('skips when the content tag exists, asking no ledger', () => {
-        const r = verdict({ image: 'present' });
+    it('skips when the content tag exists in a repository that keeps it immutable, asking no ledger', () => {
+        const r = verdict({ image: 'present', repository: CONFIGURED });
 
         expect(r.status).toBe(0);
         expect(r.stdout.trim()).toBe('skip');
         expect(r.calls.filter((call) => call.startsWith('ssm '))).toEqual([]);
+    });
+
+    it('skips when the repository makes every tag immutable', () => {
+        const r = verdict({ image: 'present', repository: { mutability: 'IMMUTABLE', filters: [] } });
+
+        expect(r.stdout.trim()).toBe('skip');
+    });
+
+    // ⛔ An image under a content tag is only the content while nothing can overwrite the tag. Where something can, any
+    // branch may have replaced it, so the tag is rebuilt and never trusted (slice 1 review, blocker 1).
+    it.each([
+        ['the repository is mutable', { mutability: 'MUTABLE', filters: [] }],
+        ['an exclusion filter names the content prefix', { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: ['ck-*'] }],
+        ['an exclusion filter matches every tag', { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: ['*'] }],
+        [
+            'an exclusion filter matches this tag inside it',
+            { mutability: 'IMMUTABLE_WITH_EXCLUSION', filters: ['*abab*'] },
+        ],
+    ])('pushes, never trusting the tag, when %s', (_label, repository) => {
+        const r = verdict({ image: 'present', repository });
+
+        expect(r.status).toBe(0);
+        expect(r.stdout.trim()).toBe('push');
+        expect(r.stderr).toContain('can be overwritten');
+    });
+
+    it('fails, answering nothing, when the repository cannot be described', () => {
+        const r = verdict({ image: 'present', repository: 'absent' });
+
+        expect(r.status).toBe(1);
+        expect(r.stdout.trim()).toBe('');
+        expect(r.stderr).toContain('::error::');
     });
 
     it('pushes when the content tag is absent', () => {

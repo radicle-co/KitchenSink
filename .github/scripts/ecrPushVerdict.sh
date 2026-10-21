@@ -20,7 +20,7 @@
 #   verdict=$(bash .github/scripts/ecrPushVerdict.sh <repositoryName> <imageTag>)
 #   if [ "$verdict" = push ]; then docker buildx build … --push .; fi
 #
-# @sideEffect Calls the ECR API for a release tag, and reads the release ledger in SSM.
+# @sideEffect Calls the ECR API for a release or content tag, and reads the release ledger in SSM.
 set -euo pipefail
 
 REPO="${1-}"
@@ -39,20 +39,31 @@ if ecr_tag_is_preview "$TAG"; then
     exit 0
 fi
 
-# A CONTENT tag is the content: an image under it was built from exactly these inputs, and the tag is immutable, so it
-# is never built twice. No ledger: the ledger proves PRODUCTION pushed a release, and a content tag is not a release.
+# A CONTENT tag is the content: an image under it was built from exactly these inputs, so it is never built twice. No
+# ledger: the ledger proves PRODUCTION pushed a release, and a content tag is not a release.
+# ⛔ That holds only while nothing can overwrite the tag. Where the repository lets something overwrite it (MUTABLE, or
+# an exclusion filter that matches it), any branch may have replaced the image, so the tag is rebuilt, never trusted.
 if ecr_tag_is_content "$TAG"; then
-    if output="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=${TAG}" --output json 2>&1)"; then
-        echo "[ecr] ${REPO}:${TAG} is already built from these inputs; skipping the build." >&2
-        echo skip
-        exit 0
+    if ! output="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=${TAG}" --output json 2>&1)"; then
+        if [[ "$output" == *ImageNotFoundException* ]]; then
+            echo push
+            exit 0
+        fi
+        echo "::error::ecr-push-verdict: could not tell whether ${REPO}:${TAG} exists: ${output}" >&2
+        exit 1
     fi
-    if [[ "$output" == *ImageNotFoundException* ]]; then
+    if ! repository="$(aws ecr describe-repositories --repository-names "$REPO" --output json 2>&1)"; then
+        echo "::error::ecr-push-verdict: could not tell whether ${REPO} keeps ${TAG} immutable: ${repository}" >&2
+        exit 1
+    fi
+    if ! ecr_repository_protects_tag "$repository" "$TAG"; then
+        echo "[ecr] ${REPO}:${TAG} exists, but the repository's tag mutability means it can be overwritten; rebuilding it." >&2
         echo push
         exit 0
     fi
-    echo "::error::ecr-push-verdict: could not tell whether ${REPO}:${TAG} exists: ${output}" >&2
-    exit 1
+    echo "[ecr] ${REPO}:${TAG} is already built from these inputs and cannot be overwritten; skipping the build." >&2
+    echo skip
+    exit 0
 fi
 
 if ! output="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=${TAG}" --output json 2>&1)"; then

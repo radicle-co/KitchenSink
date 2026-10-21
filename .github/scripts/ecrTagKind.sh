@@ -52,6 +52,26 @@ ecr_tag_kind() {
     fi
 }
 
+# Can nothing overwrite <tag> in the repository `aws ecr describe-repositories` described as <repositoryJson>? True for
+# an IMMUTABLE repository, and for an IMMUTABLE_WITH_EXCLUSION one whose exclusion filters (ECR wildcards, `*` only)
+# all miss the tag. Anything else, an unreadable answer included, is false. Pure.
+ecr_repository_protects_tag() {
+    local repository_json="$1" tag="$2" mutability filter
+    mutability="$(jq -r '.repositories[0].imageTagMutability // ""' <<<"$repository_json" 2>/dev/null)" || return 1
+    case "$mutability" in
+        IMMUTABLE) return 0 ;;
+        IMMUTABLE_WITH_EXCLUSION) ;;
+        *) return 1 ;;
+    esac
+    while IFS= read -r filter; do
+        # An ECR wildcard has only `*`, so every other glob character is quoted before the match.
+        if [[ "$tag" == $(printf '%s' "$filter" | sed 's/[][?\\]/\\&/g') ]]; then
+            return 1
+        fi
+    done < <(jq -r '.repositories[0].imageTagMutabilityExclusionFilters // [] | .[] | .filter' <<<"$repository_json")
+    return 0
+}
+
 # Where production records the digest it pushed under a release tag. Only the production CI role can write under
 # /kitchensink/prod/ (the non-prod role has no write there), so an entry is proof that PRODUCTION pushed the image.
 ecr_release_ledger_name() {

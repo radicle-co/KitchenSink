@@ -249,8 +249,8 @@ local_maestro_toolchain() {
 
     local version
     version="$(command maestro --version 2>/dev/null | tail -1)"
-    if [ "$version" != '2.6.1' ]; then
-        echo "local:maestro: ⚠️ Maestro ${version:-unknown} — CI pins 2.6.1" >&2
+    if [ "$version" != '2.11.0' ]; then
+        echo "local:maestro: ⚠️ Maestro ${version:-unknown} — CI pins 2.11.0" >&2
     fi
 }
 

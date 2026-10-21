@@ -231,10 +231,14 @@ env:
     # change both values together (the new digest comes from that release's `checksums_sha256.txt`) and
     # re-record the baselines in the SAME PR. `workflowProvenance.test.ts` fails if either install stops seeing
     # a literal version, the tagged URL or a checked digest, or if the two installs see different pins.
-    MAESTRO_VERSION: '2.6.1'
-    MAESTRO_SHA256: '3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b'
+    # 2.11.0, not 2.6.1 (2026-10-20): 2.6.1's iOS driver took the only running app as the foreground one, so a hierarchy
+    # read just after a launch snapshotted an app still starting and XCTest answered "Application … is not running"
+    # (local full suite, `newCollectionSheet`; the app was up and focused 0.17 s earlier in the Simulator log). Removed
+    # in Maestro PR #3398, released in 2.7.0; read in `Routes/XCTest/RunningApp.swift` at `cli-2.11.0`.
+    MAESTRO_VERSION: '2.11.0'
+    MAESTRO_SHA256: '5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a'
     # Maestro's own opt-out for its anonymous analytics (`MAESTRO_CLI_NO_ANALYTICS`, "any value", read by
-    # `maestro.cli.analytics.Analytics` in `maestro-cli-2.6.1.jar`): without it the CLI makes a network call at start and
+    # `maestro.cli.analytics.Analytics` in the CLI jar): without it the CLI makes a network call at start and
     # prints a notice on every flow. Top-level so both Maestro jobs get it from one place.
     MAESTRO_CLI_NO_ANALYTICS: '1'
 
@@ -740,7 +744,8 @@ jobs:
         #
         # ⛔ AND NOT MAESTRO'S OWN `--shard-split`, WHICH WOULD PAY THE FIXED HALF ONCE. That is the option
         # that looks strictly better and it is declined on FOUR grounds, read out of Maestro's own source at
-        # the pinned tag (`cli-2.6.1`, `maestro-cli/.../command/TestCommand.kt`) rather than inferred:
+        # `cli-2.6.1` (`maestro-cli/.../command/TestCommand.kt`; the same options at the pinned `cli-2.11.0`) rather
+        # than inferred:
         #
         #   1. ⛔ ONE PROCESS MEANS ONE IDENTITY, and this is the blocker that survives every other fix.
         #      `handleSessions` fans out `effectiveShards` coroutines in ONE JVM, and `-e KEY=VALUE` is parsed
@@ -758,7 +763,7 @@ jobs:
         #      the user's `--driver-host-port` UNCONDITIONALLY (its `effectiveShards` argument is unused on that
         #      branch). So `--driver-host-port 7001 --shard-split 2` hands 7001 to BOTH shards, with a per-shard
         #      `isPortAvailable` race whose loser raises `CliError` and kills the whole run. It cannot be
-        #      parameterised per shard either: 2.6.1 exposes ONE `--driver-host-port` per invocation, so the
+        #      parameterised per shard either: the CLI exposes ONE `--driver-host-port` per invocation, so the
         #      only alternative is omitting it — back to `ServerSocket(0)` and the kernel ephemeral range, the
         #      collision class the pin removed (all 26 ports in the failing run were inside 32768-60999).
         #   4. ⚠️ AND IT WOULD STILL BE SLOWER IN WALL CLOCK, which is the thing being optimised. "Pays the
@@ -1127,15 +1132,15 @@ jobs:
             #
             # INTEGRITY, stated precisely so nobody reads more into it than is there. Upstream publishes
             # `checksums_sha256.txt` beside `maestro.zip` in each release, and GitHub's own independently
-            # computed asset digest for `cli-2.6.1` agrees with it (both
-            # sha256:3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b, cross-checked
-            # 2026-08-07). `MAESTRO_SHA256` (top-level `env:`) is that value. Upstream publishes NO signature and no
+            # computed asset digest for `cli-2.11.0` agrees with it (both
+            # sha256:5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a, cross-checked
+            # 2026-10-20). `MAESTRO_SHA256` (top-level `env:`) is that value. Upstream publishes NO signature and no
             # provenance attestation for this asset, so this is not authenticity: it proves the bytes are
             # the ones we pinned and reviewed, not that upstream was never compromised. A re-uploaded or
             # substituted asset fails the build instead of running — which is the guarantee that matters
             # here. (The installer's own "archive integrity" check is `unzip -t`: corruption, not identity.)
             #
-            # 2.6.1 is the version this repo develops against locally, i.e. the one the baselines will be
+            # 2.11.0 is the version this repo develops against locally, i.e. the one the baselines will be
             # recorded with. The pin itself (`MAESTRO_VERSION`/`MAESTRO_SHA256`) is declared ONCE, in this
             # file's top-level `env:`, because the iOS Simulator job installs the same CLI — see the bump rule
             # there.

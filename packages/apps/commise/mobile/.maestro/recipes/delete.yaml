@@ -30,9 +30,6 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - scrollUntilVisible:
       element: 'Delete recipe'
       direction: DOWN
@@ -45,9 +42,6 @@ appId: ${APP_ID}
           enabled: true
       timeout: 30000
 - tapOn: 'Delete recipe'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 # ⛔ NO `scrollUntilVisible` HERE, DELIBERATELY — and this is the whole point of the step. RecipeDeleteDialog
 # is an RN `Modal` overlaying the screen, so the confirm is visible the instant the trigger is tapped; it does
 # not need to be scrolled to and MUST NOT need to be. A `scrollUntilVisible` here would PASS against the exact

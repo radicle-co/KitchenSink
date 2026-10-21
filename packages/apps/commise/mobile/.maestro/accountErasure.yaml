@@ -111,9 +111,6 @@ appId: ${APP_ID}
       text: 'Erase my data'
       enabled: false
 
-# Audit 2026-10-19, A1.18: a dialog fades in, and a tap during the fade can be lost.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Confirmation phrase'
 - inputText: 'ERASE MY DATA'
 # Close the keyboard first: on iOS the dialog's actions sit behind it, still counted as visible, and the confirm tap

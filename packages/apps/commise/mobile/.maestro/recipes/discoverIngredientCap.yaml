@@ -22,9 +22,6 @@ appId: ${APP_ID}
       timeout: 40000
 
 - tapOn: 'Filters.*'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - runFlow:
       file: common/typeIngredientFilter.yaml
       env:

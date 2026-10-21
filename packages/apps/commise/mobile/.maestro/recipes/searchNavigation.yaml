@@ -161,10 +161,6 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 # Herb Risotto is 35 min total (and ≤ 60 prep), so selecting a 60-minute bound must keep it — a filter that
 # wrongly dropped a matching recipe fails here. Close the sheet, then read the results sentence.
 - tapOn: 'Under 60 min'
@@ -174,9 +170,6 @@ appId: ${APP_ID}
       timeout: 40000
 # Reopen the sheet and press the SAME (now-active) bound again to clear it (the round trip proves it toggles).
 - tapOn: 'Filters.*'
-# Audit 2026-10-19, A1.18: the filter sheet slides up; wait for it to settle before the next tap or input.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Any'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 
@@ -185,9 +178,6 @@ appId: ${APP_ID}
 # `buildSpec.md` §4.4). Herb Risotto's total time is 35 min (seed.ts), so an "Under 15 min" bound must exclude it — a
 # filter that dropped maxTotalTime would keep rendering it and fail here. "Any" clears the bound again.
 - tapOn: 'Filters.*'
-# Audit 2026-10-19, A1.18: the filter sheet slides up; wait for it to settle before the next tap or input.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Under 15 min'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 # ⛔ Decision (buildSpec.md §4.6, resolved decision 10): every no-result state ends in tag chips and the Trending rail,
@@ -199,9 +189,6 @@ appId: ${APP_ID}
       visible: 'No recipes for .*Risotto.* with these filters'
       timeout: 40000
 - tapOn: 'Filters.*'
-# Audit 2026-10-19, A1.18: the filter sheet slides up; wait for it to settle before the next tap or input.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Any'
 - tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
@@ -228,9 +215,6 @@ appId: ${APP_ID}
 # region. Same idiom `create.yaml` uses for the picker's "Create …" affordance under the same conditions — it
 # still waits for the row to EXIST, it just also brings it into view.
 - tapOn: 'Filters.*'
-# Audit 2026-10-19, A1.18: the filter sheet slides up; wait for it to settle before the next tap or input.
-- waitForAnimationToEnd:
-      timeout: 3000
 - runFlow:
       file: common/typeIngredientFilter.yaml
       env:
@@ -249,9 +233,6 @@ appId: ${APP_ID}
 
 # Reopen the sheet, confirm the chip, and remove it — clearing the filter restores the browse set.
 - tapOn: 'Filters.*'
-# Audit 2026-10-19, A1.18: the filter sheet slides up; wait for it to settle before the next tap or input.
-- waitForAnimationToEnd:
-      timeout: 3000
 - assertVisible: 'Remove ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Show \d+ recipes?|Show recipes'

@@ -27,7 +27,7 @@ appId: ${APP_ID}
 #
 # ⚠️ ONE `pressKey: Back` IS NOT ENOUGH WITH A SOFT KEYBOARD UP. The CI AVD runs `hw.keyboard=no`, so a field just
 # typed into holds the soft keyboard, and Android hands the first BACK to the IME (run 37268858758). The editor legs
-# press once, let the screen settle, and press again only while the editor is still showing.
+# press once, and press again only while the editor is still showing.
 #
 # ⚠️ IT LEAVES THE LIBRARY AS FOUND. Leg 1's draft is discarded through the recipe's own editor, and leg 3's device
 # changes are discarded from the resume notice, so the seed is untouched.
@@ -46,8 +46,6 @@ appId: ${APP_ID}
 # ⛔ NO `hideKeyboard`: on Android it is itself a BACK event, which would leave the editor before the press under test.
 # THE PRESS UNDER TEST: the first may only close the keyboard, so a second follows while the editor still shows.
 - pressKey: Back
-- waitForAnimationToEnd:
-      timeout: 2000
 - runFlow:
       when:
           visible: 'Close editor'
@@ -115,8 +113,6 @@ appId: ${APP_ID}
 
 # ⛔ NO `hideKeyboard` — see leg 1.
 - pressKey: Back
-- waitForAnimationToEnd:
-      timeout: 2000
 - runFlow:
       when:
           visible: 'Close editor'
@@ -147,9 +143,6 @@ appId: ${APP_ID}
 - tapOn: 'Discard'
 # The notice's Discard asks first; its confirm drops the device changes.
 - assertVisible: 'Discard your changes\?'
-# Audit 2026-10-19, A1.18: the dialog fades in; wait for it before the tap.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn:
       text: 'Discard'
       below: 'Discard your changes\?'
@@ -176,9 +169,6 @@ appId: ${APP_ID}
       timeout: 40000
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
-# Audit 2026-10-19, A1.18: the sheet slides up and its fields are visible from the first frame; wait before typing.
-- waitForAnimationToEnd:
-      timeout: 3000
 - runFlow:
       file: common/typeCollectionName.yaml
       env:
@@ -220,25 +210,17 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
-# Audit 2026-10-19, A1.18: the sections list is a sliding sheet; wait for it to settle before the tap.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Ingredients'
 - extendedWaitUntil:
       visible: 'Paste a list'
       timeout: 20000
 - tapOn: 'Paste a list'
 - assertVisible: 'Ingredient lines'
-# Audit 2026-10-19, A1.18: the Paste a list sheet slides up and is visible from its first frame; wait before typing into it.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Ingredient lines'
 - inputText: '2 cups flour'
 
 # ⛔ NO `hideKeyboard` — see leg 1. The first press may only close the keyboard, so a second follows while the sheet shows.
 - pressKey: Back
-- waitForAnimationToEnd:
-      timeout: 2000
 - runFlow:
       when:
           visible: 'Ingredient lines'
@@ -255,8 +237,6 @@ appId: ${APP_ID}
 
 # ── LEG 8: closing the sheet, then leaving the untitled editor: nothing was titled, so it leaves and creates nothing. ──
 - pressKey: Back
-- waitForAnimationToEnd:
-      timeout: 2000
 - runFlow:
       when:
           visible: 'Ingredient lines'

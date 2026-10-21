@@ -56,10 +56,6 @@ appId: ${APP_ID}
 
 # Its panel opens from the row's ⋯ Food details, a sheet titled for the food.
 - tapOn: 'Actions for Maestro Glorp'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Food details'
 - extendedWaitUntil:
       visible: '^No nutritional data available$'

@@ -13,15 +13,7 @@ appId: ${APP_ID}
 # iOS shows its one-time "slide to type" keyboard intro over the editor when a field takes focus, and it covers the
 # menu (CI run 39333403320, iOS shard 1, ingredientGroups). Dismiss it if it is there.
 - runFlow: dismissKeyboardIntro.yaml
-# CI run 39504625987 (iOS shard 3, ingredientAddDetails): a caller that just closed a sheet calls this while the sheet still
-# slides away, and iOS ignores touches until it is gone: the tap "COMPLETED", the menu never opened, and the wait below
-# timed out over a "Saved" editor. Let the screen settle, and tap again only if the screen did not change: a tap that took
-# opens the menu.
-- waitForAnimationToEnd:
-      timeout: 3000
-- tapOn:
-      text: 'More editor actions'
-      retryTapIfNoChange: true
+- tapOn: 'More editor actions'
 # Owner ruling 2026-10-17, "Don't allow users to delete while saving": a flow that typed just before calling this may have
 # its create on the wire, and then the item is disabled and reads "Saving…". Wait for it to come back before tapping,
 # rather than tapping a dead control (a tap on a disabled row does nothing, so the next assertion would time out).
@@ -30,57 +22,10 @@ appId: ${APP_ID}
           text: 'Discard draft'
           enabled: true
       timeout: 30000
-# The menu is a native Modal that slides up (`Sheet.native.tsx`), and iOS ignores touches until a modal finishes
-# presenting. The item is in the hierarchy, and so "visible", from the first frame of the slide, so a tap can land
-# mid-slide and do nothing: the sheet then sits open with the item showing (full local iOS run, 2026-10-19). Waiting for
-# the screen to stop moving puts the tap on a presented sheet.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Discard draft'
 - assertVisible: 'Discard this draft?'
-# Audit 2026-10-19, A1.12: the dialog fades in, and a tap on it while it fades can be lost.
-- waitForAnimationToEnd:
-      timeout: 2000
-# CI run 39376194588 (Android shard 7, ingredientRemove): the dialog sat idle after the tap, neither "Discarding…" nor an
-# error, so the tap was dropped. Tap again only if the screen did not change: a tap that took makes the dialog busy or close.
-- tapOn:
-      text: 'Discard'
-      retryTapIfNoChange: true
-# CI run 39313803199 (Android shard 2, ingredientGroups): the dialog closed but the editor stayed open, status "Saved". That is
-# designed: a Discard confirmed while a checkpoint write is on the wire is REFUSED by the outbox, silently, and the editor goes
-# back to editing (`useRecipeEditor.ts` discardThrough -> discardDeclined; owner ruling 2026-10-17, "Don't allow users to
-# delete while saving"). The checkpoint can start after the menu item was drawn enabled. So if the editor is still there once
-# the dialog is gone, discard once more: the menu item waits out the in-flight write.
-- extendedWaitUntil:
-      notVisible: 'Discard this draft?'
-      timeout: 10000
-- waitForAnimationToEnd:
-      timeout: 3000
-- runFlow:
-      when:
-          visible: 'Close editor'
-      commands:
-          - runFlow: dismissKeyboardIntro.yaml
-          - waitForAnimationToEnd:
-                timeout: 3000
-          - tapOn:
-                text: 'More editor actions'
-                retryTapIfNoChange: true
-          - extendedWaitUntil:
-                visible:
-                    text: 'Discard draft'
-                    enabled: true
-                timeout: 30000
-          - waitForAnimationToEnd:
-                timeout: 3000
-          - tapOn: 'Discard draft'
-          - assertVisible: 'Discard this draft?'
-          - waitForAnimationToEnd:
-                timeout: 2000
-          - tapOn:
-                text: 'Discard'
-                retryTapIfNoChange: true
-# Still the proof that the draft is gone.
+- tapOn: 'Discard'
+# The proof that the draft is gone.
 - extendedWaitUntil:
       notVisible: 'Close editor'
       timeout: 20000

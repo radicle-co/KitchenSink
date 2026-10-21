@@ -39,7 +39,6 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'you@example.com'
       timeout: 30000
-- waitForAnimationToEnd
 - takeScreenshot:
       path: baselines/auth-signin.png
       label: 'baseline: FR-045a signed-out front door'
@@ -48,7 +47,6 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Create your account'
       timeout: 30000
-- waitForAnimationToEnd
 - takeScreenshot:
       path: baselines/auth-signup.png
       label: 'baseline: FR-045a sign-up surface'
@@ -65,7 +63,6 @@ appId: ${APP_ID}
 - scrollUntilVisible:
       element: 'Today’s nutrition'
       direction: DOWN
-- waitForAnimationToEnd
 # `cropOn` MUST match the assertion's crop exactly — see the lockstep warning above.
 - takeScreenshot:
       path: baselines/home-roadmap-placeholder.png
@@ -85,7 +82,6 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close editor'
       timeout: 30000
-- waitForAnimationToEnd
 - takeScreenshot:
       path: baselines/recipe-create-step1.png
       label: 'baseline: FR-001/FR-001b recipe editor Details'

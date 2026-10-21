@@ -76,9 +76,6 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 - assertVisible: 'Ingredients'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 # The detail's Back is a disc over the hero photo, named for where it goes ("Back to My recipes"), so it is UNIQUE: under
 # three-button navigation Android's system bar publishes a node named exactly `Back`, and a Maestro selector matches the
 # WHOLE string, so this one can never resolve to the OS button (the reason the old text row had to be anchored above the

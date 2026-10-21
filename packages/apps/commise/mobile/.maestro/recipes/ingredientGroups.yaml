@@ -56,13 +56,11 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Garlic'
-# Audit 2026-10-19, A1.18 (a false green before): the menu slides up, so on iOS the absence check ran on the first frame,
-# before the menu had any items. Wait for 'Move up' (an item this row has), let the slide end, then check the absence.
+# Audit 2026-10-19, A1.18 (a false green before): on iOS the absence check ran before the menu had any items. Wait for
+# 'Move up' (an item this row has), then check the absence.
 - extendedWaitUntil:
       visible: 'Move up'
       timeout: 10000
-- waitForAnimationToEnd:
-      timeout: 3000
 - assertNotVisible: 'Move to group…'
 - tapOn: 'Move up'
 # Garlic moves up a row, which can be above the top of the screen (run 38447859313 kept the page still and left only
@@ -105,14 +103,8 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'Actions for Maestro Garlic'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Move to group…'
 - assertVisible: 'Move to group'
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Paste'
 - extendedWaitUntil:
       notVisible: 'No group'
@@ -123,13 +115,7 @@ appId: ${APP_ID}
 
 # Rename the group; its line follows.
 - tapOn: 'Actions for Paste'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Rename group'
-- waitForAnimationToEnd:
-      timeout: 3000
 # Typed through the shared step, which reads the name back: CI run 39400327458 (iOS shard 4) dropped keystrokes and
 # renamed the group `C`, and the old check after Enter still passed. The heading's own control is the proof.
 - runFlow:
@@ -144,10 +130,6 @@ appId: ${APP_ID}
 
 # Remove the group, keeping its line: no heading is left, and both lines are still here.
 - tapOn: 'Actions for Curry paste'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Remove group (keep its ingredients)'
 - assertNotVisible: 'Curry paste'
 - assertVisible: 'Edit Maestro Garlic'

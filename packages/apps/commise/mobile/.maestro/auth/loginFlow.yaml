@@ -91,14 +91,8 @@ appId: ${APP_ID}
 # `signinHome.yaml` is not reused here because it enters the CORRECT password; this step enters a wrong one.
 - tapOn: 'you@example.com'
 - inputText: '${E2E_SIGNIN_EMAIL}'
-# Read back and retyped once, for `signinHome.yaml`'s reason (the iOS Simulator drops keystrokes). A dropped key here
-# reads as "Couldn't find your account" instead of the wrong-password error this step asserts.
-- runFlow:
-      when:
-          notVisible: '${E2E_SIGNIN_EMAIL}'
-      commands:
-          - eraseText: 64
-          - inputText: '${E2E_SIGNIN_EMAIL}'
+# Read back, for `signinHome.yaml`'s reason (the iOS Simulator drops keystrokes). A dropped key would otherwise read as
+# "Couldn't find your account" instead of the wrong-password error this step asserts.
 - assertVisible: '${E2E_SIGNIN_EMAIL}'
 # The Next key, for `signinHome.yaml`'s reason: the iOS keyboard covers the password field.
 - pressKey: Enter

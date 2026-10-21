@@ -59,7 +59,7 @@ const MIN_SHARED_STEP_CALLS = 125;
  */
 const BARE_ALLOWED: ReadonlyArray<{ readonly file: string; readonly text: string; readonly reason: string }> = [];
 
-/** One `scrollUntilVisible` directly followed by a `tapOn` of the same text. */
+/** One `scrollUntilVisible` followed, past any further scrolls, by a `tapOn` of the same text. */
 interface ScrollTapPair {
     readonly file: string;
     readonly text: string;
@@ -72,28 +72,39 @@ interface ScrollTapPair {
  *
  * @param file - The flow's path, for the report.
  * @param source - The flow's YAML.
- * @returns One entry per `scrollUntilVisible` whose very next command taps the same text.
+ * @returns One entry per `scrollUntilVisible` whose next command past any further scrolls taps the same text.
  */
 export function scrollTapPairsIn(file: string, source: string): readonly ScrollTapPair[] {
     return parseFlow(file, source).flatMap((document) =>
         [...commandLists(document)].flatMap((commands) =>
             commands.flatMap((command, index): ScrollTapPair[] => {
-                const next = commands[index + 1];
-
-                if (!isRecord(command) || !isRecord(command['scrollUntilVisible']) || !isRecord(next)) {
+                if (!isRecord(command) || !isRecord(command['scrollUntilVisible'])) {
                     return [];
                 }
 
+                // The scrolls straight after this one, then the first command that is not a scroll. A second scroll (to a
+                // hint under a label, say) moves nothing when its own target is already "visible", so a tap after the
+                // run still taps what THIS scroll stopped on.
+                const run = commands.slice(index + 1);
+                const after = run.findIndex((each) => !isRecord(each) || !isRecord(each['scrollUntilVisible']));
+                const next = after === -1 ? undefined : run[after];
                 const scroll = command['scrollUntilVisible'];
                 const scrolled = textOf(scroll['element']);
 
-                if (scrolled === undefined || scrolled !== textOf(next['tapOn'])) {
+                if (!isRecord(next) || scrolled === undefined || scrolled !== textOf(next['tapOn'])) {
                     return [];
                 }
 
                 const direction = typeof scroll['direction'] === 'string' ? scroll['direction'].toUpperCase() : 'DOWN';
+                const centered = [command, ...run.slice(0, after)].some(
+                    (each) =>
+                        isRecord(each) &&
+                        isRecord(each['scrollUntilVisible']) &&
+                        textOf(each['scrollUntilVisible']['element']) === scrolled &&
+                        each['scrollUntilVisible']['centerElement'] === true,
+                );
 
-                return [{ file, text: scrolled, direction, centered: scroll['centerElement'] === true }];
+                return [{ file, text: scrolled, direction, centered }];
             }),
         ),
     );
@@ -190,6 +201,24 @@ describe('the rules themselves', () => {
 
         expect(pair).toMatchObject({ text: 'Save', direction: 'DOWN', centered: false });
         expect(refusedPairs([pair as ScrollTapPair])).toHaveLength(1);
+    });
+
+    it('finds a pair across a run of scrolls: the tap after the LAST scroll still taps what the first one stopped on', () => {
+        // Local iOS run, 2026-10-20, `addIngredientLine`: a scroll to the field's label, then one to its hint, then a tap
+        // on the label. Both scrolls stopped with the label under the pinned action bar, and the tap missed the field.
+        const run = flow(
+            "- scrollUntilVisible:\n    element: 'Add'\n    direction: DOWN\n- scrollUntilVisible:\n    element: 'Hint'\n    direction: DOWN\n- tapOn: 'Add'\n",
+        );
+
+        expect(refusedPairs(scrollTapPairsIn('a.yaml', run))).toHaveLength(1);
+    });
+
+    it('accepts a run of scrolls when a scroll to the tapped text centres it', () => {
+        const run = flow(
+            "- scrollUntilVisible:\n    element: 'Add'\n    direction: DOWN\n- scrollUntilVisible:\n    element: 'Add'\n    direction: DOWN\n    centerElement: true\n- tapOn: 'Add'\n",
+        );
+
+        expect(refusedPairs(scrollTapPairsIn('a.yaml', run))).toEqual([]);
     });
 
     it('ignores a pair that is only in a comment', () => {

@@ -70,14 +70,7 @@ appId: ${APP_ID}
 # US7: Change food keeps the cook's amount and unit. The field opens on the food's name with the caret at its end
 # (`Combobox.native.tsx`'s focus request), so the name is erased before the search is typed.
 - tapOn: 'Actions for Flour'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Change food'
-# The field this types into opens only after the menu has closed.
-- waitForAnimationToEnd:
-      timeout: 3000
 - eraseText: 20
 - inputText: 'boneless skinless chicken brea'
 - extendedWaitUntil:
@@ -96,13 +89,7 @@ appId: ${APP_ID}
 # R7: Change food again and type, but choose nothing. A step first, so the only thing Publish can refuse is the
 # held text (a new recipe has no steps, and an empty Steps section would be refused too).
 - tapOn: 'Actions for boneless skinless chicken breasts'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Change food'
-- waitForAnimationToEnd:
-      timeout: 3000
 - eraseText: 40
 - inputText: 'smoked flour'
 # Close the keyboard and jump to Steps first, as `create.yaml` does. With the keyboard and the held text's list up, the

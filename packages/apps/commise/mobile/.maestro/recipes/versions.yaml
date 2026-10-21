@@ -188,10 +188,6 @@ appId: ${APP_ID}
           DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Version history'
 - assertVisible: 'Version history'
 
@@ -216,10 +212,6 @@ appId: ${APP_ID}
 # ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero. Every past
 # version's actions are in its row's ⋯ menu (§6.6).
 - tapOn: 'More actions for version 2'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Preview'
 - assertVisible:
       text: 'Version 2 Preview: ${E2E_RECIPE_LAMB} .v2.*'
@@ -230,10 +222,6 @@ appId: ${APP_ID}
 # COMPARE — per row, against the current version. Only the title changed between v2 and v3, so the one row is
 # the title, as what v2 said and what the recipe says now.
 - tapOn: 'More actions for version 2'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Compare with current'
 - assertVisible: 'Version 2 and the current version'
 - assertVisible: 'Title'
@@ -245,10 +233,6 @@ appId: ${APP_ID}
 # current status and gaining a menu, once the post-restore refetch lands. The snackbar says so, with Undo.
 - assertNotVisible: 'More actions for version 3'
 - tapOn: 'More actions for version 2'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Restore this version'
 - extendedWaitUntil:
       visible: 'Restored version 2.'

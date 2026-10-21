@@ -25,16 +25,16 @@ appId: ${APP_ID}
       env:
           TITLE: 'Maestro Amount First'
 
-- scrollUntilVisible:
-      element: 'Add an ingredient'
-      direction: DOWN
-      timeout: 20000
-# A-007 / E13: the field's label and its hint are drawn above it, and not only spoken. The hint is scrolled to as well:
-# the scroll to the label can stop with the label at the screen's foot and the hint under it (run 38447859313).
-- scrollUntilVisible:
-      element: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.'
-      direction: DOWN
-      timeout: 20000
+# The field is brought to the middle of the page before it is tapped. A bare scroll stopped with the label and its hint
+# under the pinned action bar, which iOS still counts as visible, and the tap missed the field (local iOS run,
+# 2026-10-20; run 38447859313 had the hint at the screen's foot).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+# A-007 / E13: the field's label and its hint are drawn above it, and not only spoken.
+- assertVisible: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.'
 - tapOn: 'Add an ingredient'
 - inputText: '2 cups Flou'
 # The live reading: the amount and the known unit, then the food the search is asked for.

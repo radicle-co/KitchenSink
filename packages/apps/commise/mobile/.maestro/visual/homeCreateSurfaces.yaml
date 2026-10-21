@@ -31,7 +31,6 @@ appId: ${APP_ID}
 - scrollUntilVisible:
       element: 'Today’s nutrition'
       direction: DOWN
-- waitForAnimationToEnd
 
 # ⚠️ `cropOn` IS MANDATORY ON HOME, and the reason is not cosmetic: `HomeGreeting` renders a time-of-day
 # greeting from one of THREE buckets (`Good morning/afternoon/evening`, with the cook's name when there is one) over the viewer's LIVE local
@@ -70,7 +69,6 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close editor'
       timeout: 30000
-- waitForAnimationToEnd
 
 # FR-001 / FR-001b — full-screen is safe HERE (unlike Home): the editor opens at scroll-top with an EMPTY
 # form and its valid defaults (servings 1 / prep 0 / cook 0 per `defaultRecipeFormValues`), no seeded data and

@@ -171,9 +171,6 @@ appId: ${APP_ID}
 # (phones)"): it scrolls with the page, below this screen. Closing the keyboard from the first heading pins it again.
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Preview'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'Preview. This is how it looks to others.'
       timeout: 20000

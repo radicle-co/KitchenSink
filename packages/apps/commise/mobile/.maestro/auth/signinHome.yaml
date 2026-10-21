@@ -60,14 +60,9 @@ appId: ${APP_ID}
           - inputText: '${E2E_SIGNIN_EMAIL}'
           # ⚠️ The iOS Simulator can DROP keystrokes from `inputText` (run 38407211276 typed `t.com` and
           # `tigner04+clerk_test@…` for `test-…signer04+clerk_test@…`), and a dropped key is a sign-in that fails for a
-          # reason that is not the app. So the field is read back and retyped once. The selector is the address
-          # itself: Maestro also matches a selector that EQUALS the text, so `+` and `.` need no escaping.
-          - runFlow:
-                when:
-                    notVisible: '${E2E_SIGNIN_EMAIL}'
-                commands:
-                    - eraseText: 64
-                    - inputText: '${E2E_SIGNIN_EMAIL}'
+          # reason that is not the app. So the field is read back, and a dropped key fails here rather than at the
+          # sign-in. The selector is the address itself: Maestro also matches a selector that EQUALS the text, so `+`
+          # and `.` need no escaping.
           - assertVisible: '${E2E_SIGNIN_EMAIL}'
           # The email field's Next key moves focus to the password, as a cook on a keyboard does (`login.tsx`
           # `onSubmit`, 4f685d9d4). NOT `tapOn: 'Your password'`: since the social buttons moved the form down, the
@@ -102,12 +97,6 @@ appId: ${APP_ID}
                     # iOS can raise "Save Password?" while the code is typed, so it is dismissed again before the read-back.
                     - runFlow: dismissSavePassword.yaml
                     # The email's read-back, for the code.
-                    - runFlow:
-                          when:
-                              notVisible: '424242'
-                          commands:
-                              - eraseText: 10
-                              - inputText: '424242'
                     - assertVisible: '424242'
                     - runFlow: dismissSavePassword.yaml
                     - tapOn: 'Verify'

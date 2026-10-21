@@ -67,13 +67,7 @@ appId: ${APP_ID}
 # The field opens on the food's name with the caret at its end (`Combobox.native.tsx`'s focus request), so the name is
 # erased before the search is typed. In Change food the row's name is the field, so the bare root name is the option.
 - tapOn: 'Actions for boneless skinless chicken breasts, fried'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Change food'
-- waitForAnimationToEnd:
-      timeout: 3000
 - eraseText: 40
 - inputText: 'grilled boneless skinless chicken breasts'
 - extendedWaitUntil:

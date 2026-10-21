@@ -8,9 +8,6 @@ appId: ${APP_ID}
 # measured run appended the edit to the seeded title). So it erases until the lamb's own title is gone from the
 # screen. The editor's header says "Edit recipe", never the recipe's title, so the field is the only place it shows.
 # The run-scoped seed title is long enough that one erase can fall short, hence the loop.
-# Audit 2026-10-19, A1.11: callers arrive right after a native push, and iOS ignores a tap until it finishes.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Title'
 - repeat:
       times: 4

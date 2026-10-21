@@ -10,7 +10,7 @@ appId: ${APP_ID}
 # ever drawn (run 38447859313: `landscape` ended on an empty field with no keyboard, and `discoverIngredientCap` with
 # the sheet closed after 40 s of swipes).
 #
-# The text is read back and typed once more, for the iOS Simulator's dropped keystrokes (`common/searchDiscover.yaml`).
+# The text is read back, so a typing that dropped keystrokes fails here rather than filtering on the wrong text.
 #
 # On iOS the keyboard is then closed by the search key, for `common/typeTitle.yaml`'s reason: an element behind the
 # keyboard counts as visible, so a tap meant for a result lands on a key, and a scroll swipe from the screen's centre
@@ -18,12 +18,6 @@ appId: ${APP_ID}
 # `landscape.yaml`'s "Show {n} recipes stays reachable with the keyboard up" is proven there only.
 - tapOn: 'chicken'
 - inputText: ${QUERY}
-- runFlow:
-      when:
-          notVisible: ${QUERY}
-      commands:
-          - eraseText: 64
-          - inputText: ${QUERY}
 - assertVisible: ${QUERY}
 - runFlow:
       when:

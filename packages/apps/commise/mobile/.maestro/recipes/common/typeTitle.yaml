@@ -11,19 +11,10 @@ appId: ${APP_ID}
 # Title is a multi-line field whose break becomes a space (`singleLine`), so Return adds a space and closes nothing.
 # Not by `hideKeyboard`: on Android it is a BACK event, and on iOS it failed in the same run (`newCollectionSheet.yaml`).
 #
-# The text is read back and typed once more, for the iOS Simulator's dropped keystrokes (`auth/signinHome.yaml`). The
-# read-back allows a tail, as the flows' own title checks do, for the Android emulator's doubled last key (`create.yaml`).
-# Audit 2026-10-19, A1.11: callers arrive right after a native push, and iOS ignores a tap until it finishes.
-- waitForAnimationToEnd:
-      timeout: 3000
+# The text is read back, so a typing that dropped keystrokes fails here. The read-back allows a tail, as the flows' own
+# title checks do, for the Android emulator's doubled last key (`create.yaml`).
 - tapOn: 'Title'
 - inputText: ${TITLE}
 - runFlow: dismissKeyboardIntro.yaml
-- runFlow:
-      when:
-          notVisible: ${TITLE}.*
-      commands:
-          - eraseText: 64
-          - inputText: ${TITLE}
 - assertVisible: ${TITLE}.*
 - tapOn: 'About the recipe'

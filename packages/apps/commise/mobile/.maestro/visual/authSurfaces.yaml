@@ -54,10 +54,6 @@ appId: ${APP_ID}
       visible: 'you@example.com'
       timeout: 30000
 
-# Settle the U8 entrance transitions/gradients before capturing, or the shot races the animation and the
-# comparison is nondeterministic for reasons that have nothing to do with a regression.
-- waitForAnimationToEnd
-
 # FR-045a / FR-045 — the signed-out front door, in pixels.
 - assertScreenshot:
       path: baselines/auth-signin.png
@@ -70,7 +66,6 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Create your account'
       timeout: 30000
-- waitForAnimationToEnd
 
 - assertScreenshot:
       path: baselines/auth-signup.png

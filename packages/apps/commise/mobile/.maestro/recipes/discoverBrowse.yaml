@@ -68,9 +68,6 @@ appId: ${APP_ID}
 # the last two: react-native-web has no hardware back key and no touch gesture.
 - assertNotVisible: 'Under 60 min'
 - tapOn: 'Filters.*'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
@@ -79,9 +76,6 @@ appId: ${APP_ID}
 - assertNotVisible: 'Under 60 min'
 
 - tapOn: 'Filters.*'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
@@ -89,9 +83,6 @@ appId: ${APP_ID}
 - assertNotVisible: 'Under 60 min'
 
 - tapOn: 'Filters.*'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
@@ -99,9 +90,6 @@ appId: ${APP_ID}
 - assertNotVisible: 'Under 60 min'
 
 - tapOn: 'Filters.*'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000

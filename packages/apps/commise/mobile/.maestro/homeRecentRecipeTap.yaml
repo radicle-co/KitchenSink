@@ -55,9 +55,6 @@ appId: ${APP_ID}
           # The card is a single accessible LINK named by the recipe title (the shared `RecipeCard` root
           # wraps its content in ONE `PressScale` Pressable labelled with the title).
           - tapOn: '${E2E_RECIPE_LAMB}'
-          # Audit 2026-10-19, A1.18: let the native push finish before the next input.
-          - waitForAnimationToEnd:
-                timeout: 3000
 
           # The recipe DETAIL opened — assert the detail's own title heading plus a section only the detail
           # renders, so a card that merely highlighted (or a navigation that landed on the list) fails here.

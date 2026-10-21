@@ -18,13 +18,8 @@ appId: ${APP_ID}
 
 # The Display name row opens its sheet on the saved name and closes without writing anything. The save itself is not
 # driven here: it would rename the shared test user for every later run (the component tier owns that path).
-# Audit 2026-10-19, A1.18: iOS ignores a tap during a native push or a sheet slide, so wait before each tap that follows one.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Display name'
 - assertVisible: 'What should we call you?'
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Close'
 - assertNotVisible: 'What should we call you?'
 - runFlow:

@@ -62,13 +62,7 @@ appId: ${APP_ID}
 # Change food to the words by name. The field opens on the food's name with the caret at its end, so the name is erased
 # first. The by-name option sits under "Not listed?", after the foods the list found.
 - tapOn: 'Actions for Flour'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Change food'
-- waitForAnimationToEnd:
-      timeout: 3000
 - eraseText: 20
 - inputText: '${E2E_UNRESOLVED_WORD}'
 - runFlow:

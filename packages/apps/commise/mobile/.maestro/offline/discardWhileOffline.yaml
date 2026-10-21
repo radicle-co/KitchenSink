@@ -48,9 +48,6 @@ tags:
 - extendedWaitUntil:
       visible: 'Close sections'
       timeout: 20000
-# Audit 2026-10-19, A1.18: the sections sheet slides up, and a tap during the slide is lost.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Steps'
 - extendedWaitUntil:
       notVisible: 'Close sections'

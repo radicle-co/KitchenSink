@@ -37,9 +37,6 @@ appId: ${APP_ID}
 # rather than on the typed name keeps every wait a claim about the server: the typed name is already on screen in the
 # sheet's own field, which made the old `visible: 'Maestro pagination …'` wait self-fulfilling.
 - tapOn: 'New collection'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'Description \(optional\)'
       timeout: 20000
@@ -61,9 +58,6 @@ appId: ${APP_ID}
       times: 20
       commands:
           - tapOn: 'New collection'
-          # audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-          - waitForAnimationToEnd:
-                timeout: 3000
           - extendedWaitUntil:
                 visible: 'Description \(optional\)'
                 timeout: 20000
@@ -79,11 +73,8 @@ appId: ${APP_ID}
           - extendedWaitUntil:
                 visible: 'Maestro pagination filler(, .*)?'
                 timeout: 40000
-          # The pop back to Collections still moves when the next pass taps `New collection`, and iOS drops that tap
-          # or finds no button (CI run for 19262bee5, iOS shard 2, the second filler). After the first pass the filler
-          # card above already exists, so it does not prove the pop ended; let it end, then wait for the button.
-          - waitForAnimationToEnd:
-                timeout: 3000
+          # After the first pass the filler card above already exists, so it does not prove the pop back to
+          # Collections ended. The button the next pass taps does.
           - extendedWaitUntil:
                 visible: 'New collection'
                 timeout: 20000
@@ -119,17 +110,8 @@ appId: ${APP_ID}
 # always on screen without scrolling, so removing the topmost match repeatedly surfaces the next one. A delete is the
 # detail's ⋯ menu, then the confirmation, and lands back on the list.
 - tapOn: 'Maestro pagination target(, .*)?'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'More actions for Maestro pagination target'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Delete collection'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
@@ -148,17 +130,8 @@ appId: ${APP_ID}
           - tapOn:
                 text: 'Maestro pagination filler(, .*)?'
                 below: '\d+ collections?'
-          # audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-          - waitForAnimationToEnd:
-                timeout: 3000
           - tapOn: 'More actions for Maestro pagination filler'
-          # audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-          - waitForAnimationToEnd:
-                timeout: 3000
           - tapOn: 'Delete collection'
-          # audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-          - waitForAnimationToEnd:
-                timeout: 3000
           - tapOn: 'Delete collection'
           - extendedWaitUntil:
                 visible: 'New collection'

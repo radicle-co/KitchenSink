@@ -25,9 +25,6 @@ appId: ${APP_ID}
 # CREATE the source. A fresh collection is PRIVATE by default (no visibility control on the create form),
 # which does not block self-cloning (see above).
 - tapOn: 'New collection'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - assertVisible: 'Description \(optional\)'
 - runFlow:
       file: common/typeCollectionName.yaml
@@ -45,9 +42,6 @@ appId: ${APP_ID}
 # SAVE A COPY. The ⋯ menu always offers it — every collection detail the caller can open is their own, since there is no
 # cross-owner detail read. A successful copy navigates to the new copy's OWN detail.
 - tapOn: 'More actions for Maestro clone source'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Save a copy'
 - extendedWaitUntil:
       visible: 'Copied from .*'
@@ -61,17 +55,9 @@ appId: ${APP_ID}
 # override) — no name-based lookup is needed here since we are already ON its detail. Back on the list, the source is
 # now the ONLY "Maestro clone source" row, so it can be found by name and deleted too.
 # The copy's detail arrives by a native push, and the source's detail, with the SAME "More actions for …" label, stays
-# mounted under it. iOS ignores a tap while the push or the menu's slide-up still runs, so a tap there opened nothing
-# (full local iOS run, 2026-10-19). Let each transition finish before the tap that depends on it.
-- waitForAnimationToEnd:
-      timeout: 3000
+# mounted under it.
 - tapOn: 'More actions for Maestro clone source'
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Delete collection'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
@@ -79,20 +65,11 @@ appId: ${APP_ID}
 # The list's card: iOS merges its texts into one label (`Maestro clone source, 0 recipes, Private`, run 38447859313), and
 # Maestro matches the WHOLE string, so the name is matched with the rest optional.
 - tapOn: 'Maestro clone source(, .*)?'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - extendedWaitUntil:
       visible: 'More actions for Maestro clone source'
       timeout: 40000
 - tapOn: 'More actions for Maestro clone source'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Delete collection'
-# audit 2026-10-19, A1.18: a tap while a sheet, dialog or push still moves is dropped.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'

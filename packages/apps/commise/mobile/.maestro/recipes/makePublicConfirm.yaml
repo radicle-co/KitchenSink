@@ -56,10 +56,6 @@ onFlowComplete:
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Make public'
 - assertVisible: 'Make this recipe public?'
 - assertVisible: 'Anyone can see a public recipe and save a copy\..*'
@@ -113,9 +109,6 @@ onFlowComplete:
       visible: 'Back to My recipes'
       timeout: 20000
 - tapOn: 'Back to My recipes'
-# Audit 2026-10-19, A1.18: the Back is a native pop, and iOS drops a tap made while it animates.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: '${E2E_DOWNGRADED_COLLECTION}(, .*)?'
@@ -126,10 +119,6 @@ onFlowComplete:
       timeout: 40000
 - assertVisible: 'Private'
 - tapOn: 'More actions for ${E2E_DOWNGRADED_COLLECTION}'
-# Audit 2026-10-19, A1.18: this opens a sliding sheet or dialog, and iOS drops a tap made mid-slide (Maestro never retries
-# a tap), so wait for the screen to settle first.
-- waitForAnimationToEnd:
-      timeout: 3000
 - tapOn: 'Make public'
 - assertVisible: 'Make this collection public?'
 - assertVisible: 'Anyone can see a public collection and save a copy\..*'

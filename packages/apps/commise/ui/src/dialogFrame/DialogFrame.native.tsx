@@ -12,6 +12,7 @@
  * - Taps persist through the keyboard (`keyboardShouldPersistTaps="handled"`): with the keyboard up, the first tap on
  *   an action must press it, not only close the keyboard.
  * - It renders nothing while closed, the house `Modal` shape.
+ * - It fades in only when reduce motion is known to be off, the Sheet's rule (`dialogAnimationType`).
  *
  * A presentational component: controlled by `open`, it fetches nothing and holds no domain state; its one state is the
  * count of shows that moves the reading cursor.
@@ -25,10 +26,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Modal } from '../modal/Modal.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
+import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { DIALOG_CARD_MAX_WIDTH_DP, dialogScrimPadding } from './dialogFrameLayout.js';
+import { DIALOG_CARD_MAX_WIDTH_DP, dialogAnimationType, dialogScrimPadding } from './dialogFrameLayout.js';
 import type { DialogFrameProps } from './props.js';
 
 /** The centred dialog frame. */
@@ -37,6 +39,7 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
     const [shown, setShown] = useState(0);
     const titleRef = useScreenReaderFocusOnSignal<Text>(shown);
     const { colors } = useTheme();
+    const reduceMotion = useReduceMotion();
 
     if (!open) {
         return null;
@@ -46,7 +49,7 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
         <Modal
             visible
             transparent
-            animationType="fade"
+            animationType={dialogAnimationType(reduceMotion)}
             statusBarTranslucent
             navigationBarTranslucent
             onRequestClose={onRequestClose}

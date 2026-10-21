@@ -6,7 +6,7 @@
  *
  * ⚠️ `Modal`, `ScrollView` and `KeyboardAvoidingView` are the real ones, wrapped to record their props: react-native-web
  * has no keyboard, no window flags and no tap persistence to observe. `sendAccessibilityEvent` is mocked because
- * react-native-web does not implement it.
+ * react-native-web does not implement it, and `useReduceMotion` because its platform setting does not exist under jsdom.
  */
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
@@ -33,6 +33,7 @@ const state = vi.hoisted(() => ({
     modal: undefined as ComponentProps<typeof ModalType> | undefined,
     scroll: undefined as ComponentProps<typeof ScrollViewType> | undefined,
     avoider: undefined as ComponentProps<typeof KeyboardAvoidingViewType> | undefined,
+    reduceMotion: false as boolean | undefined,
 }));
 
 vi.mock('react-native', async (importOriginal) => {
@@ -60,6 +61,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => state.insets }));
+vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => state.reduceMotion }));
 
 beforeEach(() => {
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
@@ -70,6 +72,7 @@ afterEach(() => {
     state.modal = undefined;
     state.scroll = undefined;
     state.avoider = undefined;
+    state.reduceMotion = false;
 });
 
 /**
@@ -168,6 +171,19 @@ describe('DialogFrame (native)', () => {
         // frame's own callback is what a close request with the keyboard closed reaches.
         state.modal?.onRequestClose?.({} as never);
         expect(onRequestClose).toHaveBeenCalledTimes(1);
+    });
+
+    // WCAG 2.3.3, the Sheet's rule: the window fades only when reduce motion is known to be off. While the setting is
+    // still being read, it does not animate.
+    it.each([
+        [false, 'fade'],
+        [true, 'none'],
+        [undefined, 'none'],
+    ] as const)('with reduce motion %s, opens with animation %s', (reduceMotion, animationType) => {
+        state.reduceMotion = reduceMotion;
+        renderFrame();
+
+        expect(state.modal?.animationType).toBe(animationType);
     });
 
     it('keeps the card inside the safe area: each edge padded by its inset, at least 16 dp', () => {

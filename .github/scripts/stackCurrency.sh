@@ -19,7 +19,7 @@
 # verdict. `evaluate` does the I/O: ONE synth of <app> into a temporary assembly, then per stack its status, its
 # template diff against that assembly, and its resolved SSM values. It prints, and appends to $GITHUB_OUTPUT:
 #     stale=<construct paths of the stale stacks, space-separated, for `cdk deploy --exclusively`>
-#     stale_names= <their CloudFormation names, space-separated AND space-padded>
+#     stale_json=<their CloudFormation names, as a JSON array, for `contains(fromJSON(…), '<name>')`>
 #     assembly=<the synthesized assembly directory, so the deploy and its verification use exactly what was judged>
 # With <forced>=true every stack is stale and nothing is diffed (a dispatch or a Sandbox Up call deploys everything).
 # Exit 0 when the question was answered; 1 when the synth failed or a named stack is not in the app; 2 on misuse.
@@ -64,7 +64,11 @@ stack_currency_decide() {
         return 0
     fi
     while [ $# -gt 0 ]; do
-        if [ -z "$3" ] || [ "$2" != "$3" ]; then
+        if [ -z "$3" ]; then
+            printf 'current=false\nreason=SSM parameter %s could not be read\n' "$1"
+            return 0
+        fi
+        if [ "$2" != "$3" ]; then
             printf 'current=false\nreason=SSM parameter %s changed since the deploy resolved it\n' "$1"
             return 0
         fi
@@ -74,12 +78,13 @@ stack_currency_decide() {
 }
 
 # The SSM triples `decide` needs for one deployed stack: `<name> <resolved> <current>` per resolved parameter, one per
-# line, tab-separated. An unreadable stack prints nothing (its status already says ABSENT); an unreadable parameter
-# prints an empty current value, which `decide` reads as changed.
+# line, tab-separated. An unreadable parameter prints an empty current value, which `decide` reads as stale.
+# ⛔ Returns 1, printing nothing, when the stack's parameters cannot be read at all: the status read before it may have
+# succeeded, and "no parameters to compare" must never pass for "none changed".
 stack_currency_ssm_triples() {
     local region="$1" stack="$2" parameters key name resolved current
     parameters=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
-        --query 'Stacks[0].Parameters' --output json 2>/dev/null) || return 0
+        --query 'Stacks[0].Parameters' --output json 2>/dev/null) || return 1
     while IFS=$'\t' read -r key name resolved; do
         [ -n "$key" ] || continue
         case "$STACK_CURRENCY_IGNORED_PARAMETERS" in *" ${key} "*) continue ;; esac
@@ -110,7 +115,7 @@ stack_currency_evaluate() {
         return 1
     fi
 
-    local stale=() stale_names=() stack path status diff_exit verdict reason triples
+    local stale=() stale_names=() stack path status diff_exit verdict reason triples triple_lines name resolved current
     for stack in "$@"; do
         # The construct path `cdk deploy --exclusively` selects by: the listing's id without its ` (<name>)` suffix.
         path=$(jq -r --arg name "$stack" '.[] | select(.name == $name) | .id | sub(" \\(.*\\)$"; "")' <<<"$listing")
@@ -133,11 +138,17 @@ stack_currency_evaluate() {
             "$cdk" diff --app "$assembly" --method=template --fail --exclusively "$path" >&2 2>&1 || diff_exit=$?
         fi
         triples=()
-        while IFS=$'\t' read -r name resolved current; do
-            triples+=("$name" "$resolved" "$current")
-        done < <(stack_currency_ssm_triples "$region" "$stack")
-
-        verdict=$(stack_currency_decide "$status" "$diff_exit" "${triples[@]}") || return 2
+        if [ "$status" = "$DEPLOY_GATE_ABSENT" ]; then
+            verdict=$(stack_currency_decide "$status" "$diff_exit") || return 2
+        elif ! triple_lines=$(stack_currency_ssm_triples "$region" "$stack"); then
+            verdict=$'current=false\nreason=its resolved parameters could not be read'
+        else
+            while IFS=$'\t' read -r name resolved current; do
+                [ -n "$name" ] || continue
+                triples+=("$name" "$resolved" "$current")
+            done <<<"$triple_lines"
+            verdict=$(stack_currency_decide "$status" "$diff_exit" "${triples[@]+"${triples[@]}"}") || return 2
+        fi
         reason=$(sed -n 's/^reason=//p' <<<"$verdict")
         if [ "$(sed -n 's/^current=//p' <<<"$verdict")" = true ]; then
             echo "[stack-currency] ${stack}: current (${reason})" >&2
@@ -148,9 +159,11 @@ stack_currency_evaluate() {
         fi
     done
 
-    # `stale_names` is space-PADDED so a step can test one stack with `contains(' <list> ', ' <name> ')`.
-    local verdict_lines
-    verdict_lines=$(printf 'stale=%s\nstale_names= %s \nassembly=%s\n' "${stale[*]-}" "${stale_names[*]-}" "$assembly")
+    # `stale_json` is an ARRAY so a step tests one stack with `contains(fromJSON(…), '<name>')`, which matches whole
+    # names: a substring test over a string would need padding that `$GITHUB_OUTPUT` is not documented to keep.
+    local verdict_lines stale_json
+    stale_json=$(jq -cn '$ARGS.positional' --args "${stale_names[@]+"${stale_names[@]}"}")
+    verdict_lines=$(printf 'stale=%s\nstale_json=%s\nassembly=%s\n' "${stale[*]-}" "$stale_json" "$assembly")
     printf '%s\n' "$verdict_lines"
     if [ -n "${GITHUB_OUTPUT:-}" ]; then
         printf '%s\n' "$verdict_lines" >>"$GITHUB_OUTPUT"

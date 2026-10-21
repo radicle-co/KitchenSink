@@ -69,6 +69,8 @@ case "$args" in
         ;;
     *"describe-stacks"*Parameters*)
         case "$status" in ABSENT|UNREADABLE) exit 254 ;; esac
+        params_fail_var="FAKE_PARAMS_FAIL_$key"
+        [ -z "\${!params_fail_var:-}" ] || { echo 'Rate exceeded' >&2; exit 254; }
         echo "\${!params_var:-[]}"
         ;;
     *"ssm get-parameter"*)
@@ -149,6 +151,7 @@ describe('stackCurrency.sh evaluate', () => {
 
         expect(run.status, run.stderr).toBe(0);
         expect(staleOf(run)).toBe('');
+        expect(run.githubOutput).toContain('stale_json=[]\n');
         expect(synths(run)).toBe(1);
         expect(diffs(run)).toHaveLength(2);
     });
@@ -201,6 +204,16 @@ describe('stackCurrency.sh evaluate', () => {
         expect(run.stderr).toContain('/p/changed');
     });
 
+    // ⛔ The status read and the parameters read are two calls. When only the second fails (a throttle), there are no
+    // parameters to compare, and that must never read as "none changed".
+    it('marks a stack whose parameters cannot be read after its status was, and says why', () => {
+        const run = evaluate({ FAKE_PARAMS_FAIL_A: '1' });
+
+        expect(run.status, run.stderr).toBe(0);
+        expect(staleOf(run)).toBe('App/A');
+        expect(run.stderr).toContain('stack-a: STALE (its resolved parameters could not be read)');
+    });
+
     it('marks a stack whose SSM parameter cannot be read', () => {
         expect(
             staleOf(
@@ -233,7 +246,7 @@ describe('stackCurrency.sh evaluate', () => {
         const run = evaluate({}, ['true']);
 
         expect(staleOf(run)).toBe('App/A App/B');
-        expect(run.stdout).toContain('stale_names= stack-a stack-b \n');
+        expect(run.stdout).toContain('stale_json=["stack-a","stack-b"]\n');
         expect(diffs(run)).toEqual([]);
         expect(synths(run)).toBe(1);
     });
@@ -242,8 +255,9 @@ describe('stackCurrency.sh evaluate', () => {
         const run = evaluate({ FAKE_DIFF_A: '1' });
 
         expect(run.githubOutput).toContain('stale=App/A\n');
-        // Space-padded, so a step can ask `contains(' <list> ', ' <name> ')` without matching a name inside another.
-        expect(run.githubOutput).toContain('stale_names= stack-a \n');
+        // A JSON array, so a step can ask `contains(fromJSON(…), '<name>')`, which matches whole names only.
+        expect(run.githubOutput).toContain('stale_json=["stack-a"]\n');
+        expect(run.githubOutput).not.toContain('stale_names');
         expect(run.githubOutput).toMatch(/^assembly=.+$/mu);
     });
 

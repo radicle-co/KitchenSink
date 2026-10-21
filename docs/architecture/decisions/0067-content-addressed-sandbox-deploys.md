@@ -39,17 +39,32 @@ one machine, produced byte-identical templates (46 and 54 files, no difference).
 2. **Content tags are immutable.** `ecrTagKind.sh` owns the `ck-` prefix. The retention policy keeps the newest 50 under a
    rule of their own, and `ecrEnsureRepo.sh` leaves the prefix out of the mutable set (owner ruling, 2026-10-21).
    `ecrPushVerdict.sh` answers `skip` for a content tag that exists, without the release ledger, because a content tag is
-   not a release.
+   not a release. It answers `skip` only when the repository keeps that tag immutable (`IMMUTABLE`, or
+   `IMMUTABLE_WITH_EXCLUSION` with no exclusion filter that matches it). Otherwise any branch can overwrite the image
+   under the tag, so it is rebuilt and never trusted. Two runs with one key can both hear `push`, and the second push to
+   the immutable tag fails. `ecrPushUnlessBuilt.sh` then asks the verdict again, and a `skip` means the other run pushed
+   the same image.
 3. **The sandbox identity deploy uses content names.** The identity image tag, every `IDENTITY_IMAGE_TAG`, the CURRENT
    smoke's expected tag and the webhooks' `SENTRY_RELEASE` come from one `content` step. The build runs only on `push`.
 4. **Each running leg deploys only its stale stacks.** `.github/scripts/stackCurrency.sh` synthesizes the app once and
    judges each stack, from `deployGate.sh stacks-for`, against the account. A stack is current when three things hold: it
    is in a usable resting state, `cdk diff --method=template --fail --exclusively` exits 0, and every SSM value it resolved
-   at deploy time still holds. Anything else is stale, including an answer the gate cannot read. If no stack is stale, the
-   deploy step does not run. Otherwise it runs `cdk deploy --exclusively <stale stacks>`. A dispatch or a Sandbox Up call
-   is forced and deploys everything.
+   at deploy time still holds. Anything else is stale, including an answer the gate cannot read: a stack whose parameters
+   cannot be listed, and a parameter whose value cannot be read, which the reason names as unreadable. If no stack is
+   stale, the deploy step does not run. Otherwise it runs `cdk deploy --exclusively <stale stacks>`. A step that deploys
+   one stack tests the `stale_json` array with `contains(fromJSON(…), '<name>')`, which matches whole names. A dispatch
+   or a Sandbox Up call is forced and deploys everything.
 5. **The `CommitSha` stack tag keeps its meaning.** It is not part of a template, so it now changes only on the stacks that
    deploy, and it means "the last commit that deployed this stack" (owner ruling, 2026-10-21).
+6. **CI's wait for the identity deploy still waits for the run of its own commit.** A shortcut on the content keys was
+   built and then removed before it shipped, for two reasons. First, "this PR changes identity" means "this PR changes
+   something the identity workflow deploys", which is its `paths:` list. A key over that whole list is equal at the
+   head and the base exactly when the workflow did not trigger, and the wait already proceeds when no run exists.
+   Second, a key over less (the image, the webhooks, the two `infra/` folders) lets a PR that changes only global
+   infrastructure proceed while that deploy runs. The live image tag proves only the image, so it cannot stand in for a
+   delivered tier. The owner's ruling that a PR which does not change identity runs against the live identity
+   (2026-10-21) is honored by the no-run path. The wait is shorter because the run is shorter: an unchanged push builds
+   no image and updates no stack.
 
 The path filter still decides which legs run. Removing it is a separate step, because several guards and the Sandbox Up
 path read the leg flags.
@@ -68,7 +83,22 @@ path read the leg flags.
 - **Residual: ECR's documentation does not state that retention expires an image whose tag is immutable.** It describes
   immutability only as refusing an overwrite. If retention does not expire them, the repository holds more than 50
   content images, and a listing shows it.
-- **Residual: the CI wait is still per commit.** CI's "wait for this commit's identity deploy" still needs a run for its
-  own commit. Making it accept a deploy that is already live for the same key is the next step.
+- **Residual: the CI wait is still per commit.** A run that GitHub replaces in the shared `sandbox-identity-deploy`
+  concurrency group reads `cancelled`, and the wait fails with its re-run message. A faster wait needs a delivery
+  receipt: a key over the whole tier, recorded by a successful deploy. The non-prod role cannot write one to SSM today
+  (`GithubActionsAccessStack.ts` grants it writes only under the owed-drop ledger). A key recorded in each run's outputs,
+  read from the newest successful run of any PR, needs no IAM change.
+- **Residual: `kitchensink-identity-webhooks-sandbox` reads stale on every run.** It resolves
+  `/kitchensink/global/sentry/log-drain-dsn`, and the non-prod role can read SSM only under `/kitchensink/sandbox/*` and
+  `/kitchensink/pr-*/*` (measured 2026-10-21). Its reason line says the parameter could not be read. The deploy then
+  moves the stack's `CommitSha` tag (`stampCommitProvenance`), which is a real stack update that re-tags its resources
+  on every run. That is safe but not free. Granting the role read on that one parameter clears it, and that is a change
+  to a stack only production deploys.
+- **Residual: until `kitchensink-identity` is made immutable, every run rebuilds the identity image.** The repository is
+  `MUTABLE` today, and only the production role may change that. The owner can apply the setting
+  `ecrEnsureRepo.sh` derives once, with admin credentials, before the next production deploy does it.
+- **Residual: the workflow's `paths:` list does not cover the root of the image closure.** A change to only the root
+  lockfile, `.npmrc`, `.nvmrc`, `tsconfig.json`, `prettier.config.js` or `scripts/prepareProdManifest.mjs` changes the
+  image key, but it starts no identity deploy. This was true before this decision.
 - **Residual: a content key can be claimed first.** The non-prod role can push a new tag of any shape. An image planted
   under a future key is then reused. The role cannot overwrite a content tag, and a planter needs the future tree in hand.

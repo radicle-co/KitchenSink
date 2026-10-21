@@ -237,8 +237,9 @@ describe('every database-backed package declares its schema stack at the call si
 
 /**
  * Whether a deploy's `if:` can only be true when its bundle's `if:` is: equal to it, or it followed by `&&` and more
- * terms with no top-level `||` (which would let a later term alone run the deploy). Syntactic and conservative: any
- * other shape is refused. Pure.
+ * terms with no top-level `||` (which would let a later term alone run the deploy). A `||` inside parentheses or a
+ * quoted string is not top level. Syntactic and conservative: any other shape, unbalanced parentheses included, is
+ * refused. Pure.
  */
 export function impliesBundle(deployIf: string, bundleIf: string): boolean {
     if (deployIf === bundleIf) {
@@ -247,7 +248,35 @@ export function impliesBundle(deployIf: string, bundleIf: string): boolean {
 
     const prefix = `${bundleIf} && `;
 
-    return bundleIf !== '' && deployIf.startsWith(prefix) && !deployIf.slice(prefix.length).includes('||');
+    return bundleIf !== '' && deployIf.startsWith(prefix) && !hasTopLevelOr(deployIf.slice(prefix.length));
+}
+
+/** Whether a GitHub expression holds `||` outside every parenthesis and `'…'` string, or is unbalanced. Pure. */
+function hasTopLevelOr(expression: string): boolean {
+    let depth = 0;
+    let quoted = false;
+
+    for (let index = 0; index < expression.length; index += 1) {
+        const char = expression[index];
+
+        if (char === "'") {
+            quoted = !quoted;
+        } else if (quoted) {
+            continue;
+        } else if (char === '(') {
+            depth += 1;
+        } else if (char === ')') {
+            depth -= 1;
+        } else if (depth === 0 && expression.startsWith('||', index)) {
+            return true;
+        }
+
+        if (depth < 0) {
+            return true;
+        }
+    }
+
+    return depth !== 0 || quoted;
 }
 
 describe('impliesBundle (the rule, on inline conditions)', () => {
@@ -255,8 +284,16 @@ describe('impliesBundle (the rule, on inline conditions)', () => {
 
     it.each([
         ['the same condition', bundle, true],
-        ['the condition and one more conjunct', `${bundle} && contains(steps.x.outputs.stale_names, ' s ')`, true],
+        ['the condition and one more conjunct', `${bundle} && contains(steps.x.outputs.stale_json, 's')`, true],
+        [
+            'a conjunct with an alternative nested inside a call',
+            `${bundle} && contains(fromJSON(a || '[]'), 's')`,
+            true,
+        ],
+        ['a conjunct with || inside a quoted string', `${bundle} && x == 'a || b'`, true],
         ['a condition that adds an alternative', `${bundle} && a || b`, false],
+        ['an alternative after a parenthesised conjunct', `${bundle} && (a) || b`, false],
+        ['an alternative after a call', `${bundle} && f(a) || b`, false],
         ['no condition at all', '', false],
         ['a different condition', "steps.tier.outputs.up == 'true'", false],
         ['the condition only as a suffix', `x && ${bundle}`, false],

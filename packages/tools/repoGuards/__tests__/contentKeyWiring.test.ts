@@ -11,7 +11,8 @@
  *  - a `content` step computes both keys with `deployKey.sh … --require-clean` and the tag with `imageTag.sh content`;
  *  - no `github.sha` reaches an image tag, `SENTRY_RELEASE`, or a `docker` tag;
  *  - every `IDENTITY_IMAGE_TAG`, the build's `IMAGE_TAG` and the CURRENT smoke's `EXPECTED_IMAGE_TAG` are one value;
- *  - the build asks `ecrPushVerdict.sh` first and pushes only on `push`, so an image already built is never rebuilt.
+ *  - the build goes through `ecrPushUnlessBuilt.sh`, which asks `ecrPushVerdict.sh` first, so an image already built is
+ *    never rebuilt.
  *
  * The content step's own bash is RUN, at the repository root, so its outputs are the real keys of HEAD.
  */
@@ -30,6 +31,7 @@ const WORKFLOW = path.join(repoRoot, '.github/workflows/sandbox-identity-deploy.
 interface Step {
     readonly id?: string;
     readonly name?: string;
+    readonly uses?: string;
     readonly run?: string;
     readonly env?: Readonly<Record<string, string>>;
 }
@@ -96,6 +98,15 @@ describe('sandbox-identity-deploy.yml names its image and releases by content', 
         expect(content?.run).toMatch(/imageTag\.sh content /u);
     });
 
+    // `--require-clean` proves the tree is the revision only BEFORE anything writes to it, so the key step is the step
+    // right after checkout: a build or an install ahead of it would make the check pass over a tree it then changes.
+    it('runs immediately after the checkout, before any step can write to the tree', () => {
+        const index = all.findIndex((step) => step.id === 'content');
+
+        expect(index).toBeGreaterThan(0);
+        expect(all[index - 1]?.uses ?? '').toMatch(/^actions\/checkout@/u);
+    });
+
     it('produces the real keys of HEAD when its bash runs', () => {
         const dir = mkdtempSync(path.join(tmpdir(), 'contentStep-'));
         const output = path.join(dir, 'output');
@@ -143,13 +154,16 @@ describe('sandbox-identity-deploy.yml names its image and releases by content', 
         expect(new Set(releases)).toEqual(new Set(['${{ steps.content.outputs.webhooks_release }}']));
     });
 
-    it('asks the push verdict before building, and builds only on push', () => {
+    // `ecrPushUnlessBuilt.sh` asks the verdict, builds only on `push`, and asks again after a failed push, so a run that
+    // races another to the same immutable tag succeeds on the image the other pushed.
+    it('builds through ecrPushUnlessBuilt.sh, which asks the push verdict first', () => {
         const build = all.find((step) => (step.run ?? '').includes('docker buildx build'));
         const body = build?.run ?? '';
 
-        expect(body).toMatch(/ecrPushVerdict\.sh kitchensink-identity "\$\{IMAGE_TAG\}"/u);
-        expect(body.indexOf('ecrPushVerdict.sh')).toBeLessThan(body.indexOf('docker buildx build'));
-        expect(body).toMatch(/if \[ "\$verdict" = push \]; then/u);
+        expect(body).toMatch(
+            /bash \.github\/scripts\/ecrPushUnlessBuilt\.sh kitchensink-identity "\$\{IMAGE_TAG\}" \\\s+docker buildx build /u,
+        );
+        expect(body).not.toContain('ecrPushVerdict.sh');
     });
 });
 
@@ -216,16 +230,19 @@ describe('sandbox-identity-deploy.yml deploys only the stacks that changed', () 
         expect(String(deploy?.run)).not.toContain('--all');
     });
 
+    // `contains` over an ARRAY matches whole elements, so one stack name inside another cannot match, and no whitespace
+    // has to survive `$GITHUB_OUTPUT`. `|| '[]'` keeps `fromJSON` from failing on a judge that did not run.
     it('deploys the identity schema and the service each only when that stack is stale', () => {
         const schema = byName('CDK Deploy (identity schema — before anything reads it)');
         const service = byName('CDK Deploy (identity service)');
 
         expect(ifOf(schema)).toContain(
-            "contains(steps.identity-currency.outputs.stale_names, format(' kitchensink-identity-schema-{0} ', env.STAGE))",
+            "contains(fromJSON(steps.identity-currency.outputs.stale_json || '[]'), format('kitchensink-identity-schema-{0}', env.STAGE))",
         );
         expect(ifOf(service)).toContain(
-            "contains(steps.identity-currency.outputs.stale_names, format(' kitchensink-identity-service-{0} ', env.STAGE))",
+            "contains(fromJSON(steps.identity-currency.outputs.stale_json || '[]'), format('kitchensink-identity-service-{0}', env.STAGE))",
         );
+        expect(ifOf(schema) + ifOf(service)).not.toContain('stale_names');
         expect(String(service?.run)).toContain('"kitchensink-identity-service-${STAGE}" --exclusively');
         expect(String(service?.run)).not.toContain('--all');
     });

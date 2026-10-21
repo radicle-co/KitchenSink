@@ -473,9 +473,9 @@ jobs:
               if: steps.flags.outputs.deploy_service == 'true'
               run: bash .github/scripts/ecrEnsureRepo.sh kitchensink-identity
 
-            # An image already under its content tag is the image these inputs build, and the tag is immutable: it is
-            # not built twice (`ecrPushVerdict.sh`). The record step is a no-op for a content tag (only releases are
-            # recorded) and is here because every caller of the verdict records what it pushes.
+            # An image already under its content tag, in a repository that keeps the tag immutable, is the image these
+            # inputs build: it is not built twice (`ecrPushVerdict.sh`). A run that loses a race to push the same tag
+            # succeeds on the image the other run pushed (`ecrPushUnlessBuilt.sh`).
             - name: Build, tag, and push identity service Docker image
               if: steps.flags.outputs.deploy_service == 'true'
               env:
@@ -483,11 +483,9 @@ jobs:
                   IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
               run: |
                   set -euo pipefail
-                  verdict=$(bash .github/scripts/ecrPushVerdict.sh kitchensink-identity "${IMAGE_TAG}")
-                  if [ "$verdict" = push ]; then
-                      docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t "${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}" --push .
-                      bash .github/scripts/ecrRecordRelease.sh kitchensink-identity "${IMAGE_TAG}"
-                  fi
+                  bash .github/scripts/ecrPushUnlessBuilt.sh kitchensink-identity "${IMAGE_TAG}" \
+                    docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile \
+                    -t "${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}" --push .
 
             # ⛔ NO `cdk bootstrap`, ever, from any workflow. The default qualifier (`CDKToolkit`, `hnb659fds`) is SHARED
             # with another application in this account, and this repository's own qualifiers (`ksnonprod`, `ksprod`,
@@ -612,9 +610,9 @@ jobs:
             #
             # ⛔ NOT GATED ON A PATH DIFF, for the same reason the invoke is not. Such a gate skips precisely the case
             # the step exists for — a stage whose schema is behind for a reason no code change explains —
-            # and `runMigrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
-            # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke
-            # below provably hit THIS release's bundle rather than whatever was deployed last.
+            # and `runMigrations.sh` records that this exact mistake made PRODUCTION the weaker stage. It is gated
+            # on the stack being STALE instead (ADR-0067): a schema stack judged current has this tree's asset, so its
+            # runner already holds this release's migrations, and the invoke below proves that with its digest.
             # ⚠️ GATED ON THE SAME FLAG AS THE STEP THAT BUNDLES ITS ASSET, and the invoke below is NOT (it is
             # gated only on the sandbox being up).
             # The asymmetry is the whole correctness argument, so it is written here rather than inferred.
@@ -640,7 +638,7 @@ jobs:
                     packages/services/identity/infra/node_modules/.bin/cdk "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" ${stacks}
 
             - name: CDK Deploy (identity schema — before anything reads it)
-              if: steps.flags.outputs.deploy_service == 'true' && contains(steps.identity-currency.outputs.stale_names, format(' kitchensink-identity-schema-{0} ', env.STAGE))
+              if: steps.flags.outputs.deploy_service == 'true' && contains(fromJSON(steps.identity-currency.outputs.stale_json || '[]'), format('kitchensink-identity-schema-{0}', env.STAGE))
               env:
                   IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
@@ -676,7 +674,7 @@ jobs:
             # as the old command-prefix assignments did — without building the command line out of
             # expression text. `STAGE` comes from the workflow-level `env:` (see above).
             - name: CDK Deploy (identity service)
-              if: steps.flags.outputs.deploy_service == 'true' && contains(steps.identity-currency.outputs.stale_names, format(' kitchensink-identity-service-{0} ', env.STAGE))
+              if: steps.flags.outputs.deploy_service == 'true' && contains(fromJSON(steps.identity-currency.outputs.stale_json || '[]'), format('kitchensink-identity-service-{0}', env.STAGE))
               env:
                   # ⛔ THE SOAK'S OFF-SWITCH (ADR-0035). Unset it is `warn` — the boot schema check reports and
                   # lets the task serve. Set the repo/environment variable to `enforce` once the reports read

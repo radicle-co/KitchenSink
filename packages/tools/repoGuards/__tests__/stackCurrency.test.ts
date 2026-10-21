@@ -74,8 +74,11 @@ describe('stackCurrency.sh decide', () => {
         expect(out).toContain('/kitchensink/sandbox/b');
     });
 
-    it('answers stale when an SSM parameter could not be read (an empty current value)', () => {
-        expect(verdict('UPDATE_COMPLETE', '0', '/kitchensink/sandbox/a', 'x', '')).toContain('current=false\n');
+    // Unreadable is reported as unreadable, not as drift, so a missing read grant shows on the first run.
+    it('answers stale when an SSM parameter could not be read (an empty current value), and says so', () => {
+        expect(verdict('UPDATE_COMPLETE', '0', '/kitchensink/sandbox/a', 'x', '')).toBe(
+            'current=false\nreason=SSM parameter /kitchensink/sandbox/a could not be read\n',
+        );
     });
 
     it.each([

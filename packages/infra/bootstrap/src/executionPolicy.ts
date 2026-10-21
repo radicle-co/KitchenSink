@@ -493,6 +493,22 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['AWS::ECS::TaskDefinition'],
             own,
         ),
+        // ⛔ CloudFormation's ECS handler reads a task definition BY FAMILY before an in-place update (a tag-only change),
+        // and IAM evaluates that read against "*", so the tier-tagged read above never matches it. The content-keyed
+        // sandbox deploy makes such updates whenever a stack is stale but its image is not (ADR-0067); production's image
+        // tag is its commit, so its task definition is always replaced and never read this way. A named READ residual:
+        // it returns the configuration of any task definition in the account.
+        ...(nonprod
+            ? [
+                  allow(
+                      'compute',
+                      'EcsDescribeTaskDefinitionByFamily',
+                      ['ecs:DescribeTaskDefinition'],
+                      ['*'],
+                      ['AWS::ECS::TaskDefinition'],
+                  ),
+              ]
+            : []),
         // Deregistering has no resource type in the Service Authorization Reference, so it authorizes on "*" only and no
         // tag or name can narrow it: a named residual. It retires a revision; it deletes nothing (`DeleteTaskDefinitions`
         // is tier-tagged above).

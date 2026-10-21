@@ -304,6 +304,26 @@ describe.each(stageQualifiers)('executionPolicy(%s) — iam:PassRole covers what
     });
 });
 
+// ⛔ CloudFormation's ECS handler reads a task definition by family before an in-place update (a tag-only change, which
+// the content-keyed sandbox deploy makes whenever a stack is stale but its image is not, ADR-0067), and IAM evaluates
+// that read against "*". Run 39684199271: "not authorized to perform: ecs:DescribeTaskDefinition on resource: *".
+describe('executionPolicy — the reads CloudFormation makes on "*"', () => {
+    it('lets ksnonprod read a task definition on "*"', () => {
+        const documents = parts(QUALIFIERS.nonprod);
+
+        expect(anyAllow(documents, 'ecs:DescribeTaskDefinition', '*')).toBe(true);
+        expect(unconditionalDeny(documents, 'ecs:DescribeTaskDefinition', '*')).toBe(false);
+    });
+
+    it('grants nothing else on "*" with it', () => {
+        const documents = parts(QUALIFIERS.nonprod);
+
+        for (const action of ['ecs:DeleteTaskDefinitions', 'ecs:UntagResource', 'ecs:TagResource']) {
+            expect(anyAllow(documents, action, '*'), action).toBe(false);
+        }
+    });
+});
+
 describe('executionPolicy — tier separation by name', () => {
     // Refused by an explicit Deny, or by no Allow reaching it: the Deny names the resource types the Allows name, so an
     // action no part allows (cloudformation: CloudFormation itself calls it) needs no line.

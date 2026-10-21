@@ -61,8 +61,10 @@ appId: ${APP_ID}
 
 # Clearing the query restores the full set — the count returns to "3 recipes", proving filtering is derived
 # from the query and never destroys the underlying cache.
-- tapOn: 'Search your recipes'
-- eraseText
+# "Clear search", not a tap and `eraseText`: the tap puts the caret where it lands and `eraseText` deletes only what is
+# before it (`discoverRecentSearches.yaml`). The field's control and the no-match button share the name, and both set the
+# query to empty, so either is the step. Neither moves focus, so the keyboard stays open here.
+- tapOn: 'Clear search'
 - extendedWaitUntil:
       visible:
           text: '^3 recipes$'
@@ -120,8 +122,9 @@ appId: ${APP_ID}
 # ⛔ The query is "Risotto" AND this lane's run key, never the bare word. Every lane seeds its own public Herb Risotto, so
 # "Risotto" matched ten cards in run 39165813897 and this lane's card was below the fold. The search ANDs every word, so
 # only this lane's risotto answers. Not the whole title either: the field would hold it and match it as the card.
-- tapOn: 'Search recipes'
-- eraseText
+# Cleared by "Clear search", for the reason above: a tap and `eraseText` kept the last "e" of the query before it
+# (emulator, 2026-10-20: the field read "eRisotto local-20619-c36e5ed8").
+- tapOn: 'Clear search'
 - runFlow:
       file: common/searchDiscover.yaml
       env:

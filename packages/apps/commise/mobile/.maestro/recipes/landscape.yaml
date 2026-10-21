@@ -83,10 +83,9 @@ onFlowComplete:
       timeout: 20000
 - assertVisible: 'My recipes'
 
-# Clear the search, so the list is whole again for the later flows' assumptions about this screen.
-- tapOn: 'Search your recipes'
-- eraseText
-- pressKey: Enter
+# Clear the search, so the list is whole again for the later flows' assumptions about this screen. "Clear search", not a
+# tap and `eraseText`, for `searchNavigation.yaml`'s reason. It moves no focus, so no keyboard opens and none is closed.
+- tapOn: 'Clear search'
 - extendedWaitUntil:
       visible:
           text: '^3 recipes$'

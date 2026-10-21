@@ -159,6 +159,30 @@ describe('assetViolations', () => {
         expect(assetViolations(stagedAsset, expectation)).toEqual([]);
     });
 
+    it('does not demand a file pip installed OUTSIDE the install root, such as a console script', () => {
+        // nltk's RECORD lists its `nltk` command at `../../bin/nltk` (CI run 39626314177, the day nltk was pinned):
+        // the asset IS the install root, so a path that leaves it can never be inside it, and the function imports
+        // modules, never runs a console script.
+        const withScript = { ...expectation, engineRecord: [...engineRecord, { path: '../../bin/nltk', bytes: 214 }] };
+
+        expect(assetViolations(stagedAsset, withScript)).toEqual([]);
+    });
+
+    it('still demands a recorded file inside the root that the asset lacks, beside an out-of-root one', () => {
+        const withScript = {
+            ...expectation,
+            engineRecord: [
+                ...engineRecord,
+                { path: '../../bin/nltk', bytes: 214 },
+                { path: 'nltk/__init__.py', bytes: 9 },
+            ],
+        };
+
+        expect(assetViolations(stagedAsset, withScript)).toEqual([
+            "the asset is missing the engine file 'nltk/__init__.py', which its manifest records",
+        ]);
+    });
+
     it('reports the handler module when the asset does not carry it', () => {
         const violations = assetViolations(without('handler.py'), expectation);
 
@@ -313,6 +337,7 @@ describe('distInfoDirectory', () => {
         const directories = requirements.map((requirement) => distInfoDirectory(requirement));
 
         expect(new Set(directories).size).toBe(requirements.length);
+
         for (const directory of directories) {
             expect(directory).toMatch(/^[a-z0-9_]+-[0-9][^/]*\.dist-info$/u);
         }

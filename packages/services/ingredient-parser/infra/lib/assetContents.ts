@@ -165,7 +165,9 @@ function manifestViolations(
     const violations: string[] = [];
 
     for (const recorded of manifest) {
-        if (recorded.bytes === undefined) {
+        // A path that LEAVES the install root (`../../bin/nltk`, a console script) cannot be inside the asset, which
+        // is that root; the function imports modules and never runs a script. Every row inside the root still counts.
+        if (recorded.bytes === undefined || recorded.path.startsWith('../')) {
             continue;
         }
 

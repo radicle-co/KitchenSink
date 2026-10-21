@@ -585,6 +585,12 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
         takePhoto();
         await screen.findByRole('alert');
+        // The next attempt is a press on the add control, and the control takes a press only once the refused pick
+        // has freed it. The alert can render one commit before that, so a press made on the alert alone could land
+        // on a busy control and open nothing (a 1-in-5 failure under load).
+        await waitFor(() =>
+            expect(screen.getByRole('button', { name: 'Add photos' }).getAttribute('aria-busy')).toBeNull(),
+        );
 
         chooseFromLibrary();
 

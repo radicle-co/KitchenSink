@@ -118,6 +118,25 @@ jobs:
                   # Full history, so `Detect changes` finds the pull-request base locally (see the note there).
                   fetch-depth: 0
 
+            # ⛔ WHAT THIS RUN BUILDS IS NAMED BY CONTENT, NEVER BY COMMIT (ADR-0067). The image tag is `ck-<key>`, the
+            # key being `deployKey.sh`'s hash of everything the image is built from (`imageClosures.tsv`), so a push that
+            # changes none of it names the image already built: the build is skipped and the task definition, the
+            # service and its rollout are left alone. The webhooks' `SENTRY_RELEASE` is the webhooks key, so their
+            # template stops changing on every commit too. `--require-clean` refuses a key read from HEAD while the tree
+            # holds something else. `contentKeyWiring.test.ts` runs this step and refuses any commit in these names.
+            - name: Resolve content keys
+              id: content
+              run: |
+                  set -euo pipefail
+                  service=$(bash .github/scripts/deployKey.sh key identity-service HEAD --require-clean)
+                  webhooks=$(bash .github/scripts/deployKey.sh key identity-webhooks HEAD --require-clean)
+                  tag=$(bash .github/scripts/imageTag.sh content "${service}")
+                  {
+                      echo "image_tag=${tag}"
+                      echo "webhooks_release=${webhooks}"
+                  } >> "$GITHUB_OUTPUT"
+                  echo "identity image ${tag}; webhooks release ${webhooks}"
+
             # ⛔ A dispatch or a Sandbox Up call WAITS for an in-progress pull-request run of this workflow rather than being
             # cancelled by it (see `concurrency` above, and `waitForPrIdentityDeploy.sh`).
             - name: Wait for an in-progress pull-request deploy
@@ -454,13 +473,21 @@ jobs:
               if: steps.flags.outputs.deploy_service == 'true'
               run: bash .github/scripts/ecrEnsureRepo.sh kitchensink-identity
 
+            # An image already under its content tag is the image these inputs build, and the tag is immutable: it is
+            # not built twice (`ecrPushVerdict.sh`). The record step is a no-op for a content tag (only releases are
+            # recorded) and is here because every caller of the verdict records what it pushes.
             - name: Build, tag, and push identity service Docker image
               if: steps.flags.outputs.deploy_service == 'true'
               env:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-                  IMAGE_TAG: sandbox-${{ github.sha }}
+                  IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
               run: |
-                  docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
+                  set -euo pipefail
+                  verdict=$(bash .github/scripts/ecrPushVerdict.sh kitchensink-identity "${IMAGE_TAG}")
+                  if [ "$verdict" = push ]; then
+                      docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t "${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}" --push .
+                      bash .github/scripts/ecrRecordRelease.sh kitchensink-identity "${IMAGE_TAG}"
+                  fi
 
             # ⛔ NO `cdk bootstrap`, ever, from any workflow. The default qualifier (`CDKToolkit`, `hnb659fds`) is SHARED
             # with another application in this account, and this repository's own qualifiers (`ksnonprod`, `ksprod`,
@@ -579,7 +606,7 @@ jobs:
             - name: CDK Deploy (identity schema — before anything reads it)
               if: steps.flags.outputs.deploy_service == 'true'
               env:
-                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
                   packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-schema-${STAGE}" --no-previous-parameters \
@@ -621,7 +648,7 @@ jobs:
                   # normalises to `warn` at synth, so a typo cannot arm a check that can crash-loop a service.
                   # Deliberately a VARIABLE, not a code change: a soak nobody can end is a disabled check.
                   SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
-                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: packages/services/identity/infra/node_modules/.bin/cdk deploy --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
 
@@ -632,7 +659,7 @@ jobs:
             - name: Verify the identity service deployment — every resource and handler
               if: steps.flags.outputs.deploy_service == 'true'
               env:
-                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
                   bash .github/scripts/verifyDeployment.sh verify "${DEFAULT_AWS_REGION}" \
@@ -646,7 +673,7 @@ jobs:
               if: steps.flags.outputs.deploy_webhooks == 'true'
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
-                  SENTRY_RELEASE: ${{ github.sha }}
+                  SENTRY_RELEASE: ${{ steps.content.outputs.webhooks_release }}
               run: packages/services/identity-webhooks/infra/node_modules/.bin/cdk deploy --app "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts" --no-previous-parameters --all --require-approval never
 
             # ⛔ THE only post-deploy signal this stack has ever had, and the one that needed it most: the
@@ -663,7 +690,7 @@ jobs:
               if: steps.flags.outputs.deploy_webhooks == 'true'
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
-                  SENTRY_RELEASE: ${{ github.sha }}
+                  SENTRY_RELEASE: ${{ steps.content.outputs.webhooks_release }}
               run: |
                   bash .github/scripts/verifyDeployment.sh verify "${DEFAULT_AWS_REGION}" \
                     "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts"
@@ -723,7 +750,7 @@ jobs:
             - name: Smoke test — identity service CURRENT (sandbox)
               if: steps.flags.outputs.deploy_service == 'true'
               env:
-                  EXPECTED_IMAGE_TAG: sandbox-${{ github.sha }}
+                  EXPECTED_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
               run: |
                   set -euo pipefail
                   # `>&2` on the diagnostic, NOT stdout: this runs inside `$( … )`, so an `::error::` written

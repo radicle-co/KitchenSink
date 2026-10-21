@@ -3,7 +3,8 @@
 # Which of a CDK app's stacks would a deploy CHANGE? (ADR-0067) A stack is CURRENT, and is left alone, only when:
 #
 #  - it is in a usable resting state (`deployGate.sh`'s DEPLOY_GATE_USABLE_STATUSES, the one authority);
-#  - its deployed template equals the template this commit synthesizes (`cdk diff --method=template --fail` exits 0);
+#  - its deployed template equals the template this commit synthesizes, compared as JSON apart from CDK's own
+#    `CDKMetadata` resource, whose analytics string moves with the CDK version and which `cdk diff` ignores too;
 #  - every SSM parameter it resolved at deploy time still holds the value it resolved then.
 #
 # Anything else is STALE and deploys — an answer that could not be read included. That is ADR-0010's bias: a gate may
@@ -12,19 +13,28 @@
 # deployed this stack" (owner ruling, 2026-10-21).
 #
 # Usage:
-#     stackCurrency.sh decide   <status> <diffExit> [<ssmName> <resolvedValue> <currentValue>] …
+#     stackCurrency.sh decide   <status> <compareExit> [<ssmName> <resolvedValue> <currentValue>] …
 #     stackCurrency.sh evaluate <region> <forced> <cdk> <app> <stackName> […]
 #
 # `decide` is PURE: it prints `current=true|false` and `reason=<one line>`, nothing else, or exits 2 on misuse with no
-# verdict. `evaluate` does the I/O: ONE synth of <app> into a temporary assembly, then per stack its status, its
-# template diff against that assembly, and its resolved SSM values. It prints, and appends to $GITHUB_OUTPUT:
+# verdict. <compareExit> is 0 for equal templates, 1 for different ones, 2 when the deployed one could not be read, and
+# anything else when the comparison itself failed. `evaluate` does the I/O: ONE synth of <app> into a temporary
+# assembly, then per stack its status, its deployed template against that assembly's, and its resolved SSM values.
+#
+# ⛔ NOT `cdk diff`. It reads the deployed template through the bootstrap LOOKUP role, which may not call
+# DescribeStacks in this account, and it then exits 1 exactly as for a real change (run 39661720474: every stack read
+# changed). `get-template` runs with the caller's own credentials, like every other read here.
+#
+# It prints, and appends to $GITHUB_OUTPUT:
 #     stale=<construct paths of the stale stacks, space-separated, for `cdk deploy --exclusively`>
 #     stale_json=<their CloudFormation names, as a JSON array, for `contains(fromJSON(…), '<name>')`>
+#     paths_json=<every judged stack's construct path, keyed by CloudFormation name: a step that deploys ONE stack
+#                selects it by path, and a path is not always the name (`IdentityService-sandbox`)>
 #     assembly=<the synthesized assembly directory, so the deploy and its verification use exactly what was judged>
 # With <forced>=true every stack is stale and nothing is diffed (a dispatch or a Sandbox Up call deploys everything).
 # Exit 0 when the question was answered; 1 when the synth failed or a named stack is not in the app; 2 on misuse.
 #
-# @sideEffect `evaluate` runs the CDK CLI and calls CloudFormation and SSM.
+# @sideEffect `evaluate` runs the CDK CLI (synth and ls only) and calls CloudFormation and SSM.
 set -uo pipefail
 
 # shellcheck source=deployGate.sh
@@ -38,7 +48,7 @@ stack_currency_decide() {
     local status="${1-}" diff_exit="${2-}"
 
     if [ -z "$status" ] || ! [[ "$diff_exit" =~ ^[0-9]+$ ]]; then
-        echo 'usage: stackCurrency.sh decide <status> <diffExit> [<ssmName> <resolvedValue> <currentValue>] …' >&2
+        echo 'usage: stackCurrency.sh decide <status> <compareExit> [<ssmName> <resolvedValue> <currentValue>] …' >&2
         return 2
     fi
     shift 2
@@ -59,8 +69,12 @@ stack_currency_decide() {
         printf 'current=false\nreason=the template differs from the deployed one\n'
         return 0
     fi
+    if [ "$diff_exit" -eq 2 ]; then
+        printf 'current=false\nreason=the deployed template could not be read\n'
+        return 0
+    fi
     if [ "$diff_exit" -ne 0 ]; then
-        printf 'current=false\nreason=the template diff could not be computed (exit %s)\n' "$diff_exit"
+        printf 'current=false\nreason=the template comparison failed (exit %s)\n' "$diff_exit"
         return 0
     fi
     while [ $# -gt 0 ]; do
@@ -95,6 +109,30 @@ stack_currency_ssm_triples() {
         <<<"${parameters:-[]}")
 }
 
+# The template file the assembly holds for <stackName>, searched in every nested manifest. Prints nothing when none.
+stack_currency_template_file() {
+    local assembly="$1" stack="$2" manifest
+    while IFS= read -r manifest; do
+        jq -r --arg name "$stack" --arg dir "$(dirname "$manifest")" \
+            '.artifacts // {} | to_entries[] | select(.value.type == "aws:cloudformation:stack")
+             | select((.value.properties.stackName // .key) == $name) | "\($dir)/\(.value.properties.templateFile)"' \
+            "$manifest"
+    done < <(find "$assembly" -name manifest.json) | head -n 1
+}
+
+# Compare <stackName>'s deployed template with <templateFile>. Returns 0 equal, 1 different, 2 when the deployed
+# template cannot be read, 3 when the local one cannot. Prints nothing.
+stack_currency_compare() {
+    local region="$1" stack="$2" template_file="$3" deployed local_template normalize
+    normalize='if type == "string" then fromjson else . end | del(.Resources.CDKMetadata?)'
+    deployed=$(aws cloudformation get-template --region "$region" --stack-name "$stack" --template-stage Original \
+        --query TemplateBody --output json 2>/dev/null | jq -S "$normalize" 2>/dev/null) || return 2
+    [ -n "$deployed" ] || return 2
+    [ -n "$template_file" ] && [ -f "$template_file" ] || return 3
+    local_template=$(jq -S "$normalize" "$template_file" 2>/dev/null) || return 3
+    [ "$deployed" = "$local_template" ] || return 1
+}
+
 stack_currency_evaluate() {
     local region="${1-}" forced="${2-}" cdk="${3-}" app="${4-}"
 
@@ -115,7 +153,8 @@ stack_currency_evaluate() {
         return 1
     fi
 
-    local stale=() stale_names=() stack path status diff_exit verdict reason triples triple_lines name resolved current
+    local stale=() stale_names=() paths=() stack path status diff_exit verdict reason triples triple_lines name resolved
+    local current
     for stack in "$@"; do
         # The construct path `cdk deploy --exclusively` selects by: the listing's id without its ` (<name>)` suffix.
         path=$(jq -r --arg name "$stack" '.[] | select(.name == $name) | .id | sub(" \\(.*\\)$"; "")' <<<"$listing")
@@ -123,6 +162,7 @@ stack_currency_evaluate() {
             echo "::error::stack-currency: ${stack} is not a stack of ${app}" >&2
             return 1
         fi
+        paths+=("$stack" "$path")
 
         if [ "$forced" = true ]; then
             echo "[stack-currency] ${stack}: stale (a forced run deploys every stack)" >&2
@@ -134,8 +174,8 @@ stack_currency_evaluate() {
         status=$(deploy_gate_stack_status "$region" "$stack")
         diff_exit=0
         if [ "$status" != "$DEPLOY_GATE_ABSENT" ]; then
-            # `--exclusively`: without it `cdk diff` also diffs the stack's dependencies and exits 1 for any of them.
-            "$cdk" diff --app "$assembly" --method=template --fail --exclusively "$path" >&2 2>&1 || diff_exit=$?
+            stack_currency_compare "$region" "$stack" "$(stack_currency_template_file "$assembly" "$stack")" ||
+                diff_exit=$?
         fi
         triples=()
         if [ "$status" = "$DEPLOY_GATE_ABSENT" ]; then
@@ -161,9 +201,12 @@ stack_currency_evaluate() {
 
     # `stale_json` is an ARRAY so a step tests one stack with `contains(fromJSON(…), '<name>')`, which matches whole
     # names: a substring test over a string would need padding that `$GITHUB_OUTPUT` is not documented to keep.
-    local verdict_lines stale_json
+    local verdict_lines stale_json paths_json
     stale_json=$(jq -cn '$ARGS.positional' --args "${stale_names[@]+"${stale_names[@]}"}")
-    verdict_lines=$(printf 'stale=%s\nstale_json=%s\nassembly=%s\n' "${stale[*]-}" "$stale_json" "$assembly")
+    paths_json=$(jq -cn '$ARGS.positional | [range(0; length; 2) as $i | {(.[$i]): .[$i + 1]}] | add // {}' \
+        --args "${paths[@]}")
+    verdict_lines=$(printf 'stale=%s\nstale_json=%s\npaths_json=%s\nassembly=%s\n' \
+        "${stale[*]-}" "$stale_json" "$paths_json" "$assembly")
     printf '%s\n' "$verdict_lines"
     if [ -n "${GITHUB_OUTPUT:-}" ]; then
         printf '%s\n' "$verdict_lines" >>"$GITHUB_OUTPUT"

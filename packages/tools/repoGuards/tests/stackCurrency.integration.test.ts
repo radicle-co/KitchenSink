@@ -4,10 +4,13 @@
  * What it must do, each asserted from the stubs' own call logs:
  *  - synthesize the app ONCE, and judge every stack against that one assembly;
  *  - select stacks for `cdk deploy --exclusively` by their construct path, mapped from the CloudFormation name;
- *  - leave a stack alone only when it is usable, its template is unchanged and its resolved SSM values still hold;
+ *  - read each deployed template with the CALLER's credentials (`get-template`), never through `cdk diff`, which
+ *    assumes the bootstrap lookup role, and that role may not read stacks (run 39661720474: every stack read changed);
+ *  - leave a stack alone only when it is usable, its template equals the synthesized one apart from CDK's own
+ *    `CDKMetadata` resource, and its resolved SSM values still hold;
  *  - never compare the bootstrap version parameter;
- *  - read any answer it cannot get (a stack it cannot describe, a parameter it cannot read) as STALE;
- *  - deploy everything, diffing nothing, on a forced run;
+ *  - read any answer it cannot get (a stack it cannot describe, a template or a parameter it cannot read) as STALE;
+ *  - deploy everything, comparing nothing, on a forced run;
  *  - fail loudly, not "skip", when the app does not synthesize or a named stack is not in it.
  */
 import { spawnSync } from 'node:child_process';
@@ -28,6 +31,9 @@ afterAll(() => {
     }
 });
 
+const TEMPLATE = '{"Resources":{"Queue":{"Type":"AWS::SQS::Queue","Properties":{"DelaySeconds":1}}}}';
+
+/** The `cdk` stub. `synth` writes a real cloud assembly manifest and one template per stack; `diff` must never run. */
 const FAKE_CDK = `#!/usr/bin/env bash
 echo "cdk $*" >> "$FAKE_LOG"
 case "$1" in
@@ -35,15 +41,15 @@ case "$1" in
         out=''; while [ $# -gt 0 ]; do [ "$1" = --output ] && out="$2"; shift; done
         [ "\${FAKE_SYNTH_EXIT:-0}" = 0 ] || exit "$FAKE_SYNTH_EXIT"
         mkdir -p "$out"
+        echo '{"artifacts":{"AppA":{"type":"aws:cloudformation:stack","displayName":"App/A","properties":{"stackName":"stack-a","templateFile":"AppA.template.json"}},"stack-b":{"type":"aws:cloudformation:stack","displayName":"App/B","properties":{"templateFile":"stack-b.template.json"}}}}' > "$out/manifest.json"
+        echo "\${FAKE_LOCAL_A:-$TEMPLATE}" > "$out/AppA.template.json"
+        echo "\${FAKE_LOCAL_B:-$TEMPLATE}" > "$out/stack-b.template.json"
         ;;
     ls)
         echo '[{"id":"App/A (stack-a)","name":"stack-a"},{"id":"App/B (stack-b)","name":"stack-b"}]'
         ;;
     diff)
-        case "\${!#}" in
-            App/A) exit "\${FAKE_DIFF_A:-0}" ;;
-            App/B) exit "\${FAKE_DIFF_B:-0}" ;;
-        esac
+        exit 99
         ;;
 esac
 exit 0
@@ -72,6 +78,11 @@ case "$args" in
         params_fail_var="FAKE_PARAMS_FAIL_$key"
         [ -z "\${!params_fail_var:-}" ] || { echo 'Rate exceeded' >&2; exit 254; }
         echo "\${!params_var:-[]}"
+        ;;
+    *"get-template"*)
+        tpl_var="FAKE_DEPLOYED_$key"; unreadable_var="FAKE_TEMPLATE_UNREADABLE_$key"
+        [ -z "\${!unreadable_var:-}" ] || { echo 'AccessDenied' >&2; exit 254; }
+        echo "\${!tpl_var:-$TEMPLATE}"
         ;;
     *"ssm get-parameter"*)
         case "$name" in
@@ -125,6 +136,7 @@ function evaluate(env: Readonly<Record<string, string>>, args: readonly string[]
             env: {
                 PATH: `${bin}:${process.env['PATH'] ?? ''}`,
                 FAKE_LOG: log,
+                TEMPLATE,
                 GITHUB_OUTPUT: output,
                 RUNNER_TEMP: dir,
                 ...env,
@@ -144,6 +156,8 @@ function evaluate(env: Readonly<Record<string, string>>, args: readonly string[]
 const staleOf = (run: Run): string => /^stale=(.*)$/mu.exec(run.stdout)?.[1] ?? '<none>';
 const synths = (run: Run): number => run.calls.filter((call) => call.startsWith('cdk synth')).length;
 const diffs = (run: Run): readonly string[] => run.calls.filter((call) => call.startsWith('cdk diff'));
+const templateReads = (run: Run): readonly string[] => run.calls.filter((call) => call.includes('get-template'));
+const CHANGED = TEMPLATE.replace('"DelaySeconds":1', '"DelaySeconds":2');
 
 describe('stackCurrency.sh evaluate', () => {
     it('leaves every unchanged stack alone, from ONE synth', () => {
@@ -153,36 +167,68 @@ describe('stackCurrency.sh evaluate', () => {
         expect(staleOf(run)).toBe('');
         expect(run.githubOutput).toContain('stale_json=[]\n');
         expect(synths(run)).toBe(1);
-        expect(diffs(run)).toHaveLength(2);
+        expect(templateReads(run)).toHaveLength(2);
+        expect(existsSync(/^assembly=(.*)$/mu.exec(run.stdout)?.[1] ?? '')).toBe(true);
     });
 
-    // ⛔ `--exclusively`: `cdk diff` otherwise diffs the stack's DEPENDENCIES too and exits 1 for any of them, so a
-    // current stack whose dependency changed read as stale (measured against the live sandbox, 2026-10-21).
-    it('diffs each stack alone against the synthesized assembly, by construct path, with the template method', () => {
+    // ⛔ `cdk diff` reads the deployed template through the bootstrap LOOKUP role, which may not call DescribeStacks
+    // here, and it then exits 1 exactly as for a real change. So it is never called: the template is read with the
+    // caller's own credentials, the role every other read in the gate uses.
+    it('reads each deployed template with the caller credentials, original stage, and never runs cdk diff', () => {
         const run = evaluate({});
-        const assembly = /^assembly=(.*)$/mu.exec(run.stdout)?.[1] ?? '';
 
-        expect(assembly).not.toBe('');
-        expect(existsSync(assembly)).toBe(true);
-        expect(diffs(run)).toEqual([
-            `cdk diff --app ${assembly} --method=template --fail --exclusively App/A`,
-            `cdk diff --app ${assembly} --method=template --fail --exclusively App/B`,
+        expect(diffs(run)).toEqual([]);
+        expect(templateReads(run)).toEqual([
+            'aws cloudformation get-template --region us-east-1 --stack-name stack-a --template-stage Original --query TemplateBody --output json',
+            'aws cloudformation get-template --region us-east-1 --stack-name stack-b --template-stage Original --query TemplateBody --output json',
         ]);
     });
 
     it('marks the stack whose template differs, by its construct path', () => {
-        expect(staleOf(evaluate({ FAKE_DIFF_B: '1' }))).toBe('App/B');
+        const run = evaluate({ FAKE_DEPLOYED_B: CHANGED });
+
+        expect(staleOf(run)).toBe('App/B');
+        expect(run.stderr).toContain('stack-b: STALE (the template differs from the deployed one)');
     });
 
-    it('marks a stack whose diff could not be computed', () => {
-        expect(staleOf(evaluate({ FAKE_DIFF_A: '2' }))).toBe('App/A');
+    it('compares templates as JSON, so key order and whitespace do not count', () => {
+        const reordered =
+            '{ "Resources": { "Queue": { "Properties": { "DelaySeconds": 1 }, "Type": "AWS::SQS::Queue" } } }';
+
+        expect(staleOf(evaluate({ FAKE_DEPLOYED_A: reordered }))).toBe('');
+    });
+
+    it('accepts a deployed template that CloudFormation returns as a JSON string', () => {
+        expect(staleOf(evaluate({ FAKE_DEPLOYED_A: JSON.stringify(TEMPLATE) }))).toBe('');
+    });
+
+    // CDK's own analytics resource changes with the CDK version, and `cdk diff` ignores it for the same reason.
+    it('ignores only the CDKMetadata resource', () => {
+        const withMetadata = (analytics: string): string =>
+            JSON.stringify({
+                Resources: {
+                    ...(JSON.parse(TEMPLATE) as { Resources: object }).Resources,
+                    CDKMetadata: { Type: 'AWS::CDK::Metadata', Properties: { Analytics: analytics } },
+                },
+            });
+
+        expect(staleOf(evaluate({ FAKE_DEPLOYED_A: withMetadata('v2:a'), FAKE_LOCAL_A: withMetadata('v2:b') }))).toBe(
+            '',
+        );
+    });
+
+    it('marks a stack whose deployed template cannot be read, and says why', () => {
+        const run = evaluate({ FAKE_TEMPLATE_UNREADABLE_A: '1' });
+
+        expect(staleOf(run)).toBe('App/A');
+        expect(run.stderr).toContain('stack-a: STALE (the deployed template could not be read)');
     });
 
     it('marks an absent stack without diffing it', () => {
         const run = evaluate({ FAKE_STATUS_A: 'ABSENT' });
 
         expect(staleOf(run)).toBe('App/A');
-        expect(diffs(run).some((call) => call.endsWith(' App/A'))).toBe(false);
+        expect(templateReads(run).some((call) => call.includes(' stack-a '))).toBe(false);
     });
 
     it('marks a stack it cannot describe as stale, never as current', () => {
@@ -242,17 +288,25 @@ describe('stackCurrency.sh evaluate', () => {
         expect(run.calls.some((call) => call.includes('/cdk-bootstrap/'))).toBe(false);
     });
 
-    it('deploys every stack on a forced run, diffing nothing', () => {
+    it('deploys every stack on a forced run, comparing nothing', () => {
         const run = evaluate({}, ['true']);
 
         expect(staleOf(run)).toBe('App/A App/B');
         expect(run.stdout).toContain('stale_json=["stack-a","stack-b"]\n');
-        expect(diffs(run)).toEqual([]);
+        expect(templateReads(run)).toEqual([]);
         expect(synths(run)).toBe(1);
     });
 
+    // A stack's construct path is not always its name (`IdentityService-sandbox` deploys
+    // `kitchensink-identity-service-sandbox`), and `cdk deploy` selects by path, so a step deploying one stack reads it.
+    it('writes every judged stack path, keyed by CloudFormation name', () => {
+        const run = evaluate({});
+
+        expect(run.githubOutput).toContain('paths_json={"stack-a":"App/A","stack-b":"App/B"}\n');
+    });
+
     it('writes the verdict to $GITHUB_OUTPUT, with the stale stacks by path and by CloudFormation name', () => {
-        const run = evaluate({ FAKE_DIFF_A: '1' });
+        const run = evaluate({ FAKE_DEPLOYED_A: CHANGED });
 
         expect(run.githubOutput).toContain('stale=App/A\n');
         // A JSON array, so a step can ask `contains(fromJSON(…), '<name>')`, which matches whole names only.

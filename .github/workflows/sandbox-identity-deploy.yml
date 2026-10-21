@@ -684,7 +684,14 @@ jobs:
                   SCHEMA_CURRENCY_MODE: ${{ vars.SCHEMA_CURRENCY_MODE }}
                   IDENTITY_IMAGE_TAG: ${{ steps.content.outputs.image_tag }}
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
-              run: packages/services/identity/infra/node_modules/.bin/cdk deploy "kitchensink-identity-service-${STAGE}" --exclusively --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --require-approval never
+                  # ⛔ `cdk deploy` selects by CONSTRUCT PATH, and this stack's path (`IdentityService-<stage>`) is not its
+                  # CloudFormation name, so the judge's own name-to-path map is the selector (`stackCurrency.sh`).
+                  STACK_PATHS: ${{ steps.identity-currency.outputs.paths_json }}
+              run: |
+                  set -euo pipefail
+                  path=$(jq -r --arg name "kitchensink-identity-service-${STAGE}" '.[$name] // ""' <<<"${STACK_PATHS}")
+                  [ -n "${path}" ] || { echo "::error::the stack judge named no path for kitchensink-identity-service-${STAGE}"; exit 1; }
+                  packages/services/identity/infra/node_modules/.bin/cdk deploy "${path}" --exclusively --app "packages/services/identity/infra/node_modules/.bin/tsx packages/services/identity/infra/bin/app.ts" --no-previous-parameters --require-approval never
 
             # The identity stack's RESOURCE check. The smoke at the end of this job asserts the ORIGIN and
             # says nothing about the stack's Lambdas — among them the migration runner the next step invokes,

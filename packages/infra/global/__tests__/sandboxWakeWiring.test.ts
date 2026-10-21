@@ -596,9 +596,39 @@ const skippingCheckIndex = (steps: readonly Step[]): number =>
     steps.findIndex((step) => (step.run ?? '').includes(CHECK_INVOCATION) && SKIPS_WHEN_DOWN.test(step.run ?? ''));
 
 /**
- * Whether an `if:` is false whenever `closed(step, output)` holds for what it reads. Each `||` branch must contain,
- * among its `&&` terms, a `== 'true'` comparison on a closed output. Parentheses are not read, so a parenthesised
- * gate counts as ungated: the rule fails closed rather than guessing. Pure.
+ * Split a GitHub expression on `separator` where it stands outside every parenthesis and `'…'` string. An unbalanced
+ * expression comes back whole, so nothing in it is read as a top-level term. Pure.
+ */
+function splitTopLevel(expression: string, separator: '||' | '&&'): readonly string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let quoted = false;
+    let start = 0;
+
+    for (let index = 0; index < expression.length; index += 1) {
+        const char = expression[index];
+
+        if (char === "'") {
+            quoted = !quoted;
+        } else if (!quoted && char === '(') {
+            depth += 1;
+        } else if (!quoted && char === ')') {
+            depth -= 1;
+        } else if (!quoted && depth === 0 && expression.startsWith(separator, index)) {
+            parts.push(expression.slice(start, index));
+            start = index + separator.length;
+            index += separator.length - 1;
+        }
+    }
+
+    return depth === 0 && !quoted ? [...parts, expression.slice(start)] : [expression];
+}
+
+/**
+ * Whether an `if:` is false whenever `closed(step, output)` holds for what it reads. Each top-level `||` branch must
+ * contain, among its top-level `&&` terms, a `== 'true'` comparison on a closed output. A parenthesised group or a
+ * function call is ONE opaque term: it may narrow a branch (`… && contains(fromJSON(x || '[]'), y)`), but a verdict
+ * inside it is not read, so a parenthesised gate counts as ungated and the rule fails closed rather than guessing. Pure.
  *
  * @param expression - The step's `if:`, with or without `${{ }}`.
  * @param closed - Whether that step output is never `'true'` while the sandbox is down.
@@ -610,12 +640,8 @@ function gatedOnTheVerdict(expression: string, closed: (stepId: string, output: 
         .replace(/^\$\{\{\s*/u, '')
         .replace(/\s*\}\}$/u, '');
 
-    if (/[()]/u.test(body)) {
-        return false;
-    }
-
-    return body.split('||').every((branch) =>
-        branch.split('&&').some((term) => {
+    return splitTopLevel(body, '||').every((branch) =>
+        splitTopLevel(branch, '&&').some((term) => {
             const match = TRUE_COMPARISON.exec(term.trim());
 
             return match !== null && closed(match[1] ?? '', match[2] ?? '');
@@ -740,6 +766,21 @@ describe('sandbox status check wiring — a step that needs the sandbox is gated
             [],
         ],
         ['a negated gate, which an unset `up` passes', [check, migrate("steps.tier.outputs.up != 'false'")], MIGRATE],
+        [
+            'a gate narrowed by a call that holds || inside it',
+            [check, migrate("steps.tier.outputs.up == 'true' && contains(fromJSON(steps.j.outputs.x || '[]'), 'y')")],
+            [],
+        ],
+        [
+            'a call ORed with the verdict, which skips it',
+            [check, migrate("contains(steps.j.outputs.x, 'y') || steps.tier.outputs.up == 'true'")],
+            MIGRATE,
+        ],
+        [
+            'a verdict comparison quoted inside a string, which is not a comparison',
+            [check, migrate("contains('steps.tier.outputs.up == ''true''', 'x')")],
+            MIGRATE,
+        ],
         [
             'a parenthesised gate, which the rule does not read',
             [check, migrate("(steps.tier.outputs.up == 'true')")],

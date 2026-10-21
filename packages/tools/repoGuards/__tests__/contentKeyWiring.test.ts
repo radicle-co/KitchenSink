@@ -215,6 +215,7 @@ describe('sandbox-identity-deploy.yml deploys only the stacks that changed', () 
         const deployEnv = { ...byName(deploy)?.env };
 
         delete deployEnv['STALE'];
+        delete deployEnv['STACK_PATHS'];
 
         for (const [name, value] of Object.entries(deployEnv)) {
             expect(byId(currency)?.env?.[name], name).toBe(value);
@@ -243,7 +244,15 @@ describe('sandbox-identity-deploy.yml deploys only the stacks that changed', () 
             "contains(fromJSON(steps.identity-currency.outputs.stale_json || '[]'), format('kitchensink-identity-service-{0}', env.STAGE))",
         );
         expect(ifOf(schema) + ifOf(service)).not.toContain('stale_names');
-        expect(String(service?.run)).toContain('"kitchensink-identity-service-${STAGE}" --exclusively');
+        // ⛔ BY CONSTRUCT PATH. `cdk deploy` selects by path, and the service's path is `IdentityService-<stage>`, so its
+        // CloudFormation name matched nothing (run 39661720474: "No stacks match the name(s)").
+        expect(service?.env?.['STACK_PATHS']).toBe('${{ steps.identity-currency.outputs.paths_json }}');
+        expect(String(service?.run)).toContain(
+            'path=$(jq -r --arg name "kitchensink-identity-service-${STAGE}" \'.[$name] // ""\' <<<"${STACK_PATHS}")',
+        );
+        expect(String(service?.run)).toMatch(/\[ -n "\$\{path\}" \] \|\|/u);
+        expect(String(service?.run)).toContain('cdk deploy "${path}" --exclusively');
+        expect(String(service?.run)).not.toContain('cdk deploy "kitchensink-identity-service-');
         expect(String(service?.run)).not.toContain('--all');
     });
 

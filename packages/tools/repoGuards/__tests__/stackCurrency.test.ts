@@ -3,7 +3,7 @@
  * `stackCurrency.sh decide`: is ONE deployed stack already what this commit would deploy? (ADR-0067)
  *
  * A stack is CURRENT only when all three hold: it is in a usable resting state (`deployGate.sh`'s own list, the one
- * authority), its deployed template equals the freshly synthesized one (`cdk diff --method=template --fail` exited 0),
+ * authority), its deployed template equals the freshly synthesized one (the comparison exited 0),
  * and every SSM parameter it resolved at deploy time still holds the value it resolved. Anything else is STALE and
  * deploys, including an answer the gate could not read: ADR-0010's bias is toward deploying, never toward a skip
  * behind a green check.
@@ -50,7 +50,8 @@ describe('stackCurrency.sh decide', () => {
         ['an update still in progress', 'UPDATE_IN_PROGRESS', '0', 'UPDATE_IN_PROGRESS'],
         ['a create that never succeeded', 'ROLLBACK_COMPLETE', '0', 'ROLLBACK_COMPLETE'],
         ['the template differs', 'UPDATE_COMPLETE', '1', 'template'],
-        ['the diff itself failed', 'UPDATE_COMPLETE', '2', 'diff'],
+        ['the deployed template could not be read', 'UPDATE_COMPLETE', '2', 'the deployed template could not be read'],
+        ['the comparison itself failed', 'UPDATE_COMPLETE', '3', 'the template comparison failed (exit 3)'],
     ])('answers stale when %s', (_label, status, diffExit, reason) => {
         const out = verdict(status, diffExit);
 

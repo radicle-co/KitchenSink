@@ -48,11 +48,15 @@ one machine, produced byte-identical templates (46 and 54 files, no difference).
    smoke's expected tag and the webhooks' `SENTRY_RELEASE` come from one `content` step. The build runs only on `push`.
 4. **Each running leg deploys only its stale stacks.** `.github/scripts/stackCurrency.sh` synthesizes the app once and
    judges each stack, from `deployGate.sh stacks-for`, against the account. A stack is current when three things hold: it
-   is in a usable resting state, `cdk diff --method=template --fail --exclusively` exits 0, and every SSM value it resolved
-   at deploy time still holds. Anything else is stale, including an answer the gate cannot read: a stack whose parameters
+   is in a usable resting state, its deployed template equals the synthesized one, and every SSM value it resolved
+   at deploy time still holds. The templates are compared as JSON with the CI role's own `get-template`, apart from
+   CDK's `CDKMetadata` resource. `cdk diff` is not used, because it reads through the bootstrap lookup role, which may
+   not describe stacks here, and it then reports every stack as changed (run 39661720474). Anything else is stale,
+   including an answer the gate cannot read: a stack whose parameters
    cannot be listed, and a parameter whose value cannot be read, which the reason names as unreadable. If no stack is
-   stale, the deploy step does not run. Otherwise it runs `cdk deploy --exclusively <stale stacks>`. A step that deploys
-   one stack tests the `stale_json` array with `contains(fromJSON(…), '<name>')`, which matches whole names. A dispatch
+   stale, the deploy step does not run. Otherwise it runs `cdk deploy --exclusively <stale stacks>`, by construct path. A
+   step that deploys one stack tests the `stale_json` array with `contains(fromJSON(…), '<name>')`, which matches whole
+   names, and selects the stack by the path `paths_json` gives for its name. A dispatch
    or a Sandbox Up call is forced and deploys everything.
 5. **The `CommitSha` stack tag keeps its meaning.** It is not part of a template, so it now changes only on the stacks that
    deploy, and it means "the last commit that deployed this stack" (owner ruling, 2026-10-21).

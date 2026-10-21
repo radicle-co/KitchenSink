@@ -86,10 +86,16 @@ case "$args" in
         ;;
     *"ssm get-parameter"*)
         case "$name" in
-            /p/changed) echo new ;;
+            /p/changed) value=new ;;
             /p/unreadable) echo 'AccessDenied' >&2; exit 254 ;;
-            /cdk-bootstrap/*) echo 99 ;;
-            *) echo same ;;
+            /p/multiline) value=$'-----BEGIN KEY-----\nabc\n-----END KEY-----\n' ;;
+            /cdk-bootstrap/*) value=99 ;;
+            *) value=same ;;
+        esac
+        # As the real CLI answers: a JSON string for \`--output json\`, the raw value for \`--output text\`.
+        case "$args" in
+            *"--output json"*) jq -n --arg v "$value" '$v' ;;
+            *) printf '%s\n' "$value" ;;
         esac
         ;;
 esac
@@ -258,6 +264,55 @@ describe('stackCurrency.sh evaluate', () => {
         expect(run.status, run.stderr).toBe(0);
         expect(staleOf(run)).toBe('App/A');
         expect(run.stderr).toContain('stack-a: STALE (its resolved parameters could not be read)');
+    });
+
+    // ⛔ A PEM key is a multi-line value (`/kitchensink/sandbox/clerk/jwt-public-key`). Split on lines, it read as
+    // changed on every run and redeployed the identity service (run 39684199271).
+    it('keeps a stack current whose resolved SSM value spans lines, byte for byte', () => {
+        const run = evaluate({
+            FAKE_PARAMS_A: JSON.stringify([
+                {
+                    ParameterKey: 'Key',
+                    ParameterValue: '/p/multiline',
+                    ResolvedValue: '-----BEGIN KEY-----\nabc\n-----END KEY-----\n',
+                },
+            ]),
+        });
+
+        expect(run.status, run.stderr).toBe(0);
+        expect(staleOf(run)).toBe('');
+    });
+
+    it('marks a multi-line SSM value stale when it differs only by its trailing newline', () => {
+        const run = evaluate({
+            FAKE_PARAMS_A: JSON.stringify([
+                {
+                    ParameterKey: 'Key',
+                    ParameterValue: '/p/multiline',
+                    ResolvedValue: '-----BEGIN KEY-----\nabc\n-----END KEY-----',
+                },
+            ]),
+        });
+
+        expect(staleOf(run)).toBe('App/A');
+    });
+
+    // ⛔ CloudFormation stores every non-ASCII character of a template as `?` (measured 2026-10-21: the data stack's
+    // em dashes come back as `?` from both template stages), so the deployed copy can never equal the synthesized one
+    // byte for byte. The synthesized side is compared as CloudFormation can store it.
+    it('compares a non-ASCII character as the `?` CloudFormation stores for it', () => {
+        const local = '{"Description":"Media (sandbox) — ADR-0064 · é"}';
+
+        expect(
+            staleOf(
+                evaluate({ FAKE_LOCAL_A: local, FAKE_DEPLOYED_A: '{"Description":"Media (sandbox) ? ADR-0064 ? ?"}' }),
+            ),
+        ).toBe('');
+        expect(
+            staleOf(
+                evaluate({ FAKE_LOCAL_A: local, FAKE_DEPLOYED_A: '{"Description":"Media (sandbox) - ADR-0064 ? ?"}' }),
+            ),
+        ).toBe('App/A');
     });
 
     it('marks a stack whose SSM parameter cannot be read', () => {

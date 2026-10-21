@@ -91,22 +91,25 @@ stack_currency_decide() {
     printf 'current=true\nreason=unchanged\n'
 }
 
-# The SSM triples `decide` needs for one deployed stack: `<name> <resolved> <current>` per resolved parameter, one per
-# line, tab-separated. An unreadable parameter prints an empty current value, which `decide` reads as stale.
+# The SSM triples `decide` needs for one deployed stack: `<name> <resolved> <current>` per resolved parameter, each
+# field NUL-terminated so a multi-line value (a PEM key) survives byte for byte. An unreadable parameter gives an empty
+# current value, which `decide` reads as stale.
 # ⛔ Returns 1, printing nothing, when the stack's parameters cannot be read at all: the status read before it may have
 # succeeded, and "no parameters to compare" must never pass for "none changed".
 stack_currency_ssm_triples() {
-    local region="$1" stack="$2" parameters key name resolved current
+    local region="$1" stack="$2" parameters key name resolved current value_json
     parameters=$(aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \
         --query 'Stacks[0].Parameters' --output json 2>/dev/null) || return 1
-    while IFS=$'\t' read -r key name resolved; do
-        [ -n "$key" ] || continue
+    while IFS= read -r -d '' key && IFS= read -r -d '' name && IFS= read -r -d '' resolved; do
         case "$STACK_CURRENCY_IGNORED_PARAMETERS" in *" ${key} "*) continue ;; esac
-        current=$(aws ssm get-parameter --region "$region" --name "$name" \
-            --query 'Parameter.Value' --output text 2>/dev/null) || current=''
-        printf '%s\t%s\t%s\n' "$name" "$resolved" "$current"
-    done < <(jq -r '.[]? | select(.ResolvedValue != null) | [.ParameterKey, .ParameterValue, .ResolvedValue] | @tsv' \
-        <<<"${parameters:-[]}")
+        current=''
+        if value_json=$(aws ssm get-parameter --region "$region" --name "$name" \
+            --query 'Parameter.Value' --output json 2>/dev/null); then
+            IFS= read -r -d '' current < <(jq -j '., "\u0000"' <<<"$value_json" 2>/dev/null) || current=''
+        fi
+        printf '%s\0%s\0%s\0' "$name" "$resolved" "$current"
+    done < <(jq -j '.[]? | select(.ResolvedValue != null)
+        | .ParameterKey, "\u0000", .ParameterValue, "\u0000", .ResolvedValue, "\u0000"' <<<"${parameters:-[]}")
 }
 
 # The template file the assembly holds for <stackName>, searched in every nested manifest. Prints nothing when none.
@@ -124,12 +127,15 @@ stack_currency_template_file() {
 # template cannot be read, 3 when the local one cannot. Prints nothing.
 stack_currency_compare() {
     local region="$1" stack="$2" template_file="$3" deployed local_template normalize
+    # ⛔ CloudFormation stores every non-ASCII character of a template as `?`, so the synthesized side is compared as it
+    # can be stored. Only the local side changes; the deployed one is already in that form.
     normalize='if type == "string" then fromjson else . end | del(.Resources.CDKMetadata?)'
+    local storable='walk(if type == "string" then [explode[] | if . > 127 then 63 else . end] | implode else . end)'
     deployed=$(aws cloudformation get-template --region "$region" --stack-name "$stack" --template-stage Original \
         --query TemplateBody --output json 2>/dev/null | jq -S "$normalize" 2>/dev/null) || return 2
     [ -n "$deployed" ] || return 2
     [ -n "$template_file" ] && [ -f "$template_file" ] || return 3
-    local_template=$(jq -S "$normalize" "$template_file" 2>/dev/null) || return 3
+    local_template=$(jq -S "${normalize} | ${storable}" "$template_file" 2>/dev/null) || return 3
     [ "$deployed" = "$local_template" ] || return 1
 }
 
@@ -153,7 +159,7 @@ stack_currency_evaluate() {
         return 1
     fi
 
-    local stale=() stale_names=() paths=() stack path status diff_exit verdict reason triples triple_lines name resolved
+    local stale=() stale_names=() paths=() stack path status diff_exit verdict reason triples triple_file name resolved
     local current
     for stack in "$@"; do
         # The construct path `cdk deploy --exclusively` selects by: the listing's id without its ` (<name>)` suffix.
@@ -180,14 +186,18 @@ stack_currency_evaluate() {
         triples=()
         if [ "$status" = "$DEPLOY_GATE_ABSENT" ]; then
             verdict=$(stack_currency_decide "$status" "$diff_exit") || return 2
-        elif ! triple_lines=$(stack_currency_ssm_triples "$region" "$stack"); then
-            verdict=$'current=false\nreason=its resolved parameters could not be read'
         else
-            while IFS=$'\t' read -r name resolved current; do
-                [ -n "$name" ] || continue
-                triples+=("$name" "$resolved" "$current")
-            done <<<"$triple_lines"
-            verdict=$(stack_currency_decide "$status" "$diff_exit" "${triples[@]+"${triples[@]}"}") || return 2
+            # A file, not `$(…)`: command substitution drops the NULs that keep each value whole.
+            triple_file=$(mktemp "${RUNNER_TEMP:-/tmp}/stackCurrency.triples.XXXXXX")
+            if ! stack_currency_ssm_triples "$region" "$stack" >"$triple_file"; then
+                verdict=$'current=false\nreason=its resolved parameters could not be read'
+            else
+                while IFS= read -r -d '' name && IFS= read -r -d '' resolved && IFS= read -r -d '' current; do
+                    triples+=("$name" "$resolved" "$current")
+                done <"$triple_file"
+                verdict=$(stack_currency_decide "$status" "$diff_exit" "${triples[@]+"${triples[@]}"}") || return 2
+            fi
+            rm -f "$triple_file"
         fi
         reason=$(sed -n 's/^reason=//p' <<<"$verdict")
         if [ "$(sed -n 's/^current=//p' <<<"$verdict")" = true ]; then

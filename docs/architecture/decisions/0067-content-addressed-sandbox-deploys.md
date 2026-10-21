@@ -50,7 +50,9 @@ one machine, produced byte-identical templates (46 and 54 files, no difference).
    judges each stack, from `deployGate.sh stacks-for`, against the account. A stack is current when three things hold: it
    is in a usable resting state, its deployed template equals the synthesized one, and every SSM value it resolved
    at deploy time still holds. The templates are compared as JSON with the CI role's own `get-template`, apart from
-   CDK's `CDKMetadata` resource. `cdk diff` is not used, because it reads through the bootstrap lookup role, which may
+   CDK's `CDKMetadata` resource. CloudFormation stores every non-ASCII character of a template as `?` (measured
+   2026-10-21 on the data stack's em dashes), so the synthesized side is compared in that form. SSM values are
+   compared byte for byte, so a multi-line value such as a PEM key is one value. `cdk diff` is not used, because it reads through the bootstrap lookup role, which may
    not describe stacks here, and it then reports every stack as changed (run 39661720474). Anything else is stale,
    including an answer the gate cannot read: a stack whose parameters
    cannot be listed, and a parameter whose value cannot be read, which the reason names as unreadable. If no stack is
@@ -101,5 +103,7 @@ path read the leg flags.
 - **Residual: the workflow's `paths:` list does not cover the root of the image closure.** A change to only the root
   lockfile, `.npmrc`, `.nvmrc`, `tsconfig.json`, `prettier.config.js` or `scripts/prepareProdManifest.mjs` changes the
   image key, but it starts no identity deploy. This was true before this decision.
+- **Residual: a change from one non-ASCII character to another is invisible to the gate.** Both are stored as `?`, so
+  CloudFormation holds the same template either way.
 - **Residual: a content key can be claimed first.** The non-prod role can push a new tag of any shape. An image planted
   under a future key is then reused. The role cannot overwrite a content tag, and a planter needs the future tree in hand.

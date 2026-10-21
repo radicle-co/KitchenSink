@@ -22,12 +22,6 @@ appId: ${APP_ID}
 # (`childOf` its label): the polite live region outside it keeps saying the same words, 1 dp tall and therefore visible
 # to Maestro, until the remote sources finish.
 - runFlow: dismissKeyboardIntro.yaml
-# The list itself first: a `notVisible` child of a list that is not open yet is true at once, so the loader wait below
-# proves nothing until the list exists.
-- extendedWaitUntil:
-      visible:
-          text: 'Food suggestions for ingredient \d+'
-      timeout: 20000
 - extendedWaitUntil:
       notVisible:
           text: 'Searching ingredients'

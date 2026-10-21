@@ -127,7 +127,8 @@ stack_currency_evaluate() {
         status=$(deploy_gate_stack_status "$region" "$stack")
         diff_exit=0
         if [ "$status" != "$DEPLOY_GATE_ABSENT" ]; then
-            "$cdk" diff --app "$assembly" --method=template --fail "$path" >&2 2>&1 || diff_exit=$?
+            # `--exclusively`: without it `cdk diff` also diffs the stack's dependencies and exits 1 for any of them.
+            "$cdk" diff --app "$assembly" --method=template --fail --exclusively "$path" >&2 2>&1 || diff_exit=$?
         fi
         triples=()
         while IFS=$'\t' read -r name resolved current; do

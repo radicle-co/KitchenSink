@@ -153,15 +153,17 @@ describe('stackCurrency.sh evaluate', () => {
         expect(diffs(run)).toHaveLength(2);
     });
 
-    it('diffs against the synthesized assembly, by construct path, with the template method', () => {
+    // ⛔ `--exclusively`: `cdk diff` otherwise diffs the stack's DEPENDENCIES too and exits 1 for any of them, so a
+    // current stack whose dependency changed read as stale (measured against the live sandbox, 2026-10-21).
+    it('diffs each stack alone against the synthesized assembly, by construct path, with the template method', () => {
         const run = evaluate({});
         const assembly = /^assembly=(.*)$/mu.exec(run.stdout)?.[1] ?? '';
 
         expect(assembly).not.toBe('');
         expect(existsSync(assembly)).toBe(true);
         expect(diffs(run)).toEqual([
-            `cdk diff --app ${assembly} --method=template --fail App/A`,
-            `cdk diff --app ${assembly} --method=template --fail App/B`,
+            `cdk diff --app ${assembly} --method=template --fail --exclusively App/A`,
+            `cdk diff --app ${assembly} --method=template --fail --exclusively App/B`,
         ]);
     });
 

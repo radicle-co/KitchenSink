@@ -39,6 +39,22 @@ if ecr_tag_is_preview "$TAG"; then
     exit 0
 fi
 
+# A CONTENT tag is the content: an image under it was built from exactly these inputs, and the tag is immutable, so it
+# is never built twice. No ledger: the ledger proves PRODUCTION pushed a release, and a content tag is not a release.
+if ecr_tag_is_content "$TAG"; then
+    if output="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=${TAG}" --output json 2>&1)"; then
+        echo "[ecr] ${REPO}:${TAG} is already built from these inputs; skipping the build." >&2
+        echo skip
+        exit 0
+    fi
+    if [[ "$output" == *ImageNotFoundException* ]]; then
+        echo push
+        exit 0
+    fi
+    echo "::error::ecr-push-verdict: could not tell whether ${REPO}:${TAG} exists: ${output}" >&2
+    exit 1
+fi
+
 if ! output="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=${TAG}" --output json 2>&1)"; then
     # Only ECR's own "no such image" is an answer. Anything else (credentials, throttling, a missing repository) is not.
     if [[ "$output" == *ImageNotFoundException* ]]; then

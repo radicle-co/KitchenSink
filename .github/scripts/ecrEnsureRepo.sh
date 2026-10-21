@@ -62,8 +62,13 @@ fi
 # not a preview (no wildcard, so `buildcache-x` stays immutable) and not a release. Release shapes (`prod-<sha>`, a bare
 # sha) stay immutable, and `infra-image` neither reads nor writes the cache for one: a mutable tag any branch job can
 # write must never feed a production image's layers.
+#
+# ⛔ The CONTENT prefix (`ecrTagKind.sh`) is retained by the policy but is NOT mutable: content tags are immutable by
+# design (an image under one cannot be replaced), so the preview prefixes come from `ecr_preview_prefixes`, which
+# subtracts it. Deriving from every retention prefix would make `ck-*` mutable on the next production deploy.
+source "$(dirname "${BASH_SOURCE[0]}")/ecrTagKind.sh"
 CACHE_TAG='buildcache'
-MUTABLE_FILTERS="$(jq -r --arg cache "$CACHE_TAG" '([.rules[].selection.tagPrefixList // [] | .[] | . + "*"] + [$cache]) | unique | .[]' "$POLICY")"
+MUTABLE_FILTERS="$( { ecr_preview_prefixes | sed 's/$/*/'; echo "$CACHE_TAG"; } | LC_ALL=C sort -u)"
 if [ -z "$MUTABLE_FILTERS" ]; then
     echo "::error::ecr-ensure-repo: ${POLICY} names no tag prefix, so no tag would be mutable and previews could not be rebuilt" >&2
     exit 1

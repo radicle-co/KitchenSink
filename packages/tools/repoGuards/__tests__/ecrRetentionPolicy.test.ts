@@ -46,6 +46,8 @@ const PROD_TAG = '67f56925ef02406f9e6b4530c868e914cb555daa';
 
 /** The two tag prefixes every preview build carries (`sandbox-{sha}`, `pr-{n}-{sha}`). */
 const PREVIEW_TAGS = ['sandbox-a0a967e2293b7359258289987860b785d665ae75', 'pr-91-79287b6de893d138d0a4a98ab13ac3b5'];
+/** A content tag (`imageTag.sh content <key>`): immutable, and kept by retention rule of its own. */
+const CONTENT_TAG = `ck-${'c0ffee'.repeat(10)}abcd`;
 
 /** One rule's image selection, as ECR's lifecycle grammar defines it. */
 interface RuleSelection {
@@ -121,7 +123,22 @@ describe('ECR retention policy (.github/scripts/ecrLifecyclePolicy.json)', () =>
             .filter(({ selection }) => (selection.tagPrefixList ?? []).length > 0)
             .map(({ selection }) => selection.countNumber);
 
-        expect(counts).toEqual([RETENTION, RETENTION]);
+        expect(counts).toEqual([RETENTION, RETENTION, RETENTION]);
+    });
+
+    // A content tag is IMMUTABLE (`ecrEnsureRepo.sh` leaves its prefix out of the mutable set), so retention is the
+    // only thing that ever removes one. It is kept by a rule of its own, and no preview rule reaches it.
+    it('keeps content tags under a rule of their own, which selects nothing else', () => {
+        const contentRules = policy.rules.filter(({ selection }) => (selection.tagPrefixList ?? []).includes('ck-'));
+
+        expect(contentRules).toHaveLength(1);
+        expect(contentRules[0]?.selection.tagPrefixList).toEqual(['ck-']);
+        expect(contentRules[0]?.selection.countNumber).toBe(RETENTION);
+        expect(rulesSelecting(policy, CONTENT_TAG)).toEqual([contentRules[0]?.rulePriority]);
+
+        for (const tag of PREVIEW_TAGS) {
+            expect(rulesSelecting(policy, tag)).not.toContain(contentRules[0]?.rulePriority);
+        }
     });
 
     it('expires untagged images, which is what keeps overwritten layers from accumulating', () => {

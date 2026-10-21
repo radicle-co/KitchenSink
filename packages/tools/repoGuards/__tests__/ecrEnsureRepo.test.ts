@@ -36,7 +36,11 @@ const POLICY = JSON.parse(readFileSync(path.join(SCRIPTS, 'ecrLifecyclePolicy.js
 const SHA = '67f56925ef02406f9e6b4530c868e914cb555daa';
 /** The one mutable tag that is not a preview image: the BuildKit layer cache `infra-image` writes (exact, no wildcard). */
 const CACHE_TAG = 'buildcache';
+/** The content-tag prefix (`ecrTagKind.sh`): retained by the policy, but IMMUTABLE, so never a mutable filter. */
+const CONTENT_PREFIX = 'ck-';
+const CONTENT_TAG = `${CONTENT_PREFIX}${'ab'.repeat(32)}`;
 const MUTABLE_FILTERS = [...new Set(POLICY.rules.flatMap((rule) => rule.selection.tagPrefixList ?? [])).values()]
+    .filter((prefix) => prefix !== CONTENT_PREFIX)
     .map((prefix) => `${prefix}*`)
     .concat(CACHE_TAG)
     .sort();
@@ -226,6 +230,64 @@ describe('ecrEnsureRepo.sh: release tags are immutable, preview tags are not', (
     });
 });
 
+/**
+ * Content tags (`ck-<key>`) are IMMUTABLE. The retention policy keeps them under a rule of its own, and every
+ * retention prefix used to become a mutable filter: so the content prefix is subtracted, or the next production
+ * deploy (the only role that may change mutability) would silently make content tags overwritable.
+ */
+describe('ecrEnsureRepo.sh: content tags stay immutable', () => {
+    /** ECR's WILDCARD filter semantics: `*` matches any run of characters. */
+    const matches = (filter: string, tag: string): boolean =>
+        new RegExp(`^${filter.replace(/[.+?^${}()|[\]\\]/gu, '\\$&').replace(/\*/gu, '.*')}$`, 'u').test(tag);
+
+    const createdFilters = (): readonly string[] => {
+        const create =
+            callsTo(run(ENSURE, ['kitchensink-food'], { repository: 'absent' }), 'create-repository')[0] ?? '';
+
+        return [...create.matchAll(/filterType=WILDCARD,filter=(\S+)/gu)].map((m) => m[1] ?? '').sort();
+    };
+
+    it('creates a repository whose mutable filters are exactly the preview prefixes and the cache tag', () => {
+        expect(createdFilters()).toEqual(['buildcache', 'pr-*', 'sandbox-*']);
+    });
+
+    it('matches no content tag with any mutable filter', () => {
+        expect(createdFilters().filter((filter) => matches(filter, CONTENT_TAG))).toEqual([]);
+    });
+
+    it('is not vacuous: the matcher does match a preview tag', () => {
+        expect(createdFilters().some((filter) => matches(filter, `sandbox-${SHA}`))).toBe(true);
+    });
+});
+
+describe('ecrPushVerdict.sh: a content tag already in the repository is not built again', () => {
+    const verdict = (scenario: Scenario): Run => run(VERDICT, ['kitchensink-food', CONTENT_TAG], scenario);
+
+    // The tag IS the content: an image under it was built from these inputs, and the tag cannot be overwritten.
+    it('skips when the content tag exists, asking no ledger', () => {
+        const r = verdict({ image: 'present' });
+
+        expect(r.status).toBe(0);
+        expect(r.stdout.trim()).toBe('skip');
+        expect(r.calls.filter((call) => call.startsWith('ssm '))).toEqual([]);
+    });
+
+    it('pushes when the content tag is absent', () => {
+        const r = verdict({ image: 'absent' });
+
+        expect(r.status).toBe(0);
+        expect(r.stdout.trim()).toBe('push');
+    });
+
+    it('fails, answering nothing, when ECR cannot say whether the content tag exists', () => {
+        const r = verdict({ image: 'denied' });
+
+        expect(r.status).not.toBe(0);
+        expect(r.stdout.trim()).toBe('');
+        expect(r.stderr).toContain('::error::');
+    });
+});
+
 describe('ecrPushVerdict.sh: a release tag already in the repository is not pushed again', () => {
     const verdict = (tag: string, scenario: Scenario): Run => run(VERDICT, ['kitchensink-food', tag], scenario);
 
@@ -336,6 +398,13 @@ describe('ecrRecordRelease.sh: production records the digest it pushed', () => {
 
     it('fails when the image it should record is not there', () => {
         expect(record({ image: 'absent' }).status).not.toBe(0);
+    });
+
+    it('does nothing for a content tag: it is not a release', () => {
+        const r = record({ image: 'present' }, CONTENT_TAG);
+
+        expect(r.status).toBe(0);
+        expect(r.calls).toEqual([]);
     });
 
     it('does nothing for a preview tag', () => {

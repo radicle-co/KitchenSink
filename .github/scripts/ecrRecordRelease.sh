@@ -8,7 +8,7 @@
 # `/kitchensink/prod/`, so an entry proves the production role pushed that digest (an immutable tag cannot change after).
 # The entry is never overwritten: an existing entry must already hold this digest (a rerun), else the run fails.
 #
-# A preview tag is mutable, is not a release and is never recorded (exit 0, nothing asked of AWS).
+# A preview tag (mutable) or a content tag (`ck-`) is not a release and is never recorded (exit 0, nothing asked of AWS).
 #
 #   bash .github/scripts/ecrRecordRelease.sh <repositoryName> <imageTag>
 #
@@ -25,7 +25,8 @@ fi
 
 source "$(dirname "${BASH_SOURCE[0]}")/ecrTagKind.sh"
 
-if ecr_tag_is_preview "$TAG"; then
+# A preview or content tag is not a release, and only releases are recorded.
+if [ "$(ecr_tag_kind "$TAG")" != release ]; then
     exit 0
 fi
 

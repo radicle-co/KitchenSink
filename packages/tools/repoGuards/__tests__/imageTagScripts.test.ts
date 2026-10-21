@@ -35,6 +35,27 @@ describe('imageTag.sh', () => {
     it.each([[[]], [['pr-1']], [['', 'sha']], [['pr-1', '']]])('refuses %j with the usage status', (args) => {
         expect(tag(...args).status).toBe(2);
     });
+    // A CONTENT tag names what an image is built FROM, never a commit: `deployKey.sh`'s sha256, 64 lowercase hex.
+    it('names a content key as ck-<key>, and prints nothing else', () => {
+        const key = 'ab'.repeat(32);
+        const result = tag('content', key);
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).toBe(`ck-${key}\n`);
+    });
+
+    it.each([
+        ['63 characters', 'a'.repeat(63)],
+        ['65 characters', 'a'.repeat(65)],
+        ['upper case', 'A'.repeat(64)],
+        ['a 40-hex commit sha', '67f56925ef02406f9e6b4530c868e914cb555daa'],
+        ['an empty key', ''],
+    ])('refuses a content key that is %s', (_label, key) => {
+        const result = tag('content', key);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stdout).toBe('');
+    });
 });
 
 describe('ecrImagePresent.sh', () => {

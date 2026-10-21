@@ -9,7 +9,9 @@
                 "countUnit": "days",
                 "countNumber": 1
             },
-            "action": { "type": "expire" }
+            "action": {
+                "type": "expire"
+            }
         },
         {
             "rulePriority": 2,
@@ -20,7 +22,9 @@
                 "countType": "imageCountMoreThan",
                 "countNumber": 50
             },
-            "action": { "type": "expire" }
+            "action": {
+                "type": "expire"
+            }
         },
         {
             "rulePriority": 3,
@@ -31,7 +35,22 @@
                 "countType": "imageCountMoreThan",
                 "countNumber": 50
             },
-            "action": { "type": "expire" }
+            "action": {
+                "type": "expire"
+            }
+        },
+        {
+            "rulePriority": 4,
+            "description": "Keep the newest 50 ck-* content images (immutable; only this rule removes them)",
+            "selection": {
+                "tagStatus": "tagged",
+                "tagPrefixList": ["ck-"],
+                "countType": "imageCountMoreThan",
+                "countNumber": 50
+            },
+            "action": {
+                "type": "expire"
+            }
         }
     ]
 }

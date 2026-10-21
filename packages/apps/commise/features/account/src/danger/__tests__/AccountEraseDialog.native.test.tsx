@@ -232,13 +232,17 @@ describe('AccountEraseDialog (native) — the keyboard', () => {
 
     // A native dialog carries no name of its own: its header names it, so the title is said once
     // (`docs/design/nativeContainerNames.md` N1).
+    // The dialog is the one that holds the title, found from the title: React Native Web's own `Modal` adds a second
+    // `role="dialog"` wrapper around it when `animationType` is `none` (reduce motion on, or not yet read, as in jsdom),
+    // and a native device renders no such wrapper.
     it('is a dialog named by its title header alone, so the title is said once', () => {
         renderDialog();
 
-        const dialog = screen.getByRole('dialog');
+        const dialog = screen.getByRole('heading', { name: 'Erase my data' }).closest('[role="dialog"]');
 
-        expect(within(dialog).getByRole('heading', { name: 'Erase my data' })).toBeTruthy();
-        expect(dialog.getAttribute('aria-label')).toBeNull();
+        expect(dialog).not.toBeNull();
+        expect(within(dialog as HTMLElement).getByRole('heading', { name: 'Erase my data' })).toBeTruthy();
+        expect(dialog?.getAttribute('aria-label')).toBeNull();
     });
 });
 

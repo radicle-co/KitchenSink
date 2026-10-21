@@ -93,7 +93,11 @@ function runWithStubs(args: readonly string[], env: Readonly<Record<string, stri
                 ? 'last="${!#}"; for f in ${MAESTRO_STUB_FAIL_FLOWS:-}; do case "$last" in */"$f".yaml) exit 1 ;; esac; done\n'
                 : name === 'npx'
                   ? `n=$(($(cat "${log}.npx" 2>/dev/null || echo 0) + 1)); echo "$n" > "${log}.npx"; [ "$n" = "\${MAESTRO_STUB_NPX_FAIL_CALL:-0}" ] && exit 1\n`
-                  : '';
+                  : name === 'xcrun'
+                    ? // The device holds the Reduce Motion setting it was just written, as a real Simulator does: the
+                      // runner reads it back and refuses a device that does not (`maestroReduceMotion.test.ts`).
+                      'case "$*" in *"defaults read com.apple.Accessibility ReduceMotionEnabled"*) echo 1 ;; esac\n'
+                    : '';
 
         // ONE field per argument, so a flattened argv is visible.
         writeFileSync(

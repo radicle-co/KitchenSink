@@ -54,7 +54,12 @@ appId: ${APP_ID}
 - assertNotVisible: 'No cuisines match “Nyonya”. You can use it as your own.'
 - assertNotVisible: 'Choose a cuisine, or type your own.'
 
-- tapOn: 'Publish'
+- tapOn:
+      text: 'Publish'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
 # audit 2026-10-19, A1.14: the snackbar lasts about 6 s, so it is the FIRST wait after the tap. It shows only after the server
 # accepted the write. Then the editor must be gone (60 s: 20 s longer than the first wait, because Maestro counts both from the tap).
 - extendedWaitUntil:

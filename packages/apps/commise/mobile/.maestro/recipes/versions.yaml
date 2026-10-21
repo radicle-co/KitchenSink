@@ -119,7 +119,12 @@ appId: ${APP_ID}
 - runFlow: common/closeEditorKeyboard.yaml
 # The seeded lamb is PUBLISHED, so the pinned bar's primary is `Save changes`: ONE write, one version (owner
 # decision D1 — a published recipe's checkpoints never reach the server, so no extra versions appear).
-- tapOn: 'Save changes'
+- tapOn:
+      text: 'Save changes'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
 # Audit 2026-10-19, A1.14: 'Changes saved.' shows only once the server accepted the write and
 # lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
 # then the title proves the detail.
@@ -154,7 +159,12 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'Changes saved.'
       timeout: 15000
-- tapOn: 'Save changes'
+- tapOn:
+      text: 'Save changes'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
 # Audit 2026-10-19, A1.14: 'Changes saved.' shows only once the server accepted the write and
 # lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
 # then the title proves the detail.

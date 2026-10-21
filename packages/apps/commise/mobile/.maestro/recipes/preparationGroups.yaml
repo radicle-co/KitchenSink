@@ -103,7 +103,12 @@ appId: ${APP_ID}
 # The soft keyboard is up and the action bar has UNPINNED with it, so the bar is below this screen (build spec §7.1,
 # "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
 - runFlow: common/closeEditorKeyboard.yaml
-- tapOn: 'Publish'
+- tapOn:
+      text: 'Publish'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
 # Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
 # lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
 # then the title proves the detail.

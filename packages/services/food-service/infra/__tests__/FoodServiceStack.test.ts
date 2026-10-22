@@ -1094,15 +1094,21 @@ describe('Per-stage Fargate Spot (ADR-0008)', () => {
             (resource: any) => resource.Properties.CapacityProviderStrategy,
         );
 
-    it('runs both non-prod (pr-7) services on FARGATE_SPOT with the capacity provider on the cluster', () => {
+    // Owner ruling 2026-10-22 (ADR-0008, amended): the API a test run calls is on-demand, because a Spot interruption of
+    // a single task is a minute of 503s (the pr-91 recipe API, 2026-10-22). The fetch worker stays on Spot: it is
+    // idempotent and nothing waits on it.
+    it('runs the non-prod (pr-7) API on on-demand FARGATE and the fetch worker on FARGATE_SPOT', () => {
         const template = synthFoodTemplate('pr-7', 'sandbox');
 
-        for (const strategy of serviceStrategies(template)) {
-            expect(strategy).toEqual([{ CapacityProvider: 'FARGATE_SPOT', Weight: 1 }]);
-        }
+        const strategiesOf = (prefix: string): unknown[] =>
+            Object.entries(template.findResources('AWS::ECS::Service'))
+                .filter(([id]) => id.startsWith(prefix))
+                .map(([, resource]) => (resource as any).Properties.CapacityProviderStrategy);
 
+        expect(strategiesOf('FoodApiService')).toEqual([[{ CapacityProvider: 'FARGATE', Weight: 1 }]]);
+        expect(strategiesOf('FoodFetchWorkerService')).toEqual([[{ CapacityProvider: 'FARGATE_SPOT', Weight: 1 }]]);
         template.hasResourceProperties('AWS::ECS::ClusterCapacityProviderAssociations', {
-            CapacityProviders: Match.arrayWith(['FARGATE_SPOT']),
+            CapacityProviders: Match.arrayWith(['FARGATE', 'FARGATE_SPOT']),
         });
     });
 

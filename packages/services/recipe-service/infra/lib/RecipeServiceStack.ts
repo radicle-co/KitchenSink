@@ -160,8 +160,11 @@ export class RecipeServiceStack extends Stack {
         // Fail at synth, in the deploy log, rather than as crash-looping tasks minutes later.
         assertFoodServiceUrl(foodServiceUrl);
 
-        const useSpot = stage !== 'prod';
-        const capacityProviderStrategies = useSpot ? [{ capacityProvider: 'FARGATE_SPOT', weight: 1 }] : undefined;
+        // ADR-0008, amended 2026-10-22 (owner ruling): outside prod the API runs on the ON-DEMAND `FARGATE` provider. On
+        // Spot, an interruption left the pr-91 API with no healthy target for 68 s, and every request got 503. A strategy,
+        // not a launch type, so the existing service updates in place; prod keeps `undefined` and does not diff.
+        const nonProd = stage !== 'prod';
+        const capacityProviderStrategies = nonProd ? [{ capacityProvider: 'FARGATE', weight: 1 }] : undefined;
 
         const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', { vpcId });
 
@@ -214,7 +217,7 @@ export class RecipeServiceStack extends Stack {
             // resolves to ENHANCED any more. ENHANCED's unbounded `TaskId` dimension was 81% of a $155/mo
             // CloudWatch bill; see containerInsights.ts for the measurement.
             containerInsightsV2: CONTAINER_INSIGHTS_TIER,
-            enableFargateCapacityProviders: useSpot,
+            enableFargateCapacityProviders: nonProd,
         });
 
         const taskExecutionRole = new iam.Role(this, 'RecipeTaskExecutionRole', {

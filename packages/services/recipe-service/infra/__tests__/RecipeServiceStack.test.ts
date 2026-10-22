@@ -1054,6 +1054,31 @@ describe('the schema deploys and migrates AHEAD of the service, in its own stack
  * value actually REACHES `ClusterSettings` on this stack's cluster — a synth-level fact a unit test on the
  * constant cannot observe, and the gap that let this stack drift before.
  */
+/**
+ * ADR-0008, amended 2026-10-22 (owner ruling): a preview's API runs ONE on-demand task. On Fargate Spot, an
+ * interruption left the `pr-91` recipe API with no healthy target for 68 s (2026-10-22 07:47:35 to 07:48:43 UTC), and
+ * every request in that window got 503: a test run's seed reset and a flow failed on it. Prod is unchanged.
+ */
+describe('a preview API runs on on-demand Fargate (ADR-0008, amended 2026-10-22)', () => {
+    /** The capacity-provider strategy of every `RecipeApiService`: one entry per service, so the list also pins the count. */
+    const apiStrategies = (template: Template): unknown[] =>
+        Object.entries(template.findResources('AWS::ECS::Service'))
+            .filter(([id]) => id.startsWith('RecipeApiService'))
+            .map(
+                ([, resource]) =>
+                    (resource as { Properties: { CapacityProviderStrategy?: unknown } }).Properties
+                        .CapacityProviderStrategy,
+            );
+
+    it('runs a pr-{N} preview API on the on-demand FARGATE capacity provider, not Spot', () => {
+        expect(apiStrategies(synthTemplate('pr-7', 'sandbox'))).toEqual([[{ CapacityProvider: 'FARGATE', Weight: 1 }]]);
+    });
+
+    it('leaves prod on its on-demand launch type with no strategy (no prod diff)', () => {
+        expect(apiStrategies(synthTemplate('prod', 'prod'))).toEqual([undefined]);
+    });
+});
+
 describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-30)', () => {
     const insightsOf = (template: Template, value: string): void => {
         template.hasResourceProperties('AWS::ECS::Cluster', {

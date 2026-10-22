@@ -303,6 +303,10 @@ export class FoodServiceStack extends Stack {
         // the sandbox platform).
         const useSpot = stage !== 'prod';
         const capacityProviderStrategies = useSpot ? [{ capacityProvider: 'FARGATE_SPOT', weight: 1 }] : undefined;
+        // ADR-0008, amended 2026-10-22 (owner ruling): the API a test run calls runs ON-DEMAND outside prod. One Spot
+        // task means a minute of 503s on every interruption (the pr-91 recipe API, 2026-10-22). A strategy, not a
+        // launch type, so an existing service updates in place; prod keeps `undefined` and does not diff.
+        const apiCapacityProviderStrategies = useSpot ? [{ capacityProvider: 'FARGATE', weight: 1 }] : undefined;
 
         const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', { vpcId });
 
@@ -652,9 +656,9 @@ export class FoodServiceStack extends Stack {
             cluster,
             taskDefinition: apiTaskDefinition,
             desiredCount,
-            // ADR-0008: non-prod runs on FARGATE_SPOT (undefined for prod keeps on-demand LaunchType
-            // FARGATE → no prod diff). Providing a strategy omits LaunchType from the service resource.
-            capacityProviderStrategies,
+            // ADR-0008 (amended 2026-10-22): non-prod runs on the on-demand FARGATE provider (undefined for prod keeps
+            // on-demand LaunchType FARGATE → no prod diff). Providing a strategy omits LaunchType from the resource.
+            capacityProviderStrategies: apiCapacityProviderStrategies,
             // Public subnet + public IP so the task egresses to USDA/AWS via the Internet Gateway (free)
             // instead of the NAT. Inbound stays locked to the ALB SG (serviceSecurityGroup), so the
             // public IP is egress-only; the task still reaches the private RDS intra-VPC by SG. This

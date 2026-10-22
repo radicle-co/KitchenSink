@@ -10,7 +10,7 @@
 import { CookMarksProvider, recipeActionMessages } from '@commise/features-recipes';
 import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import { useState, type ReactElement } from 'react';
 import { AccessibilityInfo } from 'react-native';
@@ -614,10 +614,22 @@ describe('RecipeDetailScreen — owner actions', () => {
         expect(more.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('confirms and runs a delete from the menu’s destructive action, then navigates away', () => {
-        const mutate = vi.fn((_id: string, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
-        useDeleteRecipeMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>({ mutate: mutate as never }));
-        const onDeleted = vi.fn();
+    // The mutation reports success as the real one does: `isSuccess` is true from the render after it succeeds. The
+    // screen closes the dialog on success and leaves only once that close has committed (`useLeaveWhenClosed`), so
+    // the dialog is gone when `onDeleted` runs.
+    it('confirms and runs a delete from the menu’s destructive action, closes the dialog, then navigates away', async () => {
+        let succeeded = false;
+        const mutate = vi.fn((_id: string, options?: { onSuccess?: () => void }) => {
+            succeeded = true;
+            options?.onSuccess?.();
+        });
+        useDeleteRecipeMock.mockImplementation(() =>
+            mutation<ReturnType<typeof useDeleteRecipe>>({ mutate: mutate as never, isSuccess: succeeded }),
+        );
+        const dialogOpenWhenLeaving: boolean[] = [];
+        const onDeleted = vi.fn(() => {
+            dialogOpenWhenLeaving.push(screen.queryByRole('alert') !== null);
+        });
 
         render(<RecipeDetailScreen recipeId="rec_1" onDeleted={onDeleted} />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
@@ -626,7 +638,8 @@ describe('RecipeDetailScreen — owner actions', () => {
         fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Delete recipe' }));
 
         expect(mutate).toHaveBeenCalledWith('rec_1', expect.objectContaining({ onSuccess: expect.any(Function) }));
-        expect(onDeleted).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+        expect(dialogOpenWhenLeaving).toEqual([false]);
         // Owner 2026-10-13: say so on the screen the cook lands on. The snackbar host is above the navigator, so a message
         // raised here outlives this screen.
         expect(screen.getByText('Recipe deleted')).toBeTruthy();

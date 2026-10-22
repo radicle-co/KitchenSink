@@ -46,6 +46,11 @@ interface Mounted {
     readonly client: ReturnType<typeof createFakeRecipeServiceClient>;
     /** The cook's marks on the recipe, read through a second binding on the same provider. */
     readonly marks: { readonly current: CookMarksBinding | undefined };
+    /**
+     * The controller's value from the latest RENDER. `result.current` is set in renderHook's own effect, which runs after
+     * the controller's effects, so an effect-driven callback reads the previous render there; this reads the committed one.
+     */
+    readonly rendered: { readonly current: ReturnType<typeof useRecipeDetailController> | undefined };
 }
 
 function mount(
@@ -65,6 +70,7 @@ function mount(
     const backend = memoryCookMarksBackend();
     const marks: { current: CookMarksBinding | undefined } = { current: undefined };
     const nav = { onVersions: vi.fn(), onCloned: vi.fn(), onDeleted: vi.fn() };
+    const rendered: { current: ReturnType<typeof useRecipeDetailController> | undefined } = { current: undefined };
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={client}>
@@ -78,7 +84,7 @@ function mount(
         () => {
             marks.current = useCookMarks('rec_1');
 
-            return useRecipeDetailController({
+            rendered.current = useRecipeDetailController({
                 id: 'rec_1',
                 recipe: makeRecipeDetail({
                     id: 'rec_1',
@@ -94,11 +100,13 @@ function mount(
                 ...(over.onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen: over.onFinishRefusalSeen }),
                 nav,
             });
+
+            return rendered.current;
         },
         { wrapper },
     );
 
-    return { result, nav, client, marks };
+    return { result, nav, client, marks, rendered };
 }
 
 describe('useRecipeDetailController — who the viewer is', () => {
@@ -269,6 +277,26 @@ describe('useRecipeDetailController — Save a copy and delete', () => {
 
         await waitFor(() => expect(nav.onDeleted).toHaveBeenCalledTimes(1));
         expect(deleteRecipe).toHaveBeenCalledWith('rec_1');
+    });
+
+    // ⛔ The confirm dialog is a window of its own on native. Leaving while it is still open pops a screen whose views
+    // react-native-screens is animating out, and Android then fails to move a view out of it: `addViewAt ... already has a
+    // parent`, a process crash (CI run 39668114177 and 1 in 10 local runs of recipes/delete). Collection delete already
+    // closes first (`useLeaveWhenClosed`); recipe delete must too.
+    it('closes the delete dialog before it leaves, so no window is open while the screen pops', async () => {
+        const { result, nav, client, rendered } = mount({ sessionClaims: { external_id: OWNER } });
+        vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
+        const dialogOpenWhenLeaving: boolean[] = [];
+
+        nav.onDeleted.mockImplementation(() => {
+            dialogOpenWhenLeaving.push(rendered.current?.dialogs.delete.open ?? true);
+        });
+
+        act(() => result.current.menu?.destructiveItem?.onSelect());
+        act(() => result.current.dialogs.delete.onConfirm());
+
+        await waitFor(() => expect(nav.onDeleted).toHaveBeenCalledTimes(1));
+        expect(dialogOpenWhenLeaving).toEqual([false]);
     });
 
     it('keeps the dialog up and says the delete failed when the write is refused', async () => {

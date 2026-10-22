@@ -35,6 +35,7 @@ import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
+import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
 import { ratingModeFor } from '../rating/model.js';
 import { detailMenuOf, type DetailMenuItem } from './detailMenu.js';
 import type { RecipeDetailDialogsProps } from './RecipeDetailDialogs.js';
@@ -128,6 +129,8 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
     const marks = useCookMarks(id);
     const [deleteOpen, setDeleteOpen] = useState(false);
+    // The delete's success closes the dialog; the screen is left only once that close has committed.
+    useLeaveWhenClosed(deleteRecipe.isSuccess, deleteOpen, nav.onDeleted);
 
     const viewerId = viewerIdOf(claimedViewerIdOf(sessionClaims), profile.data?.user.id);
     const ready = viewerKnown(viewerId, profile.isLoading);
@@ -270,9 +273,11 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 // B17 — a failed delete left the dialog open with no explanation; surface an honest reason inside it.
                 error: deleteRecipe.error !== null,
                 // ⛔ The dialog may already be open when a write starts: its confirm is unavailable, and so is this.
+                // ⛔ Close first, leave after the close commits (`useLeaveWhenClosed`): leaving with the dialog open is the
+                // native `addViewAt` crash.
                 onConfirm: () => {
                     if (!saving) {
-                        deleteRecipe.mutate(id, { onSuccess: () => nav.onDeleted() });
+                        deleteRecipe.mutate(id, { onSuccess: () => setDeleteOpen(false) });
                     }
                 },
                 onCancel: () => setDeleteOpen(false),

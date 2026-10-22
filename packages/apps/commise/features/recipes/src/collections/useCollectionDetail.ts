@@ -38,6 +38,7 @@ import { cardVariantOf, type CardVariant, type ListViewMode } from '../card/card
 import { fillTemplate } from '../format/fillTemplate.js';
 import { useCollectionPull, type CollectionPull } from '../hooks/useCollectionPull.js';
 import { useCollectionVisibility, type CollectionVisibilityControl } from '../hooks/useCollectionVisibility.js';
+import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
 import { useMemberRemoval, type MemberRemoval } from '../hooks/useMemberRemoval.js';
 import { usePickerAnnouncement } from '../hooks/usePickerAnnouncement.js';
 import { useRecipeNutritionBatches, type RecipeNutritionLookup } from '../hooks/useRecipeNutritionBatches.js';
@@ -46,7 +47,6 @@ import { viewModeOf } from '../list/viewModePreference.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
 import { collectionMessages } from './messages.js';
 import { doneSummaryOf, type PickerSummary } from './pickerModel.js';
-import { useLeaveWhenClosed } from './useLeaveWhenClosed.js';
 
 /** The navigation the session asks of the app. */
 export interface CollectionDetailNav {

@@ -1434,6 +1434,13 @@ jobs:
             && needs.deploy-preview.result == 'success'
             && needs.preview-address.result == 'success'
             && needs.wait-identity-deploy.result == 'success' }}
+        # ⛔ ONE RUN OF A PULL REQUEST AT A TIME AGAINST ITS SANDBOX, WAITING, NEVER CANCELLING. Two overlapping runs share
+        # one catalog, one test-user pool and one set of services: run 39688656484's shard found "halloumi" adopted by the
+        # previous push's still-running shard. Not `cancel-in-progress`: these tiers downgrade the owner's Clerk roles and
+        # restore them, and a cancel between the two leaves the owner downgraded. `deployedTiersSerialized.test.ts`.
+        concurrency:
+            group: deployed-tiers-${{ github.event.pull_request.number || github.ref }}
+            cancel-in-progress: false
         uses: ./.github/workflows/deployedE2eTiers.yml
         # ⛔ A called workflow can only DOWNGRADE its caller's grant; the web shards exchange an OIDC token for
         # their secretless Argos credential, and the tiers sign in to AWS through `awsAuth`, so `id-token: write`

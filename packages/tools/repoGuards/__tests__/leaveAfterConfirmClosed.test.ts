@@ -1,12 +1,10 @@
 /**
  * A SCREEN IS LEFT AFTER A DELETE ONLY ONCE THE CONFIRM DIALOG HAS CLOSED.
  *
- * A confirm dialog is a window of its own on native. Leaving its screen while it is still open makes react-native-screens
- * mark the leaving screen's views as transitioning, and Android then cannot move a view out of one: `addViewAt ... The
- * specified child already has a parent`, a process crash. Collection delete hit it first and was fixed with
- * `useLeaveWhenClosed` (the request arms the leave, the close commits, then the leave runs). Recipe delete kept calling
- * `nav.onDeleted()` from the mutation's `onSuccess` and crashed in CI (run 39668114177) and in 1 of 10 local runs of
- * `recipes/delete`.
+ * Leaving in the same tick as the delete's success restyles the dialog's busy confirm on a screen react-native-screens
+ * is already removing; `useLeaveWhenClosed` says why that crashed Android, and why the order still holds now that the
+ * shared Button keeps its node. Recipe delete used to call `nav.onDeleted()` from the mutation's `onSuccess` (CI run
+ * 39668114177).
  *
  * The rule, over the app packages' source: every `nav.onDeleted` is handed to `useLeaveWhenClosed`, never called.
  */

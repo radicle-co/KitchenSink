@@ -279,11 +279,9 @@ describe('useRecipeDetailController — Save a copy and delete', () => {
         expect(deleteRecipe).toHaveBeenCalledWith('rec_1');
     });
 
-    // ⛔ The confirm dialog is a window of its own on native. Leaving while it is still open pops a screen whose views
-    // react-native-screens is animating out, and Android then fails to move a view out of it: `addViewAt ... already has a
-    // parent`, a process crash (CI run 39668114177 and 1 in 10 local runs of recipes/delete). Collection delete already
-    // closes first (`useLeaveWhenClosed`); recipe delete must too.
-    it('closes the delete dialog before it leaves, so no window is open while the screen pops', async () => {
+    // ⛔ The dialog closes before the screen is left, so its busy confirm is not restyled on a screen that is closing
+    // (`useLeaveWhenClosed` says why; CI run 39668114177 saw it as an Android crash). Collection delete does the same.
+    it('closes the delete dialog before it leaves the recipe', async () => {
         const { result, nav, client, rendered } = mount({ sessionClaims: { external_id: OWNER } });
         vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
         const dialogOpenWhenLeaving: boolean[] = [];

@@ -3,12 +3,15 @@
 /**
  * @module @commise/features-recipes/hooks — leave a screen only AFTER the confirm dialog that asked for it has closed.
  *
- * A confirm dialog is a window of its own on native: popping the screen that hosts it while it is still
- * open makes Android re-parent a view that already has a parent (`addViewAt ... The specified child already has a
- * parent`, a process crash — the collection detail's delete flow hit it, and so did the recipe detail's in CI run
- * 39668114177: react-native-screens marks the leaving screen's views as transitioning, and one cannot be moved out). On web the same ordering is merely tidier,
- * and it is the same flow, so both apps get ONE rule: the request arms the leave, the close commits, and the leave runs
- * in an effect that sees the committed close.
+ * It keeps the screen a cook is leaving from changing as it goes. Left in the same tick as the success, the
+ * dialog's busy confirm turns idle inside a screen react-native-screens is already removing. On Android a restyle
+ * there that moves a view crashes the app (`addViewAt ... The specified child already has a parent`): the library marks
+ * the leaving screen's views as transitioning, the open dialog's included, before the restyle is applied, and a
+ * transitioning view cannot be moved (react-native-screens#4677). Closed first, the dialog's last change is its
+ * removal, which moves nothing. The shared Button no longer moves its children when it turns busy or idle
+ * (`nativeFlattenFlips.test.ts`), so that crash is closed at its source; this order keeps the dialog's own restyle off
+ * a leaving screen as well. On web the same ordering is merely tidier, and it is the same flow, so both apps get ONE rule: the
+ * request arms the leave, the close commits, and the leave runs in an effect that sees the committed close.
  *
  * ⛔ For a SHEET this is not enough: native keeps the sheet's `Modal` mounted for its slide-out after `open` turns
  * false, so the commit is not "gone". A sheet's host leaves from `Sheet`'s `onDismissed` instead.

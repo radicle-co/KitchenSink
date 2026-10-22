@@ -12,8 +12,7 @@
  * and a navigator callback are the same call here.
  *
  * ⛔ Two orderings are decided ONCE, for both apps:
- * - DELETE closes the confirm dialog, and only then leaves. The dialog is a window of its own on native; popping the
- *   screen that hosts it while it is open crashes Android (`addViewAt ... already has a parent`). Web used to navigate
+ * - DELETE closes the confirm dialog, and only then leaves (`useLeaveWhenClosed` says why). Web used to navigate
  *   from the mutation's `onSuccess` with the dialog still mounted.
  * - "Add a recipe" from the empty picker closes the picker, and only then opens the editor, for the same reason. "Only
  *   then" is the sheet's own `onDismissed` (it is off screen), not the commit that turns `open` false: native keeps the

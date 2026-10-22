@@ -273,8 +273,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 // B17 — a failed delete left the dialog open with no explanation; surface an honest reason inside it.
                 error: deleteRecipe.error !== null,
                 // ⛔ The dialog may already be open when a write starts: its confirm is unavailable, and so is this.
-                // ⛔ Close first, leave after the close commits (`useLeaveWhenClosed`): leaving with the dialog open is the
-                // native `addViewAt` crash.
+                // ⛔ Close first, leave after the close commits (`useLeaveWhenClosed` says why).
                 onConfirm: () => {
                     if (!saving) {
                         deleteRecipe.mutate(id, { onSuccess: () => setDeleteOpen(false) });

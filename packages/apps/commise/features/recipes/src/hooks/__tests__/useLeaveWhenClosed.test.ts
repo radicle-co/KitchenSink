@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * "Leave only after the sheet has closed" — the ordering both apps' collection detail now share. Written FIRST, from the
- * rule mobile's Android crash fix established (a confirm dialog is a window of its own; popping the screen that hosts it
- * while it is open re-parents a view that already has a parent) and from the one thing a state-derived effect adds: it
+ * rule `useLeaveWhenClosed.ts` states (a screen being left is not restyled on the way out) and from the one thing a
+ * state-derived effect adds: it
  * must fire ONCE per request to leave, however often the host re-renders with a fresh `leave` closure.
  */
 import { renderHook } from '@testing-library/react';

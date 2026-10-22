@@ -58,7 +58,11 @@ tags:
       timeout: 20000
 
 # ── Discard it ────────────────────────────────────────────────────────────────
-- runFlow: ../recipes/common/discardDraft.yaml
+# Offline the create waits in the outbox and cannot go on the wire, so the header settles on the device's own words.
+- runFlow:
+      file: ../recipes/common/discardDraft.yaml
+      env:
+          SETTLED: 'Saved on this device'
 
 # ── come back online: nothing is left to send ─────────────────────────────────
 - setAirplaneMode: disabled

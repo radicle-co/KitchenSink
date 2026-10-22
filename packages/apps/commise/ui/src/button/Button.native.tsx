@@ -128,8 +128,12 @@ export const Button: FC<ButtonProps> = (props) => {
     );
 
     // ONE flat surface per tier (the owner removed the primary gradient, `modernizeB.md` §3).
+    // Kept, so busy or disabled (`opacity`) never moves the glyph and label into it (`nativeFlattenFlips.test.ts`).
     const pill = (
-        <View style={[styles.base, geometry, surfacePaint(theme, surface), inactive ? styles.inactive : null]}>
+        <View
+            collapsable={false}
+            style={[styles.base, geometry, surfacePaint(theme, surface), inactive ? styles.inactive : null]}
+        >
             {content}
         </View>
     );

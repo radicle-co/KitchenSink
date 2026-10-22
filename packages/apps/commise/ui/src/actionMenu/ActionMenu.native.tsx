@@ -135,7 +135,8 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     return (
         <>
             {appearance === 'disc' ? (
-                <View style={unavailable ? styles.unavailable : null}>
+                // Kept, so `unavailable` (`opacity`) never moves the trigger (`nativeFlattenFlips.test.ts`).
+                <View collapsable={false} style={unavailable ? styles.unavailable : null}>
                     <HeroButton
                         ref={triggerFocus}
                         icon="ellipsis"
@@ -156,7 +157,8 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                     onPress={openMenu}
                     style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
                 >
-                    <View style={unavailable ? styles.unavailable : null}>
+                    {/* Kept, so `unavailable` (`opacity`) never moves the glyph (`nativeFlattenFlips.test.ts`). */}
+                    <View collapsable={false} style={unavailable ? styles.unavailable : null}>
                         <Icon name="ellipsis" size={24} />
                     </View>
                 </Pressable>

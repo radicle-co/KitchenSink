@@ -86,7 +86,8 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
     const drawsTimeChip = !thumbnail && cover.time !== undefined;
 
     return (
-        <View style={thumbnail ? styles.thumbnail : styles.cover}>
+        // Kept, so the thumbnail's clipping never moves the cover into it (`nativeFlattenFlips.test.ts`).
+        <View collapsable={false} style={thumbnail ? styles.thumbnail : styles.cover}>
             <RecipeCover
                 recipeId={recipe.id}
                 title={recipe.title}

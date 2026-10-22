@@ -36,7 +36,7 @@ const KEEPING_PROPS = new Set(['id', 'nativeID']);
  * The local names a file gives React Native's `View`, `Animated` and `Text` values, and its namespace imports of
  * `react-native`.
  */
-interface ViewBindings {
+export interface ViewBindings {
     readonly names: Set<string>;
     readonly animated: Set<string>;
     readonly texts: Set<string>;
@@ -44,7 +44,7 @@ interface ViewBindings {
 }
 
 /** The {@link ViewBindings} of one file. */
-function viewBindingsOf(file: ts.SourceFile): ViewBindings {
+export function viewBindingsOf(file: ts.SourceFile): ViewBindings {
     const names = new Set<string>();
     const animated = new Set<string>();
     const texts = new Set<string>();
@@ -89,7 +89,7 @@ function viewBindingsOf(file: ts.SourceFile): ViewBindings {
 }
 
 /** Whether a JSX tag names React Native's `View` or `Animated.View`, directly or through a namespace import. */
-function isViewTag(tag: ts.JsxTagNameExpression, { names, animated, namespaces }: ViewBindings): boolean {
+export function isViewTag(tag: ts.JsxTagNameExpression, { names, animated, namespaces }: ViewBindings): boolean {
     if (ts.isIdentifier(tag)) {
         return names.has(tag.text);
     }
@@ -164,7 +164,7 @@ function spreadMayName(expression: ts.Expression): boolean {
 }
 
 /** Whether an attribute's value is the literal `keyword`, written `{true}` or `{false}`. */
-function isLiteral(
+export function isLiteral(
     attribute: ts.JsxAttribute,
     keyword: ts.SyntaxKind.TrueKeyword | ts.SyntaxKind.FalseKeyword,
 ): boolean {
@@ -174,7 +174,7 @@ function isLiteral(
 }
 
 /** Whether an attribute is a flag that is bare or literally `true`. */
-function isSetFlag(attribute: ts.JsxAttribute): boolean {
+export function isSetFlag(attribute: ts.JsxAttribute): boolean {
     return attribute.initializer === undefined || isLiteral(attribute, ts.SyntaxKind.TrueKeyword);
 }
 
@@ -190,7 +190,7 @@ function makesOneElement(attribute: ts.JsxAttribute): boolean {
  * Whether one attribute keeps the node: a native id, `accessible` or a modal flag that is bare or literally `true`, or
  * `collapsable={false}`.
  */
-function keepsNode(attribute: ts.JsxAttribute): boolean {
+export function keepsNode(attribute: ts.JsxAttribute): boolean {
     const name = attribute.name.getText();
 
     if (KEEPING_PROPS.has(name) || makesOneElement(attribute)) {
@@ -205,7 +205,7 @@ function keepsNode(attribute: ts.JsxAttribute): boolean {
 }
 
 /** One offender, as `line: <the opening tag's first line>`. */
-function offenderAt(file: ts.SourceFile, node: ts.Node): string {
+export function offenderAt(file: ts.SourceFile, node: ts.Node): string {
     const { line } = file.getLineAndCharacterOfPosition(node.getStart(file));
 
     return `${String(line + 1)}: ${node.getText(file).split('\n')[0] ?? ''}`;

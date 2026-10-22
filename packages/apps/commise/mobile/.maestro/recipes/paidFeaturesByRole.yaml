@@ -21,12 +21,14 @@
 appId: ${APP_ID}
 onFlowComplete:
     - launchApp:
+          permissions: {}
           clearState: true
     - runFlow: ../auth/signOutIfSignedIn.yaml
 ---
 # ── DEFAULT and ADMIN: never granted; shows only what the stage's gate allows ────────────────────────────────────────
 # An admin sees paid features as a default user does (owner ruling 2026-10-15); superuser is the admin who gets them.
 - launchApp:
+      permissions: {}
       clearState: true
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml
@@ -35,6 +37,7 @@ onFlowComplete:
       env:
           E2E_SIGNIN_EMAIL: ${E2E_ROLE_DEFAULT_EMAIL}
 - launchApp:
+      permissions: {}
       clearState: true
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml
@@ -45,6 +48,7 @@ onFlowComplete:
 
 # ── PREMIUM, VIP, SUPERUSER: always granted — Private is a real choice, with no Premium sheet ─────────────────────────
 - launchApp:
+      permissions: {}
       clearState: true
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml
@@ -53,6 +57,7 @@ onFlowComplete:
       env:
           E2E_SIGNIN_EMAIL: ${E2E_ROLE_PREMIUM_EMAIL}
 - launchApp:
+      permissions: {}
       clearState: true
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml
@@ -61,6 +66,7 @@ onFlowComplete:
       env:
           E2E_SIGNIN_EMAIL: ${E2E_ROLE_VIP_EMAIL}
 - launchApp:
+      permissions: {}
       clearState: true
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml

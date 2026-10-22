@@ -18,6 +18,7 @@ appId: ${APP_ID}
 # <app> ... remove task", then "failed to attach"), and the screen stayed blank (local Android suite,
 # 2026-10-20 `sessionHandoff`, 2026-10-21 `makePublicConfirm`). A caller that wants a fresh start launches the app itself.
 - launchApp:
+      permissions: {}
       stopApp: false
 - extendedWaitUntil:
       visible: 'you@example\.com|Profile.*'

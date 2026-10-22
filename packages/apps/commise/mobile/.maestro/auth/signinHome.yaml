@@ -28,7 +28,8 @@
 
 appId: ${APP_ID}
 ---
-- launchApp
+- launchApp:
+      permissions: {}
 
 # Wait for the auth gate to FINISH resolving the session before deciding anything. This barrier is load-bearing
 # now that there is no welcome hero in front of the login form (owner decision 2026-07-28): the guarded block

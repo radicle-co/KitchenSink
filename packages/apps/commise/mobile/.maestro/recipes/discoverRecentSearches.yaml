@@ -104,7 +104,8 @@ appId: ${APP_ID}
       timeout: 40000
 # A fresh start first, so the sign-out begins on Home with no keyboard up: `signOutIfSignedIn.yaml` only brings the app to
 # the front.
-- launchApp
+- launchApp:
+      permissions: {}
 - runFlow: ../auth/signOutIfSignedIn.yaml
 - runFlow: ../auth/signin.yaml
 - tapOn: 'Discover'

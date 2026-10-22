@@ -32,7 +32,8 @@ appId: ${APP_ID}
 - assertNotVisible: 'We couldn’t save your view. Try choosing it again.'
 
 # A fresh launch of the app: the setting is read back from the account.
-- launchApp
+- launchApp:
+      permissions: {}
 - runFlow: ../auth/signin.yaml
 - extendedWaitUntil:
       visible:

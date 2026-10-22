@@ -68,6 +68,7 @@ appId: ${APP_ID}
 # and this flow would erase the SIGNER. The `env:` override is Maestro's documented sub-flow parameter
 # shadowing — the child's value wins for the duration of the sub-flow.
 - launchApp:
+      permissions: {}
       clearState: true
 # ⛔ On iOS the clear leaves the Keychain session, so without this the flow ERASES THE SIGNER (run 38988891871).
 - runFlow: auth/signOutIfSignedIn.yaml

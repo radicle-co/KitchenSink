@@ -45,6 +45,7 @@ appId: ${APP_ID}
 ---
 # A signed-OUT launch is the whole point of this flow, so it clears state rather than reusing a session.
 - launchApp:
+      permissions: {}
       clearState: true
 
 # `AuthGate` paints "Checking your session…" first; wait for the form itself before any pixel is captured.

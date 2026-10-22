@@ -26,10 +26,12 @@ appId: ${APP_ID}
 # skips the form when any session is persisted).
 onFlowComplete:
     - launchApp:
+          permissions: {}
           clearState: true
     - runFlow: ../auth/signOutIfSignedIn.yaml
 ---
 - launchApp:
+      permissions: {}
       clearState: true
 # iOS keeps the Keychain session across the clear (the sub-flow says why), so the signer is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml

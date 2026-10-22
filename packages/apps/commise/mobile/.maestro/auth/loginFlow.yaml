@@ -24,6 +24,7 @@
 appId: ${APP_ID}
 ---
 - launchApp:
+      permissions: {}
       clearState: true
 # On iOS the clear leaves the Keychain session, so the app would open signed in; sign out through the app first.
 - runFlow: signOutIfSignedIn.yaml

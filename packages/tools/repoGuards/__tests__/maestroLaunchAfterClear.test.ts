@@ -17,18 +17,18 @@ import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { REPO_ROOT, commandLists, committedFlowFiles, isRecord, parseFlow } from './maestroFlowYaml.js';
+import {
+    REPO_ROOT,
+    commandLists,
+    committedFlowFiles,
+    isLaunch,
+    isRecord,
+    launchOptions,
+    parseFlow,
+} from './maestroFlowYaml.js';
 
 /** Clearing launches today: 13 (2026-10-21). A floor, so a parser that saw none cannot pass. */
 const MIN_CLEARING_LAUNCHES = 10;
-
-/** Whether a command is `launchApp`, bare or with options. Pure. */
-const isLaunch = (command: unknown): boolean =>
-    command === 'launchApp' || (isRecord(command) && 'launchApp' in command);
-
-/** A `launchApp` command's options, or none. Pure. */
-const launchOptions = (command: unknown): Record<string, unknown> =>
-    isRecord(command) && isRecord(command['launchApp']) ? command['launchApp'] : {};
 
 /** Whether a command clears the app's data as it launches. Pure. */
 const clears = (command: unknown): boolean => isLaunch(command) && launchOptions(command)['clearState'] === true;

@@ -23,6 +23,7 @@
 appId: ${APP_ID}
 onFlowComplete:
     - launchApp:
+          permissions: {}
           clearState: true
     # audit 2026-10-19, A1.3: `clearState` does not end a session on iOS (the Keychain outlives it), so without this the
     # next flow would inherit the CO-AUTHOR's session. A no-op on Android, where the clear empties the store.
@@ -30,6 +31,7 @@ onFlowComplete:
 ---
 # Cook A signs in on a cleared device, opens the recipes list and their private recipe.
 - launchApp:
+      permissions: {}
       clearState: true
 - runFlow: auth/signin.yaml
 - runFlow:

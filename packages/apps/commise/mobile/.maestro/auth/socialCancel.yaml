@@ -19,6 +19,7 @@
 appId: ${APP_ID}
 ---
 - launchApp:
+      permissions: {}
       clearState: true
 - extendedWaitUntil:
       visible: 'you@example.com'

@@ -17,6 +17,7 @@ tags:
     - android
 ---
 - launchApp:
+      permissions: {}
       clearState: true
 - runFlow: ../auth/signin.yaml
 
@@ -53,6 +54,7 @@ tags:
 # Kill and relaunch WITHOUT clearing state — the queue must still be there.
 - stopApp
 - launchApp:
+      permissions: {}
       clearState: false
 
 # ⛔ STILL PENDING AFTER A RESTART. On a volatile queue this is where the write would have vanished silently,

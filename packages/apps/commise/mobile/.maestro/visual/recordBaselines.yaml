@@ -35,6 +35,7 @@ appId: ${APP_ID}
 ---
 # ── Mirrors visual/authSurfaces.yaml ────────────────────────────────────────────────────────────────────
 - launchApp:
+      permissions: {}
       clearState: true
 - extendedWaitUntil:
       visible: 'you@example.com'

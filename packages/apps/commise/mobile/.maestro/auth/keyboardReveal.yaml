@@ -13,6 +13,7 @@
 appId: ${APP_ID}
 ---
 - launchApp:
+      permissions: {}
       clearState: true
 
 - extendedWaitUntil:

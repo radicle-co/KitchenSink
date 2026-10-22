@@ -29,6 +29,14 @@ export function textOf(selector: unknown): string | undefined {
     return isRecord(selector) && typeof selector['text'] === 'string' ? selector['text'] : undefined;
 }
 
+/** Whether a command is `launchApp`, bare or with options. Pure. */
+export const isLaunch = (command: unknown): boolean =>
+    command === 'launchApp' || (isRecord(command) && 'launchApp' in command);
+
+/** A `launchApp` command's options, or none for the bare form. Pure. */
+export const launchOptions = (command: unknown): Record<string, unknown> =>
+    isRecord(command) && isRecord(command['launchApp']) ? command['launchApp'] : {};
+
 /** Every array in a parsed YAML value (every command list, however deeply a runFlow or repeat nests it). Pure. */
 export function* commandLists(value: unknown): Generator<readonly unknown[]> {
     if (Array.isArray(value)) {

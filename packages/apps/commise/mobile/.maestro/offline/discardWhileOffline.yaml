@@ -24,6 +24,7 @@ tags:
     - android
 ---
 - launchApp:
+      permissions: {}
       clearState: true
 - runFlow: ../auth/signin.yaml
 

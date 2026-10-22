@@ -265,6 +265,7 @@ export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.
                             onChangeText={setEmail}
                             inputMode="email"
                             autoCapitalize="none"
+                            autoCorrect={false}
                             autoComplete="email"
                             enterKeyHint="next"
                             disabled={locked}

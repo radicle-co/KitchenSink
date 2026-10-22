@@ -563,6 +563,15 @@ describe('LoginScreen — Section 8 native: order, copy and field hints', () => 
         expect(shared.signUpLink).toBe('Create an account');
     });
 
+    // An email address is not prose: iOS autocorrect "fixes" its parts (radcile → radicle) and edits at every `-`, `+`,
+    // `@` and `.`, which in CI moved the cursor mid-address and scrambled the sign-in email three times (run 39668114177,
+    // `discoverRecentSearches`; run 39688656484, `accountErasure`). The keyboard's suggestion bar read the field as "t".
+    it('turns autocorrect off for the email address', () => {
+        setup();
+
+        expect(screen.getByLabelText(auth.emailLabel).getAttribute('autocorrect')).toBe('off');
+    });
+
     it('asks the OS for email, current-password autofill, and a numeric one-time-code', async () => {
         setup({ afterPassword: 'needs_client_trust' });
 

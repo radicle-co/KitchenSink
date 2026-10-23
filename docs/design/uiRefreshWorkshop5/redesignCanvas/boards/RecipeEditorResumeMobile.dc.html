@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, unsaved changes found (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <script>
+            (function () {
+                const d = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+                Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+                    configurable: true,
+                    get() {
+                        const s = this.style.height;
+                        this.style.height = '0px';
+                        const v = d.get.call(this);
+                        this.style.height = s;
+                        const cs = getComputedStyle(this);
+                        return v - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+                    },
+                });
+            })();
+        </script>
+        <style id="redesignOverrides">
+            /* Redesign: type ramp 13 / 15 / 17 for form controls and for the native text classes (react-native-web
+               atomic classes), weights up to 600. Redundant once typeRole in the native bundle follows the ramp. */
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .r-1gkfh8e,
+            .r-1enofrn {
+                font-size: 13px !important;
+            }
+            .r-1b43r93 {
+                font-size: 15px !important;
+            }
+            /* No-photo cover (spec, Surfaces): a sky-to-coral gradient, a photo icon in a paper disc and "Waiting for its
+               photo". Never a letter tile. Reworks the component output with CSS only. */
+            [class*='bg-cover-'][aria-hidden='true'],
+            [aria-hidden='true'][style*='aspect-ratio'],
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) {
+                background: linear-gradient(135deg, var(--cover-sky), var(--cover-coral)) !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child {
+                position: relative;
+                display: block;
+                width: 48px;
+                height: 48px;
+                flex: none;
+                border-radius: 50%;
+                background: var(--paper);
+                font-size: 13px !important;
+                line-height: 48px !important;
+                color: transparent;
+                text-indent: 100%;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child::before,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child::before,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child::before {
+                content: '';
+                position: absolute;
+                inset: 12px;
+                background: var(--ink-muted);
+                -webkit-mask: var(--photo-icon) center / contain no-repeat;
+                mask: var(--photo-icon) center / contain no-repeat;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:nth-child(2),
+            [aria-hidden='true'][style*='aspect-ratio'] > div:nth-child(2),
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:nth-child(2) {
+                display: none !important;
+            }
+            [class*='bg-cover-'][aria-hidden='true']::after,
+            [aria-hidden='true'][style*='aspect-ratio']::after,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px'])::after {
+                content: 'Waiting for its photo';
+                font-size: 13px;
+                line-height: 1.35;
+                color: var(--ink-muted);
+                text-align: center;
+            }
+            [aria-hidden='true'][style*='aspect-ratio: 1 / 1']::after {
+                display: none;
+            }
+            @container cover (max-height: 6rem) {
+                [class*='bg-cover-'][aria-hidden='true']::after {
+                    display: none;
+                }
+            }
+            :root {
+                --photo-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Ccircle cx='9' cy='10' r='1.5'/%3E%3Cpath d='M21 16l-5-5-8 8'/%3E%3C/svg%3E");
+            }
+            [style*='font-variant-numeric: tabular-nums'] {
+                font-size: 15px !important;
+            }
+            /* Editor sections are cards on the canvas (spec row 15); the title field is the one 28 title as you type. */
+            .ed-col {
+                max-width: 720px;
+            }
+            .ed-col > section,
+            [style*='gap: 24px'][style*='padding: 16px 16px'] > .sc-host-x > div {
+                background: var(--paper);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-md);
+                padding: 20px 16px;
+            }
+            textarea#title,
+            input#title,
+            textarea#recipe-title,
+            input#recipe-title {
+                font: 600 28px/1.15 var(--font-display) !important;
+                letter-spacing: -0.02em;
+            }
+            .sr-only,
+            .r-109y4c4 {
+                font-size: 13px !important;
+            }
+            script {
+                display: none;
+            }
+            .r-ubezar,
+            .r-1i10wst,
+            .r-adyw6z,
+            .r-1x35g6 {
+                font-size: 17px !important;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    [role='radiogroup'] > div,
+                    [role='group'] > div {
+                        max-width: 100%;
+                    }
+                    body {
+                        margin: 0;
+                    }
+                    /* A phone shows a scroll indicator only while it scrolls, so the frame and the text areas show no
+                       scrollbar. A classic scrollbar would also take width from the 390 px screen and cover its right edge. */
+                    * {
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <x-import
+                component-from-global-scope="Commise.Native.ScrollFrame"
+                sections="{{scrollSections}}"
+                activation-offset="{{scrollOffset}}"
+                ><div style="width: 390px; background: var(--canvas); color: var(--ink); font-family: var(--font-body)">
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--canvas);
+                            width: 390px;
+                            padding-top: 47px;
+                            position: relative;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorHeader"
+                            title="Edit recipe"
+                            status="Changes saved on this device"
+                            close-label="Close editor"
+                            on-close="{{p143}}"
+                            menu="{{menuChanges}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.SectionIndex"
+                            label="Recipe sections"
+                            sheet-title="Sections"
+                            sheet-close-label="Close sections"
+                            items="{{p145}}"
+                            current-id="details"
+                            bar-name="Sections. Current: Details. 4 of 4 done."
+                            bar-suffix=" · 4 of 4 done"
+                            on-jump="{{p146}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 24px;
+                                padding: 16px 16px 28px;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 12px;
+                                    border-radius: var(--radius-md);
+                                    background: var(--surface-muted);
+                                    padding: 16px;
+                                "
+                            >
+                                <div style="font: 400 15px/1.4 var(--font-body); color: var(--ink)">
+                                    You have changes from Oct 16, 2026, 9:41 AM that aren't saved to your recipe.
+                                </div>
+                                <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px">
+                                    <x-import component-from-global-scope="Commise.Native.Button" size="sm" icon="check"
+                                        >Save changes</x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Button"
+                                        variant="ghost"
+                                        size="sm"
+                                        >Discard</x-import
+                                    >
+                                </div>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="details"
+                                title="Details"
+                                current="{{p147}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 32px">
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 15px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                About the recipe
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="title"
+                                                label="Title"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.TextArea"
+                                                id="title"
+                                                value="Brown Butter Lemon Chicken"
+                                                min-rows="{{p0}}"
+                                                max-rows="{{p1}}"
+                                                label="Title"
+                                                on-change-text="{{p2}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="description"
+                                                label="Description"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.TextArea"
+                                                id="description"
+                                                value="A fast skillet dinner: crisp-skinned chicken thighs in a lemony brown butter sauce with capers. Ready in about 40 minutes and good over rice or orzo."
+                                                min-rows="{{p3}}"
+                                                label="Description"
+                                                on-change-text="{{p4}}"
+                                            ></x-import>
+                                        </div>
+                                    </div></div
+                            ></x-import>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorActionBar"
+                            label="Recipe actions"
+                            preview-label="Preview"
+                            on-preview="{{p153}}"
+                            primary-label="Save changes"
+                            on-primary="{{p154}}"
+                            primary-disabled="{{p155}}"
+                            busy="{{p156}}"
+                        ></x-import>
+                    </div></div></x-import
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":778}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, C=window.Commise.Native, noop=()=>{}; return {p0:1,p1:3,p2:noop,p3:4,p4:noop,p143:noop,menuChanges:{triggerLabel:'More editor actions',closeLabel:'Keep editing',discardLabel:'Discard changes',onDiscard:noop},p145:[{"id":"details","label":"Details","tone":"complete","spokenStatus":"Complete"},{"id":"ingredients","label":"Ingredients","tone":"complete","spokenStatus":"Complete"},{"id":"steps","label":"Steps","tone":"complete","spokenStatus":"Complete"},{"id":"photos","label":"Photos & publish","shortLabel":"Photos","tone":"complete","reason":"Ready to publish"}],p146:noop,p147:true,p153:noop,p154:noop,p155:false,p156:false,scrollSections:['details','ingredients','steps','photos'],scrollOffset:96}; } }
+        </script>
+    </body>
+</html>

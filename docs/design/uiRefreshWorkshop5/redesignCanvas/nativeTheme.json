@@ -76,10 +76,47 @@
             "bodyMd": "17",
             "bodySm": "15",
             "caption": "13"
+        },
+        "typeRole": {
+            "largeTitle": "{ face: \"display\", size: { narrow: 28, regular: 28, wide: 28 }, weight: \"semibold\", lineHeight: 1.15 }",
+            "sectionTitle": "{ face: \"body\", size: 17, weight: \"semibold\", lineHeight: 1.25 }",
+            "cardTitle": "{ face: \"body\", size: 17, weight: \"semibold\", lineHeight: 1.3 }",
+            "body": "{ face: \"body\", size: 17, weight: \"normal\", lineHeight: 1.5 }",
+            "readingBody": "{ face: \"body\", size: 17, weight: \"normal\", lineHeight: 1.6 }",
+            "meta": "{ face: \"body\", size: 15, weight: \"normal\", lineHeight: 1.4 }",
+            "label": "{ face: \"body\", size: 15, weight: \"semibold\", lineHeight: 1.2 }",
+            "caption": "{ face: \"body\", size: 13, weight: \"medium\", lineHeight: 1.4 }",
+            "figureStat": "{ face: \"body\", size: 17, weight: \"semibold\", lineHeight: 1.2, figure: true }"
+        },
+        "difficultyTone": {
+            "easy": "{ fill: role.surfaceMuted, text: role.ink }",
+            "medium": "{ fill: role.surfaceMuted, text: role.ink }",
+            "hard": "{ fill: role.surfaceMuted, text: role.ink }"
+        },
+        "difficultyToneDark": {
+            "easy": "{ fill: roleDark.surfaceMuted, text: roleDark.ink }",
+            "medium": "{ fill: roleDark.surfaceMuted, text: roleDark.ink }",
+            "hard": "{ fill: roleDark.surfaceMuted, text: roleDark.ink }"
+        },
+        "displayFontFace": {
+            "semibold": "\"Manrope\"",
+            "bold": "\"Manrope\""
+        },
+        "radius": {
+            "sm": "8",
+            "lg": "18",
+            "xl": "24"
         }
     },
     "literals": {
-        "gradient": { "\"#F0F7F4\"": "\"#EFF3F6\"", "\"#E8F4F8\"": "\"#EFF3F6\"" },
-        "heroDark": { "\"#141210\"": "\"#0E161E\"", "\"#101714\"": "\"#0E161E\"", "\"#0F181A\"": "\"#0E161E\"" }
+        "gradient": {
+            "\"#F0F7F4\"": "\"#EFF3F6\"",
+            "\"#E8F4F8\"": "\"#EFF3F6\""
+        },
+        "heroDark": {
+            "\"#141210\"": "\"#0E161E\"",
+            "\"#101714\"": "\"#0E161E\"",
+            "\"#0F181A\"": "\"#0E161E\""
+        }
     }
 }

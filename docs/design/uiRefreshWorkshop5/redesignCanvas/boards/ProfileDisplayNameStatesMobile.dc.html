@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, display name: states (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .crop {
+                        width: 390px;
+                        box-sizing: border-box;
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .stage {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        overflow: hidden;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .stage > .sh,
+                    .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .counter {
+                        font: 500 12px/1.4 var(--font-body);
+                        font-variant-numeric: tabular-nums lining-nums;
+                    }</style
+                ><style>
+                    /* redesign patch */
+                    .sr-only {
+                        font-size: 13px;
+                    }
+                    .cap {
+                        margin: 8px 16px;
+                        padding: 8px 12px;
+                        border: 1px dashed var(--line-control);
+                        border-radius: 12px;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .f-cap {
+                        font-size: 13px;
+                    }
+                    .counter {
+                        font-size: 13px;
+                    }
+                    .c-shell,
+                    .f-page {
+                        font-size: 17px;
+                    }
+                    h1[role='heading'],
+                    [style*='PlayfairDisplay'] {
+                        font-family: var(--font-display) !important;
+                        font-weight: 600;
+                        letter-spacing: -0.012em;
+                    }
+                    .r-1gkfh8e {
+                        font-size: 13px !important;
+                    }
+                    .r-1x35g6 {
+                        font-size: 17px !important;
+                        line-height: 24px !important;
+                    }
+                    /* No-photo cover: sky to sand gradient, a photo icon in a paper disc, and a caption (spec: Surfaces, Covers). */
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio'] {
+                        background: linear-gradient(170deg, var(--cover-sky) 0%, var(--cover-coral) 100%) !important;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: flex-start;
+                        padding-top: 14px;
+                        gap: 8px;
+                    }
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio'] > div {
+                        position: relative;
+                        width: 40px;
+                        height: 40px;
+                        flex: none;
+                        border-radius: 50%;
+                        background: var(--paper);
+                        font-size: 13px !important;
+                        line-height: 40px !important;
+                        color: transparent !important;
+                        overflow: hidden;
+                    }
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio'] > div::after {
+                        content: '';
+                        position: absolute;
+                        inset: 10px;
+                        background: var(--action-text);
+                        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5.5' width='17' height='13' rx='2.5'/%3E%3Ccircle cx='9' cy='10.5' r='1.6'/%3E%3Cpath d='m20.5 15.5-4.5-4.5-8.5 7.5'/%3E%3C/svg%3E")
+                            center / contain no-repeat;
+                        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5.5' width='17' height='13' rx='2.5'/%3E%3Ccircle cx='9' cy='10.5' r='1.6'/%3E%3Cpath d='m20.5 15.5-4.5-4.5-8.5 7.5'/%3E%3C/svg%3E")
+                            center / contain no-repeat;
+                    }
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio']::after {
+                        content: 'Waiting for its photo';
+                        font: 500 13px/1.3 var(--font-body);
+                        color: var(--ink-muted);
+                        text-align: center;
+                        padding: 0 8px;
+                    }
+                    /* Phone pills: one scrolling row beside Filters (owner decisions N4, N5). */
+                    .ks-pillflow {
+                        flex-wrap: nowrap !important;
+                        min-width: 0;
+                        max-width: 100%;
+                    }
+                    .ks-pills {
+                        display: block !important;
+                        flex: 1;
+                        min-width: 0;
+                        position: relative;
+                    }
+                    .ks-pills > div,
+                    .ks-pills [role='radiogroup'][aria-label='Browse recipes'] {
+                        display: flex !important;
+                    }
+                    .ks-pills [aria-hidden='true'][style*='opacity: 0'] {
+                        opacity: 1 !important;
+                        background: linear-gradient(to right, transparent, var(--canvas) 45%);
+                    }
+                    .ks-pills [role='radiogroup'],
+                    .ks-pills [role='radiogroup'] > div {
+                        width: 100%;
+                        max-width: 100%;
+                        min-width: 0;
+                    }
+                    .ks-pills [role='radiogroup'] > div > div:first-child {
+                        overflow: hidden;
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        At the longest name: typing stops, and the counter turns red (100/100). Spoken once, not shown:
+                        “That is the longest name we can take.”
+                    </p>
+                    <div class="stage" style="height: 620px">
+                        <div class="bg">
+                            <main
+                                class="wash"
+                                style="
+                                    width: 390px;
+                                    box-sizing: border-box;
+                                    background-color: var(--canvas);
+                                    background-image: var(--background-image-hero);
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 20px;
+                                    padding: 8px 16px 24px;
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                    heading-id="profile-h1-1"
+                                    title="Profile"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: row; align-items: center; gap: 16px">
+                                    <div
+                                        role="button"
+                                        aria-label="Change photo"
+                                        style="position: relative; flex: none; width: 72px; height: 72px"
+                                    >
+                                        <span
+                                            style="
+                                                display: flex;
+                                                width: 72px;
+                                                height: 72px;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border-radius: 9999px;
+                                                background: var(--surface-muted);
+                                                color: var(--ink-muted);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="user"
+                                                size="24"
+                                            ></x-import></span
+                                        ><span
+                                            aria-hidden="true"
+                                            style="
+                                                position: absolute;
+                                                right: 0;
+                                                bottom: 0;
+                                                display: flex;
+                                                width: 24px;
+                                                height: 24px;
+                                                box-sizing: border-box;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border-radius: 9999px;
+                                                border: 1px solid var(--line-control);
+                                                background: var(--paper);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="camera"
+                                                size="16"
+                                            ></x-import
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-width: 0;
+                                            flex: 1;
+                                            flex-direction: column;
+                                            gap: 4px;
+                                            align-items: flex-start;
+                                        "
+                                    >
+                                        <span style="font-size: 14px; line-height: 1.4; color: var(--ink)"
+                                            >@anaruiz</span
+                                        ><span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)"
+                                            >ana.ruiz@example.com</span
+                                        >
+                                    </div>
+                                </div>
+                                <x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Account"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Display name"
+                                        value="Add your name"
+                                        tone="ink"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileGroup"
+                                    heading="Preferences"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Food data sources"
+                                        tone="ink"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></x-import
+                                ><x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Sign out"
+                                    ><div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.ProfileRow"
+                                            label="Sign out"
+                                            tone="ink"
+                                            chevron="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import></div></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileGroup"
+                                    heading="Danger zone"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Close account"
+                                        hint="Signs you out and deactivates your account. Support can restore it."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Erase my data"
+                                        hint="Permanently deletes your account and personal data."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import
+                                ></x-import>
+                            </main>
+                        </div>
+                        <div class="scrim"></div>
+                        <div
+                            style="
+                                position: absolute;
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <div class="sh">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                    title="What should we call you?"
+                                    close-label="Close"
+                                    size="content"
+                                    footer="{{footer}}"
+                                    focus-signal="{{one}}"
+                                    reduce-motion="{{yes}}"
+                                    on-close="{{noop}}"
+                                >
+                                    <div class="form" style="gap: 8px">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.FieldLabel"
+                                            for-id="dn-1"
+                                            label="Display name"
+                                            hint="Shown next to your username on recipes you publish."
+                                        ></x-import>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Input"
+                                            id="dn-1"
+                                            value="Ana María del Carmen Ruiz de la Fuente y Hernández Villalobos de las Casas Reales Santa Cruz del Val"
+                                            auto-capitalize="words"
+                                            max-length="100"
+                                            label="Display name"
+                                            hint="Shown next to your username on recipes you publish."
+                                            on-change-text="{{noop}}"
+                                        ></x-import>
+                                        <div class="counter" style="color: var(--danger-text)">100/100</div>
+                                    </div></x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Saving: Save is busy and reads “Saving…”. The field keeps the name.</p>
+                    <div class="stage" style="height: 620px">
+                        <div class="bg">
+                            <main
+                                class="wash"
+                                style="
+                                    width: 390px;
+                                    box-sizing: border-box;
+                                    background-color: var(--canvas);
+                                    background-image: var(--background-image-hero);
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 20px;
+                                    padding: 8px 16px 24px;
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                    heading-id="profile-h1-2"
+                                    title="Profile"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: row; align-items: center; gap: 16px">
+                                    <div
+                                        role="button"
+                                        aria-label="Change photo"
+                                        style="position: relative; flex: none; width: 72px; height: 72px"
+                                    >
+                                        <span
+                                            style="
+                                                display: flex;
+                                                width: 72px;
+                                                height: 72px;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border-radius: 9999px;
+                                                background: var(--surface-muted);
+                                                color: var(--ink-muted);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="user"
+                                                size="24"
+                                            ></x-import></span
+                                        ><span
+                                            aria-hidden="true"
+                                            style="
+                                                position: absolute;
+                                                right: 0;
+                                                bottom: 0;
+                                                display: flex;
+                                                width: 24px;
+                                                height: 24px;
+                                                box-sizing: border-box;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border-radius: 9999px;
+                                                border: 1px solid var(--line-control);
+                                                background: var(--paper);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="camera"
+                                                size="16"
+                                            ></x-import
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-width: 0;
+                                            flex: 1;
+                                            flex-direction: column;
+                                            gap: 4px;
+                                            align-items: flex-start;
+                                        "
+                                    >
+                                        <span style="font-size: 14px; line-height: 1.4; color: var(--ink)"
+                                            >@anaruiz</span
+                                        ><span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)"
+                                            >ana.ruiz@example.com</span
+                                        >
+                                    </div>
+                                </div>
+                                <x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Account"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Display name"
+                                        value="Add your name"
+                                        tone="ink"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileGroup"
+                                    heading="Preferences"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Food data sources"
+                                        tone="ink"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></x-import
+                                ><x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Sign out"
+                                    ><div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.ProfileRow"
+                                            label="Sign out"
+                                            tone="ink"
+                                            chevron="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import></div></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileGroup"
+                                    heading="Danger zone"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Close account"
+                                        hint="Signs you out and deactivates your account. Support can restore it."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Erase my data"
+                                        hint="Permanently deletes your account and personal data."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import
+                                ></x-import>
+                            </main>
+                        </div>
+                        <div class="scrim"></div>
+                        <div
+                            style="
+                                position: absolute;
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <div class="sh">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                    title="What should we call you?"
+                                    close-label="Close"
+                                    size="content"
+                                    footer="{{footerSaving}}"
+                                    focus-signal="{{one}}"
+                                    reduce-motion="{{yes}}"
+                                    on-close="{{noop}}"
+                                >
+                                    <div class="form" style="gap: 8px">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.FieldLabel"
+                                            for-id="dn-2"
+                                            label="Display name"
+                                            hint="Shown next to your username on recipes you publish."
+                                        ></x-import>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Input"
+                                            id="dn-2"
+                                            value="Ana Ruiz"
+                                            auto-capitalize="words"
+                                            max-length="100"
+                                            label="Display name"
+                                            hint="Shown next to your username on recipes you publish."
+                                            on-change-text="{{noop}}"
+                                        ></x-import></div
+                                ></x-import>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Saved: the sheet closes, the page shows the new name, and the app’s snackbar says “Saved.” for a
+                        few seconds.
+                    </p>
+                    <div class="pagef" style="height: 844px">
+                        <main
+                            class="wash"
+                            style="
+                                width: 390px;
+                                box-sizing: border-box;
+                                background-color: var(--canvas);
+                                background-image: var(--background-image-hero);
+                                display: flex;
+                                flex-direction: column;
+                                gap: 20px;
+                                padding: 8px 16px 24px;
+                                min-height: 844px;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="profile-h1-3"
+                                title="Profile"
+                                back="{{back}}"
+                            ></x-import>
+                            <div style="display: flex; flex-direction: row; align-items: center; gap: 16px">
+                                <div
+                                    role="button"
+                                    aria-label="Change photo"
+                                    style="position: relative; flex: none; width: 72px; height: 72px"
+                                >
+                                    <span
+                                        style="
+                                            display: flex;
+                                            width: 72px;
+                                            height: 72px;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border-radius: 9999px;
+                                            background: var(--action);
+                                            color: var(--on-action);
+                                        "
+                                        ><span
+                                            style="
+                                                font-size: 20px;
+                                                font-weight: 600;
+                                                line-height: 1.2;
+                                                color: var(--on-action);
+                                            "
+                                            >AR</span
+                                        ></span
+                                    ><span
+                                        aria-hidden="true"
+                                        style="
+                                            position: absolute;
+                                            right: 0;
+                                            bottom: 0;
+                                            display: flex;
+                                            width: 24px;
+                                            height: 24px;
+                                            box-sizing: border-box;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border-radius: 9999px;
+                                            border: 1px solid var(--line-control);
+                                            background: var(--paper);
+                                            color: var(--ink);
+                                        "
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Icon"
+                                            name="camera"
+                                            size="16"
+                                        ></x-import
+                                    ></span>
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        min-width: 0;
+                                        flex: 1;
+                                        flex-direction: column;
+                                        gap: 4px;
+                                        align-items: flex-start;
+                                    "
+                                >
+                                    <span
+                                        style="font-size: 18px; font-weight: 600; line-height: 1.25; color: var(--ink)"
+                                        >Ana Ruiz</span
+                                    ><span style="font-size: 14px; line-height: 1.4; color: var(--ink)">@anaruiz</span
+                                    ><span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)"
+                                        >ana.ruiz@example.com</span
+                                    >
+                                </div>
+                            </div>
+                            <x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Account"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Display name"
+                                    value="Ana Ruiz"
+                                    tone="ink"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import></x-import
+                            ><x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Preferences"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Food data sources"
+                                    tone="ink"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import></x-import
+                            ><x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Sign out"
+                                ><div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Sign out"
+                                        tone="ink"
+                                        chevron="{{no}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></div></x-import
+                            ><x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Close account"
+                                    hint="Signs you out and deactivates your account. Support can restore it."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Erase my data"
+                                    hint="Permanently deletes your account and personal data."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                            ></x-import>
+                        </main>
+                        <div
+                            role="status"
+                            style="
+                                position: absolute;
+                                left: 16px;
+                                right: 16px;
+                                bottom: 50px;
+                                display: flex;
+                                justify-content: center;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.UndoSnackbar"
+                                message="Saved."
+                                on-pause="{{noop}}"
+                                on-resume="{{noop}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Failed: the sheet stays open with the typed name, the field is marked, and the line explains.
+                        Save can be pressed again.
+                    </p>
+                    <div class="stage" style="height: 620px">
+                        <div class="bg">
+                            <main
+                                class="wash"
+                                style="
+                                    width: 390px;
+                                    box-sizing: border-box;
+                                    background-color: var(--canvas);
+                                    background-image: var(--background-image-hero);
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 20px;
+                                    padding: 8px 16px 24px;
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                    heading-id="profile-h1-4"
+                                    title="Profile"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: row; align-items: center; gap: 16px">
+                                    <div
+                                        role="button"
+                                        aria-label="Change photo"
+                                        style="position: relative; flex: none; width: 72px; height: 72px"
+                                    >
+                                        <span
+                                            style="
+                                                display: flex;
+                                                width: 72px;
+                                                height: 72px;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border-radius: 9999px;
+                                                background: var(--surface-muted);
+                                                color: var(--ink-muted);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="user"
+                                                size="24"
+                                            ></x-import></span
+                                        ><span
+                                            aria-hidden="true"
+                                            style="
+                                                position: absolute;
+                                                right: 0;
+                                                bottom: 0;
+                                                display: flex;
+                                                width: 24px;
+                                                height: 24px;
+                                                box-sizing: border-box;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border-radius: 9999px;
+                                                border: 1px solid var(--line-control);
+                                                background: var(--paper);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="camera"
+                                                size="16"
+                                            ></x-import
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-width: 0;
+                                            flex: 1;
+                                            flex-direction: column;
+                                            gap: 4px;
+                                            align-items: flex-start;
+                                        "
+                                    >
+                                        <span style="font-size: 14px; line-height: 1.4; color: var(--ink)"
+                                            >@anaruiz</span
+                                        ><span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)"
+                                            >ana.ruiz@example.com</span
+                                        >
+                                    </div>
+                                </div>
+                                <x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Account"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Display name"
+                                        value="Add your name"
+                                        tone="ink"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileGroup"
+                                    heading="Preferences"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Food data sources"
+                                        tone="ink"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></x-import
+                                ><x-import component-from-global-scope="Commise.Native.ProfileGroup" label="Sign out"
+                                    ><div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.ProfileRow"
+                                            label="Sign out"
+                                            tone="ink"
+                                            chevron="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import></div></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileGroup"
+                                    heading="Danger zone"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Close account"
+                                        hint="Signs you out and deactivates your account. Support can restore it."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.ProfileRow"
+                                        label="Erase my data"
+                                        hint="Permanently deletes your account and personal data."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import
+                                ></x-import>
+                            </main>
+                        </div>
+                        <div class="scrim"></div>
+                        <div
+                            style="
+                                position: absolute;
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <div class="sh">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                    title="What should we call you?"
+                                    close-label="Close"
+                                    size="content"
+                                    footer="{{footer}}"
+                                    focus-signal="{{one}}"
+                                    reduce-motion="{{yes}}"
+                                    on-close="{{noop}}"
+                                >
+                                    <div class="form" style="gap: 8px">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.FieldLabel"
+                                            for-id="dn-4"
+                                            label="Display name"
+                                            hint="Shown next to your username on recipes you publish."
+                                        ></x-import>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Input"
+                                            id="dn-4"
+                                            value="Ana Ruiz"
+                                            auto-capitalize="words"
+                                            max-length="100"
+                                            label="Display name"
+                                            hint="Shown next to your username on recipes you publish."
+                                            error="We couldn’t save your name. Try again."
+                                            on-change-text="{{noop}}"
+                                        ></x-import>
+                                        <p
+                                            role="alert"
+                                            style="
+                                                margin: 0;
+                                                font: 500 14px/1.4 var(--font-body);
+                                                color: var(--danger-text);
+                                            "
+                                        >
+                                            We couldn’t save your name. Try again.
+                                        </p>
+                                    </div></x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2995}}'>
+                       class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){};
+            return { yes:true, no:false, one:1, noop:noop, back:{ label:'Back', parent:'Home', onPress:noop },
+            footer: h('div',{style:{display:'flex',flexDirection:'column',gap:12}},h(C.Button,{icon:'check',width:'fill',onPress:noop},'Save')),
+            footerSaving: h('div',{style:{display:'flex',flexDirection:'column',gap:12}},h(C.Button,{icon:'check',width:'fill',busy:true,onPress:noop},'Saving…')) }; } }
+        </script>
+    </body>
+</html>

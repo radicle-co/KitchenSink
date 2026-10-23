@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign up</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: captions are dashed-edge notes at 13 (spec, Patterns). */
+            .cap {
+                margin: 0 0 !important;
+                padding: 10px 12px !important;
+                border: 1px dashed var(--line-control);
+                border-radius: 12px;
+                font: 500 13px/1.35 var(--font-body) !important;
+                color: var(--ink-muted);
+            }
+            .wm {
+                font-family: var(--font-display);
+                font-weight: 600;
+                font-size: 17px;
+                line-height: 1.3;
+                letter-spacing: -0.012em;
+                color: var(--ink);
+            }
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .sr-only {
+                font-size: 13px !important;
+            }
+            /* Sidebar: the active item is --surface-muted with a steel icon, no bar (spec, Patterns). */
+            a[aria-current='page'] {
+                background: var(--surface-muted) !important;
+                color: var(--ink) !important;
+            }
+            a[aria-current='page'] > span[aria-hidden='true'] {
+                display: none !important;
+            }
+            a[aria-current='page'] svg {
+                color: var(--action-text);
+            }
+            body {
+                font-size: 15px;
+            }
+            [class~='r-14yzgew'] {
+                font-size: 15px !important;
+            } /* rating star glyphs */
+            script {
+                display: none;
+            }
+            /* Sign-in and sign-up card: centred, max 400, paper on the canvas (spec rows 30 to 33). */
+            .col {
+                padding: 24px 16px;
+            }
+            .root {
+                max-width: 400px;
+            }
+            .card {
+                border-radius: var(--radius-lg) !important;
+                background: var(--paper) !important;
+                padding: 28px 24px !important;
+                box-shadow: var(--shadow-md) !important;
+            }
+            .soc {
+                border-radius: var(--radius-md) !important;
+                background: var(--paper-raised) !important;
+            }
+            .ttl {
+                font-size: 28px !important;
+                letter-spacing: -0.02em;
+            }
+            .card header {
+                gap: 4px !important;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        font-family: var(--font-body);
+                        color: var(--ink);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        min-height: 100vh;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .split {
+                        min-height: 100vh;
+                    }
+                    .photo {
+                        display: none;
+                        position: relative;
+                    }
+                    .col {
+                        display: flex;
+                        min-height: 100vh;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 48px 24px;
+                        box-sizing: border-box;
+                    }
+                    .root {
+                        width: 100%;
+                        max-width: 440px;
+                    }
+                    .card {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        width: 100%;
+                        box-sizing: border-box;
+                        container-type: inline-size;
+                    }
+                    .ttl {
+                        font-size: 28px;
+                    }
+                    @media (min-width: 0px) {
+                        .card {
+                            border-radius: var(--radius-xl);
+                            background: var(--paper);
+                            padding: 32px;
+                            box-shadow: var(--shadow-sm);
+                        }
+                    }
+                    @media (min-width: 1024px) {
+                        .split {
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                        }
+                        .photo {
+                            display: block;
+                        }
+                        .root {
+                            max-width: 400px;
+                        }
+                        .card {
+                            background: transparent;
+                            padding: 0;
+                            box-shadow: none;
+                            border-radius: 0;
+                        }
+                    }
+                    .soc:hover {
+                        background: color-mix(in srgb, var(--ink) 6%, transparent);
+                    }
+                </style></helmet
+            >
+            <main class="split">
+                <div class="photo" aria-hidden="true">
+                    <img
+                        src="assets/authFood.jpg"
+                        alt=""
+                        style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"
+                    />
+                </div>
+                <div class="col">
+                    <div class="root">
+                        <!-- Clerk's own widget (SignUp), framed as the source themes it: drawn here from the design-system Input and Button. -->
+                        <div class="card">
+                            <header style="display: flex; flex-direction: column; gap: 8px; text-align: center">
+                                <span class="wm">Commise</span>
+                                <h1
+                                    class="ttl"
+                                    style="
+                                        margin: 0;
+                                        font-family: var(--font-display);
+                                        font-weight: 600;
+                                        line-height: 1.15;
+                                        color: var(--ink);
+                                    "
+                                >
+                                    Create your account
+                                </h1>
+                                <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-muted)">
+                                    Your recipes, in one place.
+                                </p>
+                            </header>
+                            <button
+                                class="soc"
+                                type="button"
+                                style="
+                                    display: flex;
+                                    height: 48px;
+                                    width: 100%;
+                                    align-items: center;
+                                    justify-content: center;
+                                    gap: 12px;
+                                    box-sizing: border-box;
+                                    border-radius: 9999px;
+                                    border: 1px solid var(--line-control);
+                                    background: var(--paper);
+                                    font: inherit;
+                                    font-size: 15px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink);
+                                    cursor: pointer;
+                                    min-height: 44px;
+                                "
+                            >
+                                <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+                                    <path
+                                        fill="#EA4335"
+                                        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                                    />
+                                    <path
+                                        fill="#4285F4"
+                                        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                                    />
+                                    <path
+                                        fill="#FBBC05"
+                                        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                                    />
+                                    <path
+                                        fill="#34A853"
+                                        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                                    /></svg
+                                ><span>Continue with Google</span>
+                            </button>
+                            <div style="display: flex; align-items: center; gap: 12px">
+                                <span style="height: 1px; flex: 1; background: var(--line-divider)"></span
+                                ><span style="font-size: 15px; line-height: 1.4; color: var(--ink-muted)">or</span
+                                ><span style="height: 1px; flex: 1; background: var(--line-divider)"></span>
+                            </div>
+                            <form style="display: flex; flex-direction: column; gap: 16px" onsubmit="return false;">
+                                <div>
+                                    <x-import
+                                        component-from-global-scope="Commise.FieldLabel"
+                                        for-id="su-first"
+                                        label="First name"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Input"
+                                        id="su-first"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        auto-complete="given-name"
+                                        autocapitalize="words"
+                                    ></x-import>
+                                </div>
+                                <div>
+                                    <x-import
+                                        component-from-global-scope="Commise.FieldLabel"
+                                        for-id="su-last"
+                                        label="Last name"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Input"
+                                        id="su-last"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        auto-complete="family-name"
+                                        autocapitalize="words"
+                                    ></x-import>
+                                </div>
+                                <div>
+                                    <x-import
+                                        component-from-global-scope="Commise.FieldLabel"
+                                        for-id="su-user"
+                                        label="Username"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Input"
+                                        id="su-user"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        auto-complete="username"
+                                        autocapitalize="none"
+                                    ></x-import>
+                                </div>
+                                <div>
+                                    <x-import
+                                        component-from-global-scope="Commise.FieldLabel"
+                                        for-id="su-email"
+                                        label="Email address"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Input"
+                                        id="su-email"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        placeholder="Enter your email address"
+                                        input-mode="email"
+                                        auto-complete="email"
+                                    ></x-import>
+                                </div>
+                                <div>
+                                    <x-import
+                                        component-from-global-scope="Commise.FieldLabel"
+                                        for-id="su-pw"
+                                        label="Password"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Input"
+                                        id="su-pw"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        secret="true"
+                                        auto-complete="new-password"
+                                        placeholder="Enter your password"
+                                    ></x-import>
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Button"
+                                    variant="primary"
+                                    size="lg"
+                                    width="fill"
+                                    icon="userPlus"
+                                    on-press="{{noop}}"
+                                    >Continue</x-import
+                                >
+                            </form>
+                            <p
+                                style="
+                                    margin: 0;
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    justify-content: center;
+                                    column-gap: 4px;
+                                    font-size: 15px;
+                                    line-height: 1.4;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                <span>Already have an account?</span
+                                ><a
+                                    href="#"
+                                    style="
+                                        white-space: nowrap;
+                                        font-weight: 500;
+                                        color: var(--action-text);
+                                        display: inline-flex;
+                                        min-height: 24px;
+                                        align-items: center;
+                                    "
+                                    >Sign in</a
+                                >
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1024,"height":828}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){} }; } }
+        </script>
+    </body>
+</html>

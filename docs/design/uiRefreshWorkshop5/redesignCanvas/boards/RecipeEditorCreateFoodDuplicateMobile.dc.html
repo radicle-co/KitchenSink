@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, create my own food: name taken (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 17px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    p,
+                    ul,
+                    ol {
+                        margin: 0;
+                    }
+                    ul,
+                    ol {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fig {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .muted {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .err {
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 0 0 24px;
+                    }
+                    .fig {
+                        gap: 8px;
+                    }
+                    .cap {
+                        padding: 0 16px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .stage > .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .macros {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .macro {
+                        flex: 1 0 45%;
+                        min-width: 45%;
+                    }
+                    .legend {
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .stat {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .note {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .lock {
+                        display: flex;
+                        align-items: center;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        padding: 0 12px;
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dhead {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding: 0 16px 16px;
+                    }
+                    .food {
+                        font: 600 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .introrow {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .intro {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur b {
+                        font-weight: 600;
+                        color: var(--ink);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 12px 16px;
+                    }
+                    .opt .chk {
+                        display: flex;
+                        width: 16px;
+                        flex-shrink: 0;
+                        padding-top: 4px;
+                        color: var(--action-text);
+                    }
+                    .opt .main {
+                        display: flex;
+                        flex: 1;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        column-gap: 12px;
+                        min-width: 0;
+                    }
+                    .opt .parts {
+                        display: flex;
+                        flex: 1 1 192px;
+                        flex-direction: column;
+                        min-width: 0;
+                    }
+                    .opt .tag {
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .opt .cal {
+                        margin-inline-start: auto;
+                        flex-shrink: 0;
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .gh {
+                        padding: 20px 16px 8px;
+                        font: 600 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .gh.first {
+                        padding-top: 12px;
+                    }
+                    .slabel {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .slabel b {
+                        font: 500 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .srch {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .srch .box {
+                        display: flex;
+                        align-items: center;
+                        flex: 1;
+                        min-width: 0;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        padding: 0 12px;
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .shim {
+                        height: 48px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .block {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 12px;
+                        padding: 0 16px;
+                    }
+                    .body16 {
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    /* Redesign canvas (workshop 5, round 9): type ramp 13/15/17, native text classes mapped onto it. */
+                    .sr-only,
+                    .r-109y4c4,
+                    [style*='width: 1px'][style*='clip'] {
+                        font-size: 13px;
+                    }
+                    .r-n6v787 {
+                        font-size: 13px !important;
+                    }
+                    .r-1gkfh8e,
+                    .r-1enofrn {
+                        font-size: 13px !important;
+                    }
+                    .r-1b43r93,
+                    .r-a023e6 {
+                        font-size: 15px !important;
+                    }
+                    .r-ubezar,
+                    .r-1inkyih,
+                    .r-1i10wst,
+                    .r-adyw6z,
+                    .r-1x35g6 {
+                        font-size: 17px !important;
+                    }
+                    /* food2 */
+                    .fn {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        margin-top: 8px;
+                        padding: 12px 16px;
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-md);
+                        color: var(--ink);
+                        font: 400 15px/1.4 var(--font-body);
+                    }
+                    .fn .fi {
+                        display: inline-flex;
+                        flex: none;
+                        margin-top: 1px;
+                        color: var(--attention);
+                    }
+                    .fn .fb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .fn .fb p {
+                        margin: 0;
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .fbtn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        align-self: flex-start;
+                        min-height: 44px;
+                        padding: 0 18px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                        color: var(--ink);
+                        font: 600 15px/1 var(--font-body);
+                    }
+                    .fin {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 4px;
+                        font: 500 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fin svg {
+                        flex: none;
+                        animation: finSpin 1s linear infinite;
+                    }
+                    @keyframes finSpin {
+                        to {
+                            transform: rotate(360deg);
+                        }
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                        .fin svg {
+                            animation: none;
+                        }
+                    }
+                    [role='option'] .text-body-md {
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    [aria-label^='Food suggestions'] button .r-1inkyih {
+                        font-size: 15px !important;
+                        font-weight: 600 !important;
+                    }
+                    /* food3 */
+                    .acts {
+                        flex-wrap: nowrap !important;
+                        gap: 12px !important;
+                        width: 100%;
+                    }
+                    .acts > .sc-host-x > * {
+                        flex: 1 1 0;
+                        min-width: 0;
+                        display: flex;
+                    }
+                    .acts > .sc-host-x:first-child > button {
+                        flex: 0 0 auto;
+                    }
+                    .acts > .sc-host-x > * > button {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                    .acts > .sc-host-x > button > div {
+                        width: 100%;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div class="fig">
+                    <p class="cap">Name taken</p>
+                    <div class="stage" style="padding-top: 48px">
+                        <div class="scrim"></div>
+                        <div class="sh">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Create “Saffron”"
+                                close-label="Close new food form"
+                                size="content"
+                                focus-signal="{{v0}}"
+                                reduce-motion="{{v1}}"
+                                on-close="{{v2}}"
+                                ><div class="form">
+                                    <p class="note">You already have a food named “Saffron”.</p>
+                                    <div class="acts">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="x"
+                                            >Cancel</x-import
+                                        >
+                                        <x-import component-from-global-scope="Commise.Native.Button" icon="check"
+                                            >Use that one</x-import
+                                        >
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Using the existing food failed</p>
+                    <div class="stage" style="padding-top: 48px">
+                        <div class="scrim"></div>
+                        <div class="sh">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Create “Saffron”"
+                                close-label="Close new food form"
+                                size="content"
+                                focus-signal="{{v3}}"
+                                reduce-motion="{{v4}}"
+                                on-close="{{v5}}"
+                                ><div class="form">
+                                    <p class="note">You already have a food named “Saffron”.</p>
+                                    <p class="alert" role="alert">Could not add your existing food. Try again.</p>
+                                    <div class="acts">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="x"
+                                            >Cancel</x-import
+                                        >
+                                        <x-import component-from-global-scope="Commise.Native.Button" icon="check"
+                                            >Use that one</x-import
+                                        >
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":596}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement,C=window.Commise.Native,noop=()=>{},yes=true; return {noop,yes,v0:1,v1:yes,v2:noop,v3:1,v4:yes,v5:noop}; } }
+        </script>
+    </body>
+</html>

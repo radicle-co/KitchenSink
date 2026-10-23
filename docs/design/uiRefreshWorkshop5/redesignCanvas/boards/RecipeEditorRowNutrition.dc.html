@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, an ingredient's nutrition (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h1,
+                    h2,
+                    p,
+                    ul,
+                    dl,
+                    dd {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .page {
+                        display: grid;
+                        grid-template-columns: repeat(2, 600px);
+                        column-gap: 40px;
+                        row-gap: 40px;
+                        padding: 32px 20px 40px;
+                        align-items: start;
+                    }
+                    .cap {
+                        margin-bottom: 8px;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .stage {
+                        container: main / inline-size;
+                        width: 600px;
+                    }
+                    .popw {
+                        display: flex;
+                        width: 320px;
+                        max-width: 100%;
+                        align-items: flex-start;
+                        gap: 8px;
+                        margin-top: 4px;
+                        border-radius: 16px;
+                        background: var(--paper-overlay);
+                        padding: 8px 8px 8px 16px;
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .pm {
+                        min-width: 0;
+                        flex: 1;
+                        padding-top: 8px;
+                    }
+                    .ph {
+                        font: 600 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                        overflow-wrap: break-word;
+                    }
+                    .pb {
+                        margin-top: 4px;
+                        padding-bottom: 8px;
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                        overflow-wrap: break-word;
+                    }
+                    .pc {
+                        display: flex;
+                        width: 44px;
+                        height: 44px;
+                        flex-shrink: 0;
+                        align-items: center;
+                        justify-content: center;
+                        border: 0;
+                        border-radius: 9999px;
+                        background: transparent;
+                        color: var(--ink-muted);
+                    }
+                    .dlg {
+                        width: 512px;
+                        max-width: 100%;
+                        margin-top: 8px;
+                        border-radius: 16px;
+                        background: var(--paper-overlay);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .dh {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 8px 8px 0 24px;
+                    }
+                    .dm {
+                        min-width: 0;
+                        flex: 1;
+                        padding-top: 12px;
+                    }
+                    .dt {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        font: 600 17px/1.2 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dc {
+                        display: flex;
+                        width: 48px;
+                        height: 48px;
+                        flex-shrink: 0;
+                        align-items: center;
+                        justify-content: center;
+                        border: 0;
+                        border-radius: 9999px;
+                        background: transparent;
+                        color: var(--ink-muted);
+                    }
+                    .dbody {
+                        padding: 16px 24px;
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .menuw {
+                        display: flex;
+                        justify-content: flex-end;
+                        margin-top: 4px;
+                    }
+                    .menu {
+                        min-width: 192px;
+                        border-radius: 20px;
+                        background: var(--paper-overlay);
+                        padding: 4px;
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .mi {
+                        display: flex;
+                        min-height: 44px;
+                        align-items: center;
+                        gap: 8px;
+                        border-radius: 12px;
+                        padding: 0 12px;
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .sep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .dngc {
+                        color: var(--danger-text);
+                    }
+                    .cb {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 8px;
+                    }
+                    .grp {
+                        display: flex;
+                        width: 100%;
+                        flex-direction: column;
+                    }
+                    .ol {
+                        width: 100%;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .gh {
+                        padding: 8px 12px 0;
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .op {
+                        display: block;
+                        width: 100%;
+                        border: 0;
+                        border-radius: 20px;
+                        background: transparent;
+                        padding: 8px 12px;
+                        text-align: left;
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .op.dim {
+                        opacity: 0.6;
+                    }
+                    .os {
+                        display: block;
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .mut {
+                        color: var(--ink-muted);
+                    }
+                    .tx {
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dng {
+                        color: var(--danger-text);
+                    }
+                    .nb {
+                    }
+
+                    .nt {
+                        margin-top: 4px;
+                    }
+                    /* Redesign canvas (workshop 5, round 9): type ramp 13/15/17, native text classes mapped onto it. */
+                    .sr-only,
+                    .r-109y4c4,
+                    [style*='width: 1px'][style*='clip'] {
+                        font-size: 13px;
+                    }
+                    .r-n6v787 {
+                        font-size: 13px !important;
+                    }
+                    .r-1gkfh8e,
+                    .r-1enofrn {
+                        font-size: 13px !important;
+                    }
+                    .r-1b43r93,
+                    .r-a023e6 {
+                        font-size: 15px !important;
+                    }
+                    .r-ubezar,
+                    .r-1inkyih,
+                    .r-1i10wst,
+                    .r-adyw6z,
+                    .r-1x35g6 {
+                        font-size: 17px !important;
+                    }
+                    /* food2 */
+                    .fn {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        margin-top: 8px;
+                        padding: 12px 16px;
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-md);
+                        color: var(--ink);
+                        font: 400 15px/1.4 var(--font-body);
+                    }
+                    .fn .fi {
+                        display: inline-flex;
+                        flex: none;
+                        margin-top: 1px;
+                        color: var(--attention);
+                    }
+                    .fn .fb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .fn .fb p {
+                        margin: 0;
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .fbtn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        align-self: flex-start;
+                        min-height: 44px;
+                        padding: 0 18px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                        color: var(--ink);
+                        font: 600 15px/1 var(--font-body);
+                    }
+                    .fin {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 4px;
+                        font: 500 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fin svg {
+                        flex: none;
+                        animation: finSpin 1s linear infinite;
+                    }
+                    @keyframes finSpin {
+                        to {
+                            transform: rotate(360deg);
+                        }
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                        .fin svg {
+                            animation: none;
+                        }
+                    }
+                    [role='option'] .text-body-md {
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    [aria-label^='Food suggestions'] button .r-1inkyih {
+                        font-size: 15px !important;
+                        font-weight: 600 !important;
+                    }
+                    /* food3 */
+                    .fl {
+                        display: grid;
+                        grid-template-columns: repeat(4, minmax(0, 1fr));
+                        gap: 8px;
+                        margin-top: 8px;
+                    }
+                    .fr {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                        margin: 0;
+                        padding: 10px 12px 11px;
+                        border-radius: 14px;
+                        background: var(--cover-seafoam);
+                    }
+                    .fr:nth-child(2) {
+                        background: var(--cover-sky);
+                    }
+                    .fr:nth-child(3) {
+                        background: var(--cover-success);
+                    }
+                    .fr:nth-child(4) {
+                        background: var(--cover-coral);
+                    }
+                    .fk {
+                        margin: 0;
+                        font: 400 13px/1.35 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fv {
+                        margin: 0;
+                        font: 600 17px/1.3 var(--font-body);
+                        color: var(--ink);
+                        font-variant-numeric: tabular-nums;
+                    }
+                </style></helmet
+            >
+            <main class="page">
+                <section>
+                    <p class="cap">
+                        Food details: figures per 100 g. A figure the food does not publish is an em dash.
+                    </p>
+                    <div class="stage" id="stage0">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r0}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="olive oil">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">olive oil</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for olive oil">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody">
+                                <div class="nb">
+                                    <p class="hint">Per 100 g</p>
+                                    <dl class="fl">
+                                        <div class="fr">
+                                            <dt class="fk">Calories</dt>
+                                            <dd class="fv">52</dd>
+                                        </div>
+                                        <div class="fr">
+                                            <dt class="fk">Protein</dt>
+                                            <dd class="fv">0.3 g</dd>
+                                        </div>
+                                        <div class="fr">
+                                            <dt class="fk">Carbs</dt>
+                                            <dd class="fv">—</dd>
+                                        </div>
+                                        <div class="fr">
+                                            <dt class="fk">Fat</dt>
+                                            <dd class="fv">0.2 g</dd>
+                                        </div>
+                                    </dl>
+                                    <p class="hint nt">— means this figure isn’t published for this food.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the figures the cook entered for the line.</p>
+                    <div class="stage" id="stage1">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r1}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="grandma’s spice mix">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">grandma’s spice mix</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for grandma’s spice mix">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody">
+                                <div class="nb">
+                                    <p class="tx">These are the figures you entered for this line.</p>
+                                    <dl class="fl">
+                                        <div class="fr">
+                                            <dt class="fk">Calories</dt>
+                                            <dd class="fv">120</dd>
+                                        </div>
+                                        <div class="fr">
+                                            <dt class="fk">Protein</dt>
+                                            <dd class="fv">4 g</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the cook’s own wording, with no figures.</p>
+                    <div class="stage" id="stage2">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r2}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="grandma’s spice mix">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">grandma’s spice mix</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for grandma’s spice mix">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody"><p class="tx">No nutritional data available</p></div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the read is still running.</p>
+                    <div class="stage" id="stage3">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r3}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="olive oil">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">olive oil</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for olive oil">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody"><p role="status" class="tx">Loading nutrition…</p></div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the read failed.</p>
+                    <div class="stage" id="stage4">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r4}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="olive oil">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">olive oil</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for olive oil">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody">
+                                <div class="cb">
+                                    <p class="tx">We couldn’t load the nutrition just now. Try again.</p>
+                                    <x-import
+                                        component-from-global-scope="Commise.Button"
+                                        variant="secondary"
+                                        icon="refreshCw"
+                                        accessibility-label="Try again"
+                                        >Try again</x-import
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: someone else’s private food.</p>
+                    <div class="stage" id="stage5">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r5}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="Private ingredient">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">Private ingredient</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for Private ingredient">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody">
+                                <p class="tx">
+                                    This is matched to someone else’s private food, so its details aren’t shown. Your
+                                    recipe is fine as it is.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Food details: the food could not be loaded.</p>
+                    <div class="stage" id="stage6">
+                        <ul role="list" aria-label="Ingredients">
+                            <x-import
+                                component-from-global-scope="Commise.IngredientRow"
+                                row="{{r6}}"
+                                entry-copy="{{entry}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                            ></x-import>
+                        </ul>
+                        <div class="dlg" role="dialog" aria-label="Ingredient not loaded">
+                            <div class="dh">
+                                <div class="dm"><h2 class="dt">Ingredient not loaded</h2></div>
+                                <button type="button" class="dc" aria-label="Close details for Ingredient not loaded">
+                                    <x-import component-from-global-scope="Commise.Icon" name="x" size="20"></x-import>
+                                </button>
+                            </div>
+                            <div class="dbody">
+                                <p class="tx">
+                                    We couldn’t load this ingredient’s name and nutrition just now. It’s still linked to
+                                    its food, and saving keeps that link.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1136}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; const fx=(r)=>({...r,actions:r.actions.map(a=>({...a,onSelect:noop})),destructiveAction:r.destructiveAction&&{...r.destructiveAction,onSelect:noop},openFocus:{requested:false,onHandled:noop},actionsFocus:{requested:false,onHandled:noop},shortlist:()=>({}),onRemove:noop,onRetryLookup:noop,onOpen:noop,onBeginEntry:noop,onLeaveEntry:noop,onFocusLeft:noop,edit:{},lineEditor:{},entryField:{}}); return {entry:{form:{}},panel:()=>null,nothing:null,r0:fx({"line": {"key": "k1"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "olive oil", "triggerFood": "olive oil", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp olive oil", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for olive oil", "actionsTrigger": "Actions for olive oil", "actionsClose": "Close actions for olive oil"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "changeFood", "label": "Change food"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r1:fx({"line": {"key": "k2"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "grandma’s spice mix", "triggerFood": "grandma’s spice mix", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp grandma’s spice mix", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for grandma’s spice mix", "actionsTrigger": "Actions for grandma’s spice mix", "actionsClose": "Close actions for grandma’s spice mix"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "findFood", "label": "Find a food for this"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r2:fx({"line": {"key": "k3"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "grandma’s spice mix", "triggerFood": "grandma’s spice mix", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp grandma’s spice mix", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for grandma’s spice mix", "actionsTrigger": "Actions for grandma’s spice mix", "actionsClose": "Close actions for grandma’s spice mix"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "findFood", "label": "Find a food for this"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r3:fx({"line": {"key": "k4"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "olive oil", "triggerFood": "olive oil", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp olive oil", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for olive oil", "actionsTrigger": "Actions for olive oil", "actionsClose": "Close actions for olive oil"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "changeFood", "label": "Change food"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r4:fx({"line": {"key": "k5"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "olive oil", "triggerFood": "olive oil", "amountText": "1 tbsp", "openLabel": "Edit 1 tbsp olive oil", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for olive oil", "actionsTrigger": "Actions for olive oil", "actionsClose": "Close actions for olive oil"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}, {"id": "changeFood", "label": "Change food"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r5:fx({"line": {"key": "k6"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "explanation", "key": "nutritionNoneUnavailable"}, "standIn": true, "displayName": "Private ingredient", "triggerFood": "tbsp Private ingredient", "amountText": "1 tbsp", "openLabel": "Edit tbsp Private ingredient", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Private ingredient", "actionsTrigger": "Actions for tbsp Private ingredient", "actionsClose": "Close actions for tbsp Private ingredient"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r6:fx({"line": {"key": "k7"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "explanation", "key": "statusExplainFoodUnreachable"}, "standIn": true, "displayName": "Ingredient not loaded", "triggerFood": "3 Ingredient not loaded", "amountText": "3", "openLabel": "Edit 3 Ingredient not loaded", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Ingredient not loaded", "actionsTrigger": "Actions for 3 Ingredient not loaded", "actionsClose": "Close actions for 3 Ingredient not loaded"}, "actions": [{"id": "edit", "label": "Edit"}, {"id": "foodDetails", "label": "Food details"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}})}; } }
+        </script>
+    </body>
+</html>

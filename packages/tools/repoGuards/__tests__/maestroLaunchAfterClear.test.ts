@@ -17,8 +17,8 @@
  * The rule, over every committed flow parsed as YAML:
  *   (a) no `launchApp` has `clearState: true`;
  *   (b) no flow but `auth/launchCleared.yaml` runs `clearState`;
- *   (c) `auth/launchCleared.yaml` clears, then on Android waits at least {@link ANDROID_CLEAR_SETTLE_MS}, then launches
- *       without clearing. The wait is the one timed wait the flows hold (owner ruling 2026-10-23), and
+ *   (c) `auth/launchCleared.yaml` clears, then on Android pauses at least {@link ANDROID_CLEAR_SETTLE_MS} with a script
+ *       that watches the clock, then launches without clearing. The wait is the one timed wait the flows hold (owner ruling 2026-10-23), and
  *       `maestroNoTimingCrutches.test.ts` names it. iOS has no such timer, so it does not wait.
  */
 
@@ -96,24 +96,35 @@ export function clearsOutsideTheStep(
     return { offenders, calls };
 }
 
+/** The pause the shared step runs: a script that loops until the clock passes a fixed number of milliseconds. */
+const PAUSE =
+    /^\$\{\(function \(\) \{ const end = Date\.now\(\) \+ (\d+); while \(Date\.now\(\) < end\) \{\} \}\)\(\)\}$/u;
+
+/** How long a command pauses for, if it is the shared step's pause. Pure. */
+export function pauseMs(command: unknown): number | undefined {
+    const script = isRecord(command) ? command['evalScript'] : undefined;
+    const match = typeof script === 'string' ? PAUSE.exec(script) : null;
+
+    return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
 /**
- * Whether the shared step's commands are: a clear, an Android-only wait of at least {@link ANDROID_CLEAR_SETTLE_MS}, and
- * a launch that does not clear, in that order. Pure.
+ * Whether the shared step's commands are: a clear, an Android-only pause of at least {@link ANDROID_CLEAR_SETTLE_MS},
+ * and a launch that does not clear, in that order. Pure.
  */
 export function settlesBeforeLaunch(commands: readonly unknown[]): boolean {
     const [clear, settle, launch, ...rest] = commands;
     const branch = isRecord(settle) && isRecord(settle['runFlow']) ? settle['runFlow'] : undefined;
     const when = isRecord(branch?.['when']) ? branch['when'] : undefined;
     const inner = Array.isArray(branch?.['commands']) ? branch['commands'] : [];
-    const wait = inner.length === 1 && isRecord(inner[0]) ? inner[0]['extendedWaitUntil'] : undefined;
+    const pause = inner.length === 1 ? pauseMs(inner[0]) : undefined;
 
     return (
         clearsAlone(clear) &&
         when?.['platform'] === 'Android' &&
         Object.keys(when).length === 1 &&
-        isRecord(wait) &&
-        typeof wait['timeout'] === 'number' &&
-        wait['timeout'] >= ANDROID_CLEAR_SETTLE_MS &&
+        pause !== undefined &&
+        pause >= ANDROID_CLEAR_SETTLE_MS &&
         isLaunch(launch) &&
         !launchClears(launch) &&
         rest.length === 0
@@ -121,11 +132,10 @@ export function settlesBeforeLaunch(commands: readonly unknown[]): boolean {
 }
 
 const flow = (body: string): string => `appId: test\n---\n${body}`;
-const WAIT = (timeout: number, platform = 'Android'): unknown => ({
-    runFlow: {
-        when: { platform },
-        commands: [{ extendedWaitUntil: { visible: 'x', timeout, optional: true } }],
-    },
+const pauseFor = (ms: number): string =>
+    `\${(function () { const end = Date.now() + ${ms}; while (Date.now() < end) {} })()}`;
+const WAIT = (ms: number, platform = 'Android'): unknown => ({
+    runFlow: { when: { platform }, commands: [{ evalScript: pauseFor(ms) }] },
 });
 const LAUNCH = { launchApp: { permissions: {} } };
 
@@ -154,13 +164,26 @@ describe('clearsOutsideTheStep (the rule, on inline flows)', () => {
 });
 
 describe('settlesBeforeLaunch (the shared step, on inline command lists)', () => {
-    it('accepts clear, an Android wait of 2 s, then a launch', () => {
+    it('accepts clear, an Android pause of 2 s, then a launch', () => {
         expect(settlesBeforeLaunch(['clearState', WAIT(2000), LAUNCH])).toBe(true);
     });
 
     it.each([
         ['a shorter wait', ['clearState', WAIT(1000), LAUNCH]],
-        ['a wait on every platform', ['clearState', { extendedWaitUntil: { visible: 'x', timeout: 2000 } }, LAUNCH]],
+        ['a pause on every platform', ['clearState', { evalScript: pauseFor(2000) }, LAUNCH]],
+        [
+            'a wait for text that never comes',
+            [
+                'clearState',
+                {
+                    runFlow: {
+                        when: { platform: 'Android' },
+                        commands: [{ extendedWaitUntil: { visible: 'x', timeout: 2000, optional: true } }],
+                    },
+                },
+                LAUNCH,
+            ],
+        ],
         ['a wait on iOS', ['clearState', WAIT(2000, 'iOS'), LAUNCH]],
         ['no wait', ['clearState', LAUNCH]],
         ['the launch before the wait', ['clearState', LAUNCH, WAIT(2000)]],
@@ -185,7 +208,7 @@ describe('the committed flows clear the app only through auth/launchCleared.yaml
         expect(judged.flatMap(({ offenders }) => offenders)).toEqual([]);
     });
 
-    it('the shared step clears, waits on Android, then launches', () => {
+    it('the shared step clears, pauses on Android, then launches', () => {
         const documents = parseFlow(LAUNCH_CLEARED, readFileSync(join(REPO_ROOT, LAUNCH_CLEARED), 'utf8'));
         const commands = documents.at(-1);
 

@@ -20,7 +20,8 @@
  *   (b) no `retryTapIfNoChange` key anywhere;
  *   (c) no re-tap or re-type: a `runFlow` whose `when` has a `notVisible` condition and whose own commands `tapOn` or
  *       `inputText` the same text as a `tapOn` or `inputText` in the {@link RETRY_LOOKBACK} commands before it;
- *   (d) no `extendedWaitUntil` with `optional: true`: a wait that may run out without failing is a timed sleep.
+ *   (d) no timed sleep: an `extendedWaitUntil` with `optional: true` (a wait that may run out without failing), or an
+ *       `evalScript` that loops on the clock.
  *
  * Allowed by rule (c): a platform branch, a `when: visible` branch (a one-time system intro, a permission dialog), and a
  * `notVisible` branch that acts on text the flow did not just tap or type (a branch on app state, not a retry).
@@ -76,9 +77,20 @@ const TIMED_WAIT_EXCEPTIONS: readonly string[] = ['packages/apps/commise/mobile/
 const WAIT_COMMAND = 'waitForAnimationToEnd';
 const RETRY_KEY = 'retryTapIfNoChange';
 
-/** Whether a command is an `extendedWaitUntil` that may run out without failing. Pure. */
-const isTimedWait = (command: unknown): boolean =>
-    isRecord(command) && isRecord(command['extendedWaitUntil']) && command['extendedWaitUntil']['optional'] === true;
+/** Whether a command sleeps: an `extendedWaitUntil` that may run out without failing, or a script that loops on the clock. Pure. */
+function isTimedWait(command: unknown): boolean {
+    if (!isRecord(command)) {
+        return false;
+    }
+
+    const wait = command['extendedWaitUntil'];
+    const script = command['evalScript'];
+
+    return (
+        (isRecord(wait) && wait['optional'] === true) ||
+        (typeof script === 'string' && /\bwhile\b/u.test(script) && /Date\.now\(\)/u.test(script))
+    );
+}
 
 /** Whether a command is `waitForAnimationToEnd`, bare (`- waitForAnimationToEnd`) or with options. Pure. */
 const isAnimationWait = (command: unknown): boolean =>
@@ -161,7 +173,7 @@ export function crutchesIn(
                 }
 
                 if (isTimedWait(command)) {
-                    crutches.push({ rule: 'd', detail: 'optional extendedWaitUntil' });
+                    crutches.push({ rule: 'd', detail: 'a timed sleep' });
                 }
 
                 const conditional = conditionalRunFlow(command);
@@ -208,7 +220,16 @@ describe('crutchesIn (the rules, on inline flows)', () => {
             flow("- extendedWaitUntil:\n    visible: 'never'\n    timeout: 2000\n    optional: true\n"),
         );
 
-        expect(crutches).toEqual([{ rule: 'd', detail: 'optional extendedWaitUntil' }]);
+        expect(crutches).toEqual([{ rule: 'd', detail: 'a timed sleep' }]);
+    });
+
+    it('refuses a script that loops on the clock', () => {
+        const { crutches } = crutchesIn(
+            'inline',
+            flow('- evalScript: ${(function () { const end = Date.now() + 2000; while (Date.now() < end) {} })()}\n'),
+        );
+
+        expect(crutches).toEqual([{ rule: 'd', detail: 'a timed sleep' }]);
     });
 
     it('allows an extendedWaitUntil that fails when the state never comes', () => {

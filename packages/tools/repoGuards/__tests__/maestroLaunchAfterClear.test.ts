@@ -1,178 +1,194 @@
 /**
- * A MAESTRO FLOW NEVER STOPS AND STARTS THE APP AGAIN RIGHT AFTER A DATA CLEAR.
+ * A MAESTRO FLOW CLEARS THE APP'S DATA ONLY THROUGH `auth/launchCleared.yaml`, WHICH LETS ANDROID FINISH THE CLEAR
+ * BEFORE IT STARTS THE APP.
  *
- * `launchApp: clearState: true` clears the app's data, which makes Android remove the app's old task. A second
- * `launchApp` straight after it stops the process the first one started and starts another, and the old task's removal
- * then timed out and killed the NEW process: "Killing 6592:io.commise.mobile/u0a141 (adj -10000): remove task", then
- * "Process … 6592 … failed to attach", and the screen stayed blank until the flow failed (local Android suite,
- * 2026-10-20 `sessionHandoff`, 2026-10-21 `makePublicConfirm`; the second launch came from `auth/signOutIfSignedIn.yaml`).
+ * Clearing the app's data makes Android remove the app's old task, and that removal kills the app's process when its
+ * timer runs out. A launch inside that window starts a process the timer then kills: "Destroy timeout of remove-task",
+ * "Killing …: remove task", "… failed to attach", and the screen stays blank until the flow fails. The timer is fixed:
+ * measured from the clear's kill to the destroy timeout at 1.004 s, 1.027 s, 1.004 s and 1.008 s (CI runs 39668114177
+ * and 39889070110, local runs 2026-10-23 00:00 and 07:29). It fires only when the app was busy as the clear came, which
+ * is why the same flows pass most runs and failed `sessionHandoff` in 2 of 5 CI runs.
  *
- * The rule, over every committed flow parsed as YAML: a `launchApp` with `clearState: true` is not followed by a
- * `launchApp` that stops the app, written inline or as the FIRST command of the sub-flow the next command runs. A
- * `launchApp` with `stopApp: false` only brings the app to the front, so it is allowed.
+ * `launchApp: clearState: true` clears and starts at once, inside the window, so no flow may use it. An earlier version
+ * of this guard banned only a SECOND launch straight after a clearing one. That missed the launch inside the clearing
+ * command itself, and it failed the same way when a flow cleared with a bare `clearState` and launched next (local
+ * 2026-10-23 07:29, offlineSave).
+ *
+ * The rule, over every committed flow parsed as YAML:
+ *   (a) no `launchApp` has `clearState: true`;
+ *   (b) no flow but `auth/launchCleared.yaml` runs `clearState`;
+ *   (c) `auth/launchCleared.yaml` clears, then on Android waits at least {@link ANDROID_CLEAR_SETTLE_MS}, then launches
+ *       without clearing. The wait is the one timed wait the flows hold (owner ruling 2026-10-23), and
+ *       `maestroNoTimingCrutches.test.ts` names it. iOS has no such timer, so it does not wait.
  */
 
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import {
+    FLOW_ROOT,
     REPO_ROOT,
     commandLists,
     committedFlowFiles,
     isLaunch,
     isRecord,
     launchOptions,
+    namesFlow,
     parseFlow,
 } from './maestroFlowYaml.js';
 
-/** Clearing launches today: 13 (2026-10-21). A floor, so a parser that saw none cannot pass. */
-const MIN_CLEARING_LAUNCHES = 10;
+/** The one flow that clears the app's data. */
+const LAUNCH_CLEARED = `${FLOW_ROOT}/auth/launchCleared.yaml`;
 
-/** Whether a command clears the app's data as it launches. Pure. */
-const clears = (command: unknown): boolean => isLaunch(command) && launchOptions(command)['clearState'] === true;
+/** The longest measured clear-to-kill timer, 1.027 s, with about a second of margin (header). */
+export const ANDROID_CLEAR_SETTLE_MS = 2000;
 
-/** Whether a command stops and starts the app (Maestro's `launchApp` stops it unless told `stopApp: false`). Pure. */
-const restarts = (command: unknown): boolean => isLaunch(command) && launchOptions(command)['stopApp'] !== false;
+/** Clearing launches today: 20 in 12 flows (2026-10-23). A floor, so a parser that saw none cannot pass. */
+const MIN_CLEARED_LAUNCHES = 15;
 
-/** The sub-flow file a `runFlow` command names, or none. Pure. */
-function subFlowFile(command: unknown): string | undefined {
-    if (!isRecord(command)) {
-        return undefined;
-    }
+/** Whether a command clears the app's data: `clearState`, bare or with options. Pure. */
+const clearsAlone = (command: unknown): boolean =>
+    command === 'clearState' || (isRecord(command) && 'clearState' in command);
 
-    const run = command['runFlow'];
+/** Whether a command is a `launchApp` that clears as it starts. Pure. */
+const launchClears = (command: unknown): boolean => isLaunch(command) && launchOptions(command)['clearState'] === true;
 
-    if (typeof run === 'string') {
-        return run;
-    }
+/** Whether a command runs `auth/launchCleared.yaml`. Pure. */
+function runsLaunchCleared(command: unknown): boolean {
+    const run = isRecord(command) ? command['runFlow'] : undefined;
+    const file = typeof run === 'string' ? run : isRecord(run) ? run['file'] : undefined;
 
-    return isRecord(run) && typeof run['file'] === 'string' ? run['file'] : undefined;
+    return typeof file === 'string' && namesFlow(file, 'launchCleared.yaml');
 }
 
 /**
- * Every clearing launch in one flow that the next command follows with a restart. Pure apart from `readFlow`.
+ * Every way one flow clears the app's data outside the shared step, and how many times it runs that step. Pure.
  *
  * @param file - The flow's repo-relative path.
  * @param source - Its YAML.
- * @param readFlow - Reads a sub-flow's YAML by repo-relative path, or answers `undefined`.
- * @returns How many clearing launches the flow holds, and one description per offending pair.
+ * @returns One description per offending command, and the number of `launchCleared.yaml` calls.
  */
-export function restartsAfterClear(
+export function clearsOutsideTheStep(
     file: string,
     source: string,
-    readFlow: (path: string) => string | undefined,
-): { readonly clearing: number; readonly offenders: readonly string[] } {
+): { readonly offenders: readonly string[]; readonly calls: number } {
     const offenders: string[] = [];
-    let clearing = 0;
+    let calls = 0;
 
     for (const document of parseFlow(file, source)) {
         for (const list of commandLists(document)) {
-            list.forEach((command, index) => {
-                if (!clears(command)) {
-                    return;
+            for (const command of list) {
+                if (launchClears(command)) {
+                    offenders.push(`${file}: launchApp clears and starts at once`);
                 }
 
-                clearing += 1;
-                const next: unknown = list[index + 1];
-
-                if (restarts(next)) {
-                    offenders.push(`${file}: a launchApp restarts the app right after the clear`);
-
-                    return;
+                if (clearsAlone(command) && file !== LAUNCH_CLEARED) {
+                    offenders.push(`${file}: clearState outside auth/launchCleared.yaml`);
                 }
 
-                const sub = subFlowFile(next);
-
-                if (sub === undefined) {
-                    return;
-                }
-
-                const path = join(dirname(file), sub);
-                const subSource = readFlow(path);
-                const first =
-                    subSource === undefined
-                        ? undefined
-                        : parseFlow(path, subSource).flatMap((d) => [...commandLists(d)])[0]?.[0];
-
-                if (restarts(first)) {
-                    offenders.push(`${file}: ${sub} starts by restarting the app right after the clear`);
-                }
-            });
+                calls += runsLaunchCleared(command) ? 1 : 0;
+            }
         }
     }
 
-    return { clearing, offenders };
+    return { offenders, calls };
+}
+
+/**
+ * Whether the shared step's commands are: a clear, an Android-only wait of at least {@link ANDROID_CLEAR_SETTLE_MS}, and
+ * a launch that does not clear, in that order. Pure.
+ */
+export function settlesBeforeLaunch(commands: readonly unknown[]): boolean {
+    const [clear, settle, launch, ...rest] = commands;
+    const branch = isRecord(settle) && isRecord(settle['runFlow']) ? settle['runFlow'] : undefined;
+    const when = isRecord(branch?.['when']) ? branch['when'] : undefined;
+    const inner = Array.isArray(branch?.['commands']) ? branch['commands'] : [];
+    const wait = inner.length === 1 && isRecord(inner[0]) ? inner[0]['extendedWaitUntil'] : undefined;
+
+    return (
+        clearsAlone(clear) &&
+        when?.['platform'] === 'Android' &&
+        Object.keys(when).length === 1 &&
+        isRecord(wait) &&
+        typeof wait['timeout'] === 'number' &&
+        wait['timeout'] >= ANDROID_CLEAR_SETTLE_MS &&
+        isLaunch(launch) &&
+        !launchClears(launch) &&
+        rest.length === 0
+    );
 }
 
 const flow = (body: string): string => `appId: test\n---\n${body}`;
+const WAIT = (timeout: number, platform = 'Android'): unknown => ({
+    runFlow: {
+        when: { platform },
+        commands: [{ extendedWaitUntil: { visible: 'x', timeout, optional: true } }],
+    },
+});
+const LAUNCH = { launchApp: { permissions: {} } };
 
-describe('restartsAfterClear (the rule, on inline flows)', () => {
-    const none = (): undefined => undefined;
-
-    it('refuses a bare launchApp right after a clearing one', () => {
-        const { offenders } = restartsAfterClear(
-            'a.yaml',
-            flow('- launchApp:\n    clearState: true\n- launchApp\n'),
-            none,
-        );
-
-        expect(offenders).toHaveLength(1);
+describe('clearsOutsideTheStep (the rule, on inline flows)', () => {
+    it('refuses a launchApp that clears as it starts', () => {
+        expect(
+            clearsOutsideTheStep('a.yaml', flow('- launchApp:\n    permissions: {}\n    clearState: true\n')).offenders,
+        ).toEqual(['a.yaml: launchApp clears and starts at once']);
     });
 
-    it('refuses a sub-flow whose first command restarts the app', () => {
-        const helper = flow("- launchApp\n- assertVisible: 'x'\n");
-        const { offenders } = restartsAfterClear(
-            'dir/a.yaml',
-            flow('- launchApp:\n    clearState: true\n- runFlow: ../auth/helper.yaml\n'),
-            (path) => (path === 'auth/helper.yaml' ? helper : undefined),
-        );
-
-        expect(offenders).toEqual([
-            'dir/a.yaml: ../auth/helper.yaml starts by restarting the app right after the clear',
+    it('refuses a bare clearState, and one with options, outside the shared step', () => {
+        expect(
+            clearsOutsideTheStep('a.yaml', flow('- clearState\n- clearState:\n    appId: x\n- launchApp\n')).offenders,
+        ).toEqual([
+            'a.yaml: clearState outside auth/launchCleared.yaml',
+            'a.yaml: clearState outside auth/launchCleared.yaml',
         ]);
     });
 
-    it('allows a launch that only brings the app to the front, inline or in the sub-flow', () => {
-        const helper = flow('- launchApp:\n    stopApp: false\n');
-
-        expect(
-            restartsAfterClear(
-                'a.yaml',
-                flow('- launchApp:\n    clearState: true\n- launchApp:\n    stopApp: false\n- runFlow: h.yaml\n'),
-                () => helper,
-            ).offenders,
-        ).toEqual([]);
-        expect(
-            restartsAfterClear('a.yaml', flow('- launchApp:\n    clearState: true\n- runFlow: h.yaml\n'), () => helper)
-                .offenders,
-        ).toEqual([]);
-    });
-
-    it('allows a restart that does not follow a clear', () => {
-        expect(restartsAfterClear('a.yaml', flow("- launchApp\n- tapOn: 'x'\n- launchApp\n"), none).offenders).toEqual(
-            [],
-        );
+    it('counts a call of the shared step, and allows it', () => {
+        expect(clearsOutsideTheStep('a.yaml', flow('- runFlow: ../auth/launchCleared.yaml\n'))).toEqual({
+            offenders: [],
+            calls: 1,
+        });
     });
 });
 
-describe('the committed flows never restart the app right after a data clear', () => {
-    const read = (path: string): string | undefined => {
-        try {
-            return readFileSync(join(REPO_ROOT, path), 'utf8');
-        } catch {
-            return undefined;
-        }
-    };
-
-    const judged = committedFlowFiles().map((file) => restartsAfterClear(file, read(file) ?? '', read));
-
-    it('finds the clearing launches', () => {
-        expect(judged.reduce((sum, { clearing }) => sum + clearing, 0)).toBeGreaterThanOrEqual(MIN_CLEARING_LAUNCHES);
+describe('settlesBeforeLaunch (the shared step, on inline command lists)', () => {
+    it('accepts clear, an Android wait of 2 s, then a launch', () => {
+        expect(settlesBeforeLaunch(['clearState', WAIT(2000), LAUNCH])).toBe(true);
     });
 
-    it('no clearing launch is followed by a restart', () => {
+    it.each([
+        ['a shorter wait', ['clearState', WAIT(1000), LAUNCH]],
+        ['a wait on every platform', ['clearState', { extendedWaitUntil: { visible: 'x', timeout: 2000 } }, LAUNCH]],
+        ['a wait on iOS', ['clearState', WAIT(2000, 'iOS'), LAUNCH]],
+        ['no wait', ['clearState', LAUNCH]],
+        ['the launch before the wait', ['clearState', LAUNCH, WAIT(2000)]],
+        ['a launch that clears', ['clearState', WAIT(2000), { launchApp: { clearState: true } }]],
+        ['no clear', [WAIT(2000), LAUNCH]],
+        ['a command after the launch', ['clearState', WAIT(2000), LAUNCH, { tapOn: 'x' }]],
+    ])('refuses %s', (_name: string, commands: readonly unknown[]) => {
+        expect(settlesBeforeLaunch(commands)).toBe(false);
+    });
+});
+
+describe('the committed flows clear the app only through auth/launchCleared.yaml', () => {
+    const judged = committedFlowFiles().map((file) =>
+        clearsOutsideTheStep(file, readFileSync(join(REPO_ROOT, file), 'utf8')),
+    );
+
+    it('finds the calls of the shared step', () => {
+        expect(judged.reduce((sum, { calls }) => sum + calls, 0)).toBeGreaterThanOrEqual(MIN_CLEARED_LAUNCHES);
+    });
+
+    it('no flow clears any other way', () => {
         expect(judged.flatMap(({ offenders }) => offenders)).toEqual([]);
+    });
+
+    it('the shared step clears, waits on Android, then launches', () => {
+        const documents = parseFlow(LAUNCH_CLEARED, readFileSync(join(REPO_ROOT, LAUNCH_CLEARED), 'utf8'));
+        const commands = documents.at(-1);
+
+        expect(Array.isArray(commands) && settlesBeforeLaunch(commands)).toBe(true);
     });
 });

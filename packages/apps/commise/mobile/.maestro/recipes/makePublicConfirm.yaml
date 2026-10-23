@@ -25,14 +25,10 @@ appId: ${APP_ID}
 # The device is cleared after the run, pass or fail, so the next flow signs in as the shard's signer (`signinHome.yaml`
 # skips the form when any session is persisted).
 onFlowComplete:
-    - launchApp:
-          permissions: {}
-          clearState: true
+    - runFlow: ../auth/launchCleared.yaml
     - runFlow: ../auth/signOutIfSignedIn.yaml
 ---
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: ../auth/launchCleared.yaml
 # iOS keeps the Keychain session across the clear (the sub-flow says why), so the signer is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml
 - runFlow:

@@ -23,9 +23,7 @@ tags:
     # Android only: iOS simulators have no airplane mode (guarded by maestroPlatformExclusions.test.ts).
     - android
 ---
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: ../auth/launchCleared.yaml
 - runFlow: ../auth/signin.yaml
 
 - extendedWaitUntil:

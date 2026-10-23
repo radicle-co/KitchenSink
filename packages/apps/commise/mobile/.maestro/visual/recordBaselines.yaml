@@ -34,9 +34,7 @@
 appId: ${APP_ID}
 ---
 # ── Mirrors visual/authSurfaces.yaml ────────────────────────────────────────────────────────────────────
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: ../auth/launchCleared.yaml
 - extendedWaitUntil:
       visible: 'you@example.com'
       timeout: 30000

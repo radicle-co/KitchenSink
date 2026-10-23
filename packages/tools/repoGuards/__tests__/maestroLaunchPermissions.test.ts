@@ -28,8 +28,11 @@ import {
     parseFlow,
 } from './maestroFlowYaml.js';
 
-/** Launches today: 25 (2026-10-22). A floor, so a parser that saw none cannot pass. */
-const MIN_LAUNCHES = 20;
+/**
+ * Launches today: 6 (2026-10-23; 25 before the 20 clearing launches moved into `auth/launchCleared.yaml`, which holds one of
+ * the 6). A floor, so a parser that saw none cannot pass.
+ */
+const MIN_LAUNCHES = 5;
 
 /** Whether a `launchApp` names its permissions explicitly as a map (an empty one, or only what the flow needs). Pure. */
 const namesPermissions = (command: unknown): boolean => isRecord(launchOptions(command)['permissions']);

@@ -16,9 +16,7 @@ tags:
     # Android only: iOS simulators have no airplane mode (guarded by maestroPlatformExclusions.test.ts).
     - android
 ---
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: ../auth/launchCleared.yaml
 - runFlow: ../auth/signin.yaml
 
 # Audit 2026-10-19, A1.15: 'Recipes' is the tab label, which Home shows too.

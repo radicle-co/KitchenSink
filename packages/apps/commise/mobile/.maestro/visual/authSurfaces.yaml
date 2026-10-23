@@ -44,9 +44,7 @@
 appId: ${APP_ID}
 ---
 # A signed-OUT launch is the whole point of this flow, so it clears state rather than reusing a session.
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: ../auth/launchCleared.yaml
 
 # `AuthGate` paints "Checking your session…" first; wait for the form itself before any pixel is captured.
 # The email placeholder is the landmark unique to the sign-in form (its 'Sign in' submit alone would also

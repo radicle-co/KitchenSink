@@ -599,7 +599,8 @@ describe('the plan — ordering invariants the flows depend on', () => {
  * the device a sign-in goes through `LoginScreen`: email, password, then a new-device email code — one
  * verification. The credential block in `auth/signinHome.yaml` runs only when the login form is showing, and
  * the app's session persists in `expo-secure-store` between flows (the runner reinstalls the DRIVER, never the
- * app, and `e2e-seed reset` resets the database), so the form shows only after `clearState`. Four planned flows
+ * app, and `e2e-seed reset` resets the database), so the form shows only after a clear (`auth/launchCleared.yaml`, the
+ * one way a flow clears, `maestroLaunchAfterClear.test.ts`). Four planned flows
  * clear it, and each is a UI sign-in on purpose:
  *
  *   - `auth/loginFlow` — the spine, and the mobile sign-in UI test itself (one);
@@ -631,7 +632,7 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
 
     it('clears app state only in the sign-in UI test, the erasure flow, the session handoff and the two role flows', () => {
         const clearing = planned()
-            .filter(({ body }) => /^\s*clearState:\s*true\b/mu.test(body))
+            .filter(({ body }) => /^\s*- runFlow:\s*\S*launchCleared\.yaml\s*$/mu.test(body))
             .map(({ flow }) => flow);
 
         expect(

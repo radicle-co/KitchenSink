@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: clear the app's data and start it, the one way a flow does that
+# (`maestroLaunchAfterClear.test.ts`). It replaces `launchApp: clearState: true`, which clears and starts at once.
+#
+# ⛔ THE ONE TIMED WAIT THE FLOWS HOLD (owner ruling 2026-10-23, `maestroNoTimingCrutches.test.ts`). Clearing the data
+# makes Android remove the app's old task, and a fixed timer about one second later kills whatever process the app has
+# then: measured from the clear's kill to "Destroy timeout of remove-task" at 1.004 s to 1.027 s, in CI and locally. A
+# launch inside that second starts a process the timer kills, and the screen stays blank (CI `sessionHandoff`, 2 of 5
+# runs). No screen state shows the timer, so Android waits it out here with about a second of margin. The wait waits for
+# text no screen shows, so it always runs its full timeout and never fails. iOS has no such timer.
+- clearState
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - extendedWaitUntil:
+                visible: 'Android remove-task timer, never on screen'
+                timeout: 2000
+                optional: true
+- launchApp:
+      permissions: {}

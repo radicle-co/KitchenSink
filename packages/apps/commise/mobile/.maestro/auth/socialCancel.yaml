@@ -18,9 +18,7 @@
 
 appId: ${APP_ID}
 ---
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: launchCleared.yaml
 - extendedWaitUntil:
       visible: 'you@example.com'
       timeout: 30000

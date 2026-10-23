@@ -19,7 +19,8 @@
  *   (a) no `waitForAnimationToEnd` command, in either its bare or its map form;
  *   (b) no `retryTapIfNoChange` key anywhere;
  *   (c) no re-tap or re-type: a `runFlow` whose `when` has a `notVisible` condition and whose own commands `tapOn` or
- *       `inputText` the same text as a `tapOn` or `inputText` in the {@link RETRY_LOOKBACK} commands before it.
+ *       `inputText` the same text as a `tapOn` or `inputText` in the {@link RETRY_LOOKBACK} commands before it;
+ *   (d) no `extendedWaitUntil` with `optional: true`: a wait that may run out without failing is a timed sleep.
  *
  * Allowed by rule (c): a platform branch, a `when: visible` branch (a one-time system intro, a permission dialog), and a
  * `notVisible` branch that acts on text the flow did not just tap or type (a branch on app state, not a retry).
@@ -32,6 +33,11 @@
  * only when the field did not take focus. Maestro reports no focus for an iOS text field (local probe, 2026-10-23), so
  * the signal is the keyboard's return key: the branch's `when` must be `platform: iOS` with `notVisible` on
  * {@link FOCUS_RETURN_KEY}.
+ *
+ * ONE TIMED WAIT, by owner ruling 2026-10-23 ("This seems an appropriate place to add an additional second or two of
+ * explicit wait"): {@link TIMED_WAIT_EXCEPTIONS}. Clearing the app's data starts a fixed one-second Android timer that
+ * kills the next process the app starts inside it, and no screen state shows the timer running. So the one step that
+ * clears data waits it out on Android before it launches (`maestroLaunchAfterClear.test.ts` holds the step's shape).
  */
 
 import { readFileSync } from 'node:fs';
@@ -64,8 +70,15 @@ const FOCUS_RETAP_EXCEPTIONS: readonly string[] = [
     'packages/apps/commise/mobile/.maestro/auth/signinHome.yaml: repeats "you@example.com"',
 ];
 
+/** The one flow that may wait for time to pass: the step that clears the app's data (see the header). */
+const TIMED_WAIT_EXCEPTIONS: readonly string[] = ['packages/apps/commise/mobile/.maestro/auth/launchCleared.yaml'];
+
 const WAIT_COMMAND = 'waitForAnimationToEnd';
 const RETRY_KEY = 'retryTapIfNoChange';
+
+/** Whether a command is an `extendedWaitUntil` that may run out without failing. Pure. */
+const isTimedWait = (command: unknown): boolean =>
+    isRecord(command) && isRecord(command['extendedWaitUntil']) && command['extendedWaitUntil']['optional'] === true;
 
 /** Whether a command is `waitForAnimationToEnd`, bare (`- waitForAnimationToEnd`) or with options. Pure. */
 const isAnimationWait = (command: unknown): boolean =>
@@ -109,7 +122,7 @@ function conditionalRunFlow(
 }
 
 interface Crutch {
-    readonly rule: 'a' | 'b' | 'c';
+    readonly rule: 'a' | 'b' | 'c' | 'd';
     readonly detail: string;
     /** Rule (c) only: whether the branch runs only while the field has no focus ({@link isFocusCheck}). */
     readonly focusChecked?: boolean;
@@ -145,6 +158,10 @@ export function crutchesIn(
             list.forEach((command, index) => {
                 if (isAnimationWait(command)) {
                     crutches.push({ rule: 'a', detail: WAIT_COMMAND });
+                }
+
+                if (isTimedWait(command)) {
+                    crutches.push({ rule: 'd', detail: 'optional extendedWaitUntil' });
                 }
 
                 const conditional = conditionalRunFlow(command);
@@ -185,6 +202,21 @@ export function crutchesIn(
 const flow = (body: string): string => `appId: test\n---\n${body}`;
 
 describe('crutchesIn (the rules, on inline flows)', () => {
+    it('refuses an optional extendedWaitUntil, the shape of a timed sleep', () => {
+        const { crutches } = crutchesIn(
+            'inline',
+            flow("- extendedWaitUntil:\n    visible: 'never'\n    timeout: 2000\n    optional: true\n"),
+        );
+
+        expect(crutches).toEqual([{ rule: 'd', detail: 'optional extendedWaitUntil' }]);
+    });
+
+    it('allows an extendedWaitUntil that fails when the state never comes', () => {
+        expect(
+            crutchesIn('inline', flow("- extendedWaitUntil:\n    visible: 'Saved'\n    timeout: 30000\n")).crutches,
+        ).toEqual([]);
+    });
+
     it('refuses waitForAnimationToEnd in its map form and its bare form', () => {
         const { crutches } = crutchesIn(
             'inline',
@@ -325,6 +357,7 @@ describe('the committed flows carry no timing crutch', () => {
         ['a', 'waits for an animation to end'],
         ['b', 'retries a tap if the screen did not change'],
         ['c', 'taps or types again while the result is not visible'],
+        ['d', 'waits for time to pass'],
     ] as const)('no flow %s: %s', (rule: Crutch['rule'], _description: string) => {
         const offenders = judged.flatMap(({ file, crutches }) =>
             crutches
@@ -333,10 +366,19 @@ describe('the committed flows carry no timing crutch', () => {
                     (crutch) =>
                         !(crutch.focusChecked === true && FOCUS_RETAP_EXCEPTIONS.includes(`${file}: ${crutch.detail}`)),
                 )
+                .filter((crutch) => !(crutch.rule === 'd' && TIMED_WAIT_EXCEPTIONS.includes(file)))
                 .map((crutch) => `${file}: ${crutch.detail}`),
         );
 
         expect(offenders).toEqual([]);
+    });
+
+    it('holds its one timed wait, and only in the step that clears the app (a stale exception fails)', () => {
+        const held = judged.flatMap(({ file, crutches }) =>
+            crutches.some((crutch) => crutch.rule === 'd') ? [file] : [],
+        );
+
+        expect(held).toEqual(TIMED_WAIT_EXCEPTIONS);
     });
 
     it('holds every exception it grants, focus-checked (a stale or widened exception fails)', () => {

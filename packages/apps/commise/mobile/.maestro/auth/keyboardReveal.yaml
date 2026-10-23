@@ -12,9 +12,7 @@
 
 appId: ${APP_ID}
 ---
-- launchApp:
-      permissions: {}
-      clearState: true
+- runFlow: launchCleared.yaml
 
 - extendedWaitUntil:
       visible: 'you@example.com'

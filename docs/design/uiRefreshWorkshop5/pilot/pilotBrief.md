@@ -9,8 +9,8 @@ one designer and two screens. The owner judges the result.
 2. `docs/research/userNeeds/synthesis.md`, then the records it names for these two screens. Home touches
    `FR-006`, `FR-007`, `MP-003`, `MP-022` and `MP-017`. Recipe detail touches `CK-001`, `CK-003`, `CK-007`, `CK-013`,
    `CK-021`, `CK-022`, `CK-012` and `FR-001`.
-3. The current screens, rendered at 390 px: `pilot/current/HomeMobile_light.png`, `HomeMobile_dark.png`,
-   `RecipeDetail390_light.png`, `RecipeDetail390_dark.png`. The tab bar in the middle of the Recipe detail render is a
+3. The current screens, rendered at 390 px: `pilot/current/HomeMobileLight.png`, `HomeMobileDark.png`,
+   `RecipeDetail390Light.png`, `RecipeDetail390Dark.png`. The tab bar in the middle of the Recipe detail render is a
    capture artifact. It is fixed to the bottom in the app.
 4. The reference apps' App Store screenshots, as one sheet each, in
    `/tmp/claude-1000/-home-brandon-Development-KitchenSink/7091c8e5-d5b1-4d19-bb4d-8da0ff6bbb8c/scratchpad/refs/`:

@@ -75,14 +75,33 @@ The research names our faults almost one for one.
   screen. Hierarchy from weight and color before size. Big type only for the one title that earns it.
 - **Accessibility.** Tap areas of 44 pt with smaller visible controls, Dynamic Type and `sp` honored, and a check at
   the largest sizes. The large sizes are a test the layout must pass, not the look everyone gets.
-- **Color.** A neutral frame and one accent. Color is added last. Picked in a perceptual space so contrast stays clean,
-  not "dark and muddy".
+- **Color.** A calm base and one bold signature color with a job, such as the main action and the current step.
+  It is confident, not muted: ordinary users prefer moderate colorfulness, and highly educated people (designers
+  included) prefer less than average, so the team's sense of "calm" can sit below what users enjoy. Pick colors in a
+  perceptual space, so contrast stays clean and not "dark and muddy". Food photos supply the rest of the color.
+  Sources: `research/goodUi/perceptionScience.md` rules 12 and 13, `research/goodUi/personalityVersusRestraint.md`
+  principle 2.
 - **Layout.** Space instead of boxes, fewer and smaller icons, content first. The food photo is the hero, and the
   interface steps back from it.
 - **Motion.** 150 to 250 ms, ease-out, interruptible, no overshoot by default, nothing animated that a cook repeats
   all day.
 - **No visual metaphor as styling.** Cartons, shelves, recipe cards and illustrated food are not allowed. The fresh
   look comes from typographic and layout discipline, and from food photography as content.
+- **Personality through voice and motion first.** Warm, plain, exact words. A short reward when a step or a recipe
+  is done. Humor is dry and rare, and never near allergens, times, temperatures, errors or lost work. Motion explains
+  or rewards, and stays short.
+- **Illustration, only if fenced.** It is allowed only at a few moments: first run, empty lists, no results and
+  finishing a recipe. It is custom, from one consistent system, never stock and never "flat people" art. It is never
+  on recipe, cooking, list or settings screens, and never decoration. A character, if any, is one character with a
+  job, and it is silent or rare.
+- **Order and excitement are separate.** People judge "clean and orderly" and "original and exciting" as two
+  qualities, so raise both. Order lives in the structure. Excitement lives in color, food photos, voice and motion.
+  Look like a top app of this kind first: on a simple screen, typicality raises appeal more than novelty does.
+- **App, not article (owner, 2026-10-22).** The pilot's round 3 read "too much like reading a Medium article". A
+  screen must look like something to use, not something to read: content grouped into distinct units with a surface
+  step, visible controls and affordances, short text blocks with "More", and compact app chrome. A serif over running
+  text on a flat off-white page is the editorial look, so it is not the default.
+- **Offer calm.** Some people prefer less intensity, so the signature color and the motion have a quieter setting.
 - **One signature, fenced.** At most one new, expressive element, tied to a real need, such as how cook mode moves
   from step to step. Lists, forms and settings stay conventional.
 
@@ -156,9 +175,15 @@ Mainstream references:
 | Linear (app and site)                 | Several independent reviews                                                   | Neutral and timeless, type first, less chrome, motion only where it explains.            |
 | Apple, principles only                | D&AD Black Pencil 2024, Webby 2025                                            | Content first, strong hierarchy, system type. Not glass over busy content.               |
 
+Practitioner census (`research/goodUi/practitionerCensus.md`, 2022 to 2026): the apps named most often as having
+great UI are Flighty and Telegram (10 independent places each), Duolingo (9), Linear (8), Airbnb (7) and Things 3 (6).
+Designers lean to character with calm, purposeful motion (Duolingo, Airbnb, Headspace). Developers and users lean to
+speed, clear labels and depth in one job (Flighty, Things, Telegram). Lemonade rests on a single source.
+
 Specialist apps with the strongest design evidence: Halide (Apple Design Award 2022, App of the Year 2024 for Kino),
-Flighty (Apple Design Award 2023) and Things 3 (Apple Design Awards 2009 and 2017). In the recipe category, Crouton
-(Apple Design Award 2024) and Mela (MacStories Best Design 2021) are the bar for cook mode.
+Flighty (Apple Design Award 2023) and Things 3 (Apple Design Awards 2009 and 2017). In the recipe category, Mela
+(MacStories Best Design 2021) is the bar for cook mode. Crouton won an Apple Design Award in 2024, but the owner
+does not like it (2026-10-22), so it is not a reference.
 
 Faults to avoid, even in famous apps: Liquid Glass text over busy content, Spotify's crowded home feed, Netflix
 autoplay previews, Robinhood's confetti, Duolingo's streak guilt, and Instagram and Revolut adding features until the
@@ -173,13 +198,13 @@ What the references share:
 2. A clear hierarchy, so the next thing to do is always easy to find.
 3. Type first, with a near-neutral palette and one accent that has a meaning.
 4. Large, high-quality food photos as the centerpiece, on a clean page.
-5. Large text only where the setting needs it: Mela and Crouton use big step text in cook mode, read at arm's length.
+5. Large text only where the setting needs it: Mela uses big step text in cook mode, read at arm's length.
    The rest of the app stays at normal sizes.
 6. Quiet, fast motion and haptics that confirm an action. No motion on frequent actions.
 7. Built for the platform: widgets, Live Activities and the system's own controls.
 8. Small details resolved: alignment, tabular numbers, tidy line breaks. "Copy the care, not the costume."
 
-How a round passes: the new screens sit beside the current Commise UI, Airbnb, Crouton and Mela at true phone
-size. The round passes only when the new screens are clearly better than the current UI and stand comfortably beside
-those three. Headspace is not in the pass test: its look is led by illustration, which this brief rules out. It stays a
+How a round passes: the new screens sit beside the current Commise UI, Airbnb, Mela and Things 3 at true
+phone size. The round passes only when the new screens are clearly better than the current UI and stand comfortably
+beside those three. Headspace is not in the pass test: its look is led by illustration, which this brief rules out. It stays a
 reference for calm tone only.

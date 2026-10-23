@@ -65,4 +65,8 @@ appId: ${APP_ID}
       text: 'Edit 1 .*[Ss]alt.*'
 - assertNotVisible: 'Taking longer than usual'
 
-- runFlow: common/discardDraft.yaml
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          # No title was typed, so the draft never leaves the device (a server write needs one).
+          SETTLED: 'Saved on this device'

@@ -321,6 +321,10 @@ onFlowComplete:
 
 # Throw the draft away through the editor's own header menu: × or Back would keep it, because the editor saves on
 # exit (build spec §3.5). The menu is in the pinned header, so it is reachable wherever the page is scrolled.
-- runFlow: common/discardDraft.yaml
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          # The title was typed through its placeholder above, so the draft reaches the server.
+          SETTLED: 'Saved'
 # Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
 - assertVisible: 'My recipes'

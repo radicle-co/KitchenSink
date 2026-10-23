@@ -150,3 +150,48 @@ describe('a flow that discards offline names the status its header settles in', 
         expect(missing).toEqual([]);
     });
 });
+
+/** Whether a command types the recipe's title: the shared step, or a tap on the Title field. Pure. */
+function typesTitle(command: unknown): boolean {
+    if (!isRecord(command)) {
+        return false;
+    }
+
+    const run = command['runFlow'];
+    const file = typeof run === 'string' ? run : isRecord(run) ? run['file'] : undefined;
+
+    return (typeof file === 'string' && namesFlow(file, 'typeTitle.yaml')) || textOf(command['tapOn']) === 'Title';
+}
+
+describe('a flow that discards a draft it gave no title names the status its header settles in', () => {
+    // A server write needs a title (`checkpointPolicy.ts`, the draft floor), so an untitled draft never leaves the device
+    // and its header stays 'Saved on this device' (local run 11, 2026-10-22: pasteList and addStepFocus waited for
+    // 'Saved' and failed on both platforms). A flow that types its title some other way (landscape.yaml, through the
+    // field's placeholder) states its settled status itself, and a wrong statement fails at the wait.
+    const untitled: string[] = [];
+    const missing: string[] = [];
+
+    for (const file of committedFlowFiles()) {
+        const documents = parseFlow(file, readFileSync(join(REPO_ROOT, file), 'utf8'));
+        const commands = documents.flatMap((document) => [...commandLists(document)].flat());
+        const calls = commands.map(discardCall).filter((call) => call !== undefined);
+
+        if (calls.length === 0 || file.endsWith('/discardDraft.yaml') || commands.some(typesTitle)) {
+            continue;
+        }
+
+        untitled.push(file);
+
+        if (calls.some((call) => typeof call.env['SETTLED'] !== 'string')) {
+            missing.push(file);
+        }
+    }
+
+    it('finds the untitled discards (recipes/pasteList.yaml among them), so the scan is not blind', () => {
+        expect(untitled).toContain(`${FLOW_ROOT}/recipes/pasteList.yaml`);
+    });
+
+    it('passes SETTLED from every one', () => {
+        expect(missing).toEqual([]);
+    });
+});

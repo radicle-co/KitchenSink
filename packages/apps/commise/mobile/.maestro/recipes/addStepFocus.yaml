@@ -28,4 +28,8 @@ appId: ${APP_ID}
 # Exactly one step took the text: a second Add step is not needed and a Step 2 was not created by the typing.
 - assertNotVisible: 'Step 2'
 
-- runFlow: common/discardDraft.yaml
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          # No title was typed, so the draft never leaves the device (a server write needs one).
+          SETTLED: 'Saved on this device'

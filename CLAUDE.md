@@ -162,6 +162,15 @@ a source is the failure mode this architecture exists to prevent.
    lockstep and the localisation rule in the PRIME DIRECTIVE's pre-write gates. A happy-path-only
    design is an incomplete design, not a fast one.
 
+**The user-needs database lives at `docs/research/userNeeds/`. Read it before any DISCOVER or DESIGN work.** It records
+the real problems people have while cooking, finding recipes, making grocery lists and meal planning. It is desk
+research from app-store reviews, forums, studies and surveys, not interviews. Each problem is one record with a stable ID (`CK-`,
+`FR-`, `GL-`, `MP-`), its evidence graded by type, and its need stated without a solution. Start with
+`synthesis.md` (themes, ranked needs, the open questions only real research can answer), then open the area file the
+work touches. `README.md` holds the record format and the rules for adding to it. ⚠️ It describes the problem space,
+not Commise: add evidence against a need as carefully as evidence for it, and never cite a `reported` record as
+validated.
+
 It is the **UI/UX counterpart to `staff-architect`**, and the two do not overlap: shape of the
 system → `staff-architect`; shape of the experience → `staff-ux-engineer`. A change that needs both
 gets both. Its definition is `~/.claude/agents/staff-ux-engineer.md` (user-scoped and generic — it

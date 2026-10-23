@@ -23,6 +23,15 @@
  *
  * Allowed by rule (c): a platform branch, a `when: visible` branch (a one-time system intro, a permission dialog), and a
  * `notVisible` branch that acts on text the flow did not just tap or type (a branch on app state, not a retry).
+ *
+ * ONE EXCEPTION, by owner ruling 2026-10-23 ("Allow one focus-checked re-tap"): {@link FOCUS_RETAP_EXCEPTIONS}. On a
+ * fresh `launchApp`, the iOS Simulator's SpringBoard can keep its switcher window over the app for a few seconds after
+ * the app has drawn, so the tap on the sign-in email field lands on SpringBoard and the field never takes focus (CI runs
+ * 39889070110 and 39668114177: the touch went to `SBMainSwitcherWindow`, Commise received none). That is outside the app
+ * and the flows, and no screen state shows it. So the shared sign-in step may tap the field once more, on iOS only, and
+ * only when the field did not take focus. Maestro reports no focus for an iOS text field (local probe, 2026-10-23), so
+ * the signal is the keyboard's return key: the branch's `when` must be `platform: iOS` with `notVisible` on
+ * {@link FOCUS_RETURN_KEY}.
  */
 
 import { readFileSync } from 'node:fs';
@@ -40,6 +49,20 @@ const RETRY_LOOKBACK = 3;
  * (c) honest: a parser change that stopped seeing them would otherwise pass with nothing to judge.
  */
 const MIN_CONDITIONAL_RUN_FLOWS = 60;
+
+/**
+ * The iOS keyboard's return key while the sign-in email field has focus (`enterKeyHint="next"` in `login.tsx`; the
+ * password field's is `go`), as its id in Maestro's hierarchy.
+ */
+const FOCUS_RETURN_KEY = 'Next:';
+
+/**
+ * The one re-tap a flow may hold, as `file: repeats "text"`: the focus-checked re-tap of the sign-in email field (owner
+ * ruling 2026-10-23, see the header).
+ */
+const FOCUS_RETAP_EXCEPTIONS: readonly string[] = [
+    'packages/apps/commise/mobile/.maestro/auth/signinHome.yaml: repeats "you@example.com"',
+];
 
 const WAIT_COMMAND = 'waitForAnimationToEnd';
 const RETRY_KEY = 'retryTapIfNoChange';
@@ -88,6 +111,15 @@ function conditionalRunFlow(
 interface Crutch {
     readonly rule: 'a' | 'b' | 'c';
     readonly detail: string;
+    /** Rule (c) only: whether the branch runs only while the field has no focus ({@link isFocusCheck}). */
+    readonly focusChecked?: boolean;
+}
+
+/** Whether a `when` runs only on iOS while the email field's return key is absent: the field has no focus. Pure. */
+function isFocusCheck(when: Record<string, unknown>): boolean {
+    const selector = when['notVisible'];
+
+    return when['platform'] === 'iOS' && isRecord(selector) && selector['id'] === FOCUS_RETURN_KEY;
 }
 
 /**
@@ -136,7 +168,11 @@ export function crutchesIn(
 
                 for (const repeated of conditional.commands.map(actedOnText)) {
                     if (repeated !== undefined && before.has(repeated)) {
-                        crutches.push({ rule: 'c', detail: `repeats "${repeated}"` });
+                        crutches.push({
+                            rule: 'c',
+                            detail: `repeats "${repeated}"`,
+                            focusChecked: isFocusCheck(conditional.when),
+                        });
                     }
                 }
             });
@@ -185,7 +221,7 @@ describe('crutchesIn (the rules, on inline flows)', () => {
             ),
         );
 
-        expect(crutches).toEqual([{ rule: 'c', detail: 'repeats "Discard draft"' }]);
+        expect(crutches).toEqual([{ rule: 'c', detail: 'repeats "Discard draft"', focusChecked: false }]);
     });
 
     it('refuses a re-type a few commands after the first typing', () => {
@@ -197,7 +233,34 @@ describe('crutchesIn (the rules, on inline flows)', () => {
             ),
         );
 
-        expect(crutches).toEqual([{ rule: 'c', detail: 'repeats "${TITLE}"' }]);
+        expect(crutches).toEqual([{ rule: 'c', detail: 'repeats "${TITLE}"', focusChecked: false }]);
+    });
+
+    it('marks a re-tap that runs only on iOS while the email field has no focus (its return key is absent)', () => {
+        const { crutches } = crutchesIn(
+            'inline',
+            flow(
+                "- tapOn: 'you@example.com'\n- runFlow:\n    when:\n      platform: iOS\n      notVisible:\n" +
+                    "        id: 'Next:'\n    commands:\n      - tapOn: 'you@example.com'\n",
+            ),
+        );
+
+        expect(crutches).toEqual([{ rule: 'c', detail: 'repeats "you@example.com"', focusChecked: true }]);
+    });
+
+    it.each([
+        ['on every platform', "      notVisible:\n        id: 'Next:'\n"],
+        ['on another key', "      platform: iOS\n      notVisible:\n        id: 'Go:'\n"],
+        ['on the text itself', "      platform: iOS\n      notVisible: 'you@example\\.com'\n"],
+    ])('does not count a re-tap keyed %s as focus-checked', (_name: string, when: string) => {
+        const { crutches } = crutchesIn(
+            'inline',
+            flow(
+                `- tapOn: 'you@example.com'\n- runFlow:\n    when:\n${when}    commands:\n      - tapOn: 'you@example.com'\n`,
+            ),
+        );
+
+        expect(crutches).toEqual([{ rule: 'c', detail: 'repeats "you@example.com"', focusChecked: false }]);
     });
 
     it('allows a platform branch that repeats a tap', () => {
@@ -264,9 +327,23 @@ describe('the committed flows carry no timing crutch', () => {
         ['c', 'taps or types again while the result is not visible'],
     ] as const)('no flow %s: %s', (rule: Crutch['rule'], _description: string) => {
         const offenders = judged.flatMap(({ file, crutches }) =>
-            crutches.filter((crutch) => crutch.rule === rule).map((crutch) => `${file}: ${crutch.detail}`),
+            crutches
+                .filter((crutch) => crutch.rule === rule)
+                .filter(
+                    (crutch) =>
+                        !(crutch.focusChecked === true && FOCUS_RETAP_EXCEPTIONS.includes(`${file}: ${crutch.detail}`)),
+                )
+                .map((crutch) => `${file}: ${crutch.detail}`),
         );
 
         expect(offenders).toEqual([]);
+    });
+
+    it('holds every exception it grants, focus-checked (a stale or widened exception fails)', () => {
+        const held = judged.flatMap(({ file, crutches }) =>
+            crutches.filter((crutch) => crutch.focusChecked === true).map((crutch) => `${file}: ${crutch.detail}`),
+        );
+
+        expect(held).toEqual(FOCUS_RETAP_EXCEPTIONS);
     });
 });

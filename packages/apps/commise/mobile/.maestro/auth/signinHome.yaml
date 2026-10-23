@@ -58,6 +58,25 @@ appId: ${APP_ID}
           visible: 'you@example.com'
       commands:
           - tapOn: 'you@example.com'
+          # ⛔ THE ONE RE-TAP THE FLOWS HOLD (owner ruling 2026-10-23, `maestroNoTimingCrutches.test.ts`). On a fresh
+          # launch the iOS Simulator's SpringBoard can keep its switcher window over the drawn app, so this tap reaches
+          # SpringBoard and the field never takes focus (CI runs 39889070110 and 39668114177). Only iOS has the race.
+          # Maestro reports no focus for an iOS text field, so the signal is the keyboard's return key: `Next:` is the
+          # email field's (`enterKeyHint="next"`, `login.tsx`; the password's is `go`), shown only while it has focus.
+          # The field is tapped once more only if that key is absent, and then the key must be there.
+          - runFlow:
+                when:
+                    platform: iOS
+                    notVisible:
+                        id: 'Next:'
+                commands:
+                    - tapOn: 'you@example.com'
+          - runFlow:
+                when:
+                    platform: iOS
+                commands:
+                    - assertVisible:
+                          id: 'Next:'
           - inputText: '${E2E_SIGNIN_EMAIL}'
           # ⚠️ The iOS Simulator can DROP keystrokes from `inputText` (run 38407211276 typed `t.com` and
           # `tigner04+clerk_test@…` for `test-…signer04+clerk_test@…`), and a dropped key is a sign-in that fails for a

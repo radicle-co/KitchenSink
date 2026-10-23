@@ -15,6 +15,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook } from '@testing-library/react';
 import { SignOutNotVerifiedError } from '@commise/features-account';
+import { onlineManager } from '@tanstack/react-query';
 
 const { rawClerkSignOut, loadSafeSignOut, clerkState } = vi.hoisted(() => ({
     // The raw, premount-queuing method. The command must NEVER call this one.
@@ -66,9 +67,25 @@ beforeEach(() => {
     clerkState.session = { id: 'sess_live' };
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    onlineManager.setOnline(true);
+});
 
 describe('useSignOutAndLeave (U3 / B23)', () => {
+    // ADR-0068, the web mirror of mobile's case: offline, the command refuses before Clerk is asked, and the viewer is
+    // not navigated away from a session that is still live.
+    it('refuses offline without calling either sign-out, and does not leave', async () => {
+        onlineManager.setOnline(false);
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await expect(result.current.signOutAndLeave()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(loadSafeSignOut).not.toHaveBeenCalled();
+        expect(rawClerkSignOut).not.toHaveBeenCalled();
+        expect(navigateTo).not.toHaveBeenCalled();
+        expect(endDeviceSession).not.toHaveBeenCalled();
+    });
+
     it('signs out through the LOAD-SAFE wrapper, never the raw premount-queuing method', async () => {
         const { result } = renderHook(() => useSignOutAndLeave());
 

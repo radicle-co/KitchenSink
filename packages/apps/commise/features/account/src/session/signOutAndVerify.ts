@@ -65,19 +65,29 @@ export function isSignOutNotVerifiedError(error: unknown): error is SignOutNotVe
  *
  * @param client - The identity client, read for the post-condition (pass `useClerk()`).
  * @param signOut - The SDK's LOAD-SAFE sign-out (`useAuth().signOut`), never the raw client method.
- * @param endDeviceSession - Removes what the device kept for this cook (the editor's drafts and the outbox, ADR-0057, and
- *   their recent searches, owner ruling 2026-10-17),
- *   run once the session is proven ended and awaited, so leaving happens after it. Its failure is not the command's.
- * @throws {SignOutNotVerifiedError} When the client failed to load, or when the sign-out resolved WITHOUT
- *   ending the session — so the caller reports a failure instead of telling the viewer they left.
+ * @param device - What the command reads from and does to the device.
+ * @param device.isOnline - Whether the device has a connection, read when the command runs (pass TanStack's
+ *   `onlineManager.isOnline`, the app's one connection signal). Offline, the command refuses before it delegates
+ *   (ADR-0068): Clerk cannot end the session at the server, and the attempt leaves it in its loading state for good.
+ * @param device.endDeviceSession - Removes what the device kept for this cook (the editor's drafts and the outbox,
+ *   ADR-0057, and their recent searches, owner ruling 2026-10-17), run once the session is proven ended and awaited, so
+ *   leaving happens after it. Its failure is not the command's.
+ * @throws {SignOutNotVerifiedError} When the device is offline, when the client failed to load, or when the sign-out
+ *   resolved WITHOUT ending the session — so the caller reports a failure instead of telling the viewer they left.
  * @throws Whatever `signOut` rejects with, unchanged, so a transport failure is not disguised as a no-op.
  * @sideEffect Destroys the viewer's session at the identity provider.
  */
 export async function signOutAndVerify(
     client: SignOutVerificationClient,
     signOut: () => Promise<void>,
-    endDeviceSession?: () => Promise<void>,
+    device: { readonly isOnline: () => boolean; readonly endDeviceSession?: () => Promise<void> },
 ): Promise<void> {
+    const { isOnline, endDeviceSession } = device;
+
+    if (!isOnline()) {
+        throw new SignOutNotVerifiedError('cannot sign out: the device is offline');
+    }
+
     // The awaiter behind a load-safe `signOut` never settles on "error"; fail fast rather than hang (B17).
     if (client.status === 'error') {
         throw new SignOutNotVerifiedError('cannot sign out: the identity client failed to load');

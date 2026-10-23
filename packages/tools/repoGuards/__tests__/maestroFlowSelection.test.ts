@@ -272,6 +272,8 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     'offline/offlineSurvivesRestart',
     // Discard while offline (plan 2026-10-13-004): Android-bound like its siblings (`setAirplaneMode`), manual-only.
     'offline/discardWhileOffline',
+    // Sign out while offline fails and keeps the cook signed in (ADR-0068): Android-bound like its siblings, manual-only.
+    'offline/signOutWhileOffline',
     'homeRecentRecipeTap',
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.

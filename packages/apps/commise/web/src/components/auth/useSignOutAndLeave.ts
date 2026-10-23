@@ -58,6 +58,7 @@
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
 import { signOutAndVerify } from '@commise/features-account';
+import { onlineManager } from '@tanstack/react-query';
 
 import { endDeviceSession } from '@/components/recipes/deviceSession';
 import { withBasePath } from '@/lib/basePath';
@@ -68,7 +69,7 @@ export interface SignOutAndLeave {
     /**
      * End the session, then leave the app with a full document load.
      *
-     * @throws When Clerk failed to load, or when the sign-out resolved WITHOUT ending the session — so the
+     * @throws When the device is offline, when Clerk failed to load, or when the sign-out resolved WITHOUT ending the session — so the
      *   caller surfaces a failure instead of navigating the viewer away from a session that is still live.
      * @sideEffect Destroys the Clerk session and replaces the current document.
      */
@@ -87,8 +88,12 @@ export function useSignOutAndLeave(): SignOutAndLeave {
         // both platforms and must never drift: mobile's own sign-out hook issues the identical core. This hook
         // is the web ADAPTER — it supplies Clerk's load-safe `signOut` plus the client to verify against, and
         // owns only what "leaving" means here.
-        // ADR-0057: the cook's editor drafts and outbox end with the session, once it is proven ended.
-        await signOutAndVerify(clerk, signOut, () => endDeviceSession(userId ?? undefined));
+        // ADR-0057: the cook's editor drafts and outbox end with the session, once it is proven ended. ADR-0068: offline,
+        // the command refuses before Clerk is asked, reading the app's one connection signal.
+        await signOutAndVerify(clerk, signOut, {
+            isOnline: () => onlineManager.isOnline(),
+            endDeviceSession: () => endDeviceSession(userId ?? undefined),
+        });
 
         // Clerk's own redirect is not basePath-aware (ADR-0001 / U2); prefix it. No-op in production.
         navigateTo(withBasePath('/'));

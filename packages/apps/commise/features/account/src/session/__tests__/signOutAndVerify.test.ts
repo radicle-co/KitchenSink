@@ -12,6 +12,9 @@
  *  - The ordering is load-bearing: the post-condition is evaluated AFTER the sign-out resolves. A fixture
  *    that starts with a live session and is cleared by the sign-out fails any implementation that checks
  *    first.
+ *  - ADR-0068 — offline, the command refuses BEFORE delegating. Clerk cannot end a session at the server with no network,
+ *    and the attempt drops it into its loading state for good (Android, 2026-10-23: the app stayed on "Checking your
+ *    session…"). So an offline device never reaches the sign-out.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +24,9 @@ import {
     SignOutNotVerifiedError,
     type SignOutVerificationClient,
 } from '../signOutAndVerify.js';
+
+/** The device is online: what every test outside the offline block runs under. */
+const ONLINE = { isOnline: () => true } as const;
 
 /** A mutable stand-in for the identity client, starting from a signed-IN, fully loaded state. */
 function makeClient(overrides: Partial<SignOutVerificationClient> = {}) {
@@ -46,7 +52,7 @@ describe('signOutAndVerify', () => {
             const client = makeClient();
             const signOut = makeRealSignOut(client);
 
-            await expect(signOutAndVerify(client, signOut)).resolves.toBeUndefined();
+            await expect(signOutAndVerify(client, signOut, ONLINE)).resolves.toBeUndefined();
 
             expect(signOut).toHaveBeenCalledTimes(1);
             expect(signOut).toHaveBeenCalledWith();
@@ -58,14 +64,14 @@ describe('signOutAndVerify', () => {
                 client.session = undefined;
             });
 
-            await expect(signOutAndVerify(client, signOut)).resolves.toBeUndefined();
+            await expect(signOutAndVerify(client, signOut, ONLINE)).resolves.toBeUndefined();
         });
 
         it('still delegates while the client is loading — the load-safe wrapper is what waits', async () => {
             const client = makeClient({ status: 'loading', loaded: false });
             const signOut = makeRealSignOut(client);
 
-            await expect(signOutAndVerify(client, signOut)).resolves.toBeUndefined();
+            await expect(signOutAndVerify(client, signOut, ONLINE)).resolves.toBeUndefined();
 
             expect(signOut).toHaveBeenCalledTimes(1);
         });
@@ -74,7 +80,7 @@ describe('signOutAndVerify', () => {
             const client = makeClient({ status: 'degraded' });
             const signOut = makeRealSignOut(client);
 
-            await expect(signOutAndVerify(client, signOut)).resolves.toBeUndefined();
+            await expect(signOutAndVerify(client, signOut, ONLINE)).resolves.toBeUndefined();
 
             expect(signOut).toHaveBeenCalledTimes(1);
         });
@@ -86,8 +92,8 @@ describe('signOutAndVerify', () => {
             // Exactly the observed defect: resolves having revoked nothing.
             const signOut = vi.fn(async () => undefined);
 
-            await expect(signOutAndVerify(client, signOut)).rejects.toThrow(SignOutNotVerifiedError);
-            await expect(signOutAndVerify(client, signOut)).rejects.toThrow(/sess_live/);
+            await expect(signOutAndVerify(client, signOut, ONLINE)).rejects.toThrow(SignOutNotVerifiedError);
+            await expect(signOutAndVerify(client, signOut, ONLINE)).rejects.toThrow(/sess_live/);
         });
 
         it('throws SignOutNotVerifiedError when the sign-out resolved without the client ever loading', async () => {
@@ -97,8 +103,8 @@ describe('signOutAndVerify', () => {
                 client.session = undefined;
             });
 
-            await expect(signOutAndVerify(client, signOut)).rejects.toThrow(SignOutNotVerifiedError);
-            await expect(signOutAndVerify(client, signOut)).rejects.toThrow(/loaded/i);
+            await expect(signOutAndVerify(client, signOut, ONLINE)).rejects.toThrow(SignOutNotVerifiedError);
+            await expect(signOutAndVerify(client, signOut, ONLINE)).rejects.toThrow(/loaded/i);
         });
 
         it('checks the post-condition AFTER the sign-out, not before', async () => {
@@ -106,7 +112,7 @@ describe('signOutAndVerify', () => {
             const client = makeClient({ session: { id: 'sess_before' } });
             const signOut = makeRealSignOut(client);
 
-            await expect(signOutAndVerify(client, signOut)).resolves.toBeUndefined();
+            await expect(signOutAndVerify(client, signOut, ONLINE)).resolves.toBeUndefined();
         });
     });
 
@@ -115,7 +121,7 @@ describe('signOutAndVerify', () => {
             const client = makeClient({ status: 'error', loaded: false });
             const signOut = vi.fn(async () => undefined);
 
-            await expect(signOutAndVerify(client, signOut)).rejects.toThrow(SignOutNotVerifiedError);
+            await expect(signOutAndVerify(client, signOut, ONLINE)).rejects.toThrow(SignOutNotVerifiedError);
             expect(signOut).not.toHaveBeenCalled();
         });
     });
@@ -127,7 +133,7 @@ describe('signOutAndVerify', () => {
                 throw new Error('clerk unreachable');
             });
 
-            await expect(signOutAndVerify(client, signOut)).rejects.toThrow('clerk unreachable');
+            await expect(signOutAndVerify(client, signOut, ONLINE)).rejects.toThrow('clerk unreachable');
         });
     });
 });
@@ -137,6 +143,33 @@ describe('signOutAndVerify', () => {
  * once the session is PROVEN ended. Cleared before the proof, a failed sign-out would leave a still-signed-in cook with
  * their unsynced work gone.
  */
+describe('signOutAndVerify — offline', () => {
+    it('refuses before it delegates, so Clerk is never asked to sign out with no network', async () => {
+        const client = makeClient();
+        const signOut = makeRealSignOut(client);
+        const endDeviceSession = vi.fn(async () => undefined);
+
+        await expect(
+            signOutAndVerify(client, signOut, { isOnline: () => false, endDeviceSession }),
+        ).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(signOut).not.toHaveBeenCalled();
+        expect(endDeviceSession).not.toHaveBeenCalled();
+        expect(client.session).toEqual({ id: 'sess_live' });
+    });
+
+    it('reads the connection when it is run, not when it was built', async () => {
+        let online = false;
+        const client = makeClient();
+        const signOut = makeRealSignOut(client);
+        const isOnline = () => online;
+
+        await expect(signOutAndVerify(client, signOut, { isOnline })).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        online = true;
+        await expect(signOutAndVerify(client, signOut, { isOnline })).resolves.toBeUndefined();
+        expect(signOut).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('signOutAndVerify — the device session end', () => {
     it('runs after the sign-out is proven, and the command resolves only once it has', async () => {
         const order: string[] = [];
@@ -149,7 +182,7 @@ describe('signOutAndVerify — the device session end', () => {
             order.push('endDeviceSession');
         });
 
-        await signOutAndVerify(client, signOut, endDeviceSession);
+        await signOutAndVerify(client, signOut, { ...ONLINE, endDeviceSession });
 
         expect(order).toEqual(['signOut', 'endDeviceSession']);
     });
@@ -163,7 +196,7 @@ describe('signOutAndVerify — the device session end', () => {
         });
         const endDeviceSession = vi.fn(async () => Promise.reject(new Error('storage write failed')));
 
-        await expect(signOutAndVerify(client, signOut, endDeviceSession)).resolves.toBeUndefined();
+        await expect(signOutAndVerify(client, signOut, { ...ONLINE, endDeviceSession })).resolves.toBeUndefined();
         expect(endDeviceSession).toHaveBeenCalledTimes(1);
     });
 
@@ -175,7 +208,7 @@ describe('signOutAndVerify — the device session end', () => {
             signOutAndVerify(
                 client,
                 vi.fn(async () => undefined),
-                endDeviceSession,
+                { ...ONLINE, endDeviceSession },
             ),
         ).rejects.toBeInstanceOf(SignOutNotVerifiedError);
         expect(endDeviceSession).not.toHaveBeenCalled();
@@ -188,7 +221,7 @@ describe('signOutAndVerify — the device session end', () => {
             signOutAndVerify(
                 makeClient(),
                 vi.fn(async () => Promise.reject(new Error('down'))),
-                endDeviceSession,
+                { ...ONLINE, endDeviceSession },
             ),
         ).rejects.toThrow('down');
         expect(endDeviceSession).not.toHaveBeenCalled();

@@ -28,6 +28,7 @@
  */
 import { useAuth, useClerk } from '@clerk/expo';
 import { signOutAndVerify } from '@commise/features-account';
+import { onlineManager } from '@tanstack/react-query';
 
 import { endDeviceSession } from '../storage/deviceSession.js';
 
@@ -50,6 +51,13 @@ export function useSignOutAndVerify(): SignOutAndVerify {
     // ⚠️ DELIBERATE — ADR-0009. `useAuth().signOut` awaits clerk-js; `useClerk().signOut` silently queues.
     const { signOut, userId } = useAuth();
 
-    // ADR-0057: the cook's editor drafts and outbox end with the session, once it is proven ended.
-    return { signOutAndVerify: () => signOutAndVerify(clerk, signOut, () => endDeviceSession(userId ?? undefined)) };
+    // ADR-0057: the cook's editor drafts and outbox end with the session, once it is proven ended. ADR-0068: offline, the
+    // command refuses before Clerk is asked, reading the app's one connection signal.
+    return {
+        signOutAndVerify: () =>
+            signOutAndVerify(clerk, signOut, {
+                isOnline: () => onlineManager.isOnline(),
+                endDeviceSession: () => endDeviceSession(userId ?? undefined),
+            }),
+    };
 }

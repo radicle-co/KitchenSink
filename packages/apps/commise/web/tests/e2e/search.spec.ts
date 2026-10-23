@@ -526,25 +526,26 @@ test.describe('recipe search (T110)', () => {
         await page.goto(route('/discover'));
         const searchBox = page.getByRole('searchbox', { name: 'Search recipes' });
         await searchBox.fill('paella');
-        const previous = page.getByRole('article', { name: 'Seafood Paella' });
+        // In the results region: until the search answers, the browse rails show their own Seafood Paella cards, and an
+        // unscoped match is a strict-mode error that Playwright does not retry (CI run 39962986288, three cards).
+        const results = page.getByRole('region', { name: 'Search results' });
+        const previous = results.getByRole('article', { name: 'Seafood Paella' });
         await expect(previous).toBeVisible();
         await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
 
         await searchBox.fill('pasta');
         await heldSearch;
 
-        await expect(
-            page.getByRole('region', { name: 'Search results' }).getByRole('article', { name: 'Seafood Paella' }),
-        ).toBeVisible();
+        await expect(previous).toBeVisible();
         await expect(searchBox).toHaveValue('pasta');
         await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
         await expect(page.getByRole('status', { name: 'Loading recipes' })).toHaveCount(0);
 
         releaseSearch();
 
-        const next = page.getByRole('article', { name: 'Weeknight Pasta' });
+        const next = results.getByRole('article', { name: 'Weeknight Pasta' });
         await expect(next).toBeVisible();
-        await expect(previous).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Seafood Paella' })).toHaveCount(0);
         await expect(discoverySentence(page, '1 recipe for “pasta”')).toHaveCount(1);
         await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(0);
     });

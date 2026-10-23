@@ -42,11 +42,11 @@ appId: ${APP_ID}
 - inputText: 'Simmer.'
 # The step field keeps the soft keyboard up over the action bar on both platforms; a tap on the section heading closes it
 # (`common/typeTitle.yaml` says why a heading, and why not Return or `hideKeyboard`).
-# Audit 2026-10-19, A1.8: step text that landed in the add field would open the "as written" option. Give it a moment to show,
-# then require it gone.
-- extendedWaitUntil:
-      visible: 'Use .*Simmer.* as written.*'
-      timeout: 5000
-      optional: true
-- assertNotVisible: 'Use .*Simmer.* as written.*'
+# Audit 2026-10-19, A1.8: the step text must land in the step, not in the ingredient field above it. The step field is
+# below the Steps heading and the ingredient field is in the section above it, so the text below the heading proves
+# where it went, with no wait (a timed wait for an option that should not appear is what
+# `maestroNoTimingCrutches.test.ts` rule (d) refuses).
+- assertVisible:
+      text: 'Simmer\.'
+      below: 'Steps'
 - tapOn: 'Steps'

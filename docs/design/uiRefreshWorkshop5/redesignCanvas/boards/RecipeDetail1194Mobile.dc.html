@@ -987,7 +987,7 @@
                         right: 0;
                         z-index: 5;
                         padding: 47px 6px 0;
-                        height: 91px;
+                        height: 103px;
                         display: grid;
                         grid-template-columns: 44px 1fr 44px;
                         align-items: center;
@@ -1018,7 +1018,7 @@
                         all: unset;
                         box-sizing: border-box;
                         position: absolute;
-                        top: 99px;
+                        top: 111px;
                         left: 12px;
                         right: 12px;
                         z-index: 7;
@@ -1087,7 +1087,7 @@
                         position: absolute;
                         left: 0;
                         right: 0;
-                        top: 171px;
+                        top: 183px;
                         bottom: 0;
                         overflow: hidden;
                         padding-top: 12px;
@@ -1096,7 +1096,7 @@
                         position: absolute;
                         left: 0;
                         right: 0;
-                        top: 91px;
+                        top: 103px;
                         bottom: 0;
                         z-index: 5;
                         background: var(--scrim);
@@ -1105,7 +1105,7 @@
                         position: absolute;
                         left: 12px;
                         right: 12px;
-                        top: 171px;
+                        top: 183px;
                         z-index: 6;
                         background: var(--paper);
                         border-radius: var(--radius-lg);
@@ -1644,6 +1644,16 @@
                     .rd .sectionSep {
                         margin: 20px 0 8px;
                     }
+
+                    /* pbTrunc */
+                    .rd .navRow .crumb {
+                        max-width: 40%;
+                        overflow: hidden;
+                        white-space: nowrap;
+                        text-overflow: ellipsis;
+                        display: block;
+                        line-height: 44px;
+                    }
                 </style></helmet
             >
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -1753,7 +1763,7 @@
             <div class="rd" data-board="RecipeDetail1194Mobile" style="width: 1194px; height: 1846px">
                 <div class="tabMain" style="padding-bottom: 0">
                     <div class="navRow">
-                        <a class="crumb" href="#"
+                        <a class="crumb" href="#" aria-label="Back to My recipes"
                             ><svg class="ic sm" aria-hidden="true"><use href="#chevL" /></svg> My recipes</a
                         ><a class="moreBtn" href="#" aria-label="More actions"
                             ><span

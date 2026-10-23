@@ -56,6 +56,37 @@
                     .nv:hover {
                         background: color-mix(in srgb, var(--ink) 6%, transparent);
                         color: var(--ink);
+                    }
+                    /* Pinned back bar (pinnedBackBar.md): Back sits in a 56 pt bar at the top of the safe area, never in the scroller.
+   Top of page: transparent, no title. Scrolled: bar material and a one-line title. Only the chevron is steel (P4). */
+                    .pbRow {
+                        display: flex;
+                        align-items: center;
+                        height: 48px;
+                        margin: 0 -8px;
+                        flex: none;
+                    }
+                    .pbBack {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 2px;
+                        min-width: 44px;
+                        min-height: 44px;
+                        max-width: 40%;
+                        padding: 0 10px 0 10px;
+                        color: var(--ink);
+                        text-decoration: none;
+                        font: 500 15px/1.2 var(--font-body);
+                    }
+                    .pbBack svg {
+                        color: var(--action-text);
+                        margin-left: -0px;
+                    }
+                    .pbBack .pbLabel {
+                        overflow: hidden;
+                        white-space: nowrap;
+                        text-overflow: ellipsis;
+                        min-width: 0;
                     }</style
                 ><style>
                     /* redesign patch */
@@ -266,11 +297,30 @@
                             padding-bottom: 40px;
                         "
                     >
+                        <div class="pbRow" data-pb>
+                            <a class="pbBack" href="#" aria-label="Back to Home"
+                                ><svg
+                                    viewBox="0 0 24 24"
+                                    width="24"
+                                    height="24"
+                                    aria-hidden="true"
+                                    style="
+                                        flex: none;
+                                        fill: none;
+                                        stroke: currentColor;
+                                        stroke-width: 2;
+                                        stroke-linecap: round;
+                                        stroke-linejoin: round;
+                                    "
+                                >
+                                    <path d="m14.5 6-6 6 6 6" /></svg
+                                ><span class="pbLabel">Home</span></a
+                            >
+                        </div>
                         <x-import
                             component-from-global-scope="Commise.LargeTitleHeader"
                             heading-id="profile-h1"
                             title="Profile"
-                            back="{{back}}"
                         ></x-import>
 
                         <!-- ProfileHeader (ready) -->

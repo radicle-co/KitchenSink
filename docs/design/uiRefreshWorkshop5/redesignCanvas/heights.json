@@ -394,5 +394,13 @@
     "SignUp834Mobile": 950,
     "SignUpFinish": 844,
     "SignUpFinishMobile": 1530,
-    "SignUpMobile": 950
+    "SignUpMobile": 950,
+    "CollectionDetailScrolledMobile": 844,
+    "RecipeVersionsScrolledMobile": 844,
+    "LegalSourcesScrolledMobile": 844,
+    "ProfileScrolledMobile": 844,
+    "CollectionDetailScrolled834Mobile": 1194,
+    "RecipeVersionsScrolled834Mobile": 1194,
+    "LegalSourcesScrolled834Mobile": 1194,
+    "ProfileScrolled834Mobile": 1194
 }

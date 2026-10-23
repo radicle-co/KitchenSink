@@ -7,7 +7,8 @@ Run from the repo root after `npm run artifact:build --workspace=@kitchensink/de
 The script copies `packages/tools/designArtifact/dist/canvas/project` to `<outDir>/project`. It replaces
 `ds/commise/tokens.css` with the redesign tokens, and stops if they drop a legacy variable. It sets the theme objects in
 `bundle.js` from `nativeTheme.json`, because the native components do not read CSS variables. It adds `redesign.css`
-after each board's own styles, replaces each board that has a redesigned copy in `boards/`, retitles the canvas, and applies `heights.json`.
+after each board's own styles, replaces each board that has a redesigned copy in `boards/`, retitles the canvas, places
+the new boards that `extraBoards.json` lists, and applies `heights.json`.
 It stops if `boards/` holds a file name that the legacy canvas does not have.
 """
 
@@ -67,6 +68,16 @@ def retheme_bundle(source: str, theme: dict) -> str:
     return source
 
 
+def add_extra_boards(data: dict, extra: dict) -> None:
+    """Place each new board at the end of the row of the board it follows, and add it to the order after that board."""
+    for name, spec in extra.items():
+        after = data["boards"][spec["after"] + ".dc.html"]
+        row_end = max(b["x"] + b["w"] for b in data["boards"].values() if b["y"] == after["y"])
+        entry = {"x": row_end + 80, "y": after["y"], "w": spec["w"], "h": spec.get("h", after["h"]), "title": spec["title"]}
+        data["boards"][name + ".dc.html"] = entry
+        data["order"].insert(data["order"].index(spec["after"] + ".dc.html") + 1, name + ".dc.html")
+
+
 def relayout(data: dict, heights: dict) -> None:
     """Set the new board heights and move the rows below down, so that a taller board never overlaps the next row."""
     boards = data["boards"]
@@ -95,9 +106,14 @@ def main(out_root: Path) -> None:
 
     legacy = sorted(p.name for p in BASE.glob("*.dc.html"))
     redesigned = sorted(p.name for p in (HERE / "boards").glob("*.dc.html"))
-    unknown = sorted(set(redesigned) - set(legacy))
+    extra_path = HERE / "extraBoards.json"
+    extra = json.loads(extra_path.read_text()) if extra_path.exists() else {}
+    unknown = sorted(set(redesigned) - set(legacy) - {name + ".dc.html" for name in extra})
     if unknown:
-        sys.exit(f"Redesigned boards with no legacy board: {unknown}")
+        sys.exit(f"Redesigned boards with no legacy board and no extraBoards.json entry: {unknown}")
+    missing_extra = sorted(name for name in extra if name + ".dc.html" not in redesigned)
+    if missing_extra:
+        sys.exit(f"extraBoards.json names boards with no file: {missing_extra}")
 
     tokens = project / "ds/commise/tokens.css"
     redesign_tokens = (HERE / "tokens.css").read_text()
@@ -125,6 +141,7 @@ def main(out_root: Path) -> None:
     canvas = project / "canvas.json"
     data = json.loads(canvas.read_text())
     data["title"] = TITLE
+    add_extra_boards(data, extra)
     relayout(data, json.loads((HERE / "heights.json").read_text()))
     canvas.write_text(json.dumps(data, indent=2))
 

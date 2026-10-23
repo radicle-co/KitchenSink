@@ -139,3 +139,18 @@ fit under 150 KB.
 - R7, R11 and R12 are not drawn.
 - A real device, real Dynamic Type, and the motion of the pinned bar.
 - How P1 to P3 work with real cooks. They are judgement from desk research and need a test.
+
+## The pinned ingredients bar: three options
+
+The owner asked whether the bar's chevron is too easy to miss. The three options are in `ingredientsBarOptions.html`.
+
+| Option              | What changes                                                                              | Open target                                                    | Stepper                                    |
+| ------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
+| A                   | The chevron is 20 px, in a 36 px round button with an outline                             | The 44 × 44 button                                             | Its own buttons, 8 px from the open button |
+| **B (recommended)** | A second line, `11 items · 1 ticked`, and a `Show` button with a chevron, in the sky tint | The label area and the `Show` button, both at least 44 px tall | In the middle, with its own buttons        |
+| C                   | The whole bar is a mist-tinted surface with a grab handle                                 | The label and chevron, at full bar height                      | Raised on a white pill                     |
+
+**Why B.** It has the clearest cue that the bar opens: a word, a button shape and a chevron. Perception rule 15 says
+that taking away such cues slows people down and causes errors. The preview line also tells the cook what is inside
+before they tap. A is clear but is still only an icon. In C the stepper sits inside the tappable surface, so a tap
+near the stepper's edge can open the list by mistake.

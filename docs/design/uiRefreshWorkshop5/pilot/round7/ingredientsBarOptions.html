@@ -1,0 +1,2141 @@
+<!doctype html>
+<!-- Commise pilot round 7: three options for the pinned ingredients bar (R1). Design mockup, not production code. -->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Round 7: ingredients bar options</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* ---------- Tokens: the base. Light defaults to warm; data-base="cool" on <body> gives the cool off-white. Dark is the sea at dusk. ---------- */
+            .light {
+                --ground: #f3f1ed;
+                --card: #fffefc;
+                --surface: #f1eee9;
+                --ink: #1d1b18;
+                --ink2: #69645d;
+                --line: #eae6e0;
+                --control: #8a847c;
+                --chipBg: rgba(255, 254, 252, 0.94);
+                --chipInk: #1d1b18;
+                --material: rgba(255, 254, 252, 0.78);
+                --materialInk: #1d1b18;
+                --bar: rgba(255, 254, 252, 0.92);
+                --shadow: 0 1px 2px rgba(40, 30, 20, 0.05), 0 2px 8px rgba(40, 30, 20, 0.04);
+                color-scheme: light;
+            }
+            [data-base='cool'] .light {
+                --ground: #eff3f6;
+                --card: #fcfdff;
+                --surface: #e9edf2;
+                --ink: #171b20;
+                --ink2: #5c646e;
+                --line: #dfe3e8;
+                --control: #80878f;
+                --chipBg: rgba(252, 253, 255, 0.94);
+                --chipInk: #171b20;
+                --material: rgba(252, 253, 255, 0.78);
+                --materialInk: #171b20;
+                --bar: rgba(252, 253, 255, 0.92);
+                --shadow: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+                color-scheme: light;
+            }
+            .dark {
+                --ground: #0e161e;
+                --card: #172029;
+                --surface: #212b36;
+                --ink: #ebeff2;
+                --ink2: #a3acb6;
+                --line: #262f38;
+                --control: #7d8792;
+                --chipBg: rgba(23, 32, 41, 0.8);
+                --chipInk: #ebeff2;
+                --material: rgba(23, 32, 41, 0.72);
+                --materialInk: #ebeff2;
+                --bar: rgba(23, 32, 41, 0.92);
+                --shadow: none;
+                color-scheme: dark;
+            }
+            /* ---------- Tokens: the storm-blue signature and its tint family (t1 mist, t2 sky, t3 foam, t4 wet sand, t5 driftwood). Swap with data-sig on <body>. ---------- */
+            [data-sig='slate'] .light {
+                --sig: #425c7f;
+                --sigLabel: #ffffff;
+                --sigText: #425c7f;
+                --sigTint: #e6eef8;
+                --sigLine: #425c7f;
+                --t1: #e1edfa;
+                --t1i: #466688;
+                --t2: #ddeefc;
+                --t2i: #37688c;
+                --t3: #e4edf2;
+                --t3i: #4f6775;
+                --t4: #f7e9d7;
+                --t4i: #7c5d31;
+                --t5: #f5e9df;
+                --t5i: #775d48;
+                --fact1: var(--t1);
+                --fact1i: var(--t1i);
+                --fact2: var(--t2);
+                --fact2i: var(--t2i);
+                --fact3: var(--t3);
+                --fact3i: var(--t3i);
+            }
+            [data-sig='slate'] .dark {
+                --sig: #a0badb;
+                --sigLabel: #0e161e;
+                --sigText: #a0badb;
+                --sigTint: #23344a;
+                --sigLine: #a0badb;
+                --t1: #202b37;
+                --t1i: #adc7e3;
+                --t2: #1c2c38;
+                --t2i: #a4c9e7;
+                --t3: #232b30;
+                --t3i: #b4c7d3;
+                --t4: #342817;
+                --t4i: #dcbf98;
+                --t5: #32281f;
+                --t5i: #d8bfab;
+                --fact1: var(--t1);
+                --fact1i: var(--t1i);
+                --fact2: var(--t2);
+                --fact2i: var(--t2i);
+                --fact3: var(--t3);
+                --fact3i: var(--t3i);
+            }
+            [data-sig='steel'] .light {
+                --sig: #325c7f;
+                --sigLabel: #ffffff;
+                --sigText: #325c7f;
+                --sigTint: #e4eef7;
+                --sigLine: #325c7f;
+                --t1: #e1edfa;
+                --t1i: #466688;
+                --t2: #ddeefc;
+                --t2i: #37688c;
+                --t3: #e4edf2;
+                --t3i: #4f6775;
+                --t4: #f7e9d7;
+                --t4i: #7c5d31;
+                --t5: #f5e9df;
+                --t5i: #775d48;
+                --fact1: var(--t1);
+                --fact1i: var(--t1i);
+                --fact2: var(--t2);
+                --fact2i: var(--t2i);
+                --fact3: var(--t3);
+                --fact3i: var(--t3i);
+            }
+            [data-sig='steel'] .dark {
+                --sig: #96bcde;
+                --sigLabel: #0e161e;
+                --sigText: #96bcde;
+                --sigTint: #1f3548;
+                --sigLine: #96bcde;
+                --t1: #202b37;
+                --t1i: #adc7e3;
+                --t2: #1c2c38;
+                --t2i: #a4c9e7;
+                --t3: #232b30;
+                --t3i: #b4c7d3;
+                --t4: #342817;
+                --t4i: #dcbf98;
+                --t5: #32281f;
+                --t5i: #d8bfab;
+                --fact1: var(--t1);
+                --fact1i: var(--t1i);
+                --fact2: var(--t2);
+                --fact2i: var(--t2i);
+                --fact3: var(--t3);
+                --fact3i: var(--t3i);
+            }
+            [data-sig='navy'] .light {
+                --sig: #2d3d5a;
+                --sigLabel: #ffffff;
+                --sigText: #2d3d5a;
+                --sigTint: #e7edf8;
+                --sigLine: #2d3d5a;
+                --t1: #e1edfa;
+                --t1i: #466688;
+                --t2: #ddeefc;
+                --t2i: #37688c;
+                --t3: #e4edf2;
+                --t3i: #4f6775;
+                --t4: #f7e9d7;
+                --t4i: #7c5d31;
+                --t5: #f5e9df;
+                --t5i: #775d48;
+                --fact1: var(--t1);
+                --fact1i: var(--t1i);
+                --fact2: var(--t2);
+                --fact2i: var(--t2i);
+                --fact3: var(--t3);
+                --fact3i: var(--t3i);
+            }
+            [data-sig='navy'] .dark {
+                --sig: #a7b8d6;
+                --sigLabel: #0e161e;
+                --sigText: #a7b8d6;
+                --sigTint: #26334a;
+                --sigLine: #a7b8d6;
+                --t1: #202b37;
+                --t1i: #adc7e3;
+                --t2: #1c2c38;
+                --t2i: #a4c9e7;
+                --t3: #232b30;
+                --t3i: #b4c7d3;
+                --t4: #342817;
+                --t4i: #dcbf98;
+                --t5: #32281f;
+                --t5i: #d8bfab;
+                --fact1: var(--t1);
+                --fact1i: var(--t1i);
+                --fact2: var(--t2);
+                --fact2i: var(--t2i);
+                --fact3: var(--t3);
+                --fact3i: var(--t3i);
+            }
+
+            /* ---------- Presentation board ---------- */
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: #d9d7d3;
+                font-family: 'Inter', system-ui, sans-serif;
+                -webkit-font-smoothing: antialiased;
+                padding: 40px;
+            }
+            .board {
+                display: flex;
+                gap: 48px;
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+            .board > figure {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .board figcaption {
+                font:
+                    500 13px/1.4 'Inter',
+                    sans-serif;
+                color: #4a4844;
+            }
+
+            /* ---------- Phone ---------- */
+            [data-screen] {
+                width: 390px;
+                background: var(--ground);
+                color: var(--ink);
+                position: relative;
+                font-family: 'Inter', system-ui, sans-serif;
+                font-size: 17px;
+                line-height: 1.4;
+                font-weight: 400;
+                letter-spacing: -0.011em;
+                border-radius: 44px;
+                overflow: hidden;
+                box-shadow:
+                    0 1px 2px rgba(0, 0, 0, 0.08),
+                    0 12px 40px rgba(0, 0, 0, 0.1);
+                display: flex;
+                flex-direction: column;
+            }
+            [data-screen].viewport {
+                height: 844px;
+            }
+            .tnum {
+                font-variant-numeric: tabular-nums;
+            }
+            .ic {
+                width: 20px;
+                height: 20px;
+                flex: none;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.6;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .ic.sm {
+                width: 16px;
+                height: 16px;
+            }
+            .ic.xs {
+                width: 14px;
+                height: 14px;
+            }
+            .t13 {
+                font-size: 13px;
+                line-height: 1.35;
+            }
+            .t15 {
+                font-size: 15px;
+                line-height: 1.38;
+            }
+            .t17 {
+                font-size: 17px;
+                line-height: 1.4;
+            }
+            .w500 {
+                font-weight: 500;
+            }
+            .w600 {
+                font-weight: 600;
+            }
+            .soft {
+                color: var(--ink2);
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+
+            /* Title face: Manrope for dish names and the one title. Body stays Inter. */
+            .dishFace {
+                font-family: 'Manrope', 'Inter', sans-serif;
+                font-weight: 600;
+                letter-spacing: -0.012em;
+            }
+            [data-title] {
+                text-wrap: balance;
+            }
+            .rTitle {
+                font-size: 28px;
+                line-height: 1.14;
+                letter-spacing: -0.024em;
+            }
+
+            /* Generic units */
+            .card {
+                background: var(--card);
+                border-radius: 18px;
+                box-shadow: var(--shadow);
+            }
+            .mx {
+                margin-left: 16px;
+                margin-right: 16px;
+            }
+            .secHead {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 0 20px;
+                margin-top: 28px;
+                margin-bottom: 10px;
+                min-height: 24px;
+            }
+            .secHead h2 {
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+            }
+            .chipBtn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 32px;
+                padding: 0 12px;
+                border-radius: 16px;
+                background: var(--surface);
+                color: var(--ink);
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .chipBtn .ic {
+                width: 14px;
+                height: 14px;
+                stroke-width: 1.9;
+            }
+            .tapRow {
+                position: relative;
+            } /* 44 px tap area implied on every control */
+            .chev {
+                color: var(--ink2);
+            }
+
+            /* ---------- Home ---------- */
+            .homeTop {
+                padding: 60px 20px 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .greet {
+                font-size: 17px;
+                line-height: 1.35;
+                font-weight: 500;
+                letter-spacing: -0.015em;
+            }
+            .avatarBtn {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                margin-right: -4px;
+                flex: none;
+            }
+            .avatar {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: var(--card);
+                color: var(--ink);
+                box-shadow:
+                    var(--shadow),
+                    inset 0 0 0 1px var(--line);
+                display: grid;
+                place-items: center;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                column-gap: 12px;
+                row-gap: 12px;
+                padding: 0 16px;
+            }
+            .tile {
+                background: var(--card);
+                border-radius: 18px;
+                box-shadow: var(--shadow);
+                padding: 6px 6px 12px;
+            }
+            .tile .ph {
+                position: relative;
+                aspect-ratio: 34 / 30;
+                border-radius: 13px;
+                overflow: hidden;
+                background-size: cover;
+                background-position: center;
+            }
+            .chip {
+                position: absolute;
+                top: 8px;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                height: 26px;
+                padding: 0 9px;
+                border-radius: 8px;
+                background: var(--chipBg);
+                color: var(--chipInk);
+                font-size: 13px;
+                font-weight: 500;
+                backdrop-filter: blur(8px);
+            }
+            .chip.l {
+                left: 8px;
+            }
+            .chip.r {
+                right: 8px;
+            }
+            .tile .name {
+                margin: 10px 6px 0;
+                font-size: 15px;
+                line-height: 1.27;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                min-height: 38px;
+            }
+            .tile .meta {
+                margin: 4px 6px 0;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .noPhoto {
+                background: linear-gradient(170deg, var(--t2) 0%, var(--t4) 100%);
+                display: grid;
+                place-items: center;
+            }
+            .noPhoto .np {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                color: var(--ink2);
+                margin-top: 10px;
+                text-align: center;
+            }
+            .noPhoto .disc {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                color: var(--t2i);
+                background: var(--card);
+                display: grid;
+                place-items: center;
+            }
+            .soonCard {
+                padding: 4px 16px;
+            }
+            .panel {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 52px;
+            }
+            .panel + .panel {
+                border-top: 1px solid var(--line);
+            }
+            .panel .dot {
+                width: 32px;
+                height: 32px;
+                border-radius: 10px;
+                display: grid;
+                place-items: center;
+                flex: none;
+            }
+            .panel .dot .ic {
+                width: 18px;
+                height: 18px;
+            }
+            .panel:nth-child(1) .dot {
+                background: var(--t1);
+                color: var(--t1i);
+            }
+            .panel:nth-child(2) .dot {
+                background: var(--t2);
+                color: var(--t2i);
+            }
+            .panel:nth-child(3) .dot {
+                background: var(--t5);
+                color: var(--t5i);
+            }
+            .panel h3 {
+                flex: 1;
+                font-size: 15px;
+                font-weight: 500;
+            }
+            .lede {
+                padding: 0 20px;
+                margin: -4px 0 12px;
+            }
+            .fabRow {
+                display: flex;
+                justify-content: flex-end;
+                padding: 24px 16px 16px;
+            }
+            .fab {
+                height: 50px;
+                padding: 0 20px 0 16px;
+                border-radius: 25px;
+                background: var(--sig);
+                color: var(--sigLabel);
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 15px;
+                font-weight: 600;
+                box-shadow:
+                    0 2px 4px rgba(0, 0, 0, 0.12),
+                    0 8px 20px rgba(0, 0, 0, 0.14);
+            }
+
+            /* ---------- Tab bar ---------- */
+            .tabbar {
+                margin-top: auto;
+                background: var(--bar);
+                backdrop-filter: blur(16px);
+                border-top: 1px solid var(--line);
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                padding: 8px 0 30px;
+            }
+            .viewport .tabbar {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+            }
+            .tab {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                color: var(--ink2);
+                font-size: 13px;
+                font-weight: 500;
+                min-height: 44px;
+                justify-content: center;
+            }
+            .tab .ic {
+                width: 24px;
+                height: 24px;
+                stroke-width: 1.5;
+            }
+            .tab.on {
+                color: var(--sigText);
+            }
+            .tab.on .ic {
+                stroke-width: 1.9;
+            }
+
+            /* ---------- Recipe: hero and sheet ---------- */
+            .hero {
+                position: relative;
+                height: 340px;
+                background-size: cover;
+                background-position: center 40%;
+                flex: none;
+            }
+            .hero::before {
+                content: '';
+                position: absolute;
+                inset: 0 0 auto 0;
+                height: 110px;
+                background: linear-gradient(rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0));
+            }
+            .hero .btn {
+                position: absolute;
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                color: var(--materialInk);
+            }
+            .hero .btn > span,
+            .topBar .btn > span {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--material);
+                backdrop-filter: blur(14px) saturate(1.4);
+            }
+            .hero .btn .ic,
+            .topBar .btn .ic {
+                width: 16px;
+                height: 16px;
+                stroke-width: 2;
+            }
+            .hero .back {
+                top: 50px;
+                left: 10px;
+            }
+            .hero .more {
+                top: 50px;
+                right: 10px;
+            }
+            .hero .edge {
+                position: absolute;
+                top: 46%;
+                transform: translateY(-50%);
+                width: 44px;
+                height: 56px;
+                display: grid;
+                place-items: center;
+                color: #fff;
+            }
+            .hero .edge > span {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: rgba(20, 18, 16, 0.46);
+                backdrop-filter: blur(10px);
+            }
+            .hero .edge .ic {
+                width: 16px;
+                height: 16px;
+                stroke-width: 2;
+            }
+            .hero .prevImg {
+                left: 2px;
+            }
+            .hero .nextImg {
+                right: 2px;
+            }
+            .dots {
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: 36px;
+                display: flex;
+                gap: 6px;
+                padding: 5px 7px;
+                border-radius: 10px;
+                background: rgba(0, 0, 0, 0.28);
+                backdrop-filter: blur(8px);
+            }
+            .dots i {
+                width: 6px;
+                height: 6px;
+                border-radius: 3px;
+                background: rgba(255, 255, 255, 0.6);
+            }
+            .dots i.on {
+                background: #fff;
+                width: 16px;
+            }
+            .sheet {
+                position: relative;
+                margin-top: -24px;
+                background: var(--card);
+                border-radius: 24px 24px 0 0;
+                padding: 22px 20px 22px;
+                box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.02);
+            }
+            .eyebrow {
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--ink2);
+            }
+            .rTitle {
+                margin-top: 4px;
+            }
+            .metaRow {
+                margin-top: 12px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+            }
+            .metaRow .from {
+                width: 100%;
+            }
+            .facts {
+                margin-top: 16px;
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 8px;
+            }
+            .fact:nth-child(1) {
+                --fb: var(--fact1);
+                --fi: var(--fact1i);
+            }
+            .fact:nth-child(2) {
+                --fb: var(--fact2);
+                --fi: var(--fact2i);
+            }
+            .fact:nth-child(3) {
+                --fb: var(--fact3);
+                --fi: var(--fact3i);
+            }
+            .fact {
+                background: var(--fb);
+                border-radius: 14px;
+                padding: 10px 12px 11px;
+            }
+            .fact .lab {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .fact .ic {
+                width: 14px;
+                height: 14px;
+                color: var(--fi);
+                stroke-width: 1.8;
+            }
+            .fact .v {
+                margin-top: 3px;
+                font-size: 15px;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+            }
+            .btnRow {
+                margin-top: 12px;
+            }
+            .btn2 {
+                height: 44px;
+                border-radius: 12px;
+                background: var(--card);
+                color: var(--ink);
+                box-shadow:
+                    inset 0 0 0 1px var(--line),
+                    var(--shadow);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            .dark .btn2 {
+                background: var(--surface);
+                box-shadow: none;
+            }
+            .desc {
+                margin-top: 16px;
+                font-size: 15px;
+                line-height: 1.45;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+            .moreLink {
+                display: inline-flex;
+                align-items: center;
+                min-height: 32px;
+                font-size: 15px;
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .tags {
+                margin-top: 6px;
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+            .tag {
+                height: 28px;
+                padding: 0 10px;
+                border-radius: 14px;
+                background: var(--t4);
+                font-size: 13px;
+                font-weight: 500;
+                color: var(--ink2);
+                display: inline-flex;
+                align-items: center;
+            }
+
+            /* Rating row */
+            .rowCard {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 14px 16px;
+                min-height: 60px;
+            }
+            .rowCard .grow {
+                flex: 1;
+            }
+            .stars {
+                display: inline-flex;
+                gap: 1px;
+                color: var(--ink);
+                vertical-align: -1px;
+            }
+            .stars .ic {
+                width: 13px;
+                height: 13px;
+                fill: currentColor;
+                stroke: none;
+            }
+            .footNote {
+                padding: 8px 20px 0;
+            }
+
+            /* Nutrition tiles */
+            .nut {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+                padding: 0 16px;
+            }
+            .nut > div:nth-child(1) {
+                background: var(--t1);
+            }
+            .nut > div:nth-child(2) {
+                background: var(--t2);
+            }
+            .nut > div:nth-child(3) {
+                background: var(--t3);
+            }
+            .nut > div:nth-child(4) {
+                background: var(--t4);
+            }
+            .nut > div {
+                border-radius: 14px;
+                padding: 10px 10px 11px;
+            }
+            .nut .v {
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+            }
+            .footNote a {
+                color: var(--ink);
+                font-weight: 500;
+                text-decoration: underline;
+                text-underline-offset: 2px;
+                text-decoration-thickness: 1px;
+            }
+
+            /* Section switch: segmented control + keep-awake */
+            .switch {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 0 16px;
+                margin-top: 28px;
+            }
+            .seg {
+                flex: 1;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                background: var(--surface);
+                border-radius: 12px;
+                padding: 3px;
+            }
+            .dark .seg {
+                background: var(--card);
+            }
+            .seg a {
+                height: 34px;
+                display: grid;
+                place-items: center;
+                border-radius: 9px;
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--ink2);
+            }
+            .seg a.on {
+                background: var(--sig);
+                color: var(--sigLabel);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+            }
+            .awake {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                flex: none;
+            }
+            .awake span {
+                width: 40px;
+                height: 40px;
+                border-radius: 12px;
+                display: grid;
+                place-items: center;
+                background: var(--card);
+                box-shadow:
+                    inset 0 0 0 1px var(--line),
+                    var(--shadow);
+                color: var(--ink);
+            }
+            .awakeNote {
+                padding: 8px 20px 0;
+            }
+
+            /* Ingredients card */
+            .ingCard {
+                padding: 6px 0 6px;
+            }
+            .cardHead {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 16px 6px;
+            }
+            .cardHead h2 {
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+            }
+            .stepper {
+                display: inline-flex;
+                align-items: center;
+                background: var(--surface);
+                border-radius: 18px;
+                height: 36px;
+            }
+            .stepper a {
+                width: 40px;
+                height: 36px;
+                display: grid;
+                place-items: center;
+                color: var(--ink);
+            }
+            .stepper .n {
+                min-width: 64px;
+                text-align: center;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            .serveRow {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 16px 8px;
+            }
+            .group {
+                padding: 14px 16px 4px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--ink2);
+            }
+            .ing {
+                list-style: none;
+            }
+            .ing li {
+                display: flex;
+                gap: 14px;
+                align-items: flex-start;
+                padding: 11px 16px 11px 16px;
+                position: relative;
+                font-size: 17px;
+            }
+            .ing li + li::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 52px;
+                right: 0;
+                height: 1px;
+                background: var(--line);
+            }
+            .box {
+                width: 22px;
+                height: 22px;
+                flex: none;
+                border-radius: 7px;
+                box-shadow: inset 0 0 0 1.5px var(--control);
+                margin-top: 1px;
+                display: grid;
+                place-items: center;
+            }
+            .box.on {
+                background: var(--sig);
+                box-shadow: none;
+                color: var(--sigLabel);
+            }
+            .box.on .ic {
+                width: 14px;
+                height: 14px;
+                stroke-width: 2.4;
+            }
+            .ing .q {
+                font-weight: 600;
+            }
+            .ing .note {
+                color: var(--ink2);
+            }
+            .ing li.done,
+            .ing li.done .q {
+                color: var(--ink2);
+            }
+
+            /* Steps: one unit each */
+            .steps {
+                list-style: none;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding: 0 16px;
+            }
+            .step {
+                display: grid;
+                grid-template-columns: 28px 1fr;
+                column-gap: 12px;
+                padding: 14px 16px 16px 14px;
+            }
+            .num {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: var(--surface);
+                color: var(--ink2);
+                font-size: 13px;
+                font-weight: 600;
+                display: grid;
+                place-items: center;
+            }
+            .step p {
+                font-size: 17px;
+                line-height: 1.45;
+            }
+            .step.done {
+                background: transparent;
+                box-shadow: inset 0 0 0 1px var(--line);
+            }
+            .step.done .num {
+                background: transparent;
+                box-shadow: inset 0 0 0 1.5px var(--sigText);
+                color: var(--sigText);
+            }
+            .step.done .num .ic {
+                width: 14px;
+                height: 14px;
+                stroke-width: 2.4;
+            }
+            .step.done p {
+                color: var(--ink2);
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+            .step.cur {
+                background: var(--sigTint);
+                box-shadow: inset 0 0 0 1.5px var(--sigLine);
+            }
+            .step.cur .num {
+                background: var(--sig);
+                color: var(--sigLabel);
+            }
+            .step .label {
+                display: block;
+                margin-bottom: 2px;
+                color: var(--sigText);
+            }
+            .timer {
+                margin-top: 12px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 34px;
+                padding: 0 14px 0 10px;
+                border-radius: 17px;
+                background: var(--surface);
+                color: var(--ink);
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .timer .ic {
+                width: 16px;
+                height: 16px;
+                color: var(--sigText);
+                stroke-width: 1.9;
+            }
+            .endSpace {
+                height: 28px;
+            }
+
+            /* ---------- Scrolled state: compact top bar ---------- */
+            .topBar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 5;
+                padding: 47px 6px 0;
+                height: 99px;
+                display: grid;
+                grid-template-columns: 44px 1fr 44px;
+                align-items: center;
+                background: var(--bar);
+                backdrop-filter: blur(20px) saturate(1.4);
+                border-bottom: 1px solid var(--line);
+            }
+            .topBar .btn {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                color: var(--ink);
+            }
+            .topBar .btn > span {
+                background: var(--surface);
+            }
+            .topBar .barTitle {
+                font-size: 17px;
+                line-height: 1.2;
+                text-align: center;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding: 0 6px;
+            }
+            .scrolledBody {
+                padding-top: 99px;
+            }
+            .stickySwitch {
+                position: absolute;
+                top: 99px;
+                left: 0;
+                right: 0;
+                z-index: 4;
+                background: var(--bar);
+                backdrop-filter: blur(20px);
+                padding: 8px 0 10px;
+                border-bottom: 1px solid var(--line);
+            }
+            .stickySwitch .switch {
+                margin-top: 0;
+            }
+
+            /* Round 7 additions */
+            .rateBlock {
+                padding: 2px 0 14px;
+                border-bottom: 1px solid var(--line);
+                margin-bottom: 18px;
+            }
+            .rateLine {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 32px;
+            }
+            .stars.big .ic {
+                width: 18px;
+                height: 18px;
+            }
+            .rowLink {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                min-height: 44px;
+                font-size: 15px;
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .rowLink .ic {
+                color: var(--ink2);
+            }
+            .titleGap {
+                margin-bottom: 4px;
+            }
+            .metaRow2 {
+                margin-top: 14px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px 10px;
+            }
+            .btnPair {
+                margin-top: 14px;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                gap: 8px;
+            }
+            .btn2.awakeBtn {
+                padding: 0 14px;
+                font-weight: 600;
+            }
+            .accordion {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0 16px;
+                min-height: 56px;
+                margin-top: 16px;
+            }
+            .accordion .grow {
+                flex: 1;
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+            }
+            .ingHeadRow {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 10px 4px 16px;
+            }
+            .ingHeadRow h2 {
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+            }
+            .stepper.round a {
+                width: 40px;
+            }
+            .ingEditRow {
+                padding: 0 16px 4px;
+            }
+            .ingSpace {
+                height: 28px;
+            }
+
+            /* R1: pinned ingredients bar and the list opened over the steps */
+            .topBar.slim {
+                height: 91px;
+            }
+            .pinBar {
+                position: absolute;
+                top: 91px;
+                left: 0;
+                right: 0;
+                z-index: 6;
+                height: 58px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 8px 0 20px;
+                background: var(--card);
+                border-bottom: 1px solid var(--line);
+                box-shadow: 0 4px 12px rgba(10, 20, 30, 0.06);
+            }
+            .pinBar .lab {
+                flex: 1;
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+            }
+            .pinBar .lab span {
+                font-size: 15px;
+                font-weight: 400;
+                color: var(--ink2);
+            }
+            .pinBar .tog {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                color: var(--ink);
+            }
+            .viewBody {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 149px;
+                bottom: 0;
+                overflow: hidden;
+                padding-top: 12px;
+            }
+            .scrim {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 149px;
+                bottom: 0;
+                z-index: 5;
+                background: rgba(10, 16, 24, 0.42);
+            }
+            .ingSheet {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 149px;
+                z-index: 6;
+                background: var(--card);
+                border-radius: 0 0 22px 22px;
+                box-shadow: 0 12px 30px rgba(10, 20, 30, 0.18);
+                padding-bottom: 10px;
+                max-height: 560px;
+                overflow: hidden;
+            }
+            .ingSheet .grabber {
+                width: 36px;
+                height: 5px;
+                border-radius: 3px;
+                background: var(--line);
+                margin: 6px auto 0;
+            }
+
+            /* Proposal P2: before you start */
+            .prep {
+                padding: 14px 16px 16px;
+                margin-top: 16px;
+            }
+            .prep .head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .prep .head h3 {
+                font-size: 15px;
+                font-weight: 600;
+            }
+            .timeline {
+                display: flex;
+                gap: 3px;
+                height: 10px;
+                margin-top: 12px;
+                border-radius: 5px;
+                overflow: hidden;
+            }
+            .timeline i {
+                display: block;
+                height: 100%;
+            }
+            .legend {
+                margin-top: 8px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 14px;
+            }
+            .legend span {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .legend b {
+                width: 10px;
+                height: 10px;
+                border-radius: 3px;
+                display: inline-block;
+            }
+            .prep .firstUp {
+                margin-top: 12px;
+                padding-top: 12px;
+                border-top: 1px solid var(--line);
+            }
+            .prep ul {
+                list-style: none;
+                margin-top: 6px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .prep li {
+                display: flex;
+                gap: 10px;
+                align-items: flex-start;
+                font-size: 15px;
+                line-height: 1.38;
+            }
+            .prep li .ic {
+                width: 16px;
+                height: 16px;
+                margin-top: 2px;
+                color: var(--t2i);
+            }
+
+            /* Proposal P1: the amount inside the step */
+            .amt {
+                font-weight: 600;
+                white-space: nowrap;
+            }
+
+            /* Proposal P3: the timer for the step in progress */
+            .timerDock {
+                position: absolute;
+                left: 12px;
+                right: 12px;
+                bottom: 92px;
+                z-index: 7;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 10px 10px 14px;
+                border-radius: 18px;
+                background: var(--card);
+                box-shadow:
+                    0 8px 24px rgba(10, 20, 30, 0.18),
+                    inset 0 0 0 1px var(--line);
+            }
+            .timerDock .ring {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--sigTint);
+                color: var(--sigText);
+                flex: none;
+            }
+            .timerDock .grow {
+                flex: 1;
+            }
+            .timerDock .big {
+                font-size: 17px;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+            }
+            .timerDock .iconBtn {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                border-radius: 12px;
+                background: var(--surface);
+                color: var(--ink);
+            }
+            .timer.running {
+                background: var(--sig);
+                color: var(--sigLabel);
+            }
+            .timer.running .ic {
+                color: var(--sigLabel);
+            }
+            .propTag {
+                display: inline-flex;
+                align-items: center;
+                height: 22px;
+                padding: 0 8px;
+                border-radius: 6px;
+                background: var(--t3);
+                color: var(--ink2);
+                font-size: 13px;
+                font-weight: 600;
+            }
+
+            .board figcaption {
+                max-width: 390px;
+            }
+            /* Option A: a visible round button */
+            .pinA .tog {
+                width: 44px;
+                height: 44px;
+            }
+            .pinA .tog > span {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--surface);
+                box-shadow: inset 0 0 0 1px var(--line);
+            }
+            .pinA .tog .ic {
+                width: 20px;
+                height: 20px;
+                stroke-width: 2;
+            }
+            /* Option B: a preview line and a Show button */
+            .pinB {
+                height: 68px;
+            }
+            .pinB .labWrap {
+                flex: 1;
+                min-width: 0;
+                min-height: 44px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            .pinB .labWrap .lab,
+            .pinB .prev {
+                flex: none;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .pinB .stepper .n {
+                min-width: 36px;
+            }
+            .pinB {
+                gap: 6px;
+                padding-right: 12px;
+            }
+            .pinB .prev {
+                font-size: 13px;
+                color: var(--ink2);
+            }
+            .pinB .show {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                height: 36px;
+                padding: 0 10px 0 12px;
+                border-radius: 18px;
+                background: var(--t2);
+                color: var(--ink);
+                font-size: 13px;
+                font-weight: 600;
+                margin: 4px 0;
+            }
+            .pinB .show .ic {
+                width: 16px;
+                height: 16px;
+                stroke-width: 2;
+                color: var(--t2i);
+            }
+            .pinB .showHit {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+            }
+            /* Option C: the bar as one tinted surface with a grab handle */
+            .pinC {
+                height: 66px;
+                background: var(--t1);
+                border-bottom: none;
+                padding-bottom: 8px;
+            }
+            .pinC .openArea {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 44px;
+            }
+            .pinC .openArea .ic {
+                width: 18px;
+                height: 18px;
+                stroke-width: 2;
+                color: var(--t1i);
+            }
+            .pinC .stepper {
+                background: var(--card);
+                box-shadow: inset 0 0 0 1px var(--line);
+            }
+            .pinC .handle {
+                position: absolute;
+                left: 50%;
+                bottom: 7px;
+                transform: translateX(-50%);
+                width: 40px;
+                height: 5px;
+                border-radius: 3px;
+                background: var(--t1i);
+                opacity: 0.45;
+            }
+            .hitNote {
+                position: absolute;
+                z-index: 9;
+                left: 12px;
+                right: 12px;
+                bottom: 96px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                background: var(--card);
+                box-shadow: inset 0 0 0 1px var(--line);
+                font-size: 13px;
+                line-height: 1.35;
+                color: var(--ink2);
+            }
+            .hitNote b {
+                color: var(--ink);
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body data-sig="slate" data-base="cool">
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <style>
+                    .p {
+                        background-size: cover;
+                        background-position: center;
+                    }
+                </style>
+                <symbol id="home" viewBox="0 0 24 24">
+                    <path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z" />
+                </symbol>
+                <symbol id="book" viewBox="0 0 24 24">
+                    <path
+                        d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"
+                    />
+                </symbol>
+                <symbol id="compass" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" />
+                </symbol>
+                <symbol id="chevL" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6" /></symbol>
+                <symbol id="chevR" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6" /></symbol>
+                <symbol id="dots" viewBox="0 0 24 24">
+                    <circle cx="6" cy="12" r="1.1" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1.1" fill="currentColor" />
+                    <circle cx="18" cy="12" r="1.1" fill="currentColor" />
+                </symbol>
+                <symbol id="lock" viewBox="0 0 24 24">
+                    <rect x="5.5" y="10.5" width="13" height="9" rx="2" />
+                    <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+                </symbol>
+                <symbol id="pencil" viewBox="0 0 24 24"><path d="M15.5 5.5l3 3L9 18l-4 1 1-4z" /></symbol>
+                <symbol id="globe" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M4 12h16M12 4c2.2 2.3 3.2 5 3.2 8s-1 5.7-3.2 8c-2.2-2.3-3.2-5-3.2-8s1-5.7 3.2-8z" />
+                </symbol>
+                <symbol id="history" viewBox="0 0 24 24">
+                    <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 5v4h4" />
+                    <path d="M12 8v4l2.8 1.8" />
+                </symbol>
+                <symbol id="sun" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3.5" />
+                    <path
+                        d="M12 3.5v1.8M12 18.7v1.8M3.5 12h1.8M18.7 12h1.8M6 6l1.3 1.3M16.7 16.7 18 18M6 18l1.3-1.3M16.7 7.3 18 6"
+                    />
+                </symbol>
+                <symbol id="minus" viewBox="0 0 24 24"><path d="M6.5 12h11" /></symbol>
+                <symbol id="plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" /></symbol>
+                <symbol id="check" viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></symbol>
+                <symbol id="timer" viewBox="0 0 24 24">
+                    <circle cx="12" cy="13.5" r="7" />
+                    <path d="M12 13.5V10M10 3.5h4" />
+                </symbol>
+                <symbol id="star" viewBox="0 0 24 24">
+                    <path d="m12 3.2 2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.8l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z" />
+                </symbol>
+                <symbol id="photo" viewBox="0 0 24 24">
+                    <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+                    <circle cx="9" cy="10.5" r="1.6" />
+                    <path d="m20.5 15.5-4.5-4.5-8.5 7.5" />
+                </symbol>
+                <symbol id="pie" viewBox="0 0 24 24">
+                    <path d="M12 3.5v8.5h8.5A8.5 8.5 0 1 1 12 3.5z" />
+                    <path d="M15 3.9a8.5 8.5 0 0 1 5.1 5.1H15z" />
+                </symbol>
+                <symbol id="resume" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M10.2 8.8v6.4l5-3.2z" />
+                </symbol>
+                <symbol id="calendar" viewBox="0 0 24 24">
+                    <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+                    <path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" />
+                </symbol>
+                <symbol id="clock" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M12 7.5V12l3 2" />
+                </symbol>
+                <symbol id="gauge" viewBox="0 0 24 24"><path d="M5 17V13M12 17V9M19 17V5" /></symbol>
+                <symbol id="chevDown" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6" /></symbol>
+                <symbol id="chevUp" viewBox="0 0 24 24"><path d="m6 14.5 6-6 6 6" /></symbol>
+                <symbol id="bullet" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                </symbol>
+                <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" /></symbol>
+            </defs>
+        </svg>
+        <main class="board">
+            <figure>
+                <figcaption>Option A: a larger chevron in a visible round button</figcaption>
+                <section data-screen="optionA" class="light viewport" aria-label="optionA">
+                    <div class="topBar slim">
+                        <a class="btn" href="#" aria-label="Back"
+                            ><span
+                                ><svg class="ic"><use href="#chevL" /></svg></span
+                        ></a>
+                        <p class="barTitle dishFace" data-title>Lemon and thyme roast chicken</p>
+                        <a class="btn" href="#" aria-label="More actions"
+                            ><span
+                                ><svg class="ic"><use href="#dots" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="pinBar pinA">
+                        <p class="lab">Ingredients <span>for 4</span></p>
+                        <div class="stepper round tnum" role="group" aria-label="Servings">
+                            <a href="#" aria-label="Fewer servings"
+                                ><svg class="ic sm"><use href="#minus" /></svg></a
+                            ><span class="n">4</span
+                            ><a href="#" aria-label="More servings"
+                                ><svg class="ic sm"><use href="#plus" /></svg
+                            ></a>
+                        </div>
+                        <a class="tog" href="#" aria-expanded="false" aria-label="Show ingredients"
+                            ><span
+                                ><svg class="ic"><use href="#chevDown" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="viewBody" style="top: 149px">
+                        <div class="secHead">
+                            <h2>Steps</h2>
+                            <a class="chipBtn" href="#"
+                                ><svg class="ic"><use href="#pencil" /></svg>Edit</a
+                            >
+                        </div>
+                        <ol class="steps">
+                            <li class="step card done">
+                                <span class="num" aria-label="Step 1, done"
+                                    ><svg class="ic"><use href="#check" /></svg
+                                ></span>
+                                <div>
+                                    <p>
+                                        Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge, pat the
+                                        skin dry with paper towels, and leave it at room temperature while the oven
+                                        heats.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card cur">
+                                <span class="num">2</span>
+                                <div>
+                                    <span class="label t13 w600">You’re here</span>
+                                    <p>
+                                        Mash the butter with the lemon zest, half of the thyme leaves and the salt. Work
+                                        your fingers under the skin of the breast and spread the butter over the meat.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">3</span>
+                                <div>
+                                    <p>
+                                        Scatter the potatoes, carrots and onions in a large roasting tin and toss with
+                                        the olive oil. Put the chicken on top with the halved lemon, the garlic and the
+                                        rest of the thyme in the cavity.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">4</span>
+                                <div>
+                                    <p>
+                                        Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
+                                        another 1 hour 10 minutes, until the juices run clear.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>1 h 30 min</a
+                                    >
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">5</span>
+                                <div>
+                                    <p>
+                                        Rest the chicken, loosely covered with foil, for 15 minutes before carving.
+                                        Spoon the pan juices over the vegetables.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>15 min</a
+                                    >
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                    <p class="hitNote">
+                        <b>Open target:</b> the 44 × 44 round button at the right. <b>Stepper:</b> its own two 40 px
+                        buttons, 8 px apart from the open button.
+                    </p>
+                    <nav class="tabbar" aria-label="Main">
+                        <a class="tab" href="#"
+                            ><svg class="ic"><use href="#home" /></svg>Home</a
+                        ><a class="tab on" aria-current="page" href="#"
+                            ><svg class="ic"><use href="#book" /></svg>Recipes</a
+                        ><a class="tab" href="#"
+                            ><svg class="ic"><use href="#compass" /></svg>Discover</a
+                        >
+                    </nav>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>Option B (recommended): a preview line and a Show button</figcaption>
+                <section data-screen="optionB" class="light viewport" aria-label="optionB">
+                    <div class="topBar slim">
+                        <a class="btn" href="#" aria-label="Back"
+                            ><span
+                                ><svg class="ic"><use href="#chevL" /></svg></span
+                        ></a>
+                        <p class="barTitle dishFace" data-title>Lemon and thyme roast chicken</p>
+                        <a class="btn" href="#" aria-label="More actions"
+                            ><span
+                                ><svg class="ic"><use href="#dots" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="pinBar pinB">
+                        <a
+                            class="labWrap"
+                            href="#"
+                            aria-expanded="false"
+                            aria-label="Show ingredients, 11 ingredients, 1 ticked"
+                            ><p class="lab">Ingredients <span>for 4</span></p>
+                            <p class="prev tnum">11 items · 1 ticked</p></a
+                        >
+                        <div class="stepper round tnum" role="group" aria-label="Servings">
+                            <a href="#" aria-label="Fewer servings"
+                                ><svg class="ic sm"><use href="#minus" /></svg></a
+                            ><span class="n">4</span
+                            ><a href="#" aria-label="More servings"
+                                ><svg class="ic sm"><use href="#plus" /></svg
+                            ></a>
+                        </div>
+                        <a class="showHit" href="#" aria-hidden="true" tabindex="-1"
+                            ><span class="show"
+                                >Show<svg class="ic"><use href="#chevDown" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="viewBody" style="top: 159px">
+                        <div class="secHead">
+                            <h2>Steps</h2>
+                            <a class="chipBtn" href="#"
+                                ><svg class="ic"><use href="#pencil" /></svg>Edit</a
+                            >
+                        </div>
+                        <ol class="steps">
+                            <li class="step card done">
+                                <span class="num" aria-label="Step 1, done"
+                                    ><svg class="ic"><use href="#check" /></svg
+                                ></span>
+                                <div>
+                                    <p>
+                                        Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge, pat the
+                                        skin dry with paper towels, and leave it at room temperature while the oven
+                                        heats.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card cur">
+                                <span class="num">2</span>
+                                <div>
+                                    <span class="label t13 w600">You’re here</span>
+                                    <p>
+                                        Mash the butter with the lemon zest, half of the thyme leaves and the salt. Work
+                                        your fingers under the skin of the breast and spread the butter over the meat.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">3</span>
+                                <div>
+                                    <p>
+                                        Scatter the potatoes, carrots and onions in a large roasting tin and toss with
+                                        the olive oil. Put the chicken on top with the halved lemon, the garlic and the
+                                        rest of the thyme in the cavity.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">4</span>
+                                <div>
+                                    <p>
+                                        Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
+                                        another 1 hour 10 minutes, until the juices run clear.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>1 h 30 min</a
+                                    >
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">5</span>
+                                <div>
+                                    <p>
+                                        Rest the chicken, loosely covered with foil, for 15 minutes before carving.
+                                        Spoon the pan juices over the vegetables.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>15 min</a
+                                    >
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                    <p class="hitNote">
+                        <b>Open target:</b> the label area on the left and the Show button, both at least 44 px tall.
+                        <b>Stepper:</b> in the middle, with its own buttons, so no tap lands on two controls.
+                    </p>
+                    <nav class="tabbar" aria-label="Main">
+                        <a class="tab" href="#"
+                            ><svg class="ic"><use href="#home" /></svg>Home</a
+                        ><a class="tab on" aria-current="page" href="#"
+                            ><svg class="ic"><use href="#book" /></svg>Recipes</a
+                        ><a class="tab" href="#"
+                            ><svg class="ic"><use href="#compass" /></svg>Discover</a
+                        >
+                    </nav>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>Option C: the whole bar as one tinted surface with a grab handle</figcaption>
+                <section data-screen="optionC" class="light viewport" aria-label="optionC">
+                    <div class="topBar slim">
+                        <a class="btn" href="#" aria-label="Back"
+                            ><span
+                                ><svg class="ic"><use href="#chevL" /></svg></span
+                        ></a>
+                        <p class="barTitle dishFace" data-title>Lemon and thyme roast chicken</p>
+                        <a class="btn" href="#" aria-label="More actions"
+                            ><span
+                                ><svg class="ic"><use href="#dots" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="pinBar pinC">
+                        <a class="openArea" href="#" aria-expanded="false" aria-label="Show ingredients"
+                            ><p class="lab">Ingredients <span>for 4</span></p>
+                            <svg class="ic"><use href="#chevDown" /></svg
+                        ></a>
+                        <div class="stepper round tnum" role="group" aria-label="Servings">
+                            <a href="#" aria-label="Fewer servings"
+                                ><svg class="ic sm"><use href="#minus" /></svg></a
+                            ><span class="n">4</span
+                            ><a href="#" aria-label="More servings"
+                                ><svg class="ic sm"><use href="#plus" /></svg
+                            ></a>
+                        </div>
+                        <span class="handle" aria-hidden="true"></span>
+                    </div>
+                    <div class="viewBody" style="top: 157px">
+                        <div class="secHead">
+                            <h2>Steps</h2>
+                            <a class="chipBtn" href="#"
+                                ><svg class="ic"><use href="#pencil" /></svg>Edit</a
+                            >
+                        </div>
+                        <ol class="steps">
+                            <li class="step card done">
+                                <span class="num" aria-label="Step 1, done"
+                                    ><svg class="ic"><use href="#check" /></svg
+                                ></span>
+                                <div>
+                                    <p>
+                                        Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge, pat the
+                                        skin dry with paper towels, and leave it at room temperature while the oven
+                                        heats.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card cur">
+                                <span class="num">2</span>
+                                <div>
+                                    <span class="label t13 w600">You’re here</span>
+                                    <p>
+                                        Mash the butter with the lemon zest, half of the thyme leaves and the salt. Work
+                                        your fingers under the skin of the breast and spread the butter over the meat.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">3</span>
+                                <div>
+                                    <p>
+                                        Scatter the potatoes, carrots and onions in a large roasting tin and toss with
+                                        the olive oil. Put the chicken on top with the halved lemon, the garlic and the
+                                        rest of the thyme in the cavity.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">4</span>
+                                <div>
+                                    <p>
+                                        Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
+                                        another 1 hour 10 minutes, until the juices run clear.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>1 h 30 min</a
+                                    >
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">5</span>
+                                <div>
+                                    <p>
+                                        Rest the chicken, loosely covered with foil, for 15 minutes before carving.
+                                        Spoon the pan juices over the vegetables.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>15 min</a
+                                    >
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                    <p class="hitNote">
+                        <b>Open target:</b> the label and chevron on the left, the full bar height.
+                        <b>Stepper:</b> raised on a white pill so it reads as a separate control. A swipe down on the
+                        handle also opens.
+                    </p>
+                    <nav class="tabbar" aria-label="Main">
+                        <a class="tab" href="#"
+                            ><svg class="ic"><use href="#home" /></svg>Home</a
+                        ><a class="tab on" aria-current="page" href="#"
+                            ><svg class="ic"><use href="#book" /></svg>Recipes</a
+                        ><a class="tab" href="#"
+                            ><svg class="ic"><use href="#compass" /></svg>Discover</a
+                        >
+                    </nav>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>Option B, dark</figcaption>
+                <section data-screen="optionBDark" class="dark viewport" aria-label="optionBDark">
+                    <div class="topBar slim">
+                        <a class="btn" href="#" aria-label="Back"
+                            ><span
+                                ><svg class="ic"><use href="#chevL" /></svg></span
+                        ></a>
+                        <p class="barTitle dishFace" data-title>Lemon and thyme roast chicken</p>
+                        <a class="btn" href="#" aria-label="More actions"
+                            ><span
+                                ><svg class="ic"><use href="#dots" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="pinBar pinB">
+                        <a
+                            class="labWrap"
+                            href="#"
+                            aria-expanded="false"
+                            aria-label="Show ingredients, 11 ingredients, 1 ticked"
+                            ><p class="lab">Ingredients <span>for 4</span></p>
+                            <p class="prev tnum">11 items · 1 ticked</p></a
+                        >
+                        <div class="stepper round tnum" role="group" aria-label="Servings">
+                            <a href="#" aria-label="Fewer servings"
+                                ><svg class="ic sm"><use href="#minus" /></svg></a
+                            ><span class="n">4</span
+                            ><a href="#" aria-label="More servings"
+                                ><svg class="ic sm"><use href="#plus" /></svg
+                            ></a>
+                        </div>
+                        <a class="showHit" href="#" aria-hidden="true" tabindex="-1"
+                            ><span class="show"
+                                >Show<svg class="ic"><use href="#chevDown" /></svg></span
+                        ></a>
+                    </div>
+                    <div class="viewBody" style="top: 159px">
+                        <div class="secHead">
+                            <h2>Steps</h2>
+                            <a class="chipBtn" href="#"
+                                ><svg class="ic"><use href="#pencil" /></svg>Edit</a
+                            >
+                        </div>
+                        <ol class="steps">
+                            <li class="step card done">
+                                <span class="num" aria-label="Step 1, done"
+                                    ><svg class="ic"><use href="#check" /></svg
+                                ></span>
+                                <div>
+                                    <p>
+                                        Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge, pat the
+                                        skin dry with paper towels, and leave it at room temperature while the oven
+                                        heats.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card cur">
+                                <span class="num">2</span>
+                                <div>
+                                    <span class="label t13 w600">You’re here</span>
+                                    <p>
+                                        Mash the butter with the lemon zest, half of the thyme leaves and the salt. Work
+                                        your fingers under the skin of the breast and spread the butter over the meat.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">3</span>
+                                <div>
+                                    <p>
+                                        Scatter the potatoes, carrots and onions in a large roasting tin and toss with
+                                        the olive oil. Put the chicken on top with the halved lemon, the garlic and the
+                                        rest of the thyme in the cavity.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">4</span>
+                                <div>
+                                    <p>
+                                        Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
+                                        another 1 hour 10 minutes, until the juices run clear.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>1 h 30 min</a
+                                    >
+                                </div>
+                            </li>
+                            <li class="step card">
+                                <span class="num">5</span>
+                                <div>
+                                    <p>
+                                        Rest the chicken, loosely covered with foil, for 15 minutes before carving.
+                                        Spoon the pan juices over the vegetables.
+                                    </p>
+                                    <a class="timer tnum" href="#"
+                                        ><svg class="ic"><use href="#timer" /></svg>15 min</a
+                                    >
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                    <p class="hitNote">
+                        <b>Open target:</b> the label area on the left and the Show button, both at least 44 px tall.
+                        <b>Stepper:</b> in the middle, with its own buttons, so no tap lands on two controls.
+                    </p>
+                    <nav class="tabbar" aria-label="Main">
+                        <a class="tab" href="#"
+                            ><svg class="ic"><use href="#home" /></svg>Home</a
+                        ><a class="tab on" aria-current="page" href="#"
+                            ><svg class="ic"><use href="#book" /></svg>Recipes</a
+                        ><a class="tab" href="#"
+                            ><svg class="ic"><use href="#compass" /></svg>Discover</a
+                        >
+                    </nav>
+                </section>
+            </figure>
+        </main>
+    </body>
+</html>

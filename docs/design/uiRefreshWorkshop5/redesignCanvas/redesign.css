@@ -228,3 +228,18 @@
 /* ---------- Steel is an accent, never a large fill ---------- */
 /* The hero gradient is flat (tokens.css). A filled action keeps steel only on buttons, the FAB, the selected segment,
    checked boxes and the current step number; large selected areas use --selected-fill, never --action. */
+
+/* ---------- EVALUATE fixes (2026-10-23) ---------- */
+/* Web Button: radius 12, not a pill (spec "Sheets and dialogs" and the round 9 buttons). Size classes come from
+   buttonSurfaceClass in bundle.js; this matches them by their radius class. */
+[class*='rounded-[calc(var(--spacing)*6.5)]'],
+[class*='rounded-[calc(var(--spacing)*5.5)]'],
+[class*='rounded-[calc(var(--spacing)*4.5)]'] {
+    border-radius: 12px !important;
+}
+/* The web sidebar fills the board height, whatever the viewport. */
+.ks-side,
+.sb {
+    height: auto !important;
+    align-self: stretch;
+}

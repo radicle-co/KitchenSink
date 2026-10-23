@@ -44,7 +44,9 @@ tags:
 - setAirplaneMode: enabled
 - runFlow: ../recipes/common/clearTitle.yaml
 - inputText: ' survives restart'
-# The recipe is published, so the edit reaches the server only at Save changes (owner decision D1).
+# The recipe is published, so the edit reaches the server only at Save changes (owner decision D1). The bar unpins
+# while the keyboard is open, so close it first (`maestroActionBarAfterTyping.test.ts`).
+- runFlow: ../recipes/common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
 # Offline, the write waits in the outbox on the device: the header says so in its own words ('Saved on this device'),
 # and 'Saved' once the answer lands. Either is the cook's saved state; a failure line is not.

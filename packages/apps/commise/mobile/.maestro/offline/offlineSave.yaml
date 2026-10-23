@@ -49,7 +49,9 @@ tags:
 
 - runFlow: ../recipes/common/clearTitle.yaml
 - inputText: ' offline edit'
-# The recipe is published, so the edit reaches the server only at Save changes (owner decision D1).
+# The recipe is published, so the edit reaches the server only at Save changes (owner decision D1). The bar unpins
+# while the keyboard is open, so close it first (`maestroActionBarAfterTyping.test.ts`).
+- runFlow: ../recipes/common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
 
 # ⛔ THE SAVE SUCCEEDS FROM THE COOK'S POINT OF VIEW. Offline is a pause, so the editor must reach its saved

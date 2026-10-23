@@ -16,6 +16,8 @@ Nothing in it is hand-copied from the product. The bundle compiles the real web 
 
 Both are private to the owner. The canvas records one exact version of the Design System, so the system is always published first.
 
+The screens canvas is titled "Commise Screens (legacy)" and records the current app. The redesign of every screen is a third artifact, https://claude.ai/artifact/CYjvswLZdB7CbZ4Av84Fig. This package does not build it. `docs/design/uiRefreshWorkshop5/redesignCanvas/assembleRedesign.py` assembles it from `dist/canvas/project`.
+
 ## Regenerate the artifacts
 
 "Regenerate the design system and screens" means: build both artifacts from the current sources, publish the Design System, then rebuild the canvas against that new version and publish it.

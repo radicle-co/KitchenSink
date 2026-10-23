@@ -1,0 +1,203 @@
+/* Commise redesign tokens (workshop 5, round 9): steel on a cool base, dusk dark mode. Same variable names as
+   ds/commise/tokens.css; only values change. Design artifact for the redesign canvas, not app code. */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600&display=swap');
+@font-face {
+    font-family: 'Inter';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_400Regular.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter_400Regular';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_400Regular.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter';
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_500Medium.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter_500Medium';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_500Medium.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_600SemiBold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter_600SemiBold';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_600SemiBold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_700Bold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Inter_700Bold';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/Inter_700Bold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Playfair Display';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/PlayfairDisplay_600SemiBold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'PlayfairDisplay_600SemiBold';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/PlayfairDisplay_600SemiBold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Playfair Display';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/PlayfairDisplay_700Bold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'PlayfairDisplay_700Bold';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('fonts/PlayfairDisplay_700Bold.ttf') format('truetype');
+}
+:root,
+[data-theme='light'] {
+    --canvas: #eff3f6;
+    --paper: #fcfdff;
+    --ink: #171b20;
+    --ink-muted: #5c646e;
+    --line-control: #80878f;
+    --line-divider: #dfe3e8;
+    --action: #325c7f;
+    --action-text: #325c7f;
+    --selected-fill: #e4eef7;
+    --selected-edge: #325c7f;
+    --here-bar: #325c7f;
+    --focus-ring: #325c7f;
+    --rating: #171b20;
+    --attention: #8c5a00;
+    --attention-tint: rgba(245, 176, 65, 0.2);
+    --danger: #c05238;
+    --danger-text: #b1442b;
+    --paper-raised: #ffffff;
+    --paper-overlay: #ffffff;
+    --surface-muted: #e9edf2;
+    --inverse: #171b20;
+    --inverse-ink: #ffffff;
+    --inverse-action: #96bcde;
+    --photo-chip: rgba(252, 253, 255, 0.94);
+    --scrim: rgba(10, 16, 24, 0.42);
+    --on-action: #ffffff;
+    --action-pressed: #264a68;
+    --bar: rgba(252, 253, 255, 0.92);
+    --pro-fill: #e9edf2;
+    --pro-ink: #171b20;
+    --brand-seafoam: #325c7f;
+    --brand-seafoam-light: #96bcde;
+    --brand-ocean-dark: #264a68;
+    --brand-coral: #f7e9d7;
+    --brand-sky: #ddeefc;
+    --brand-sand: #eff3f6;
+    --brand-charcoal: #171b20;
+    --brand-success: #4caf7c;
+    --brand-warning: #f5b041;
+    --brand-warning-dark: #8c5a00;
+    --brand-error: #c05238;
+    --brand-error-dark: #b1442b;
+    --brand-premium: #5c646e;
+    --brand-honey: #171b20;
+    --cover-seafoam: #e1edfa;
+    --cover-coral: #f7e9d7;
+    --cover-sky: #ddeefc;
+    --cover-premium: #f5e9df;
+    --cover-success: #e4edf2;
+    --cover-warning: #f7e9d7;
+    --space-0: 0px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+    --space-9: 96px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+    --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+    --shadow-md: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+    --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+    --shadow-xl: 0 12px 30px rgba(10, 20, 30, 0.18);
+    --shadow-glow: 0 0 0 3px rgba(50, 92, 127, 0.25);
+    --font-display: 'Manrope', Inter, system-ui, sans-serif;
+    --font-body: Inter, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --background-image-hero: linear-gradient(180deg, #eff3f6 0%, #eff3f6 100%);
+}
+[data-theme='dark'] {
+    --canvas: #0e161e;
+    --paper: #172029;
+    --ink: #ebeff2;
+    --ink-muted: #a3acb6;
+    --line-control: #7d8792;
+    --line-divider: #262f38;
+    --action: #96bcde;
+    --action-text: #96bcde;
+    --selected-fill: #1f3548;
+    --selected-edge: #96bcde;
+    --here-bar: #96bcde;
+    --focus-ring: #96bcde;
+    --rating: #ebeff2;
+    --attention: #efba64;
+    --attention-tint: rgba(245, 176, 65, 0.2);
+    --danger: #c05238;
+    --danger-text: #ec8e76;
+    --paper-raised: #212b36;
+    --paper-overlay: #26313d;
+    --surface-muted: #212b36;
+    --inverse: #ebeff2;
+    --inverse-ink: #171b20;
+    --inverse-action: #325c7f;
+    --photo-chip: rgba(23, 32, 41, 0.86);
+    --scrim: rgba(0, 0, 0, 0.66);
+    --on-action: #0e161e;
+    --action-pressed: #b4cfe8;
+    --bar: rgba(23, 32, 41, 0.94);
+    --pro-fill: #212b36;
+    --pro-ink: #ebeff2;
+    --cover-seafoam: #202b37;
+    --cover-coral: #342817;
+    --cover-sky: #1c2c38;
+    --cover-premium: #32281f;
+    --cover-success: #232b30;
+    --cover-warning: #342817;
+    --background-image-hero: linear-gradient(180deg, #0e161e 0%, #0e161e 100%);
+}

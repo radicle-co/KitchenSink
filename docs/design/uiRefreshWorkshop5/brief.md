@@ -143,6 +143,16 @@ out of the way, or only a little useful to an experienced cook. Never a step the
 This is an owner principle, not a research finding. The user-needs database supports the need behind it (CK-021,
 CK-022, CK-023, CK-029), but no evidence in it tests this approach. Test it with real cooks.
 
+## 3c. The owner's screen decisions bind every round
+
+`ownerFeedback.md` lists the owner's 23 comments on the screens canvas as decisions, each with its general rule and
+the user needs behind it. Every one stands (owner, 2026-10-23). The key example: the cook reaches the ingredients from
+the step they are on, without scrolling back or changing tabs (R1, CK-001).
+
+A designer does not only keep these decisions. They find the next ones of the same kind in the user-needs database
+and propose them. Look and layout serve the needs, so a round may change layout where a need record supports it, and
+it says which record.
+
 ## 4. The new method
 
 1. **Start from the current UI.** You rate it above every option so far, so the job is to refine it, not to replace

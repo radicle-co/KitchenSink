@@ -169,7 +169,8 @@ research from app-store reviews, forums, studies and surveys, not interviews. Ea
 `synthesis.md` (themes, ranked needs, the open questions only real research can answer), then open the area file the
 work touches. `README.md` holds the record format and the rules for adding to it. ⚠️ It describes the problem space,
 not Commise: add evidence against a need as carefully as evidence for it, and never cite a `reported` record as
-validated.
+validated. The owner's standing screen decisions, each tied to those needs, are in
+`docs/design/uiRefreshWorkshop5/ownerFeedback.md`; every design round keeps them.
 
 It is the **UI/UX counterpart to `staff-architect`**, and the two do not overlap: shape of the
 system → `staff-architect`; shape of the experience → `staff-ux-engineer`. A change that needs both

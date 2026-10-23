@@ -1,0 +1,53 @@
+# Owner feedback register
+
+The owner's comments on the screens canvas (https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv), 23 threads, all
+from 2026-10-17. The owner ruled on 2026-10-23 that every one of them still stands. They bind every design round.
+
+Each entry gives the decision, the general rule a designer must take from it, and the user needs behind it (IDs from
+`docs/research/userNeeds/`). A designer who reads the needs well must reach rules like these on their own. The
+register exists so that no round has to be told twice.
+
+## Recipe detail
+
+| #   | Decision                                                                                                                                                                                                                                                        | General rule                                                                                             | Needs                          |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| R1  | When the ingredients card scrolls out of view on mobile, it becomes a pinned, collapsed "Ingredients for 4" bar with the servings stepper. Tapping it opens the list over the content, with a scrim. When the list's bottom is back in view, the bar goes away. | **The cook reaches the ingredients from the step they are on, without scrolling back or changing tabs.** | CK-001, CK-008, CK-021, CK-012 |
+| R2  | On web, the ingredients panel stays pinned while the steps scroll, and returns to its place on scroll up. A list taller than the window scrolls with the page until its end shows.                                                                              | Same rule as R1, on a wide screen: ingredients and steps side by side.                                   | CK-001, CK-008                 |
+| R3  | The mobile Ingredients/Steps/Nutrition switch is removed. Nutrition becomes a collapsed accordion in its place.                                                                                                                                                 | Do not hide the ingredients or the steps behind a tab. Secondary information folds away.                 | CK-001, FR-001                 |
+| R4  | Screen on sits beside Edit recipe, or beside Save a copy on another cook's recipe.                                                                                                                                                                              | Keep a cooking control where the cook's hands go first, beside the main action.                          | CK-002                         |
+| R5  | Cook time is dropped. Total, Prep and Difficulty sit on one line.                                                                                                                                                                                               | Show each fact once, and do not repeat what another field already says.                                  | CK-013, FR-001                 |
+| R6  | The rating sits under the photo, then "# comments" with a chevron, then smaller nutrition. Source and Version history sit under the name, next to Public or Private.                                                                                            | Trust signals sit near the top. The recipe's own facts sit by its name.                                  | FR-002                         |
+| R7  | Rating: tapping the stars opens a dialog with the stars and an optional comment of up to 1,000 characters. Cooks can edit or delete their own, and a delete asks to confirm. The comments list has "Add your rating". An owner cannot rate their own recipe.    | Make a contribution easy, optional and reversible, and confirm anything destructive.                     | FR-002                         |
+| R8  | If there is more than one picture, the recipe photo is a carousel.                                                                                                                                                                                              | Show every photo the cook has, without leaving the page.                                                 | FR-002                         |
+| R9  | The ingredients list grows to its full length, and the page scrolls. No inner scroll area.                                                                                                                                                                      | Never trap a list in a small scroll box.                                                                 | CK-001                         |
+| R10 | More breathing space under the title and above the ingredients. It was "too cramped and dense".                                                                                                                                                                 | Dense means too little grouping and space, not too much information.                                     | FR-001                         |
+| R11 | Reader view: another cook's recipe has no owner controls, keeps Save a copy, shows the cook's name and lets the reader rate it.                                                                                                                                 | Every screen is designed for each role that sees it.                                                     | FR-002                         |
+| R12 | The more menu is shown open: Version history, Make private, "Clear checks", and Delete recipe set apart.                                                                                                                                                        | Every hidden control has a designed open state.                                                          | None                           |
+
+## Navigation and lists
+
+| #   | Decision                                                                                                                                                                                        | General rule                                                                                      | Needs  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------ |
+| N1  | "New recipe" is never in the nav bar. It is a primary button on the My recipes search row, more than 24 px (32 px) from the field. The same holds for "New collection".                         | A create action lives in the content area it creates into, and never reads as part of the search. | FR-004 |
+| N2  | On wide web, the search field stops at 560 px and the create button sits at the far right of the row.                                                                                           | Unrelated controls are visibly apart.                                                             | FR-004 |
+| N3  | The profile avatar sits at the top right on every screen size, on Home, Discover, My recipes and Collections.                                                                                   | One place for the same thing on every platform.                                                   | None   |
+| N4  | Discover: one pill group under search, next to Filters: Trending (selected), New, Quick and the cuisines. One pill at a time, and picking one replaces the list. The recipes scroll vertically. | No half-visible card rows on phones. Filter in one place.                                         | FR-006 |
+| N5  | Every horizontal scroller hides its scrollbar until you scroll, and shows a right chevron while there is more and it is at its start. Built in the real app.                                    | Show that more exists, without chrome.                                                            | None   |
+| N6  | The version history header has 16 px left padding. Nothing touches the screen edge.                                                                                                             | Every screen keeps its margins.                                                                   | None   |
+| N7  | The mobile editor shows no permanent scrollbar.                                                                                                                                                 | Follow the platform's own scrolling look.                                                         | None   |
+
+## Editor and food search
+
+| #   | Decision                                                                                                                                                  | General rule                                               | Needs          |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------- |
+| E1  | Food search shows a designed screen for every case: typing, results, no match, errors, catalog unavailable, offline, picking, and editing a saved recipe. | Every state is a deliverable, including loading and error. | CK-006, FR-011 |
+
+## What a design round must do with this register
+
+1. Read it before designing, and keep every decision in it.
+2. Start from the screens that already show these decisions. On mobile those are `RecipeDetailMobile`,
+   `RecipeDetailScrolledMobile`, `RecipeDetailIngredientsOpenMobile`, `RecipeDetailReaderMobile` and `HomeMobile`,
+   and on web `RecipeDetail` and `RecipeDetailScrolled`. Do not start from the `390` or `768` width variants of the
+   web boards.
+3. Look for the next decisions of the same kind in the user-needs database, and propose them. For example, R1 came
+   from CK-001: what else does CK-003, CK-007 or CK-022 ask of the recipe screen?

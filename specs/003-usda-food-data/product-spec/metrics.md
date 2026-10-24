@@ -23,6 +23,8 @@ Each metric is tied to a Must Have user story. "Measurable" means a queryable si
 
 **Story**: As any caller, I must present a valid Clerk token to reach any endpoint; insufficient scope is `403`; no single account can exhaust the shared per-source budget or starve others (dynamic queue demotion, no per-user quota, no `429`).
 
+_Scope note (2026-10-02):_ the near-ceiling shed was retired with FR-043b (owner, 2026-09-15): add-by-name and batch are never refused, so they answer no `429`. Live search and `PATCH` resolve answer `429 REQUESTER_LIMIT_REACHED` for the caller's own per-minute and hourly limits (plan 002 R42, controls C2 and C3). One account can still fill the shared per-source window through batch add-by-name, because demotion reorders the drain and refuses nothing (sec-aud-1, 2026-10-02); how to bound that on the drain side is an open owner decision. MET-US0-03's "0 `429`" and its shed counter therefore apply to add-by-name and batch only.
+
 **FRs**: FR-035, FR-036, FR-040, FR-043, FR-044, FR-051, FR-052
 
 | Metric ID  | Metric                                      | Target                | Source              | Signal                                                                                                                                                                                                  |

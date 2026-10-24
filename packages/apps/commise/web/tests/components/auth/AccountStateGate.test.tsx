@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IMPERSONATION_BLOCK, SUSPENDED_BLOCK } from '@commise/features-account';
+import { authBlockMessages } from '@commise/features-account';
 import { AccountStateGate } from '@/components/auth/AccountStateGate';
 
 const mockUseAuth = vi.fn();
@@ -68,8 +68,8 @@ describe('AccountStateGate', () => {
         );
 
         const alert = screen.getByRole('alert');
-        expect(alert).toHaveTextContent(SUSPENDED_BLOCK.title);
-        expect(alert).toHaveTextContent(SUSPENDED_BLOCK.body);
+        expect(alert).toHaveTextContent(authBlockMessages.en.account_suspended.title);
+        expect(alert).toHaveTextContent(authBlockMessages.en.account_suspended.body);
         expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
     });
 
@@ -83,8 +83,8 @@ describe('AccountStateGate', () => {
         );
 
         const alert = screen.getByRole('alert');
-        expect(alert).toHaveTextContent(IMPERSONATION_BLOCK.title);
-        expect(alert).toHaveTextContent(IMPERSONATION_BLOCK.body);
+        expect(alert).toHaveTextContent(authBlockMessages.en.impersonation_blocked.title);
+        expect(alert).toHaveTextContent(authBlockMessages.en.impersonation_blocked.body);
         expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
     });
 });

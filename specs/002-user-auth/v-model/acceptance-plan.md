@@ -1176,11 +1176,11 @@ Non-functional, interface, and constraint requirements use the full ID prefix in
 | REQ-010    | User is authenticated                                         | After logout, API calls return `401`; no tokens in local storage                                       | Scenario-Based Testing     |
 | REQ-011    | User has logged out                                           | Previously issued refresh token rejected by IdP                                                        | Scenario-Based Testing     |
 | REQ-012    | User has logged out                                           | Web: redirected to IdP login; Mobile: IdP login screen shown                                           | Scenario-Based Testing     |
-| REQ-013    | New user completes IdP signup                                 | User record with UUIDv4 exists in Commise database                                                   | Scenario-Based Testing     |
+| REQ-013    | New user completes IdP signup                                 | User record with UUIDv4 exists in Commise database                                                     | Scenario-Based Testing     |
 | REQ-014    | New user completes IdP signup                                 | Account record associated with User exists in database                                                 | Scenario-Based Testing     |
-| REQ-015    | User has signed up and logged in                              | Decoded access token contains Commise UUIDv4 as custom claim                                         | Scenario-Based Testing     |
+| REQ-015    | User has signed up and logged in                              | Decoded access token contains Commise UUIDv4 as custom claim                                           | Scenario-Based Testing     |
 | REQ-016    | Database temporarily unavailable during signup                | User and Account records created after database recovers; no orphaned IdP user                         | Fault Injection            |
-| REQ-017    | IdP user exists without Commise records                     | Reconciliation creates missing records; `app_metadata` updated                                         | Scenario-Based Testing     |
+| REQ-017    | IdP user exists without Commise records                       | Reconciliation creates missing records; `app_metadata` updated                                         | Scenario-Based Testing     |
 | REQ-018    | User is authenticated                                         | Profile page displays display name, email, avatar, and creation date from database                     | Scenario-Based Testing     |
 | REQ-019    | User is on account edit page                                  | Display name and avatar fields are editable and changes are accepted                                   | Scenario-Based Testing     |
 | REQ-020    | User has saved profile edits                                  | Edits persist after logout and re-login                                                                | Scenario-Based Testing     |
@@ -1191,7 +1191,7 @@ Non-functional, interface, and constraint requirements use the full ID prefix in
 | REQ-025    | User with recipes/meal plans confirms deletion                | All user-owned records removed from database                                                           | Scenario-Based Testing     |
 | REQ-026    | Account deletion completed                                    | User logged out and returned to auth screen                                                            | Scenario-Based Testing     |
 | REQ-027    | IdP login screen displayed                                    | "Forgot Password" link initiates IdP reset flow; user receives reset email                             | Scenario-Based Testing     |
-| REQ-028    | User completes password reset                                 | No password data in any Commise API request or response                                              | Inspection                 |
+| REQ-028    | User completes password reset                                 | No password data in any Commise API request or response                                                | Inspection                 |
 | REQ-029    | User is on account settings page                              | MFA enrollment option visible and navigates to IdP MFA flow                                            | Scenario-Based Testing     |
 | REQ-030    | User initiates MFA enrollment                                 | TOTP enrollment completes; authenticator app generates valid codes                                     | Scenario-Based Testing     |
 | REQ-031    | User has enrolled in MFA                                      | IdP prompts for second factor on every subsequent login                                                | Scenario-Based Testing     |
@@ -1203,7 +1203,7 @@ Non-functional, interface, and constraint requirements use the full ID prefix in
 | REQ-037    | Support engineer is impersonating a user                      | Password change, account deletion, and MFA modification requests rejected                              | Equivalence Partitioning   |
 | REQ-038    | API endpoint exists                                           | Requests without token return `401`; requests with expired token return `401`                          | Equivalence Partitioning   |
 | REQ-039    | API Gateway authorizer deployed                               | Requests with wrong key or audience return `401`                                                       | Boundary Value Analysis    |
-| REQ-040    | User is authenticated and makes API request                   | Decoded token contains Commise UUIDv4 as custom claim                                                | Scenario-Based Testing     |
+| REQ-040    | User is authenticated and makes API request                   | Decoded token contains Commise UUIDv4 as custom claim                                                  | Scenario-Based Testing     |
 | REQ-041    | Admin triggers suspension via backend API                     | User blocked in IdP; User entity `status` = `suspended` in database                                    | Scenario-Based Testing     |
 | REQ-042    | User is suspended; holds valid access token                   | API Gateway returns `403 Forbidden`                                                                    | Scenario-Based Testing     |
 | REQ-043    | User account is suspended                                     | Login attempt shows suspension message (not generic error)                                             | Scenario-Based Testing     |
@@ -1215,10 +1215,10 @@ Non-functional, interface, and constraint requirements use the full ID prefix in
 | REQ-NF-014 | Auth flows executed across environments                       | CloudWatch custom metrics present for all flow types with correct dimensions                           | Scenario-Based Testing     |
 | REQ-NF-015 | Client-side token refresh failure triggered                   | Sentry event exists with breadcrumbs for preceding auth state transitions                              | Fault Injection            |
 | REQ-NF-016 | Authenticated API request made                                | Single trace spans client through API Gateway to backend in X-Ray / OTel                               | Scenario-Based Testing     |
-| REQ-IF-008 | New user completes IdP signup                                 | Commise backend receives call with `sub` and UUIDv4; records created                                 | Scenario-Based Testing     |
+| REQ-IF-008 | New user completes IdP signup                                 | Commise backend receives call with `sub` and UUIDv4; records created                                   | Scenario-Based Testing     |
 | REQ-IF-009 | JWT presented to API Gateway authorizer                       | Valid JWT returns Allow policy; invalid JWT returns Deny policy                                        | Interface Contract Testing |
 | REQ-IF-010 | IdP user list provided to reconciliation endpoint             | Missing records created; repair summary returned                                                       | Scenario-Based Testing     |
-| REQ-CN-002 | All Commise API endpoints and schemas reviewed              | No password fields, hashes, or password logic in any Commise component                               | Inspection                 |
+| REQ-CN-002 | All Commise API endpoints and schemas reviewed                | No password fields, hashes, or password logic in any Commise component                                 | Inspection                 |
 | REQ-CN-003 | Database schema and application logic reviewed                | IdP `sub` used only for IdP API calls; UUIDv4 used for all internal references                         | Inspection                 |
 
 ---
@@ -1254,7 +1254,7 @@ Non-functional, interface, and constraint requirements use the full ID prefix in
 | REQ-025     | 1                  | Scenario-Based Testing     | All user-owned data removed on deletion                            |
 | REQ-026     | 1                  | Scenario-Based Testing     | User returned to auth screen after deletion                        |
 | REQ-027     | 1                  | Scenario-Based Testing     | Password reset flow initiated; reset email received                |
-| REQ-028     | 1                  | Inspection                 | No password data in Commise API traffic                          |
+| REQ-028     | 1                  | Inspection                 | No password data in Commise API traffic                            |
 | REQ-029     | 1                  | Scenario-Based Testing     | MFA enrollment option present and functional                       |
 | REQ-030     | 1                  | Scenario-Based Testing     | TOTP enrollment completes; valid codes generated                   |
 | REQ-031     | 1                  | Scenario-Based Testing     | Second factor required on every login after enrollment             |
@@ -1281,7 +1281,7 @@ Non-functional, interface, and constraint requirements use the full ID prefix in
 | REQ-IF-008  | 1                  | Scenario-Based Testing     | Backend receives call with sub and UUIDv4; records created         |
 | REQ-IF-009  | 2                  | Interface Contract Testing | Valid JWT returns Allow; invalid JWT returns Deny                  |
 | REQ-IF-010  | 1                  | Scenario-Based Testing     | Missing records created; repair summary returned                   |
-| REQ-CN-002  | 1                  | Inspection                 | No password data in any Commise component                        |
+| REQ-CN-002  | 1                  | Inspection                 | No password data in any Commise component                          |
 | REQ-CN-003  | 1                  | Inspection                 | IdP sub used only for IdP calls; UUIDv4 used internally            |
 | **Total**   | **~70**            |                            |                                                                    |
 

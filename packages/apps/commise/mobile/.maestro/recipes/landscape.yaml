@@ -1,0 +1,330 @@
+appId: ${APP_ID}
+onFlowComplete:
+    # ⛔ ALWAYS back to portrait, pass or fail. The emulator is shared by every later flow on this shard, and each one
+    # was written for portrait geometry: a flow that died mid-rotation would otherwise fail every flow after it.
+    - setOrientation: PORTRAIT
+---
+# The core story in LANDSCAPE on a phone, TYPING included (WCAG 2.2 SC 1.3.4 Orientation;
+# `docs/design/compactHeightLayout.md` §13.2). `app.config.ts` no longer locks portrait, and Android 16 ignores an
+# orientation lock on large screens anyway. `setOrientation` arrived in Maestro 2.0.0; CI pins 2.6.1.
+#
+# The story, rotated: search the recipe list, open a recipe and come back, filter Discover by an ingredient typed into
+# the filter sheet, then the one-page editor: type a title, reach the ingredient picker, type into it and see its
+# results, survive a rotation, and discard.
+#
+# Every step types IN LANDSCAPE. Typing used to be done upright, because a sideways phone gave a text field Android's
+# full-screen editor and the screens' pinned chrome left the content no room with the keyboard up. Both are fixed: every
+# field goes through `@commise/ui/text-input` (`disableFullscreenUI`), the screen frames step aside for the keyboard,
+# and a pinned footer (the filter sheet's `Done`, the editor's action bar) scrolls with the content past half the frame.
+#
+# What this flow does NOT prove, so nobody reads it as proof:
+#   - That the full-screen editor is absent. Maestro reads the app's hierarchy, which may still report the app's nodes
+#     under that editor. The proof is the adapter's unit test, `textInputAdapterImports.test.ts`, and a device check.
+#   - The keyboard-dependent layouts themselves (the tab bar stepping aside, `Done` and the editor's bar unpinning).
+#     Whether the soft keyboard is up after `inputText` is not something this flow can rely on, so it asserts only
+#     what holds either way: each control is REACHABLE. The collapse and the unpin rules are proved by their component
+#     tests. `pressKey: Enter` closes the keyboard where one is up; it is never `hideKeyboard`, which Android can
+#     deliver as a BACK event (see `systemBackGuard.yaml`).
+#   - The modal windows' orientation. Android ignores React Native's `supportedOrientations`; it matters on iOS only,
+#     and no tier here runs iOS. `@commise/ui/modal`'s unit test covers the prop, and a device check is owed.
+#
+# Read-only: nothing is published, nothing is picked (the picker's results are read only), the filter is cleared, and
+# the draft is discarded, so it is order-independent and needs no reseed.
+- runFlow: ../auth/signin.yaml
+
+- setOrientation: LANDSCAPE_LEFT
+
+# The list settled, populated (the count label renders only in the populated branch; see listDetail.yaml).
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+
+# ── The list's search, typed sideways. In compact height the heading shares a row with the field. ──
+- tapOn: 'Search your recipes'
+- inputText: 'Lamb'
+- extendedWaitUntil:
+      visible:
+          text: '^1 recipe$'
+      timeout: 20000
+- pressKey: Enter
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+
+# List → detail → back, on the seeded recipe the search left.
+- tapOn: '${E2E_RECIPE_LAMB}'
+# Sideways, the photo and the stat strip fill the first screen (slice 6), so the description is below the fold.
+- scrollUntilVisible:
+      element: 'Herb-marinated grilled lamb.'
+      direction: DOWN
+      timeout: 20000
+# The amount and the name are one paragraph (`docs/design/readSurfacesEvaluation.md` D1), matched whole.
+- scrollUntilVisible:
+      element: '8 Lamb loin chops'
+      direction: DOWN
+      timeout: 20000
+# The detail's Back is named for where it goes ("Back to My recipes"), so it is unique: the system navigation bar
+# publishes a node named exactly `Back`, and in landscape it sits on a side edge (see maestroBackSelectorAnchoring.test.ts).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Back to My recipes'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn:
+      text: 'Back to My recipes'
+# Audit 2026-10-19, A1.15: the detail's Back is gone and the list is back. 'Recipes' was always on screen.
+- extendedWaitUntil:
+      notVisible: 'Back to My recipes'
+      timeout: 20000
+- assertVisible: 'My recipes'
+
+# Clear the search, so the list is whole again for the later flows' assumptions about this screen. "Clear search", not a
+# tap and `eraseText`, for `searchNavigation.yaml`'s reason. It moves no focus, so no keyboard opens and none is closed.
+- tapOn: 'Clear search'
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 20000
+
+# ── The filter sheet, typed into sideways: the "Show {n} recipes" button must stay reachable with the keyboard up. ──
+- tapOn: 'Discover'
+# Audit 2026-10-19, A1.15: 'Discover' is the tab label and is on screen everywhere. 'Search recipes' is Discover's own
+# search field and is on no other screen.
+- extendedWaitUntil:
+      visible: 'Search recipes'
+      timeout: 40000
+- tapOn: 'Filters.*'
+# Sideways, the sheet's content scrolls under its pinned "Show {n} recipes" button, and the ingredient field starts
+# BEHIND that button: on iOS its frame is [218,336][696,382] in a 874x402 window, the button's own frame, so XCUITest
+# calls it visible, `scrollUntilVisible` stops at once, and the tap on its centre lands on the button and closes the
+# sheet (measured on lane 2, 2026-10-19). Android drops what the button covers, so it scrolls. The field is therefore
+# brought to the middle of the sheet before anything is tapped. The field is named by its example text, as in
+# `common/typeIngredientFilter.yaml`; the centring is optional because it gives up at a page end.
+- scrollUntilVisible:
+      element: 'chicken'
+      direction: DOWN
+      centerElement: true
+      timeout: 20000
+      optional: true
+- runFlow:
+      file: common/typeIngredientFilter.yaml
+      env:
+          QUERY: '${E2E_PROBE_INGREDIENT}'
+# The result row is drawn behind the pinned "Show {n} recipes" button too (frame [173,342][701,386] against the button's
+# [336..382]), and `common/scrollIntoTapView.yaml` leaves an on-screen target where it is, so the tap would land on the
+# button and close the sheet. The row is waited for, then brought to the middle of the sheet, as the field was above.
+- extendedWaitUntil:
+      visible: 'Filter by ${E2E_PROBE_INGREDIENT}'
+      timeout: 40000
+- scrollUntilVisible:
+      element: 'Filter by ${E2E_PROBE_INGREDIENT}'
+      direction: DOWN
+      centerElement: true
+      timeout: 20000
+      optional: true
+- tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
+# ⛔ The ingredient field keeps the soft keyboard up, and sideways it covers everything below ~46% of the screen, which is
+# where `scrollUntilVisible` swipes (the screen's centre): the swipe lands on a key and moves nothing, and the unpinned
+# footer's button stays below the sheet's visible part (run 38996739152). So swipe INSIDE the sheet's visible band, above
+# the keyboard's edge and below the pinned title row and the field the sheet lifts to the top, as
+# `common/scrollOpenList.yaml` does for the open list.
+- repeat:
+      while:
+          notVisible: 'Show \d+ recipes?|Show recipes'
+      times: 10
+      commands:
+          - swipe:
+                start: '50%, 40%'
+                end: '50%, 22%'
+                duration: 500
+- assertVisible: 'Show \d+ recipes?|Show recipes'
+- tapOn: 'Show \d+ recipes?|Show recipes'
+- extendedWaitUntil:
+      visible: 'No recipes match these filters'
+      timeout: 40000
+
+# Clear the filter again, as searchNavigation.yaml does.
+- tapOn: 'Filters.*'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Remove ${E2E_PROBE_INGREDIENT}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Show \d+ recipes?|Show recipes'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Show \d+ recipes?|Show recipes'
+- assertNotVisible: 'No recipes match these filters'
+
+# ── The one-page editor, typed into sideways (REWRITTEN for slice 7: the wizard is retired). ── Back to the Recipes
+# tab, whose My recipes is its first segment.
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'New recipe'
+      timeout: 40000
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+
+# Sideways, the Title FIELD starts below the pinned bar while its label shows above it, so `tapOn: 'Title'` taps the
+# label, which focuses nothing, and the typed keys go to whatever control has focus (a Space presses it). The field is
+# reached by its placeholder, which names only the field, and is proved focused before anything is typed. iOS reports the
+# field's name as "Title e.g. Weeknight Pasta" (label and placeholder in one node, lane 2, 2026-10-19) and Maestro matches
+# the WHOLE text, so the placeholder is matched with a leading `.*`; Android reports the placeholder alone, which it also
+# matches.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '.*Weeknight Pasta'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '.*Weeknight Pasta'
+# Focus, per platform. Android reports which element has focus, so it is asserted directly. iOS reports no focus at all
+# (no element in an XCUITest hierarchy carries it; lane 2 dumps, 2026-10-19), so there the proof is that the keyboard is
+# up with the Title still on screen, which is the landscape defect this step guards. On both, the typing below lands in
+# the Title and the field is read back, which proves where the focus went.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '.*Weeknight Pasta'
+                focused: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                id: inputView
+          - assertVisible: '.*Weeknight Pasta'
+- inputText: 'Maestro Landscape Draft'
+# The FIELD's copy: the editor's header names the TASK ('New recipe'), never the recipe, so only the field holds it.
+- assertVisible:
+      text: 'Maestro Landscape Draft'
+# ⛔ Sideways the soft keyboard fills the screen, so the scroll below to the ingredient field swipes on the keyboard and
+# moves nothing (run 38988891871). The section heading closes it (`common/typeTitle.yaml` says why a heading).
+# Reaching the field scrolled the heading off the top, and only the Title label and field show above the keyboard, so
+# `common/closeEditorKeyboard.yaml`'s centred scroll would start on a key. The cook drags the strip that shows instead:
+# from the label down, the page scrolls back to the heading. Not a tap on the label: that focuses its field
+# (`labelFocus.native.ts`), and the keyboard stays.
+# On iOS the drag cannot stop on "visible": XCUITest calls the heading visible while it is still under the sticky
+# header, and the tap then lands on the header and the keyboard stays (lane 2, 2026-10-19). So iOS drags to the page's
+# top, where the heading sits clear below the header. Three drags of 24% cover more than the Title's distance from the
+# top, and a drag at the top moves nothing.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - repeat:
+                while:
+                    notVisible: 'About the recipe'
+                times: 4
+                commands:
+                    - swipe:
+                          start: 50%, 20%
+                          end: 50%, 44%
+                          duration: 500
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - repeat:
+                times: 3
+                commands:
+                    - swipe:
+                          start: 50%, 20%
+                          end: 50%, 44%
+                          duration: 500
+- tapOn: 'About the recipe'
+
+# The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,
+# never picked. 'Flou', a prefix of the run's probe food (`e2e-seed provision` authors `Flour`), so the cook's own
+# foods group renders, and a prefix so the field's own text never matches the option.
+# ⛔ A SLOW swipe (`speed: 10`), measured not guessed: the landscape page shows ~460 px of content between the pinned
+# header and the action bar, and the default swipe moves the field across that window between two visibility checks.
+# The run then stops on the section's end with the field on screen and the step red (seen on three of five runs, with
+# the field fully visible in the failure screenshot each time). The screen under test is unchanged: the editor is one
+# page with a section strip (owner decision D1/D2).
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      speed: 10
+      timeout: 40000
+# ⛔ On iOS the field counts as visible while the pinned action bar covers it: with the label at [94,298][780,315] and
+# the field at [95,341][624,389], the bar at [62,306][812,382] hides the field and the tap on the label lands on the bar's
+# edge, so nothing is focused, "Flou" goes nowhere, and the later swipes scroll the page to Photos (lane 2, 2026-10-19).
+# The label is brought to the middle of the page, which lifts the field clear of the bar; the label's tap focuses it.
+# Optional: it gives up at a page end, where nothing covers the field either.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      speed: 10
+      centerElement: true
+      timeout: 15000
+      optional: true
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Your foods'
+
+# The draft survives a rotation: the Title field, above on the same page, still holds what was typed.
+# ⛔ The Title TAKES FOCUS before the rotation back. Android keeps a focused field's caret on screen when its layout
+# changes, and a rotation changes every field's width: with the ingredient field still focused, the page went back
+# down to it, and the scroll up from there ran out of time below the Title (run 38447859313). Focused, the Title is the
+# field the page keeps in view.
+- setOrientation: PORTRAIT
+# On iOS the Title's node stays in the tree while the page is scrolled away from it, with bounds [0,0][0,0] and its text,
+# so XCUITest calls it visible, `scrollIntoTapView` does nothing, and the tap lands at the screen's corner and focuses
+# nothing (lane 2, 2026-10-19). The ingredient field still has the keyboard, so the page is dragged to its top in the
+# band above the keyboard, as for the heading above (more drags than the distance needs; a drag at the top moves
+# nothing). Android drops the node, so it scrolls to it.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - runFlow:
+                file: common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Maestro Landscape Draft'
+                    DIRECTION: UP
+                    TIMEOUT: 20000
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - repeat:
+                times: 6
+                commands:
+                    - swipe:
+                          start: 50%, 20%
+                          end: 50%, 44%
+                          duration: 500
+- tapOn: 'Maestro Landscape Draft'
+- setOrientation: LANDSCAPE_LEFT
+- scrollUntilVisible:
+      element: 'Maestro Landscape Draft'
+      direction: UP
+      timeout: 20000
+
+# Throw the draft away through the editor's own header menu: × or Back would keep it, because the editor saves on
+# exit (build spec §3.5). The menu is in the pinned header, so it is reachable wherever the page is scrolled.
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          # The title was typed through its placeholder above, so the draft reaches the server.
+          SETTLED: 'Saved'
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

@@ -1,0 +1,22 @@
+{
+    "name": "@kitchensink/retry-after",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/retryAfter.js",
+    "types": "./dist/retryAfter.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/retryAfter.d.ts",
+            "default": "./dist/retryAfter.js"
+        },
+        "./bearer-replay": {
+            "types": "./dist/bearerReplay.d.ts",
+            "default": "./dist/bearerReplay.js"
+        }
+    },
+    "dependencies": {},
+    "engines": {
+        "node": "24.x"
+    }
+}

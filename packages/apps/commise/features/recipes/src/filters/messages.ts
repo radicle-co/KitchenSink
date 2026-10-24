@@ -10,8 +10,34 @@ import type { LocalizedMessages } from '@commise/i18n';
 
 /** Shared copy for the recipe filter bar (FR-006), rendered by both the web and native bars. */
 export interface FilterMessages {
-    /** Accessible name for the whole filter bar (its outer group). */
-    readonly barLabel: string;
+    /** The panel's name, and the sheet's title. */
+    readonly panelLabel: string;
+    /** The applied-filter chips' group name. */
+    readonly appliedLabel: string;
+    /** The total-time choice that clears the bound. */
+    readonly anyTime: string;
+    /** The disclosure that holds the prep and cook ladders. */
+    readonly moreTimeLabel: string;
+    /** Opens a chip group past its cap (contains `{n}`: how many there are in all). */
+    readonly showAll: string;
+    /** Folds a group back to its cap. */
+    readonly showFewer: string;
+    /** An applied prep-time chip (contains `{minutes}`). */
+    readonly appliedPrep: string;
+    /** An applied cook-time chip (contains `{minutes}`). */
+    readonly appliedCook: string;
+    /** The accessible name of an applied chip's remove action (contains `{filter}`). */
+    readonly removeFilter: string;
+    /** The Filters button's visible text while filters are active (contains `{count}`). */
+    readonly filtersBadge: string;
+    /** Clears every filter. */
+    readonly clearAll: string;
+    /** The sheet's primary: the live count (contains `{count}`), singular. */
+    readonly showResultsOne: string;
+    /** The sheet's primary: the live count (contains `{count}`), plural. */
+    readonly showResultsOther: string;
+    /** The sheet's primary while no search has settled, so there is no count to state. */
+    readonly showResultsUnknown: string;
     /** Group label for the dietary-flag facet. */
     readonly dietaryLabel: string;
     /** Group label for the tag facet. */
@@ -30,7 +56,9 @@ export interface FilterMessages {
     readonly ingredientsLabel: string;
     /** Accessible name for the ingredient search box. */
     readonly ingredientSearchLabel: string;
-    /** Placeholder text for the ingredient search box. */
+    /** Accessible name of the ingredient search box's clear control. */
+    readonly ingredientSearchClear: string;
+    /** Placeholder text for the ingredient search box: an example, never a label. */
     readonly ingredientSearchPlaceholder: string;
     /** Loading status announced while an ingredient search is in flight. */
     readonly ingredientSearching: string;
@@ -50,25 +78,35 @@ export interface FilterMessages {
     readonly addIngredientFilter: string;
     /** Accessible-name template for a chip that removes a selected ingredient (contains `{name}`). */
     readonly removeIngredientFilter: string;
-    /** Singular chip-count template, folded into a chip's accessible name (contains `{count}`). */
-    readonly chipCountOne: string;
-    /** Plural chip-count template, folded into a chip's accessible name (contains `{count}`). */
-    readonly chipCountOther: string;
-    /** Singular clear-all template (contains `{count}`). */
-    readonly clearOne: string;
-    /** Plural clear-all template (contains `{count}`). */
-    readonly clearOther: string;
+    /**
+     * Shown in place of the ingredient search once the filter holds as many ingredients as one search allows
+     * (contains `{max}`). It says what to do, because the search box it replaces is gone.
+     */
+    readonly ingredientFilterFull: string;
     /** Visible label of the button that opens the filter bottom sheet (native, U7). */
     readonly filtersButton: string;
     /** Accessible-name template for the filters button while filters are active (contains `{count}`). */
     readonly filtersButtonActive: string;
-    /** Visible label of the action that closes the filter bottom sheet. */
-    readonly filtersDone: string;
+    /** Accessible name of the sheet's icon-only close control (house form "Close {thing}", §S8.1a). */
+    readonly filtersClose: string;
 }
 
 export const filterMessages: LocalizedMessages<FilterMessages> = {
     en: {
-        barLabel: 'Filter recipes',
+        panelLabel: 'Filters',
+        appliedLabel: 'Applied filters',
+        anyTime: 'Any',
+        moreTimeLabel: 'More time filters',
+        showAll: 'Show all ({n})',
+        showFewer: 'Show fewer',
+        appliedPrep: 'Prep: under {minutes} min',
+        appliedCook: 'Cook: under {minutes} min',
+        removeFilter: 'Remove {filter} filter',
+        filtersBadge: 'Filters · {count}',
+        clearAll: 'Clear all',
+        showResultsOne: 'Show {count} recipe',
+        showResultsOther: 'Show {count} recipes',
+        showResultsUnknown: 'Show recipes',
         dietaryLabel: 'Dietary',
         tagsLabel: 'Tags',
         cuisineLabel: 'Cuisine',
@@ -76,20 +114,18 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         maxCookTimeLabel: 'Cook time',
         maxTotalTimeLabel: 'Total time',
         timeBucket: 'Under {minutes} min',
-        chipCountOne: '{count} recipe',
-        chipCountOther: '{count} recipes',
-        clearOne: 'Clear {count} filter',
-        clearOther: 'Clear {count} filters',
         filtersButton: 'Filters',
         filtersButtonActive: 'Filters, {count} active',
-        filtersDone: 'Done',
-        ingredientsLabel: 'Ingredients',
-        ingredientSearchLabel: 'Search ingredients',
-        ingredientSearchPlaceholder: 'e.g. chicken',
+        filtersClose: 'Close filters',
+        ingredientsLabel: 'Has ingredient',
+        ingredientSearchLabel: 'Has ingredient',
+        ingredientSearchClear: 'Clear ingredient search',
+        ingredientSearchPlaceholder: 'chicken',
         ingredientSearching: 'Searching ingredients…',
         ingredientNoMatches: 'No matching ingredients',
         ingredientSearchError: 'We couldn’t search ingredients. Try again.',
         addIngredientFilter: 'Filter by {name}',
         removeIngredientFilter: 'Remove {name}',
+        ingredientFilterFull: 'You can filter by up to {max} ingredients. Remove one to add another.',
     },
 };

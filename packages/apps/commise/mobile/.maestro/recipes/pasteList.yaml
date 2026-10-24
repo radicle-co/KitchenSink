@@ -1,0 +1,73 @@
+appId: ${APP_ID}
+---
+# Paste a list in the editor's Ingredients section (build spec §7.5.4; blueprint A5; owner decision D10; UI overhaul
+# slice 8). Mobile mirror of the web Playwright `ingredientPasteList.spec.ts`. REPLACES `parseIngredients.yaml`: the
+# paste and review screens are retired, and the flow ends inside the recipe.
+#
+# What only this tier proves: on a device the pasted lines go to the parse job, each line is a row reading at once, and
+# the POLL advances them into the recipe while the app is foregrounded (the parse worker answers; nothing is tapped
+# between). The field's own system paste menu is the native paste (Settled 34), so the flow types the lines.
+#
+# It discards its draft, so it leaves the library as it found it. It needs the parse worker running (the local
+# runner starts `recipe-workers`).
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+
+# ⚠️ Paste FIRST: D10 offers paste only while the recipe has no server row, and the editor creates that row at the first
+# checkpoint after a title is typed. The empty section offers Paste a list beside its add field.
+# Jump there through the section index, so the button is on screen rather than swiped past.
+- tapOn:
+      text: 'Sections\. Current: .*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+# P4: Paste a list comes after the add field in reading order, and is under it on a phone: the field is on screen above it.
+- assertVisible: 'Add an ingredient'
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
+- tapOn: 'Ingredient lines'
+# Maestro's inputText drops a newline, so each line is typed and Enter starts the next (the field is multiline).
+- inputText: '2 cups flour'
+- pressKey: Enter
+- inputText: '1 tsp salt'
+- assertVisible: '2 lines'
+- tapOn: 'Add 2 ingredients'
+
+# The sheet closes once the job is accepted, and the one progress block says where the paste is (plan 2026-10-15-011).
+- extendedWaitUntil:
+      notVisible: 'Ingredient lines'
+      timeout: 30000
+- extendedWaitUntil:
+      visible:
+          text: 'Added [0-2] of 2 lines.*'
+      timeout: 30000
+# ⛔ REWRITTEN for owner ruling 2026-10-13 ("it takes as long as it takes"): there is no client stall bound any more, so
+# the lines join only when the parse worker answers. A stage whose worker cannot is the hand-run
+# `pasteListStalled.yaml`'s subject. The poll advances the rows on its own: nothing is tapped between.
+- extendedWaitUntil:
+      visible:
+          text: 'Edit 2 .*[Ff]lour.*'
+      timeout: 240000
+      label: 'both pasted lines joined the recipe once the parse job answered'
+- assertNotVisible:
+      text: 'Added [0-2] of 2 lines.*'
+# Both lines read as rows (build spec §7.5.1), each with the amount the cook pasted.
+- assertVisible:
+      text: 'Edit 2 .*[Ff]lour.*'
+- assertVisible:
+      text: 'Edit 1 .*[Ss]alt.*'
+
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          # No title was typed, so the draft never leaves the device (a server write needs one).
+          SETTLED: 'Saved on this device'

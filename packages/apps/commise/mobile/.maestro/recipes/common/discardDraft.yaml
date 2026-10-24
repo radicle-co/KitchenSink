@@ -1,0 +1,46 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: throw away the never-published recipe the editor holds, so a flow leaves no scratch draft behind.
+# Called with `runFlow: common/discardDraft.yaml` from a flow standing in the one-page editor on a recipe it typed into.
+#
+# REPLACES `common/raiseDiscardGuard.yaml` (slice 7). The editor has no discard guard any more: ×, system Back and the
+# swipe leave at once and save (build spec §3.5, §7.3), so leaving no longer throws the work away. Discarding is a
+# deliberate act in the header's menu, and it goes through controls both platforms render — so a flow calling this
+# needs no Android back key, and is not excluded on iOS for it.
+#
+# The menu item exists once the draft holds anything (`editorChrome.ts` `discardOf`), which every caller has typed.
+# It ENDS on the editor being gone, so a caller that has to assert where it landed does so after the runFlow.
+# iOS shows its one-time "slide to type" keyboard intro over the editor when a field takes focus, and it covers the
+# menu (CI run 39333403320, iOS shard 1, ingredientGroups). Dismiss it if it is there.
+- runFlow: dismissKeyboardIntro.yaml
+# ⛔ DISCARD ONLY ONCE NOTHING CAN GO ON THE WIRE. Owner ruling 2026-10-17, "Don't allow users to delete while saving":
+# while a write of the recipe is on the wire, the menu item AND the confirm's Discard are disabled (`editorChrome.ts`
+# `writeInFlight`). A wait on the menu item alone does not cover the confirm: the ten-second idle checkpoint, or the
+# blur of the field the menu tap takes focus from, can put the create on the wire between the two taps, and a tap on
+# the confirm's disabled Discard does nothing. That is the likely cause of local run 9's createAuthoredFood failure
+# (2026-10-22): the confirm was still open 17 s after the tap, with its Discard enabled again by then. The header reading 'Saved' means the server holds the current draft, so no checkpoint has anything to
+# send and nothing can start a write until the cook types again. A caller whose writes cannot reach the server (offline)
+# names the state its own header settles in as SETTLED. No `^…$`: Maestro already matches the whole text, and a `$` in an
+# interpolated value is mangled, so the wait never matched (local repro, 2026-10-22).
+- extendedWaitUntil:
+      visible:
+          text: "${typeof SETTLED === 'undefined' ? 'Saved' : SETTLED}"
+      timeout: 30000
+- tapOn: 'More editor actions'
+- extendedWaitUntil:
+      visible:
+          text: 'Discard draft'
+          enabled: true
+      timeout: 30000
+- tapOn: 'Discard draft'
+- assertVisible: 'Discard this draft?'
+- tapOn: 'Discard'
+# The proof that the draft is gone, in this order. The confirm first: on Android an open dialog is a window of its own
+# and the editor under it is not in the hierarchy at all, so 'Close editor' reads as gone while the confirm still stands
+# (the same run). The confirm stays open, busy, while a Discard waits on the outbox, so its closing is the outcome.
+- extendedWaitUntil:
+      notVisible: 'Discard this draft?'
+      timeout: 20000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000

@@ -1,0 +1,118 @@
+appId: ${APP_ID}
+---
+# Recent searches on the discovery keyword field (U7). Proves on device what only the device can:
+#   1. a search that actually RAN is remembered (recorded from the debounced query, not per keystroke);
+#   2. the history appears only in the IDLE state — keyword field focused, query blank;
+#   3. tapping an entry re-runs that search (the results come back);
+#   4. "Clear" forgets the history, and the panel disappears.
+# `AsyncStorage` persistence across an app restart is exercised by step 4 (stopApp + relaunch).
+# Read-only with respect to recipe data: it types, clears, and clears history, mutating no recipe. Anchored
+# on the seeded public row "Herb Risotto" that no other flow renames.
+- runFlow: ../auth/signin.yaml
+
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
+- tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
+- extendedWaitUntil:
+      visible: 'Search recipes'
+      timeout: 40000
+
+# Start from a clean history: if an earlier run left entries, forget them so step 1 is meaningful.
+- tapOn: 'Search recipes'
+- runFlow:
+      when:
+          visible: 'Recent searches'
+      commands:
+          - tapOn: 'Clear recent searches'
+- assertNotVisible: 'Recent searches'
+
+# 1. Run a real search — the rails give way to the result list once the debounced query settles.
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
+      timeout: 40000
+
+# 2. Back to the idle state: clearing the field reveals the search that ran.
+- scrollUntilVisible:
+      element: 'Search recipes'
+      direction: UP
+      timeout: 20000
+# The field's own clear control, not a tap and `eraseText`: the tap puts the caret where it lands, which is mid-way
+# through a query as long as `Risotto ${E2E_RUN_KEY}`, and `eraseText` deletes only what is before the caret (emulator,
+# 2026-10-18: the field kept "03-e94064a4"). The tap after it focuses the empty field.
+- tapOn: 'Clear search'
+- tapOn: 'Search recipes'
+- extendedWaitUntil:
+      visible: 'Recent searches'
+      timeout: 40000
+# The entry's button by its accessible name, not the bare words: iOS exposes the row as ONE button named
+# 'Search for “…”', so no node reads only the query (full local iOS shard 3, 2026-10-18; CI run 39165813897).
+- assertVisible: 'Search for “Risotto ${E2E_RUN_KEY}”'
+
+# 3. Tapping the entry re-runs it: the result list returns.
+- tapOn: 'Search for “Risotto ${E2E_RUN_KEY}”'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
+      timeout: 40000
+
+# 4. It survives an app restart (AsyncStorage, not in-memory state). `signin.yaml` relaunches the app itself
+# and is idempotent about an already-persisted session, so it is the whole restart step.
+- stopApp
+- runFlow: ../auth/signin.yaml
+- tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
+- extendedWaitUntil:
+      visible: 'Search recipes'
+      timeout: 40000
+- tapOn: 'Search recipes'
+- extendedWaitUntil:
+      visible: 'Recent searches'
+      timeout: 40000
+# The entry's button by its accessible name, not the bare words: iOS exposes the row as ONE button named
+# 'Search for “…”', so no node reads only the query (full local iOS shard 3, 2026-10-18; CI run 39165813897).
+- assertVisible: 'Search for “Risotto ${E2E_RUN_KEY}”'
+
+# 5. Clear forgets everything — the panel goes away, and the rails are still there behind it.
+- tapOn: 'Clear recent searches'
+- assertNotVisible: 'Recent searches'
+- assertVisible: 'Trending'
+
+# 6. Sign-out ends the history. Run a search again so there is something to forget, return to the idle state to see it,
+# then leave through the app's own sign-out (`signOutIfSignedIn.yaml` taps the Profile page's `Sign out`, the verified
+# command of ADR-0009) and come back as the same cook: the history must be gone.
+- runFlow:
+      file: common/searchDiscover.yaml
+      env:
+          QUERY: 'Risotto ${E2E_RUN_KEY}'
+- scrollUntilVisible:
+      element: 'Search recipes'
+      direction: UP
+      timeout: 20000
+# The field's own clear control, not a tap and `eraseText`: the tap puts the caret where it lands, which is mid-way
+# through a query as long as `Risotto ${E2E_RUN_KEY}`, and `eraseText` deletes only what is before the caret (emulator,
+# 2026-10-18: the field kept "03-e94064a4"). The tap after it focuses the empty field.
+- tapOn: 'Clear search'
+- tapOn: 'Search recipes'
+- extendedWaitUntil:
+      visible: 'Recent searches'
+      timeout: 40000
+# A fresh start first, so the sign-out begins on Home with no keyboard up: `signOutIfSignedIn.yaml` only brings the app to
+# the front.
+- launchApp:
+      permissions: {}
+- runFlow: ../auth/signOutIfSignedIn.yaml
+- runFlow: ../auth/signin.yaml
+- tapOn: 'Discover'
+# audit 2026-10-19, A1.15: the tab's own label 'Discover' is on screen before the tap, so waiting on it proves nothing; 'Search recipes' exists only on the Discover screen.
+- extendedWaitUntil:
+      visible: 'Search recipes'
+      timeout: 40000
+- tapOn: 'Search recipes'
+- assertNotVisible: 'Recent searches'
+- assertNotVisible: 'Search for “Risotto ${E2E_RUN_KEY}”'

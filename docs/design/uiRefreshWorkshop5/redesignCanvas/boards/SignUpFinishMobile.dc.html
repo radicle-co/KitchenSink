@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign up, finish creating your account (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: captions are dashed-edge notes at 13 (spec, Patterns). */
+            .cap {
+                margin: 0 16px !important;
+                padding: 10px 12px !important;
+                border: 1px dashed var(--line-control);
+                border-radius: 12px;
+                font: 500 13px/1.35 var(--font-body) !important;
+                color: var(--ink-muted);
+            }
+            .wm {
+                font-family: var(--font-display);
+                font-weight: 600;
+                font-size: 17px;
+                line-height: 1.3;
+                letter-spacing: -0.012em;
+                color: var(--ink);
+            }
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .sr-only {
+                font-size: 13px !important;
+            }
+            /* Sidebar: the active item is --surface-muted with a steel icon, no bar (spec, Patterns). */
+            a[aria-current='page'] {
+                background: var(--surface-muted) !important;
+                color: var(--ink) !important;
+            }
+            a[aria-current='page'] > span[aria-hidden='true'] {
+                display: none !important;
+            }
+            a[aria-current='page'] svg {
+                color: var(--action-text);
+            }
+            body {
+                font-size: 15px;
+            }
+            [class~='r-14yzgew'] {
+                font-size: 15px !important;
+            } /* rating star glyphs */
+            script {
+                display: none;
+            }
+            /* Phone and tablet: the sign-in and sign-up form sits in one centred card (max 400) on the canvas. */
+            main.wash {
+                width: min(400px, calc(100% - 32px)) !important;
+                min-height: 0 !important;
+                margin: 24px auto !important;
+                padding: 24px !important;
+                border-radius: var(--radius-lg);
+                background: var(--paper) !important;
+                background-image: none !important;
+                box-shadow: var(--shadow-md);
+            }
+            .crop {
+                width: min(400px, calc(100% - 32px)) !important;
+                margin: 0 auto;
+                padding: 24px !important;
+                border: 0 !important;
+                border-radius: var(--radius-lg);
+                background: var(--paper) !important;
+                background-image: none !important;
+                box-shadow: var(--shadow-md);
+            }
+            h1 {
+                font-size: 28px !important;
+                letter-spacing: -0.02em;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .wash {
+                        width: 390px;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .crop {
+                        width: 390px;
+                        padding: 16px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fields {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 12px 0;
+                    }
+                    .err {
+                        margin: 0;
+                        font-size: 15px;
+                        line-height: 1.4;
+                        color: var(--danger-text);
+                    }
+                    .status {
+                        margin: 0;
+                        font-size: 15px;
+                        line-height: 1.4;
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        After Google or Apple: only the fields the provider did not supply. Never an email or a
+                        password. Apple may give a relay address.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 640px; padding: 71px 20px 58px">
+                            <header style="display: flex; flex-direction: column; gap: 8px">
+                                <span
+                                    style="
+                                        font-family: var(--font-display);
+                                        font-size: 17px;
+                                        font-weight: 600;
+                                        line-height: 1.25;
+                                        color: var(--ink);
+                                    "
+                                    >Commise</span
+                                >
+                                <h1
+                                    style="
+                                        margin: 0;
+                                        font-family: var(--font-display);
+                                        font-size: 28px;
+                                        font-weight: 600;
+                                        line-height: 1.15;
+                                        color: var(--ink);
+                                    "
+                                >
+                                    Finish creating your account
+                                </h1>
+                                <span style="font-size: 17px; line-height: 1.5; color: var(--ink-muted)"
+                                    >Your recipes, in one place.</span
+                                >
+                            </header>
+                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-muted)">
+                                    We need these to set up your account.
+                                </p>
+                                <p style="margin: 0; font-size: 15px; line-height: 1.4; color: var(--ink-muted)">
+                                    Signing up as k7t2m9x4q@privaterelay.appleid.com
+                                </p>
+                            </div>
+                            <div class="fields">
+                                <div class="fld">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="cs-first"
+                                        label="First name"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Input"
+                                        id="cs-first"
+                                        label="First name"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        auto-complete="given-name"
+                                    ></x-import>
+                                </div>
+                                <div class="fld">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="cs-last"
+                                        label="Last name"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Input"
+                                        id="cs-last"
+                                        label="Last name"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        auto-complete="family-name"
+                                    ></x-import>
+                                </div>
+                                <div class="fld">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="cs-user"
+                                        label="Username"
+                                        hint="Your public name on recipes you publish."
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Input"
+                                        id="cs-user"
+                                        label="Username"
+                                        value=""
+                                        on-change-text="{{noop}}"
+                                        hint="Your public name on recipes you publish."
+                                        auto-complete="username"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <div class="foot">
+                                <span style="min-height: 20px" aria-live="assertive"></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    size="lg"
+                                    width="fill"
+                                    icon="userPlus"
+                                    on-press="{{noop}}"
+                                    >Create account</x-import
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-start">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="ghost"
+                                    icon="rotateCcw"
+                                    on-press="{{noop}}"
+                                    >Start over</x-import
+                                >
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Create account with fields left empty: each message sits under its field.</p>
+                    <div class="crop">
+                        <div class="fields">
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="ce-first"
+                                    label="First name"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="ce-first"
+                                    label="First name"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    error="Enter your first name."
+                                    auto-complete="given-name"
+                                ></x-import>
+                                <p class="err">Enter your first name.</p>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="ce-last"
+                                    label="Last name"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="ce-last"
+                                    label="Last name"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    error="Enter your last name."
+                                    auto-complete="family-name"
+                                ></x-import>
+                                <p class="err">Enter your last name.</p>
+                            </div>
+                            <div class="fld">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.FieldLabel"
+                                    for-id="ce-user"
+                                    label="Username"
+                                    hint="Your public name on recipes you publish."
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Input"
+                                    id="ce-user"
+                                    label="Username"
+                                    value=""
+                                    on-change-text="{{noop}}"
+                                    error="Choose a username."
+                                    hint="Your public name on recipes you publish."
+                                    auto-complete="username"
+                                ></x-import>
+                                <p class="err">Choose a username.</p>
+                            </div>
+                        </div>
+                        <div class="foot">
+                            <span style="min-height: 20px" aria-live="assertive"></span
+                            ><x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                size="lg"
+                                width="fill"
+                                icon="userPlus"
+                                on-press="{{noop}}"
+                                >Create account</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, yes: true, no: false }; } }
+        </script>
+    </body>
+</html>

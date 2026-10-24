@@ -1,13 +1,13 @@
 /**
  * U6 orchestrator — prove the USDA rate-limit stall→resume UNDER LOAD. Requires a persistent pool
  * (`npm run provision:pool`) and a preview deployed with a LOW cap + SHORT window (CDK context
- * `foodSourceRateLimitPerHour` / `foodSourceWindowSeconds`).
+ * `foodSourceLimitOverrides`, e.g. `{"usda":{"requests":15,"windowSeconds":60}}`).
  *
  *   start server-side collector  ->  fire the k6 burst (ratelimit.js floods unique cache-missing adds)
  *   ->  keep sampling admin /metrics (sources[usda].paused/utilization) + /queue depth across the window
  *   ->  verdict: STALL seen (worker paused at the cap, queue backed up) THEN RESUME (paused clears, drains).
  *
- * Env: CLERK_SECRET_KEY, FOOD_BASE_URL, WINDOW_SECONDS (the preview's FOOD_SOURCE_WINDOW_SECONDS, to size
+ * Env: CLERK_SECRET_KEY, FOOD_BASE_URL, WINDOW_SECONDS (the override's `windowSeconds`, to size
  *   the observation), BURST_COUNT/BURST_RATE, RATELIMIT_DURATION_S (override), OUT_DIR, COLLECT_INTERVAL_S.
  * @sideEffect Adds foods (persist in the per-PR DB); runs k6 + polls admin; writes server-metrics.json.
  */
@@ -44,7 +44,7 @@ function run(cmd, args, opts = {}) {
 }
 
 console.log(`[1/3] Collector: sampling admin /metrics + /queue for ~${DURATION_S}s (every ${COLLECT_INTERVAL_S}s)…`);
-const collector = spawn('node', ['observe/collect-metrics.mjs'], {
+const collector = spawn('node', ['observe/collectMetrics.mjs'], {
     stdio: 'inherit',
     cwd: HERE,
     env: {
@@ -77,7 +77,7 @@ await collectorDone;
 const series = existsSync(SERVER_FILE) ? JSON.parse(readFileSync(SERVER_FILE, 'utf8')) : [];
 const usda = (sample) => (sample?.metrics?.sources ?? []).find((s) => s.source === 'usda');
 const rows = series.map((s) => ({
-    t: s.ts, // collect-metrics.mjs writes the sample timestamp as `ts`
+    t: s.ts, // collectMetrics.mjs writes the sample timestamp as `ts`
     paused: usda(s)?.paused ?? null,
     util: usda(s)?.utilization ?? null,
     windowCount: usda(s)?.windowCount ?? null,
@@ -109,9 +109,13 @@ console.log(`  RESUME observed (paused cleared after):  ${sawResume ? '✅ yes' 
 if (sawStall && sawResume) {
     console.log('\n✅ Rate-limit stall→resume held under load.');
 } else if (!sawStall) {
-    console.log('\n⚠️ No stall seen — is the preview deployed with a LOW cap (foodSourceRateLimitPerHour)? Was the burst big enough (BURST_COUNT > cap)?');
+    console.log(
+        '\n⚠️ No stall seen — is the preview deployed with a LOW cap (foodSourceLimitOverrides)? Was the burst big enough (BURST_COUNT > cap)?',
+    );
     process.exitCode = 1;
 } else {
-    console.log('\n⚠️ Stalled but no resume within the window — is FOOD_SOURCE_WINDOW_SECONDS short enough for the observation, and RATELIMIT_DURATION_S long enough to see it clear?');
+    console.log(
+        '\n⚠️ Stalled but no resume within the window — is the override windowSeconds short enough for the observation, and RATELIMIT_DURATION_S long enough to see it clear?',
+    );
     process.exitCode = 1;
 }

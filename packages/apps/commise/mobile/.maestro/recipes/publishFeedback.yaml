@@ -1,0 +1,83 @@
+appId: ${APP_ID}
+---
+# E8 (UI walk 2026-10-13; build spec §7.8): the editor says how it finished. "Recipe published." over the recipe after a
+# publish, "Changes saved." over the recipe after Save changes. The snackbar host sits above the stack, so the message
+# survives the editor leaving. ("Add to a collection" waits for the chooser sheet, §6.4.)
+#
+# Every flow is reseeded before it runs, so the recipe this publishes does not outlive it.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Feedback Soup'
+
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
+# One ingredient declared as written (no food service needed) and one step: the least a recipe needs to publish.
+- runFlow: common/addTomatoAndStep.yaml
+
+- tapOn:
+      text: 'Publish'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Feedback Soup.*'
+      timeout: 40000
+
+# A published recipe's primary is Save changes.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+# ⚠️ A tap on a filled field puts the caret where the finger landed, not at the end (run 38973223138 read "Maestro
+# Feedback Sou twop"), and eraseText deletes only before the caret, so a plain erase-and-retype could still leave a tail
+# (CI run 39438589869, Android shard 1). The shared step clears the whole field and reads the new title back.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Title'
+          TEXT: 'Maestro Feedback Soup two'
+# Closes the keyboard before Save changes, for `common/typeTitle.yaml`'s reason.
+- tapOn: 'About the recipe'
+- tapOn:
+      text: 'Save changes'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+# Audit 2026-10-19, A1.14: 'Changes saved.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Changes saved.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Feedback Soup.*'
+      timeout: 40000

@@ -1,0 +1,36 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: assert the recipe list's view switch shows `VIEW` ('Grid view' or 'List view') as the chosen one.
+#
+# ⚠️ The two platforms publish the radio state differently. Android sets the node's `checked`. The iOS node is named by
+# its label and carries the state as its VALUE text, `radio button, checked` / `radio button, unchecked`, with
+# `checked` always false (CI run 39062953201: after tapping `Grid view` the iOS node read `value=radio button, unchecked`
+# to Maestro's `checked: true` filter, though the screenshot showed Grid chosen). `rating.yaml` reads the same iOS value
+# text. On iOS the checked value is therefore asserted by its position beside the named sibling: Grid is the right-hand
+# switch, List the left-hand one.
+# Audit 2026-10-19, A1.13: a view name that is neither switch would match nothing on iOS and could pass on Android's
+# `checked` filter against any element of that name, so refuse it outright.
+- assertTrue: ${VIEW == 'Grid view' || VIEW == 'List view'}
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: ${VIEW}
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+          true: ${VIEW == 'Grid view'}
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                rightOf: 'List view'
+- runFlow:
+      when:
+          platform: iOS
+          true: ${VIEW == 'List view'}
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                leftOf: 'Grid view'

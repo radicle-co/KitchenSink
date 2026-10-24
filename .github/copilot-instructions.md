@@ -31,6 +31,7 @@ npm run test --workspace=packages/<name>
 Each package may use a different test runner — check the package's own `package.json` for the exact scripts and how to run a single test file.
 
 Shared packages are referenced as workspace dependencies:
+
 ```json
 "@kitchensink/<name>": "*"
 ```

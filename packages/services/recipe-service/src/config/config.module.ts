@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { apiConfigSchema } from './config.types.js';
-import { localEnvFilePaths } from './env-files.js';
-import { loadConfig } from './load-config.js';
+import { localEnvFilePaths } from './envFiles.js';
+import { loadConfig } from './loadConfig.js';
 
 /**
  * Global config module: validates `process.env` against {@link apiConfigSchema} at boot (via

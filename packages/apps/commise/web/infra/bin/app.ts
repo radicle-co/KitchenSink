@@ -1,12 +1,64 @@
-import { App } from 'aws-cdk-lib';
+import { App, Tags } from 'aws-cdk-lib';
+
+import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+import { kitchenSinkAppProps, resolveStage } from '@kitchensink/cdk-bootstrap/appProps';
+import { TIER_TAG_KEY, tierTagValueForStage } from '@kitchensink/cdk-bootstrap/qualifiers';
 
 import { SandboxRouterStack } from '../lib/SandboxRouterStack.js';
 
-const app = new App();
+// ⛔ The stage is read BEFORE the App exists: it selects the bootstrap qualifier and the permissions boundary
+// this whole app synthesizes with (the bootstrap-qualifier ADR). `kitchenSinkAppProps` is the only place a
+// qualifier is chosen; an app that built its own `App` would deploy through the account's DEFAULT bootstrap,
+// whose execution role is another application's `AdministratorAccess`. `cdkQualifierCoverage.test.ts` fails it.
+const stage = resolveStage(process.env) ?? 'sandbox';
+const app = new App(kitchenSinkAppProps(stage));
+// ADR-0065: the CloudFormation execution role authorizes every modify and delete by THIS tag, because
+// CloudFormation's own stack-name tag is missing from ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+// queues. The value follows the stage exactly as the bootstrap qualifier does. `tierTagCoverage.test.ts` holds it.
+Tags.of(app).add(TIER_TAG_KEY, tierTagValueForStage(stage));
 
-const stage = (app.node.tryGetContext('stage') as string | undefined) ?? process.env['STAGE'] ?? 'sandbox';
+// U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
+// annotation-only so the synthesized template is unchanged. See @radicle-co/infra-shared/security.
+attachSecurityChecks(app);
+// The COMMIT this deploy was built from, recorded as a CloudFormation STACK tag so
+// `scripts/deploymentDrift.mjs` can answer "is what is running the code we think it is?". A stack
+// tag, never `Tags.of(app)`: the aspect form would rewrite every taggable resource on every commit,
+// breaching the ADR-0002/ADR-0008 no-prod-diff line for a fact about the BUILD rather than about any
+// resource. See @radicle-co/infra-shared/security.
+stampCommitProvenance(app);
+
 const domainName = process.env['DOMAIN_NAME'];
 const account = process.env['CDK_DEFAULT_ACCOUNT'];
+
+// ADR-0005's PRIMARY teardown signal, and the one thing this app — alone among the repository's eight CDK
+// apps — used to state nowhere. `teardownSandboxPr.sh` claims a closed PR's resources with NO denylist,
+// by a `pr-{N}` NAME or by this TAG: §2 reads it per stack out of `describe-stacks`, §3 sweeps
+// `resourcegroupstaggingapi` for anything tagged with one of this PR's values that no stack owned. An untagged app
+// is invisible to both halves.
+//
+// `sandbox-router-deploy.yml` is the only deployer and pins `STAGE: sandbox`, so every real deploy stamps
+// the persistent tier word `sandbox` — correct, because this is a PERSISTENT SINGLETON: its out-of-band
+// deletion once left sandbox.commise.app NXDOMAIN and every web preview broken for ~3 weeks, which is
+// precisely what a PR-close sweep must never be able to do. The value is nonetheless DERIVED from the stage,
+// exactly as the four per-PR-capable services derive theirs, because the stage is a parameter and the two
+// errors are not symmetric: a hardcoded tier word on a per-PR deploy would make that stack IMMORTAL, and the
+// name rule could not reclaim it either — `kitchensink-sandbox-router-pr-{N}` does not START with `pr-{N}`,
+// so `pr_scope_belongs` (a prefix rule) misses it and the tag is the only signal left.
+//
+// ⚠️ The preview value `pr-{N}-sandbox` CONTAINS the persistent value this app normally emits, which the
+// previous `pr-{N}` / `global` pair did not. That collision is answered in `prScope.sh`: every matcher is
+// keyed on a token, a token always carries digits, and `sandbox` carries none — so no PR can reach it.
+//
+// ⚠️ `Tags.of(app)`, unlike the commit stamp below it — and that is not a contradiction. The prohibition
+// there is about VOLATILITY: `CommitSha` changes every commit, so the aspect form would rewrite every
+// taggable resource on every deploy and breach the ADR-0002/ADR-0008 no-prod-diff line for a fact about the
+// build. `Environment` is invariant for a given stack (it can only move when the stage does, which is a
+// different stack), this app synthesizes no prod stack at all, and the aspect form is REQUIRED rather than
+// merely tolerated: a stack-only tag would leave the resources themselves invisible to §3's tag sweep.
+Tags.of(app).add(
+    'Environment',
+    stage.startsWith('pr-') ? `${stage}-sandbox` : stage === 'prod' ? 'production' : 'sandbox',
+);
 
 if (!domainName) {
     throw new Error('DOMAIN_NAME is required to synth the sandbox router stack');

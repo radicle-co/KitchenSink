@@ -15,17 +15,32 @@
  * ESM graph — this suite mocks `@clerk/expo` + the platform hooks so it stays isolated, and it is
  * CI-verified regardless. The shared dialog's behaviour is additionally covered locally by
  * `@commise/features-account`'s own native tests.
+ *
+ * The two erasure calls are doubled with REAL `useMutation`s over controllable functions, not `mutate` stubs that
+ * fire `onSuccess` by hand: the defect pinned here (review P1 #3) is that TanStack drops observer callbacks after
+ * unmount, and a hand-fired stub cannot drop anything.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
 
-import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
-import { palette } from '@commise/ui';
+import { GoneError } from '@kitchensink/recipe-service-client';
+import { useAllOwnerRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { ClosureStepError, type ClosureStep } from '@commise/features-account';
 import { accountDangerMessages } from '@commise/features-account/danger';
+import { profileMessages } from '@commise/features-account/profile';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
-import { mobileMessages } from '../../src/i18n/messages.js';
-import { useDeleteAccount } from '../../src/hooks/useUserProfile.js';
+import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
+
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
 
 const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
 vi.mock('@clerk/expo', () => ({
@@ -36,19 +51,39 @@ vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({
     useSignOutAndVerify: () => ({ signOutAndVerify }),
 }));
 
+/** The recipe-side erasure call, and the ACCOUNT-level one (plan U2) — separate calls, both needed. */
+const { erasureFn, accountEraseFn } = vi.hoisted(() => ({ erasureFn: vi.fn(), accountEraseFn: vi.fn() }));
+
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useAllOwnerRecipes: vi.fn(),
-    useRequestAccountErasure: vi.fn(),
+    useRequestAccountErasure: () => useMutation({ mutationFn: (request: unknown) => erasureFn(request) }),
 }));
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({ useDeleteAccount: vi.fn() }));
+// `useEraseAccount` is the ACCOUNT-level erasure (plan U2) — a different call from the recipe-side
+// `useRequestAccountErasure` above, and the one that makes an erasure reach identity, Clerk and food.
+// Its default double ACCEPTS, so the tests below exercise the exit path they are about.
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({ useDeleteAccount: vi.fn() }));
+// The shared `useEraseAccount` runs for real; only the platform-bound identity client behind it is doubled.
+vi.mock('../../src/hooks/useProfileServiceClient.js', () => ({
+    useProfileServiceClient: () => ({ eraseMe: () => accountEraseFn() }),
+}));
 
 const useRecipesMock = vi.mocked(useAllOwnerRecipes);
-const useRequestAccountErasureMock = vi.mocked(useRequestAccountErasure);
 const useDeleteAccountMock = vi.mocked(useDeleteAccount);
 
 const deleteMutate = vi.fn();
-const erasureMutate = vi.fn();
+
+/** Render with a real `QueryClient`, which the erasure sequence's mutation needs. */
+function renderZone(): ReturnType<typeof render> {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = ({ children }: { readonly children: ReactElement }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    return render(<AccountDangerZone />, { wrapper: wrapper as never });
+}
 
 const makeRecipe = (
     id: string,
@@ -66,105 +101,169 @@ function setRecipes(data: unknown[], state: { isLoading?: boolean; isError?: boo
     } as unknown as ReturnType<typeof useAllOwnerRecipes>);
 }
 
-function setErasure(state: { isPending?: boolean; isError?: boolean } = {}): void {
-    useRequestAccountErasureMock.mockReturnValue({
-        mutate: erasureMutate,
-        isPending: state.isPending ?? false,
-        isError: state.isError ?? false,
-    } as unknown as ReturnType<typeof useRequestAccountErasure>);
-}
-
 const { close, erase } = accountDangerMessages.en;
-const { account } = mobileMessages.en;
 
-function setDeleteAccount(state: { isPending?: boolean; isError?: boolean } = {}): void {
+function setDeleteAccount(state: { isPending?: boolean; failedAt?: ClosureStep } = {}): void {
     useDeleteAccountMock.mockReturnValue({
         mutate: deleteMutate,
         isPending: state.isPending ?? false,
-        isError: state.isError ?? false,
+        error: state.failedAt === undefined ? null : new ClosureStepError(state.failedAt, new Error('boom')),
     } as unknown as ReturnType<typeof useDeleteAccount>);
 }
 
 beforeEach(() => {
+    erasureFn.mockReset().mockResolvedValue(undefined);
+    accountEraseFn.mockReset().mockResolvedValue(undefined);
     signOut.mockReset().mockResolvedValue(undefined);
     signOutAndVerify.mockReset().mockResolvedValue(undefined);
     deleteMutate.mockReset();
-    erasureMutate.mockReset();
     setDeleteAccount();
     setRecipes([]);
-    setErasure();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    systemScheme.current = null;
+    cleanup();
+});
 
 describe('AccountDangerZone (native) — closure vs erasure are distinct', () => {
     it('offers both a recoverable close and an irreversible erase', () => {
-        render(<AccountDangerZone />);
+        renderZone();
 
         expect(screen.getByRole('button', { name: 'Close account' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Erase my data' })).toBeTruthy();
     });
 });
 
-describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
-    it('paints the close trigger as the coral-outlined secondary tier, on palette', () => {
-        render(<AccountDangerZone />);
-
-        const trigger = screen.getByRole('button', { name: close.trigger });
-
-        // The label is the tier's slate — NOT the off-palette `#2C3E50` the hand-rolled Pressable used, and
-        // not the mockups' coral-as-text (2.40:1, below the WCAG-AA floor the DS tier holds at 5.24:1).
-        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(palette.slate));
-        // …and its surface carries the design system's own accent edge, not an inlined mist hex.
-        expect(borderColours(trigger)).toContain(rgb(palette.coral));
+/**
+ * ⚠️ REWRITTEN in UI-overhaul slice 9. The two triggers were design-system `Button`s (a neutral `secondary` tier and a
+ * `destructive` tier, 44 pt floor, a spinner while busy). They are now the Profile page's `ProfileRow`s in the `danger`
+ * tone (`buildSpec.md` §9.1): the label and the hint carry the danger, the row is 56 pt, and busy is a disabled row that
+ * says so (`aria-busy`), not a spinner. Same two actions, same flows; only the surface changed.
+ */
+describe.each([
+    ['light', role],
+    ['dark', roleDark],
+] as const)('AccountDangerZone (native) — the Profile danger rows (%s theme)', (name, roles) => {
+    beforeEach(() => {
+        systemScheme.current = name;
     });
 
-    it('paints the erase trigger as the destructive tier, on palette', () => {
-        render(<AccountDangerZone />);
+    it('is a Danger zone group with both rows and each one’s consequence as its hint', () => {
+        renderZone();
 
-        const trigger = screen.getByRole('button', { name: erase.trigger });
-
-        // `palette.error`, NOT the off-palette `#E74C3C`.
-        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(palette['error-dark']));
-        expect(borderColours(trigger)).toContain(rgb(palette.error));
+        expect(screen.getByRole('heading', { name: profileMessages.en.dangerZone, level: 2 })).toBeTruthy();
+        expect(screen.getByText(close.rowHint)).toBeTruthy();
+        expect(screen.getByText(erase.rowHint)).toBeTruthy();
     });
 
-    it('clears the 44pt touch floor on both triggers (U4 / RC-3)', () => {
-        render(<AccountDangerZone />);
+    it('paints both labels in dangerText and both hints in inkMuted, on role colours', () => {
+        renderZone();
 
-        for (const name of [close.trigger, erase.trigger]) {
-            const trigger = screen.getByRole('button', { name });
-            const surface = [trigger, ...Array.from(trigger.querySelectorAll<HTMLElement>('*'))].find(
-                (node) => window.getComputedStyle(node).minHeight === '44px',
-            );
+        for (const label of [close.trigger, erase.trigger]) {
+            expect(window.getComputedStyle(screen.getByText(label)).color, label).toBe(rgb(roles.dangerText));
+        }
 
-            expect(surface, `${name} does not reach a 44pt target`).toBeDefined();
+        for (const hint of [close.rowHint, erase.rowHint]) {
+            expect(window.getComputedStyle(screen.getByText(hint)).color, hint).toBe(rgb(roles.inkMuted));
         }
     });
 
-    it('shows the design-system busy spinner while the closure is in flight', () => {
-        // Idle: no progress indicator anywhere. (The spinner lives in the Button's aria-hidden icon slot, so
-        // it is queried with `hidden` — busy is announced through accessibilityState.busy.)
-        const { unmount } = render(<AccountDangerZone />);
-        expect(screen.queryByRole('progressbar', { hidden: true })).toBeNull();
+    it('clears a 56 pt target on both rows', () => {
+        renderZone();
+
+        for (const label of [close.trigger, erase.trigger]) {
+            const row = screen.getByRole('button', { name: label });
+
+            expect(window.getComputedStyle(row).minHeight, label).toBe('56px');
+        }
+    });
+
+    it('paints the closure failure alert in dangerText', () => {
+        setDeleteAccount({ failedAt: 'close' });
+        renderZone();
+
+        expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(roles.dangerText));
+    });
+});
+
+describe('AccountDangerZone (native) — closing is busy-locked', () => {
+    it('disables the closure row and says it is busy while in flight, so it cannot be double-fired', () => {
+        // Idle: the row is live.
+        const { unmount } = renderZone();
+        expect(screen.getByRole('button', { name: close.trigger }).getAttribute('aria-busy')).not.toBe('true');
         unmount();
 
         setDeleteAccount({ isPending: true });
-        render(<AccountDangerZone />);
+        renderZone();
 
-        // A real spinner, not merely a swapped label — and the control is out of action while in flight.
-        expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
-        const busyTrigger = screen.getByRole('button', { name: close.busyLabel });
-        expect(busyTrigger.getAttribute('aria-disabled')).toBe('true');
+        const busyRow = screen.getByRole('button', { name: close.busyLabel });
+        expect(busyRow.getAttribute('aria-busy')).toBe('true');
+        expect(busyRow.getAttribute('aria-disabled')).toBe('true');
 
-        fireEvent.click(busyTrigger);
+        fireEvent.click(busyRow);
+        expect(screen.queryByText(/not permanent deletion/i)).toBeNull();
         expect(deleteMutate).not.toHaveBeenCalled();
+    });
+});
+
+describe('AccountDangerZone (native) — the account IS closed but the sign-out failed (buildSpec §9.1)', () => {
+    it('turns the row into an inert "Account closed" fact, with no chevron and no way to close again', () => {
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        const row = screen.getByRole('button', { name: close.closedLabel });
+
+        expect(row.getAttribute('aria-disabled')).toBe('true');
+        expect(row.getAttribute('aria-busy')).not.toBe('true');
+        expect(screen.queryByRole('button', { name: close.trigger })).toBeNull();
+
+        fireEvent.click(row);
+
+        expect(screen.queryByText(/not permanent deletion/i)).toBeNull();
+        expect(deleteMutate).not.toHaveBeenCalled();
+    });
+
+    it('says the account is closed (never "we couldn’t close your account") and offers Sign out', () => {
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        expect(screen.getByRole('alert').textContent).toBe(close.signOutFailed);
+        expect(screen.queryByText(close.error)).toBeNull();
+        expect(screen.getByRole('button', { name: profileMessages.en.signOut })).toBeTruthy();
+    });
+
+    // `role="alert"` alone does not announce on iOS; only `LiveRegion` (an iOS announcement plus the Android live
+    // region) speaks it everywhere (SC 4.1.3).
+    it('speaks the alert assertively through a live region, so iOS announces it too', () => {
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        expect(screen.getByRole('alert').getAttribute('aria-live')).toBe('assertive');
+    });
+
+    it('speaks a FAILED close assertively too, and leaves the row idle so it can be retried', () => {
+        setDeleteAccount({ failedAt: 'close' });
+        renderZone();
+
+        expect(screen.getByRole('alert').getAttribute('aria-live')).toBe('assertive');
+        expect(screen.getByRole('button', { name: close.trigger })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: close.closedLabel })).toBeNull();
+        expect(screen.queryByRole('button', { name: profileMessages.en.signOut })).toBeNull();
+    });
+
+    it('paints the alert in dangerText', () => {
+        systemScheme.current = 'light';
+        setDeleteAccount({ failedAt: 'exit' });
+        renderZone();
+
+        expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(role.dangerText));
     });
 });
 
 describe('AccountDangerZone (native) — close (recoverable)', () => {
     it('confirms closure with recoverable copy, not permanent deletion', () => {
-        render(<AccountDangerZone />);
+        renderZone();
 
         fireEvent.click(screen.getByRole('button', { name: 'Close account' }));
 
@@ -173,7 +272,7 @@ describe('AccountDangerZone (native) — close (recoverable)', () => {
     });
 
     it('closes the account on confirm', () => {
-        render(<AccountDangerZone />);
+        renderZone();
 
         fireEvent.click(screen.getByRole('button', { name: 'Close account' }));
         const confirms = screen.getAllByRole('button', { name: 'Close account' });
@@ -183,14 +282,14 @@ describe('AccountDangerZone (native) — close (recoverable)', () => {
     });
 
     it('reports a FAILED closure instead of stopping silently (B17)', () => {
-        setDeleteAccount({ isError: true });
-        render(<AccountDangerZone />);
+        setDeleteAccount({ failedAt: 'close' });
+        renderZone();
 
         expect(screen.getByRole('alert').textContent).toBe(close.error);
     });
 
     it('shows no closure alert while nothing has failed', () => {
-        render(<AccountDangerZone />);
+        renderZone();
 
         expect(screen.queryByText(close.error)).toBeNull();
     });
@@ -202,7 +301,7 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
             makeRecipe('pub', 'Public Published', 'public', 'published'),
             makeRecipe('priv', 'Private Published', 'private', 'published'),
         ]);
-        render(<AccountDangerZone />);
+        renderZone();
 
         fireEvent.click(screen.getByRole('button', { name: 'Erase my data' }));
 
@@ -213,7 +312,7 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
     /** Drive the erasure flow to its confirmed state, with `priv` elected for donation. */
     function confirmErasure(): void {
         setRecipes([makeRecipe('priv', 'Private Published', 'private', 'published')]);
-        render(<AccountDangerZone />);
+        renderZone();
 
         fireEvent.click(screen.getByRole('button', { name: 'Erase my data' }));
         fireEvent.click(screen.getByRole('checkbox', { name: 'Private Published' }));
@@ -223,14 +322,105 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
     }
 
-    it('erases with the typed phrase + donate election, then signs out on success', async () => {
-        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
-            options?.onSuccess?.(),
+    /**
+     * ⛔ THE REGRESSION (review P1 #3), pinned on mobile as well as web. Recipes, account and sign-out used to be
+     * chained through `onSuccess` observer callbacks, which TanStack drops once the screen unmounts: leaving the
+     * danger zone during the recipe step erased the recipes and then never deleted the account or ended the session.
+     */
+    it('⛔ still erases the account and ends the session when the screen unmounts during the recipe step', async () => {
+        let finishRecipes!: () => void;
+        erasureFn.mockImplementation(
+            () =>
+                new Promise<void>((resolve) => {
+                    finishRecipes = resolve;
+                }),
         );
         confirmErasure();
+        await waitFor(() => expect(erasureFn).toHaveBeenCalledTimes(1));
 
-        expect(erasureMutate).toHaveBeenCalledTimes(1);
-        expect(erasureMutate.mock.calls[0]?.[0]).toEqual({
+        cleanup();
+        finishRecipes();
+
+        await waitFor(() => expect(accountEraseFn).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+    });
+
+    /**
+     * ⛔ THE REGRESSION (plan U2), pinned on mobile as well as web — the cross-platform rule exists because
+     * a fix applied to one platform is exactly the kind that silently misses the other.
+     *
+     * "Erase my data" used to call the RECIPE service and nothing else, then sign the viewer out. That looks
+     * like success while the identity row, the Clerk account, the avatar and food's rows all survive.
+     */
+    it('ALSO erases the account itself, not only the recipes', async () => {
+        confirmErasure();
+
+        await waitFor(() => expect(accountEraseFn).toHaveBeenCalledTimes(1));
+        expect(erasureFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs recipes, then account, then the sign-out — in that order', async () => {
+        confirmErasure();
+
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0] ?? 0;
+        expect(order(erasureFn)).toBeLessThan(order(accountEraseFn));
+        expect(order(accountEraseFn)).toBeLessThan(order(signOutAndVerify));
+    });
+
+    /**
+     * ⛔ THE FLOW STAYS BUSY UNTIL THE VIEWER HAS LEFT, as on web. Both legs answering ends both erasure calls
+     * while the sign-out still runs; an idle dialog then offered Confirm again (a second recipe leg against an
+     * erased account) and Cancel.
+     */
+    it('⛔ keeps Confirm busy and Cancel disabled while the sign-out runs', async () => {
+        signOutAndVerify.mockImplementation(() => new Promise<void>(() => undefined));
+        confirmErasure();
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+
+        const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
+        expect(eraseButtons[eraseButtons.length - 1]?.getAttribute('aria-busy')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Cancel' }).getAttribute('aria-disabled')).toBe('true');
+        expect(erasureFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT sign the viewer out when the account erasure fails — the account still exists', async () => {
+        accountEraseFn.mockRejectedValue(new Error('500'));
+        confirmErasure();
+
+        expect(await screen.findByText(erase.error)).toBeTruthy();
+        expect(accountEraseFn).toHaveBeenCalledTimes(1);
+        expect(signOutAndVerify).not.toHaveBeenCalled();
+    });
+
+    it('reaches the account step on a retry whose recipe leg answers 410 ALREADY_ERASED', async () => {
+        // The recipe job completed between attempts, so the retry's recipe leg is a 410, not a 202: that is done.
+        accountEraseFn.mockRejectedValueOnce(new Error('500'));
+        confirmErasure();
+        expect(await screen.findByText(erase.error)).toBeTruthy();
+
+        erasureFn.mockRejectedValue(new GoneError('Account has already been erased', 'ACCOUNT_ALREADY_ERASED'));
+        const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
+        fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
+
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        expect(accountEraseFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('does NOT touch the account or the session when the recipe erasure fails', async () => {
+        erasureFn.mockRejectedValue(new Error('503'));
+        confirmErasure();
+
+        expect(await screen.findByText(erase.error)).toBeTruthy();
+        expect(accountEraseFn).not.toHaveBeenCalled();
+        expect(signOutAndVerify).not.toHaveBeenCalled();
+    });
+
+    it('erases with the typed phrase + donate election, then signs out on success', async () => {
+        confirmErasure();
+
+        await waitFor(() => expect(erasureFn).toHaveBeenCalledTimes(1));
+        expect(erasureFn.mock.calls[0]?.[0]).toEqual({
             confirmationPhrase: 'ERASE MY DATA',
             publishRecipeIds: ['priv'],
         });
@@ -240,14 +430,13 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
     });
 
     it('reports an accepted erasure whose sign-out FAILED, without claiming the erasure failed', async () => {
-        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
-            options?.onSuccess?.(),
-        );
         signOutAndVerify.mockRejectedValue(new Error('sign-out did not take effect: session sess_live is active'));
         confirmErasure();
 
         const alert = await screen.findByRole('alert');
-        expect(alert.textContent).toBe(account.eraseSignOutFailed);
+        expect(alert.textContent).toBe(erase.signOutFailed);
+        // `role="alert"` alone is silent on iOS; the live region speaks it on both platforms (SC 4.1.3).
+        expect(alert.getAttribute('aria-live')).toBe('assertive');
         // The erasure DID succeed (202), so inviting a retry of it would be a lie.
         expect(screen.queryByText(erase.error)).toBeNull();
         // …and the raw error never reaches the viewer.
@@ -255,52 +444,63 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
     });
 
     it('dismisses the now-dead dialog when the exit fails, and offers signing out as the recovery', async () => {
-        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
-            options?.onSuccess?.(),
-        );
         signOutAndVerify.mockRejectedValue(new Error('nope'));
         confirmErasure();
 
         await screen.findByRole('alert');
         // The dialog would otherwise trap focus inside a flow whose account no longer exists.
         expect(screen.queryByLabelText('Confirmation phrase')).toBeNull();
-        expect(screen.getByRole('button', { name: account.signOutAction })).toBeTruthy();
+        expect(screen.getByRole('button', { name: profileMessages.en.signOut })).toBeTruthy();
     });
 
     it('does not erase while the phrase gate is unsatisfied', () => {
-        render(<AccountDangerZone />);
+        renderZone();
 
         fireEvent.click(screen.getByRole('button', { name: 'Erase my data' }));
         const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
         fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
 
-        expect(erasureMutate).not.toHaveBeenCalled();
-    });
-
-    it('surfaces the mutation error (B17)', () => {
-        setErasure({ isError: true });
-        render(<AccountDangerZone />);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Erase my data' }));
-
-        expect(screen.getByText('We couldn’t start erasing your data. Please try again.')).toBeTruthy();
+        expect(erasureFn).not.toHaveBeenCalled();
     });
 });
 
-/** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
-function rgb(hex: string): string {
-    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
-
-    return `rgb(${channels.join(', ')})`;
-}
-
 /**
- * Every border colour resolved anywhere in `root`'s subtree. react-native-web compiles a `StyleSheet`
- * `borderColor` to an atomic class, so the honest read is the computed style of each candidate node — the
- * button's visible surface is whichever descendant carries the tier's border.
+ * ⛔ THE SECOND LEG'S OWN STATES (plan U2), pinned on mobile as well as web.
+ *
+ * The erasure is TWO calls — recipes, then the account — and the dialog's `submitting`/`submitError` cover
+ * both. Cases that drive only the RECIPE leg would stay green if the account leg's states were dropped. Not cosmetic:
+ *
+ * - Without the busy state, the destructive confirm is re-enabled the instant the recipe leg resolves, while
+ *   the ACCOUNT erasure is still in flight. A second tap fires a second irreversible request.
+ * - Without the error state, an account-erasure FAILURE is completely silent: the recipes are gone, the account
+ *   is not, and the dialog says nothing — the "looks like it worked" shape U2 exists to eliminate.
  */
-function borderColours(root: HTMLElement): readonly string[] {
-    return [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))].map(
-        (node) => window.getComputedStyle(node).borderTopColor,
-    );
-}
+describe('AccountDangerZone (native) — the ACCOUNT-erasure leg has its own busy and error states', () => {
+    it('stays busy while the ACCOUNT erasure is in flight, even once the recipe leg has resolved', async () => {
+        accountEraseFn.mockImplementation(() => new Promise<void>(() => undefined));
+        renderZone();
+
+        fireEvent.click(screen.getByRole('button', { name: erase.trigger }));
+        fireEvent.change(screen.getByLabelText('Confirmation phrase'), { target: { value: 'ERASE MY DATA' } });
+        const idleConfirms = screen.getAllByRole('button', { name: erase.confirm });
+        fireEvent.click(idleConfirms[idleConfirms.length - 1] as HTMLElement);
+        await waitFor(() => expect(accountEraseFn).toHaveBeenCalledTimes(1));
+
+        expect(screen.getByText(erase.busyLabel)).toBeTruthy();
+        const confirms = screen.getAllByRole('button', { name: erase.confirm });
+        const confirm = confirms[confirms.length - 1] as HTMLElement;
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('surfaces a FAILED account erasure, not just a failed recipe erasure (B17)', async () => {
+        accountEraseFn.mockRejectedValue(new Error('500'));
+        renderZone();
+
+        fireEvent.click(screen.getByRole('button', { name: erase.trigger }));
+        fireEvent.change(screen.getByLabelText('Confirmation phrase'), { target: { value: 'ERASE MY DATA' } });
+        const confirms = screen.getAllByRole('button', { name: erase.confirm });
+        fireEvent.click(confirms[confirms.length - 1] as HTMLElement);
+
+        expect(await screen.findByText(erase.error)).toBeTruthy();
+    });
+});

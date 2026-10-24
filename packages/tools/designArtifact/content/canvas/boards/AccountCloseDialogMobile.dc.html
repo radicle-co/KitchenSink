@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, close account (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .crop {
+                        width: 390px;
+                        box-sizing: border-box;
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .stage {
+                        position: relative;
+                        width: 390px;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 16px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        padding: 16px;
+                        box-sizing: border-box;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .card {
+                        position: relative;
+                        width: 100%;
+                        box-sizing: border-box;
+                        max-width: 480px;
+                        overflow: hidden;
+                        border-radius: var(--radius-lg);
+                        border: 1px solid var(--line-divider);
+                        background: var(--paper-overlay);
+                        padding: 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .card h2,
+                    .card h3,
+                    .card p {
+                        margin: 0;
+                    }
+                    .stack {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .cstack {
+                        display: flex;
+                        flex-direction: column-reverse;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+                    .gate {
+                        width: 390px;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        padding: 24px;
+                        text-align: center;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .screen {
+                        width: 390px;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                        padding: 8px 16px 24px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Close account? opens from the Close account row. Focus starts on Cancel. The two buttons stack,
+                        Close account on top.
+                    </p>
+                    <div class="stage" style="min-height: 560px">
+                        <div class="bg">
+                            <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Close account"
+                                    hint="Signs you out and deactivates your account. Support can restore it."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Erase my data"
+                                    hint="Permanently deletes your account and personal data."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                        <div class="card" role="alertdialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Close account?</h2>
+                            <div class="stack">
+                                <p class="text-body" style="color: var(--ink-muted)">
+                                    Closing signs you out and deactivates your account. Your recipes and data are kept,
+                                    and you can restore your account by contacting support. This is not permanent
+                                    deletion — to erase your data for good, use “Erase my data” instead.
+                                </p>
+                                <div class="cstack">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.Button"
+                                        variant="secondary"
+                                        icon="x"
+                                        width="fill"
+                                        on-press="{{noop}}"
+                                        >Cancel</x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Button"
+                                        variant="destructive"
+                                        tone="confirm"
+                                        icon="userX"
+                                        width="fill"
+                                        on-press="{{noop}}"
+                                        >Close account</x-import
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Closing: the dialog has closed. The row says Closing… and ignores a second press.</p>
+                    <div class="crop">
+                        <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Closing…"
+                                hint="Signs you out and deactivates your account. Support can restore it."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                busy="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Erase my data"
+                                hint="Permanently deletes your account and personal data."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Close failed: the account is still open. The row goes back to Close account. The sentence sits
+                        under the card.
+                    </p>
+                    <div class="crop">
+                        <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Close account"
+                                hint="Signs you out and deactivates your account. Support can restore it."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.ProfileRow"
+                                label="Erase my data"
+                                hint="Permanently deletes your account and personal data."
+                                tone="danger"
+                                chevron="{{yes}}"
+                                on-press="{{noop}}"
+                            ></x-import
+                        ></x-import>
+                        <p role="alert" class="text-meta text-danger-text" style="margin: 0">
+                            We couldn’t close your account. Please try again.
+                        </p>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){}; return { yes:true, no:false, noop:noop, back:{ label:'Back', parent:'Home', onPress:noop } }; } }
+        </script>
+    </body>
+</html>

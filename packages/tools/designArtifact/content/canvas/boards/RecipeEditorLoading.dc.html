@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, opening a saved recipe (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    .gutter {
+                        padding: 0 16px;
+                    }
+                    @media (min-width: 600px) {
+                        .gutter {
+                            padding: 0 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .gutter {
+                            padding: 0 32px;
+                        }
+                    }
+                </style></helmet
+            >
+            <main class="gutter" style="min-height: 100vh">
+                <x-import component-from-global-scope="Commise.LoadingNotice" label="Loading recipe…"></x-import>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":844}}'>
+            class Component extends DCLogic { renderVals(){ return {}; } }
+        </script>
+    </body>
+</html>

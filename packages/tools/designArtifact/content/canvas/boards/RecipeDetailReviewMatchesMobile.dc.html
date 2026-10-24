@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe detail, review ingredient matches (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .cap {
+                        margin: 0 0 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fr {
+                        min-width: 0;
+                    }
+                    .scrim {
+                        background: var(--scrim);
+                        border-radius: var(--radius-lg);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .panel {
+                        border: 1px solid var(--line-divider);
+                        border-radius: var(--radius-lg);
+                        background: var(--canvas);
+                    }
+
+                    .wrap {
+                        width: 390px;
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                    }
+                    .panel {
+                        padding: 12px;
+                    }
+                    .rv {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .entry {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        border: 1px solid var(--line-divider);
+                        background: var(--paper);
+                        border-radius: 12px;
+                        padding: 12px;
+                        width: 100%;
+                        text-align: left;
+                        font: inherit;
+                        color: inherit;
+                    }
+                    .entry-t {
+                        flex: 1;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pill {
+                        flex-shrink: 0;
+                        border-radius: 9999px;
+                        background: color-mix(in srgb, var(--action) 10%, transparent);
+                        padding: 4px 10px;
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .row {
+                        border: 1px solid var(--line-divider);
+                        background: var(--paper);
+                        border-radius: 10px;
+                        padding: 10px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .row-n {
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .chips {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 6px;
+                    }
+                    .chip {
+                        min-height: 48px;
+                        display: inline-flex;
+                        align-items: center;
+                        border-radius: 9999px;
+                        background: color-mix(in srgb, var(--action) 10%, transparent);
+                        padding: 0 12px;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .st {
+                        margin: 0;
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .rf {
+                        margin: 0;
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .al {
+                        margin: 0;
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .retry {
+                        align-self: flex-start;
+                        min-height: 48px;
+                        display: inline-flex;
+                        align-items: center;
+                        border-radius: 9999px;
+                        background: color-mix(in srgb, var(--action) 10%, transparent);
+                        padding: 0 12px;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .saved {
+                        margin: 0;
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                </style></helmet
+            >
+            <div class="wrap">
+                <div class="fr">
+                    <p class="cap">Closed</p>
+                    <div class="panel">
+                        <div class="rv">
+                            <button
+                                type="button"
+                                class="entry"
+                                aria-expanded="false"
+                                aria-label="Review ingredient matches"
+                            >
+                                <span class="entry-t"
+                                    >2 ingredients could match more than one food. Review them to sharpen the
+                                    nutrition.</span
+                                ><span class="pill">Review ingredient matches</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="fr">
+                    <p class="cap">Open, two lines, each with its options</p>
+                    <div class="panel">
+                        <div class="rv">
+                            <button
+                                type="button"
+                                class="entry"
+                                aria-expanded="true"
+                                aria-label="Review ingredient matches"
+                            >
+                                <span class="entry-t"
+                                    >2 ingredients could match more than one food. Review them to sharpen the
+                                    nutrition.</span
+                                ><span class="pill">Review ingredient matches</span>
+                            </button>
+                            <div class="row" role="group" aria-label="3 tbsp unsalted butter">
+                                <span class="row-n">3 tbsp unsalted butter</span>
+                                <div class="chips">
+                                    <span class="chip">Butter, without salt</span
+                                    ><span class="chip">Butter, salted</span
+                                    ><span class="chip">Ghee, clarified butter</span>
+                                </div>
+                            </div>
+                            <div class="row" role="group" aria-label="1 head garlic">
+                                <span class="row-n">1 head garlic</span>
+                                <div class="chips">
+                                    <span class="chip">Garlic, raw</span><span class="chip">Garlic powder</span
+                                    ><span class="chip">Garlic, roasted</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":712}}'>
+            class Component extends DCLogic { renderVals(){ return {yes:true,no:false};  } }
+        </script>
+    </body>
+</html>

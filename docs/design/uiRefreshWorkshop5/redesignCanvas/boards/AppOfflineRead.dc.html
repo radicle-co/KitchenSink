@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>App, waiting for a connection (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <!-- PROPOSAL (owner comment on the canvas, 2026-10-17): on web, the profile sits at the top right of the screen,
+             as on mobile, and the sidebar no longer has a profile row. The product still draws it in the sidebar from
+             840 px, where LargeTitleHeader hides its avatar; this rule shows that avatar instead. -->
+        <style>
+            .col-start-3.row-start-1.justify-self-end.nav\:hidden {
+                display: block;
+                align-self: flex-start;
+            }
+        </style>
+        <style id="redesignOverrides">
+            /* Redesign: captions are dashed-edge notes at 13 (spec, Patterns). */
+            .cap {
+                margin: 0 0 !important;
+                padding: 10px 12px !important;
+                border: 1px dashed var(--line-control);
+                border-radius: 12px;
+                font: 500 13px/1.35 var(--font-body) !important;
+                color: var(--ink-muted);
+            }
+            .wm {
+                font-family: var(--font-display);
+                font-weight: 600;
+                font-size: 17px;
+                line-height: 1.3;
+                letter-spacing: -0.012em;
+                color: var(--ink);
+            }
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .sr-only {
+                font-size: 13px !important;
+            }
+            /* Sidebar: the active item is --surface-muted with a steel icon, no bar (spec, Patterns). */
+            a[aria-current='page'] {
+                background: var(--surface-muted) !important;
+                color: var(--ink) !important;
+            }
+            a[aria-current='page'] > span[aria-hidden='true'] {
+                display: none !important;
+            }
+            a[aria-current='page'] svg {
+                color: var(--action-text);
+            }
+            body {
+                font-size: 15px;
+            }
+            [class~='r-14yzgew'] {
+                font-size: 15px !important;
+            } /* rating star glyphs */
+            script {
+                display: none;
+            }
+            /* No-photo cover (spec, Surfaces): a sky-to-coral gradient, a photo icon in a paper disc and "Waiting for its
+               photo". Never a letter tile. Reworks the component output with CSS only. */
+            [class*='bg-cover-'][aria-hidden='true'],
+            [aria-hidden='true'][style*='aspect-ratio'],
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) {
+                background: linear-gradient(135deg, var(--cover-sky), var(--cover-coral)) !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child {
+                position: relative;
+                display: block;
+                width: 48px;
+                height: 48px;
+                flex: none;
+                border-radius: 50%;
+                background: var(--paper);
+                font-size: 13px !important;
+                line-height: 48px !important;
+                color: transparent;
+                text-indent: 100%;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child::before,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child::before,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child::before {
+                content: '';
+                position: absolute;
+                inset: 12px;
+                background: var(--ink-muted);
+                -webkit-mask: var(--photo-icon) center / contain no-repeat;
+                mask: var(--photo-icon) center / contain no-repeat;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:nth-child(2),
+            [aria-hidden='true'][style*='aspect-ratio'] > div:nth-child(2),
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:nth-child(2) {
+                display: none !important;
+            }
+            [class*='bg-cover-'][aria-hidden='true']::after,
+            [aria-hidden='true'][style*='aspect-ratio']::after,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px'])::after {
+                content: 'Waiting for its photo';
+                font-size: 13px;
+                line-height: 1.35;
+                color: var(--ink-muted);
+                text-align: center;
+            }
+            [aria-hidden='true'][style*='aspect-ratio: 1 / 1']::after {
+                display: none;
+            }
+            @container cover (max-height: 6rem) {
+                [class*='bg-cover-'][aria-hidden='true']::after {
+                    display: none;
+                }
+            }
+            :root {
+                --photo-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Ccircle cx='9' cy='10' r='1.5'/%3E%3Cpath d='M21 16l-5-5-8 8'/%3E%3C/svg%3E");
+            }
+            [style*='font-variant-numeric: tabular-nums'] {
+                font-size: 15px !important;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    .tb {
+                        display: flex;
+                    }
+                    .pad {
+                        padding: 24px 16px calc(64px + 104px);
+                    }
+                    .wide-only {
+                        display: none;
+                    }
+                    .below-nav {
+                        display: block;
+                    }
+                    .page {
+                        max-width: 90rem;
+                        margin: 0 auto;
+                        display: flex;
+                        width: 100%;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .rgrid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                        gap: 16px;
+                    }
+                    .cgrid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 16px;
+                    }
+                    @media (min-width: 600px) {
+                        .pad {
+                            padding-inline: 24px;
+                        }
+                        .rgrid {
+                            gap: 24px;
+                        }
+                        .cgrid {
+                            grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                            gap: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                        .tb {
+                            display: none;
+                        }
+                        .pad {
+                            padding: 24px 32px 32px;
+                        }
+                        .wide-only {
+                            display: contents;
+                        }
+                        .below-nav {
+                            display: none;
+                        }
+                    }
+
+                    .syncwrap {
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
+                    }
+                    .syncwrap [role='status'] {
+                        padding-inline: 0;
+                    }
+                    .syncwrap [role='status'] > div {
+                        margin-bottom: 16px;
+                    }
+                    .cap {
+                        margin: 0 0 8px;
+                        font: 600 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fig {
+                        margin: 0 0 32px;
+                    }
+                    .frame {
+                        position: relative;
+                        overflow: hidden;
+                        border: 1px solid var(--line-divider);
+                        border-radius: 12px;
+                        background: var(--canvas);
+                    }
+                    .frame .sb {
+                        height: 100%;
+                        position: static;
+                    }
+                    .rail {
+                        display: flex;
+                        height: 100%;
+                        width: 72px;
+                        flex: none;
+                        flex-direction: column;
+                        align-items: center;
+                        border-inline-end: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div style="display: flex; min-height: 720px">
+                <div
+                    class="sb"
+                    style="
+                        position: sticky;
+                        top: 0;
+                        height: 720px;
+                        width: 232px;
+                        flex: none;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        border-inline-end: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        box-sizing: border-box;
+                    "
+                >
+                    <div
+                        style="
+                            display: flex;
+                            height: 64px;
+                            flex: none;
+                            align-items: center;
+                            padding: 0 24px;
+                            font-family: var(--font-display);
+                            font-size: 17px;
+                            line-height: 1.4;
+                            font-weight: 600;
+                            color: var(--ink);
+                        "
+                    >
+                        Commise
+                    </div>
+                    <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                        <a
+                            href="#home"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 15px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="house"
+                                size="{{ic24}}"
+                            ></x-import
+                            ><span>Home</span></a
+                        ><a
+                            href="#recipes"
+                            aria-current="page"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 15px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                background: color-mix(in srgb, var(--action) 10%, transparent);
+                                color: var(--ink);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: var(--here-bar);
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="bookOpen"
+                                size="{{ic24}}"
+                            ></x-import
+                            ><span>Recipes</span></a
+                        ><a
+                            href="#discover"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 15px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="compass"
+                                size="{{ic24}}"
+                            ></x-import
+                            ><span>Discover</span></a
+                        >
+                    </nav>
+                    <div style="margin-top: auto">
+                        <button
+                            type="button"
+                            aria-expanded="true"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 15px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                border: 0;
+                                background: transparent;
+                                color: var(--ink-muted);
+                                font-family: inherit;
+                                cursor: pointer;
+                                margin: 0 12px 12px;
+                                width: calc(100% - 24px);
+                            "
+                        >
+                            <span style="display: inline-flex"
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="chevronsLeft"
+                                    size="{{ic24}}"
+                                ></x-import></span
+                            ><span>Collapse</span>
+                        </button>
+                    </div>
+                </div>
+                <main class="pad" style="min-width: 0; flex: 1; box-sizing: border-box">
+                    <div class="syncwrap">
+                        <x-import component-from-global-scope="Commise.SyncNoticeStack" active="{{yes}}"
+                            ><x-import
+                                component-from-global-scope="Commise.SyncNotice"
+                                state="{{offlineNone}}"
+                                region-label="Sync status"
+                            ></x-import
+                        ></x-import>
+                    </div>
+                    <section aria-label="Recipes" class="page">
+                        <x-import
+                            component-from-global-scope="Commise.LargeTitleHeader"
+                            heading-id="recipes-title"
+                            title="Recipes"
+                            action="{{v23}}"
+                            segments="{{v24}}"
+                        ></x-import>
+                        <!-- PROPOSAL (owner comments, 2026-10-17): the create button sits on the search row as a primary button.
+                             The search stops at 560 px and the button sits at the far right edge, so the two never read
+                             as one control. -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 48px">
+                            <div style="min-width: 0; flex: 0 1 560px">
+                                <div style="margin: 0 -4px; padding: 8px 4px">
+                                    <x-import
+                                        component-from-global-scope="Commise.SearchField"
+                                        id="recipes-search"
+                                        label="Search your recipes"
+                                        label-visibility="hidden"
+                                        clear-label="Clear search"
+                                        placeholder="Search your recipes"
+                                        value=""
+                                        on-change-text="{{v25}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <x-import component-from-global-scope="Commise.Button" icon="plus">New recipe</x-import>
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.OfflineReadSlot"
+                            message="{{readOffline}}"
+                        ></x-import>
+                        <p
+                            class="cap"
+                            style="
+                                margin: 32px 0 0;
+                                padding: 12px 16px;
+                                border: 1px dashed var(--line-divider);
+                                border-radius: 12px;
+                            "
+                        >
+                            Every screen does this: a screen whose read is waiting for a connection shows this line
+                            where its loading state would be, with no retry. It loads on its own when the connection
+                            returns.
+                        </p>
+                    </section>
+                </main>
+                <nav
+                    class="tb"
+                    aria-label="Tabs"
+                    style="
+                        position: fixed;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 50;
+                        isolation: isolate;
+                        height: 64px;
+                        justify-content: space-around;
+                        padding: 0 8px;
+                        box-sizing: border-box;
+                    "
+                >
+                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import
+                    ><a
+                        href="#home"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v65}}"></x-import
+                        ><span style="font-size: 13px; line-height: 1.4; font-weight: 500">Home</span></a
+                    ><a
+                        href="#recipes"
+                        aria-current="page"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: var(--here-bar);
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="{{v66}}"></x-import
+                        ><span style="font-size: 13px; line-height: 1.4; font-weight: 500; font-weight: 600"
+                            >Recipes</span
+                        ></a
+                    ><a
+                        href="#discover"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="compass" size="{{v67}}"></x-import
+                        ><span style="font-size: 13px; line-height: 1.4; font-weight: 500">Discover</span></a
+                    >
+                </nav>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise, noop=function(){};
+             return {ic24:24,yes:true,no:false,noop:noop,unreadableTitle:"Some work on this device couldn’t be opened",unreadableBody:"We can’t show it or send it, and it can’t be recovered. Recipes saved to your account are safe. Check My recipes for your latest changes.",offlineTwo:{"kind": "offline", "title": "You’re offline", "body": "2 changes are saved on this device and will sync when you’re back online."},offlineNone:{"kind": "offline", "title": "You’re offline", "body": "Anything you change is saved on this device and syncs when you’re back online."},syncingTwo:{"kind": "syncing", "title": "Back online", "body": "Syncing 2 changes…"},hidden:{"kind": "hidden"},readOffline:"Waiting for a connection. This loads on its own.",
+              v0: false,
+              v1: 16,
+              v2: false,
+              v3: 16,
+              v4: 16,
+              v5: false,
+              v6: 16,
+              v7: 16,
+              v8: false,
+              v9: 16,
+              v10: 16,
+              v11: false,
+              v12: 16,
+              v13: false,
+              v14: 16,
+              v15: 16,
+              v16: false,
+              v17: 16,
+              v18: false,
+              v19: 16,
+              v20: 16,
+              v21: false,
+              v22: 16,
+              v23: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
+              v24: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"mine",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
+              v25: noop,
+              v26: true,
+              v27: noop,
+              v28: 2,
+              v29: false,
+              v30: noop,
+              v31: 3,
+              v32: false,
+              v33: noop,
+              v34: 1,
+              v35: false,
+              v36: noop,
+              v37: 1,
+              v38: false,
+              v39: noop,
+              v40: 1,
+              v41: false,
+              v42: noop,
+              v43: 1,
+              v44: false,
+              v45: noop,
+              v46: 1,
+              v47: false,
+              v48: noop,
+              v49: 1,
+              v50: false,
+              v51: noop,
+              v52: 1,
+              v53: false,
+              v54: noop,
+              v55: 1,
+              v56: false,
+              v57: noop,
+              v58: noop,
+              v59: [{"id":"list","label":"List view","icon":"list"},{"id":"grid","label":"Grid view","icon":"layoutGrid"}],
+              v60: noop,
+              v61: noop,
+              v62: 24,
+              v63: 24,
+              v64: 24,
+              v65: 24,
+              v66: 24,
+              v67: 24,
+              v68: 24
+             }; } }
+        </script>
+    </body>
+</html>

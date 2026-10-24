@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, save status (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    h1,
+                    h2,
+                    h3,
+                    p {
+                        margin: 0;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 32px 40px 40px;
+                    }
+                    .cap {
+                        margin-bottom: 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .frame {
+                        position: relative;
+                        width: 1024px;
+                        overflow: hidden;
+                        border: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                    }
+                    .col {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        max-width: 768px;
+                        padding: 24px 32px 0;
+                    }
+                    .sec {
+                        font: 600 18px/1.25 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 600px);
+                        gap: 32px 40px;
+                        align-items: start;
+                    }
+                    .gframe {
+                        position: relative;
+                        width: 600px;
+                        height: 380px;
+                        overflow: hidden;
+                        border: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 40;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: var(--scrim);
+                    }
+                    .dlg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        width: calc(100% - 32px);
+                        max-width: 448px;
+                        border-radius: var(--radius-lg);
+                        background: var(--paper-overlay);
+                        padding: 24px;
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .dt {
+                        font: 600 18px/1.25 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .db {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .ds {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dbtn {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: flex-end;
+                        gap: 12px;
+                    }
+                    .alert {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        border: 1px solid var(--line-control);
+                        border-radius: var(--radius-md);
+                        background: var(--paper);
+                        padding: 12px;
+                    }
+                    .alert p {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <p class="cap" style="padding: 0 0px">
+                    One at a time: the header's status line, in the words of this platform.
+                </p>
+                <div>
+                    <p class="cap">Saving: the draft is being written to this tab.</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Saving…"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">Saved: the server has the draft as it is now.</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Saved"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">Saved in this tab: the tab holds the draft; the server has not confirmed it yet.</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Saved in this tab"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">A published recipe's change waits for Save changes.</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="Edit recipe"
+                            status="Changes kept in this tab"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuChanges}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">Failed: the tab could not keep the draft.</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Couldn't save in this tab"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">Retrying: the server write failed and is sent again.</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Couldn't save. Retrying."
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">Failed: the server write is parked. An alert offers Try again (see Save failed).</p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Couldn't save"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">
+                        Unconfirmed: the server may or may not hold the write. An alert follows (see Save failed).
+                    </p>
+                    <div class="frame">
+                        <x-import
+                            component-from-global-scope="Commise.EditorHeader"
+                            title="New recipe"
+                            status="Couldn't confirm your save"
+                            close-label="Close editor"
+                            on-close="{{noop}}"
+                            menu="{{menuDraft}}"
+                        ></x-import>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1016}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, C=window.Commise, noop=function(){};  return {menuDraft:{triggerLabel:'More editor actions',closeLabel:'Keep editing',discardLabel:'Discard draft',onDiscard:noop},menuChanges:{triggerLabel:'More editor actions',closeLabel:'Keep editing',discardLabel:'Discard changes',onDiscard:noop},noop:noop}; } }
+        </script>
+    </body>
+</html>

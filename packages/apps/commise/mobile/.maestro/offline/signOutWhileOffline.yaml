@@ -1,0 +1,56 @@
+# Sign out while offline fails, and leaves the cook signed in (ADR-0009, ADR-0068).
+#
+# Offline, Clerk cannot end the session at the server, and the attempt used to leave the app on "Checking your session…"
+# with no message. The shared sign-out command now refuses while the device is offline, so the Sign out control reports
+# its localized failure and the cook stays signed in. Once the phone is back online, the same control signs out.
+#
+# ⛔ `setAirplaneMode` IS ANDROID-ONLY (as `offlineSave.yaml` records), so this flow is Android-bound by the platform.
+#
+# ⚠️ Maestro is MANUAL-ONLY here (owner ruling 2026-09-05) and targets a deployed sandbox. A skipped run claims nothing
+# — never report one as a pass.
+appId: ${APP_ID}
+name: sign out while offline fails and keeps the cook signed in
+# A run killed while offline would leave the device offline for the next flow. This always runs.
+onFlowComplete:
+    - setAirplaneMode: disabled
+tags:
+    - offline
+    # Android only: iOS simulators have no airplane mode (guarded by maestroPlatformExclusions.test.ts).
+    - android
+---
+- runFlow: ../auth/launchCleared.yaml
+- runFlow: ../auth/signin.yaml
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 40000
+
+# ── go offline, then try to sign out ──────────────────────────────────────────
+- setAirplaneMode: enabled
+- tapOn: 'Profile.*'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign out'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Sign out'
+
+# ⛔ THE SIGN-OUT FAILS, AND SAYS SO. The localized failure is `profile.signOutFailed` (`features/account`), and the
+# cook is still on Profile, signed in: no sign-in form.
+- extendedWaitUntil:
+      visible: 'We couldn’t sign you out\. Try again\.'
+      timeout: 40000
+- assertNotVisible: 'you@example\.com'
+- assertVisible: 'Sign out'
+
+# ── back online, the same control signs out for real ──────────────────────────
+# The command reads the app's connection signal, which lags the radio: the offline notice goes when that signal says
+# online, so the tap waits on the notice, not on time.
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+      notVisible: 'You’re offline'
+      timeout: 30000
+- tapOn: 'Sign out'
+- extendedWaitUntil:
+      visible: 'you@example\.com'
+      timeout: 40000

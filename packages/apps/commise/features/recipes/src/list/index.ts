@@ -1,34 +1,16 @@
 /**
- * @module @commise/features-recipes/list — platform-neutral barrel for the recipe-list building blocks
- * (T065). Each component specifier resolves to its web (`*.tsx`) or native (`*.native.tsx`) leaf at bundle
- * time; the model layer is platform-agnostic. The apps compose these into their recipe-list page/screen.
+ * @module @commise/features-recipes/list — the recipe library list's shared state: the controls above the suspense
+ * boundary (search, chips, sort, the read they key) and the settled library's view-model (flatten, facets, narrowing,
+ * state, load-more).
+ *
+ * A package-export entry (the one kind of barrel this repo keeps). The list's render leaves stay on the package root;
+ * this entry carries only the hooks, which both platforms' containers share.
  */
-export { RecipeList } from './RecipeList.js';
-export { RecipeListCard } from './RecipeListCard.js';
-export { RecipeSourceTabs } from './RecipeSourceTabs.js';
-export type { RecipeSourceTabsProps } from './RecipeSourceTabs.js';
-
-export {
-    QUICK_TIME_FACET,
-    QUICK_TIME_THRESHOLD_MINUTES,
-    RECIPE_SOURCE_TABS,
-    fillTemplate,
-    filterChipLabel,
-    formatDurationMinutes,
-    formatRecipeCount,
-    isListNarrowed,
-    isQuickRecipe,
-    matchesListFacet,
-    sourceTabLabel,
-    toRecipeListItem,
-} from './model.js';
-export type {
-    RecipeCountLabels,
-    RecipeFacetSource,
-    RecipeListCardProps,
-    RecipeListItem,
-    RecipeListStatus,
-    RecipeListTab,
-    RecipeListTabControl,
-    RecipeListViewProps,
-} from './model.js';
+export { useRecipeLibrary } from './useRecipeLibrary.js';
+export type { LibraryQuery, RecipeLibraryInput, RecipeLibraryModel } from './useRecipeLibrary.js';
+export { useRecipeLibraryControls } from './useRecipeLibraryControls.js';
+export type { LibraryRead, RecipeLibraryControls } from './useRecipeLibraryControls.js';
+export { useRecipeListPresentation } from './useRecipeListPresentation.js';
+export type { RecipeListPresentation } from './useRecipeListPresentation.js';
+export { useSettledRecipeList } from './useSettledRecipeList.js';
+export type { SettledRecipeList, SettledRecipeListInput } from './useSettledRecipeList.js';

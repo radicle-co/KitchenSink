@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign in</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        font-family: var(--font-body);
+                        color: var(--ink);
+                        width: 1194px;
+                        background-color: var(--canvas);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                </style></helmet
+            >
+            <!-- BREAKPOINT BOARD, 1194 px (tablet landscape): the window less its 32 px gutter is 1130 px, the wide container class, so the title is 40 (largeTitle). AuthScreenFrame has no max width and a fixed 20 px side padding, so the form spans the window, as in the code. Insets are an iPad's: 24 top, 20 bottom, on the frame's 24 vertical padding. -->
+            <main
+                class="wash"
+                style="
+                    width: 1194px;
+                    min-height: 834px;
+                    box-sizing: border-box;
+                    background-color: var(--canvas);
+                    background-image: var(--background-image-hero);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 20px;
+                    padding: 48px 20px 44px;
+                "
+            >
+                <header style="display: flex; flex-direction: column; gap: 8px">
+                    <span style="font-size: 18px; font-weight: 600; line-height: 1.25; color: var(--ink)">Commise</span>
+                    <h1
+                        style="
+                            margin: 0;
+                            font-family: var(--font-display);
+                            font-size: 40px;
+                            font-weight: 700;
+                            line-height: 1.15;
+                            color: var(--ink);
+                        "
+                    >
+                        Create your account
+                    </h1>
+                    <span style="font-size: 16px; line-height: 1.5; color: var(--ink-muted)"
+                        >Your recipes, in one place.</span
+                    >
+                </header>
+                <div style="display: flex; flex-direction: column; gap: 16px">
+                    <div style="display: flex; flex-direction: column; gap: 12px">
+                        <div
+                            role="button"
+                            aria-label="Continue with Google"
+                            style="
+                                display: flex;
+                                flex-direction: row;
+                                min-height: 52px;
+                                align-self: stretch;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 12px;
+                                box-sizing: border-box;
+                                border-radius: 9999px;
+                                border: 1px solid #747775;
+                                background: #ffffff;
+                                padding: 0 16px;
+                                font-size: 14px;
+                                font-weight: 600;
+                                line-height: 1.2;
+                                color: #1f1f1f;
+                            "
+                        >
+                            <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+                                <path
+                                    fill="#EA4335"
+                                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                                />
+                                <path
+                                    fill="#4285F4"
+                                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                                />
+                                <path
+                                    fill="#FBBC05"
+                                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                                />
+                                <path
+                                    fill="#34A853"
+                                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                                /></svg
+                            ><span style="flex-shrink: 1; text-align: center">Continue with Google</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: row; align-items: center; gap: 12px">
+                        <span style="height: 1px; flex: 1; background: var(--line-divider)"></span
+                        ><span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)">or</span
+                        ><span style="height: 1px; flex: 1; background: var(--line-divider)"></span>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px">
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.FieldLabel"
+                            for-id="signup-first_name"
+                            label="First name"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.Input"
+                            id="signup-first_name"
+                            label="First name"
+                            value=""
+                            on-change-text="{{noop}}"
+                            auto-complete="given-name"
+                            auto-capitalize="words"
+                            enter-key-hint="next"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.FieldLabel"
+                            for-id="signup-last_name"
+                            label="Last name"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.Input"
+                            id="signup-last_name"
+                            label="Last name"
+                            value=""
+                            on-change-text="{{noop}}"
+                            auto-complete="family-name"
+                            auto-capitalize="words"
+                            enter-key-hint="next"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.FieldLabel"
+                            for-id="signup-username"
+                            label="Username"
+                            hint="Your public name on recipes you publish."
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.Input"
+                            id="signup-username"
+                            label="Username"
+                            value=""
+                            on-change-text="{{noop}}"
+                            auto-complete="username"
+                            auto-capitalize="none"
+                            enter-key-hint="next"
+                            hint="Your public name on recipes you publish."
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.FieldLabel"
+                            for-id="signup-email_address"
+                            label="Email"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.Input"
+                            id="signup-email_address"
+                            label="Email"
+                            value=""
+                            on-change-text="{{noop}}"
+                            placeholder="you@example.com"
+                            input-mode="email"
+                            auto-complete="email"
+                            auto-capitalize="none"
+                            enter-key-hint="next"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px">
+                        <x-import
+                            component-from-global-scope="Commise.Native.FieldLabel"
+                            for-id="signup-password"
+                            label="Password"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.Input"
+                            id="signup-password"
+                            label="Password"
+                            value=""
+                            on-change-text="{{noop}}"
+                            placeholder="Your password"
+                            secret="{{yes}}"
+                            auto-complete="new-password"
+                            enter-key-hint="go"
+                        ></x-import>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0">
+                    <span style="font-size: 14px; line-height: 1.4; min-height: 20px" aria-live="assertive"></span
+                    ><x-import
+                        component-from-global-scope="Commise.Native.Button"
+                        size="lg"
+                        width="fill"
+                        icon="userPlus"
+                        on-press="{{noop}}"
+                        >Create account</x-import
+                    >
+                </div>
+                <div style="display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px">
+                    <span style="font-size: 14px; line-height: 1.4; color: var(--ink-muted)"
+                        >Already have an account?</span
+                    >
+                    <div
+                        role="link"
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-height: 48px;
+                            justify-content: center;
+                            font-size: 14px;
+                            line-height: 1.4;
+                            color: var(--action-text);
+                            text-decoration: underline;
+                        "
+                    >
+                        Sign in
+                    </div>
+                </div>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1194,"height":943}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, yes: true }; } }
+        </script>
+    </body>
+</html>

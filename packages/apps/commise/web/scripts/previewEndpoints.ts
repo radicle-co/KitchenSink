@@ -22,6 +22,7 @@
  *   | variable                                        | example                                |
  *   | ----------------------------------------------- | -------------------------------------- |
  *   | `NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE`   | `https://recipe-pr-{pr}.commise.app`   |
+ *   | `NEXT_PUBLIC_FOOD_API_URL_SANDBOX_TEMPLATE`     | `https://food-pr-{pr}.commise.app`     |
  *   | `NEXT_PUBLIC_IDENTITY_API_URL_SANDBOX_TEMPLATE` | `https://identity.sandbox.commise.app` |
  *
  * `SANDBOX` is in the name because it is in the VALUE: both templates describe sandbox topology — a per-PR
@@ -72,6 +73,8 @@ const PR_PLACEHOLDER = '{pr}';
  */
 const ENDPOINTS = [
     { key: 'NEXT_PUBLIC_RECIPE_API_URL', perPr: true },
+    // Plan 002 S5: the apps call food directly, and food is deployed per PR like recipe.
+    { key: 'NEXT_PUBLIC_FOOD_API_URL', perPr: true },
     { key: 'NEXT_PUBLIC_IDENTITY_API_URL', perPr: false },
 ] as const;
 
@@ -168,7 +171,7 @@ export function resolveBuildEndpoints(environment: BuildEnvironment): Readonly<R
     }
 
     const prNumber = requirePrNumber(environment);
-    const resolved: Record<string, string> = {};
+    const resolved: Record<string, string> = Object.create(null) as Record<string, string>;
 
     for (const { key, perPr, name, template } of templates) {
         if (perPr && !template.includes(PR_PLACEHOLDER)) {

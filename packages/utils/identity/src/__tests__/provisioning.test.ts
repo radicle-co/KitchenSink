@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { sql } from 'drizzle-orm';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { provisionCompleteUser, type ProvisionDeps, type ProvisioningSchema } from '../provisioning.js';
+import {
+    provisionCompleteUser,
+    type CreatedByline,
+    type ProvisionDeps,
+    type ProvisioningSchema,
+    type ProfilesTableShape,
+} from '../provisioning.js';
 
 // Sentinel table objects — the mock db keys behavior off `__t`; the `.name`/`.picture`/`.identityId`/`.status`/
 // `.deletedAt`/`.email` stand in for Drizzle columns referenced by the `sql\`case ...\`` conflict set (the SQL
@@ -23,8 +30,15 @@ const emailViolation = Object.assign(new Error('duplicate key'), {
     constraint: 'users_email_unique',
 });
 
+/** The injected clock for a new profile row — a sentinel, so a test can see it reached the insert untouched. */
+const NEW_PROFILE_CLOCK = sql`clock()`;
+/** What the profile insert's RETURNING hands back when THIS call inserted the row. */
+const STAMPED = new Date('2026-10-15T00:00:00.123Z');
+
 interface MockOpts {
     userInsertThrowsOnce?: unknown;
+    /** The profile insert's RETURNING rows: one when this call inserted it, none when it already existed. */
+    profileReturning?: readonly Record<string, unknown>[];
     /** The `status` of the row the (conflict) upsert returns — drives the R10 no-resurrection guard. */
     rowStatus?: string;
 }
@@ -33,6 +47,13 @@ function buildMockDb(opts: MockOpts = {}) {
     const insertedTables: string[] = [];
     const valuesByTable = new Map<string, Record<string, unknown>>();
     const conflictSets: Array<Record<string, unknown>> = [];
+    /**
+     * Every statement the routine runs on a TRANSACTION handle, in order, plus which table each `insert`
+     * targeted — so a test can assert that the advisory lock is taken BEFORE the users upsert and that the aux
+     * inserts are NOT inside the transaction. Recorded rather than ignored on purpose: a double that silently
+     * accepted `execute()` would let the lock be deleted with the unit suite still green.
+     */
+    const txStatements: string[] = [];
     let userReturningCount = 0;
     const row = {
         id: 'usr_test',
@@ -43,6 +64,29 @@ function buildMockDb(opts: MockOpts = {}) {
     };
 
     const db = {
+        /**
+         * Runs the callback with a handle that records `execute`d statements and delegates `insert` to the same
+         * recorder the autocommit path uses, so a table inserted inside the transaction is distinguishable
+         * from one inserted outside it by position in `txStatements`.
+         */
+        transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
+            const tx = {
+                execute(statement: { queryChunks?: unknown[] }) {
+                    // Drizzle's `sql` template object: flatten whatever string parts it carries so the
+                    // assertion can look for the function name without depending on the driver's dialect.
+                    txStatements.push(`execute:${JSON.stringify(statement?.queryChunks ?? statement)}`);
+
+                    return Promise.resolve([]);
+                },
+                insert(table: { __t: string }) {
+                    txStatements.push(`insert:${table.__t}`);
+
+                    return db.insert(table);
+                },
+            };
+
+            return fn(tx);
+        },
         insert(table: { __t: string }) {
             insertedTables.push(table.__t);
 
@@ -66,7 +110,21 @@ function buildMockDb(opts: MockOpts = {}) {
                                 },
                             };
                         },
-                        onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                        // Awaitable (the account insert awaits it) and chainable (the profile insert returns).
+                        onConflictDoNothing: vi.fn(() =>
+                            Object.assign(Promise.resolve(undefined), {
+                                returning: () =>
+                                    Promise.resolve(
+                                        opts.profileReturning ?? [
+                                            {
+                                                displayName: v['displayName'],
+                                                username: v['username'],
+                                                stampedAt: STAMPED,
+                                            },
+                                        ],
+                                    ),
+                            }),
+                        ),
                     };
                 },
             };
@@ -77,10 +135,22 @@ function buildMockDb(opts: MockOpts = {}) {
         db: db as unknown as ProvisionDeps['db'],
         schema,
         newUserId: () => 'usr_test',
+        newProfileClock: NEW_PROFILE_CLOCK,
     };
 
-    return { deps, insertedTables, valuesByTable, conflictSets };
+    return { deps, insertedTables, valuesByTable, conflictSets, txStatements };
 }
+
+// The byline the profile insert returns is typed BY THE COLUMNS, not cast to its shape: a retyped column (a
+// `mode: 'string'` timestamp, a nullable display name) stops compiling here instead of reaching `toISOString()`.
+describe('ProfilesTableShape — the returned byline is typed by the columns', () => {
+    it('gives each column the data CreatedByline holds', () => {
+        expectTypeOf<ProfilesTableShape['displayName']['_']['data']>().toEqualTypeOf<CreatedByline['displayName']>();
+        expectTypeOf<ProfilesTableShape['username']['_']['data']>().toEqualTypeOf<string>();
+        expectTypeOf<ProfilesTableShape['updatedAt']['_']['data']>().toEqualTypeOf<CreatedByline['stampedAt']>();
+        expectTypeOf<ProfilesTableShape['username']['_']['notNull']>().toEqualTypeOf<false>();
+    });
+});
 
 describe('provisionCompleteUser', () => {
     it('upserts the user, then the account, then the profile (one complete unit)', async () => {
@@ -89,7 +159,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada', avatarUrl: 'https://img/ada.png' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result.kind).toBe('complete');
@@ -99,7 +169,65 @@ describe('provisionCompleteUser', () => {
             userId: 'usr_test',
             displayName: 'Ada',
             avatarUrl: 'https://img/ada.png',
+            username: null,
+            updatedAt: NEW_PROFILE_CLOCK,
+            handleSyncOwedAt: NEW_PROFILE_CLOCK,
+            handleSyncFailureCode: null,
         });
+    });
+
+    it('seeds the profile with the Clerk username (the public byline, owner ruling 2026-10-13)', async () => {
+        const { deps, valuesByTable } = buildMockDb();
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada Lovelace', username: 'ada' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
+        );
+
+        expect(valuesByTable.get('profiles')).toMatchObject({ displayName: 'Ada Lovelace', username: 'ada' });
+    });
+
+    /**
+     * The per-identity serialization, at unit speed.
+     *
+     * `provisioningRace.integration.test.ts` proves the runtime behaviour against a real Postgres (provisioning
+     * blocks behind the lock). These two assert the STRUCTURE that produces it, so the guard runs on every
+     * `npm test` without a database:
+     *
+     *  1. the advisory lock is the FIRST statement in the transaction, before the upsert — a lock taken after
+     *     the insert would serialize nothing, because the deadlock forms *inside* the insert's speculative
+     *     insertion (heap tuple + one index tuple per unique index, `identity_id` AND `users_email_unique`);
+     *  2. the aux inserts stay OUTSIDE the transaction — putting them in is the `d59e11c` deadlock, from the
+     *     opposite direction, so the fix for one must not become the other.
+     */
+    it('takes the per-identity advisory lock BEFORE the users upsert, inside one transaction', async () => {
+        const { deps, txStatements } = buildMockDb();
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
+        );
+
+        expect(txStatements[0], 'no statement ran on the transaction handle — the upsert is not serialized').toMatch(
+            /pg_advisory_xact_lock/,
+        );
+        expect(txStatements[1]).toBe('insert:users');
+    });
+
+    it('keeps the accounts/profiles inserts OUT of that transaction (the d59e11c deadlock)', async () => {
+        const { deps, txStatements, insertedTables } = buildMockDb();
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
+        );
+
+        expect(insertedTables).toEqual(['users', 'accounts', 'profiles']);
+        expect(txStatements).not.toContain('insert:accounts');
+        expect(txStatements).not.toContain('insert:profiles');
     });
 
     it('carries a lifecycle-aware deletedAt directive in the conflict set (revival gated on status)', async () => {
@@ -111,7 +239,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(conflictSets[0]).toHaveProperty('deletedAt');
@@ -123,7 +251,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'real@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(conflictSets[0]).toHaveProperty('email');
@@ -135,7 +263,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com', name: 'Ada', picture: 'https://img/ada.png' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         // Only the users upsert ran — the closed account's companion rows are NEVER re-created.
@@ -149,7 +277,7 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(insertedTables).toEqual(['users']);
@@ -163,7 +291,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'taken@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
         expect(result.kind).toBe('complete');
@@ -180,7 +308,7 @@ describe('provisionCompleteUser', () => {
         const result = await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'taken@b.com' },
-            { onEmailCollision: 'signal-incomplete' },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true },
         );
 
         expect(result).toEqual({ kind: 'incomplete', reason: 'email-collision' });
@@ -192,7 +320,11 @@ describe('provisionCompleteUser', () => {
         const { deps } = buildMockDb({ userInsertThrowsOnce: dbErr });
 
         await expect(
-            provisionCompleteUser(deps, { identityId: 'id_1', email: 'a@b.com' }, { onEmailCollision: 'placeholder' }),
+            provisionCompleteUser(
+                deps,
+                { identityId: 'id_1', email: 'a@b.com' },
+                { onEmailCollision: 'placeholder', owesCreatedByline: true },
+            ),
         ).rejects.toThrow('connection reset');
     });
 
@@ -202,9 +334,75 @@ describe('provisionCompleteUser', () => {
         await provisionCompleteUser(
             deps,
             { identityId: 'id_1', email: 'a@b.com' },
-            { onEmailCollision: 'placeholder' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
         );
 
-        expect(valuesByTable.get('profiles')).toEqual({ userId: 'usr_test', displayName: '', avatarUrl: null });
+        expect(valuesByTable.get('profiles')).toEqual({
+            userId: 'usr_test',
+            displayName: '',
+            avatarUrl: null,
+            username: null,
+            updatedAt: NEW_PROFILE_CLOCK,
+            handleSyncOwedAt: NEW_PROFILE_CLOCK,
+            handleSyncFailureCode: null,
+        });
+    });
+
+    // Plan 2026-10-15-010 D6b: the read model is seeded at creation, so a cook who never renamed still has a byline
+    // in the recipe database. The insert records the debt on the database's clock, and only the call that INSERTED
+    // the profile returns a snapshot to publish — a concurrent second creator must not publish a second one.
+    it('returns the created byline, stamped by the insert, when THIS call created the profile', async () => {
+        const { deps } = buildMockDb();
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada Lovelace', username: 'ada' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
+        );
+
+        expect(result).toMatchObject({
+            kind: 'complete',
+            createdByline: { displayName: 'Ada Lovelace', username: 'ada', stampedAt: STAMPED },
+        });
+    });
+
+    it('returns NO byline when the profile already existed (the insert did nothing)', async () => {
+        const { deps } = buildMockDb({ profileReturning: [] });
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
+        );
+
+        expect(result.kind).toBe('complete');
+        expect(result).not.toHaveProperty('createdByline');
+    });
+
+    // Reconciliation has no handle-sync topic, so it cannot publish. A debt it can never settle would make the
+    // identity backstop report a LOST sync for every user it provisions, forever.
+    it('records NO debt, and returns no byline, for a caller that cannot publish', async () => {
+        const { deps, valuesByTable } = buildMockDb();
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: false },
+        );
+
+        expect(valuesByTable.get('profiles')).toMatchObject({ handleSyncOwedAt: null, updatedAt: NEW_PROFILE_CLOCK });
+        expect(result).not.toHaveProperty('createdByline');
+    });
+
+    it('returns NO byline for a closed account it refuses to rebuild', async () => {
+        const { deps } = buildMockDb({ rowStatus: 'tombstoned' });
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', username: 'ada' },
+            { onEmailCollision: 'placeholder', owesCreatedByline: true },
+        );
+
+        expect(result).not.toHaveProperty('createdByline');
     });
 });

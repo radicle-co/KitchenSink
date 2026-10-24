@@ -1,14 +1,14 @@
 ---
 name: speckit.product-forge.api-docs
 description: 'Generates OpenAPI 3.1 spec and Postman collection from plan.md API contracts.
-  Auto-detects existing API framework (NestJS, Express, FastAPI, etc.), validates
-  consistency between spec and implementation, and outputs ready-to-publish docs.
-  Use after implement: "generate API docs", "/speckit.product-forge.api-docs"'
+    Auto-detects existing API framework (NestJS, Express, FastAPI, etc.), validates
+    consistency between spec and implementation, and outputs ready-to-publish docs.
+    Use after implement: "generate API docs", "/speckit.product-forge.api-docs"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — API Docs Generation
 
 You are the **API Documentation Generator** for Product Forge.
@@ -36,6 +36,7 @@ $ARGUMENTS
 3. Verify `spec.md` exists; load `contracts/openapi.yaml` + `contracts/asyncapi.yaml` if present
 
 If no API endpoints found in plan.md:
+
 > ℹ️ No API endpoints detected in plan.md. This command generates docs for backend APIs.
 > If this is a frontend-only feature, api-docs is not needed.
 
@@ -50,23 +51,25 @@ Scan the codebase to understand the API framework:
 ```
 
 Detect:
+
 1. **Authoritative contracts (check first):**
-   - Look for: `{FEATURE_DIR}/contracts/openapi.yaml` (HTTP) and
-     `{FEATURE_DIR}/contracts/asyncapi.yaml` (events), authored in `bridge`/`plan`.
-   - **If present, these are the authoritative input** — this command validates and
-     regenerates against them + the implementation, it does **not** re-author from scratch.
+    - Look for: `{FEATURE_DIR}/contracts/openapi.yaml` (HTTP) and
+      `{FEATURE_DIR}/contracts/asyncapi.yaml` (events), authored in `bridge`/`plan`.
+    - **If present, these are the authoritative input** — this command validates and
+      regenerates against them + the implementation, it does **not** re-author from scratch.
 2. **Framework:** NestJS / Express / FastAPI / Django REST / Rails / other
-   - Look for: `nest-cli.json`, `@nestjs/swagger`, `express`, `fastapi`, `rest_framework`
+    - Look for: `nest-cli.json`, `@nestjs/swagger`, `express`, `fastapi`, `rest_framework`
 3. **Existing OpenAPI setup:**
-   - Look for: `swagger.json`, `openapi.yml`, `@ApiProperty` decorators (NestJS)
+    - Look for: `swagger.json`, `openapi.yml`, `@ApiProperty` decorators (NestJS)
 4. **Base path / versioning:**
-   - Look for: app prefix in `main.ts`, `globalPrefix`, version in URL patterns
+    - Look for: app prefix in `main.ts`, `globalPrefix`, version in URL patterns
 5. **Auth scheme:**
-   - Look for: JWT guards, API key headers, OAuth2 config, `@ApiBearerAuth()`
+    - Look for: JWT guards, API key headers, OAuth2 config, `@ApiBearerAuth()`
 6. **Existing DTO/schema files:**
-   - Look for: `*.dto.ts`, `*.schema.ts`, Zod schemas, Pydantic models
+    - Look for: `*.dto.ts`, `*.schema.ts`, Zod schemas, Pydantic models
 
 Report (contracts present — the common path after `bridge`/`plan`):
+
 ```
 🔍 Auto-detected:
   Framework:       NestJS (@nestjs/swagger found)
@@ -78,6 +81,7 @@ Report (contracts present — the common path after `bridge`/`plan`):
 ```
 
 Report (no contracts — fallback, author from scratch):
+
 ```
 🔍 Auto-detected:
   ...
@@ -89,12 +93,13 @@ Report (no contracts — fallback, author from scratch):
 ## Step 3: Extract API Contracts from Artifacts
 
 Read in order of priority:
+
 1. **`contracts/openapi.yaml` + `contracts/asyncapi.yaml` (authoritative when present)** —
    the FE↔BE contract authored in `bridge`/`plan`, keyed by `API-*` ids. When these exist
    they are the source of truth for the API surface; the steps below validate/regenerate
    against them rather than re-deriving the contract.
 2. Implementation files (DTOs, controllers, route handlers) — source of truth for the
-   *actual* behavior; drift between contract and implementation is reported in Step 6.
+   _actual_ behavior; drift between contract and implementation is reported in Step 6.
 3. `plan.md` → API endpoints section (method, path, request, response schemas)
 4. `spec.md` → acceptance criteria referencing API behavior
 5. `product-spec/product-spec.md` → API requirements from Must Have stories
@@ -103,6 +108,7 @@ Read in order of priority:
 > deriving the surface from `plan.md` + `spec.md` + implementation (the from-scratch path).
 
 For each endpoint found, extract:
+
 - HTTP method + path
 - Request: headers, path params, query params, body schema
 - Response: success schema (200/201), error schemas (400/401/403/404/422/500)
@@ -131,6 +137,7 @@ Do **not** re-author a divergent spec. Instead:
    `contracts/openapi.yaml` (reconcile, do not fork).
 
 **AsyncAPI branch** — if `contracts/asyncapi.yaml` exists (event-driven feature):
+
 1. **Validate** it against the AsyncAPI schema and against the emitted/consumed events in the
    implementation (publishers/subscribers, channel names, message payloads).
 2. **Regenerate / update the SAME `contracts/asyncapi.yaml`** in place for any drift, preserving
@@ -299,91 +306,87 @@ Create `{FEATURE_DIR}/api-docs/postman-collection.json`:
 
 ```json
 {
-  "info": {
-    "name": "{Feature Name} — {project_name}",
-    "_postman_id": "{generated UUID}",
-    "description": "Generated by Product Forge from feature: {feature-slug}",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "variable": [
-    { "key": "baseUrl", "value": "{BASE_URL}", "type": "string" },
-    { "key": "token", "value": "", "type": "string", "description": "Set after login" }
-  ],
-  "auth": {
-    "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
-  },
-  "item": [
-    {
-      "name": "Auth",
-      "item": [
-        {
-          "name": "Login (get token)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const res = pm.response.json();",
-                  "pm.collectionVariables.set('token', res.accessToken);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/auth/login",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"{{testEmail}}\", \"password\": \"{{testPassword}}\"}"
-            }
-          }
-        }
-      ]
+    "info": {
+        "name": "{Feature Name} — {project_name}",
+        "_postman_id": "{generated UUID}",
+        "description": "Generated by Product Forge from feature: {feature-slug}",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
-    {
-      "name": "{Feature Name}",
-      "item": [
+    "variable": [
+        { "key": "baseUrl", "value": "{BASE_URL}", "type": "string" },
+        { "key": "token", "value": "", "type": "string", "description": "Set after login" }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+    },
+    "item": [
         {
-          "name": "{Endpoint name} — {HTTP method} {path}",
-          "request": {
-            "method": "{METHOD}",
-            "url": {
-              "raw": "{{baseUrl}}{path}",
-              "host": ["{{baseUrl}}"],
-              "path": ["{path segments}"],
-              "query": [
-                { "key": "{param}", "value": "{example}", "description": "{description}" }
-              ]
-            },
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{request body JSON example}"
-            },
-            "description": "{description from plan.md}\n\nUser Story: {US-NNN}"
-          },
-          "response": [
-            {
-              "name": "200 OK — Success",
-              "status": "OK",
-              "code": 200,
-              "body": "{response example JSON}"
-            },
-            {
-              "name": "400 — Validation error",
-              "status": "Bad Request",
-              "code": 400,
-              "body": "{error response example}"
-            }
-          ]
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Login (get token)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const res = pm.response.json();",
+                                    "pm.collectionVariables.set('token', res.accessToken);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": "{{baseUrl}}/auth/login",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"email\": \"{{testEmail}}\", \"password\": \"{{testPassword}}\"}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "{Feature Name}",
+            "item": [
+                {
+                    "name": "{Endpoint name} — {HTTP method} {path}",
+                    "request": {
+                        "method": "{METHOD}",
+                        "url": {
+                            "raw": "{{baseUrl}}{path}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["{path segments}"],
+                            "query": [{ "key": "{param}", "value": "{example}", "description": "{description}" }]
+                        },
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{request body JSON example}"
+                        },
+                        "description": "{description from plan.md}\n\nUser Story: {US-NNN}"
+                    },
+                    "response": [
+                        {
+                            "name": "200 OK — Success",
+                            "status": "OK",
+                            "code": 200,
+                            "body": "{response example JSON}"
+                        },
+                        {
+                            "name": "400 — Validation error",
+                            "status": "Bad Request",
+                            "code": 400,
+                            "body": "{error response example}"
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }
 ```
 
@@ -397,6 +400,7 @@ keyed by `API-*`) is the baseline; otherwise fall back to the endpoints derived 
 `plan.md`. Reported drift also feeds `verify-full` Layer 9 (FE↔contract↔BE).
 
 For each endpoint/operation in the contract (fall back to `plan.md` if no `contracts/*`), verify:
+
 - [ ] Route path matches controller decorator
 - [ ] HTTP method matches
 - [ ] Request DTO fields match the contract schema
@@ -439,11 +443,11 @@ Generated: {date} | Feature: `{feature-slug}`
 
 ## Endpoints
 
-| Method | Path | Auth | Description | Story |
-|--------|------|------|-------------|-------|
-| GET | {path} | Bearer | {description} | {US-NNN} |
-| POST | {path} | Bearer | {description} | {US-NNN} |
-| PATCH | {path} | Bearer | {description} | {US-NNN} |
+| Method | Path   | Auth   | Description   | Story    |
+| ------ | ------ | ------ | ------------- | -------- |
+| GET    | {path} | Bearer | {description} | {US-NNN} |
+| POST   | {path} | Bearer | {description} | {US-NNN} |
+| PATCH  | {path} | Bearer | {description} | {US-NNN} |
 | DELETE | {path} | Bearer | {description} | {US-NNN} |
 
 ## Files
@@ -455,18 +459,23 @@ Generated: {date} | Feature: `{feature-slug}`
 ## How to use
 
 ### Swagger UI (local)
+
 \`\`\`bash
 npx @stoplight/prism-cli mock api-docs/openapi.yml
+
 # Open: http://localhost:4010
+
 \`\`\`
 
 ### Import into Postman
+
 1. Postman → Import → File → select `postman-collection.json`
 2. Set collection variable `baseUrl` to your dev server
 3. Run "Login" request first → token saved automatically
 4. All other requests use the token from login
 
 ### Publish to project docs
+
 If project has Swagger/Redoc integration, copy `openapi.yml` to the expected location:
 \`\`\`bash
 cp api-docs/openapi.yml {project swagger path}
@@ -485,18 +494,18 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  api_docs: completed
+    api_docs: completed
 # Top-level instrumentation block. Named `api_docs_report` (not `api_docs`) to avoid
 # the sibling collision with the `phases.api_docs` status entry — same rename pattern
 # the v3 schema applied to tasks → task_log.
 api_docs_report:
-  endpoints: {N}
-  source: contracts            # "contracts" (reconciled) | "scratch" (no contracts/*)
-  openapi_file: "api-docs/openapi.yml"
-  asyncapi_file: "api-docs/asyncapi.yml"   # omit if no contracts/asyncapi.yaml
-  postman_file: "api-docs/postman-collection.json"
-  drift_issues: {N}
-last_updated: "{ISO timestamp}"
+    endpoints: { N }
+    source: contracts # "contracts" (reconciled) | "scratch" (no contracts/*)
+    openapi_file: 'api-docs/openapi.yml'
+    asyncapi_file: 'api-docs/asyncapi.yml' # omit if no contracts/asyncapi.yaml
+    postman_file: 'api-docs/postman-collection.json'
+    drift_issues: { N }
+last_updated: '{ISO timestamp}'
 ```
 
 ```

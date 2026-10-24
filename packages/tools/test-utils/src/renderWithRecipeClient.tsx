@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { render, type RenderResult } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -6,6 +6,8 @@ import type { Locale } from '@commise/i18n';
 import { LocaleProvider } from '@commise/i18n/react';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+
+import { makeTestQueryClient } from './testQueryClient.js';
 
 /** Options accepted by {@link renderWithRecipeClient}. */
 export interface RenderWithRecipeClientOptions {
@@ -17,26 +19,10 @@ export interface RenderWithRecipeClientOptions {
 }
 
 /**
- * Build a fresh `QueryClient` with retries disabled, so an error-path test settles on the first rejection
- * instead of retrying three times behind TanStack Query's default exponential backoff.
- *
- * @returns A retry-free query client.
- * @sideEffect Allocates a query cache.
- */
-function makeTestQueryClient(): QueryClient {
-    return new QueryClient({
-        defaultOptions: {
-            queries: { retry: false },
-            mutations: { retry: false },
-        },
-    });
-}
-
-/**
  * RTL custom-render helper for web container tests that exercise the REAL `@kitchensink/recipe-service-client`
  * hooks (rather than mocking the hooks module). Composes `LocaleProvider` + a `QueryClientProvider` +
  * `RecipeServiceProvider` around `ui`, so a test only needs to hand in a
- * {@link https://www.npmjs.com/package/@kitchensink/recipe-service-client `RecipeServiceClient`} — typically
+ * {@link RecipeServiceClient} — typically
  * `createFakeRecipeServiceClient()` from `@kitchensink/recipe-service-client/testing`, stubbed per test with
  * `vi.spyOn` — instead of hand-mocking the hooks module's `Record<string, unknown>` return shapes.
  *

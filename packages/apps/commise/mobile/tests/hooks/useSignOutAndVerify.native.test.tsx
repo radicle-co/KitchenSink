@@ -15,6 +15,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook } from '@testing-library/react';
 import { SignOutNotVerifiedError } from '@commise/features-account';
+import { onlineManager } from '@tanstack/react-query';
 
 const { rawClerkSignOut, loadSafeSignOut, clerkState } = vi.hoisted(() => ({
     // The raw, premount-queuing method. The command must NEVER call this one.
@@ -41,8 +42,11 @@ vi.mock('@clerk/expo', () => ({
             return clerkState.session;
         },
     }),
-    useAuth: () => ({ signOut: loadSafeSignOut }),
+    useAuth: () => ({ signOut: loadSafeSignOut, userId: 'user_cook' }),
 }));
+
+const { endDeviceSession } = vi.hoisted(() => ({ endDeviceSession: vi.fn(async () => undefined) }));
+vi.mock('../../src/storage/deviceSession.js', () => ({ endDeviceSession }));
 
 const { useSignOutAndVerify } = await import('../../src/hooks/useSignOutAndVerify.js');
 
@@ -55,11 +59,27 @@ beforeEach(() => {
     clerkState.loaded = true;
     clerkState.status = 'ready';
     clerkState.session = { id: 'sess_live' };
+    endDeviceSession.mockClear();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    onlineManager.setOnline(true);
+});
 
 describe('useSignOutAndVerify (mobile)', () => {
+    // ADR-0068: offline, Clerk cannot end the session, and the attempt left the app on "Checking your session…" for good.
+    // The hook reads the app's one connection signal, so the command refuses before Clerk is asked.
+    it('refuses offline without calling either sign-out, and keeps the device state', async () => {
+        onlineManager.setOnline(false);
+        const { result } = renderHook(() => useSignOutAndVerify());
+
+        await expect(result.current.signOutAndVerify()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(loadSafeSignOut).not.toHaveBeenCalled();
+        expect(rawClerkSignOut).not.toHaveBeenCalled();
+        expect(endDeviceSession).not.toHaveBeenCalled();
+    });
+
     it('signs out through the LOAD-SAFE wrapper, never the raw premount-queuing method', async () => {
         const { result } = renderHook(() => useSignOutAndVerify());
 
@@ -117,5 +137,24 @@ describe('useSignOutAndVerify (mobile)', () => {
         await result.current.signOutAndVerify();
 
         expect(loadSafeSignOut).toHaveBeenCalledTimes(1);
+    });
+});
+
+/** ADR-0057: the cook's editor drafts and outbox on disk end with the session, once it is proven ended. */
+describe('useSignOutAndVerify — the device session end (ADR-0057)', () => {
+    it('clears the signed-in cook`s device state after the proof', async () => {
+        const { result } = renderHook(() => useSignOutAndVerify());
+
+        await result.current.signOutAndVerify();
+
+        expect(endDeviceSession).toHaveBeenCalledWith('user_cook');
+    });
+
+    it('keeps it when the sign-out could not be proven', async () => {
+        loadSafeSignOut.mockImplementationOnce(async () => undefined);
+        const { result } = renderHook(() => useSignOutAndVerify());
+
+        await expect(result.current.signOutAndVerify()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(endDeviceSession).not.toHaveBeenCalled();
     });
 });

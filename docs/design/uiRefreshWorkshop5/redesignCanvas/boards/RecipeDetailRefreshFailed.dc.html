@@ -1,0 +1,1928 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe detail, could not refresh (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <!-- Redesign canvas (workshop 5, round 9 system): a static redesigned copy of this board. Design artifact, not app code. -->
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .rd {
+                        position: relative;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 17px/1.4 var(--font-body);
+                        letter-spacing: -0.011em;
+                    }
+                    .rd a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .rd p,
+                    .rd h1,
+                    .rd h2,
+                    .rd h3,
+                    .rd ul,
+                    .rd ol {
+                        margin: 0;
+                    }
+                    .rd ul,
+                    .rd ol {
+                        padding: 0;
+                    }
+                    .rd .ic {
+                        width: 20px;
+                        height: 20px;
+                        flex: none;
+                        stroke: currentColor;
+                        fill: none;
+                        stroke-width: 1.6;
+                        stroke-linecap: round;
+                        stroke-linejoin: round;
+                    }
+                    .rd .ic.sm {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .rd .ic.xs {
+                        width: 14px;
+                        height: 14px;
+                    }
+                    .rd .t13 {
+                        font-size: 13px;
+                        line-height: 1.35;
+                    }
+                    .rd .t15 {
+                        font-size: 15px;
+                        line-height: 1.4;
+                    }
+                    .rd .t17 {
+                        font-size: 17px;
+                        line-height: 1.4;
+                    }
+                    .rd .soft {
+                        color: var(--ink-muted);
+                    }
+                    .rd .w500 {
+                        font-weight: 500;
+                    }
+                    .rd .w600 {
+                        font-weight: 600;
+                    }
+                    .rd .tnum {
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .rd .dish {
+                        font-family: var(--font-display);
+                        font-weight: 600;
+                        letter-spacing: -0.012em;
+                    }
+                    .rd .vh {
+                        position: absolute;
+                        width: 1px;
+                        height: 1px;
+                        overflow: hidden;
+                        clip: rect(0 0 0 0);
+                    }
+                    .rd .card {
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-md);
+                    }
+                    .rd .mx {
+                        margin-left: 16px;
+                        margin-right: 16px;
+                    }
+                    .rd .p {
+                        background-size: cover;
+                        background-position: center;
+                    }
+                    .rd .imgHero {
+                        background-image: url('data:image/webp;base64,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');
+                    }
+                    .rd .vp {
+                        height: 844px;
+                    }
+                    .rd .pad {
+                        padding: 0 16px;
+                    }
+                    .rd .gap8 {
+                        height: 8px;
+                    }
+                    .rd .annot {
+                        padding: 10px 12px;
+                        border-radius: 12px;
+                        border: 1px dashed var(--line-control);
+                        color: var(--ink-muted);
+                        font-size: 13px;
+                        line-height: 1.35;
+                    }
+                    .rd .annot p + p {
+                        margin-top: 4px;
+                    }
+                    .rd .cap {
+                        font-size: 13px;
+                        line-height: 1.35;
+                        color: var(--ink-muted);
+                        margin: 0 0 8px;
+                    }
+                    .rd .stack {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .rd .eyebrow {
+                        font-size: 13px;
+                        font-weight: 600;
+                        letter-spacing: 0.06em;
+                        text-transform: uppercase;
+                        color: var(--ink-muted);
+                        line-height: 1.35;
+                    }
+                    .rd .rTitle {
+                        font-size: 28px;
+                        line-height: 1.15;
+                        letter-spacing: -0.02em;
+                        margin-top: 4px;
+                        text-wrap: balance;
+                    }
+                    .rd .titleGap {
+                        margin-bottom: 4px;
+                    }
+                    .rd .btn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        height: 44px;
+                        padding: 0 18px;
+                        border-radius: 12px;
+                        font-size: 15px;
+                        font-weight: 600;
+                        white-space: nowrap;
+                    }
+                    .rd .btn.primary {
+                        background: var(--action);
+                        color: var(--on-action);
+                    }
+                    .rd .btn.secondary {
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                    }
+                    .rd .btn.danger {
+                        background: var(--danger);
+                        color: white;
+                    }
+                    .rd .btn.busy {
+                        opacity: 0.6;
+                    }
+                    .rd .btn.sm {
+                        height: 36px;
+                        padding: 0 14px;
+                    }
+                    .rd .chipBtn {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 32px;
+                        padding: 0 12px;
+                        border-radius: 16px;
+                        background: var(--surface-muted);
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    .rd .chipBtn .ic {
+                        width: 14px;
+                        height: 14px;
+                        stroke-width: 1.9;
+                    }
+                    .rd .chipBtn.sel {
+                        background: var(--selected-fill);
+                        box-shadow: inset 0 0 0 1.5px var(--selected-edge);
+                    }
+                    .rd .linkBtn {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        min-height: 44px;
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: var(--action-text);
+                    }
+                    .rd .badge {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        height: 24px;
+                        padding: 0 9px;
+                        border-radius: 8px;
+                        background: var(--attention-tint);
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: var(--ink);
+                    }
+                    .rd .badge .ic {
+                        width: 14px;
+                        height: 14px;
+                        color: var(--attention);
+                    }
+                    .rd .badge.calm {
+                        background: var(--surface-muted);
+                    }
+                    .rd .badge.calm .ic {
+                        color: var(--ink-muted);
+                    }
+                    .rd .badge.dashed {
+                        background: transparent;
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        font-weight: 500;
+                    }
+                    .rd .opt {
+                        display: inline-flex;
+                        align-items: center;
+                        min-height: 36px;
+                        padding: 0 14px;
+                        border-radius: 18px;
+                        background: var(--cover-seafoam);
+                        font-size: 15px;
+                        font-weight: 500;
+                    }
+                    .rd .sheet {
+                        position: relative;
+                        margin-top: -24px;
+                        background: var(--paper);
+                        border-radius: 24px 24px 0 0;
+                        padding: 22px 20px 22px;
+                    }
+                    .rd .sheet.flat {
+                        margin-top: 0;
+                        border-radius: 22px;
+                    }
+                    .rd .metaRow2 {
+                        margin-top: 10px;
+                        display: flex;
+                        flex-wrap: nowrap;
+                        white-space: nowrap;
+                        align-items: center;
+                        gap: 2px 6px;
+                    }
+                    .rd .metaRow2 .mi {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        min-height: 32px;
+                    }
+                    .rd .metaRow2 .metaLink {
+                        color: var(--action-text);
+                        font-weight: 500;
+                    }
+                    .rd .metaRow2 .sep {
+                        color: var(--line-control);
+                    }
+                    .rd .metaRow2 .ink {
+                        color: var(--ink);
+                    }
+                    .rd .facts {
+                        margin-top: 16px;
+                        display: grid;
+                        grid-template-columns: 1fr 1fr 1fr;
+                        gap: 8px;
+                    }
+                    .rd .facts.four {
+                        grid-template-columns: 1fr 1fr;
+                    }
+                    .rd .fact {
+                        border-radius: 14px;
+                        padding: 10px 12px 11px;
+                        background: var(--cover-seafoam);
+                    }
+                    .rd .fact:nth-child(2) {
+                        background: var(--cover-sky);
+                    }
+                    .rd .fact:nth-child(3) {
+                        background: var(--cover-success);
+                    }
+                    .rd .fact:nth-child(4) {
+                        background: var(--cover-coral);
+                    }
+                    .rd .fact .lab {
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                    }
+                    .rd .fact .ic {
+                        width: 14px;
+                        height: 14px;
+                        color: var(--ink-muted);
+                        stroke-width: 1.8;
+                    }
+                    .rd .fact .v {
+                        margin-top: 3px;
+                        font-size: 15px;
+                        font-weight: 600;
+                        letter-spacing: -0.01em;
+                    }
+                    .rd .btnPair {
+                        margin-top: 14px;
+                        display: grid;
+                        grid-template-columns: 1fr auto;
+                        gap: 8px;
+                    }
+                    .rd .btn2 {
+                        height: 44px;
+                        border-radius: 12px;
+                        background: var(--paper);
+                        color: var(--ink);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        font-size: 15px;
+                        font-weight: 600;
+                        padding: 0 14px;
+                    }
+                    .rd .btn2.busy {
+                        opacity: 0.6;
+                    }
+                    .rd .desc {
+                        margin-top: 16px;
+                        font-size: 15px;
+                        line-height: 1.45;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                        overflow: hidden;
+                    }
+                    .rd .moreLink {
+                        display: inline-flex;
+                        align-items: center;
+                        min-height: 32px;
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .rd .tags {
+                        margin-top: 6px;
+                        display: flex;
+                        gap: 6px;
+                        flex-wrap: wrap;
+                    }
+                    .rd .tag {
+                        height: 28px;
+                        padding: 0 10px;
+                        border-radius: 14px;
+                        background: var(--cover-coral);
+                        font-size: 13px;
+                        font-weight: 500;
+                        color: var(--ink-muted);
+                        display: inline-flex;
+                        align-items: center;
+                    }
+                    .rd .errLine {
+                        margin-top: 10px;
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        font-size: 15px;
+                        color: var(--danger-text);
+                    }
+                    .rd .errLine .ic {
+                        margin-top: 2px;
+                    }
+                    .rd .rateBlock {
+                        padding: 2px 0 14px;
+                        border-bottom: 1px solid var(--line-divider);
+                        margin-bottom: 18px;
+                    }
+                    .rd .rateLine {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 32px;
+                    }
+                    .rd .stars {
+                        display: inline-flex;
+                        gap: 1px;
+                        color: var(--rating);
+                    }
+                    .rd .stars .ic {
+                        width: 13px;
+                        height: 13px;
+                        fill: currentColor;
+                        stroke: none;
+                    }
+                    .rd .stars.big .ic {
+                        width: 18px;
+                        height: 18px;
+                    }
+                    .rd .stars.tap {
+                        gap: 0;
+                    }
+                    .rd .stars.tap a {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                    }
+                    .rd .stars.tap .ic {
+                        width: 24px;
+                        height: 24px;
+                    }
+                    .rd .stars.tap .ic.o {
+                        fill: none;
+                        stroke: currentColor;
+                        stroke-width: 1.6;
+                    }
+                    .rd .stars .ic.o {
+                        fill: none;
+                        stroke: currentColor;
+                        stroke-width: 1.6;
+                    }
+                    .rd .rowLink {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        min-height: 44px;
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .rd .rowLink .ic {
+                        color: var(--ink-muted);
+                    }
+                    .rd .hero {
+                        position: relative;
+                        height: 340px;
+                        background-size: cover;
+                        background-position: center 40%;
+                        flex: none;
+                    }
+                    .rd .hero .btnC {
+                        position: absolute;
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .rd .hero .btnC > span,
+                    .rd .topBar .btnC > span,
+                    .rd .wideBar .btnC > span,
+                    .rd .moreBtn > span {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--photo-chip);
+                        box-shadow: var(--shadow-sm);
+                    }
+                    .rd .hero .btnC .ic,
+                    .rd .topBar .btnC .ic,
+                    .rd .wideBar .btnC .ic {
+                        width: 16px;
+                        height: 16px;
+                        stroke-width: 2;
+                    }
+                    .rd .hero .back {
+                        top: 50px;
+                        left: 10px;
+                    }
+                    .rd .hero .more {
+                        top: 50px;
+                        right: 10px;
+                    }
+                    .rd .edge {
+                        position: absolute;
+                        top: 46%;
+                        transform: translateY(-50%);
+                        width: 44px;
+                        height: 56px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .rd .edge > span {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--photo-chip);
+                        box-shadow: var(--shadow-sm);
+                    }
+                    .rd .edge .ic {
+                        width: 16px;
+                        height: 16px;
+                        stroke-width: 2;
+                    }
+                    .rd .prevImg {
+                        left: 2px;
+                    }
+                    .rd .nextImg {
+                        right: 2px;
+                    }
+                    .rd .dots {
+                        position: absolute;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        bottom: 36px;
+                        display: flex;
+                        gap: 6px;
+                        padding: 5px 7px;
+                        border-radius: 10px;
+                        background: var(--photo-chip);
+                    }
+                    .rd .dots i {
+                        width: 6px;
+                        height: 6px;
+                        border-radius: 3px;
+                        background: var(--line-control);
+                    }
+                    .rd .dots i.on {
+                        background: var(--ink);
+                        width: 16px;
+                    }
+                    .rd .prep {
+                        padding: 14px 16px 16px;
+                        margin-top: 16px;
+                    }
+                    .rd .prep .head {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    }
+                    .rd .prep .head h3 {
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .rd .timeline {
+                        display: flex;
+                        gap: 3px;
+                        height: 10px;
+                        margin-top: 12px;
+                        border-radius: 5px;
+                        overflow: hidden;
+                    }
+                    .rd .timeline i {
+                        display: block;
+                        height: 100%;
+                    }
+                    .rd .tl1 {
+                        background: var(--ink-muted);
+                    }
+                    .rd .tl2 {
+                        background: var(--cover-sky);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                    }
+                    .rd .tl3 {
+                        background: var(--line-control);
+                    }
+                    .rd .legend {
+                        margin-top: 8px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 4px 14px;
+                    }
+                    .rd .legend span {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .rd .legend b {
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 3px;
+                        display: inline-block;
+                    }
+                    .rd .firstUp {
+                        margin-top: 12px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .rd .firstUp ul {
+                        list-style: none;
+                        margin-top: 6px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 6px;
+                    }
+                    .rd .firstUp li {
+                        display: flex;
+                        gap: 10px;
+                        align-items: flex-start;
+                        font-size: 15px;
+                        line-height: 1.38;
+                    }
+                    .rd .firstUp li .ic {
+                        width: 16px;
+                        height: 16px;
+                        margin-top: 2px;
+                        color: var(--ink-muted);
+                    }
+                    .rd .accordion {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 0 16px;
+                        min-height: 56px;
+                        margin-top: 16px;
+                    }
+                    .rd .accordion .grow {
+                        flex: 1;
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.015em;
+                    }
+                    .rd .accordion.open {
+                        flex-wrap: wrap;
+                        padding: 0;
+                    }
+                    .rd .accHead {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 0 16px;
+                        min-height: 56px;
+                        width: 100%;
+                    }
+                    .rd .accHead .grow {
+                        flex: 1;
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.015em;
+                    }
+                    .rd .accBody {
+                        width: 100%;
+                        padding: 0 16px 16px;
+                    }
+                    .rd .nut {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 8px;
+                    }
+                    .rd .nut > div {
+                        border-radius: 14px;
+                        padding: 10px 10px 11px;
+                        background: var(--cover-seafoam);
+                    }
+                    .rd .nut > div:nth-child(2) {
+                        background: var(--cover-sky);
+                    }
+                    .rd .nut > div:nth-child(3) {
+                        background: var(--cover-success);
+                    }
+                    .rd .nut > div:nth-child(4) {
+                        background: var(--cover-coral);
+                    }
+                    .rd .nut .v {
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.015em;
+                    }
+                    .rd .nut.two {
+                        grid-template-columns: repeat(2, 1fr);
+                    }
+                    .rd .nutNote {
+                        margin-top: 10px;
+                    }
+                    .rd .nutNote a,
+                    .rd .ulink {
+                        color: var(--ink);
+                        font-weight: 500;
+                        text-decoration: underline;
+                        text-underline-offset: 2px;
+                        text-decoration-thickness: 1px;
+                    }
+                    .rd .nutCard {
+                        padding: 16px;
+                    }
+                    .rd .nutCard h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.015em;
+                        margin-bottom: 10px;
+                    }
+                    .rd .ingCard {
+                        padding: 6px 0;
+                    }
+                    .rd .ingHeadRow {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 14px 10px 4px 16px;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .rd .ingHeadRow h2,
+                    .rd .secHead h2,
+                    .rd .cardHead h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.015em;
+                    }
+                    .rd .ingEditRow {
+                        padding: 0 16px 4px;
+                    }
+                    .rd .stepper {
+                        display: inline-flex;
+                        align-items: center;
+                        background: var(--surface-muted);
+                        border-radius: 18px;
+                        height: 36px;
+                    }
+                    .rd .stepper a {
+                        width: 40px;
+                        height: 36px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .rd .stepper .n {
+                        min-width: 48px;
+                        text-align: center;
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .rd .group {
+                        padding: 14px 16px 4px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        letter-spacing: 0.06em;
+                        text-transform: uppercase;
+                        color: var(--ink-muted);
+                    }
+                    .rd .ing {
+                        list-style: none;
+                    }
+                    .rd .ing li {
+                        display: flex;
+                        gap: 14px;
+                        align-items: flex-start;
+                        padding: 11px 16px;
+                        position: relative;
+                        font-size: 17px;
+                    }
+                    .rd .ing li + li::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 52px;
+                        right: 0;
+                        height: 1px;
+                        background: var(--line-divider);
+                    }
+                    .rd .box {
+                        width: 22px;
+                        height: 22px;
+                        flex: none;
+                        border-radius: 7px;
+                        box-shadow: inset 0 0 0 1.5px var(--line-control);
+                        margin-top: 1px;
+                        display: grid;
+                        place-items: center;
+                    }
+                    .rd .box.on {
+                        background: var(--action);
+                        box-shadow: none;
+                        color: var(--on-action);
+                    }
+                    .rd .box.on .ic {
+                        width: 14px;
+                        height: 14px;
+                        stroke-width: 2.4;
+                    }
+                    .rd .ing .q {
+                        font-weight: 600;
+                    }
+                    .rd .ing .note {
+                        color: var(--ink-muted);
+                    }
+                    .rd .ing li.done,
+                    .rd .ing li.done .q {
+                        color: var(--ink-muted);
+                    }
+                    .rd .ing .rowBadge {
+                        display: flex;
+                        width: fit-content;
+                        margin-top: 4px;
+                    }
+                    .rd .secHead {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                        margin: 28px 0 10px;
+                        min-height: 32px;
+                    }
+                    .rd .secHead.pad {
+                        padding: 0 20px;
+                    }
+                    .rd .cardHead {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 10px 16px 6px;
+                    }
+                    .rd .steps {
+                        list-style: none;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 0 16px;
+                    }
+                    .rd .step {
+                        display: grid;
+                        grid-template-columns: 28px 1fr;
+                        column-gap: 12px;
+                        padding: 14px 16px 16px 14px;
+                    }
+                    .rd .num {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 50%;
+                        background: var(--surface-muted);
+                        color: var(--ink-muted);
+                        font-size: 13px;
+                        font-weight: 600;
+                        display: grid;
+                        place-items: center;
+                    }
+                    .rd .step p {
+                        font-size: 17px;
+                        line-height: 1.45;
+                    }
+                    .rd .step.done {
+                        background: transparent;
+                        box-shadow: inset 0 0 0 1px var(--line-divider);
+                    }
+                    .rd .step.done .num {
+                        background: transparent;
+                        box-shadow: inset 0 0 0 1.5px var(--action-text);
+                        color: var(--action-text);
+                    }
+                    .rd .step.done .num .ic {
+                        width: 14px;
+                        height: 14px;
+                        stroke-width: 2.4;
+                    }
+                    .rd .step.done p {
+                        color: var(--ink-muted);
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                        overflow: hidden;
+                    }
+                    .rd .step.cur {
+                        background: var(--selected-fill);
+                        box-shadow: inset 0 0 0 1.5px var(--selected-edge);
+                    }
+                    .rd .step.cur .num {
+                        background: var(--action);
+                        color: var(--on-action);
+                    }
+                    .rd .step .label {
+                        display: block;
+                        margin-bottom: 2px;
+                        color: var(--action-text);
+                    }
+                    .rd .timer {
+                        margin-top: 12px;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 34px;
+                        padding: 0 14px 0 10px;
+                        border-radius: 17px;
+                        background: var(--surface-muted);
+                        color: var(--ink);
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    .rd .timer .ic {
+                        width: 16px;
+                        height: 16px;
+                        color: var(--action-text);
+                        stroke-width: 1.9;
+                    }
+                    .rd .timer.running {
+                        background: var(--action);
+                        color: var(--on-action);
+                    }
+                    .rd .timer.running .ic {
+                        color: var(--on-action);
+                    }
+                    .rd .amt {
+                        font-weight: 600;
+                        white-space: nowrap;
+                    }
+                    .rd .endSpace {
+                        height: 28px;
+                    }
+                    .rd .ingSpace {
+                        height: 28px;
+                    }
+                    .rd .tabbar {
+                        background: var(--paper);
+                        border-top: 1px solid var(--line-divider);
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        padding: 8px 0 30px;
+                        flex: none;
+                        margin-top: auto;
+                    }
+                    .rd .vp .tabbar {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 3;
+                    }
+                    .rd .tab {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        color: var(--ink-muted);
+                        font-size: 13px;
+                        font-weight: 500;
+                        min-height: 44px;
+                        justify-content: center;
+                    }
+                    .rd .tab .ic {
+                        width: 24px;
+                        height: 24px;
+                        stroke-width: 1.5;
+                    }
+                    .rd .tab.on {
+                        color: var(--action-text);
+                    }
+                    .rd .tab.on .ic {
+                        stroke-width: 1.9;
+                    }
+                    .rd .topBar {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        z-index: 5;
+                        padding: 47px 6px 0;
+                        height: 103px;
+                        display: grid;
+                        grid-template-columns: 44px 1fr 44px;
+                        align-items: center;
+                        background: var(--bar);
+                        border-bottom: 1px solid var(--line-divider);
+                    }
+                    .rd .topBar .btnC {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .rd .topBar .btnC > span {
+                        background: var(--surface-muted);
+                        box-shadow: none;
+                    }
+                    .rd .barTitle {
+                        font-size: 17px;
+                        line-height: 1.2;
+                        text-align: center;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        padding: 0 6px;
+                    }
+                    .rd .pinBtn {
+                        all: unset;
+                        box-sizing: border-box;
+                        position: absolute;
+                        top: 111px;
+                        left: 12px;
+                        right: 12px;
+                        z-index: 7;
+                        height: 64px;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 0 12px 0 16px;
+                        border-radius: var(--radius-lg);
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-lg);
+                        cursor: pointer;
+                        color: var(--ink);
+                    }
+                    .rd .pinBtn.flow {
+                        position: sticky;
+                        top: 12px;
+                        z-index: 2;
+                        margin: 0 12px 12px;
+                    }
+                    .rd .pinBtn .lab {
+                        flex: 1;
+                        min-width: 0;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .rd .pinBtn .l1 {
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.015em;
+                        line-height: 1.25;
+                        white-space: nowrap;
+                    }
+                    .rd .pinBtn .for,
+                    .rd .pinBtn .meta {
+                        font-size: 15px;
+                        font-weight: 400;
+                        color: var(--ink-muted);
+                    }
+                    .rd .pinBtn .meta {
+                        line-height: 1.3;
+                    }
+                    .rd .pinBtn .cue {
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: var(--action-text);
+                    }
+                    .rd .pinBtn .well {
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--action);
+                        flex: none;
+                    }
+                    .rd .pinBtn .well .ic {
+                        width: 20px;
+                        height: 20px;
+                        stroke-width: 2.2;
+                        color: var(--on-action);
+                    }
+                    .rd .viewBody {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        top: 183px;
+                        bottom: 0;
+                        overflow: hidden;
+                        padding-top: 12px;
+                    }
+                    .rd .vscrim {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        top: 103px;
+                        bottom: 0;
+                        z-index: 5;
+                        background: var(--scrim);
+                    }
+                    .rd .ingSheet {
+                        position: absolute;
+                        left: 12px;
+                        right: 12px;
+                        top: 183px;
+                        z-index: 6;
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-xl);
+                        padding-bottom: 10px;
+                        overflow: hidden;
+                    }
+                    .rd .ingSheet .grabber {
+                        width: 36px;
+                        height: 5px;
+                        border-radius: 3px;
+                        background: var(--line-divider);
+                        margin: 6px auto 0;
+                    }
+                    .rd .sheetServe {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 10px 16px 6px;
+                    }
+                    .rd .sheetList {
+                        max-height: 488px;
+                        overflow: hidden;
+                        -webkit-mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 72px), transparent);
+                        mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 72px), transparent);
+                    }
+                    .rd .timerDock {
+                        position: absolute;
+                        left: 12px;
+                        right: 12px;
+                        bottom: 92px;
+                        z-index: 7;
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 10px 10px 10px 14px;
+                        border-radius: var(--radius-lg);
+                        background: var(--paper);
+                        box-shadow:
+                            var(--shadow-lg),
+                            inset 0 0 0 1px var(--line-divider);
+                    }
+                    .rd .timerDock .ring {
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--selected-fill);
+                        color: var(--action-text);
+                        flex: none;
+                    }
+                    .rd .timerDock .grow {
+                        flex: 1;
+                    }
+                    .rd .timerDock .big {
+                        font-size: 17px;
+                        font-weight: 600;
+                        letter-spacing: -0.01em;
+                    }
+                    .rd .timerDock .iconBtn {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        color: var(--ink);
+                    }
+                    .rd .timerDock.inCol {
+                        left: auto;
+                        right: 40px;
+                        bottom: 28px;
+                        width: 420px;
+                    }
+                    .rd .web {
+                        display: grid;
+                        grid-template-columns: 232px 1fr;
+                        flex: 1;
+                        min-height: 0;
+                    }
+                    .rd .side {
+                        background: var(--paper);
+                        border-right: 1px solid var(--line-divider);
+                        padding: 22px 14px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .rd .side .brand {
+                        font-family: var(--font-display);
+                        font-weight: 600;
+                        font-size: 17px;
+                        padding: 0 10px 18px;
+                    }
+                    .rd .side a {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        height: 44px;
+                        padding: 0 12px;
+                        border-radius: 12px;
+                        font-size: 15px;
+                        font-weight: 500;
+                        color: var(--ink-muted);
+                    }
+                    .rd .side a.on {
+                        background: var(--surface-muted);
+                        color: var(--ink);
+                        font-weight: 600;
+                    }
+                    .rd .side a.on .ic {
+                        color: var(--action-text);
+                    }
+                    .rd .side .grow {
+                        flex: 1;
+                    }
+                    .rd .rail {
+                        padding: 22px 12px;
+                        align-items: center;
+                    }
+                    .rd .rail a {
+                        width: 48px;
+                        justify-content: center;
+                        padding: 0;
+                    }
+                    .rd .main {
+                        padding: 28px 40px 48px;
+                        min-width: 0;
+                        position: relative;
+                    }
+                    .rd .tabMain {
+                        padding: 32px 32px 32px;
+                        flex: 1;
+                        min-width: 0;
+                        position: relative;
+                    }
+                    .rd .navRow {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        margin-bottom: 4px;
+                    }
+                    .rd .crumb {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        min-height: 44px;
+                        font-size: 15px;
+                        font-weight: 500;
+                        color: var(--ink-muted);
+                    }
+                    .rd .moreBtn {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .rd .topCols {
+                        display: grid;
+                        gap: 32px;
+                        align-items: start;
+                        grid-template-columns: 1fr 1fr;
+                    }
+                    .rd .photo {
+                        position: relative;
+                        border-radius: 22px;
+                        overflow: hidden;
+                        aspect-ratio: 4/3;
+                        background-size: cover;
+                        background-position: center 40%;
+                    }
+                    .rd .photo .edge {
+                        top: 50%;
+                    }
+                    .rd .photo .dots {
+                        bottom: 14px;
+                    }
+                    .rd .rateCard {
+                        padding: 12px 16px 2px;
+                        margin-top: 14px;
+                    }
+                    .rd .rateCard .rateBlock {
+                        border-bottom: none;
+                        margin-bottom: 0;
+                        padding-bottom: 6px;
+                    }
+                    .rd .bodyCols {
+                        display: grid;
+                        gap: 24px;
+                        align-items: start;
+                        margin-top: 28px;
+                    }
+                    .rd .bodyCols.c360 {
+                        grid-template-columns: 360px 1fr;
+                    }
+                    .rd .bodyCols.c300 {
+                        grid-template-columns: 300px 1fr;
+                    }
+                    .rd .pinCol {
+                        position: sticky;
+                        top: 16px;
+                    }
+                    .rd .pinCol .annot {
+                        margin-top: 8px;
+                    }
+                    .rd .bodyCols .secHead {
+                        margin-top: 0;
+                    }
+                    .rd .bodyCols .steps,
+                    .rd .main .steps,
+                    .rd .tabMain .steps {
+                        padding: 0;
+                    }
+                    .rd .bodyCols .mx,
+                    .rd .main .mx,
+                    .rd .tabMain .mx {
+                        margin-left: 0;
+                        margin-right: 0;
+                    }
+                    .rd .wideBar {
+                        position: relative;
+                        z-index: 4;
+                        background: var(--paper);
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        height: 64px;
+                        padding: 0 40px;
+                        border-bottom: 1px solid var(--line-divider);
+                    }
+                    .rd .wideBar .barTitle {
+                        flex: 1;
+                        text-align: left;
+                        padding: 0;
+                    }
+                    .rd .wideBar .btnC {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .rd .wideBar .btnC > span {
+                        background: var(--surface-muted);
+                        box-shadow: none;
+                    }
+                    .rd .col640 {
+                        max-width: 640px;
+                        margin: 0 auto;
+                    }
+                    .rd .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                        z-index: 5;
+                    }
+                    .rd .dlgPos {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 6;
+                        display: grid;
+                        place-items: center;
+                        padding: 24px;
+                    }
+                    .rd .dlg {
+                        background: var(--paper-overlay);
+                        border-radius: var(--radius-xl);
+                        box-shadow: var(--shadow-xl);
+                        padding: 24px;
+                        width: 448px;
+                        max-width: 100%;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .rd .dlg h2,
+                    .rd .bsheet h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                        font-family: var(--font-display);
+                        line-height: 1.3;
+                    }
+                    .rd .dlg .acts,
+                    .rd .bsheet .acts {
+                        display: flex;
+                        gap: 12px;
+                        margin-top: 10px;
+                    }
+                    .rd .dlg .acts .btn,
+                    .rd .bsheet .acts .btn {
+                        flex: 1;
+                        padding: 0 12px;
+                    }
+                    .rd .dlgHead {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                    }
+                    .rd .xBtn {
+                        width: 44px;
+                        height: 44px;
+                        margin: -8px -10px -8px 0;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink-muted);
+                        flex: none;
+                    }
+                    .rd .bsheet {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 6;
+                        background: var(--paper-overlay);
+                        border-radius: 24px 24px 0 0;
+                        padding: 12px 20px 30px;
+                        box-shadow: var(--shadow-xl);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .rd .bsheet .grab {
+                        width: 36px;
+                        height: 5px;
+                        border-radius: 3px;
+                        background: var(--line-divider);
+                        margin: 0 auto 8px;
+                    }
+                    .rd .menu {
+                        position: absolute;
+                        z-index: 6;
+                        background: var(--paper-overlay);
+                        border-radius: var(--radius-md);
+                        box-shadow: var(--shadow-xl);
+                        box-shadow:
+                            var(--shadow-xl),
+                            inset 0 0 0 1px var(--line-divider);
+                        padding: 6px;
+                        width: 232px;
+                    }
+                    .rd .menu a {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        height: 44px;
+                        padding: 0 12px;
+                        border-radius: 8px;
+                        font-size: 15px;
+                        font-weight: 500;
+                    }
+                    .rd .menu a .ic {
+                        color: var(--ink-muted);
+                    }
+                    .rd .menu hr {
+                        border: 0;
+                        border-top: 1px solid var(--line-divider);
+                        margin: 6px 0;
+                    }
+                    .rd .menu a.del {
+                        color: var(--danger-text);
+                    }
+                    .rd .menu a.del .ic {
+                        color: var(--danger-text);
+                    }
+                    .rd .sheetMenu a {
+                        display: flex;
+                        align-items: center;
+                        gap: 14px;
+                        min-height: 48px;
+                        font-size: 17px;
+                        font-weight: 500;
+                    }
+                    .rd .sheetMenu a .ic {
+                        color: var(--ink-muted);
+                    }
+                    .rd .sheetMenu hr {
+                        border: 0;
+                        border-top: 1px solid var(--line-divider);
+                        margin: 6px 0;
+                    }
+                    .rd .sheetMenu a.del,
+                    .rd .sheetMenu a.del .ic {
+                        color: var(--danger-text);
+                    }
+                    .rd .field {
+                        border-radius: 12px;
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        padding: 12px 14px;
+                        font-size: 17px;
+                        line-height: 1.4;
+                        min-height: 96px;
+                        background: var(--paper);
+                    }
+                    .rd .counter {
+                        text-align: right;
+                        margin-top: 6px;
+                    }
+                    .rd .lbl {
+                        font-size: 13px;
+                        font-weight: 600;
+                        margin-bottom: 6px;
+                    }
+                    .rd .comment {
+                        padding: 14px 0;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .rd .comment:first-of-type {
+                        border-top: 0;
+                    }
+                    .rd .cHead {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        flex-wrap: wrap;
+                    }
+                    .rd .cHead .nm {
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .rd .comment p.tx {
+                        margin-top: 4px;
+                        font-size: 15px;
+                        line-height: 1.45;
+                    }
+                    .rd .cActs {
+                        display: flex;
+                        gap: 8px;
+                        margin-top: 2px;
+                    }
+                    .rd .clip {
+                        overflow: hidden;
+                    }
+                    .rd .stage {
+                        position: relative;
+                        border-radius: var(--radius-lg);
+                        overflow: hidden;
+                        background: var(--scrim);
+                        padding: 28px 20px;
+                    }
+                    .rd .stage.sheetStage {
+                        padding: 28px 0 0;
+                    }
+                    .rd .stage .dlg {
+                        margin: 0 auto;
+                    }
+                    .rd .stage .bsheet {
+                        position: relative;
+                        z-index: 1;
+                        border-radius: 24px 24px 0 0;
+                    }
+                    .rd .stage-wrap {
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .rd .lightbox {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 6;
+                        display: grid;
+                        place-items: center;
+                        padding: 56px 56px;
+                    }
+                    .rd .lightbox .big {
+                        width: 100%;
+                        aspect-ratio: 4/3;
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-xl);
+                        max-height: 100%;
+                    }
+                    .rd .lightbox .close {
+                        position: absolute;
+                        top: 16px;
+                        right: 16px;
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 50%;
+                        background: var(--photo-chip);
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                        box-shadow: var(--shadow-sm);
+                    }
+                    .rd .notice {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 12px 14px;
+                        border-radius: var(--radius-md);
+                        background: var(--surface-muted);
+                    }
+                    .rd .notice .ic.warn {
+                        color: var(--attention);
+                        align-self: flex-start;
+                        margin-top: 2px;
+                    }
+                    .rd .notice .tx {
+                        flex: 1;
+                        font-size: 15px;
+                        line-height: 1.4;
+                    }
+                    .rd .notice.warm {
+                        background: var(--attention-tint);
+                        align-items: flex-start;
+                    }
+                    .rd .notice .btn {
+                        flex: none;
+                    }
+                    .rd .skel {
+                        background: var(--surface-muted);
+                        border-radius: 8px;
+                    }
+                    .rd .snack {
+                        position: absolute;
+                        left: 12px;
+                        right: 12px;
+                        bottom: 96px;
+                        z-index: 4;
+                        background: var(--inverse);
+                        color: var(--inverse-ink);
+                        border-radius: var(--radius-md);
+                        box-shadow: var(--shadow-lg);
+                        padding: 14px 16px;
+                        font-size: 15px;
+                        font-weight: 500;
+                    }
+                    .rd .snack.wide {
+                        left: 50%;
+                        right: auto;
+                        transform: translateX(-50%);
+                        bottom: 40px;
+                        width: 320px;
+                    }
+                    .rd .sectionSep {
+                        margin: 20px 0 8px;
+                    }
+                </style></helmet
+            >
+            <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+                <defs>
+                    <symbol id="home" viewBox="0 0 24 24">
+                        <path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z" />
+                    </symbol>
+                    <symbol id="book" viewBox="0 0 24 24">
+                        <path
+                            d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"
+                        />
+                    </symbol>
+                    <symbol id="compass" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" />
+                    </symbol>
+                    <symbol id="chevL" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6" /></symbol>
+                    <symbol id="chevR" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6" /></symbol>
+                    <symbol id="chevDown" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6" /></symbol>
+                    <symbol id="chevUp" viewBox="0 0 24 24"><path d="m6 14.5 6-6 6 6" /></symbol>
+                    <symbol id="dots" viewBox="0 0 24 24">
+                        <circle cx="6" cy="12" r="1.1" fill="currentColor" />
+                        <circle cx="12" cy="12" r="1.1" fill="currentColor" />
+                        <circle cx="18" cy="12" r="1.1" fill="currentColor" />
+                    </symbol>
+                    <symbol id="lock" viewBox="0 0 24 24">
+                        <rect x="5.5" y="10.5" width="13" height="9" rx="2" />
+                        <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+                    </symbol>
+                    <symbol id="pencil" viewBox="0 0 24 24"><path d="M15.5 5.5l3 3L9 18l-4 1 1-4z" /></symbol>
+                    <symbol id="globe" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8" />
+                        <path d="M4 12h16M12 4c2.2 2.3 3.2 5 3.2 8s-1 5.7-3.2 8c-2.2-2.3-3.2-5-3.2-8s1-5.7 3.2-8z" />
+                    </symbol>
+                    <symbol id="history" viewBox="0 0 24 24">
+                        <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 5v4h4" />
+                        <path d="M12 8v4l2.8 1.8" />
+                    </symbol>
+                    <symbol id="sun" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3.5" />
+                        <path
+                            d="M12 3.5v1.8M12 18.7v1.8M3.5 12h1.8M18.7 12h1.8M6 6l1.3 1.3M16.7 16.7 18 18M6 18l1.3-1.3M16.7 7.3 18 6"
+                        />
+                    </symbol>
+                    <symbol id="minus" viewBox="0 0 24 24"><path d="M6.5 12h11" /></symbol>
+                    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" /></symbol>
+                    <symbol id="check" viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></symbol>
+                    <symbol id="timer" viewBox="0 0 24 24">
+                        <circle cx="12" cy="13.5" r="7" />
+                        <path d="M12 13.5V10M10 3.5h4" />
+                    </symbol>
+                    <symbol id="star" viewBox="0 0 24 24">
+                        <path d="m12 3.2 2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.8l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z" />
+                    </symbol>
+                    <symbol id="photo" viewBox="0 0 24 24">
+                        <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+                        <circle cx="9" cy="10.5" r="1.6" />
+                        <path d="m20.5 15.5-4.5-4.5-8.5 7.5" />
+                    </symbol>
+                    <symbol id="clock" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="M12 7.5V12l3 2" />
+                    </symbol>
+                    <symbol id="gauge" viewBox="0 0 24 24"><path d="M5 17V13M12 17V9M19 17V5" /></symbol>
+                    <symbol id="bullet" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                    </symbol>
+                    <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" /></symbol>
+                    <symbol id="x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></symbol>
+                    <symbol id="trash" viewBox="0 0 24 24">
+                        <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 10.5v6M13.5 10.5v6" />
+                    </symbol>
+                    <symbol id="alert" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="M12 7.5v5.2M12 16h.01" />
+                    </symbol>
+                    <symbol id="copy" viewBox="0 0 24 24">
+                        <rect x="8.5" y="8.5" width="11" height="11" rx="2.5" />
+                        <path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+                    </symbol>
+                    <symbol id="retry" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5M19 5v4h-4" /></symbol>
+                    <symbol id="search" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="6.5" />
+                        <path d="m16 16 4 4" />
+                    </symbol>
+                    <symbol id="list" viewBox="0 0 24 24">
+                        <path d="M8.5 7h11M8.5 12h11M8.5 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01" />
+                    </symbol>
+                    <symbol id="grid" viewBox="0 0 24 24">
+                        <rect x="4.5" y="4.5" width="6" height="6" rx="1.5" />
+                        <rect x="13.5" y="4.5" width="6" height="6" rx="1.5" />
+                        <rect x="4.5" y="13.5" width="6" height="6" rx="1.5" />
+                        <rect x="13.5" y="13.5" width="6" height="6" rx="1.5" />
+                    </symbol>
+                    <symbol id="rotate" viewBox="0 0 24 24">
+                        <path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3L4.5 15M4.5 19v-4h4" />
+                    </symbol>
+                    <symbol id="user" viewBox="0 0 24 24">
+                        <circle cx="12" cy="9" r="3.5" />
+                        <path d="M5 19.5c.8-3.3 3.4-5 7-5s6.2 1.7 7 5" />
+                    </symbol>
+                    <symbol id="cloudOff" viewBox="0 0 24 24">
+                        <path d="M5 15.5a4 4 0 0 1 1.5-7.7 5.5 5.5 0 0 1 10.3 1.4A3.8 3.8 0 0 1 17 17H8M4 4l16 16" />
+                    </symbol>
+                </defs>
+            </svg>
+            <div class="rd" data-board="RecipeDetailRefreshFailed" style="width: 1280px; height: 1019px">
+                <div class="web">
+                    <nav class="side" aria-label="Main">
+                        <p class="brand">Commise</p>
+                        <a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a
+                        ><a href="#" class="on" aria-current="page"
+                            ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a
+                        ><a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a
+                        ><span class="grow"></span
+                        ><a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg> Collapse</a
+                        >
+                    </nav>
+                    <div class="main">
+                        <div class="navRow">
+                            <a class="crumb" href="#" aria-label="Back to My recipes"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#chevL" /></svg> My recipes</a
+                            >
+                        </div>
+                        <h1 class="rTitle dish" style="margin-bottom: 12px">Lemon and thyme roast chicken</h1>
+                        <div class="annot" style="max-width: 640px; margin-bottom: 24px">
+                            Header, hero and rating are not drawn. The saved recipe stays on screen under the notice.
+                        </div>
+                        <div style="margin-bottom: 20px">
+                            <div class="notice">
+                                <svg class="ic warn" aria-hidden="true"><use href="#alert" /></svg>
+                                <p class="tx">We couldn’t refresh this recipe.</p>
+                                <a class="btn secondary sm" href="#">Try again</a>
+                            </div>
+                        </div>
+                        <div class="bodyCols c360" style="margin-top: 0">
+                            <div>
+                                <div class="card ingCard mx">
+                                    <div class="ingHeadRow">
+                                        <h2>Ingredients <span class="t15 soft w500">for 4</span></h2>
+                                        <div class="stepper tnum" role="group" aria-label="Servings">
+                                            <a href="#" aria-label="Fewer servings"
+                                                ><svg class="ic sm" aria-hidden="true"><use href="#minus" /></svg></a
+                                            ><span class="n">4</span
+                                            ><a href="#" aria-label="More servings"
+                                                ><svg class="ic sm" aria-hidden="true"><use href="#plus" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="ingEditRow">
+                                        <a class="chipBtn" href="#" aria-label="Edit ingredients"
+                                            ><svg class="ic" aria-hidden="true"><use href="#pencil" /></svg> Edit</a
+                                        >
+                                    </div>
+                                    <p class="group">Chicken</p>
+                                    <ul class="ing tnum">
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">1</span> whole chicken
+                                                <span class="note">about 1.8 kg</span></span
+                                            >
+                                        </li>
+                                        <li class="done">
+                                            <span class="box on"
+                                                ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                            ><span
+                                                ><span class="q">3 tbsp</span> unsalted butter
+                                                <span class="note">softened</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">1</span> lemon
+                                                <span class="note">zested and halved</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span><span class="q">6 sprigs</span> fresh thyme</span>
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">1 head</span> garlic
+                                                <span class="note">halved crosswise</span></span
+                                            >
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="secHead">
+                                    <h2>Steps</h2>
+                                    <a class="chipBtn" href="#" aria-label="Edit steps"
+                                        ><svg class="ic" aria-hidden="true"><use href="#pencil" /></svg> Edit</a
+                                    >
+                                </div>
+                                <ol class="steps">
+                                    <li class="step card">
+                                        <span class="num">1</span>
+                                        <div>
+                                            <p>
+                                                Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge,
+                                                pat the skin dry with paper towels, and leave it at room temperature
+                                                while the oven heats.
+                                            </p>
+                                        </div>
+                                    </li>
+                                    <li class="step card">
+                                        <span class="num">2</span>
+                                        <div>
+                                            <p>
+                                                Mash the <span class="amt">3 tbsp</span> butter with the zest of
+                                                <span class="amt">1</span> lemon, half of the thyme leaves (from
+                                                <span class="amt">3 sprigs</span>) and the
+                                                <span class="amt">1 tsp</span> salt. Work your fingers under the skin of
+                                                the breast and spread the butter over the meat.
+                                            </p>
+                                        </div>
+                                    </li>
+                                </ol>
+                            </div>
+                        </div>
+                        <div class="annot" style="margin-top: 8px">
+                            <p class="w600">The same notice on other screens, each with its own sentence</p>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px">
+                            <div>
+                                <p class="cap">My recipes</p>
+                                <div class="notice">
+                                    <svg class="ic warn" aria-hidden="true"><use href="#alert" /></svg>
+                                    <p class="tx">We couldn’t refresh your recipes.</p>
+                                    <a class="btn secondary sm" href="#">Try again</a>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="cap">Collections</p>
+                                <div class="notice">
+                                    <svg class="ic warn" aria-hidden="true"><use href="#alert" /></svg>
+                                    <p class="tx">We couldn’t refresh your collections.</p>
+                                    <a class="btn secondary sm" href="#">Try again</a>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="cap">Collection detail</p>
+                                <div class="notice">
+                                    <svg class="ic warn" aria-hidden="true"><use href="#alert" /></svg>
+                                    <p class="tx">We couldn’t refresh this collection.</p>
+                                    <a class="btn secondary sm" href="#">Try again</a>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="cap">Discover results</p>
+                                <div class="notice">
+                                    <svg class="ic warn" aria-hidden="true"><use href="#alert" /></svg>
+                                    <p class="tx">We couldn’t refresh these results.</p>
+                                    <a class="btn secondary sm" href="#">Try again</a>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="cap">Discover rails</p>
+                                <div class="notice">
+                                    <svg class="ic warn" aria-hidden="true"><use href="#alert" /></svg>
+                                    <p class="tx">We couldn’t refresh these recipes.</p>
+                                    <a class="btn secondary sm" href="#">Try again</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1019}}'>
+            class Component extends DCLogic { renderVals(){ return {}; } }
+        </script>
+    </body>
+</html>

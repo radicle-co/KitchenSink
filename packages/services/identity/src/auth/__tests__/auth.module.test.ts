@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AuthModule } from '../auth.module.js';
 import { AuthMiddleware } from '../middleware/auth.middleware.js';
-import { ClerkAuthService } from '../clerk-auth.service.js';
+import { ClerkAuthService } from '../clerkAuth.service.js';
 import { UsersModule } from '../../users/users.module.js';
 
 // AuthMiddleware is applied in AppModule.configure() (consumer.apply(AuthMiddleware, ...)). NestJS

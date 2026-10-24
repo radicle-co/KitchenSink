@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collection detail, proposal, 390 px (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    .tb {
+                        display: flex;
+                    }
+                    .pad {
+                        padding: 24px 16px calc(64px + 104px);
+                    }
+                    .wide-only {
+                        display: none;
+                    }
+                    .below-nav {
+                        display: block;
+                    }
+                    .page {
+                        max-width: 90rem;
+                        margin: 0 auto;
+                        display: flex;
+                        width: 100%;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .rgrid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                        gap: 16px;
+                    }
+                    .cgrid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 16px;
+                    }
+                    @media (min-width: 600px) {
+                        .pad {
+                            padding-inline: 24px;
+                        }
+                        .rgrid {
+                            gap: 24px;
+                        }
+                        .cgrid {
+                            grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                            gap: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                        .tb {
+                            display: none;
+                        }
+                        .pad {
+                            padding: 24px 32px 32px;
+                        }
+                    }
+                    @container main (min-width: 37.5rem) {
+                        .wide-only {
+                            display: contents;
+                        }
+                        .below-nav {
+                            display: none;
+                        }
+                    }
+                </style></helmet
+            >
+            <div style="display: flex; min-height: 100vh">
+                <div
+                    class="sb"
+                    style="
+                        position: sticky;
+                        top: 0;
+                        height: 100vh;
+                        width: 256px;
+                        flex: none;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        border-inline-end: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        box-sizing: border-box;
+                    "
+                >
+                    <div style="display: flex; height: 64px; flex: none; align-items: center; padding: 0 24px">
+                        <span
+                            style="
+                                font-family: var(--font-display);
+                                font-size: 20px;
+                                line-height: 1.4;
+                                font-weight: 700;
+                                color: var(--ink);
+                            "
+                            >Commise</span
+                        >
+                    </div>
+                    <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                        <a
+                            href="#home"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v28}}"></x-import
+                            ><span>Home</span></a
+                        ><a
+                            href="#recipes"
+                            aria-current="page"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                background: color-mix(in srgb, var(--action) 10%, transparent);
+                                color: var(--ink);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: var(--here-bar);
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="bookOpen"
+                                size="{{v29}}"
+                            ></x-import
+                            ><span>Recipes</span></a
+                        ><a
+                            href="#discover"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="compass"
+                                size="{{v30}}"
+                            ></x-import
+                            ><span>Discover</span></a
+                        >
+                    </nav>
+                    <div style="margin-top: auto">
+                        <button
+                            type="button"
+                            aria-expanded="true"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                margin: 0 12px 12px;
+                                width: calc(100% - 24px);
+                                border: 0;
+                                background: transparent;
+                                color: var(--ink-muted);
+                                font-family: inherit;
+                                cursor: pointer;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="chevronsLeft"
+                                size="{{v34}}"
+                            ></x-import
+                            ><span>Collapse</span>
+                        </button>
+                    </div>
+                </div>
+                <main class="@container/main pad" style="min-width: 0; flex: 1; box-sizing: border-box">
+                    <div
+                        style="
+                            display: flex;
+                            max-width: 90rem;
+                            margin: 0 auto;
+                            width: 100%;
+                            flex-direction: column;
+                            gap: 16px;
+                        "
+                    >
+                        <div style="display: flex; flex-direction: column; gap: 12px">
+                            <x-import
+                                component-from-global-scope="Commise.LargeTitleHeader"
+                                heading-id="collection-title"
+                                title="Weeknight dinners"
+                                back="{{v23}}"
+                            ></x-import>
+                            <div style="overflow: hidden">
+                                <p
+                                    style="
+                                        margin: 0;
+                                        display: flex;
+                                        flex-wrap: wrap;
+                                        align-items: center;
+                                        column-gap: 12px;
+                                        row-gap: 4px;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        font-weight: 400;
+                                        color: var(--ink-muted);
+                                    "
+                                >
+                                    <span style="display: inline-flex; align-items: center; gap: 4px"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Icon"
+                                            name="lock"
+                                            size="{{v25}}"
+                                        ></x-import
+                                        >Private</span
+                                    ><span>6 recipes</span>
+                                </p>
+                            </div>
+                            <p
+                                style="
+                                    margin: 0;
+                                    font-size: 16px;
+                                    line-height: 1.5;
+                                    font-weight: 400;
+                                    color: var(--ink);
+                                "
+                            >
+                                Fast, forgiving meals for school nights. Nothing here needs more than one pan or about
+                                an hour.
+                            </p>
+                            <div class="below-nav">
+                                <div style="display: flex; align-items: center; gap: 8px">
+                                    <div style="min-width: 0; flex: 1">
+                                        <x-import component-from-global-scope="Commise.Button" icon="plus" width="fill"
+                                            >Add recipes</x-import
+                                        >
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.ActionMenu"
+                                        trigger-label="More actions for Weeknight dinners"
+                                        title="Weeknight dinners"
+                                        close-label="Close menu"
+                                        items="{{v0}}"
+                                        destructive-item="{{v1}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                        <section aria-label="Recipes" style="display: flex; flex-direction: column; gap: 12px">
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    gap: 8px 12px;
+                                "
+                            >
+                                <p
+                                    style="
+                                        margin: 0;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                        font-weight: 400;
+                                        font-weight: 600;
+                                        color: var(--ink);
+                                        font-variant-numeric: tabular-nums lining-nums;
+                                    "
+                                >
+                                    6 recipes
+                                </p>
+                                <x-import
+                                    component-from-global-scope="Commise.SegmentedControl"
+                                    form="view"
+                                    label="View"
+                                    label-visibility="hidden"
+                                    value="list"
+                                    segments="{{v26}}"
+                                    on-change="{{v27}}"
+                                ></x-import>
+                            </div>
+                            <ul style="margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+                                <li style="list-style: none">
+                                    <x-import
+                                        component-from-global-scope="Commise.RecipeCard"
+                                        variant="row"
+                                        heading-level="{{two}}"
+                                        recipe="{{rec0}}"
+                                        on-select="{{noop}}"
+                                        nutrition="{{nut0}}"
+                                        note="{{note0}}"
+                                        trailing="{{menu0}}"
+                                    ></x-import>
+                                </li>
+                                <li style="list-style: none">
+                                    <x-import
+                                        component-from-global-scope="Commise.RecipeCard"
+                                        variant="row"
+                                        heading-level="{{two}}"
+                                        recipe="{{rec1}}"
+                                        on-select="{{noop}}"
+                                        nutrition="{{nut1}}"
+                                        note="{{note1}}"
+                                        trailing="{{menu1}}"
+                                    ></x-import>
+                                </li>
+                                <li style="list-style: none">
+                                    <x-import
+                                        component-from-global-scope="Commise.RecipeCard"
+                                        variant="row"
+                                        heading-level="{{two}}"
+                                        recipe="{{rec2}}"
+                                        on-select="{{noop}}"
+                                        nutrition="{{nut2}}"
+                                        note="{{note2}}"
+                                        trailing="{{menu2}}"
+                                    ></x-import>
+                                </li>
+                                <li style="list-style: none">
+                                    <x-import
+                                        component-from-global-scope="Commise.RecipeCard"
+                                        variant="row"
+                                        heading-level="{{two}}"
+                                        recipe="{{rec3}}"
+                                        on-select="{{noop}}"
+                                        nutrition="{{nut3}}"
+                                        note="{{note3}}"
+                                        trailing="{{menu3}}"
+                                    ></x-import>
+                                </li>
+                                <li style="list-style: none">
+                                    <x-import
+                                        component-from-global-scope="Commise.RecipeCard"
+                                        variant="row"
+                                        heading-level="{{two}}"
+                                        recipe="{{rec4}}"
+                                        on-select="{{noop}}"
+                                        nutrition="{{nut4}}"
+                                        note="{{note4}}"
+                                        trailing="{{menu4}}"
+                                    ></x-import>
+                                </li>
+                                <li style="list-style: none">
+                                    <x-import
+                                        component-from-global-scope="Commise.RecipeCard"
+                                        variant="row"
+                                        heading-level="{{two}}"
+                                        recipe="{{rec5}}"
+                                        on-select="{{noop}}"
+                                        nutrition="{{nut5}}"
+                                        note="{{note5}}"
+                                        trailing="{{menu5}}"
+                                    ></x-import>
+                                </li>
+                            </ul>
+                        </section>
+                    </div>
+                </main>
+                <nav
+                    class="tb"
+                    aria-label="Tabs"
+                    style="
+                        position: fixed;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 50;
+                        isolation: isolate;
+                        height: 64px;
+                        justify-content: space-around;
+                        padding: 0 8px;
+                        box-sizing: border-box;
+                    "
+                >
+                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import
+                    ><a
+                        href="#home"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v31}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500">Home</span></a
+                    ><a
+                        href="#recipes"
+                        aria-current="page"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: var(--here-bar);
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="{{v32}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500; font-weight: 600"
+                            >Recipes</span
+                        ></a
+                    ><a
+                        href="#discover"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="compass" size="{{v33}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500">Discover</span></a
+                    >
+                </nav>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1333}}'>
+                        class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise, noop=function(){}; const ago=d=>new Date(Date.now()-d*864e5).toISOString();
+                         return {
+            rec0:{id:'rcp_01j9chickencacc',title:"Weeknight Chicken Cacciatore",cuisine:'Italian',totalTimeMinutes:55,servings:4,difficulty:'medium',averageRating:4.6,ratingCount:23,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(2),currentVersion:1,visibility:'public',status:'published',tags:[]},
+              nut0:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'420 cal'),
+              note0:'Added by you',
+              menu0:h(C.ActionMenu,{triggerLabel:"More actions for Weeknight Chicken Cacciatore",title:"Weeknight Chicken Cacciatore",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}] }),
+              rec1:{id:'rcp_01j9misosalmon',title:"Miso-Glazed Salmon with Sesame Greens",cuisine:'Japanese',totalTimeMinutes:25,servings:2,difficulty:'easy',averageRating:4.4,ratingCount:9,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(0.125),currentVersion:1,visibility:'private',status:'published',tags:[]},
+              nut1:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'480 cal'),
+              note1:'From the original collection',
+              menu1:h(C.ActionMenu,{triggerLabel:"More actions for Miso-Glazed Salmon with Sesame Greens",title:"Miso-Glazed Salmon with Sesame Greens",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}] }),
+              rec2:{id:'rcp_01j9padthai',title:"Pad Thai with Shrimp",cuisine:'Thai',totalTimeMinutes:35,servings:3,difficulty:'medium',averageRating:4.7,ratingCount:41,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(14),currentVersion:1,visibility:'public',status:'published',tags:[]},
+              nut2:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'560 cal'),
+              note2:'Added by you',
+              menu2:h(C.ActionMenu,{triggerLabel:"More actions for Pad Thai with Shrimp",title:"Pad Thai with Shrimp",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}] }),
+              rec3:{id:'rcp_01j9pancakes',title:"Lemon Ricotta Pancakes",cuisine:'American',totalTimeMinutes:25,servings:4,difficulty:'easy',averageRating:4.5,ratingCount:22,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(21),currentVersion:1,visibility:'public',status:'published',tags:[]},
+              nut3:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'340 cal'),
+              note3:'Added by you',
+              menu3:h(C.ActionMenu,{triggerLabel:"More actions for Lemon Ricotta Pancakes",title:"Lemon Ricotta Pancakes",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}] }),
+              rec4:{id:'rcp_01j9blackbeanchili',title:"Smoky Black Bean Chili",cuisine:'Mexican',totalTimeMinutes:75,servings:6,difficulty:'easy',averageRating:4.3,ratingCount:18,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(6),currentVersion:1,visibility:'private',status:'published',tags:[]},
+              nut4:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'310 cal'),
+              note4:'From the original collection',
+              menu4:h(C.ActionMenu,{triggerLabel:"More actions for Smoky Black Bean Chili",title:"Smoky Black Bean Chili",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}] }),
+              rec5:{id:'rcp_01j9tomatosoup',title:"Roasted Tomato Basil Soup",cuisine:'Mediterranean',totalTimeMinutes:50,servings:6,difficulty:'easy',averageRating:4.2,ratingCount:15,usesPremiumCapability:false,createdAt:ago(40),updatedAt:ago(4),currentVersion:1,visibility:'private',status:'published',tags:[]},
+              nut5:h('span',{style:{font:'14px/1.4 Inter,system-ui',color:'var(--ink-muted)'}},'180 cal'),
+              note5:'Added by you',
+              menu5:h(C.ActionMenu,{triggerLabel:"More actions for Roasted Tomato Basil Soup",title:"Roasted Tomato Basil Soup",closeLabel:'Close menu',items:[{id:'open',label:'Open recipe',onSelect:noop},{id:'remove',label:'Remove from collection',onSelect:noop}] }),
+              two:2, noop,
+                          v0: [{"id":"rename","label":"Rename","icon":"pencilLine"},{"id":"visibility","label":"Make public","icon":"globe"},{"id":"saveCopy","label":"Save a copy","icon":"copyPlus"}],
+                          v1: {"id":"delete","label":"Delete collection","icon":"trash"},
+                          v2: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+                          v3: false,
+                          v4: 16,
+                          v5: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+                          v6: 16,
+                          v7: false,
+                          v8: 16,
+                          v9: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+                          v10: false,
+                          v11: 16,
+                          v12: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+                          v13: false,
+                          v14: 16,
+                          v15: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+                          v16: 16,
+                          v17: false,
+                          v18: 16,
+                          v19: [{"id":"open","label":"Open recipe"},{"id":"remove","label":"Remove from collection"}],
+                          v20: 16,
+                          v21: false,
+                          v22: 16,
+                          v23: {"label":"Back to Collections","parent":"Collections","onPress":{"code":"noop"},"href":"#collections"},
+                          v24: {kind:'controls',button:h('div',{className:'wide-only'},h(C.Button,{icon:'plus',onPress:noop},'Add recipes')),menu:h('div',{className:'wide-only'},h(C.ActionMenu,{triggerLabel:'More actions for Weeknight dinners',title:'Weeknight dinners',closeLabel:'Close menu',items:[{id:'rename',label:'Rename',icon:'pencilLine',onSelect:noop},{id:'visibility',label:'Make public',icon:'globe',onSelect:noop},{id:'saveCopy',label:'Save a copy',icon:'copyPlus',onSelect:noop}],destructiveItem:{id:'delete',label:'Delete collection',icon:'trash',onSelect:noop}}))},
+                          v25: 16,
+                          v26: [{"id":"list","label":"List view","icon":"list"},{"id":"grid","label":"Grid view","icon":"layoutGrid"}],
+                          v27: noop,
+                          v28: 24,
+                          v29: 24,
+                          v30: 24,
+                          v31: 24,
+                          v32: 24,
+                          v33: 24,
+                          v34: 24
+                         }; } }
+        </script>
+    </body>
+</html>

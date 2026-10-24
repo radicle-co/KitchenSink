@@ -1,0 +1,50 @@
+name: Install the root workspace
+description: >-
+    Restore the extracted root `node_modules` the pipeline's `install` job saves, and run `npm ci` only when that entry
+    is absent. The deploy jobs' install, which cost about 72 seconds in every one of them, becomes a restore.
+
+# ⛔ WHY THIS READS THE `install` JOB'S ENTRY AND NEVER WRITES ONE
+#
+# `_ci.yml`'s `install` job runs `npm ci` and saves the tree under `<os>-node-<hash of package-lock.json>`; some thirty
+# jobs restore it. The deploy workflow cannot `needs:` that job (a reusable workflow cannot name a job of its caller), but
+# a cache entry is addressed by key, not by run: the key is the lockfile's hash, so any earlier run of the same lockfile
+# left the exact tree this job needs. When there is none (a changed lockfile, an evicted entry) the fallback is the
+# `npm ci` these jobs always ran, so the worst case is the old cost, never a missing install.
+#
+# ⛔ RESTORE ONLY. A job that prunes dev dependencies (`infra-image`) or builds into the tree must not save it back: the
+# entry is the pristine `npm ci` output, and a pruned one under the same key would be restored by thirty other jobs.
+# No `restore-keys`: a tree for a DIFFERENT lockfile is a wrong tree, not a head start.
+#
+# ⚠️ The cache is nearly at its repository cap, so this deliberately adds NO new entry.
+
+inputs:
+    node-auth-token:
+        description: >-
+            Token for GitHub Packages, for the fallback `npm ci`. Optional: the root workspace's own dependencies are public,
+            and only a caller that also installs a CDK app needs the token (it passes it to that install itself).
+        required: false
+        default: ''
+
+runs:
+    using: composite
+    steps:
+        - name: Restore the root workspace
+          id: restore
+          uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+          with:
+              path: |
+                  node_modules
+                  packages/*/node_modules
+                  packages/*/*/node_modules
+                  packages/*/*/*/node_modules
+                  packages/*/*/*/*/node_modules
+              key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+        - name: Install the root workspace (cache miss)
+          if: steps.restore.outputs.cache-hit != 'true'
+          shell: bash
+          env:
+              NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
+          run: |
+              echo "::warning::root node_modules cache miss (lockfile changed or entry evicted) - running npm ci"
+              npm ci --no-audit --no-fund

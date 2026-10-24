@@ -35,10 +35,22 @@ export interface MintTokenOptions {
      * case `AuthMiddleware` rejects with `IDENTITY_SYNC_PENDING_CODE`.
      */
     readonly externalId?: string;
-    /** Authorization scopes embedded in `public_metadata` (e.g. `['premium']`). */
+    /** Authorization scopes embedded in `public_metadata` (e.g. `['recipes:import:public']`). */
     readonly scopes?: readonly string[];
     /** Authorization permissions embedded in `public_metadata`. */
     readonly permissions?: readonly string[];
+    /** Roles embedded in `public_metadata.roles` (e.g. `['premium']`); omitted leaves the key out entirely. */
+    readonly roles?: readonly string[];
+    /**
+     * ADR-0040: when `true`, the SIGNED `public_metadata.testPrincipal` marker a test-pool member carries. Omitted
+     * leaves the key out of the metadata entirely — the shape every real user's token has.
+     */
+    readonly testPrincipal?: boolean;
+    /**
+     * The Clerk impersonation marker (`act`: the impersonator). Omitted leaves the claim out entirely — the shape
+     * of every ordinary session token; present, the shared verifier refuses the token (owner ruling 2026-10-15).
+     */
+    readonly act?: { readonly sub: string };
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -80,6 +92,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
     const payload = {
         sub: options.sub,
         azp: options.azp,
+        ...(options.act !== undefined ? { act: options.act } : {}),
         ...(options.externalId !== undefined ? { external_id: options.externalId } : {}),
         iat: nowSeconds,
         nbf: nowSeconds - 5,
@@ -87,6 +100,8 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
         public_metadata: {
             scopes: [...(options.scopes ?? [])],
             permissions: [...(options.permissions ?? [])],
+            ...(options.roles !== undefined ? { roles: [...options.roles] } : {}),
+            ...(options.testPrincipal !== undefined ? { testPrincipal: options.testPrincipal } : {}),
         },
     };
 

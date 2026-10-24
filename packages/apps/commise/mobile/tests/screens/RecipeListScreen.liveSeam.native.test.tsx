@@ -1,17 +1,17 @@
 /**
- * Component tests for the mobile RecipeListScreen driven through the REAL data seam — the actual
- * `useRecipes` hook over a real `RecipeServiceClient` whose transport is a `fetch` double — rather than
- * `vi.mock`ing the hooks module.
+ * Component tests for the mobile RecipeListScreen driven through the REAL transport — a real `RecipeServiceClient`
+ * whose `fetch` is a double — rather than a fake client or a seeded cache.
  *
- * Why a second file next to `RecipeListScreen.native.test.tsx`: that suite hand-builds the hook's return
- * value (`{ isLoading: false, isError: false, data }`), so it asserts only that the VIEW renders the right
- * branch for a status it was handed. It cannot see how `useRecipes` actually derives that status, which is
- * exactly where the reported first-run defect lived: on a hung request the query never leaves
- * `isPending && isFetching`, so `status` stays `'loading'` forever and the empty/error branches are
- * unreachable. These tests exercise the whole chain — transport → query → status → branch — the way web's
- * `RecipeListContainer.test.tsx` already does (the CP-6 T3 fake-client seam, which mobile had not adopted).
+ * Why a second file next to `RecipeListScreen.native.test.tsx`: that suite seeds settled data or stubs the client's
+ * methods, so it never exercises the client's own timeout. The reported first-run defect lived exactly there: on a hung
+ * request the read never settled, the surface shimmered forever, and neither the empty state nor the error with its
+ * retry was reachable. These tests exercise the whole chain — transport → client timeout → suspense read → boundary
+ * branch — so a hung request must END in the load error, never a permanent loading region.
+ *
+ * REWRITTEN (header only) for the suspense conversion: the chain used to end in a `status` flag the leaf branched on;
+ * it now ends in which boundary branch renders. Every assertion is on the surface and is unchanged.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
@@ -19,6 +19,12 @@ import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 
 import { RecipeListScreen } from '../../src/screens/RecipeListScreen.js';
 import { makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
+
+// The grid/list choice is an account setting (ADR-0059) with its own tests (`tests/hooks/useRecipeViewSetting.native.test.tsx`);
+// this file is about the transport seam, so the cook has made no choice and the save has not failed.
+vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({
+    useRecipeViewSetting: () => ({ viewChoice: undefined, chooseView: () => undefined, saveFailed: false }),
+}));
 
 const BASE_URL = 'https://recipes.example.test';
 
@@ -45,9 +51,9 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
     it('reaches the empty state, with the loading branch FLIPPED', async () => {
         const client = clientOver(answeringFetch(makeRecipePage([])));
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
-        expect(await screen.findByText('No recipes yet')).toBeTruthy();
+        expect(await screen.findByText('Your recipe box is empty')).toBeTruthy();
         // Not merely "the empty copy appeared": the skeleton region must be GONE.
         expect(screen.queryByLabelText('Loading recipes')).toBeNull();
     });
@@ -55,9 +61,9 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
     it('offers the first-run create CTA (the FAB is suppressed on empty)', async () => {
         const client = clientOver(answeringFetch(makeRecipePage([])));
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
-        expect(await screen.findByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+        expect(await screen.findByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 });
@@ -66,7 +72,7 @@ describe('RecipeListScreen (live seam) — a HUNG request', () => {
     it('settles on the error state with a retry, never a permanent skeleton', async () => {
         const client = clientOver(hangingFetch());
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
         expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
@@ -82,10 +88,10 @@ describe('RecipeListScreen (live seam) — a populated load', () => {
         ]);
         const client = clientOver(answeringFetch(page));
 
-        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
+        renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
-        expect(await screen.findByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.getByText('2 recipes')).toBeTruthy();
     });
 });

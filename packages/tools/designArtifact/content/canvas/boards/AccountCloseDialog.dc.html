@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, close account, proposal (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 24px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 16px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .two {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 32px 0;
+                        align-items: stretch;
+                    }
+                    .two > .fg:last-child:nth-child(odd) {
+                        grid-column: 1 / -1;
+                    }
+                    .two > .fg > .stage {
+                        flex: 1;
+                    }
+                    .crop {
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        padding: 24px 32px;
+                        box-sizing: border-box;
+                    }
+                    .col {
+                        margin: 0 auto;
+                        display: flex;
+                        width: 100%;
+                        max-width: 640px;
+                        flex-direction: column;
+                        gap: 24px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                        padding: 32px 24px;
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        padding: 24px 32px;
+                        box-sizing: border-box;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .dlg {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        width: 100%;
+                        box-sizing: border-box;
+                        padding: 24px;
+                        background: var(--paper-overlay);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .dlg h2,
+                    .dlg h3,
+                    .dlg p,
+                    .dlg ul {
+                        margin: 0;
+                    }
+                    .dlg ul {
+                        padding: 0;
+                        list-style: none;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .btns {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: flex-end;
+                        gap: 12px;
+                    }
+                    .alert {
+                        margin: 0;
+                        padding: 0 16px 12px;
+                    }
+                    .shell {
+                        position: relative;
+                        display: flex;
+                        height: 320px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .sbx {
+                        display: flex;
+                    }
+                    .shell main {
+                        min-width: 0;
+                        flex: 1;
+                        padding: 24px 32px 32px;
+                        box-sizing: border-box;
+                    }
+                    .nv:hover {
+                        background: color-mix(in srgb, var(--ink) 6%, transparent);
+                        color: var(--ink);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">Close account? opens from the Close account row. Focus starts on Cancel.</p>
+                    <div class="stage" style="min-height: 420px">
+                        <div class="bg">
+                            <div class="col">
+                                <x-import component-from-global-scope="Commise.ProfileGroup" heading="Danger zone"
+                                    ><x-import
+                                        component-from-global-scope="Commise.ProfileRow"
+                                        label="Close account"
+                                        hint="Signs you out and deactivates your account. Support can restore it."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import>
+                                    <div style="border-top: 1px solid var(--line-divider)">
+                                        <x-import
+                                            component-from-global-scope="Commise.ProfileRow"
+                                            label="Erase my data"
+                                            hint="Permanently deletes your account and personal data."
+                                            tone="danger"
+                                            chevron="{{yes}}"
+                                            on-press="{{noop}}"
+                                        ></x-import></div
+                                ></x-import>
+                            </div>
+                        </div>
+                        <div class="scrim"></div>
+                        <div
+                            class="dlg"
+                            role="alertdialog"
+                            aria-labelledby="cd-t"
+                            aria-describedby="cd-d"
+                            style="max-width: 448px"
+                        >
+                            <h2 id="cd-t" class="text-section-title text-ink">Close account?</h2>
+                            <p id="cd-d" class="text-body text-ink-muted">
+                                Closing signs you out and deactivates your account. Your recipes and data are kept, and
+                                you can restore your account by contacting support. This is not permanent deletion — to
+                                erase your data for good, use “Erase my data” instead.
+                            </p>
+                            <div class="btns">
+                                <x-import
+                                    component-from-global-scope="Commise.Button"
+                                    variant="secondary"
+                                    icon="x"
+                                    on-press="{{noop}}"
+                                    >Cancel</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Button"
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="userX"
+                                    width="fill"
+                                    on-press="{{noop}}"
+                                    >Close account</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Closing: the dialog has closed. The row says Closing… and ignores a second press.</p>
+                    <div class="crop">
+                        <div class="col">
+                            <x-import component-from-global-scope="Commise.ProfileGroup" heading="Danger zone"
+                                ><x-import
+                                    component-from-global-scope="Commise.ProfileRow"
+                                    label="Closing…"
+                                    hint="Signs you out and deactivates your account. Support can restore it."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    busy="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import>
+                                <div style="border-top: 1px solid var(--line-divider)">
+                                    <x-import
+                                        component-from-global-scope="Commise.ProfileRow"
+                                        label="Erase my data"
+                                        hint="Permanently deletes your account and personal data."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></div
+                            ></x-import>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Close failed: the account is still open. The row goes back to Close account and the sentence
+                        sits under it, inside the card.
+                    </p>
+                    <div class="crop">
+                        <div class="col">
+                            <x-import component-from-global-scope="Commise.ProfileGroup" heading="Danger zone"
+                                ><x-import
+                                    component-from-global-scope="Commise.ProfileRow"
+                                    label="Close account"
+                                    hint="Signs you out and deactivates your account. Support can restore it."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import>
+                                <div style="border-top: 1px solid var(--line-divider)">
+                                    <p role="alert" class="alert text-meta text-danger-text">
+                                        We couldn’t close your account. Please try again.
+                                    </p>
+                                </div>
+                                <div style="border-top: 1px solid var(--line-divider)">
+                                    <x-import
+                                        component-from-global-scope="Commise.ProfileRow"
+                                        label="Erase my data"
+                                        hint="Permanently deletes your account and personal data."
+                                        tone="danger"
+                                        chevron="{{yes}}"
+                                        on-press="{{noop}}"
+                                    ></x-import></div
+                            ></x-import>
+                        </div>
+                    </div>
+                </div></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){}; return { yes:true, no:false, noop:noop }; } }
+        </script>
+    </body>
+</html>

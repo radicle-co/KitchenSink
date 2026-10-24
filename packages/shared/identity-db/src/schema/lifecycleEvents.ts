@@ -1,5 +1,6 @@
 import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
+import type { UserId } from '../ulid.js';
 
 /**
  * `lifecycle_events` — the append-only Art. 30 audit trail for account lifecycle transitions (CR-002 R8).
@@ -14,7 +15,7 @@ export const lifecycleEvents = pgTable(
     {
         id: uuid('id').primaryKey().defaultRandom(),
         /** The app ULID whose account transitioned. Not an FK — the audit is independent of the mutable row. */
-        userId: text('user_id').notNull(),
+        userId: text('user_id').$type<UserId>().notNull(),
         /** The transition: `closure` | `erasure` | `reactivation`. Stored as text (decoupled from the enum). */
         event: text('event').notNull(),
         /** What initiated it: `user` (self-service), `admin`, `sweep` (12-month auto-erasure), or `system`. */

@@ -1,7 +1,7 @@
 /**
  * GDPR data-subject ACCESS/PORTABILITY orchestration for `GET /api/v1/account/export` (Art. 15 + Art. 20).
  *
- * The read-only mirror of {@link ErasureService}: where erasure enqueues a job that hard-deletes every
+ * The read-only mirror of `ErasureService`: where erasure enqueues a job that hard-deletes every
  * owner-scoped root, this assembles those SAME roots into one structured document. It sits between the
  * controller (which supplies the VERIFIED owner key — never a client-supplied one) and the
  * {@link AccountExportDal}, and owns exactly one responsibility the DAL and mappers do not: composing the
@@ -16,15 +16,15 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountExportDal } from './dal/export.dal.js';
 import { mapAuthorHandle, mapCollection, mapPhoto, mapRating, mapRecipe, mapVersion } from './export.mappers.js';
-import type { AccountExport } from './dto/export.dto.js';
+import type { AccountExport } from './account.schema.js';
 
 /** DI token for the {@link AccountExportConfig} (the CDN base URL photo keys resolve against). */
 export const ACCOUNT_EXPORT_CONFIG = 'ACCOUNT_EXPORT_CONFIG';
 
 /** Configuration the export service needs: the CDN base URL used to resolve photo object keys to URLs. */
 export interface AccountExportConfig {
-    /** The CloudFront base URL (`CLOUDFRONT_URL`) photo/thumbnail keys are resolved against. */
-    readonly cloudfrontUrl: string;
+    /** The CloudFront base URL (`MEDIA_CDN_URL`) photo/thumbnail keys are resolved against. */
+    readonly mediaCdnUrl: string;
 }
 
 @Injectable()
@@ -62,7 +62,7 @@ export class AccountExportService {
             recipes: recipeRows.map(mapRecipe),
             collections: collectionRows.map((collection) => mapCollection(collection, membershipRows)),
             ratings: ratingRows.map(mapRating),
-            photos: photoRows.map((photo) => mapPhoto(photo, this.config.cloudfrontUrl)),
+            photos: photoRows.map((photo) => mapPhoto(photo, this.config.mediaCdnUrl)),
             versions: versionRows.map(mapVersion),
             authorHandles: authorHandleRows.map(mapAuthorHandle),
         };

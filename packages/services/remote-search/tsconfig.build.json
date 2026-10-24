@@ -1,0 +1,10 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "rootDir": "src"
+    },
+    // The emit project: production code only.
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__"]
+}

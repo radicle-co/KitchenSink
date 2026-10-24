@@ -1,0 +1,3 @@
+Stepper is a `[−] value [+]` control for a small whole number such as servings. `min` defaults to 1 and `max` is optional; at a bound the button refuses the press using `aria-disabled` rather than `disabled`, so keyboard focus is not lost. After each press it politely speaks the sentence returned by `announce`, such as "Serves 3". `decreaseLabel` and `increaseLabel` name the two buttons and must be localised by the caller. Set `labelVisibility` to `hidden` when a heading row already says what the number is.
+
+On native the group is named for VoiceOver, the buttons are 44 pt on iOS and 48 dp on Android, and a button at its bound is disabled and dims.

@@ -1,0 +1,174 @@
+appId: ${APP_ID}
+---
+# A line's PREPARATION and its SECTION (plan U26 / U27). Mobile mirror of the web Playwright
+# `recipeIngredientDetail.spec.ts`, per the cross-platform mandate — two fields that ship to one platform and
+# not the other are exactly what §14 exists to stop, and the two form leaves are separate files with no
+# compiler edge between them.
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Edit 2 cups Tomato` addresses the
+# line this flow itself made — the seeded recipes carry five lines of their own, and addressing by position
+# into a fixture is what made `recipes/edit.yaml`'s original checkpoint pass without proving anything.
+#
+# ONE flow covers three facts, because they share a single emulator run and each is worthless alone:
+#   1. Both can be STATED: the group at the section's level, the preparation after a comma in the add field — and
+#      neither is folded into the food's name.
+#   2. They SURVIVE the round trip: the detail shows the preparation, and re-opening the editor re-seeds
+#      BOTH. The failure this guards is silent narrowing — a mapper that drops the section label lets a
+#      grouped recipe re-open flat, with nothing to signal the loss.
+#   3. The GROUP HEADING appears as soon as the cook names the group, before any save.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
+- assertVisible: 'Title'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Marinade Bowl'
+
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
+# Ingredients, below Details. REWRITTEN for UI overhaul slice 8 (build spec §7.5.3, §7.5.5): name a group first, then
+# type the amount, the food and, after a comma, the preparation into that group's add field, and declare the line "as
+# written" (no food-service dependency in this job — same rationale as `create.yaml`).
+# To the Ingredients section through the section index (`common/jumpToSection.yaml` says why): a free scroll on this
+# short page left "Add a group" under the Sections bar on iOS, and the tap opened the bar instead.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
+- tapOn: 'Add a group'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Group name'
+          TEXT: 'For the marinade'
+# The keyboard's done key saves (the field's submit), and Save sits under the keyboard on a phone.
+- pressKey: Enter
+# ⛔ THE HEADING APPEARS IN THE EDITOR at once, and the add field moves under it, named for it.
+- assertVisible: 'For the marinade'
+# The empty group's field sits at the foot of the section. Bring it up first: native's list is in flow under the field,
+# and a drag on the page that does not start inside the open list closes it (`Combobox.native.tsx`).
+- scrollUntilVisible:
+      element: 'Add to For the marinade'
+      direction: DOWN
+      centerElement: true
+      timeout: 20000
+- tapOn: 'Add to For the marinade'
+- inputText: '2 cups Tomato, finely chopped'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Tomato.* as written.*'
+      timeout: 30000
+# The line reads amount first, its preparation after the name (§7.5.1), and its open control SAYS the preparation:
+# `Edit 2 cups Tomato, finely chopped`. That accessible name is asserted, not the visible `Tomato · finely chopped`: iOS
+# exposes the row as one element named by the control, so the visible text is no node there, and the name is what a
+# screen reader speaks on both platforms (the preparation was missing from it until 2026-10-18).
+- scrollUntilVisible:
+      element: 'Edit 2 cups Tomato, finely chopped'
+      direction: UP
+      timeout: 20000
+- assertVisible: 'Edit 2 cups Tomato, finely chopped'
+
+# Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
+# Close the keyboard first. The pick can leave it up, and iOS then calls `Add step` visible while the keyboard covers it:
+# the shared step skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shard 4: `Step 1` not found).
+# With the keyboard closed, the button arrives from below, clear of the bars.
+- runFlow: common/closeEditorKeyboard.yaml
+# Jump to Steps first. A scroll alone can stop with `Add step` under the sticky Sections bar, which iOS still calls
+# visible, and the tap then opens the Sections sheet instead (CI run 39333403320, iOS shard 4, preparationGroups).
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Marinate and grill.'
+# The soft keyboard is up and the action bar has UNPINNED with it, so the bar is below this screen (build spec §7.1,
+# "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
+- runFlow: common/closeEditorKeyboard.yaml
+- tapOn:
+      text: 'Publish'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+
+# Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
+# input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Marinade Bowl.*'
+      timeout: 40000
+
+# ⛔ THE PREPARATION IS ON THE SURFACE A COOK COOKS FROM. Without this the field round-trips and is invisible. Matched as
+# the row's checkbox name, `{amount} {food}, {preparation}` (`ingredientRowName`): iOS exposes the row as that one
+# element, so the visible `finely chopped` is no node there (full local iOS run, 2026-10-19), and Android names the
+# checkbox the same, so the one selector holds on both and still proves the preparation is its own part.
+- scrollUntilVisible:
+      element:
+          text: '2 cups Tomato, finely chopped'
+      direction: DOWN
+      timeout: 20000
+# ⛔ And it is its OWN text, never welded into the food's name.
+- assertNotVisible:
+      text: 'Tomato finely chopped'
+
+# Re-open the editor: the seed must carry BOTH. Dropping either here is the narrowing defect.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+# The read row carries the preparation, and the group heading the fold re-derives from the line's label returns.
+# The scroll is to the preparation itself, not to the row's name: run 38447859313 stopped with the name a 16 px sliver
+# at the action bar's edge (Maestro counts a clipped element's visible part as all of it) and the line under it hidden.
+- scrollUntilVisible:
+      element: 'Edit 2 cups Tomato, finely chopped'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element:
+          text: 'For the marinade'
+      direction: UP
+      timeout: 20000
+# And its editor holds the preparation in its own field. A TextInput's own value is matchable text in this suite. The row
+# is reached through the section index first: the scroll up to the group heading leaves the heading at the top edge and
+# the row beside the sticky Sections bar, which took the tap on iOS (full local iOS run, 2026-10-19).
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
+- tapOn: 'Edit 2 cups Tomato, finely chopped'
+- assertVisible: 'Preparation'
+- assertVisible:
+      text: 'finely chopped'
+- tapOn: 'Done'

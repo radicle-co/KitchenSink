@@ -1,0 +1,26 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: type `QUERY` into the Discover filter sheet's ingredient search. Called with
+# `runFlow: { file: common/typeIngredientFilter.yaml, env: { QUERY: '…' } }` while the sheet is open.
+#
+# ⛔ THE FIELD IS FOUND BY ITS EXAMPLE TEXT ("chicken"), NOT BY 'Has ingredient'. Maestro matches text ignoring case and
+# takes the deepest match, so 'Has ingredient' also matches the group's heading, drawn in capitals ("HAS INGREDIENT").
+# On Android the field wins, because it is the clickable match. iOS reports no clickable trait, so the heading wins: it
+# comes first in the tree. The tap then landed on a heading, which focuses nothing. Nothing was typed and no result was
+# ever drawn (run 38447859313: `landscape` ended on an empty field with no keyboard, and `discoverIngredientCap` with
+# the sheet closed after 40 s of swipes).
+#
+# The text is read back, so a typing that dropped keystrokes fails here rather than filtering on the wrong text.
+#
+# On iOS the keyboard is then closed by the search key, for `common/typeTitle.yaml`'s reason: an element behind the
+# keyboard counts as visible, so a tap meant for a result lands on a key, and a scroll swipe from the screen's centre
+# starts on the keyboard when the phone is sideways. The query and its results stay. Android keeps the keyboard up, so
+# `landscape.yaml`'s "Show {n} recipes stays reachable with the keyboard up" is proven there only.
+- tapOn: 'chicken'
+- inputText: ${QUERY}
+- assertVisible: ${QUERY}
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - pressKey: Enter

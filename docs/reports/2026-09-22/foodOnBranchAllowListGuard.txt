@@ -1,0 +1,58 @@
+the allow-list itself (read from the scripts, never restated) — `EDIBLE_ROOTS`
+  PASS  at least two report scripts declare it (found 5)
+  PASS  docs/reports/2026-09-22/foodOnCoverageV2.py declares exactly the three pinned branches (3 declared)
+  PASS  docs/reports/2026-09-22/foodOnMappingPatch.py declares exactly the three pinned branches (3 declared)
+  PASS  docs/reports/2026-09-22/foodOnMappingReview.py declares exactly the three pinned branches (3 declared)
+  PASS  docs/reports/2026-09-22/foodOnSuffixNormalisation.py declares exactly the three pinned branches (3 declared)
+  PASS  docs/reports/2026-09-22/rootStripRemainder.py declares exactly the three pinned branches (3 declared)
+
+the ontology file
+  PASS  is the pinned FoodOn release (sha256 b897bf64c1b265c4…)
+
+non-vacuity — every probe names a class FoodOn really holds
+  PASS  'cheddar cheese' exists in FoodOn (1 live class(es))
+  PASS  'mayonnaise' exists in FoodOn (1 live class(es))
+  PASS  'olive oil' exists in FoodOn (1 live class(es))
+  PASS  'ham (cured)' exists in FoodOn (1 live class(es))
+  PASS  'beef (ground)' exists in FoodOn (1 live class(es))
+  PASS  'lamb shoulder' exists in FoodOn (1 live class(es))
+  PASS  'octopus' exists in FoodOn (2 live class(es))
+  PASS  'bread' exists in FoodOn (1 live class(es))
+  PASS  'whole milk' exists in FoodOn (1 live class(es))
+  PASS  'Chondrichthyes' exists in FoodOn (1 live class(es))
+  PASS  'restaurant' exists in FoodOn (1 live class(es))
+  PASS  'Gnathostomata <vertebrates>' exists in FoodOn (1 live class(es))
+
+IN — real foods the allow-list must admit  (version 2, two branches, lost the last two)
+  PASS  'cheddar cheese' is inside the allow-list — 'cheddar cheese'
+  PASS  'mayonnaise' is inside the allow-list — 'mayonnaise'
+  PASS  'olive oil' is inside the allow-list — 'olive oil'
+  PASS  'ham (cured)' is inside the allow-list — 'ham (cured)'
+  PASS  'beef (ground)' is inside the allow-list — 'beef (ground)'
+  PASS  'lamb shoulder' is inside the allow-list — 'lamb shoulder'
+  PASS  'octopus' is inside the allow-list — 'octopus'
+  PASS  'bread' is inside the allow-list — 'bread'
+  PASS  'whole milk' is inside the allow-list — 'cow whole milk 3.5% fat'
+
+OUT — non-foods the allow-list must reject  (version 1, no allow-list, published these)
+  PASS  'Chondrichthyes' is outside the allow-list
+  PASS  'restaurant' is outside the allow-list
+  PASS  'Gnathostomata <vertebrates>' is outside the allow-list
+
+the allow-list is what does the excluding — unrestricted matching admits all three
+  PASS  'Chondrichthyes' would be admitted with no allow-list (1 class(es))
+  PASS  'restaurant' would be admitted with no allow-list (1 class(es))
+  PASS  'Gnathostomata <vertebrates>' would be admitted with no allow-list (1 class(es))
+
+the SHAPE of the allow-list — which branches actually carry it
+  PASS  `food product` is a SUBCLASS of `food material` — so it is REDUNDANT in the allow-list
+  PASS  `food material` is subsumed by neither of the other two
+  PASS  `organism material` is subsumed by neither of the other two — it is a SEPARATE branch
+  PASS  NO live class reaches `food product` without also reaching `food material` (0 would)
+
+the two carrying branches are LOAD-BEARING — removing either must break an IN probe
+  PASS  without 'food material' these are lost: ['bread']
+  PASS  without 'organism material' these are lost: ['lamb shoulder', 'octopus']
+  PASS  'food product' carries nothing, as its subsumption implies
+
+ALL PINS HOLD

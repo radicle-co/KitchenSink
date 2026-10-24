@@ -1,0 +1,23 @@
+rows : 8093 (7793 SR Legacy, 300 Foundation with no SR Legacy match)
+  accepted :  3905  (254 Foundation)
+  flagged  :   496  (21 Foundation)
+  added    :   313  (7 Foundation)
+  none     :  3379  (18 Foundation)
+
+accepted-set check: 317 of 4244 word-overlap passes doubted, now flagged
+  plus 22 rows a person found by hand (HAND_FLAGGED)
+  head        :  113 rows
+  part        :  167 rows
+  contradicts :   24 rows
+  process     :    7 rows
+  label       :   26 rows
+  fixtures     : 7 must-flag and 7 must-pass rows behave
+
+USDA IDs the builder does not yet repair (flagged as outside the edible branches):
+    6  ID this FoodOn release does not hold
+    5  obsolete term, replacement not followed
+    4  short-form ID (e.g. CHEBI:17309), never expanded
+
+needs a person : 809 rows (flagged + added)
+review decisions applied: 809; free-text requests for the owner: []
+orange juice 169099 : flagged

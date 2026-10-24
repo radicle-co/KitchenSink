@@ -28,6 +28,8 @@ const { useCreatePhotoUploadUrlMock, useConfirmPhotoUploadMock } = vi.hoisted(()
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCreatePhotoUploadUrl: useCreatePhotoUploadUrlMock,
     useConfirmPhotoUpload: useConfirmPhotoUploadMock,
 }));
@@ -136,8 +138,20 @@ describe('useRecipePhotoUploadQueue — sequential drive + per-file status', () 
         });
 
         // ONLY once file A settled did file B's presign fire — never interleaved with A's.
+        //
+        // B's `uploading` is the SYNCHRONISATION POINT for the call-count assertion, not merely another
+        // assertion, and the order of these two lines is load bearing. `uploading` is derived from
+        // `activeFileId` (see `toPublicItems`), which "start next" sets in the same effect body immediately
+        // before it calls `upload` — so once B renders `uploading`, B's presign has necessarily already
+        // fired. Asserting the count first read the render the `waitFor` above returned on, which is the
+        // commit where A became `ok` and `activeFileId` was cleared; "start next" only runs AFTER that
+        // commit, so B is still `queued` there and the count is observed one commit too early. That window
+        // is a single React commit — invisible to a user, but a coin flip for a synchronous assertion, and
+        // it is what made this test fail under CI load while passing on an idle machine.
+        await waitFor(() => {
+            expect(result.current.queue.items.find((item) => item.fileName === 'b.png')?.status).toBe('uploading');
+        });
         expect(presign.mutateAsync).toHaveBeenCalledTimes(2);
-        expect(result.current.queue.items.find((item) => item.fileName === 'b.png')?.status).toBe('uploading');
 
         act(() => {
             presign.resolveNext({ uploadUrl: 'https://s3.example.com/put', key: 'kB' });
@@ -563,39 +577,170 @@ describe('useRecipePhotoUploadQueue — the per-file `onUploaded` continuation (
     });
 });
 
+/**
+ * REWRITTEN (the first case used to assert that a 5-file pick with 2 slots left queued `1.png` and `2.png`).
+ * That truncation WAS the defect: the other three files were dropped without a word, and the web container had
+ * already minted an object URL for each that nothing would ever revoke. A batch is now admitted whole or refused
+ * whole, and `enqueue` RETURNS the verdict so the caller can release what it minted and tell the cook.
+ *
+ * The second case used to assert `useCreatePhotoUploadUrlMock` was called, which proved only that the harness
+ * rendered; it now asserts the verdict.
+ */
 describe('useRecipePhotoUploadQueue — max-10 cap', () => {
-    it('caps an enqueue call so confirmed + queued items never exceed the max', () => {
+    beforeEach(() => {
         useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn(() => new Promise(() => undefined)) });
         useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+    });
 
+    it('refuses a batch larger than the remaining slots WHOLE, queuing none of it', () => {
         // 8 photos already confirmed — only 2 more slots available.
         const { result } = renderHook(() => useHarness(MAX_RECIPE_PHOTOS - 2));
+        let verdict: unknown;
 
         act(() => {
-            result.current.queue.enqueue([
+            verdict = result.current.queue.enqueue([
                 makeQueueFile({ fileName: '1.png' }),
                 makeQueueFile({ fileName: '2.png' }),
                 makeQueueFile({ fileName: '3.png' }),
-                makeQueueFile({ fileName: '4.png' }),
-                makeQueueFile({ fileName: '5.png' }),
             ]);
         });
 
-        expect(result.current.queue.items).toHaveLength(2);
+        expect(verdict).toEqual({ status: 'overCap', remaining: 2 });
+        expect(result.current.queue.items).toHaveLength(0);
+    });
+
+    it('accepts a batch that exactly fills the remaining slots', () => {
+        const { result } = renderHook(() => useHarness(MAX_RECIPE_PHOTOS - 2));
+        let verdict: unknown;
+
+        act(() => {
+            verdict = result.current.queue.enqueue([
+                makeQueueFile({ fileName: '1.png' }),
+                makeQueueFile({ fileName: '2.png' }),
+            ]);
+        });
+
+        expect(verdict).toEqual({ status: 'accepted' });
         expect(result.current.queue.items.map((item) => item.fileName)).toEqual(['1.png', '2.png']);
     });
 
-    it('rejects an enqueue call entirely once already at the cap', () => {
-        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn(() => new Promise(() => undefined)) });
-        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
-
+    it('refuses any enqueue once already at the cap, reporting nothing left', () => {
         const { result } = renderHook(() => useHarness(MAX_RECIPE_PHOTOS));
+        let verdict: unknown;
 
         act(() => {
-            result.current.queue.enqueue([makeQueueFile()]);
+            verdict = result.current.queue.enqueue([makeQueueFile()]);
         });
 
+        expect(verdict).toEqual({ status: 'overCap', remaining: 0 });
         expect(result.current.queue.items).toHaveLength(0);
-        expect(useCreatePhotoUploadUrlMock).toHaveBeenCalled();
+    });
+
+    it('counts a validation-FAILED item against the cap — it still holds a grid cell until removed', () => {
+        const { result } = renderHook(() => useHarness(MAX_RECIPE_PHOTOS - 1));
+
+        act(() => {
+            result.current.queue.enqueue([
+                makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 }),
+            ]);
+        });
+
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+        expect(result.current.queue.remaining).toBe(0);
+
+        let verdict: unknown;
+
+        act(() => {
+            verdict = result.current.queue.enqueue([makeQueueFile({ fileName: 'next.png' })]);
+        });
+
+        expect(verdict).toEqual({ status: 'overCap', remaining: 0 });
+    });
+
+    it('frees the slot again once a failed item is removed', () => {
+        const { result } = renderHook(() => useHarness(MAX_RECIPE_PHOTOS - 1));
+
+        act(() => {
+            result.current.queue.enqueue([
+                makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 }),
+            ]);
+        });
+
+        const failedId = result.current.queue.items[0]?.fileId ?? -1;
+
+        act(() => result.current.queue.remove(failedId));
+
+        expect(result.current.queue.remaining).toBe(1);
+    });
+
+    it('does NOT count an `ok` item — the confirmed count the caller passes already includes it', async () => {
+        useCreatePhotoUploadUrlMock.mockReturnValue({
+            mutateAsync: vi.fn().mockResolvedValue({ uploadUrl: 'https://s3/put', key: 'k' }),
+        });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+
+        const { result } = renderHook(() => useHarness(MAX_RECIPE_PHOTOS - 1));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'lands.png' })]);
+        });
+
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('ok'));
+
+        expect(result.current.queue.remaining).toBe(1);
+    });
+});
+
+/**
+ * THE `busy` VERDICT — a refusal to START, which is neither success nor failure.
+ *
+ * ⛔ WHY IT GETS ITS OWN HARNESS. Every other case here composes the REAL `useRecipePhotoUpload` on purpose,
+ * but `busy` can only be produced by holding that hook's mutex, and the queue is its only caller and awaits
+ * each verdict — so the state is unreachable through the real hook. A stubbed `upload` is the honest way to
+ * cover an arm that exists as a defensive invariant. That the stub is a one-property object is itself the
+ * point of narrowing the queue's dependency to `Pick<…, 'upload'>`.
+ *
+ * ⛔ THE MUTANT THIS KILLS: clearing `activeFileId` on `busy`. The reducer returns identical state for that
+ * verdict, so clearing the id re-fires the drive effect, re-picks the same file and loops as fast as
+ * promises resolve — a hot spin. Holding the id pauses the queue instead.
+ *
+ * ⚠️ CONSEQUENCE, recorded because it is a deliberate trade rather than an oversight: while paused, the item
+ * renders `uploading` (that status is DERIVED from the active id) even though nothing is transmitting. The
+ * alternative — clear the id so it reads `queued` — is what spins, so this asserts the three guarantees that
+ * actually matter and not the label: the file is not lost, it is given no false verdict, and `upload` is not
+ * re-driven. From the cook's side "in progress" is also the truer of the two labels, since the file is next
+ * in line behind a live upload.
+ */
+describe('useRecipePhotoUploadQueue — a busy uploader', () => {
+    it('⛔ leaves the file queued and stops driving, rather than marking it or spinning', async () => {
+        const upload = vi.fn().mockResolvedValue({ status: 'busy' });
+        const { result } = renderHook(() => useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES));
+
+        await act(async () => {
+            result.current.enqueue([
+                {
+                    blob: new Blob(['x'], { type: 'image/png' }),
+                    fileName: 'a.png',
+                    contentType: 'image/png',
+                    fileSize: 5,
+                },
+            ]);
+        });
+
+        await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+
+        // Give a spin every chance to show itself: many commits' worth of microtasks.
+        for (let i = 0; i < 25; i += 1) {
+            await act(async () => {
+                await Promise.resolve();
+            });
+        }
+
+        // The three guarantees that matter: the file is not LOST, it is not given a FALSE verdict, and the
+        // queue does not spin.
+        expect(upload).toHaveBeenCalledTimes(1);
+        expect(result.current.items).toHaveLength(1);
+        expect(result.current.items[0]?.status).not.toBe('ok');
+        expect(result.current.items[0]?.status).not.toBe('failed');
     });
 });

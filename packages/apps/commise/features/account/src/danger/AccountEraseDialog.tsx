@@ -10,7 +10,22 @@
  * The confirm action is enabled ONLY when {@link confirmsErasurePhrase} accepts the typed phrase and no
  * submit is in flight — the SAME predicate the native leaf uses, so the two platforms gate identically and
  * neither can enable a confirmation the server would `400`.
+ *
+ * The frame and type roles are the Close dialog's (`@commise/ui` `ConfirmDialog`): a `rounded-lg` `paper-overlay`
+ * panel, a `section-title` title, a `body` / `inkMuted` description, the design-system `Input` and buttons. The
+ * warning is not painted red end to end; a `dangerText` glyph stands beside it, and its words already say
+ * "permanently" and "cannot be undone", so colour is never the only cue (`buildSpec.md` §10). It stays a Radix
+ * `Dialog`, not the `AlertDialog` under `ConfirmDialog`, because it holds a form (the donate election and the phrase).
+ *
+ * @pattern Adapter over `@radix-ui/react-dialog` for the modal semantics, around a Specification —
+ *     `confirmsErasurePhrase` — that is the whole gate on the destructive confirm.
+ * @pattern The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, not a
+ *     behaviour switch: every branch renders the same dialog with the same phrase gate and the same actions, so §11
+ *     is satisfied without lifting them to the orchestration layer.
  */
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { Icon } from '@commise/ui/icon';
+import { FieldLabel, Input } from '@commise/ui/input';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';
 
@@ -38,36 +53,39 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     const selected = new Set(selectedRecipeIds);
 
     return (
-        <Dialog.Root open={open} onOpenChange={(next) => (next ? undefined : onCancel())}>
+        // ⛔ No dismissal while `submitting`: the caller's erasure is still in flight, and dismissing unmounts the
+        // caller that finishes it.
+        <Dialog.Root open={open} onOpenChange={(next) => (next || submitting ? undefined : onCancel())}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
-                <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg">
-                    <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
-                        {erase.title}
-                    </Dialog.Title>
-                    <Dialog.Description className="text-body-md leading-relaxed text-error-dark">
-                        {erase.warning}
-                    </Dialog.Description>
-                    <p className="text-body-sm leading-relaxed text-slate">{erase.distinction}</p>
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
+                <Dialog.Content className="@container/dialog fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-paper-overlay p-6 shadow-lg">
+                    <Dialog.Title className="text-section-title text-ink">{erase.title}</Dialog.Title>
+                    <div className="flex items-start gap-2">
+                        <span aria-hidden="true" className="mt-0.5 shrink-0 text-danger-text">
+                            <Icon name="triangleAlert" size={20} />
+                        </span>
+                        <Dialog.Description className="text-body text-ink-muted">{erase.warning}</Dialog.Description>
+                    </div>
+                    <p className="text-body text-ink-muted">{erase.distinction}</p>
 
                     <section aria-labelledby="erase-donate-heading" className="flex flex-col gap-2">
-                        <h3 id="erase-donate-heading" className="text-body-md font-semibold text-charcoal">
+                        <h3 id="erase-donate-heading" className="text-label text-ink">
                             {erase.donateHeading}
                         </h3>
-                        <p className="text-body-sm leading-relaxed text-slate">{erase.donateHelp}</p>
+                        <p className="text-meta text-ink-muted">{erase.donateHelp}</p>
                         {recipesLoading ? (
-                            <p role="status" className="text-body-sm text-slate">
+                            <p role="status" className="text-meta text-ink-muted">
                                 {erase.recipesLoadingLabel}
                             </p>
                         ) : recipesError ? (
-                            <p className="text-body-sm text-slate">{erase.recipesError}</p>
+                            <p className="text-meta text-ink-muted">{erase.recipesError}</p>
                         ) : donatableRecipes.length === 0 ? (
-                            <p className="text-body-sm text-slate">{erase.donateEmpty}</p>
+                            <p className="text-meta text-ink-muted">{erase.donateEmpty}</p>
                         ) : (
                             <ul className="flex flex-col gap-1" role="list">
                                 {donatableRecipes.map((recipe) => (
                                     <li key={recipe.id}>
-                                        <label className="flex items-center gap-2 text-body-sm text-charcoal">
+                                        <label className="flex items-center gap-2 text-body text-ink">
                                             <input
                                                 type="checkbox"
                                                 checked={selected.has(recipe.id)}
@@ -81,47 +99,47 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                         )}
                     </section>
 
-                    <div className="flex flex-col gap-1">
-                        <label htmlFor="erase-phrase" className="text-body-sm font-medium text-charcoal">
-                            {erase.phraseLabel}
-                        </label>
-                        <p id="erase-phrase-prompt" className="text-body-sm text-slate">
+                    <div className="flex flex-col gap-2">
+                        <FieldLabel forId="erase-phrase" label={erase.phraseLabel} />
+                        <p id="erase-phrase-prompt" className="text-meta text-ink-muted">
                             {erase.phrasePrompt.replace('{phrase}', ACCOUNT_ERASURE_CONFIRMATION_PHRASE)}
                         </p>
-                        <input
+                        <Input
                             id="erase-phrase"
-                            type="text"
                             value={phrase}
-                            onChange={(event) => onPhraseChange(event.target.value)}
-                            aria-describedby="erase-phrase-prompt"
+                            onChangeText={onPhraseChange}
+                            describedBy="erase-phrase-prompt"
                             autoComplete="off"
-                            className="rounded-lg border border-slate/30 px-3 py-2 text-body-md text-charcoal"
                         />
                     </div>
 
-                    <div className="flex items-center justify-end gap-3">
+                    <div className="flex flex-col-reverse gap-3 @[25rem]/dialog:flex-row @[25rem]/dialog:justify-end">
                         <Dialog.Close asChild>
                             <button
                                 type="button"
-                                className="rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl"
+                                disabled={submitting}
+                                className={`${buttonSurfaceClass('secondary')} w-full @[25rem]/dialog:w-auto`}
                             >
-                                {erase.cancel}
+                                <Icon name="x" size={20} />
+                                <span>{erase.cancel}</span>
                             </button>
                         </Dialog.Close>
-                        <button
-                            type="button"
-                            onClick={onConfirm}
+                        <Button
+                            variant="destructive"
+                            tone="confirm"
+                            icon="trash"
+                            width="fill"
+                            busy={submitting}
                             disabled={!canConfirm}
-                            aria-busy={submitting || undefined}
-                            className="rounded-full bg-error px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                            onPress={onConfirm}
                         >
                             {erase.confirm}
-                        </button>
+                        </Button>
                     </div>
 
-                    {submitting && <p className="text-body-sm text-slate">{erase.busyLabel}</p>}
+                    {submitting && <p className="text-meta text-ink-muted">{erase.busyLabel}</p>}
                     {submitError && !submitting && (
-                        <p role="alert" className="text-body-sm text-error-dark">
+                        <p role="alert" className="text-meta text-danger-text">
                             {erase.error}
                         </p>
                     )}

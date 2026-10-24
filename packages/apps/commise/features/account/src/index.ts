@@ -6,16 +6,94 @@
  * key/policy, the pure account-ERASURE domain logic (CR-002 / U4b — the confirmation-phrase gate and the
  * donate-election eligibility) both platforms' erasure UIs read, and — ADR-0009 — `signOutAndVerify`, the
  * cross-platform core of the sign-out command (the ordering + the fail-closed post-condition that a
- * sign-out really ended the session), which each platform's own sign-out hook adapts.
+ * sign-out really ended the session), which each platform's own sign-out hook adapts. Beside it, ADR-0054's
+ * `subjectBoundToken`, which binds each service client's token to the cook the client was built for.
  *
  * The pure logic here has no JSX. The cross-platform danger-zone COMPONENTS (the erasure dialog's web +
  * native leaves) live on the `./danger` subpath so a non-React consumer of the pure logic never resolves the
  * platform leaves.
  */
 
-export * from './profileServiceClient.js';
-export * from './errors.js';
-export * from './authState.js';
-export * from './queries.js';
-export * from './erasure.js';
-export * from './session/signOutAndVerify.js';
+export { AVATAR_PRESIGN_PATH, PROFILE_ME_PATH, ProfileServiceClient } from './profileServiceClient.js';
+export type {
+    DeleteAccountResult,
+    EraseAccountResult,
+    ProfileRequestOptions,
+    ProfileServiceClientOptions,
+} from './profileServiceClient.js';
+export type { TokenSource } from '@kitchensink/retry-after/bearer-replay';
+// DRIFT LAYER 3's consumer half for identity (GR-017 §17-b.5). Exported so a host can reuse the pure verdict /
+// message helpers, and so the test seam is reachable the way the food client's is.
+export {
+    checkContractSkew,
+    compareContractHashes,
+    formatContractSkewWarning,
+    reportContractSkewOnce,
+    resetContractSkewLatchForTests,
+} from './contractSkew.js';
+export type { ContractSkewProbeOptions, ContractSkewVerdict } from './contractSkew.js';
+export {
+    BadRequestError,
+    ForbiddenError,
+    InvalidRequestError,
+    NotFoundError,
+    ProfileServiceClientError,
+    UnauthorizedError,
+    UnexpectedResponseError,
+    isBadRequestError,
+    isForbiddenError,
+    isInvalidRequestError,
+    isNotFoundError,
+    isProfileServiceClientError,
+    isUnauthorizedError,
+    isUnexpectedResponseError,
+} from './errors.js';
+
+// This client's half of the app-wide query retry policy — beside `errors.ts`, because only the module that
+// DEFINES a failure can say whether repeating it is worth anything.
+export { shouldRetryProfileServiceFailure } from './retryPolicy.js';
+export { IMPERSONATION_BLOCK, SUSPENDED_BLOCK, deriveAuthState } from './authState.js';
+// The ONE profile → paid-features mapping every paid-feature surface on both platforms renders from (plan 2026-10-14-009 D13).
+export { knownPaidFeaturesOf, paidFeatureStateOf } from './paidFeatures.js';
+export type { PaidFeatureState, ProfileQueryState } from './paidFeatures.js';
+export type { AuthBlockReason, AuthState, DeriveAuthStateInput } from './authState.js';
+// The localized words a blocked viewer reads, keyed by the block's code: ONE wording for both gates and the profile banner.
+export { authBlockMessages } from './authBlockMessages.js';
+// The sign-in sentences both platforms say (brand line, sign-up prompt and link, the two email messages), authored once.
+export { authSurfaceMessages } from './authSurfaceMessages.js';
+export type { AuthSurfaceMessages } from './authSurfaceMessages.js';
+export type { AuthBlockCopy, AuthBlockMessages } from './authBlockMessages.js';
+export {
+    AccountSuspendedError,
+    ImpersonationBlockedError,
+    isAccountSuspendedError,
+    isImpersonationBlockedError,
+} from './authState.errors.js';
+export { PROFILE_STALE_TIME_MS, profileQueries, profileServiceKeys } from './queries.js';
+export { profileMutations } from './mutations.js';
+export { useRecipeViewSetting } from './useRecipeViewSetting.js';
+export type { RecipeViewChoice, RecipeViewSetting } from './useRecipeViewSetting.js';
+export {
+    ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
+    confirmsErasurePhrase,
+    isErasureDonationEligible,
+    selectDonatableRecipes,
+} from './erasure.js';
+export { ErasureStepError, isErasureStepError, useErasureSequence } from './erasureSequence.js';
+export type { ErasureStep, ErasureSteps, RecipeErasureInput } from './erasureSequence.js';
+export { ClosureStepError, isClosureStepError, useClosureSequence } from './closureSequence.js';
+export type { ClosureStep, ClosureSteps } from './closureSequence.js';
+export { SignOutNotVerifiedError, isSignOutNotVerifiedError, signOutAndVerify } from './session/signOutAndVerify.js';
+export type { SignOutClientStatus, SignOutVerificationClient } from './session/signOutAndVerify.js';
+export {
+    SessionSubjectChangedError,
+    isSessionSubjectChangedError,
+    subjectBoundToken,
+} from './session/subjectBoundToken.js';
+export { TokenMintFailedError, isTokenMintFailedError } from './session/tokenMintFailedError.js';
+export type { SessionSubjectSource } from './session/subjectBoundToken.js';
+// ONE token policy for every identity client, on both platforms: no token means no request, and `forceRefresh` reaches Clerk.
+export { tokenSourceFrom } from './session/tokenSourceFrom.js';
+export type { ClerkGetToken } from './session/tokenSourceFrom.js';
+export { useProfileServiceClient } from './session/useProfileServiceClient.js';
+export type { ProfileServiceClientInput } from './session/useProfileServiceClient.js';

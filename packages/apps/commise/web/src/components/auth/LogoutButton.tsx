@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * @module auth/LogoutButton — the web sign-out control (U3).
+ * @module auth/LogoutButton — the web sign-out control: the Profile page's sign-out row.
  *
- * The orchestration half of the sign-out surface: it owns only the control's own state (busy, error) and
- * issues the app's one sign-out command, {@link import('./useSignOutAndLeave.js').useSignOutAndLeave} —
+ * The orchestration half of the sign-out surface: it binds the shared control state (`useSignOutControl`, busy and
+ * failed) and the shared row (`SignOutRow`) to the app's one sign-out command, `useSignOutAndLeave` —
  * which owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the
  * document), and the post-condition that the session really ended. Read that module before changing anything
  * here; the post-condition guards a real, observed security defect (B23), not a hypothetical one.
@@ -12,55 +12,19 @@
  * B17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never
  * swallowed: the busy state is released and a localized alert appears, so the control is retryable instead of
  * marching the viewer to the public page on a session that is still live.
+ *
+ * @pattern Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the
+ *     ordering and the session-ended post-condition (ADR-0009); this leaf only binds it to the shared control state and row.
  */
-import { useState } from 'react';
-import { Button } from '@commise/ui/button';
-import { useMessages } from '@commise/i18n/react';
+import { SignOutRow, useSignOutControl } from '@commise/features-account/profile';
 
-import { authMessages } from '@/components/auth/messages';
-import { errorText } from '@/components/auth/authChrome';
-import { LogOutIcon } from '@/components/auth/icons';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
-interface LogoutButtonProps {
-    /** Overrides the default localized "Sign out" label (e.g. a page-specific phrasing). */
-    children?: React.ReactNode;
-}
-
-export function LogoutButton({ children }: LogoutButtonProps) {
-    const { session } = useMessages(authMessages);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+export function LogoutButton() {
     const { signOutAndLeave } = useSignOutAndLeave();
+    // An ink row, not red: signing out is not destructive (`buildSpec.md` §9.1). The control owns busy and failed; the
+    // command owns the mechanism. A rejection is surfaced as the row's alert and never navigates the viewer away.
+    const { busy, failed, run } = useSignOutControl(signOutAndLeave);
 
-    /**
-     * Issue the sign-out command, surfacing a rejection instead of stranding the viewer (see the module doc).
-     *
-     * @sideEffect Destroys the Clerk session and replaces the current document.
-     */
-    const handleLogout = async (): Promise<void> => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            await signOutAndLeave();
-        } catch {
-            // Generic on purpose — never echoes the raw error to the viewer.
-            setError(session.signOutFailed);
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <>
-            <Button variant="secondary" icon={<LogOutIcon />} onPress={handleLogout} busy={isLoading}>
-                {isLoading ? session.signingOut : (children ?? session.signOut)}
-            </Button>
-            {error !== null && (
-                <p role="alert" className={errorText}>
-                    {error}
-                </p>
-            )}
-        </>
-    );
+    return <SignOutRow busy={busy} failed={failed} onPress={run} />;
 }

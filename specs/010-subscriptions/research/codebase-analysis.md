@@ -69,7 +69,7 @@ AuthMiddleware (Clerk session token) -> PlanGuard -> gated route handlers
                 |
                 -> account.plan + account.subscriptionStatus
 
-Stripe webhook events -> webhook_events idempotency table -> account subscription fields
+Stripe webhook events -> stripe_webhook_events idempotency table (ADR-0018) -> account subscription fields
 
 Frontend interceptors -> 403 PREMIUM_REQUIRED payload -> pricing/paywall UX -> billing checkout endpoint
 ```
@@ -78,7 +78,7 @@ Frontend interceptors -> 403 PREMIUM_REQUIRED payload -> pricing/paywall UX -> b
 
 ## Data Model Integration Surface
 
-`plan.md` introduces subscription columns on `Account` and an idempotency table (`webhook_events`).
+`plan.md` introduces subscription columns on `Account` and an idempotency table (**`stripe_webhook_events`** — ⚠️ this file said `webhook_events`, superseded by ADR-0018 because that name already ships for Clerk/svix dedup).
 
 The model shape supports:
 

@@ -1,9 +1,9 @@
 # 0008 — Additional cost levers: gp3 storage, Fargate Spot (non-prod), and budget guardrails
 
-- Status: Accepted
-- Date: 2026-07-01
-- Deciders: platform
-- Related: [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0004](0004-minimize-nat-egress.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md)
+- **Status:** Accepted
+- **Date:** 2026-07-01
+- **Deciders:** platform
+- **Related:** [0002](0002-vpc-consolidation-and-cidr-scheme.md), [0004](0004-minimize-nat-egress.md), [0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md), [0007](0007-sandbox-cost-controls.md)
 
 ## Context
 
@@ -26,12 +26,18 @@ provisioned IOPS or throughput is set — at 100 GB gp3 uses its free baseline, 
 `Iops` nor `StorageThroughput`. Flipping prod to gp3 later is a safe online modify (no downtime), but
 is **deliberately deferred** to preserve the prod-no-diff proof on this change; do it in its own PR.
 
-**2. Fargate Spot for non-prod tasks.** The identity service and the food service (API service,
-fetch worker, and the change-refresh scheduled RunTask) derive their capacity strategy from `stage`:
-`prod →` on-demand `FARGATE` (unchanged → no prod diff), **non-prod → `FARGATE_SPOT`** (weight 1).
-Non-prod is interruption-tolerant: previews are disposable and the fetch worker is idempotent (an
-interrupted lease expires and the `fetch_queue` row re-leases, so a Spot reclaim only delays, never
-drops, a fetch). The gating is on `stage`, not `baseStage`, so a `pr-{N}` preview runs Spot even
+**2. Fargate Spot for non-prod tasks.** Every ECS service and scheduled task in the repository derives
+its capacity strategy from `stage` — stated as a rule rather than a roster, because a copy of a list cannot
+detect that the list grew (the ADR-0003 / ADR-0004 lesson). The rule reads:
+`prod →` on-demand `FARGATE` (unchanged → no prod diff), **non-prod → `FARGATE_SPOT`** (weight 1),
+**except a per-PR preview's API services (recipe API, food API), which run on the on-demand `FARGATE`
+capacity provider** (weight 1; owner ruling, 2026-10-22). One Spot task cannot absorb an interruption:
+on 2026-10-22 the `pr-91` recipe API had no healthy target from 07:47:35 to 07:48:43 UTC, every request
+got 503, and a test run's seed reset and a flow failed on it. Two Spot tasks only make that rarer, because
+reclaims come in bursts. The API keeps a capacity-provider strategy rather than a launch type, so an
+existing service updates in place. The rest of non-prod is interruption-tolerant: the fetch worker is
+idempotent (an interrupted lease expires and the `fetch_queue` row re-leases, so a Spot reclaim only
+delays, never drops, a fetch). The gating is on `stage`, not `baseStage`, so a `pr-{N}` preview runs Spot even
 though it imports the sandbox platform (ADR-0006). Each cluster advertises the `FARGATE_SPOT`
 capacity provider (`enableFargateCapacityProviders`) only for non-prod, so no
 `ClusterCapacityProviderAssociations` resource is added to the prod template.
@@ -59,9 +65,13 @@ other accounts configure their own recipient and no PII lands in the code or the
 ## Consequences
 
 - **gp3**: ~20% cheaper storage on the sandbox instance, with a headroom IOPS baseline for free.
-- **Fargate Spot**: 60–70% off the per-task compute rate for all non-prod ECS (sandbox + every open
-  per-PR preview), on top of the ADR-0007 nightly shutdown. The trade-off is occasional Spot reclaims
-  — acceptable for previews and an idempotent worker, never applied to prod.
+- **Fargate Spot**: 60–70% off the per-task compute rate for the rest of non-prod ECS, on top of the
+  ADR-0007 nightly shutdown. The trade-off is occasional Spot reclaims, acceptable for an idempotent
+  worker and never applied to prod.
+- **On-demand preview APIs**: a 0.5 vCPU, 1 GB task costs about $0.0247 an hour on demand against about
+  $0.0079 on Spot (this account's October 2026 Spot rates), so each preview API costs about $8.90 a month
+  at 12 hours a day, or $18.00 if always up, instead of $2.80 to $5.70. The sandbox's shared identity
+  service is still one Spot task.
 - **Guardrails**: a hard-to-miss email if month-to-date spend crosses 80% of $300, if month-end is
   forecast to exceed $300, or if any single service's cost anomaly impact clears ~$20.
 - **No prod diff**: every existing prod stack (global network/data/domain/alb + identity + food)

@@ -1,0 +1,92 @@
+name: Sandbox Reconcile
+
+# The convergence loop for on-demand sandboxes (ADR-0028), run BY HAND.
+#
+# ⛔ NO SCHEDULE (owner ruling 2026-10-12): "No automatic or scheduled tasks or jobs except for the single one to
+# check if the sandbox is running at midnight and bringing every single sandbox down." This used to run hourly;
+# it is dispatch-only now, and the only workflows with a `schedule:` are `cachePrune.yml` and `codeql.yml`.
+#
+# ⚠️  It RECONCILES, it does not merely delete. For every `pr-{N}` preview it asks "should this be up?" and
+# makes reality match — which also catches a teardown that died halfway and a stack created out of band. A
+# one-shot deleter fixes neither, and each of them bills until a human notices.
+#
+# ⛔ It does not reap a per-PR preview — `sandboxReap.yml` owns that, and owns it alone. What is left
+# here is the SHARED TIER: when no preview is live and nothing is using it, take the ALB and the identity
+# service down. Two implementations of "which sandbox is finished" is the drift ADR-0005 exists to prevent.
+
+on:
+    # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER. GitHub holds no RECORD for a workflow until the file
+    # reaches the default branch or the workflow actually RUNS — and a `workflow_dispatch` file on a feature
+    # branch can do neither, because the dispatch needs the record that running would have created. A closed loop, whose symptom is
+    # `gh workflow run` answering `not found on the default branch`.
+    #
+    # Pushing this ONE file creates a run whose only job is skipped — no runner time, nothing stood up or
+    # torn down — and that run is what registers the workflow so it can be dispatched.
+    #
+    # ⛔ Do not widen `paths:`, and do not remove the job's `if:`. Either turns a push into real work.
+    # `workflowRegistration.test.ts` asserts both, for every branch-only workflow at once.
+    push:
+        paths:
+            - .github/workflows/sandboxReconcile.yml
+    workflow_dispatch:
+
+# ⚠️ Only `contents: read` is workflow-level; the write grant sits on the `reconcile` job instead
+# (2026-09-02), so a job added here later does not silently inherit the ability to edit PRs.
+permissions:
+    contents: read # checkout of the teardown/scan scripts this workflow runs
+
+concurrency:
+    group: sandbox-reconcile
+    cancel-in-progress: false
+
+jobs:
+    reconcile:
+        name: Converge sandboxes to their intent
+        runs-on: ubuntu-latest
+        timeout-minutes: 180
+        # ⛔ The `push:` above only registers the workflow; taking the shared tier down is an operator's job,
+        # never an edit's.
+        if: github.event_name == 'workflow_dispatch'
+        permissions:
+            contents: read # checkout of the teardown/scan scripts this workflow runs
+            actions: read # `release-if-idle` asks whether anything that could stand a preview up is running
+            id-token: write # awsAuth: the non-prod role
+        env:
+            GH_TOKEN: ${{ github.token }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # Nothing here pushes or fetches from `origin` — the scripts only call AWS and the
+                  # GitHub API — so the checkout credential would just sit on disk (zizmor: artipacked).
+                  persist-credentials: false
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+
+            # ⛔ RECLAIM THE SHARED TIER — the ALB and the identity service — when nothing is using it. An ALB cannot be
+            # stopped, only deleted, and `kitchensink-alb-sandbox` plus its two public IPv4 addresses bill around the
+            # clock. ONE verb decides "idle" for this workflow and for Sandbox Down (ADR-0060): no `pr-{N}` stack in
+            # any state but deleted, and no workflow that could be standing a preview up queued or running, with
+            # "could not tell" counted as busy. Its allowlist and delete order live in the script, the ONE place that
+            # deletes `*-sandbox` stacks, pinned by `sandboxSharedTier.test.ts`; its idle rule is exercised by
+            # `sandboxSharedTierRelease.integration.test.ts`.
+            #
+            # ⛔ IT NEVER STOPS THE SHARED RDS OR NAT (owner ruling, 2026-09-03). That clock is the scheduler's alone —
+            # the midnight stop — and this workflow must not carry a second copy of it on a different trigger.
+            # `sharedTierLifecycle.test.ts` asserts the absence in both directions.
+            #
+            # ⛔ NO `continue-on-error`: it reports the JOB green, so an ALB that never deletes would bill forever behind
+            # a passing check — ADR-0005's failure mode, and what `workflowInvariants` invariant 4 catches.
+            - name: Reclaim the shared sandbox ALB and identity service when nothing is using them
+              if: ${{ !cancelled() }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/sandboxSharedTier.sh
+                  .github/scripts/sandboxSharedTier.sh release-if-idle "$REGION"

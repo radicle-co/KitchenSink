@@ -1,0 +1,51 @@
+# Maestro E2E: the native Google sign-in's way OUT, on the sandbox test app (plan 012).
+#
+# What a device can prove here, and what it cannot:
+#
+#   - iOS Simulator: "Continue with Google" opens the system prompt ("“Commise” Wants to Use “google.com” to Sign In").
+#     Cancelling it is the person closing the provider sheet, which `@clerk/expo@4.6.0` swallows; the app must come back
+#     to the sign-in form SILENTLY — no error line, nothing locked, and the email form still usable.
+#   - Android: the CI emulator image is `default` (no Google Play services), so the tap cannot open an account sheet at
+#     all; the app must say so in words that end "…use your email." (`auth.googleUnavailable` for a Play-services
+#     failure, `auth.socialFailed` for any other provider failure — both name the way forward) and unlock the form.
+#     On a `google_apis` image an account sheet opens instead, and this flow does not apply.
+#   - A REAL sign-in is not automatable: it needs a real Google / Apple account and the provider's own UI.
+#
+# ⚠️ NOT IN THE FLOW PLAN, deliberately (recorded in `maestroFlowSelection.test.ts`'s KNOWN_UNRUN_FLOWS). It must start
+# signed OUT (`clearState`), so every run would pay one more Clerk email-code sign-in afterwards to restore the session
+# the later flows need — against the per-run verification budget that suite pins — and it has never run on a device.
+# Hand-run it: `maestro test .maestro/auth/socialCancel.yaml`.
+
+appId: ${APP_ID}
+---
+- runFlow: launchCleared.yaml
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
+- tapOn: 'Continue with Google'
+
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          # The system prompt's own button; cancelling it is the person closing the provider sheet.
+          - tapOn: 'Cancel'
+          - extendedWaitUntil:
+                visible: 'you@example.com'
+                timeout: 15000
+          - assertNotVisible: '.*use your email.*'
+          - assertNotVisible: 'Signing you in…'
+
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - extendedWaitUntil:
+                visible: '.*use your email.*'
+                timeout: 20000
+          - assertNotVisible: 'Signing you in…'
+
+# Either way the email form is live again: the provider's failure or cancel never strands the person.
+- tapOn: 'you@example.com'
+- inputText: 'nobody@example.com'
+- assertVisible: 'nobody@example.com'

@@ -1,0 +1,83 @@
+import { expect, test } from '@playwright/test';
+
+import { route } from './utils/basePath';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { signInWithTicket } from './utils/auth';
+
+/**
+ * The Recipes screen's two places (`docs/design/uiOverhaul/buildSpec.md` §4.3, §5.1): My recipes and Collections, as
+ * route segments — real links in a navigation named "Recipes", the current one `aria-current="page"`, each leading to
+ * the other and back. Discover is its own destination, so the old My Recipes / Community switcher is gone, and this
+ * spec replaces `recipeSourceTabs.spec.ts` (deleted with it, per the slice 4 entry in §13).
+ *
+ * Selectors are role/label only. Serial (Clerk-authed).
+ */
+test.describe('Recipes segments — My recipes and Collections', () => {
+    test('are real links, the current one marked, and each leads to the other and back', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures: 'granted',
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000002d',
+                    ownerId: viewerId,
+                    title: 'Weeknight Pasta',
+                }),
+            ],
+        });
+
+        await page.goto(route('/recipes'));
+        const segments = page.getByRole('navigation', { name: 'Recipes' });
+
+        await expect(segments.getByRole('link', { name: 'My recipes' })).toHaveAttribute('aria-current', 'page');
+        await expect(segments.getByRole('link', { name: 'My recipes' })).toHaveAttribute('href', /\/recipes$/);
+        await expect(segments.getByRole('link', { name: 'Collections' })).toHaveAttribute('href', /\/collections$/);
+        await expect(segments.getByRole('button')).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta' })).toBeVisible();
+
+        await segments.getByRole('link', { name: 'Collections' }).click();
+        await expect(page).toHaveURL(/\/collections$/);
+
+        const back = page.getByRole('navigation', { name: 'Recipes' });
+        await expect(back.getByRole('link', { name: 'Collections' })).toHaveAttribute('aria-current', 'page');
+
+        await back.getByRole('link', { name: 'My recipes' }).click();
+        await expect(page).toHaveURL(/\/recipes$/);
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta' })).toBeVisible();
+    });
+});
+
+test.describe('Recipes segments — W-25: width by container', () => {
+    test('take their content’s width on a wide screen, and fill the row on a phone', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [] });
+
+        const widthOf = async (name: 'Recipes'): Promise<number> =>
+            (await page.getByRole('navigation', { name }).locator('> div').boundingBox())?.width ?? 0;
+
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(route('/recipes'));
+        const main = (await page.getByRole('main').boundingBox())?.width ?? 0;
+
+        // At 1280 the two names do not span the column: the control is under half the main width (bs §4.3).
+        expect(await widthOf('Recipes')).toBeLessThan(main / 2);
+
+        await page.setViewportSize({ width: 320, height: 700 });
+        // The row is `main`'s CONTENT box: its border box includes the 16 px page gutters (§1.2), which no control fills.
+        const narrowRow = await page.getByRole('main').evaluate((element) => {
+            const style = getComputedStyle(element);
+
+            return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight);
+        });
+
+        // On a phone it fills the row, each segment at least 136 px (W-25).
+        expect(await widthOf('Recipes')).toBeGreaterThan(narrowRow - 1);
+
+        for (const link of await page.getByRole('navigation', { name: 'Recipes' }).getByRole('link').all()) {
+            expect((await link.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(136);
+        }
+    });
+});

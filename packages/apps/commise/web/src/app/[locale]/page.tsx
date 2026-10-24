@@ -1,8 +1,5 @@
-import { auth } from '@clerk/nextjs/server';
-import type { Route } from 'next';
-import { redirect } from 'next/navigation';
-
-import { HomeWidgetSurface } from '@/components/home';
+import { requireSignedIn } from '@/lib/requireSignedIn';
+import { HomeWidgetSurface } from '@/components/home/HomeWidgetSurface';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +24,8 @@ export const dynamic = 'force-dynamic';
  */
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
     const { locale } = await params;
-    const { userId } = await auth();
 
-    if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
-    }
+    await requireSignedIn(locale, `/${locale}`);
 
     return <HomeWidgetSurface />;
 }

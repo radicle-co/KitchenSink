@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, add details: long list (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 17px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    p,
+                    ul,
+                    ol {
+                        margin: 0;
+                    }
+                    ul,
+                    ol {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fig {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .muted {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .err {
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 0 0 24px;
+                    }
+                    .fig {
+                        gap: 8px;
+                    }
+                    .cap {
+                        padding: 0 16px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .stage > .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .macros {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .macro {
+                        flex: 1 0 45%;
+                        min-width: 45%;
+                    }
+                    .legend {
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .stat {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .note {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .lock {
+                        display: flex;
+                        align-items: center;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        padding: 0 12px;
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dhead {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding: 0 16px 16px;
+                    }
+                    .food {
+                        font: 600 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .introrow {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .intro {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur {
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur b {
+                        font-weight: 600;
+                        color: var(--ink);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 12px 16px;
+                    }
+                    .opt .chk {
+                        display: flex;
+                        width: 16px;
+                        flex-shrink: 0;
+                        padding-top: 4px;
+                        color: var(--action-text);
+                    }
+                    .opt .main {
+                        display: flex;
+                        flex: 1;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        column-gap: 12px;
+                        min-width: 0;
+                    }
+                    .opt .parts {
+                        display: flex;
+                        flex: 1 1 192px;
+                        flex-direction: column;
+                        min-width: 0;
+                    }
+                    .opt .tag {
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .opt .cal {
+                        margin-inline-start: auto;
+                        flex-shrink: 0;
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .gh {
+                        padding: 20px 16px 8px;
+                        font: 600 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .gh.first {
+                        padding-top: 12px;
+                    }
+                    .slabel {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .slabel b {
+                        font: 500 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .srch {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .srch .box {
+                        display: flex;
+                        align-items: center;
+                        flex: 1;
+                        min-width: 0;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        padding: 0 12px;
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .shim {
+                        height: 48px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .block {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 12px;
+                        padding: 0 16px;
+                    }
+                    .body16 {
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    /* Redesign canvas (workshop 5, round 9): type ramp 13/15/17, native text classes mapped onto it. */
+                    .sr-only,
+                    .r-109y4c4,
+                    [style*='width: 1px'][style*='clip'] {
+                        font-size: 13px;
+                    }
+                    .r-n6v787 {
+                        font-size: 13px !important;
+                    }
+                    .r-1gkfh8e,
+                    .r-1enofrn {
+                        font-size: 13px !important;
+                    }
+                    .r-1b43r93,
+                    .r-a023e6 {
+                        font-size: 15px !important;
+                    }
+                    .r-ubezar,
+                    .r-1inkyih,
+                    .r-1i10wst,
+                    .r-adyw6z,
+                    .r-1x35g6 {
+                        font-size: 17px !important;
+                    }
+                    /* food2 */
+                    .fn {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        margin-top: 8px;
+                        padding: 12px 16px;
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-md);
+                        color: var(--ink);
+                        font: 400 15px/1.4 var(--font-body);
+                    }
+                    .fn .fi {
+                        display: inline-flex;
+                        flex: none;
+                        margin-top: 1px;
+                        color: var(--attention);
+                    }
+                    .fn .fb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .fn .fb p {
+                        margin: 0;
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .fbtn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        align-self: flex-start;
+                        min-height: 44px;
+                        padding: 0 18px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                        color: var(--ink);
+                        font: 600 15px/1 var(--font-body);
+                    }
+                    .fin {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 4px;
+                        font: 500 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fin svg {
+                        flex: none;
+                        animation: finSpin 1s linear infinite;
+                    }
+                    @keyframes finSpin {
+                        to {
+                            transform: rotate(360deg);
+                        }
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                        .fin svg {
+                            animation: none;
+                        }
+                    }
+                    [role='option'] .text-body-md {
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    [aria-label^='Food suggestions'] button .r-1inkyih {
+                        font-size: 15px !important;
+                        font-weight: 600 !important;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div class="fig">
+                    <p class="cap">Typed “braised”: 22 of 40 options (count is spoken only)</p>
+                    <div class="stage" style="height: 760px">
+                        <div class="scrim"></div>
+                        <div class="sh" style="height: calc(100% - 48px)">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Add details"
+                                close-label="Close details"
+                                size="full"
+                                focus-signal="{{v23}}"
+                                reduce-motion="{{v24}}"
+                                on-close="{{v25}}"
+                                toolbar="{{v22}}"
+                                ><div class="dhead">
+                                    <p class="food">Beef brisket</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                </div>
+                                <div role="listbox">
+                                    <div role="group">
+                                        <p class="gh first" role="presentation">Flat half</p>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 1/8-inch trim, select, braised, 189 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v0}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">189 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 1/8-inch trim, all grades, braised, 196 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v1}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">196 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 0-inch trim, select, braised, 198 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v2}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">198 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 1/8-inch trim, choice, braised, 203 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v3}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">203 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 0-inch trim, all grades, braised, 205 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v4}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">205 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 0-inch trim, select, braised, 205 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v5}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">205 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 0-inch trim, choice, braised, 212 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v6}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">212 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 0-inch trim, all grades, braised, 213 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v7}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">213 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 0-inch trim, choice, braised, 221 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v8}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">221 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 1/8-inch trim, select, braised, 280 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v9}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">280 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 1/8-inch trim, all grades, braised, 289 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v10}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">289 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 1/8-inch trim, choice, braised, 298 cal, flat half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v11}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">298 cal</span></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div role="group">
+                                        <p class="gh" role="presentation">Navel end</p>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, braised, product of New Zealand, 265 cal, navel end"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v12}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">265 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, braised, product of New Zealand, 453 cal, navel end"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v13}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">453 cal</span></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div role="group">
+                                        <p class="gh" role="presentation">Point end</p>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, braised, product of New Zealand, 202 cal, point end"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v14}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">202 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, braised, product of New Zealand, 250 cal, point end"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v15}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">250 cal</span></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div role="group">
+                                        <p class="gh" role="presentation">Point half</p>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 0-inch trim, all grades, braised, 244 cal, point half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v16}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">244 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 1/8-inch trim, all grades, braised, 349 cal, point half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v17}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">349 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 0-inch trim, all grades, braised, 358 cal, point half"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v18}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">358 cal</span></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div role="group">
+                                        <p class="gh" role="presentation">Whole</p>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="lean only, 0-inch trim, all grades, braised, 218 cal, whole"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v19}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">218 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 0-inch trim, all grades, braised, 291 cal, whole"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v20}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">291 cal</span></span
+                                            >
+                                        </div>
+                                        <div
+                                            class="opt"
+                                            role="option"
+                                            aria-selected="false"
+                                            aria-label="separable lean and fat, 1/8-inch trim, all grades, braised, 331 cal, whole"
+                                        >
+                                            <span class="main"
+                                                ><span class="parts"
+                                                    ><x-import
+                                                        component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                        parts="{{v21}}"
+                                                        tone="primary"
+                                                    ></x-import></span
+                                                ><span class="cal">331 cal</span></span
+                                            >
+                                        </div>
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Typed “smoked”: nothing matches</p>
+                    <div class="stage" style="height: 760px">
+                        <div class="scrim"></div>
+                        <div class="sh" style="height: calc(100% - 48px)">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Add details"
+                                close-label="Close details"
+                                size="full"
+                                focus-signal="{{v27}}"
+                                reduce-motion="{{v28}}"
+                                on-close="{{v29}}"
+                                toolbar="{{v26}}"
+                                ><div class="dhead">
+                                    <p class="food">Beef brisket</p>
+                                    <div class="introrow"><p class="intro">Nutrition uses the one you pick.</p></div>
+                                </div>
+                                <div class="block">
+                                    <p class="body16">Nothing matches “smoked”. Clear the search to see all 40.</p>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1619}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement,C=window.Commise.Native,noop=()=>{},yes=true; return {noop,yes,v0:["lean only", "1/8-inch trim", "select", "braised"],v1:["lean only", "1/8-inch trim", "all grades", "braised"],v2:["lean only", "0-inch trim", "select", "braised"],v3:["lean only", "1/8-inch trim", "choice", "braised"],v4:["lean only", "0-inch trim", "all grades", "braised"],v5:["separable lean and fat", "0-inch trim", "select", "braised"],v6:["lean only", "0-inch trim", "choice", "braised"],v7:["separable lean and fat", "0-inch trim", "all grades", "braised"],v8:["separable lean and fat", "0-inch trim", "choice", "braised"],v9:["separable lean and fat", "1/8-inch trim", "select", "braised"],v10:["separable lean and fat", "1/8-inch trim", "all grades", "braised"],v11:["separable lean and fat", "1/8-inch trim", "choice", "braised"],v12:["lean only", "braised", "product of New Zealand"],v13:["separable lean and fat", "braised", "product of New Zealand"],v14:["lean only", "braised", "product of New Zealand"],v15:["separable lean and fat", "braised", "product of New Zealand"],v16:["lean only", "0-inch trim", "all grades", "braised"],v17:["separable lean and fat", "1/8-inch trim", "all grades", "braised"],v18:["separable lean and fat", "0-inch trim", "all grades", "braised"],v19:["lean only", "0-inch trim", "all grades", "braised"],v20:["separable lean and fat", "0-inch trim", "all grades", "braised"],v21:["separable lean and fat", "1/8-inch trim", "all grades", "braised"],v22:{heading:h('div',{className:'slabel'},h('b',null,"Search 40 options"),h('span',{className:'hint'},"Calories per 100 g")),controls:h('div',{className:'srch'},h('div',{className:'box'},"braised"),h('div',{style:{width:48,height:48,display:'flex',alignItems:'center',justifyContent:'center'}},h(C.Icon,{name:'x',size:20,tone:'inkMuted'})))},v23:1,v24:yes,v25:noop,v26:{heading:h('div',{className:'slabel'},h('b',null,"Search 40 options"),h('span',{className:'hint'},"Calories per 100 g")),controls:h('div',{className:'srch'},h('div',{className:'box'},"smoked"),h('div',{style:{width:48,height:48,display:'flex',alignItems:'center',justifyContent:'center'}},h(C.Icon,{name:'x',size:20,tone:'inkMuted'})))},v27:1,v28:yes,v29:noop}; } }
+        </script>
+    </body>
+</html>

@@ -1,35 +1,124 @@
 /**
- * The handle-sync message contract (W8-a.2 / decision 6) — the payload BOTH producer routes (identity's
- * `PATCH /api/v1/users/me` and the Clerk `user.updated` webhook) publish to the global handle-sync SNS topic,
- * and the recipe-workers consumer applies. Defined once here in `identity-core` (dependency-light) so the
- * producers and the consumer can never disagree on the shape.
+ * The handle-sync message contract (W8-a.2 / decision 6) — the BYLINE SNAPSHOT every producer route (identity's
+ * `PATCH /api/v1/users/me`, the Clerk `user.created` / `user.updated` webhook, the read-through create) publishes
+ * to the global handle-sync SNS topic, and the recipe-workers consumer applies. Defined once here in
+ * `identity-core` (dependency-light) so the producers and the consumer can never disagree on the shape.
  *
+ * ⛔ A SNAPSHOT, never a delta (plan 2026-10-15-010 D6). It carries BOTH halves of the byline — the display name and
+ * the Clerk username — every time either changes, and the consumer applies it monotonically on one timestamp. A
+ * delta that carried only the half that changed would be lost the moment a newer delta about the other half won the
+ * timestamp comparison. The contract's other half is the clock: `sourceTimestamp` is the profile's `updated_at` as
+ * the database stamped it in the statement that changed the profile (`profileClock`, `@kitchensink/identity-db`),
+ * so the last writer always carries the highest key AND the whole state.
+ *
+ * @pattern Event-Carried State Transfer — the message is the whole byline, so the consumer needs no read back
  * @module
  */
+import { isValid as isValidUlid } from 'ulidx';
+import { z } from 'zod';
 
-/** A display-name rename event. `sourceTimestamp` is the SINGLE monotonic clock the consumer orders on. */
+import { usernameSchema } from './username.js';
+
+/**
+ * The consumer's own bound on a display name. It is written to `author_handles.display_name` and denormalized
+ * into `recipes.author_handle` and `recipe_versions.editor_handle` — three unbounded `text` columns — so the
+ * bound has to exist somewhere, and it belongs beside the contract rather than in one of the two services.
+ */
+export const MAX_DISPLAY_NAME_LENGTH = 100;
+
+/**
+ * The contract, as the CONSUMER enforces it. The producers validate against it before publishing.
+ *
+ * `username` is a REQUIRED key whose value may be `null`: null says "this cook has no username", which an absent
+ * key would conflate with "the producer did not say".
+ */
+export const handleSyncMessageSchema = z.object({
+    userId: z.string().refine(isValidUlid, { error: 'must be a valid ULID' }),
+    displayName: z.string().trim().min(1).max(MAX_DISPLAY_NAME_LENGTH),
+    username: usernameSchema.nullable(),
+    sourceTimestamp: z.iso.datetime(),
+});
+
+/** A byline snapshot event. `sourceTimestamp` is the SINGLE monotonic clock the consumer orders on. */
 export interface HandleSyncMessage {
-    /** The app-user ULID whose display name changed. */
+    /** The app-user ULID whose byline changed. */
     readonly userId: string;
-    /** The user's new display name (identity's `profiles.displayName`). */
+    /** The user's display name (identity's `profiles.displayName`). */
     readonly displayName: string;
+    /** The user's Clerk username (identity's `profiles.username`), or `null` when they have none. */
+    readonly username: string | null;
     /**
-     * `profiles.updatedAt` written in the SAME transaction as the displayName change (ISO-8601). Both routes
-     * MUST use this single clock — never a producer-local `new Date()` — or cross-route skew would let the
-     * consumer's monotonic guard wrongly reject a genuinely newer rename.
+     * `profiles.updated_at` as stamped by the statement that changed the profile (ISO-8601). Every route MUST use
+     * this database clock — never a producer-local `new Date()` — or two writers' clocks could order the
+     * snapshots differently from the order the database applied them.
      */
     readonly sourceTimestamp: string;
 }
 
+/** The two halves of a public byline, as identity holds them. */
+export interface BylineSnapshot {
+    /** The display name — public, filled from first + last name, editable in Profile (D22). */
+    readonly displayName: string;
+    /** The Clerk username — the public "@handle" — or `null` when the cook has none. */
+    readonly username: string | null;
+}
+
 /**
- * Build a {@link HandleSyncMessage} from a rename. Pure — the caller supplies `sourceTimestamp` from the
- * same transaction as the write (this does not stamp `Date.now()`, deliberately: the clock must be the
- * persisted `profiles.updatedAt`, shared across both producer routes).
+ * Cut a name to at most {@link MAX_DISPLAY_NAME_LENGTH} UTF-16 code units (what the contract's `.max` counts) without
+ * leaving half of a surrogate pair at the cut. Pure.
+ */
+function cutToBound(name: string): string {
+    if (name.length <= MAX_DISPLAY_NAME_LENGTH) {
+        return name;
+    }
+
+    const cut = name.slice(0, MAX_DISPLAY_NAME_LENGTH);
+    const last = cut.charCodeAt(cut.length - 1);
+    const splitsPair = last >= 0xd800 && last <= 0xdbff;
+
+    return (splitsPair ? cut.slice(0, -1) : cut).trimEnd();
+}
+
+/**
+ * The display name the byline publishes: the stored name trimmed and cut to the contract's bound, else the username
+ * (a cook with no name renders as `@handle` alone, because the byline rule hides a display name that only repeats the
+ * username), else `''`. Pure.
+ *
+ * ⛔ This is where a stored name becomes a message. The profile can hold a name the consumer refuses — blank (Apple
+ * withheld the name), or past the bound (the webhook joins two parts that are each bounded alone) — and a refused
+ * message settles `publish_failed` for good, then fails again on every later sync for that cook, a username change
+ * included. Normalizing here lets every producer route settle.
+ */
+function publishedDisplayName(byline: BylineSnapshot): string {
+    const name = cutToBound(byline.displayName.trim());
+
+    return name === '' ? (byline.username ?? '') : name;
+}
+
+/** Whether the byline carries anything to publish: a name, or a username to stand in for one. Pure. */
+export function bylineIsPublishable(byline: BylineSnapshot): boolean {
+    return publishedDisplayName(byline) !== '';
+}
+
+/**
+ * Build a {@link HandleSyncMessage} from a byline snapshot, normalizing the display name to what the consumer
+ * accepts ({@link publishedDisplayName}). Pure — the caller supplies `sourceTimestamp` from the same statement as the
+ * write (this does not stamp `Date.now()`, deliberately).
  */
 export function buildHandleSyncMessage(
     userId: string,
-    displayName: string,
+    byline: BylineSnapshot,
     sourceTimestamp: string,
 ): HandleSyncMessage {
-    return { userId, displayName, sourceTimestamp };
+    return { userId, displayName: publishedDisplayName(byline), username: byline.username, sourceTimestamp };
 }
+
+/**
+ * Why a handle-sync publish failed, recorded on `profiles.handle_sync_failure_code` (plan U9, R25).
+ *
+ * ⛔ A CLOSED vocabulary shared by both producers and by the backstop that reads it, and a CODE rather than
+ * an exception message — an error text can carry the display name, and the marker exists to make a failure
+ * visible without copying the user's words anywhere new. Two producers write this column (the service's
+ * rename and the webhook's), so a literal in each would be the drift DRY governs.
+ */
+export const HANDLE_SYNC_PUBLISH_FAILED = 'publish_failed';

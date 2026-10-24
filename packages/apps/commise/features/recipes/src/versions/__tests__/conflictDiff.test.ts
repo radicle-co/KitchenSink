@@ -8,7 +8,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
-import { computeConflictDiff } from '../conflictDiff.js';
+import { computeConflictDiff, conflictSideParts, type ConflictFieldRow } from '../conflictDiff.js';
+import { recipeMessages } from '../../messages.js';
+import { recipeVersionMessages } from '../messages.js';
+import { toVersionPreviewIngredientLines } from '../preview.js';
+
+const lineNames = recipeMessages.en.ingredientLineName;
 
 /** Build a {@link RecipeStep} with sensible defaults, overridable per field. */
 const makeStep = (overrides: Partial<RecipeStep> = {}): RecipeStep => ({
@@ -24,7 +29,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 2,
+    quantity: { kind: 'exact', value: 2 },
     unit: 'tbsp',
     sortOrder: 1,
     ingredientName: 'Olive oil',
@@ -51,7 +56,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot();
         const theirs = makeSnapshot();
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff).toEqual({ rows: [], hasConflict: false, isEmpty: true });
     });
@@ -61,7 +66,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ title: 'Weeknight Pasta, Revised' });
         const theirs = makeSnapshot({ title: 'Weeknight Pasta' });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -84,7 +89,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ servings: 4 });
         const theirs = makeSnapshot({ servings: 6 });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -106,7 +111,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ title: 'Weeknight Pasta, Mine' });
         const theirs = makeSnapshot({ title: 'Weeknight Pasta, Theirs' });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -128,7 +133,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ title: 'Weeknight Pasta, Revised' });
         const theirs = makeSnapshot({ title: 'Weeknight Pasta, Revised' });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         // A naive "both changed = conflict" implementation would report `conflict` and hasConflict:true here.
         expect(diff.rows).toEqual([
@@ -151,7 +156,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ description: 'New description', cookTimeMinutes: 25 });
         const theirs = makeSnapshot();
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows.map((row) => row.key)).toEqual(['description', 'cookTimeMinutes']);
         expect(diff.rows.every((row) => row.marker === 'changed')).toBe(true);
@@ -169,7 +174,7 @@ describe('computeConflictDiff', () => {
         });
         const theirs = makeSnapshot({ steps });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -186,14 +191,18 @@ describe('computeConflictDiff', () => {
     });
 
     it('reports a changed row for an ingredient changed on one side, keyed by its ingredientId', () => {
-        const ingredients = [makeIngredient({ ingredientId: 'ing_1', quantity: 2, unit: 'tbsp' })];
+        const ingredients = [
+            makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 2 }, unit: 'tbsp' }),
+        ];
         const base = makeSnapshot({ ingredients });
         const mine = makeSnapshot({
-            ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 3, unit: 'tbsp' })],
+            ingredients: [
+                makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 3 }, unit: 'tbsp' }),
+            ],
         });
         const theirs = makeSnapshot({ ingredients });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -219,7 +228,7 @@ describe('computeConflictDiff', () => {
         });
         const theirs = makeSnapshot({ steps: [makeStep({ id: 'step_1', instruction: 'Preheat the oven.' })] });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -243,7 +252,7 @@ describe('computeConflictDiff', () => {
         const mine = makeSnapshot({ steps: [steps[0]!] });
         const theirs = makeSnapshot({ steps });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -270,13 +279,13 @@ describe('computeConflictDiff', () => {
                     id: 'ri_2',
                     ingredientId: 'ing_2',
                     ingredientName: 'Garlic',
-                    quantity: 1,
+                    quantity: { kind: 'exact', value: 1 },
                     unit: 'clove',
                 }),
             ],
         });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -294,13 +303,19 @@ describe('computeConflictDiff', () => {
     it('reports a removed ingredient (absent from theirs) with the theirs side empty', () => {
         const ingredients = [
             makeIngredient({ ingredientId: 'ing_1' }),
-            makeIngredient({ id: 'ri_2', ingredientId: 'ing_2', ingredientName: 'Garlic', quantity: 1, unit: 'clove' }),
+            makeIngredient({
+                id: 'ri_2',
+                ingredientId: 'ing_2',
+                ingredientName: 'Garlic',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'clove',
+            }),
         ];
         const base = makeSnapshot({ ingredients });
         const mine = makeSnapshot({ ingredients });
         const theirs = makeSnapshot({ ingredients: [ingredients[0]!] });
 
-        const diff = computeConflictDiff(base, mine, theirs, 'en');
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
 
         expect(diff.rows).toEqual([
             {
@@ -321,7 +336,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ title: 'Mine Title', servings: 4 });
             const theirs = makeSnapshot({ title: 'Theirs Title', servings: 4 });
 
-            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en', lineNames);
 
             expect(diff.rows).toEqual([
                 {
@@ -342,7 +357,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ title: 'Same Title' });
             const theirs = makeSnapshot({ title: 'Same Title' });
 
-            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en', lineNames);
 
             expect(diff.rows).toEqual([]);
             expect(diff.isEmpty).toBe(true);
@@ -352,7 +367,7 @@ describe('computeConflictDiff', () => {
             const mine = makeSnapshot({ steps: [makeStep({ instruction: 'Mine instruction.' })] });
             const theirs = makeSnapshot({ steps: [makeStep({ instruction: 'Theirs instruction.' })] });
 
-            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en', lineNames);
 
             expect(diff.rows).toEqual([
                 {
@@ -368,10 +383,14 @@ describe('computeConflictDiff', () => {
         });
 
         it('classifies a per-element ingredient difference as conflict, with base absent', () => {
-            const mine = makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 2 })] });
-            const theirs = makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 5 })] });
+            const mine = makeSnapshot({
+                ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 2 } })],
+            });
+            const theirs = makeSnapshot({
+                ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 5 } })],
+            });
 
-            const diff = computeConflictDiff(undefined, mine, theirs, 'en');
+            const diff = computeConflictDiff(undefined, mine, theirs, 'en', lineNames);
 
             expect(diff.rows).toEqual([
                 {
@@ -386,5 +405,268 @@ describe('computeConflictDiff', () => {
             ]);
             expect(diff.hasConflict).toBe(true);
         });
+    });
+});
+
+/**
+ * U26/U27 — a MERGE ROW must show the difference it is asking a cook to resolve.
+ *
+ * ⛔ THE FAILURE THIS EXISTS FOR is not a wrong value, it is an UNANSWERABLE PROMPT. `ingredientContentChanged`
+ * now counts a preparation-only or section-only edit as changed, so the conflict machinery correctly raises
+ * a row for one — and if the formatter omitted the field, that row would offer "Mine" and "Theirs" as two
+ * strings that read IDENTICALLY. The cook is then asked to choose between them with nothing to choose on.
+ *
+ * ⚠️ Which is why the formatter is now SHARED with the version-preview projection (`detail/model.ts`'s
+ * `formatIngredientLine`): the two were byte-identical copies, and a field added to one and forgotten in
+ * the other makes a version's history and its conflict merge disagree about the same line.
+ */
+describe('conflict merge rows — preparation + section are VISIBLE (U26/U27)', () => {
+    /** A snapshot carrying one line, with the given overrides applied to it. */
+    const oneLine = (over: Partial<RecipeIngredient>): RecipeSnapshot =>
+        makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', ...over })] });
+
+    /** The ingredient rows of a three-way diff between `mine` and `theirs` over a common `base`. */
+    const ingredientRows = (
+        base: RecipeSnapshot,
+        mine: RecipeSnapshot,
+        theirs: RecipeSnapshot,
+    ): readonly ConflictFieldRow[] =>
+        computeConflictDiff(base, mine, theirs, 'en', lineNames).rows.filter((row) => row.fieldKind === 'ingredient');
+
+    it('⛔ a PREPARATION-only conflict renders two DIFFERENT strings, not two identical ones', () => {
+        const rows = ingredientRows(
+            oneLine({ preparation: 'finely chopped' }),
+            oneLine({ preparation: 'roughly torn' }),
+            oneLine({ preparation: 'grated' }),
+        );
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.mine).toContain('roughly torn');
+        expect(rows[0]?.theirs).toContain('grated');
+        expect(rows[0]?.mine).not.toBe(rows[0]?.theirs);
+    });
+
+    it('⛔ a SECTION-only conflict renders two DIFFERENT strings', () => {
+        const rows = ingredientRows(oneLine({ groupLabel: 'Dry' }), oneLine({ groupLabel: 'Wet' }), oneLine({}));
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.mine).toContain('Wet');
+        expect(rows[0]?.mine).not.toBe(rows[0]?.theirs);
+    });
+
+    // ⛔ NEVER folded into the name. `displayText` is parenthesised beside the name deliberately; a
+    // preparation is a trailing clause, because a name carrying one matches no catalog row.
+    it('⛔ never folds the preparation into the food name on a merge row', () => {
+        const rows = ingredientRows(
+            oneLine({ ingredientName: 'Onion' }),
+            oneLine({ ingredientName: 'Onion', preparation: 'finely chopped' }),
+            oneLine({ ingredientName: 'Onion' }),
+        );
+
+        expect(rows[0]?.mine).not.toContain('Onion finely chopped');
+        expect(rows[0]?.mine).not.toContain('Onion (finely chopped)');
+        expect(rows[0]?.mine).toContain('Onion, finely chopped');
+    });
+
+    /**
+     * ⛔ THE ANTI-DRIFT CONTROL. The version preview and the merge row were byte-identical copies of one
+     * formatter; they now share `formatIngredientLine`, and this asserts they still AGREE on a line with no
+     * section — the one input where the merge row adds nothing of its own. A future divergence in either
+     * reds here rather than surfacing as "history and merge describe the same line differently".
+     */
+    it('agrees with the version PREVIEW, SECTION included — one formatter, two surfaces', () => {
+        const ingredient = makeIngredient({
+            ingredientName: 'Flour',
+            unit: 'cup',
+            quantity: { kind: 'exact', value: 2 },
+            displayText: 'sifted',
+            preparation: 'finely chopped',
+            groupLabel: 'Dry',
+        });
+        const rows = ingredientRows(
+            makeSnapshot({ ingredients: [] }),
+            makeSnapshot({ ingredients: [ingredient] }),
+            makeSnapshot({ ingredients: [] }),
+        );
+        const [previewLine] = toVersionPreviewIngredientLines(
+            [ingredient],
+            recipeVersionMessages.en.preview,
+            'en',
+            lineNames,
+            [],
+        );
+
+        expect(rows[0]?.mine).toBe(previewLine?.text);
+    });
+});
+
+/**
+ * Curated U15 (R25): an ingredient row carries the variant parts each side froze, so the panel can draw the dotted line
+ * under each side's text.
+ *
+ * A variant rebind is an IDENTITY change, not a content change: `ingredientId` is the line's `food_lookups` row, and
+ * that table holds one row per variant (`idx_food_lookups_food_variant_id`). So two sides bound to two variants of one
+ * root give two rows whose texts read the same, and only the parts tell them apart. Frozen parts are history, like
+ * `ingredientName`: they change with no edit (a save while food was unreachable froze none), so they never raise a row.
+ */
+describe('conflict ingredient rows — the variant parts each side froze (curated U15)', () => {
+    const FLAT = [
+        { attribute: 'cut', text: 'flat half' },
+        { attribute: 'grade', text: 'select' },
+    ];
+    const FLAT_RELABELLED = [
+        { attribute: 'cut', text: 'flat' },
+        { attribute: 'grade', text: 'select' },
+    ];
+    const POINT = [
+        { attribute: 'cut', text: 'point half' },
+        { attribute: 'grade', text: 'choice' },
+    ];
+
+    /** A brisket line bound to `ingredientId`, with the parts its version froze. */
+    const brisket = (ingredientId: string, over: Partial<RecipeIngredient> = {}): RecipeIngredient =>
+        makeIngredient({
+            ingredientId,
+            ingredientName: 'beef brisket',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'lb',
+            ...over,
+        });
+    const withLines = (...ingredients: RecipeIngredient[]): RecipeSnapshot => makeSnapshot({ ingredients });
+
+    it('a rebind gives two rows, each with its own parts on the side that holds the line and none on the other', () => {
+        const base = withLines(brisket('ing_flat', { variantParts: FLAT }));
+        const mine = withLines(brisket('ing_flat', { variantParts: FLAT }));
+        const theirs = withLines(brisket('ing_point', { variantParts: POINT }));
+
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
+
+        expect(diff.rows).toEqual([
+            {
+                key: 'ingredients:ing_flat',
+                fieldKind: 'ingredient',
+                marker: 'changed',
+                base: '2 lb beef brisket',
+                mine: '2 lb beef brisket',
+                theirs: '',
+                mineChanged: false,
+                theirsChanged: true,
+                baseVariantParts: ['flat half', 'select'],
+                mineVariantParts: ['flat half', 'select'],
+            },
+            {
+                key: 'ingredients:ing_point',
+                fieldKind: 'ingredient',
+                marker: 'changed',
+                mine: '',
+                theirs: '2 lb beef brisket',
+                mineChanged: false,
+                theirsChanged: true,
+                theirsVariantParts: ['point half', 'choice'],
+            },
+        ]);
+    });
+
+    it('⛔ parts alone are not an edit: a version that froze none raises no row', () => {
+        const base = withLines(brisket('ing_flat'));
+        const mine = withLines(brisket('ing_flat', { variantParts: FLAT }));
+        const theirs = withLines(brisket('ing_flat', { variantParts: FLAT_RELABELLED }));
+
+        expect(computeConflictDiff(base, mine, theirs, 'en', lineNames)).toEqual({
+            rows: [],
+            hasConflict: false,
+            isEmpty: true,
+        });
+    });
+
+    it('shows each side its own parts when the sides froze different ones', () => {
+        const base = withLines(brisket('ing_flat'));
+        const mine = withLines(brisket('ing_flat', { quantity: { kind: 'exact', value: 3 }, variantParts: FLAT }));
+        const theirs = withLines(
+            brisket('ing_flat', { quantity: { kind: 'exact', value: 4 }, variantParts: FLAT_RELABELLED }),
+        );
+
+        const diff = computeConflictDiff(base, mine, theirs, 'en', lineNames);
+
+        expect(diff.rows).toEqual([
+            {
+                key: 'ingredients:ing_flat',
+                fieldKind: 'ingredient',
+                marker: 'conflict',
+                base: '2 lb beef brisket',
+                mine: '3 lb beef brisket',
+                theirs: '4 lb beef brisket',
+                mineChanged: true,
+                theirsChanged: true,
+                mineVariantParts: ['flat half', 'select'],
+                theirsVariantParts: ['flat', 'select'],
+            },
+        ]);
+    });
+
+    it('carries mine and theirs parts, and no base parts, when the base was evicted', () => {
+        const mine = withLines(brisket('ing_flat', { variantParts: FLAT }));
+        const theirs = withLines(brisket('ing_flat', { quantity: { kind: 'exact', value: 5 }, variantParts: FLAT }));
+
+        const diff = computeConflictDiff(undefined, mine, theirs, 'en', lineNames);
+
+        expect(diff.rows).toEqual([
+            {
+                key: 'ingredients:ing_flat',
+                fieldKind: 'ingredient',
+                marker: 'conflict',
+                mine: '2 lb beef brisket',
+                theirs: '5 lb beef brisket',
+                mineChanged: true,
+                theirsChanged: true,
+                mineVariantParts: ['flat half', 'select'],
+                theirsVariantParts: ['flat half', 'select'],
+            },
+        ]);
+    });
+});
+
+describe('conflictSideParts', () => {
+    const ingredientRow: ConflictFieldRow = {
+        key: 'ingredients:ing_flat',
+        fieldKind: 'ingredient',
+        marker: 'conflict',
+        base: '2 lb beef brisket',
+        mine: '3 lb beef brisket',
+        theirs: '4 lb beef brisket',
+        mineChanged: true,
+        theirsChanged: true,
+        baseVariantParts: ['flat'],
+        mineVariantParts: ['flat half'],
+        theirsVariantParts: ['point half'],
+    };
+
+    it.each([
+        ['base', ['flat']],
+        ['mine', ['flat half']],
+        ['theirs', ['point half']],
+    ] as const)('reads the %s side’s own parts', (side, parts) => {
+        expect(conflictSideParts(ingredientRow, side)).toEqual(parts);
+    });
+
+    it('reads nothing for a side that froze none', () => {
+        const { theirsVariantParts: _theirs, ...withoutTheirs } = ingredientRow;
+
+        expect(conflictSideParts(withoutTheirs, 'theirs')).toBeUndefined();
+    });
+
+    it('reads nothing on a scalar row', () => {
+        const titleRow: ConflictFieldRow = {
+            key: 'title',
+            fieldKind: 'title',
+            marker: 'changed',
+            base: 'A',
+            mine: 'B',
+            theirs: 'A',
+            mineChanged: true,
+            theirsChanged: false,
+        };
+
+        expect(conflictSideParts(titleRow, 'mine')).toBeUndefined();
     });
 });

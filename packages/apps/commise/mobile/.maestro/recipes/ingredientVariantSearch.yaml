@@ -1,0 +1,92 @@
+appId: ${APP_ID}
+---
+# Curated AE3 on a device (`docs/brainstorms/2026-09-26-curated-food-catalog-requirements.md` AE3;
+# `docs/design/ingredientSpecialization.md` §S2): words that name exactly one variant of a root find that root carrying
+# the variant, and picking it binds the variant, so the line shows the root's name with the part under it. Words that
+# name several variants find the root alone, and picking it binds the root. Mobile mirror of the web Playwright
+# `ingredientVariantSearch.spec.ts`.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form, so each pick is an admission into the draft
+# (blueprint decision 7) where the web spec re-points a saved line. The root is the KTD-16 seed root `boneless
+# skinless chicken breasts` from the stage's catalog seed (ADR-0051): AE3 states that `fried` names exactly one of its
+# variants and `grilled` names two. A stage without them fails at a labelled step; the flow never skips.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Variant Search'
+
+# One variant named: the result is the root carrying it, its option named with the part after the food (§S2).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'fried boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts, fried'
+      timeout: 30000
+      label: 'the catalog search found the KTD-16 root carrying its one "fried" variant'
+- tapOn: 'boneless skinless chicken breasts, fried'
+- scrollUntilVisible:
+      element: 'Actions for boneless skinless chicken breasts, fried'
+      # The line lands above the add field the cook is at: one page, so it is UP. The scroll is to the row's menu, on its
+      # first line: scrolling up, a row's top comes into view last, and run 38447859313 had only part of it on screen.
+      direction: UP
+      timeout: 30000
+
+# The pick bound the variant: the row names its part after the food, and the dotted line shows it under the name.
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts, fried'
+      timeout: 30000
+      label: 'the line binds the "fried" variant'
+# iOS merges a row's dotted line into the row's own label ("Edit <name>"), so the part is not a node of its own there; the
+# row's ⋮ label, asserted on both platforms, names it too.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'fried'
+                below: 'Edit boneless skinless chicken breasts'
+
+# Several variants named: Change food searches "grilled", which names two variants, so the result is the root alone.
+# The field opens on the food's name with the caret at its end (`Combobox.native.tsx`'s focus request), so the name is
+# erased before the search is typed. In Change food the row's name is the field, so the bare root name is the option.
+- tapOn: 'Actions for boneless skinless chicken breasts, fried'
+- tapOn: 'Change food'
+- eraseText: 40
+- inputText: 'grilled boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'the catalog search found the KTD-16 root alone for "grilled", which names two of its variants'
+- assertNotVisible: 'boneless skinless chicken breasts, .*grilled.*'
+- tapOn: 'boneless skinless chicken breasts'
+
+# The pick bound the root: the row names the food alone, and the variant is gone.
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'the line binds the root'
+- assertNotVisible: 'Actions for boneless skinless chicken breasts, fried'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

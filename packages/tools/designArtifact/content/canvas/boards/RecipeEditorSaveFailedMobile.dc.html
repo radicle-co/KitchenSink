@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, save failed (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    p {
+                        margin: 0;
+                    }
+                    * {
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 28px;
+                        width: 390px;
+                        padding: 16px 0 32px;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    .cap {
+                        padding: 0 16px 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .frame {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                    }
+                    .col {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        padding: 16px 16px 0;
+                    }
+                    .sec {
+                        font: 600 18px/1.25 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dframe {
+                        position: relative;
+                        width: 390px;
+                        height: 440px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 16px;
+                        background: var(--scrim);
+                    }
+                    .dlg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        width: 100%;
+                        max-width: 480px;
+                        border: 1px solid var(--line-divider);
+                        border-radius: var(--radius-lg);
+                        background: var(--paper-overlay);
+                        padding: 24px;
+                    }
+                    .dt {
+                        font: 600 18px/1.25 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .stack {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .db {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .ds {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dbtn {
+                        display: flex;
+                        flex-direction: column-reverse;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+                    .alert {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        border: 1px solid var(--line-control);
+                        border-radius: var(--radius-md);
+                        background: var(--paper);
+                        padding: 12px;
+                    }
+                    .alert p {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                </style></helmet
+            >
+            <x-import
+                component-from-global-scope="Commise.Native.ScrollFrame"
+                sections="{{scrollSections}}"
+                activation-offset="{{scrollOffset}}"
+                ><div class="page">
+                    <div>
+                        <p class="cap">Terminal: the write failed for good. The draft is kept; one action.</p>
+                        <div class="frame">
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorHeader"
+                                title="New recipe"
+                                status="Couldn't save"
+                                close-label="Close editor"
+                                on-close="{{noop}}"
+                                menu="{{menuDraft}}"
+                            ></x-import>
+                            <div class="col">
+                                <h2 class="sec">Details</h2>
+                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="t0"
+                                        label="Title"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.TextArea"
+                                        id="t0"
+                                        value="Brown Butter Lemon Chicken"
+                                        min-rows="{{one}}"
+                                        max-rows="{{three}}"
+                                        label="Title"
+                                        on-change-text="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorActionBar"
+                                label="Recipe actions"
+                                preview-label="Preview"
+                                on-preview="{{noop}}"
+                                primary-label="Publish"
+                                on-primary="{{noop}}"
+                                primary-disabled="{{no}}"
+                                busy="{{no}}"
+                                notice="{{nA}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="cap">Unknown, an update: safe to send again, because it names its version.</p>
+                        <div class="frame">
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorHeader"
+                                title="Edit recipe"
+                                status="Couldn't confirm your save"
+                                close-label="Close editor"
+                                on-close="{{noop}}"
+                                menu="{{menuChanges}}"
+                            ></x-import>
+                            <div class="col">
+                                <h2 class="sec">Details</h2>
+                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="t1"
+                                        label="Title"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.TextArea"
+                                        id="t1"
+                                        value="Brown Butter Lemon Chicken"
+                                        min-rows="{{one}}"
+                                        max-rows="{{three}}"
+                                        label="Title"
+                                        on-change-text="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorActionBar"
+                                label="Recipe actions"
+                                preview-label="Preview"
+                                on-preview="{{noop}}"
+                                primary-label="Save changes"
+                                on-primary="{{noop}}"
+                                primary-disabled="{{no}}"
+                                busy="{{no}}"
+                                notice="{{nB}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="cap">
+                            Unknown, a create: the recipe may exist, so Check My recipes comes first and Save again
+                            second.
+                        </p>
+                        <div class="frame">
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorHeader"
+                                title="New recipe"
+                                status="Couldn't confirm your save"
+                                close-label="Close editor"
+                                on-close="{{noop}}"
+                                menu="{{menuDraft}}"
+                            ></x-import>
+                            <div class="col">
+                                <h2 class="sec">Details</h2>
+                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.FieldLabel"
+                                        for-id="t2"
+                                        label="Title"
+                                    ></x-import
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.TextArea"
+                                        id="t2"
+                                        value="Brown Butter Lemon Chicken"
+                                        min-rows="{{one}}"
+                                        max-rows="{{three}}"
+                                        label="Title"
+                                        on-change-text="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorActionBar"
+                                label="Recipe actions"
+                                preview-label="Preview"
+                                on-preview="{{noop}}"
+                                primary-label="Publish"
+                                on-primary="{{noop}}"
+                                primary-disabled="{{no}}"
+                                busy="{{no}}"
+                                notice="{{nC}}"
+                            ></x-import>
+                        </div>
+                    </div></div
+            ></x-import>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1501}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, C=window.Commise.Native, noop=function(){};  return {nA:h('div',{role:'alert',className:'alert'},h('p',null,"We couldn't save your latest changes. They're kept on this device."),h('div',{className:'acts'},h(C.Button,{size:'sm',icon:"refreshCw",onPress:noop},"Try again"))),nB:h('div',{role:'alert',className:'alert'},h('p',null,"We couldn't tell if your changes were saved."),h('div',{className:'acts'},h(C.Button,{size:'sm',icon:"refreshCw",onPress:noop},"Save again"))),nC:h('div',{role:'alert',className:'alert'},h('p',null,"We couldn't tell if your recipe was saved. Check My recipes before you save again, or you may get two copies."),h('div',{className:'acts'},h(C.Button,{size:'sm',icon:"bookOpen",onPress:noop},"Check My recipes"),h(C.Button,{size:'sm',icon:"refreshCw",onPress:noop,variant:'secondary'},"Save again"))),no:false,one:1,three:3,noop:noop,menuDraft:{triggerLabel:'More editor actions',closeLabel:'Keep editing',discardLabel:'Discard draft',onDiscard:noop},menuChanges:{triggerLabel:'More editor actions',closeLabel:'Keep editing',discardLabel:'Discard changes',onDiscard:noop},scrollSections:['details'],scrollOffset:96}; } }
+        </script>
+    </body>
+</html>

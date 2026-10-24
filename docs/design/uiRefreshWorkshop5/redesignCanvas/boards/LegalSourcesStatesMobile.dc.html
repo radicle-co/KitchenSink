@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Data sources, loading and problems (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: captions are dashed-edge notes at 13 (spec, Patterns). */
+            .cap {
+                margin: 0 16px !important;
+                padding: 10px 12px !important;
+                border: 1px dashed var(--line-control);
+                border-radius: 12px;
+                font: 500 13px/1.35 var(--font-body) !important;
+                color: var(--ink-muted);
+            }
+            .wm {
+                font-family: var(--font-display);
+                font-weight: 600;
+                font-size: 17px;
+                line-height: 1.3;
+                letter-spacing: -0.012em;
+                color: var(--ink);
+            }
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .sr-only {
+                font-size: 13px !important;
+            }
+            /* Sidebar: the active item is --surface-muted with a steel icon, no bar (spec, Patterns). */
+            a[aria-current='page'] {
+                background: var(--surface-muted) !important;
+                color: var(--ink) !important;
+            }
+            a[aria-current='page'] > span[aria-hidden='true'] {
+                display: none !important;
+            }
+            a[aria-current='page'] svg {
+                color: var(--action-text);
+            }
+            body {
+                font-size: 15px;
+            }
+            [class~='r-14yzgew'] {
+                font-size: 15px !important;
+            } /* rating star glyphs */
+            script {
+                display: none;
+            }
+            main.wash {
+                width: min(640px, 100%) !important;
+                margin-inline: auto;
+            }
+
+            /* Pinned back bar (pinnedBackBar.md): Back sits in a 56 pt bar at the top of the safe area, never in the scroller.
+   Top of page: transparent, no title. Scrolled: bar material and a one-line title. Only the chevron is steel (P4). */
+            .pbRow {
+                display: flex;
+                align-items: center;
+                height: 48px;
+                margin: 0 -8px;
+                flex: none;
+            }
+            .pbBack {
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                min-width: 44px;
+                min-height: 44px;
+                max-width: 40%;
+                padding: 0 10px 0 10px;
+                color: var(--ink);
+                text-decoration: none;
+                font: 500 15px/1.2 var(--font-body);
+            }
+            .pbBack svg {
+                color: var(--action-text);
+                margin-left: -0px;
+            }
+            .pbBack .pbLabel {
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                min-width: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .pagef {
+                        position: relative;
+                        width: 390px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .wash {
+                        width: 390px;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .crop {
+                        width: 390px;
+                        padding: 16px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fields {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 12px 0;
+                    }
+                    .err {
+                        margin: 0;
+                        font-size: 15px;
+                        line-height: 1.4;
+                        color: var(--danger-text);
+                    }
+                    .status {
+                        margin: 0;
+                        font-size: 15px;
+                        line-height: 1.4;
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Loading: three placeholders about as tall as a card. The caption is a polite live region.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <div class="pbRow" data-pb>
+                                <a class="pbBack" href="#" aria-label="Back to Profile"
+                                    ><svg
+                                        viewBox="0 0 24 24"
+                                        width="24"
+                                        height="24"
+                                        aria-hidden="true"
+                                        style="
+                                            flex: none;
+                                            fill: none;
+                                            stroke: currentColor;
+                                            stroke-width: 2;
+                                            stroke-linecap: round;
+                                            stroke-linejoin: round;
+                                        "
+                                    >
+                                        <path d="m14.5 6-6 6 6 6" /></svg
+                                ></a>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h1"
+                                title="Data sources"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <div style="display: flex; flex-direction: column; gap: 12px">
+                                <p
+                                    role="status"
+                                    style="margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-muted)"
+                                >
+                                    Loading data sources…
+                                </p>
+                                <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            height: 160px;
+                                            border-radius: var(--radius-lg);
+                                            background: var(--surface-muted);
+                                        "
+                                    ></div>
+                                    <div
+                                        style="
+                                            height: 160px;
+                                            border-radius: var(--radius-lg);
+                                            background: var(--surface-muted);
+                                        "
+                                    ></div>
+                                    <div
+                                        style="
+                                            height: 160px;
+                                            border-radius: var(--radius-lg);
+                                            background: var(--surface-muted);
+                                        "
+                                    ></div>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Load failed: the alert line sits above Try again, which is the only way out.</p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <div class="pbRow" data-pb>
+                                <a class="pbBack" href="#" aria-label="Back to Profile"
+                                    ><svg
+                                        viewBox="0 0 24 24"
+                                        width="24"
+                                        height="24"
+                                        aria-hidden="true"
+                                        style="
+                                            flex: none;
+                                            fill: none;
+                                            stroke: currentColor;
+                                            stroke-width: 2;
+                                            stroke-linecap: round;
+                                            stroke-linejoin: round;
+                                        "
+                                    >
+                                        <path d="m14.5 6-6 6 6 6" /></svg
+                                ></a>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h2"
+                                title="Data sources"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <p
+                                role="alert"
+                                style="
+                                    margin: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    font-size: 17px;
+                                    line-height: 1.5;
+                                    color: var(--ink);
+                                "
+                            >
+                                <svg
+                                    aria-hidden="true"
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="var(--attention)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
+                                    />
+                                    <path d="M12 9v4" />
+                                    <path d="M12 17h.01" />
+                                </svg>
+                                We couldn’t load the data sources.
+                            </p>
+                            <div style="display: flex; flex-direction: column; align-items: flex-start">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="refreshCw"
+                                    on-press="{{noop}}"
+                                    >Try again</x-import
+                                >
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Empty: only when no stored value cites a source. A deployed stage cannot reach it.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <div class="pbRow" data-pb>
+                                <a class="pbBack" href="#" aria-label="Back to Profile"
+                                    ><svg
+                                        viewBox="0 0 24 24"
+                                        width="24"
+                                        height="24"
+                                        aria-hidden="true"
+                                        style="
+                                            flex: none;
+                                            fill: none;
+                                            stroke: currentColor;
+                                            stroke-width: 2;
+                                            stroke-linecap: round;
+                                            stroke-linejoin: round;
+                                        "
+                                    >
+                                        <path d="m14.5 6-6 6 6 6" /></svg
+                                ></a>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h3"
+                                title="Data sources"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <p
+                                style="
+                                    margin: 0;
+                                    padding: 16px;
+                                    border-radius: var(--radius-lg);
+                                    background: var(--paper);
+                                    box-shadow: var(--shadow-md);
+                                    font-size: 17px;
+                                    line-height: 1.5;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                No data sources to show yet.
+                            </p>
+                        </main>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Offline: this replaces the loading state. There is no retry, because the read resumes by itself.
+                    </p>
+                    <div class="pagef">
+                        <main class="wash" style="min-height: 560px; padding: 8px 16px 24px; gap: 12px">
+                            <div class="pbRow" data-pb>
+                                <a class="pbBack" href="#" aria-label="Back to Profile"
+                                    ><svg
+                                        viewBox="0 0 24 24"
+                                        width="24"
+                                        height="24"
+                                        aria-hidden="true"
+                                        style="
+                                            flex: none;
+                                            fill: none;
+                                            stroke: currentColor;
+                                            stroke-width: 2;
+                                            stroke-linecap: round;
+                                            stroke-linejoin: round;
+                                        "
+                                    >
+                                        <path d="m14.5 6-6 6 6 6" /></svg
+                                ></a>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="ds-h4"
+                                title="Data sources"
+                            ></x-import>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink)">
+                                The nutrition figures in this app come from these public food databases.
+                            </p>
+                            <p style="margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-muted)">
+                                When no database lists a food exactly, we use the figures for a similar or more general
+                                food.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.OfflineReadSlot"
+                                message="Waiting for a connection. This loads on its own."
+                            ></x-import>
+                        </main>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3000}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, back: { label: 'Back to Profile', parent: 'Profile', onPress: function(){} } }; } }
+        </script>
+    </body>
+</html>

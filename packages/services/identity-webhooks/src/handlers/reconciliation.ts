@@ -1,7 +1,7 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
 
-import { withDb, type DbContext } from '../common/handler-pipeline.js';
+import { withDb, type DbContext } from '../common/handlerPipeline.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { listUsers } from '../common/identityClient.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
@@ -64,8 +64,9 @@ const innerHandler = async (
                     displayName: idpUser.fullName ?? undefined,
                     picture: idpUser.imageUrl ?? undefined,
                     avatarUrl: idpUser.imageUrl ?? null,
+                    username: idpUser.username ?? null,
                 },
-                { onEmailCollision: 'placeholder', emailIsReal: true },
+                { onEmailCollision: 'placeholder', owesCreatedByline: false, emailIsReal: true },
             );
         } catch (err) {
             // One user's genuine failure must not abort the whole nightly run: emit the distinct paging

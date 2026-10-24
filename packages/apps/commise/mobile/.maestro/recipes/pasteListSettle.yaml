@@ -1,0 +1,54 @@
+appId: ${APP_ID}
+---
+# A-021 part 1 (UI walk 2026-10-13). A paste holds the recipe's server create while its lines are read (the lines that
+# join before the create keep their source, blueprint A5). When the lines have joined, the hold lets go and the editor
+# runs the checkpoint it deferred, so a titled draft reaches the server at once and the header stops saying "Saved on
+# this device". Before, the create waited for the next typing pause, blur, section change or exit (and a paste that
+# joined no rows waited for any of those for good).
+#
+# `pasteList.yaml` owns the paste itself; this flow owns what follows it. It needs the parse worker, like that one.
+# Every flow is reseeded before it runs, so the draft does not outlive it.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Settle Stew'
+
+- tapOn:
+      text: 'Sections\. Current: .*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
+- tapOn: 'Ingredient lines'
+- inputText: '2 cups flour'
+- pressKey: Enter
+- inputText: '1 tsp salt'
+- tapOn: 'Add 2 ingredients'
+- extendedWaitUntil:
+      notVisible: 'Ingredient lines'
+      timeout: 30000
+
+# The rows settle, once the parse job answers (there is no client stall bound: plan 2026-10-15-011)...
+- extendedWaitUntil:
+      notVisible:
+          text: 'Added [0-2] of 2 lines.*'
+      timeout: 240000
+# ...and the release runs the deferred checkpoint at once: the create went out, so the header no longer says the work is
+# only on this device. ⛔ THE TIMEOUT IS THE ASSERTION. Without the release, the lines joining re-arm the idle timer and
+# the create goes out 10 seconds later (`SERVER_CHECKPOINT_IDLE_MS`) anyway, so a long wait here would pass against the
+# defect. Six seconds is under that timer, over an immediate create's round trip.
+- extendedWaitUntil:
+      notVisible: 'Saved on this device'
+      timeout: 6000

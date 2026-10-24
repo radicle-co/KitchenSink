@@ -1,15 +1,15 @@
 /**
  * `UsdaSourceAdapter` (T-121 / MOD-008, ARCH-008) — wraps `@kitchensink/usda-client` to implement the
- * {@link FoodSourceAdapter} boundary. **This is the ONLY place `fdcId` and USDA-native terms appear**
- * (FR-IDN-2): `mapToCanonical` maps `fdcId → externalKey` inbound, and nothing past this boundary sees a
- * source-native key. The adapter validates/sanitizes every mapped value (type/range/length/text) before
- * it can enter the store — a response failing validation is rejected, not stored (FR-ADP-2/FR-ADP-3) —
- * and classifies upstream transport errors into the source-agnostic {@link SourceApiError}.
+ * {@link FoodSourceAdapter} boundary. **Nothing past this boundary sees `fdcId` or a USDA-native term**
+ * (FR-IDN-2): a search hit is mapped by the client's `usdaSearchCandidate`, a fetched item by `mapToCanonical`
+ * here, each `fdcId → externalKey` inbound. The adapter validates/sanitizes every mapped value
+ * (type/range/length/text) before it can enter the store — a response failing validation is rejected, not stored
+ * (FR-ADP-2/FR-ADP-3) — and classifies upstream transport errors into the source-agnostic {@link SourceApiError}.
  *
  * **Nutrient name normalization (DB-5).** USDA varies nutrient name casing across datasets
  * (`Protein` vs `protein`). The committed `nutrient (name, unit)` UNIQUE is case-SENSITIVE, so without
  * normalization those variants would split into duplicate dictionary rows and defeat the
- * `food_nutrients UNIQUE(food_id, nutrient_id)` golden-value invariant. This adapter is the single
+ * `food_nutrition_value` primary key `(nutrition_id, nutrient_id)` golden-value invariant. This adapter is the single
  * boundary where the fix lives: {@link canonicalizeNutrientName}/{@link canonicalizeUnit} fold each
  * `(name, unit)` to a deterministic canonical form, then `mapNutrients` dedups on that key so case
  * variants collapse to one canonical nutrient before any value leaves the adapter.
@@ -28,26 +28,31 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { UsdaApiClient, UsdaFoodDetail, UsdaNutrient } from '@kitchensink/usda-client';
+import { Logger } from '@nestjs/common';
+import type { UsdaApiClient, UsdaFoodDetail, UsdaNutrient, UsdaSearchedDataType } from '@kitchensink/usda-client';
 import {
     isUsdaNotFoundError,
     isUsdaRateLimitError,
     isUsdaSchemaError,
+    isUsdaSearchedDataType,
     isUsdaServerError,
     isUsdaTimeoutError,
+    usdaSearchCandidate,
 } from '@kitchensink/usda-client';
 import { z } from 'zod';
 
+import { lookupLabelNutrient } from '../../foods/nutrition/labelNutrientMap.js';
+import type { CitationDataset } from '../../foods/seed/citationDatasets.js';
+import { AdapterValidationError, SourceApiError } from '../foodSource.errors.js';
 import {
-    AdapterValidationError,
-    SourceApiError,
     type CanonicalCandidate,
     type CanonicalKind,
     type CanonicalNutrient,
     type CanonicalPortion,
     type FoodSourceAdapter,
     type SourceCandidate,
-} from '../food-source-adapter.js';
+} from '../foodSourceAdapter.js';
+import { usdaPortionLabel } from './usdaPortionLabel.js';
 
 /** The canonical source identifier for this adapter. */
 const SOURCE = 'usda' as const;
@@ -98,23 +103,6 @@ const RawUsdaLabelNutrientsSchema = z.record(z.string(), z.object({ value: z.num
  * fixed per key (grams for macros, mg for the listed minerals, kcal for calories), so the panel carries
  * no per-entry unit. Keys absent from this map are skipped — without a known unit they cannot be stored.
  */
-const LABEL_NUTRIENT_MAP: Readonly<Record<string, { readonly name: string; readonly unit: string }>> = {
-    fat: { name: 'Total lipid (fat)', unit: 'g' },
-    saturatedFat: { name: 'Fatty acids, total saturated', unit: 'g' },
-    transFat: { name: 'Fatty acids, total trans', unit: 'g' },
-    cholesterol: { name: 'Cholesterol', unit: 'mg' },
-    sodium: { name: 'Sodium, Na', unit: 'mg' },
-    carbohydrates: { name: 'Carbohydrate, by difference', unit: 'g' },
-    fiber: { name: 'Fiber, total dietary', unit: 'g' },
-    sugars: { name: 'Sugars, total including NLEA', unit: 'g' },
-    addedSugar: { name: 'Sugars, added', unit: 'g' },
-    protein: { name: 'Protein', unit: 'g' },
-    calcium: { name: 'Calcium, Ca', unit: 'mg' },
-    iron: { name: 'Iron, Fe', unit: 'mg' },
-    potassium: { name: 'Potassium, K', unit: 'mg' },
-    calories: { name: 'Energy', unit: 'kcal' },
-    vitaminD: { name: 'Vitamin D (D2 + D3)', unit: 'µg' },
-};
 
 /** Decimal places kept when converting a per-serving label value to per-100g (strips float drift). */
 const CONVERSION_PRECISION = 6;
@@ -163,15 +151,28 @@ export function convertPerServingToPer100g(value: number, servingSizeGrams: numb
     return String(Number(per100g.toFixed(CONVERSION_PRECISION)));
 }
 
+/** Where the adapter reports an item it dropped. Nest's `Logger` in production. */
+export interface UsdaAdapterLogger {
+    warn(message: string, context?: Record<string, unknown>): void;
+}
+
 export class UsdaSourceAdapter implements FoodSourceAdapter {
     /** The source this adapter wraps. */
     public readonly source = SOURCE;
 
-    /** @param client - The typed USDA FoodData Central client (the only `fdcId` boundary). */
-    public constructor(private readonly client: UsdaApiClient) {}
+    /**
+     * @param client - The typed USDA FoodData Central client (the only `fdcId` boundary).
+     * @param logger - Where a dropped batch item is reported.
+     */
+    public constructor(
+        private readonly client: UsdaApiClient,
+        private readonly logger: UsdaAdapterLogger = new Logger(UsdaSourceAdapter.name),
+    ) {}
 
     /**
-     * Search USDA by name and surface candidates with `externalKey` (mapped from `fdcId`).
+     * Search USDA by name with the client's one search statement, and surface each hit as `usdaSearchCandidate` maps
+     * it. The statement asks only for data types {@link datasetOfUsdaDataType} maps, so an item no admitted dataset
+     * covers never becomes a key the worker batches.
      *
      * @param name - The add-by-name query.
      * @returns The USDA candidate hits.
@@ -187,12 +188,7 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
             throw this.classifyError(error);
         }
 
-        // `fdcId` is named ONLY here; it becomes `externalKey` for everything downstream.
-        return result.foods.map((hit) => ({
-            source: SOURCE,
-            externalKey: String(hit.fdcId),
-            name: hit.description,
-        }));
+        return result.foods.map((hit) => ({ source: SOURCE, ...usdaSearchCandidate(hit) }));
     }
 
     /**
@@ -234,12 +230,16 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
      * single call rather than one `fetchByKey` per key (the ≤20-key cap is the caller's to chunk; the
      * USDA client itself rejects an over-cap batch). The `fdcId → externalKey` mapping stays internal.
      *
+     * An item whose data type no admitted dataset covers is DROPPED, not rejected, and the batch's drops are logged
+     * once: the data type is a fact of the item, so failing the batch would fail it again for every per-key retry,
+     * each one another admitted call. Search asks for admitted data types alone, so a drop is rare.
+     *
      * @param externalKeys - The USDA item keys (inbound `fdcId`s as strings; ≤20).
-     * @returns The validated canonical candidates.
-     * @throws {AdapterValidationError} when a key is not a positive integer, or a mapped value fails
-     *   validation (reject-not-store — aborts the batch; the worker may retry the chunk per key).
+     * @returns The validated canonical candidates for the admitted items.
+     * @throws {AdapterValidationError} when a key is not a positive integer, or an admitted item's mapped value
+     *   fails validation (reject-not-store — aborts the batch; the worker may retry the chunk per key).
      * @throws {SourceApiError} when the upstream call fails (classified by status).
-     * @sideEffect Performs one HTTPS batch request to USDA via the client.
+     * @sideEffect Performs one HTTPS batch request to USDA via the client; logs any dropped item.
      */
     public async fetchByKeys(externalKeys: readonly string[]): Promise<CanonicalCandidate[]> {
         const fdcIds = externalKeys.map((externalKey) => {
@@ -265,7 +265,20 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
             throw this.classifyError(error);
         }
 
-        return details.map((detail) => this.mapToCanonical(detail));
+        const skipped = details.filter((detail) => datasetOfUsdaDataType(detail.dataType) === null);
+
+        if (skipped.length > 0) {
+            this.logger.warn('usda-batch-items-skipped', {
+                skipped: skipped.map((detail) => ({
+                    externalKey: String(detail.fdcId),
+                    dataType: detail.dataType ?? null,
+                })),
+            });
+        }
+
+        return details
+            .filter((detail) => datasetOfUsdaDataType(detail.dataType) !== null)
+            .map((detail) => this.mapToCanonical(detail));
     }
 
     /**
@@ -279,16 +292,34 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
     private mapToCanonical(detail: UsdaFoodDetail): CanonicalCandidate {
         const externalKey = String(detail.fdcId);
         const kind: CanonicalKind = detail.dataType === 'Branded' ? 'branded' : 'generic';
+        const dataset = datasetOfUsdaDataType(detail.dataType);
+
+        if (dataset === null) {
+            // A dataset the register does not admit (Experimental, or none stated) can be neither cited nor stored
+            // (R52): every stored live value cites its dataset, and only an author's own value is uncited.
+            throw new AdapterValidationError(
+                SOURCE,
+                externalKey,
+                'dataType',
+                `data type ${JSON.stringify(detail.dataType ?? null)} is no admitted dataset`,
+            );
+        }
 
         return {
             source: SOURCE,
             externalKey,
+            dataset,
             name: detail.description,
             kind,
             brandOwner: detail.brandOwner ?? null,
             brandName: detail.brandName ?? null,
             description: detail.description,
             barcode: detail.gtinUpc ?? null,
+            // The client has already selected the `Additional Description` attributes and ranked them;
+            // value-grain hygiene and the storable bounds are `foodAliases.ts`'s, applied at the merge
+            // boundary alongside the nutrient/portion filters. An unusable synonym must never cost a food
+            // its lab-analyzed nutrition, so nothing here throws over one.
+            aliases: detail.additionalDescriptions,
             nutrients: this.mapNutrients(detail.foodNutrients, detail.raw, externalKey),
             portions: this.mapPortions(detail.raw, externalKey),
             itemVersion: detail.publicationDate ?? hashItem(detail.raw),
@@ -372,7 +403,7 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
             servingSize > 0;
 
         for (const [labelKey, entry] of Object.entries(parsed.data)) {
-            const mapping = LABEL_NUTRIENT_MAP[labelKey];
+            const mapping = lookupLabelNutrient(labelKey);
 
             if (mapping === undefined || entry.value === undefined) {
                 continue; // Unmapped label key (unknown unit) or absent value — skip.
@@ -452,8 +483,9 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
 
     /**
      * Map + validate USDA portions (read from the preserved raw payload — the typed detail does not
-     * surface them). A portion missing a gram weight or a label is skipped (incomplete); a present
-     * gram weight that is non-positive / non-finite / over-range rejects the candidate (reject-not-store).
+     * surface them). The label is {@link usdaPortionLabel}'s, which the bulk reader uses too. A portion that
+     * states no measure, or no gram weight, is skipped (incomplete); a present gram weight that is
+     * non-positive / non-finite / over-range rejects the candidate (reject-not-store).
      *
      * @param raw - The verbatim USDA payload.
      * @param externalKey - The item key (for error context).
@@ -469,10 +501,15 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
         const portions: CanonicalPortion[] = [];
 
         for (const entry of parsed.data) {
-            const label = (entry.modifier ?? entry.portionDescription ?? entry.measureUnit?.name ?? '').trim();
+            const label = usdaPortionLabel({
+                amount: entry.amount ?? null,
+                measureUnit: entry.measureUnit?.name ?? '',
+                portionDescription: entry.portionDescription ?? '',
+                modifier: entry.modifier ?? '',
+            });
 
-            if (entry.gramWeight === undefined || label.length === 0) {
-                continue; // Incomplete portion — cannot label or weight it; skip.
+            if (entry.gramWeight === undefined || label === null) {
+                continue; // Incomplete portion — states no measure, or no weight; skip.
             }
 
             if (!Number.isFinite(entry.gramWeight) || entry.gramWeight <= 0 || entry.gramWeight > MAX_AMOUNT) {
@@ -538,4 +575,27 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
  */
 function hashItem(raw: Record<string, unknown>): string {
     return createHash('sha256').update(JSON.stringify(raw)).digest('hex');
+}
+
+/**
+ * The register dataset of each data type USDA is searched for (KTD-22). Total over the client's search statement, so a
+ * data type the search asks for without a dataset here fails to compile, and none outside it is admitted.
+ *
+ * SR Legacy and Foundation are one dataset (the same-substance stand-in); FNDDS and Branded rank apart.
+ */
+const DATASET_OF_SEARCHED_DATA_TYPE: Readonly<Record<UsdaSearchedDataType, CitationDataset>> = {
+    Foundation: 'usdaSrFoundation',
+    'SR Legacy': 'usdaSrFoundation',
+    'Survey (FNDDS)': 'usdaFndds',
+    Branded: 'usdaBranded',
+};
+
+/**
+ * The register dataset of a USDA data type, or `null` for one no admitted dataset covers. Pure.
+ *
+ * @param dataType - The item's USDA data type, when stated.
+ * @returns The dataset, or `null`.
+ */
+export function datasetOfUsdaDataType(dataType: UsdaFoodDetail['dataType']): CitationDataset | null {
+    return isUsdaSearchedDataType(dataType) ? DATASET_OF_SEARCHED_DATA_TYPE[dataType] : null;
 }

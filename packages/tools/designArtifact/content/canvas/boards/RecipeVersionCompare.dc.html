@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>RecipeVersionCompare</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    .c-shell {
+                        display: flex;
+                        min-height: 100vh;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    .c-side {
+                        display: none;
+                        align-self: stretch;
+                        flex-shrink: 0;
+                        width: 256px;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        box-sizing: border-box;
+                        border-right: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                    }
+                    .c-main {
+                        min-width: 0;
+                        flex: 1;
+                        box-sizing: border-box;
+                        padding: 24px 16px 168px;
+                    }
+                    .c-tabs {
+                        display: flex;
+                        justify-content: space-around;
+                    }
+                    .c-hero-ctl {
+                        display: flex;
+                    }
+                    .c-back,
+                    .c-plain {
+                        display: none;
+                    }
+                    @media (min-width: 600px) {
+                        .c-main {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .c-side {
+                            display: flex;
+                        }
+                        .c-tabs {
+                            display: none;
+                        }
+                        .c-main {
+                            padding: 24px 32px 32px;
+                        }
+                        .c-hero-ctl {
+                            display: none;
+                        }
+                        .c-back {
+                            display: flex;
+                        }
+                        .c-plain {
+                            display: contents;
+                        }
+                    }
+
+                    .f-page {
+                        box-sizing: border-box;
+                        min-height: 100vh;
+                        padding: 24px;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    .f-grid {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 24px;
+                        align-items: start;
+                    }
+                    .f-cap {
+                        margin: 0 0 8px;
+                        font: 600 12px/1.4 var(--font-body);
+                        letter-spacing: 0.04em;
+                        text-transform: uppercase;
+                        color: var(--ink-muted);
+                    }
+                    .f-box {
+                        position: relative;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                        border: 1px solid var(--line-divider);
+                        border-radius: var(--radius-lg);
+                        background: var(--canvas);
+                    }
+                    .f-scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                </style></helmet
+            >
+            <div class="f-page">
+                <div class="f-grid">
+                    <div>
+                        <p class="f-cap">Version 3 against the current version</p>
+                        <div class="f-box" style="">
+                            <div style="position: relative; height: 640px; background: var(--scrim)">
+                                <aside
+                                    role="dialog"
+                                    aria-label="Version 3 and the current version"
+                                    style="
+                                        box-sizing: border-box;
+                                        position: absolute;
+                                        top: 0;
+                                        bottom: 0;
+                                        right: 0;
+                                        display: flex;
+                                        width: 448px;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                        background: var(--paper-overlay);
+                                        padding: 24px;
+                                        box-shadow: var(--shadow-lg);
+                                    "
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            align-items: flex-start;
+                                            justify-content: space-between;
+                                            gap: 12px;
+                                        "
+                                    >
+                                        <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                            Version 3 and the current version
+                                        </h2>
+                                        <button
+                                            type="button"
+                                            aria-label="Close compare"
+                                            style="
+                                                display: inline-flex;
+                                                width: 44px;
+                                                height: 44px;
+                                                flex-shrink: 0;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border: 0;
+                                                border-radius: 9999px;
+                                                background: transparent;
+                                                color: var(--ink-muted);
+                                                padding: 0;
+                                            "
+                                        >
+                                            <x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="x"
+                                                size="20"
+                                            ></x-import>
+                                        </button>
+                                    </div>
+                                    <ul
+                                        style="
+                                            margin: 0;
+                                            padding: 0;
+                                            list-style: none;
+                                            display: flex;
+                                            flex-direction: column;
+                                        "
+                                    >
+                                        <li
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                                padding: 12px 0;
+                                                border-top: 0;
+                                            "
+                                        >
+                                            <span style="font: 600 14px/1.2 var(--font-body); color: var(--ink)"
+                                                >Servings</span
+                                            >
+                                            <dl
+                                                style="
+                                                    margin: 0;
+                                                    display: grid;
+                                                    grid-template-columns: 1fr 1fr;
+                                                    gap: 8px;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                "
+                                            >
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Version 3
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        4
+                                                    </dd>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Current
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        6
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                        <li
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                                padding: 12px 0;
+                                                border-top: 1px solid var(--line-divider);
+                                            "
+                                        >
+                                            <span style="font: 600 14px/1.2 var(--font-body); color: var(--ink)"
+                                                >Step 1</span
+                                            >
+                                            <dl
+                                                style="
+                                                    margin: 0;
+                                                    display: grid;
+                                                    grid-template-columns: 1fr 1fr;
+                                                    gap: 8px;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                "
+                                            >
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Version 3
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        Heat the oven to 200°C.
+                                                    </dd>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Current
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        Heat the oven to 220°C.
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                        <li
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                                padding: 12px 0;
+                                                border-top: 1px solid var(--line-divider);
+                                            "
+                                        >
+                                            <span style="font: 600 14px/1.2 var(--font-body); color: var(--ink)"
+                                                >Step 4</span
+                                            >
+                                            <dl
+                                                style="
+                                                    margin: 0;
+                                                    display: grid;
+                                                    grid-template-columns: 1fr 1fr;
+                                                    gap: 8px;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                "
+                                            >
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Version 3
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        None
+                                                    </dd>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Current
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        Rest for 15 minutes before carving. (900s timer)
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                        <li
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                                padding: 12px 0;
+                                                border-top: 1px solid var(--line-divider);
+                                            "
+                                        >
+                                            <span style="font: 600 14px/1.2 var(--font-body); color: var(--ink)"
+                                                >Ingredient: 75 g Butter</span
+                                            >
+                                            <dl
+                                                style="
+                                                    margin: 0;
+                                                    display: grid;
+                                                    grid-template-columns: 1fr 1fr;
+                                                    gap: 8px;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                "
+                                            >
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Version 3
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        50 g Butter
+                                                    </dd>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Current
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        75 g Butter
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                        <li
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                                padding: 12px 0;
+                                                border-top: 1px solid var(--line-divider);
+                                            "
+                                        >
+                                            <span style="font: 600 14px/1.2 var(--font-body); color: var(--ink)"
+                                                >Ingredient: 4 clove Garlic</span
+                                            >
+                                            <dl
+                                                style="
+                                                    margin: 0;
+                                                    display: grid;
+                                                    grid-template-columns: 1fr 1fr;
+                                                    gap: 8px;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                "
+                                            >
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Version 3
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        4 clove Garlic
+                                                    </dd>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Current
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        None
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                        <li
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 8px;
+                                                padding: 12px 0;
+                                                border-top: 1px solid var(--line-divider);
+                                            "
+                                        >
+                                            <span style="font: 600 14px/1.2 var(--font-body); color: var(--ink)"
+                                                >Ingredient: 2 tbsp Olive oil</span
+                                            >
+                                            <dl
+                                                style="
+                                                    margin: 0;
+                                                    display: grid;
+                                                    grid-template-columns: 1fr 1fr;
+                                                    gap: 8px;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                "
+                                            >
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Version 3
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        None
+                                                    </dd>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 2px">
+                                                    <dt
+                                                        style="
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Current
+                                                    </dt>
+                                                    <dd style="margin: 0; overflow-wrap: anywhere; color: var(--ink)">
+                                                        2 tbsp Olive oil
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                    </ul>
+                                </aside>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="f-cap">This version matches the current one</p>
+                        <div class="f-box" style="">
+                            <div style="position: relative; height: 640px; background: var(--scrim)">
+                                <aside
+                                    role="dialog"
+                                    aria-label="Version 4 and the current version"
+                                    style="
+                                        box-sizing: border-box;
+                                        position: absolute;
+                                        top: 0;
+                                        bottom: 0;
+                                        right: 0;
+                                        display: flex;
+                                        width: 448px;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                        background: var(--paper-overlay);
+                                        padding: 24px;
+                                        box-shadow: var(--shadow-lg);
+                                    "
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            align-items: flex-start;
+                                            justify-content: space-between;
+                                            gap: 12px;
+                                        "
+                                    >
+                                        <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                            Version 4 and the current version
+                                        </h2>
+                                        <button
+                                            type="button"
+                                            aria-label="Close compare"
+                                            style="
+                                                display: inline-flex;
+                                                width: 44px;
+                                                height: 44px;
+                                                flex-shrink: 0;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border: 0;
+                                                border-radius: 9999px;
+                                                background: transparent;
+                                                color: var(--ink-muted);
+                                                padding: 0;
+                                            "
+                                        >
+                                            <x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="x"
+                                                size="20"
+                                            ></x-import>
+                                        </button>
+                                    </div>
+                                    <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                        This version matches the current one.
+                                    </p>
+                                </aside>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":716}}'>
+            class Component extends DCLogic { renderVals(){ return {noop(){},yes:true,back:{label:'Back to recipe',parent:"Lemon and thyme roast chicken",onPress(){},href:'#'},menuItems:[{id:'preview',label:'Preview',icon:'eye',onSelect(){}},{id:'restore',label:'Restore this version',icon:'rotateCcw',onSelect(){}},{id:'compare',label:'Compare with current',icon:'slidersHorizontal',onSelect(){}}]}; } }
+        </script>
+    </body>
+</html>

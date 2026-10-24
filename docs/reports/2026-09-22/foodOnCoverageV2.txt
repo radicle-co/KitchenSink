@@ -1,0 +1,35 @@
+FoodOn classes (OWL)        :   39707
+⛔ EDIBLE union branch      :   27651   <- the only terms a root may come from
+   distinct names in lookup :   33936   (labels + synonyms, edible only)
+
+SR Legacy foods             :    7793
+  USDA supplies a FoodOn term:   4126  (53%)
+  UNMAPPED by USDA           :   3667  (47%)
+
+FoodOn itself names         :    1142 of the unmapped (31%)
+    via head noun alone         :   801   <- NOT SAFE (truncation)
+    via first two un-inverted   :   291
+    via all segments reversed   :    32
+    via full description        :    18
+
+  ⛔ SAFE forms only         :     341 (9% of unmapped)
+  combined SAFE coverage    : 4467/7793 = 57%   (USDA alone: 53%)
+
+  ⛔ over-coarse roots (>=15 USDA foods) : 1
+     n=28   strained yogurt
+
+=== the staples ===
+  YES  bread
+  YES  cheddar cheese
+  no   soy sauce
+  YES  soy sauce food product
+  YES  mayonnaise
+  YES  mozzarella cheese
+  no   hamburger roll
+  YES  butter
+  YES  olive oil
+  YES  whole milk
+  YES  lamb shoulder
+  YES  octopus
+  no   chondrichthyes
+  no   restaurant

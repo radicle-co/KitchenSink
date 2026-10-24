@@ -9,7 +9,7 @@
  * `keyboardShouldPersistTaps` pass onto the backing `ScrollView` so the rendered tree matches the device one.
  * The virtualization/recycling behaviour it stands in for is a device/Maestro concern, not a jsdom one.
  */
-import { Fragment, isValidElement, type ComponentType, type ReactElement, type ReactNode } from 'react';
+import { Fragment, isValidElement, type ComponentType, type ReactElement, type ReactNode, type Ref } from 'react';
 import { ScrollView, type ScrollViewProps } from 'react-native';
 
 /** The `renderItem` info object FlashList passes (the subset the recipe leaves read). */
@@ -24,8 +24,15 @@ type ListSlot = ReactElement | ComponentType | null | undefined;
 /** The subset of `FlashListProps` the recipe native leaves pass. */
 interface FlashListStubProps<TItem> extends Pick<
     ScrollViewProps,
-    'style' | 'contentContainerStyle' | 'keyboardShouldPersistTaps' | 'accessibilityLabel'
+    | 'style'
+    | 'contentContainerStyle'
+    | 'keyboardShouldPersistTaps'
+    | 'accessibilityLabel'
+    | 'onScroll'
+    | 'scrollEventThrottle'
 > {
+    /** The scroller handle a screen's scroll host binds to (`ScrollBind.ref`): the stub's `ScrollView`. */
+    readonly ref?: Ref<ScrollView>;
     readonly data?: readonly TItem[] | null;
     readonly renderItem?: (info: ListRenderItemInfo<TItem>) => ReactElement | null;
     readonly keyExtractor?: (item: TItem, index: number) => string;
@@ -73,12 +80,18 @@ export function FlashList<TItem>({
     keyboardShouldPersistTaps,
     accessibilityLabel,
     role,
+    ref,
+    onScroll,
+    scrollEventThrottle,
 }: FlashListStubProps<TItem>): ReactElement {
     const rows = data ?? [];
     const hasRows = rows.length > 0;
 
     return (
         <ScrollView
+            {...(ref !== undefined ? { ref } : {})}
+            {...(onScroll !== undefined ? { onScroll } : {})}
+            {...(scrollEventThrottle !== undefined ? { scrollEventThrottle } : {})}
             {...(style !== undefined ? { style } : {})}
             {...(contentContainerStyle !== undefined ? { contentContainerStyle } : {})}
             {...(keyboardShouldPersistTaps !== undefined ? { keyboardShouldPersistTaps } : {})}

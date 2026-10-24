@@ -1,0 +1,10 @@
+{
+    "upstreams": {
+        "table": {
+            "upstream": "20260327-mxt_kagsei-mext-000029402_02.xlsx",
+            "upstreamSha256": "0d5a77077dd6cd91cbc2e6e317b8b218a38728c409eed452f1c10635a0d3099c"
+        }
+    },
+    "extract": "stfcjExtract20260327.jsonl",
+    "extractSha256": "f55a1da01a28110691be1226844d6f146d0930c5de241c14a52743560faecffd"
+}

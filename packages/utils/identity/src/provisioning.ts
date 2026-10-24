@@ -1,13 +1,30 @@
-import { sql } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { sql, type ColumnBaseConfig, type SQL } from 'drizzle-orm';
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 // Generic over Drizzle's own table/column types — this package depends on NOTHING from any service's
 // schema (no dependency cycle, no runtime edge). Callers inject their concrete tables; the result row
 // type is the caller's via the `TUser` type parameter.
 
-/** Drizzle handle. Callers pass `db as unknown as PostgresJsDatabase` per the repo cast convention. */
-export type Db = PostgresJsDatabase<Record<string, never>>;
+/**
+ * The database surface this routine needs: `insert`, `execute` (the advisory lock), and a transaction that hands back the same surface.
+ *
+ * ⛔ THIS TYPE NAMES NO DRIVER, so no caller casts. A driver type such as `PostgresJsDatabase` — which nothing
+ * in this repo installs, while production passes a `NodePgDatabase` — would force every call site to launder
+ * the difference with a claim `tsc` cannot check.
+ *
+ * ⚠️ A structural `Pick` cannot be dodged by a schema parameter the way a concrete type can: naming any
+ * database type re-opens the mismatch one parameter over, because drizzle's schema parameter is invariant
+ * and the relational `query` API is the only thing that needs it. This routine does not use it.
+ *
+ * ⚠️ Deliberately NARROWER than `identity-db`'s `IdentityWriter` (which also carries `select`/`update`/
+ * `delete`). They are two surfaces that change for different reasons — this one is fixed by what this single
+ * routine calls — so they are not one type duplicated.
+ */
+export type Db = Pick<PgDatabase<PgQueryResultHKT>, 'insert' | 'execute'> & {
+    /** Run `fn` as one transaction, handed the same surface — the Unit-of-Work property, stated in the type. */
+    transaction<T>(fn: (tx: Db) => Promise<T>): Promise<T>;
+};
 
 /**
  * The `users` table must expose the columns the routine reads: the conflict target (`identityId`), the
@@ -24,11 +41,23 @@ export interface UsersTableShape extends PgTable {
     readonly updatedAt: PgColumn;
 }
 
+/**
+ * The `profiles` columns the routine reads back from the insert — typed with the data each one holds, so the
+ * `.returning` row IS a {@link CreatedByline} and needs no cast. `username` is nullable (a user may have none);
+ * `displayName` and `updatedAt` are NOT NULL, and `updatedAt` is a timestamp in `mode: 'date'` (drizzle's default),
+ * so the driver hands back a real `Date`.
+ */
+export interface ProfilesTableShape extends PgTable {
+    readonly displayName: PgColumn<ColumnBaseConfig<'string', string> & { data: string; notNull: true }>;
+    readonly username: PgColumn<ColumnBaseConfig<'string', string> & { data: string; notNull: false }>;
+    readonly updatedAt: PgColumn<ColumnBaseConfig<'date', string> & { data: Date; notNull: true }>;
+}
+
 /** The Drizzle table objects, injected so this package never imports a service schema (KTD2). */
 export interface ProvisioningSchema {
     readonly users: UsersTableShape;
     readonly accounts: PgTable;
-    readonly profiles: PgTable;
+    readonly profiles: ProfilesTableShape;
 }
 
 export interface ProvisionDeps {
@@ -36,6 +65,19 @@ export interface ProvisionDeps {
     readonly schema: ProvisioningSchema;
     /** ULID generator — callers inject their branded `newUserId`. */
     readonly newUserId: () => string;
+    /**
+     * The database clock a NEW profile row is stamped with — `@kitchensink/identity-db`'s `newProfileClock`, injected
+     * like the schema (KTD2). It stamps `updated_at` and `handle_sync_owed_at` together, so the created byline's
+     * snapshot key and the debt it records are one value (plan 2026-10-15-010 D6b).
+     */
+    readonly newProfileClock: SQL;
+}
+
+/** The byline a profile insert created, with the stamp the insert returned. */
+export interface CreatedByline {
+    readonly displayName: string;
+    readonly username: string | null;
+    readonly stampedAt: Date;
 }
 
 export interface ProvisionInput {
@@ -46,6 +88,8 @@ export interface ProvisionInput {
     /** Profile display name; defaults to `name ?? ''`. */
     readonly displayName?: string | null;
     readonly avatarUrl?: string | null;
+    /** The Clerk username — the public byline (owner ruling 2026-10-13). Clerk is its authority. */
+    readonly username?: string | null;
 }
 
 /**
@@ -59,6 +103,14 @@ export type EmailCollisionPolicy = 'placeholder' | 'signal-incomplete';
 
 export interface ProvisionOpts {
     readonly onEmailCollision: EmailCollisionPolicy;
+    /**
+     * Whether this caller PUBLISHES the byline a new profile creates (plan 2026-10-15-010 D6b). When `true` the
+     * insert records a handle-sync debt — on the same clock as the row — and the result carries `createdByline` for
+     * the caller to publish and settle. When `false` it records none and returns none: a caller with no handle-sync
+     * topic (reconciliation) would otherwise leave a debt nothing can settle, which the identity backstop reports as
+     * a LOST sync for every user it provisions. REQUIRED, so each caller decides.
+     */
+    readonly owesCreatedByline: boolean;
     /**
      * `false` ⇒ never overwrite an existing email on conflict — a read-through placeholder must not
      * clobber a real email a concurrent webhook just wrote. Default `true`.
@@ -83,13 +135,24 @@ export interface ProvisionedUser {
  */
 const NON_REVIVABLE_STATES = ['tombstoned', 'erased'] as const;
 
-/** True when a row's lifecycle state forbids resurrection (tombstoned/erased). */
-function isNonRevivable(status: string): boolean {
+/**
+ * True when a row's lifecycle state forbids resurrection (tombstoned/erased). Exported so every provider-sync path
+ * (the `user.updated` webhook as well as provisioning) reads the one rule.
+ *
+ * @param status - The row's `users.status`.
+ * @returns Whether no provider sync may write to the row. Pure.
+ */
+export function isNonRevivable(status: string): boolean {
     return (NON_REVIVABLE_STATES as readonly string[]).includes(status);
 }
 
+/**
+ * The routine's result. `createdByline` is present ONLY when this call inserted the profile — the create paths publish
+ * it (so the recipe database's read model has every cook, not only those who renamed), and a concurrent second
+ * creator, whose insert did nothing, does not publish a second one.
+ */
 export type ProvisionResult<TUser extends ProvisionedUser = ProvisionedUser> =
-    | { readonly kind: 'complete'; readonly user: TUser }
+    | { readonly kind: 'complete'; readonly user: TUser; readonly createdByline?: CreatedByline }
     | { readonly kind: 'incomplete'; readonly reason: 'email-collision' };
 
 /** Per-identity, never-deliverable placeholder for users whose token carries no usable email. */
@@ -120,11 +183,15 @@ function isEmailUniqueViolation(err: unknown): boolean {
  * identity id) and ensure its companion `accounts` + `profiles` rows — as one unit, callable from every
  * provisioning path (read-through, webhook, reconciliation). No path may write a bare `users` row.
  *
- * Deliberately NOT transactional: the three inserts are separate autocommit statements so locks release
- * per-statement. A transaction holding the users-row lock across the FK-checked aux inserts deadlocks
- * (40P01) against a concurrent autocommit webhook taking `FOR KEY SHARE` in the opposite order — the
- * exact webhook-vs-read-through race this targets (removed in `d59e11c`). The guarantee is idempotency
- * (the `users.identityId` unique index + per-aux `onConflictDoNothing`) plus heal-on-read, not atomicity.
+ * THE AUX INSERTS ARE STILL NOT IN A TRANSACTION WITH THE UPSERT, and that part must stay. A transaction
+ * holding the users-row lock across the FK-checked `accounts`/`profiles` inserts deadlocks (40P01) against a
+ * concurrent autocommit writer taking `FOR KEY SHARE` on the same row in the opposite order — the
+ * webhook-vs-read-through race removed in `d59e11c`. The guarantee is idempotency (the `users.identityId`
+ * unique index + per-aux `onConflictDoNothing`) plus heal-on-read, not atomicity.
+ *
+ * The USERS UPSERT ALONE is serialized per identity — see {@link upsertUser}. That is a different deadlock
+ * with a different cause, and the two fixes are not in tension: `d59e11c` was about the SPAN of a
+ * transaction, this is about two concurrent sessions inside one statement's speculative insertion.
  *
  * @sideEffect upserts the `users` row and inserts the `accounts` + `profiles` rows.
  * @implements REQ-013 REQ-014 REQ-015 REQ-017 FR-013 FR-014 FR-015 FR-017 ARCH-011 ARCH-012 ARCH-015 MOD-011 MOD-012 MOD-015
@@ -163,11 +230,72 @@ export async function provisionCompleteUser<TUser extends ProvisionedUser = Prov
         return { kind: 'complete', user };
     }
 
-    await ensureAccountAndProfile(deps, user.id, input);
+    const createdByline = await ensureAccountAndProfile(deps, user.id, input, opts.owesCreatedByline);
 
-    return { kind: 'complete', user };
+    return createdByline === undefined ? { kind: 'complete', user } : { kind: 'complete', user, createdByline };
 }
 
+/**
+ * Advisory-lock namespace (the first key of the two-argument `pg_advisory_xact_lock`), so this lock can never
+ * collide with an advisory lock some other feature takes on a coincidentally equal hash. Arbitrary but fixed.
+ *
+ * EXPORTED so `provisioningRace.integration.test.ts` can hold the very same lock and assert that provisioning
+ * BLOCKS behind it. That makes the serialization guarantee deterministically testable rather than only
+ * observable as the absence of a racy deadlock — and it means deleting the lock breaks the test's import
+ * instead of quietly leaving a green suite.
+ */
+export const PROVISION_LOCK_NAMESPACE = 5310;
+
+/**
+ * Idempotently upsert the `users` row, keyed on the Clerk identity id, SERIALIZED PER IDENTITY.
+ *
+ * ## Why the advisory lock exists (40P01, `users_email_unique`)
+ *
+ * `INSERT … ON CONFLICT (identity_id) DO UPDATE` is not a single atomic index operation. Postgres performs a
+ * SPECULATIVE INSERTION: it writes the heap tuple, takes a speculative token, and then inserts an index tuple
+ * into EVERY unique index on the table one at a time. `users` has two that matter here — the `identity_id`
+ * arbiter and `users_email_unique` — and the three provisioning paths (read-through, webhook, reconciliation)
+ * all write the SAME identity with the SAME email on a sign-up burst. That produces a genuine lock cycle:
+ *
+ *   - session A wins the email index tuple and then hits the `identity_id` conflict from session C, so it
+ *     enters the `DO UPDATE` arm and waits on C's TRANSACTION;
+ *   - session B, inserting the same email, waits on A's SPECULATIVE TOKEN for `users_email_unique`;
+ *   - C waits on B. Cycle → `40P01 deadlock detected … while inserting index tuple in relation
+ *     users_email_unique`.
+ *
+ * Reproduced against a real PostgreSQL 16 by widening the integration test's concurrency from 3 to 8: 2
+ * deadlocks in 40 iterations, with the identical `waits for ShareLock on speculative token` detail CI reported.
+ * It is NOT test-only — read-through provisioning runs on the authentication hot path (first request per user),
+ * so a real signup burst hits it and the caller gets a 500.
+ *
+ * ## Why an advisory lock, and not the alternatives
+ *
+ * A transaction-scoped advisory lock keyed on the identity is taken BEFORE the statement, so two sessions
+ * provisioning the same identity can never be inside speculative insertion at the same time — the cycle cannot
+ * form rather than being retried out of. It is the minimum that works:
+ *
+ *  - **Retrying on 40P01** treats a predictable, reproducible cycle as bad luck, and pays for it with latency
+ *    on the auth hot path plus a partially-rolled-back provision (CI also logged an `accounts_user_id_fkey`
+ *    violation from exactly that).
+ *  - **Dropping/loosening `users_email_unique`** removes the constraint that makes "one active user per email"
+ *    true, to fix a locking artefact.
+ *  - **Wrapping the whole routine in a transaction** is the `d59e11c` deadlock, from the opposite direction.
+ *
+ * The lock is held for ONE statement and released at commit. It does not span the aux inserts, so it cannot
+ * reintroduce `d59e11c`; and because it is acquired before any row lock, this transaction never waits on a row
+ * while holding one.
+ *
+ * `hashtext` maps the identity to the lock's second key. A hash COLLISION is harmless by construction: two
+ * unrelated identities would merely serialize against each other for one statement, which costs a little
+ * concurrency and can never produce a wrong result — so the function's stability across major versions is not
+ * a correctness dependency.
+ *
+ * @param deps - Injected db handle, tables, and id generator.
+ * @param input - The identity/email/name to provision.
+ * @param emailIsReal - `false` ⇒ never overwrite an existing email (a placeholder retry).
+ * @returns The upserted user row.
+ * @sideEffect Opens a short transaction, takes an advisory lock, and upserts the `users` row.
+ */
 async function upsertUser<TUser extends ProvisionedUser>(
     deps: ProvisionDeps,
     input: ProvisionInput,
@@ -176,50 +304,85 @@ async function upsertUser<TUser extends ProvisionedUser>(
     const { db, schema, newUserId } = deps;
     const now = new Date();
 
-    const [row] = await db
-        .insert(schema.users)
-        .values({
-            id: newUserId(),
-            identityId: input.identityId,
-            email: input.email,
-            name: input.name ?? null,
-            picture: input.picture ?? null,
-            createdAt: now,
-            updatedAt: now,
-        })
-        .onConflictDoUpdate({
-            target: schema.users.identityId,
-            // R10 (anti-resurrection): every mutated column is guarded by a `case` on the EXISTING row's
-            // status. For a `tombstoned`/`erased` row each column resolves to its own current value — a total
-            // no-op update — so a sign-in read-through OR the nightly reconciliation can never clear deletedAt,
-            // restore name/avatar, revive the email, or even bump updatedAt for a closed/erased account.
-            // For every other row the behaviour is unchanged: overwrite email only when real; COALESCE
-            // name/picture (a null incoming keeps the existing value); clear deletedAt (revive a re-registered
-            // soft-deleted identity); bump updatedAt.
-            set: {
-                ...(emailIsReal
-                    ? {
-                          email: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.email} else ${input.email} end`,
-                      }
-                    : {}),
-                name: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.name} else coalesce(${input.name ?? null}, ${schema.users.name}) end`,
-                picture: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.picture} else coalesce(${input.picture ?? null}, ${schema.users.picture}) end`,
-                deletedAt: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.deletedAt} else null end`,
-                updatedAt: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.updatedAt} else ${now} end`,
-            },
-        })
-        .returning();
+    return db.transaction(async (tx) => {
+        // Both keys are cast explicitly: bound parameters otherwise leave Postgres unable to choose between
+        // the `(bigint)` and `(int4, int4)` overloads of pg_advisory_xact_lock.
+        await tx.execute(
+            sql`select pg_advisory_xact_lock(${PROVISION_LOCK_NAMESPACE}::int4, hashtext(${input.identityId}::text))`,
+        );
 
-    return row as unknown as TUser;
+        const [row] = await tx
+            .insert(schema.users)
+            .values({
+                id: newUserId(),
+                identityId: input.identityId,
+                email: input.email,
+                name: input.name ?? null,
+                picture: input.picture ?? null,
+                createdAt: now,
+                updatedAt: now,
+            })
+            .onConflictDoUpdate({
+                target: schema.users.identityId,
+                // R10 (anti-resurrection): every mutated column is guarded by a `case` on the EXISTING row's
+                // status. For a `tombstoned`/`erased` row each column resolves to its own current value — a
+                // total no-op update — so a sign-in read-through OR the nightly reconciliation can never clear
+                // deletedAt, restore name/avatar, revive the email, or even bump updatedAt for a closed/erased
+                // account. For every other row the behaviour is unchanged: overwrite email only when real;
+                // COALESCE name/picture (a null incoming keeps the existing value); clear deletedAt (revive a
+                // re-registered soft-deleted identity); bump updatedAt.
+                set: {
+                    ...(emailIsReal
+                        ? {
+                              email: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.email} else ${input.email} end`,
+                          }
+                        : {}),
+                    name: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.name} else coalesce(${input.name ?? null}, ${schema.users.name}) end`,
+                    picture: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.picture} else coalesce(${input.picture ?? null}, ${schema.users.picture}) end`,
+                    deletedAt: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.deletedAt} else null end`,
+                    updatedAt: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.updatedAt} else ${now} end`,
+                },
+            })
+            .returning();
+
+        return row as unknown as TUser;
+    });
 }
 
-/** Idempotently ensure the account + profile rows. No-op once present (`onConflictDoNothing`). */
-async function ensureAccountAndProfile(deps: ProvisionDeps, userId: string, input: ProvisionInput): Promise<void> {
+/**
+ * Idempotently ensure the account + profile rows. No-op once present (`onConflictDoNothing`).
+ *
+ * The profile insert records a handle-sync DEBT on the injected database clock and returns the byline it created, so
+ * the caller can publish it (plan 2026-10-15-010 D6b). An insert that did nothing returns none.
+ *
+ * @returns The created byline, or `undefined` when the profile already existed.
+ */
+async function ensureAccountAndProfile(
+    deps: ProvisionDeps,
+    userId: string,
+    input: ProvisionInput,
+    owesCreatedByline: boolean,
+): Promise<CreatedByline | undefined> {
     const { db, schema } = deps;
 
     await db.insert(schema.accounts).values({ userId }).onConflictDoNothing();
-    await db
+    const [created] = await db
         .insert(schema.profiles)
-        .values({ userId, displayName: input.displayName ?? input.name ?? '', avatarUrl: input.avatarUrl ?? null })
-        .onConflictDoNothing();
+        .values({
+            userId,
+            displayName: input.displayName ?? input.name ?? '',
+            avatarUrl: input.avatarUrl ?? null,
+            username: input.username ?? null,
+            updatedAt: deps.newProfileClock,
+            handleSyncOwedAt: owesCreatedByline ? deps.newProfileClock : null,
+            handleSyncFailureCode: null,
+        })
+        .onConflictDoNothing()
+        .returning({
+            displayName: schema.profiles.displayName,
+            username: schema.profiles.username,
+            stampedAt: schema.profiles.updatedAt,
+        });
+
+    return created === undefined || !owesCreatedByline ? undefined : created;
 }

@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, erase my data (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                        width: 390px;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .crop {
+                        width: 390px;
+                        box-sizing: border-box;
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .stage {
+                        position: relative;
+                        width: 390px;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 16px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        transform: translateZ(0);
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        padding: 16px;
+                        box-sizing: border-box;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .card {
+                        position: relative;
+                        width: 100%;
+                        box-sizing: border-box;
+                        max-width: 480px;
+                        overflow: hidden;
+                        border-radius: var(--radius-lg);
+                        border: 1px solid var(--line-divider);
+                        background: var(--paper-overlay);
+                        padding: 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .card h2,
+                    .card h3,
+                    .card p {
+                        margin: 0;
+                    }
+                    .stack {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .cstack {
+                        display: flex;
+                        flex-direction: column-reverse;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+                    .gate {
+                        width: 390px;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        padding: 24px;
+                        text-align: center;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .screen {
+                        width: 390px;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                        padding: 8px 16px 24px;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }</style
+                ><style>
+                    /* redesign patch */
+                    .sr-only {
+                        font-size: 13px;
+                    }
+                    .cap {
+                        margin: 8px 16px;
+                        padding: 8px 12px;
+                        border: 1px dashed var(--line-control);
+                        border-radius: 12px;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .f-cap {
+                        font-size: 13px;
+                    }
+                    .counter {
+                        font-size: 13px;
+                    }
+                    .c-shell,
+                    .f-page {
+                        font-size: 17px;
+                    }
+                    h1[role='heading'],
+                    [style*='PlayfairDisplay'] {
+                        font-family: var(--font-display) !important;
+                        font-weight: 600;
+                        letter-spacing: -0.012em;
+                    }
+                    .r-1gkfh8e {
+                        font-size: 13px !important;
+                    }
+                    .r-1x35g6 {
+                        font-size: 17px !important;
+                        line-height: 24px !important;
+                    }
+                    /* No-photo cover: sky to sand gradient, a photo icon in a paper disc, and a caption (spec: Surfaces, Covers). */
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio'] {
+                        background: linear-gradient(170deg, var(--cover-sky) 0%, var(--cover-coral) 100%) !important;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: flex-start;
+                        padding-top: 14px;
+                        gap: 8px;
+                    }
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio'] > div {
+                        position: relative;
+                        width: 40px;
+                        height: 40px;
+                        flex: none;
+                        border-radius: 50%;
+                        background: var(--paper);
+                        font-size: 13px !important;
+                        line-height: 40px !important;
+                        color: transparent !important;
+                        overflow: hidden;
+                    }
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio'] > div::after {
+                        content: '';
+                        position: absolute;
+                        inset: 10px;
+                        background: var(--action-text);
+                        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5.5' width='17' height='13' rx='2.5'/%3E%3Ccircle cx='9' cy='10.5' r='1.6'/%3E%3Cpath d='m20.5 15.5-4.5-4.5-8.5 7.5'/%3E%3C/svg%3E")
+                            center / contain no-repeat;
+                        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5.5' width='17' height='13' rx='2.5'/%3E%3Ccircle cx='9' cy='10.5' r='1.6'/%3E%3Cpath d='m20.5 15.5-4.5-4.5-8.5 7.5'/%3E%3C/svg%3E")
+                            center / contain no-repeat;
+                    }
+                    [role='link'] > div > div[aria-hidden='true'][style*='aspect-ratio']::after {
+                        content: 'Waiting for its photo';
+                        font: 500 13px/1.3 var(--font-body);
+                        color: var(--ink-muted);
+                        text-align: center;
+                        padding: 0 8px;
+                    }
+                    /* Phone pills: one scrolling row beside Filters (owner decisions N4, N5). */
+                    .ks-pillflow {
+                        flex-wrap: nowrap !important;
+                        min-width: 0;
+                        max-width: 100%;
+                    }
+                    .ks-pills {
+                        display: block !important;
+                        flex: 1;
+                        min-width: 0;
+                        position: relative;
+                    }
+                    .ks-pills > div,
+                    .ks-pills [role='radiogroup'][aria-label='Browse recipes'] {
+                        display: flex !important;
+                    }
+                    .ks-pills [aria-hidden='true'][style*='opacity: 0'] {
+                        opacity: 1 !important;
+                        background: linear-gradient(to right, transparent, var(--canvas) 45%);
+                    }
+                    .ks-pills [role='radiogroup'],
+                    .ks-pills [role='radiogroup'] > div {
+                        width: 100%;
+                        max-width: 100%;
+                        min-width: 0;
+                    }
+                    .ks-pills [role='radiogroup'] > div > div:first-child {
+                        overflow: hidden;
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Erase my data: recipes listed, none chosen, phrase field empty. The field has no visible label;
+                        Confirmation phrase is its spoken name. Erase my data is dimmed until the phrase is typed.
+                    </p>
+                    <div class="stage" style="min-height: 844px">
+                        <div class="bg">
+                            <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Close account"
+                                    hint="Signs you out and deactivates your account. Support can restore it."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Erase my data"
+                                    hint="Permanently deletes your account and personal data."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Weeknight Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)"
+                                    >Weeknight Ramen</span
+                                >
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Miso Soup"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Miso Soup</span>
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Ramen</span>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            ></div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="true"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                        opacity: 0.5;
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">
+                        Two recipes chosen to keep public, and the phrase typed. Erase my data is now at full strength.
+                    </p>
+                    <div class="stage" style="min-height: 844px">
+                        <div class="bg">
+                            <x-import component-from-global-scope="Commise.Native.ProfileGroup" heading="Danger zone"
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Close account"
+                                    hint="Signs you out and deactivates your account. Support can restore it."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.ProfileRow"
+                                    label="Erase my data"
+                                    hint="Permanently deletes your account and personal data."
+                                    tone="danger"
+                                    chevron="{{yes}}"
+                                    on-press="{{noop}}"
+                                ></x-import
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                        <div class="card" role="dialog">
+                            <h2 class="text-section-title" style="color: var(--ink)">Erase my data</h2>
+                            <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 8px">
+                                <span aria-hidden="true" style="flex: none; color: var(--danger-text)"
+                                    ><x-import
+                                        component-from-global-scope="Commise.Native.Icon"
+                                        name="triangleAlert"
+                                        size="20"
+                                        tone="dangerText"
+                                    ></x-import
+                                ></span>
+                                <p style="flex: 1; font-size: 15px; line-height: 22px; color: var(--ink-muted)">
+                                    This permanently deletes your account and erases your personal data everywhere we
+                                    hold it — your sign-in, your profile and photo, and your private recipes, ratings
+                                    and collections. You will be signed out and will not be able to sign in again. It
+                                    cannot be undone.
+                                </p>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                This is not the same as closing your account: closing is recoverable, but erasing
+                                destroys your data for good and cannot be reversed.
+                            </p>
+                            <h3 style="margin-top: 4px; font-size: 16px; font-weight: 600; color: var(--ink)">
+                                Choose recipes to keep public
+                            </h3>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                Recipes you choose here become public and are permanently unremovable by you once your
+                                account is erased. Everything you don’t choose is deleted.
+                            </p>
+                            <div
+                                role="checkbox"
+                                aria-checked="true"
+                                aria-label="Weeknight Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☑</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)"
+                                    >Weeknight Ramen</span
+                                >
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="true"
+                                aria-label="Miso Soup"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☑</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Miso Soup</span>
+                            </div>
+                            <div
+                                role="checkbox"
+                                aria-checked="false"
+                                aria-label="Ramen"
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    gap: 8px;
+                                    padding: 4px 0;
+                                "
+                            >
+                                <span style="font-size: 18px; line-height: 22px; color: var(--ink)">☐</span
+                                ><span style="font-size: 14px; line-height: 20px; color: var(--ink)">Ramen</span>
+                            </div>
+                            <p style="font-size: 14px; line-height: 20px; color: var(--ink-muted)">
+                                To confirm, type ERASE MY DATA below.
+                            </p>
+                            <div
+                                role="textbox"
+                                aria-label="Confirmation phrase"
+                                style="
+                                    border: 1px solid var(--line-control);
+                                    border-radius: 8px;
+                                    padding: 8px 12px;
+                                    font-size: 15px;
+                                    color: var(--ink);
+                                    min-height: 21px;
+                                "
+                            >
+                                ERASE MY DATA
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: flex-end;
+                                    gap: 12px;
+                                    margin-top: 4px;
+                                "
+                            >
+                                <span
+                                    role="button"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 16px;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        color: var(--ink-muted);
+                                    "
+                                    >Cancel</span
+                                ><span
+                                    role="button"
+                                    aria-disabled="false"
+                                    style="
+                                        border-radius: 999px;
+                                        padding: 8px 20px;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        background: var(--danger);
+                                        color: var(--on-action);
+                                    "
+                                    >Erase my data</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2000}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){}; return { yes:true, no:false, noop:noop, back:{ label:'Back', parent:'Home', onPress:noop } }; } }
+        </script>
+    </body>
+</html>

@@ -1,36 +1,35 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { IdentityWriter } from '@kitchensink/identity-db';
 import { eq } from 'drizzle-orm';
 
-import { recordOnce, hasProcessedWebhookEvent, users } from '@kitchensink/identity-db';
-import type { UserRow, UserId } from '@kitchensink/identity-db';
-import { provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
-import { buildHandleSyncMessage } from '@kitchensink/identity-core';
+import { recordOnce, hasProcessedWebhookEvent, UserDAO, users } from '@kitchensink/identity-db';
+import type { UserRow } from '@kitchensink/identity-db';
+import { isNonRevivable, provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
 import {
     createSnsHandleSyncPublisher,
     noopHandleSyncPublisher,
+    publishOwedByline,
 } from '@kitchensink/identity-service/users/handle-sync-publisher';
 
-import { setExternalId } from '../common/identityClient.js';
+import { ensureDefaultRole, setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { getWebhookConfig } from '../config/env.js';
-import {
-    withDb,
-    withVerifiedWebhook,
-    type DbContext,
-    type VerifiedWebhookContext,
-} from '../common/handler-pipeline.js';
+import { withDb, withVerifiedWebhook, type DbContext, type VerifiedWebhookContext } from '../common/handlerPipeline.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
-import { traceAuth } from '../common/auth-trace.js';
+import { traceAuth } from '../common/authTrace.js';
+import type { IdentityUserData as ValidatedIdentityUserData } from '../common/idpPayload.schema.js';
 
-interface IdentityUserData {
-    id: string;
-    email_addresses: Array<{ id: string; email_address: string }>;
-    first_name: string;
-    last_name: string;
-    image_url: string;
-}
+/**
+ * The user payload of a `user.created` / `user.updated` event.
+ *
+ * DERIVED from the boundary schema, replacing a hand-written `interface` that declared `first_name`,
+ * `last_name` and `image_url` as plain required `string`s. That was not what Clerk sends — all three are
+ * routinely `null` — so the interface simultaneously OVER-claimed (the compiler believed the fields were
+ * always present strings, which is why `data.first_name ?? ''` looked redundant) and UNDER-described the real
+ * payload. Deriving it means the type says exactly what the validator accepts.
+ */
+type IdentityUserData = ValidatedIdentityUserData;
 
 const getPrimaryEmail = (data: IdentityUserData): string | undefined => data.email_addresses?.[0]?.email_address;
 
@@ -71,11 +70,7 @@ const enqueueDeletion = async (identityId: string): Promise<void> => {
 };
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
-const handleUserCreated = async (
-    data: IdentityUserData,
-    db: PostgresJsDatabase<Record<string, never>>,
-    requestId: string,
-): Promise<void> => {
+const handleUserCreated = async (data: IdentityUserData, db: IdentityWriter, requestId: string): Promise<void> => {
     const email = getPrimaryEmail(data);
 
     if (!email) {
@@ -100,8 +95,9 @@ const handleUserCreated = async (
                 displayName: buildDisplayName(data),
                 picture: data.image_url ?? undefined,
                 avatarUrl: data.image_url ?? null,
+                username: data.username ?? null,
             },
-            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true, emailIsReal: true },
         );
     } catch (err) {
         // Genuine provisioning failure (a DB/constraint error left the user incomplete): emit the
@@ -122,6 +118,28 @@ const handleUserCreated = async (
     }
 
     const { user } = result;
+    const userId = user.id;
+
+    // Plan 2026-10-15-010 D6b: the byline this delivery CREATED seeds the recipe database's read model. Present only
+    // when THIS insert made the profile — a read-through that got there first published its own. Best-effort, after
+    // the commit: the owed marker the insert wrote is the record of a lost publish.
+    if (result.createdByline !== undefined) {
+        const sync = await publishOwedByline(
+            handleSyncPublisher,
+            (owner, owedAt, code) => new UserDAO(db).settleHandleSync(owner, owedAt, code),
+            userId,
+            result.createdByline,
+        );
+
+        if (sync.outcome === 'owed') {
+            logger.error('identity-webhook: handle-sync publish failed (user.created still processed)', {
+                requestId,
+                userId: user.id,
+                error: sync.error,
+                settleError: sync.settleError,
+            });
+        }
+    }
 
     // Best-effort: backfill Clerk's external_id (the app user id) so the IdP→app link is bidirectional.
     // A failure here (Clerk API down, key rotated/again-missing, rate limit) must NOT abort provisioning
@@ -139,7 +157,13 @@ const handleUserCreated = async (
         traceAuth('webhook.set_external_id_failed', { identityId: data.id });
     }
 
-    emitMetric('UserCreatedWebhook', 1, { identityId: data.id });
+    // ⛔ NO `identityId` DIMENSION. In EMF every distinct dimension VALUE is a separately billed custom metric
+    // (~$0.30/mo, 15-month retention), so a per-user dimension costs one metric PER USER — ~$3,000/mo at 10k
+    // users — for a series holding one datapoint that aggregates to nothing. The id is on the log line below,
+    // where it is searchable AND pseudonymized by `@kitchensink/observability-scrubbers`; the EMF line goes straight to stdout
+    // and never passes a scrubber. Enforced repo-wide by
+    // `packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts`.
+    emitMetric('UserCreatedWebhook', 1);
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });
 };
 
@@ -157,6 +181,19 @@ const handleUserUpdated = async (
         return;
     }
 
+    // ⛔ R10: a closed or erased row is scrubbed, and no provider sync may write it back. Self-service erasure commits
+    // `erased` while the Clerk delete still waits on the queue, so this event can arrive after the scrub.
+    if (isNonRevivable(existing.status)) {
+        logger.info('identity-webhook: user.updated ignored for a closed or erased user', {
+            requestId,
+            identityId: data.id,
+            userId: existing.id,
+            status: existing.status,
+        });
+
+        return;
+    }
+
     const email = getPrimaryEmail(data);
     const displayName = buildDisplayName(data);
     const now = new Date();
@@ -166,47 +203,50 @@ const handleUserUpdated = async (
         await db.update(users).set({ email, updatedAt: now }).where(eq(users.id, existing.id));
     }
 
-    // Coherent users/profiles sync (S-I3): gate on `users.name`/`users.picture` as the Clerk MIRROR,
-    // moving the mirror on every genuine Clerk-side change. This fires the `profiles` write only when
-    // Clerk's incoming value actually differs from the mirror (so an A->B->A rename still round-trips,
-    // since the mirror always tracks Clerk's last-seen value) while leaving `profiles` untouched on a
-    // non-name event (avatar-only change, redelivery), which preserves any self-service `PATCH /me`
-    // override. One transaction, both tables. Returns whether displayName actually changed, so the
-    // handle-sync publish below fires on every genuine transition, including a revert back to a prior
-    // value.
-    const newPicture = data.image_url ?? null;
-    const { displayNameChanged } = await userDao.syncNameAndPicture(existing.id as UserId, {
+    // Coherent users/profiles sync (S-I3; plan 2026-10-15-010 D5): the name and picture are gated on the Clerk MIRROR
+    // (`users.name`/`users.picture`), so an unrelated Clerk event never reverts a self-service display name; the
+    // username is compared to the profile directly (Clerk is its only authority). One transaction, both tables. It
+    // returns the byline SNAPSHOT only when the display name or the username actually changed — including a revert to
+    // a prior value — carrying the PROFILE's display name and the stamp its own statement wrote.
+    const { byline } = await userDao.syncProviderFields(existing.id, {
         name: displayName,
-        picture: newPicture,
+        picture: data.image_url ?? null,
+        // `null` says the cook has no username; an ABSENT key says nothing, and must not clear it.
+        username: data.username,
         now,
     });
 
-    // Handle-sync (W8-a.2): the SECOND producer route. When the display NAME actually changed, publish to
-    // the global topic so the recipe service corrects its denormalized author/editor handles.
-    // sourceTimestamp is the SAME `now` written in the coherent sync above — the SAME single monotonic
-    // clock the PATCH route uses, so the consumer's guard orders webhook and PATCH renames coherently.
-    // Best-effort: a failed publish is logged, never fails the webhook (the reconciliation/backfill
-    // backstops a missed event).
-    if (displayNameChanged) {
-        try {
-            await handleSyncPublisher.publish(buildHandleSyncMessage(existing.id, displayName, now.toISOString()));
-        } catch (error) {
+    // Handle-sync (W8-a.2): a producer route. Publish the snapshot so the recipe service corrects its denormalized
+    // copies, then settle exactly the debt this write recorded. Best-effort: a failed publish is logged, never fails
+    // the webhook (the owed marker is the backstop's record of it).
+    if (byline !== undefined) {
+        const sync = await publishOwedByline(
+            handleSyncPublisher,
+            (owner, owedAt, code) => userDao.settleHandleSync(owner, owedAt, code),
+            existing.id,
+            byline,
+        );
+
+        if (sync.outcome === 'owed') {
             logger.error('identity-webhook: handle-sync publish failed (user.updated still processed)', {
                 requestId,
                 userId: existing.id,
-                error,
+                error: sync.error,
+                settleError: sync.settleError,
             });
         }
     }
 
-    emitMetric('UserUpdatedWebhook', 1, { identityId: data.id });
+    // Dimensionless on purpose — see the note on `UserCreatedWebhook` above; the id is on the log line.
+    emitMetric('UserUpdatedWebhook', 1);
     logger.info('identity-webhook: user.updated processed', { requestId, identityId: data.id, userId: existing.id });
 };
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 const handleUserDeleted = async (data: { id: string }, requestId: string): Promise<void> => {
     await enqueueDeletion(data.id);
-    emitMetric('UserDeletedWebhook', 1, { identityId: data.id });
+    // Dimensionless on purpose — see the note on `UserCreatedWebhook` above; the id is on the log line.
+    emitMetric('UserDeletedWebhook', 1);
     logger.info('identity-webhook: user.deleted enqueued', { requestId, identityId: data.id });
 };
 
@@ -227,7 +267,12 @@ const idpWebhookHandlerCore = async (
     const { db } = dbCtx;
     const svixId = event.headers?.['svix-id'] ?? '';
 
-    const identityId = (payload.data as { id?: string }).id ?? 'unknown';
+    // No `?? 'unknown'`. The id is REQUIRED and non-empty in `idpWebhookEventSchema`, so by the time this core
+    // runs it is guaranteed present — the fallback is not merely unnecessary, it was actively harmful: a
+    // payload with no id was logged and traced as though `'unknown'` were an identity, and `recordOnce` below
+    // persisted that string into `webhook_events.identity_id`. An id identifies the user whose row is about to
+    // be written or deleted; its absence makes the payload invalid, not defaultable.
+    const identityId = payload.data.id;
     traceAuth('webhook.received', { sub: identityId, type: payload.type, svixId });
 
     // Confirm-after-process dedup: the svix-id is recorded only AFTER its handler succeeds (below),
@@ -244,27 +289,34 @@ const idpWebhookHandlerCore = async (
     // on users.identity_id; idempotent soft-delete), so a retry overlapping an in-flight delivery is
     // safe. A permanently-failing payload retries until svix exhausts, surfacing the failure each
     // time rather than being silently dropped (the original A2 event-loss mode).
+    // The `as unknown as IdentityUserData` casts are GONE from all three arms. After
+    // `idpWebhookEventSchema.parse` the payload is a discriminated union, so each arm's `payload.data` is
+    // already the validated shape that arm's handler needs — narrowed by the compiler rather than asserted
+    // past it. The double cast was what silenced the compiler completely and let an unchecked shape reach
+    // `db.update(users)`, an outbound Clerk `setExternalId` call, and an SNS publish another service consumes.
+    //
+    // `user.deleted` needed its own separate cast for a real reason: Clerk sends only an id for a deletion, not
+    // a full user. That distinction is now expressed in the union instead of in a second cast.
     switch (payload.type) {
         case 'user.created': {
-            await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
+            await handleUserCreated(payload.data, db, requestId);
+            // ⛔ The `default` role is WRITTEN at sign-up (owner ruling 2026-10-13), for every created Clerk user,
+            // whatever happened to the local row above: the role belongs to the Clerk user. Last, and NOT
+            // best-effort: a failure propagates, the svix-id is not recorded, and svix retries the whole delivery —
+            // safe because everything before it is idempotent. `ensureDefaultRole` never overwrites a `roles` key.
+            const role = await ensureDefaultRole(payload.data.id);
+            logger.info('identity-webhook: default role checked', { requestId, identityId, role });
             break;
         }
 
         case 'user.updated': {
-            await handleUserUpdated(payload.data as unknown as IdentityUserData, dbCtx, requestId);
+            await handleUserUpdated(payload.data, dbCtx, requestId);
             break;
         }
 
         case 'user.deleted': {
-            await handleUserDeleted(payload.data as unknown as { id: string }, requestId);
+            await handleUserDeleted(payload.data, requestId);
             break;
-        }
-
-        default: {
-            logger.warn('identity-webhook: unhandled event type', {
-                requestId,
-                type: (payload as { type: string }).type,
-            });
         }
     }
 

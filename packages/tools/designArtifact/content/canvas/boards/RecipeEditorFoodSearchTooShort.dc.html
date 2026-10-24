@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, food search: too short (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    h1,
+                    h2,
+                    h3,
+                    p,
+                    ol,
+                    ul {
+                        margin: 0;
+                    }
+                    ol,
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    .ed-wrap {
+                        display: flex;
+                        flex-direction: column;
+                        margin: 0 auto;
+                        width: 100%;
+                        max-width: 1040px;
+                        flex: 1;
+                    }
+                    .ed-col {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 40px;
+                        width: 100%;
+                        max-width: 768px;
+                        min-width: 0;
+                        flex: 1;
+                        padding: 24px 16px 0;
+                    }
+                    .srv {
+                        flex: 0 0 100%;
+                    }
+                    .amt {
+                        width: 4.5rem;
+                        flex-shrink: 0;
+                    }
+                    .sub {
+                        padding-left: calc(4.5rem + 0.75rem);
+                    }
+                    .g2 {
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 16px;
+                    }
+                    .pf-cancel {
+                        display: none;
+                    }
+                    .pf-foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    @media (min-width: 600px) {
+                        .ed-col {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                        .ed-col {
+                            padding-left: 32px;
+                            padding-right: 32px;
+                        }
+                        .pf-cancel {
+                            display: block;
+                        }
+                        .pf-foot {
+                            flex-direction: row;
+                            justify-content: flex-end;
+                        }
+                    }
+                    @container main (min-width:600px) {
+                        .srv {
+                            flex: 1 1 0;
+                            min-width: fit-content;
+                        }
+                        .amt {
+                            width: 6rem;
+                        }
+                        .sub {
+                            padding-left: calc(6rem + 0.75rem);
+                        }
+                        .g2 {
+                            grid-template-columns: 1fr 1fr;
+                        }
+                    }
+                    @container main (min-width:960px) {
+                        .ed-wrap {
+                            flex-direction: row;
+                            gap: 32px;
+                            padding: 0 16px;
+                        }
+                    }
+                </style></helmet
+            >
+            <x-import component-from-global-scope="Commise.ScrollHost" sections="{{v90}}" activation-offset="{{v91}}"
+                ><div style="display: flex; min-height: 100vh; background: var(--canvas)">
+                    <div
+                        class="sb"
+                        style="
+                            width: 256px;
+                            flex-shrink: 0;
+                            flex-direction: column;
+                            overflow-y: auto;
+                            border-right: 1px solid var(--line-divider);
+                            background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        "
+                    >
+                        <div style="display: flex; height: 64px; flex-shrink: 0; align-items: center; padding: 0 24px">
+                            <span
+                                style="
+                                    font-family: var(--font-display);
+                                    font-size: 20px;
+                                    font-weight: 700;
+                                    line-height: 1.4;
+                                    color: var(--ink);
+                                "
+                                >Commise</span
+                            >
+                        </div>
+                        <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                            <a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="house"
+                                    size="{{v84}}"
+                                ></x-import
+                                ><span>Home</span></a
+                            ><a
+                                href="#"
+                                aria-current="page"
+                                style="
+                                    background: color-mix(in srgb, var(--action) 10%, transparent);
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink);
+                                "
+                                ><span
+                                    aria-hidden="true"
+                                    style="
+                                        position: absolute;
+                                        top: 8px;
+                                        bottom: 8px;
+                                        left: 0;
+                                        width: 3px;
+                                        border-radius: 0 9999px 9999px 0;
+                                        background: var(--here-bar);
+                                    "
+                                ></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="bookOpen"
+                                    size="{{v85}}"
+                                ></x-import
+                                ><span>Recipes</span></a
+                            ><a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="compass"
+                                    size="{{v86}}"
+                                ></x-import
+                                ><span>Discover</span></a
+                            ><a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="calendar"
+                                    size="{{v87}}"
+                                ></x-import
+                                ><span>Plan</span></a
+                            ><a
+                                href="#"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    gap: 12px;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    text-decoration: none;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="shoppingCart"
+                                    size="{{v88}}"
+                                ></x-import
+                                ><span>Shop</span></a
+                            >
+                        </nav>
+                        <div style="margin-top: auto">
+                            <button
+                                type="button"
+                                aria-expanded="true"
+                                style="
+                                    display: flex;
+                                    min-height: 44px;
+                                    width: calc(100% - 24px);
+                                    align-items: center;
+                                    gap: 12px;
+                                    margin: 0 12px 12px;
+                                    border: 0;
+                                    background: transparent;
+                                    border-radius: var(--radius-sm);
+                                    padding: 0 12px;
+                                    cursor: pointer;
+                                    font-family: inherit;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    line-height: 1.2;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="chevronsLeft"
+                                    size="{{v89}}"
+                                ></x-import
+                                ><span>Collapse</span>
+                            </button>
+                        </div>
+                    </div>
+                    <main
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            container-type: inline-size;
+                            container-name: main;
+                            --top-chrome: 3.5rem;
+                        "
+                    >
+                        <header
+                            style="
+                                position: sticky;
+                                top: 0;
+                                z-index: 30;
+                                display: flex;
+                                height: 56px;
+                                align-items: center;
+                                gap: 8px;
+                                border-bottom: 1px solid var(--line-divider);
+                                background: var(--paper);
+                                padding: 0 8px;
+                            "
+                        >
+                            <button
+                                type="button"
+                                aria-label="Close editor"
+                                style="
+                                    display: inline-flex;
+                                    width: 44px;
+                                    height: 44px;
+                                    flex-shrink: 0;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border: 0;
+                                    background: transparent;
+                                    border-radius: var(--radius-sm);
+                                    color: var(--ink);
+                                    cursor: pointer;
+                                "
+                            >
+                                <x-import component-from-global-scope="Commise.Icon" name="x" size="{{v1}}"></x-import>
+                            </button>
+                            <div style="display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 12px">
+                                <h1
+                                    style="
+                                        flex-shrink: 0;
+                                        font-size: 17px;
+                                        font-weight: 600;
+                                        line-height: 1.2;
+                                        color: var(--ink);
+                                        white-space: nowrap;
+                                    "
+                                >
+                                    New recipe
+                                </h1>
+                                <p
+                                    style="
+                                        min-width: 0;
+                                        font-size: 12px;
+                                        font-weight: 500;
+                                        line-height: 1.4;
+                                        color: var(--ink-muted);
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        white-space: nowrap;
+                                    "
+                                >
+                                    Saved
+                                </p>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.ActionMenu"
+                                trigger-label="More editor actions"
+                                title="New recipe"
+                                close-label="Keep editing"
+                                items="{{v2}}"
+                                destructive-item="{{v3}}"
+                            ></x-import>
+                        </header>
+                        <div class="ed-wrap">
+                            <x-import
+                                component-from-global-scope="Commise.SectionIndex"
+                                label="Recipe sections"
+                                sheet-title="Sections"
+                                sheet-close-label="Close sections"
+                                items="{{v4}}"
+                                current-id="ingredients"
+                                bar-name="Sections. Current: Ingredients."
+                                rail-footer="{{v5}}"
+                            ></x-import>
+                            <div class="ed-col" style="--x: 0">
+                                <section
+                                    aria-labelledby="ingredients"
+                                    style="display: flex; flex-direction: column; gap: 16px"
+                                >
+                                    <div
+                                        style="
+                                            display: flex;
+                                            min-height: 44px;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <h2
+                                            id="ingredients"
+                                            tabindex="-1"
+                                            style="
+                                                font-size: 18px;
+                                                font-weight: 600;
+                                                line-height: 1.25;
+                                                color: var(--ink);
+                                            "
+                                        >
+                                            Ingredients
+                                        </h2>
+                                        <x-import
+                                            component-from-global-scope="Commise.Button"
+                                            variant="ghost"
+                                            icon="clipboardPaste"
+                                            >Paste a list</x-import
+                                        >
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 16px">
+                                        <div style="display: flex; flex-direction: column; gap: 4px">
+                                            <ul aria-label="Ingredients" style="display: flex; flex-direction: column">
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 8 Chicken thighs"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >8</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Chicken thighs<span style="color: var(--ink-muted)">
+                                                                    · bone-in, skin-on</span
+                                                                ></span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Chicken thighs"
+                                                                title="Chicken thighs"
+                                                                close-label="Close actions for Chicken thighs"
+                                                                items="{{v36}}"
+                                                                destructive-item="{{v37}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 0.25 cup All-purpose flour"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >0.25 cup</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >All-purpose flour</span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for All-purpose flour"
+                                                                title="All-purpose flour"
+                                                                close-label="Close actions for All-purpose flour"
+                                                                items="{{v38}}"
+                                                                destructive-item="{{v39}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                                <li
+                                                    style="
+                                                        display: flex;
+                                                        flex-direction: column;
+                                                        border-bottom: 1px solid var(--line-divider);
+                                                    "
+                                                >
+                                                    <div style="display: flex; align-items: flex-start; gap: 8px">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Edit 2 tbsp Olive oil"
+                                                            style="
+                                                                display: flex;
+                                                                min-height: 48px;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                align-items: flex-start;
+                                                                gap: 12px;
+                                                                border: 0;
+                                                                background: transparent;
+                                                                border-radius: var(--radius-sm);
+                                                                padding: 12px 0;
+                                                                text-align: left;
+                                                                font-family: inherit;
+                                                                cursor: pointer;
+                                                            "
+                                                        >
+                                                            <span
+                                                                class="amt"
+                                                                style="
+                                                                    font-size: 16px;
+                                                                    font-weight: 600;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                    font-variant-numeric: tabular-nums;
+                                                                "
+                                                                >2 tbsp</span
+                                                            ><span
+                                                                style="
+                                                                    min-width: 0;
+                                                                    flex: 1;
+                                                                    font-size: 16px;
+                                                                    font-weight: 400;
+                                                                    line-height: 1.5;
+                                                                    color: var(--ink);
+                                                                    overflow-wrap: break-word;
+                                                                "
+                                                                >Olive oil</span
+                                                            ></button
+                                                        ><span style="flex-shrink: 0; padding-top: 2px"
+                                                            ><x-import
+                                                                component-from-global-scope="Commise.ActionMenu"
+                                                                trigger-label="Actions for Olive oil"
+                                                                title="Olive oil"
+                                                                close-label="Close actions for Olive oil"
+                                                                items="{{v40}}"
+                                                                destructive-item="{{v41}}"
+                                                            ></x-import
+                                                        ></span>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                            <div style="display: flex; flex-direction: column; gap: 4px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Combobox"
+                                                    id="ingredient-add"
+                                                    label="Add an ingredient"
+                                                    list-label="Food suggestions for ingredient 4"
+                                                    hint="Type the amount first, then pick the food. For example: 2 tbsp olive oil."
+                                                    value="2 tbsp ol"
+                                                    on-value-change="{{fsNoop}}"
+                                                    groups="{{fsGroups}}"
+                                                    status="{{fsStatus}}"
+                                                    trailing-status="{{fsTrailing}}"
+                                                    on-select="{{fsNoop}}"
+                                                    count-announcement=""
+                                                    leading-icon="{{v57}}"
+                                                    loading-icon="{{fsSearchIcon}}"
+                                                    below-field="{{fsBelow}}"
+                                                    focus-requested="{{fsYes}}"
+                                                    list-requested="{{fsYes}}"
+                                                    on-focus-request-handled="{{fsNoop}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <div style="display: flex">
+                                            <x-import
+                                                component-from-global-scope="Commise.Button"
+                                                variant="ghost"
+                                                icon="plus"
+                                                >Add a group</x-import
+                                            >
+                                        </div>
+                                        <div
+                                            style="
+                                                border-radius: var(--radius-md);
+                                                background: var(--surface-muted);
+                                                padding: 12px 16px;
+                                            "
+                                        >
+                                            <p
+                                                style="
+                                                    font-size: 14px;
+                                                    font-weight: 500;
+                                                    line-height: 1.4;
+                                                    color: var(--ink);
+                                                    font-variant-numeric: tabular-nums;
+                                                "
+                                            >
+                                                412 cal per serving · 3 of 3 counted
+                                            </p>
+                                        </div>
+                                    </div>
+                                </section>
+                                <div
+                                    role="group"
+                                    aria-label="Recipe actions"
+                                    style="
+                                        position: relative;
+                                        z-index: 20;
+                                        isolation: isolate;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 8px;
+                                        margin: 0 -16px;
+                                        padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+                                    "
+                                >
+                                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import>
+                                    <div
+                                        style="display: flex; align-items: center; justify-content: flex-end; gap: 12px"
+                                    >
+                                        <x-import
+                                            component-from-global-scope="Commise.Button"
+                                            variant="secondary"
+                                            icon="eye"
+                                            >Preview</x-import
+                                        ><x-import component-from-global-scope="Commise.Button" icon="check"
+                                            >Publish</x-import
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div></x-import
+            ></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3966}}'>
+                        class Component extends DCLogic { renderVals(){ const h=React.createElement, C=window.Commise, noop=()=>{}; return {
+            fsNoop:noop,fsYes:true,fsGroups:[],fsStatus:{"kind": "note", "text": "Keep typing — 3 characters or more. Anything shorter matches half the pantry."},fsTrailing:[],fsSearchIcon:h(C.Icon,{name:'search',size:16}),fsBelow:h('span',{style:{font:'500 12px/1.4 var(--font-body)',color:'var(--ink-muted)'}},"2 tbsp · ol"),
+                        v1:24,
+                        v2:[],
+                        v3:{id:'discard',label:'Discard draft',icon:'trash',onSelect:noop},
+                        v4:[{"id": "details", "label": "Details", "tone": "complete", "spokenStatus": "Complete"}, {"id": "ingredients", "label": "Ingredients", "tone": "complete", "spokenStatus": "Complete"}, {"id": "steps", "label": "Steps", "tone": "complete", "spokenStatus": "Complete"}, {"id": "photos", "label": "Photos & publish", "tone": "complete", "shortLabel": "Photos", "reason": "Ready to publish"}],
+                        v5:h('p',{style:{margin:0,fontSize:'14px',fontWeight:500,lineHeight:1.4,color:'var(--ink)',fontVariantNumeric:'tabular-nums'}},"412 cal per serving \u00b7 3 of 3 counted"),
+                        v6:1,
+                        v7:3,
+                        v8:noop,
+                        v9:4,
+                        v10:noop,
+                        v11:4,
+                        v12:1,
+                        v13:noop,
+                        v14:(n)=>'Serves '+n,
+                        v15:900,
+                        v16:noop,
+                        v17:1500,
+                        v18:noop,
+                        v19:noop,
+                        v20:[],
+                        v21:noop,
+                        v22:true,
+                        v23:noop,
+                        v24:true,
+                        v25:[{"value": "breakfast", "label": "Breakfast"}, {"value": "brunch", "label": "Brunch"}, {"value": "lunch", "label": "Lunch"}, {"value": "dinner", "label": "Dinner"}, {"value": "snack", "label": "Snack"}, {"value": "dessert", "label": "Dessert"}, {"value": "drink", "label": "Drink"}],
+                        v26:noop,
+                        v27:true,
+                        v28:[{"value": "easy", "label": "Easy"}, {"value": "medium", "label": "Medium"}, {"value": "hard", "label": "Hard"}],
+                        v29:noop,
+                        v30:noop,
+                        v31:noop,
+                        v32:noop,
+                        v33:noop,
+                        v34:noop,
+                        v35:noop,
+                        v36:[],
+                        v37:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v38:[],
+                        v39:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v40:[],
+                        v41:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v42:[],
+                        v43:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v44:[],
+                        v45:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v46:[],
+                        v47:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v48:[],
+                        v49:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v50:[],
+                        v51:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v52:[],
+                        v53:{id:'remove',label:'Remove ingredient',icon:'trash',onSelect:noop},
+                        v54:noop,
+                        v55:[],
+                        v56:noop,
+                        v57:h(C.Icon,{name:"plus",size:16}),
+                        v58:[{"id": "moveDown", "label": "Move down"}],
+                        v59:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+                        v60:2,
+                        v61:noop,
+                        v62:[{"id": "moveUp", "label": "Move up"}, {"id": "moveDown", "label": "Move down"}],
+                        v63:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+                        v64:2,
+                        v65:noop,
+                        v66:720,
+                        v67:noop,
+                        v68:[{"id": "moveUp", "label": "Move up"}, {"id": "moveDown", "label": "Move down"}],
+                        v69:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+                        v70:2,
+                        v71:noop,
+                        v72:180,
+                        v73:noop,
+                        v74:[{"id": "moveUp", "label": "Move up"}, {"id": "moveDown", "label": "Move down"}],
+                        v75:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+                        v76:2,
+                        v77:noop,
+                        v78:600,
+                        v79:noop,
+                        v80:[{"id": "moveUp", "label": "Move up"}],
+                        v81:{id:'remove',label:'Remove step',icon:'trash',onSelect:noop},
+                        v82:2,
+                        v83:noop,
+                        v84:24,
+                        v85:24,
+                        v86:24,
+                        v87:24,
+                        v88:24,
+                        v89:24,
+                        v90:["details", "ingredients", "steps", "photos"],
+                        v91:120
+                        }; } }
+        </script>
+    </body>
+</html>

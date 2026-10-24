@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: add one ingredient line "as written" from the add field, then wait for it to land. Called with
+# `runFlow: { file: addDeclaredLine.yaml, env: { NAME: '…' } }` from a flow standing in the one-page editor.
+#
+# It needs NO food service (`create.yaml`'s prelude). It scrolls to the field first, because a flow that has added a
+# line stands wherever the last pick left the page. It ENDS on the line committed, with the field still focused, so a
+# caller can assert where the page is left without any scroll of its own.
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: ${NAME}
+- runFlow:
+      file: pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*${NAME}.* as written.*'
+# The field empties only after the line is committed, so this disappearing IS the declaration landing.
+- extendedWaitUntil:
+      notVisible: 'Use .*${NAME}.* as written.*'
+      timeout: 30000
+# Audit 2026-10-19, A1.9: the field emptying alone does not prove the line was added. The committed row is named
+# 'Edit ${NAME}'. No scroll here: the field stays focused and a caller asserts where the page is left.
+- extendedWaitUntil:
+      visible: 'Edit ${NAME}'
+      timeout: 20000

@@ -1,36 +1,50 @@
 /**
- * Component tests for CollectionDetailContainer (T072 web collection-detail wiring). Covers every state the
- * container renders — loading, ready (delegates to the shared CollectionDetail), generic error (with retry),
- * and a distinct not-found affordance — plus the wired member/collection mutations (remove member, delete
- * collection → navigate to list) and navigation (rename, select recipe). The real `isNotFoundError` guard
- * classifies the error.
+ * Component tests for CollectionDetailContainer (T072 web collection-detail wiring; slice 5 of the UI overhaul,
+ * `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3). Covers every state the container renders — loading, ready, generic
+ * error (with retry), a distinct not-found — and the wired flows: a removal that hides the row and commits when its Undo
+ * snackbar times out; a visibility change at once, with Undo, and the Premium sheet; rename in the sheet; delete in its
+ * dialog; Save a copy; and the add-recipes picker, whose toggles save at once and whose Done says what changed.
  *
- * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
- * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks over
- * a real, network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with
- * type-checked `vi.spyOn(client, '<method>')`. The B17 "mutation failed" banners are now driven end-to-end
- * (click the control → the client rejects → the real mutation's `error` flips) rather than forcing a
- * hand-built mutation-result shape straight into the render — a more faithful reproduction of B17, not a
- * loosened one. The Next router stays mocked — routing is not part of the recipe-service hooks seam this
- * migration targets.
+ * The container mounts through the REAL query/mutation hooks over a real, network-guarded `RecipeServiceClient`
+ * (`createFakeRecipeServiceClient`), stubbed per test with type-checked `vi.spyOn(client, '<method>')`. The Next router
+ * stays mocked — routing is not part of the recipe-service hooks seam. The app's one `SnackbarHost` is mounted around it,
+ * as the shell does.
+ *
+ * ⚠️ REWRITTEN for slice 5. The container used to compose a sidebar of actions (a Save-changes visibility toggle, Pull,
+ * Clone), a bespoke "Remove" button per row and a rename PAGE; a ⋯ menu, an Undo snackbar and a sheet replace them. The
+ * loading, error, not-found, server-render, background-refresh and remount-scrub cases are kept; the pull machine is
+ * covered by `useCollectionPull.test.tsx` and its guard test.
+ *
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5, §6): the loading and settled states each sit in
+ * the `PushedPageFrame`, so below 840 Back is in the bar and from 840 it is the header's eyebrow. jsdom applies no
+ * stylesheet, so both copies are in its tree and the breakpoint is asserted through the classes that carry it; a browser
+ * shows exactly one at each width (`tests/e2e/collections.spec.ts`). The error and not-found states have no header, so they
+ * keep the notice's own Back and draw no bar.
  */
-import { screen } from '@testing-library/react';
+import { LocaleProvider } from '@commise/i18n/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SnackbarHost } from '@commise/ui/snackbar';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NotFoundError, PullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
+import { expectOneBackInBarAndOneInHeader } from '@commise/test-utils';
+import { NotFoundError } from '@kitchensink/recipe-service-client';
+import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { CollectionDetailContainer } from '@/components/recipes/CollectionDetailContainer';
 
-import { makeCollection, makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
+import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
+import { renderWithSnackbar } from './__fixtures__/renderCollectionDetail';
+import { makeRecipe } from './__fixtures__/recipeFixtures';
 
-const { pushMock, useAuthMock, useUserProfileMock } = vi.hoisted(() => ({
+const { pushMock, useAuthMock, useUserProfileMock, useRecipeViewSettingMock } = vi.hoisted(() => ({
     pushMock: vi.fn(),
     useAuthMock: vi.fn(),
     useUserProfileMock: vi.fn(),
+    useRecipeViewSettingMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -45,19 +59,26 @@ vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: useUserProfileMock,
 }));
 
-/** Build a profile-query stub carrying only the subscription tier the visibility gate reads. */
-function profileWithTier(subscriptionTier: 'free' | 'premium') {
-    return { data: { account: { subscriptionTier } } };
+// The grid/list choice is an account setting (ADR-0059). The shared hook has its own tests over a real cache; here the
+// container is shown what each state of it draws.
+vi.mock('@/hooks/useRecipeViewSetting', () => ({
+    useRecipeViewSetting: useRecipeViewSettingMock,
+}));
+
+/** Build a settled profile-query stub carrying only the paid-feature state the visibility gate reads. */
+function profileWith(paidFeatures: 'granted' | 'upsell' | 'hidden') {
+    return { status: 'success', data: { account: { paidFeatures } } };
 }
 
 beforeEach(() => {
-    // Signed-in viewer with a premium tier by default (so the premium gate is OPEN unless a test overrides it);
-    // the visibility-gate tests set the tier they need. The viewer id is irrelevant to the collection gates.
+    // Signed-in viewer whose paid features are granted by default (Private works unless a test overrides it).
     useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_1' } });
-    useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+    useUserProfileMock.mockReturnValue(profileWith('granted'));
+    useRecipeViewSettingMock.mockReturnValue({ viewChoice: undefined, chooseView: vi.fn(), saveFailed: false });
 });
 
 afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.clearAllMocks();
 });
@@ -70,98 +91,252 @@ function clientSeededWith(collection: ReturnType<typeof makeCollectionWithRecipe
     return client;
 }
 
-/** A cloned collection with its source-provenance fields populated (drives clone-info + pull affordances). */
+/** A copy of another collection, with its source-provenance fields populated (drives the copy line and Pull updates). */
 function makeClonedCollection(overrides: Partial<ReturnType<typeof makeCollectionWithRecipes>> = {}) {
     return makeCollectionWithRecipes({
         id: 'col_9',
         sourceCollectionId: 'col_src',
         sourceCollectionName: 'Origin dinners',
-        sourceOwnerHandle: 'sourcechef',
+        // The wire carries both halves of the source owner's byline (plan 2026-10-15-010 D7).
+        sourceOwnerUsername: 'sourcechef',
+        sourceOwnerDisplayName: 'Source Chef',
         ...overrides,
     });
 }
 
-/** A pull diff with one addable recipe. */
-const ADDABLE_DIFF: PullDiff = { added: ['rec_new'], removed: [], unchanged: ['rec_1'] };
+/**
+ * Whether a Radix dialog is OPEN at this instant. Radix keeps a closing dialog mounted for its exit (`Presence`) and flips
+ * `data-state` at once, so "still in the document" would read a dialog that has already been told to close as open.
+ */
+const isOpen = (dialog: HTMLElement | null): boolean => dialog?.getAttribute('data-state') === 'open';
 
-describe('CollectionDetailContainer', () => {
-    it('renders the loading state while the query is pending', () => {
+const openMenu = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    await user.click(await screen.findByRole('button', { name: `More actions for ${name}` }));
+
+    return within(await screen.findByRole('menu'));
+};
+
+describe('CollectionDetailContainer — states', () => {
+    it('renders the loading state while the query is pending, with its label as the visible content', () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
 
-        expect(screen.getByRole('status', { name: 'Loading collection' })).toBeInTheDocument();
+        const status = screen.getByRole('status', { name: 'Loading collection…' });
+        expect(status).toBeInTheDocument();
+        // A status rendered EMPTY is zero-height and silent: the localized label must be the visible caption.
+        expect(status).toHaveTextContent('Loading collection…');
     });
 
-    it('announces the loading label as the live region CONTENT, not only its aria-label', () => {
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
-
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
-
-        // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted viewer,
-        // and Playwright resolves it as `hidden`) AND silent, because a live region announces its CONTENT, not
-        // its label. The localized label must be the visible caption.
-        expect(screen.getByRole('status', { name: 'Loading collection' })).toHaveTextContent('Loading collection');
-    });
-
-    it('renders the collection with its member recipes when it loads', async () => {
+    it('renders the collection with its member recipes, as links, when it loads', async () => {
         const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
 
         expect(await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toHaveAttribute('href', '/en/recipes/rec_1');
+        expect(screen.getByRole('link', { name: 'Sunday Roast' })).toBeInTheDocument();
+        // The meta line and the list's own count both say it.
+        expect(screen.getAllByText('2 recipes')).toHaveLength(2);
     });
 
-    it('removes a member recipe through the mutation', async () => {
-        const user = userEvent.setup();
-        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-        const removeSpy = vi.spyOn(client, 'removeRecipeFromCollection').mockResolvedValue(undefined);
+    describe('the list/grid choice is an account setting', () => {
+        it('CHOSEN: shows the view the account holds', async () => {
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: false });
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+            expect(await screen.findByRole('radio', { name: 'Grid view' })).toBeChecked();
+        });
 
-        await user.click(await screen.findByRole('button', { name: 'Remove Weeknight Pasta' }));
+        it('hands a choice to the setting, and never to a cookie', async () => {
+            const chooseView = vi.fn();
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView, saveFailed: false });
+            const user = userEvent.setup();
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
 
-        expect(removeSpy).toHaveBeenCalledWith('col_9', 'rec_1');
+            await user.click(await screen.findByRole('radio', { name: 'List view' }));
+
+            expect(chooseView).toHaveBeenCalledWith('list');
+            expect(document.cookie).not.toContain('recipes.viewMode');
+        });
+
+        it('FAILED: says the choice was not saved, in an alert', async () => {
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: true });
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+
+            expect(await screen.findByText('We couldn’t save your view. Try choosing it again.')).toBeInTheDocument();
+            expect(screen.getByRole('alert')).toHaveTextContent('We couldn’t save your view.');
+        });
+
+        it('FAILED: puts the notice after the header, as native does, so the heading comes first in reading order', async () => {
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: true });
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+            const heading = await screen.findByRole('heading', { level: 1 });
+            const notice = screen.getByText('We couldn’t save your view. Try choosing it again.');
+
+            expect(heading.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
+        it('SAVED: shows no alert', async () => {
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+
+            await screen.findByRole('heading', { level: 1 });
+            expect(screen.queryByText('We couldn’t save your view. Try choosing it again.')).not.toBeInTheDocument();
+        });
     });
 
-    it('deletes the collection and navigates back to the list', async () => {
-        const user = userEvent.setup();
-        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-        const deleteSpy = vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
-
-        renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-        await user.click(await screen.findByRole('button', { name: 'Delete' }));
-
-        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections'));
-        // A wrong-id delete must fail here (the assertion the T3 migration dropped).
-        expect(deleteSpy).toHaveBeenCalledWith('col_9');
-    });
-
-    it('navigates to the rename form when rename is activated', async () => {
-        const user = userEvent.setup();
-        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-
-        renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-        await user.click(await screen.findByRole('button', { name: 'Rename' }));
-
-        expect(pushMock).toHaveBeenCalledWith('/en/collections/col_9/rename');
-    });
-
-    it('navigates to a recipe when a member row is selected', async () => {
+    it('navigates to a recipe when a member card is selected', async () => {
         const user = userEvent.setup();
         const client = clientSeededWith(makeCollectionWithRecipes());
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
-
-        await user.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        await user.click(await screen.findByRole('link', { name: 'Weeknight Pasta' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+    });
+
+    it('goes back to the collections list', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        await screen.findByRole('heading', { level: 1 });
+        await user.click(expectOneBackInBarAndOneInHeader('Back to Collections').bar);
+
+        expect(pushMock).toHaveBeenCalledWith('/en/collections');
+    });
+
+    describe('the pinned back bar', () => {
+        it('settled: one Back in the bar (gone from 840) and the header’s eyebrow (hidden below it)', async () => {
+            const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+
+            expectOneBackInBarAndOneInHeader('Back to Collections');
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+        });
+
+        it('settled: the bar is titled with the collection, and the ⋯ menu stays in the header, not the bar', async () => {
+            const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+
+            expect(bar.querySelector('p')?.textContent).toBe('Weeknight dinners');
+            expect(within(bar).queryByRole('button', { name: /More actions/ })).toBeNull();
+            expect(screen.getByRole('button', { name: 'More actions for Weeknight dinners' })).toBeInTheDocument();
+        });
+
+        it('settled: the bar watches the page’s own H1, so its title can show when the H1 passes under it', async () => {
+            const watched: Element[] = [];
+            vi.stubGlobal(
+                'IntersectionObserver',
+                class {
+                    observe(target: Element): void {
+                        watched.push(target);
+                    }
+
+                    disconnect(): void {}
+                },
+            );
+            const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            const heading = await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+
+            expect(watched).toContain(heading);
+            vi.unstubAllGlobals();
+        });
+
+        it('loading: Back is in the bar and the bar is not titled, since the name is not known yet', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+
+            expect(within(bar).getByRole('link', { name: 'Back to Collections', hidden: true })).toBeInTheDocument();
+            expect(bar.querySelector('p')).toBeNull();
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+        });
+
+        // From 840 the bar is `display: none` and the state has no header, so without the eyebrow it would have no Back at all.
+        // Below 840 the eyebrow is `display: none`, so the bar's Back stays the only one.
+        it('⛔ loading: draws the header’s eyebrow Back too, for the widths where the bar is gone', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+
+            expectOneBackInBarAndOneInHeader('Back to Collections');
+        });
+
+        it('loading: Back goes to the list', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            await user.click(expectOneBackInBarAndOneInHeader('Back to Collections').bar);
+
+            expect(pushMock).toHaveBeenCalledWith('/en/collections');
+        });
+
+        // REWRITES "error: no bar, and the notice keeps its one Back" and its not-found twin. The failed read now sits in
+        // the same frame as native's: the bar owns Back in every state, so a generic failure keeps Try again only, and a
+        // missing collection keeps Back as its one action (`isNotFoundError`, decided by the container). The notice's
+        // Back is the only allowed second element with that name.
+        it('error: the bar and the eyebrow carry Back, and the notice keeps Try again only', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockRejectedValue(new Error('network down'));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            const alert = await screen.findByRole('alert');
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+            // Exactly two in the tree: the bar's (gone from 840) and the eyebrow (gone below it), so one is visible at any width.
+            expectOneBackInBarAndOneInHeader('Back to Collections');
+            expect(within(bar).getByRole('link', { name: 'Back to Collections', hidden: true })).toBeInTheDocument();
+            expect(within(alert).queryByRole('link', { hidden: true })).toBeNull();
+            expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+        });
+
+        it('not found: the bar’s Back AND the notice’s one action, the only allowed pair at any width', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockRejectedValue(new NotFoundError());
+
+            renderWithSnackbar(<CollectionDetailContainer id="missing" locale="en" />, client);
+            await screen.findByText(/couldn.t find that collection/i);
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+            const backs = screen.getAllByRole('link', { name: 'Back to Collections', hidden: true });
+
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+            // Three in the tree, two visible at any width: the eyebrow is `hidden nav:inline-flex` and the bar is `nav:hidden`.
+            expect(backs).toHaveLength(3);
+            expect(bar.contains(backs[0] as HTMLElement)).toBe(true);
+            expect(bar.contains(backs[2] as HTMLElement)).toBe(false);
+            expect(backs[1]?.className).toContain('nav:inline-flex');
+            expect(backs[2]?.className).not.toMatch(/(^|\s)(hidden|nav:hidden)(\s|$)/u);
+        });
     });
 
     it('renders a generic error with retry when the load fails', async () => {
@@ -169,7 +344,7 @@ describe('CollectionDetailContainer', () => {
         const client = createFakeRecipeServiceClient();
         const getCollectionSpy = vi.spyOn(client, 'getCollectionById').mockRejectedValue(new Error('network down'));
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
 
         expect(await screen.findByRole('alert')).toBeInTheDocument();
         expect(screen.getByText(/couldn.t load this collection/i)).toBeInTheDocument();
@@ -180,242 +355,619 @@ describe('CollectionDetailContainer', () => {
         await vi.waitFor(() => expect(getCollectionSpy).toHaveBeenCalledTimes(2));
     });
 
-    it('renders a distinct not-found message with no retry for a 404', async () => {
+    it('renders a distinct not-found with no retry for a 404, and a way back to Collections', async () => {
+        const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getCollectionById').mockRejectedValue(new NotFoundError());
 
-        renderWithRecipeClient(<CollectionDetailContainer id="missing" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="missing" locale="en" />, client);
 
         expect(await screen.findByText(/couldn.t find that collection/i)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+
+        // The bar's Back comes first, in the frame; the notice's own action is the last of the two.
+        await user.click(screen.getAllByRole('link', { name: 'Back to Collections' }).at(-1) as HTMLElement);
+
+        expect(pushMock).toHaveBeenCalledWith('/en/collections');
     });
 
-    describe('settled but absent (B21 — the state you cannot get out of)', () => {
-        // `useCollection` disables itself for an empty id, which is exactly the settled-with-nothing shape:
-        // `isLoading` false (a disabled query is pending but not FETCHING), `isError` false, `data` undefined.
-        // This container used to route that back into its LOADING affordance — a permanent spinner with no
-        // retry — while the mobile `CollectionDetailScreen` routed the same shape into ERROR. Web converges.
-        it('reports a failure instead of spinning forever', () => {
-            const client = createFakeRecipeServiceClient();
-            const getCollectionSpy = vi.spyOn(client, 'getCollectionById');
+    it('reports a failure instead of spinning forever for an id that cannot be read (B21)', () => {
+        const client = createFakeRecipeServiceClient();
+        const getCollectionSpy = vi.spyOn(client, 'getCollectionById');
 
-            renderWithRecipeClient(<CollectionDetailContainer id="" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="" locale="en" />, client);
 
-            expect(getCollectionSpy).not.toHaveBeenCalled();
-            expect(screen.getByRole('alert')).toBeInTheDocument();
-            expect(screen.getByText(/couldn.t load this collection/i)).toBeInTheDocument();
-            expect(screen.queryByRole('status', { name: 'Loading collection' })).not.toBeInTheDocument();
-        });
-
-        it('offers a way OUT — a retry control, exactly as the generic error state does', () => {
-            const client = createFakeRecipeServiceClient();
-
-            renderWithRecipeClient(<CollectionDetailContainer id="" locale="en" />, client);
-
-            expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
-        });
-
-        it('does not misreport it as a 404 — there is no evidence the collection is missing', () => {
-            const client = createFakeRecipeServiceClient();
-
-            renderWithRecipeClient(<CollectionDetailContainer id="" locale="en" />, client);
-
-            expect(screen.queryByText(/couldn.t find that collection/i)).not.toBeInTheDocument();
-        });
+        expect(getCollectionSpy).not.toHaveBeenCalled();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+        expect(screen.queryByText(/couldn.t find that collection/i)).not.toBeInTheDocument();
     });
 
-    describe('mutation failure (B17: no frozen no-op)', () => {
-        it('surfaces the delete-failed banner when the delete mutation errored', async () => {
+    it('⛔ issues NO request during the server render', () => {
+        const client = clientSeededWith(makeCollectionWithRecipes());
+
+        const html = renderToString(
+            <LocaleProvider locale="en">
+                <QueryClientProvider client={new QueryClient()}>
+                    <RecipeServiceProvider client={client}>
+                        <SnackbarHost>
+                            <CollectionDetailContainer id="col_1" locale="en" />
+                        </SnackbarHost>
+                    </RecipeServiceProvider>
+                </QueryClientProvider>
+            </LocaleProvider>,
+        );
+
+        expect(html).toContain('Loading collection…');
+        expect(client.getCollectionById).not.toHaveBeenCalled();
+    });
+
+    it('⛔ keeps a loaded collection when a background refetch fails, says so, and a Try again that works clears it', async () => {
+        const user = userEvent.setup();
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_1', name: 'Weeknight dinners' }));
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client, { queryClient });
+        await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+
+        vi.mocked(client.getCollectionById).mockRejectedValueOnce(new Error('network down'));
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeServiceKeys.collection('col_1') });
+        });
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeInTheDocument();
+        expect(screen.queryByRole('alert', { name: /load/i })).not.toBeInTheDocument();
+        expect(screen.getAllByText('We couldn’t refresh this collection.')).not.toHaveLength(0);
+
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+        await waitFor(() => expect(screen.queryAllByText('We couldn’t refresh this collection.')).toHaveLength(0));
+    });
+
+    it('scrubs the previous collection’s sheets when the route moves to another collection', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockImplementation(async (collectionId) =>
+            makeCollectionWithRecipes({
+                id: collectionId,
+                name: collectionId === 'col_a' ? 'Collection A' : 'Collection B',
+            }),
+        );
+
+        const { rerender } = renderWithSnackbar(<CollectionDetailContainer id="col_a" locale="en" />, client);
+        const menu = await openMenu(user, 'Collection A');
+        await user.click(menu.getByRole('menuitem', { name: 'Delete collection' }));
+        expect(await screen.findByRole('alertdialog', { name: 'Delete Collection A?' })).toBeInTheDocument();
+
+        rerender(
+            <SnackbarHost>
+                <CollectionDetailContainer id="col_b" locale="en" />
+            </SnackbarHost>,
+        );
+
+        expect(await screen.findByRole('heading', { level: 1, name: 'Collection B' })).toBeInTheDocument();
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+});
+
+describe('CollectionDetailContainer — removing a member, with Undo', () => {
+    async function removePasta(user: ReturnType<typeof userEvent.setup>) {
+        await user.click(await screen.findByRole('button', { name: 'More actions for Weeknight Pasta' }));
+        await user.click(
+            within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Remove from collection' }),
+        );
+    }
+
+    it('hides the row at once and says so, sending nothing yet', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        const removeSpy = vi.spyOn(client, 'removeRecipeFromCollection').mockResolvedValue(undefined);
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await removePasta(user);
+
+        await waitFor(() => expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).not.toBeInTheDocument());
+        expect(screen.getByText('Removed Weeknight Pasta from Dinners.')).toBeInTheDocument();
+        expect(screen.getAllByText('1 recipe')).toHaveLength(2);
+        expect(removeSpy).not.toHaveBeenCalled();
+    });
+
+    it('brings the row back on Undo, and never sends the removal', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
+        const removeSpy = vi.spyOn(client, 'removeRecipeFromCollection').mockResolvedValue(undefined);
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await removePasta(user);
+        await user.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(await screen.findByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(removeSpy).not.toHaveBeenCalled();
+    });
+
+    it('sends the removal when the snackbar times out', async () => {
+        const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
+        const removeSpy = vi.spyOn(client, 'removeRecipeFromCollection').mockResolvedValue(undefined);
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await removePasta(user);
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(6000);
+        });
+
+        expect(removeSpy).toHaveBeenCalledExactlyOnceWith('col_9', 'rec_1');
+    });
+});
+
+describe('CollectionDetailContainer — visibility, with Undo and the Premium sheet', () => {
+    it('makes a public collection private at once, says so, and Undo changes it back', async () => {
+        const user = userEvent.setup();
+        let server = 'public';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockImplementation(async () =>
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: server as 'public' | 'private' }),
+        );
+        const update = vi.spyOn(client, 'updateCollection').mockImplementation(async (_id, request) => {
+            server = request.visibility ?? server;
+
+            return makeCollectionWithRecipes();
+        });
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make private' }));
+
+        expect(await screen.findByText('Collection is now private.')).toBeInTheDocument();
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'private' }));
+        expect(screen.getByText('Private')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Undo' }));
+
+        await waitFor(() => expect(update).toHaveBeenLastCalledWith('col_9', { visibility: 'public' }));
+        expect(await screen.findByText('Public')).toBeInTheDocument();
+    });
+
+    it('under upsell, opens the Premium sheet for making a collection private, and sends nothing', async () => {
+        const user = userEvent.setup();
+        useUserProfileMock.mockReturnValue(profileWith('upsell'));
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'public' }),
+        );
+        const update = vi.spyOn(client, 'updateCollection');
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make private' }));
+
+        const sheet = await screen.findByRole('dialog', { name: 'Private collections are part of Premium.' });
+        expect(within(sheet).getByRole('button', { name: 'See Premium' })).toBeInTheDocument();
+        expect(update).not.toHaveBeenCalled();
+
+        await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    // Plan 2026-10-14-009 D14 (owner ruling 2026-10-13): no paid feature and no upsell under hidden, a failed read, or
+    // while the profile loads — the ⋯ menu has no visibility item for a public collection.
+    it.each([
+        ['hidden', profileWith('hidden')],
+        ['a failed profile read', { status: 'error', data: undefined }],
+        ['a profile still loading', { status: 'pending', data: undefined }],
+    ] as const)('⛔ under %s, a public collection’s menu offers no Make private', async (_label, stub) => {
+        const user = userEvent.setup();
+        useUserProfileMock.mockReturnValue(stub);
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'public' }),
+        );
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        const menu = await openMenu(user, 'Dinners');
+
+        expect(menu.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
+    });
+
+    // Plan 2026-10-14-009 T1: a downgraded owner cannot take Public back, so Make public asks first.
+    it.each([
+        ['hidden', profileWith('hidden'), "You won't be able to make this one private again."],
+        ['upsell', profileWith('upsell'), "To make this one private again, you'll need Premium."],
+        [
+            'a profile still loading',
+            { status: 'pending', data: undefined },
+            'You may not be able to make this one private again.',
+        ],
+    ] as const)(
+        'under %s, Make public on a private collection asks first, and Keep private sends nothing',
+        async (_label, stub, cost) => {
             const user = userEvent.setup();
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-            vi.spyOn(client, 'deleteCollection').mockRejectedValue(new Error('network down'));
+            useUserProfileMock.mockReturnValue(stub);
+            const client = clientSeededWith(
+                makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
+            );
+            const update = vi.spyOn(client, 'updateCollection');
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+            renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+            await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
 
-            await user.click(await screen.findByRole('button', { name: 'Delete' }));
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this collection public?' });
+            expect(
+                within(dialog).getByText(`Anyone can see a public collection and save a copy. ${cost}`),
+            ).toBeInTheDocument();
+            expect(update).not.toHaveBeenCalled();
 
-            await vi.waitFor(() =>
-                expect(screen.getByRole('alert').textContent).toBe(
-                    'We couldn’t delete this collection. Please try again.',
-                ),
+            await user.click(within(dialog).getByRole('button', { name: 'Keep private' }));
+
+            await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+            expect(update).not.toHaveBeenCalled();
+            expect(screen.getByText('Private')).toBeInTheDocument();
+        },
+    );
+
+    it('under hidden, confirming Make public sends the change, with no Undo back to private', async () => {
+        const user = userEvent.setup();
+        useUserProfileMock.mockReturnValue(profileWith('hidden'));
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
+        );
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
+        await user.click(
+            within(await screen.findByRole('alertdialog', { name: 'Make this collection public?' })).getByRole(
+                'button',
+                { name: 'Make public' },
+            ),
+        );
+
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'public' }));
+        expect(await screen.findByText('Collection is now public.')).toBeInTheDocument();
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it('under granted, Make public on a private collection is one tap, with no confirm', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', visibility: 'private' }),
+        );
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make public' }));
+
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'public' }));
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+});
+
+describe('CollectionDetailContainer — rename, delete and Save a copy', () => {
+    it('renames in the sheet, which opens filled in, and closes when it is saved', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', description: 'Quick' }),
+        );
+        const update = vi.spyOn(client, 'updateCollection').mockResolvedValue(makeCollectionWithRecipes());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Rename' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Rename collection' });
+        const name = within(sheet).getByRole<HTMLInputElement>('textbox', { name: 'Name' });
+
+        expect(name.value).toBe('Dinners');
+
+        await user.clear(name);
+        await user.type(name, 'Weeknights');
+        await user.click(within(sheet).getByRole('button', { name: 'Save name' }));
+
+        await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { name: 'Weeknights', description: 'Quick' }));
+        await waitFor(() =>
+            expect(screen.queryByRole('dialog', { name: 'Rename collection' })).not.toBeInTheDocument(),
+        );
+    });
+
+    it('says a failed rename and keeps the sheet open', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        vi.spyOn(client, 'updateCollection').mockRejectedValue(new Error('nope'));
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Rename' }));
+        await user.click(await screen.findByRole('button', { name: 'Save name' }));
+
+        expect(await screen.findByText('We couldn’t rename the collection. Try again.')).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Rename collection' })).toBeInTheDocument();
+    });
+
+    it('deletes after confirmation and navigates back to the list; Keep collection leaves it alone', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        const deleteSpy = vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Delete collection' }));
+        await user.click(await screen.findByRole('button', { name: 'Keep collection' }));
+
+        expect(deleteSpy).not.toHaveBeenCalled();
+
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Delete collection' }));
+        expect(await screen.findByText('The 2 recipes stay in your library.')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Delete collection' }));
+
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections'));
+        expect(deleteSpy).toHaveBeenCalledWith('col_9');
+    });
+
+    // Drift settled with mobile (its Android crash fix): the confirm dialog closes BEFORE the route changes, in one
+    // shared flow. On web the push used to fire from the mutation's own onSuccess with the dialog still mounted.
+    it('closes the confirm dialog before it leaves, and leaves exactly once', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        vi.spyOn(client, 'deleteCollection').mockResolvedValue(undefined);
+        const dialogOpenWhenLeaving: boolean[] = [];
+        pushMock.mockImplementation(() => {
+            dialogOpenWhenLeaving.push(isOpen(screen.queryByRole('alertdialog')));
+        });
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Delete collection' }));
+        await user.click(await screen.findByRole('button', { name: 'Delete collection' }));
+
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections'));
+        expect(dialogOpenWhenLeaving).toEqual([false]);
+    });
+
+    it('says a failed delete in the dialog, which stays open', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        vi.spyOn(client, 'deleteCollection').mockRejectedValue(new Error('nope'));
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Delete collection' }));
+        await user.click(await screen.findByRole('button', { name: 'Delete collection' }));
+
+        expect(await screen.findByText('We couldn’t delete this collection. Try again.')).toBeInTheDocument();
+        expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+
+    it('saves a copy of the collection and opens the copy', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        const cloneSpy = vi
+            .spyOn(client, 'cloneCollection')
+            .mockResolvedValue(makeCollectionWithRecipes({ id: 'col_copy' }));
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Save a copy' }));
+
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections/col_copy'));
+        expect(cloneSpy).toHaveBeenCalledWith('col_9', undefined);
+    });
+
+    it('says a failed copy', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+        vi.spyOn(client, 'cloneCollection').mockRejectedValue(new Error('nope'));
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Save a copy' }));
+
+        expect(await screen.findByText('We couldn’t save a copy of this collection. Try again.')).toBeInTheDocument();
+    });
+
+    it('offers Pull updates for a copy only, and opens the preview', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeClonedCollection({ name: 'Dinners' }));
+        const preview = vi
+            .spyOn(client, 'previewPullFromSource')
+            .mockResolvedValue({ added: ['rec_new'], removed: [], unchanged: ['rec_1'] });
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Pull updates' }));
+
+        expect(await screen.findByRole('heading', { name: 'Pull Updates from Source Collection' })).toBeInTheDocument();
+        expect(preview).toHaveBeenCalledWith('col_9');
+        expect(screen.getByText('Copied from \u2068@sourcechef\u2069 (\u2068Source Chef\u2069)')).toBeInTheDocument();
+    });
+
+    it('draws no Pull updates for an original collection', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners' }));
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+        expect((await openMenu(user, 'Dinners')).queryByRole('menuitem', { name: 'Pull updates' })).toBeNull();
+    });
+
+    it('opens the original from “Copied from …”', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeClonedCollection());
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click(
+            await screen.findByRole('button', {
+                name: 'Copied from \u2068@sourcechef\u2069 (\u2068Source Chef\u2069)',
+            }),
+        );
+
+        expect(pushMock).toHaveBeenCalledWith('/en/collections/col_src');
+    });
+});
+
+describe('CollectionDetailContainer — the add-recipes picker', () => {
+    const library = [
+        makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
+        makeRecipe({ id: 'rec_3', title: 'Tomato Soup' }),
+    ];
+
+    function pickerClient() {
+        // A server that remembers who is in the collection, so the refetch after the last toggle agrees with the cache.
+        const members = [
+            { ...makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), addedVia: 'manual' as const },
+            { ...makeRecipe({ id: 'rec_2', title: 'Sunday Roast' }), addedVia: 'manual' as const },
+        ];
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockImplementation(async () =>
+            makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', recipes: [...members] }),
+        );
+        vi.spyOn(client, 'addRecipeToCollection').mockImplementation(async (_id, recipeId) => {
+            const added = library.find((recipe) => recipe.id === recipeId);
+
+            if (added !== undefined) {
+                members.push({ ...added, addedVia: 'manual' });
+            }
+
+            return { collectionId: 'col_9', recipeId, addedVia: 'manual', createdAt: 'x' };
+        });
+        vi.spyOn(client, 'removeRecipeFromCollection').mockImplementation(async (_id, recipeId) => {
+            members.splice(
+                members.findIndex((member) => member.id === recipeId),
+                1,
             );
         });
-
-        it('surfaces the remove-failed banner when the remove mutation errored', async () => {
-            const user = userEvent.setup();
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-            vi.spyOn(client, 'removeRecipeFromCollection').mockRejectedValue(new Error('network down'));
-
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-            await user.click(await screen.findByRole('button', { name: 'Remove Weeknight Pasta' }));
-
-            await vi.waitFor(() =>
-                expect(screen.getByRole('alert').textContent).toBe('We couldn’t remove that recipe. Please try again.'),
-            );
+        vi.spyOn(client, 'listRecipes').mockResolvedValue({
+            data: library,
+            total: library.length,
+            page: 1,
+            pageSize: 100,
+            hasMore: false,
         });
 
-        it('prefers the delete error over a concurrent remove error', async () => {
-            const user = userEvent.setup();
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-            vi.spyOn(client, 'removeRecipeFromCollection').mockRejectedValue(new Error('remove failed'));
-            vi.spyOn(client, 'deleteCollection').mockRejectedValue(new Error('delete failed'));
+        return client;
+    }
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+    it('opens a sheet "Add to Dinners" with the cook’s recipes, the members already checked', async () => {
+        const user = userEvent.setup();
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, pickerClient());
 
-            await user.click(await screen.findByRole('button', { name: 'Remove Weeknight Pasta' }));
-            await vi.waitFor(() =>
-                expect(screen.getByRole('alert').textContent).toBe('We couldn’t remove that recipe. Please try again.'),
-            );
+        await user.click(await screen.findByRole('button', { name: 'Add recipes' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Add to Dinners' });
 
-            await user.click(screen.getByRole('button', { name: 'Delete' }));
-
-            await vi.waitFor(() =>
-                expect(screen.getByRole('alert').textContent).toBe(
-                    'We couldn’t delete this collection. Please try again.',
-                ),
-            );
-        });
-
-        it('shows no banner when neither mutation has errored', async () => {
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-            await screen.findByRole('button', { name: 'Weeknight Pasta' });
-            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-        });
+        expect(await within(sheet).findByRole('checkbox', { name: 'Weeknight Pasta' })).toHaveAttribute(
+            'aria-checked',
+            'true',
+        );
+        expect(within(sheet).getByRole('checkbox', { name: 'Tomato Soup' })).toHaveAttribute('aria-checked', 'false');
     });
 
-    describe('clone-info + pull affordances (render only for a cloned collection)', () => {
-        it('renders the clone-info panel and the pull action for a cloned collection', async () => {
-            const client = clientSeededWith(makeClonedCollection());
+    it('saves a toggle at once, announces it, and Done says what changed', async () => {
+        const user = userEvent.setup();
+        const client = pickerClient();
+        const add = vi.mocked(client.addRecipeToCollection);
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click(await screen.findByRole('button', { name: 'Add recipes' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Add to Dinners' });
 
-            expect(await screen.findByRole('heading', { name: 'Clone Info' })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Pull Updates from Source' })).toBeInTheDocument();
-        });
+        await user.click(await within(sheet).findByRole('checkbox', { name: 'Tomato Soup' }));
 
-        it('renders neither the clone-info panel nor the pull action for a non-clone', async () => {
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-            await screen.findByRole('button', { name: 'Weeknight Pasta' });
-            expect(screen.queryByRole('heading', { name: 'Clone Info' })).not.toBeInTheDocument();
-            expect(screen.queryByRole('button', { name: 'Pull Updates from Source' })).not.toBeInTheDocument();
-        });
-
-        it('navigates to the source collection when View Source is activated', async () => {
-            const user = userEvent.setup();
-            const client = clientSeededWith(makeClonedCollection());
-
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-            await user.click(await screen.findByRole('button', { name: 'View Source' }));
-
-            expect(pushMock).toHaveBeenCalledWith('/en/collections/col_src');
-        });
+        await waitFor(() => expect(add).toHaveBeenCalledWith('col_9', 'rec_3'));
+        expect(within(sheet).getByRole('checkbox', { name: 'Tomato Soup' })).toHaveAttribute('aria-checked', 'true');
+        expect(within(sheet).getByRole('button', { name: 'Done · 1 added' })).toBeInTheDocument();
+        expect(
+            within(sheet)
+                .getAllByRole('status')
+                .some((node) => node.textContent === 'Added Tomato Soup'),
+        ).toBe(true);
     });
 
-    describe('pull-updates preview → commit → drift state machine', () => {
-        it('runs the preview then opens the dialog with the diff; confirm commits with the previewed diff', async () => {
-            const user = userEvent.setup();
-            const client = clientSeededWith(makeClonedCollection());
-            const previewSpy = vi.spyOn(client, 'previewPullFromSource').mockResolvedValue(ADDABLE_DIFF);
-            const pullSpy = vi
-                .spyOn(client, 'pullCollectionFromSource')
-                .mockResolvedValue({ collection: makeCollection({ id: 'col_9' }), addedRecipeIds: ['rec_new'] });
+    it('flips a refused toggle back and says so', async () => {
+        const user = userEvent.setup();
+        const client = pickerClient();
+        vi.mocked(client.addRecipeToCollection).mockRejectedValue(new Error('nope'));
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click(await screen.findByRole('button', { name: 'Add recipes' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Add to Dinners' });
+        await user.click(await within(sheet).findByRole('checkbox', { name: 'Tomato Soup' }));
 
-            await user.click(await screen.findByRole('button', { name: 'Pull Updates from Source' }));
-
-            // The dialog opens on the preview, showing the diff-driven confirm control.
-            const confirm = await screen.findByRole('button', { name: 'Pull 1 Recipes' });
-            expect(previewSpy).toHaveBeenCalledWith('col_9');
-
-            await user.click(confirm);
-
-            await vi.waitFor(() => expect(pullSpy).toHaveBeenCalledWith('col_9', { previewedDiff: ADDABLE_DIFF }));
-            // On success the dialog closes.
-            await vi.waitFor(() =>
-                expect(
-                    screen.queryByRole('heading', { name: 'Pull Updates from Source Collection' }),
-                ).not.toBeInTheDocument(),
-            );
-        });
-
-        it('re-previews and shows the drift message when the commit rejects with a PullDriftError', async () => {
-            const user = userEvent.setup();
-            const client = clientSeededWith(makeClonedCollection());
-            const freshDiff: PullDiff = { added: ['rec_fresh'], removed: [], unchanged: [] };
-            const previewSpy = vi
-                .spyOn(client, 'previewPullFromSource')
-                .mockResolvedValueOnce(ADDABLE_DIFF)
-                .mockResolvedValueOnce(freshDiff);
-            const pullSpy = vi
-                .spyOn(client, 'pullCollectionFromSource')
-                .mockRejectedValue(new PullDriftError(freshDiff));
-
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
-
-            await user.click(await screen.findByRole('button', { name: 'Pull Updates from Source' }));
-            await user.click(await screen.findByRole('button', { name: 'Pull 1 Recipes' }));
-
-            // The commit drifted → the container re-previews and surfaces the drift alert, keeping the dialog
-            // open (never an infinite spinner, never a blind retry).
-            const alert = await screen.findByRole('alert');
-            expect(alert.textContent).toContain('The source collection changed since you last checked');
-            expect(pullSpy).toHaveBeenCalledTimes(1);
-            expect(previewSpy).toHaveBeenCalledTimes(2);
-            // The dialog is still open (its title is present) and NOT stuck on the loading affordance.
-            expect(screen.getByRole('heading', { name: 'Pull Updates from Source Collection' })).toBeInTheDocument();
-            expect(screen.queryByRole('status', { name: 'Loading pull preview' })).not.toBeInTheDocument();
-        });
+        expect(await within(sheet).findByText('Couldn’t add Tomato Soup. Try again.')).toBeInTheDocument();
+        expect(within(sheet).getByRole('checkbox', { name: 'Tomato Soup' })).toHaveAttribute('aria-checked', 'false');
+        expect(within(sheet).getByRole('button', { name: 'Done' })).toBeInTheDocument();
     });
 
-    describe('clone collection', () => {
-        it('clones the collection and navigates to the new clone', async () => {
-            const user = userEvent.setup();
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9' }));
-            const cloneSpy = vi.spyOn(client, 'cloneCollection').mockResolvedValue(makeCollection({ id: 'col_clone' }));
+    it('reads add → remove as no change on Done', async () => {
+        const user = userEvent.setup();
+        const client = pickerClient();
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click(await screen.findByRole('button', { name: 'Add recipes' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Add to Dinners' });
+        const soup = await within(sheet).findByRole('checkbox', { name: 'Tomato Soup' });
 
-            await user.click(await screen.findByRole('button', { name: 'Clone Collection' }));
+        await user.click(soup);
+        await user.click(soup);
 
-            await vi.waitFor(() => expect(cloneSpy).toHaveBeenCalledWith('col_9', undefined));
-            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections/col_clone'));
-        });
+        await waitFor(() => expect(within(sheet).getByRole('button', { name: 'Done' })).toBeInTheDocument());
     });
 
-    describe('visibility save (premium-gated)', () => {
-        it('saves the pending private visibility for a premium viewer', async () => {
-            const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue(profileWithTier('premium'));
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', visibility: 'public' }));
-            const updateSpy = vi
-                .spyOn(client, 'updateCollection')
-                .mockResolvedValue(makeCollection({ id: 'col_9', visibility: 'private' }));
+    it('narrows the rows by the search, and Done closes the sheet', async () => {
+        const user = userEvent.setup();
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, pickerClient());
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click(await screen.findByRole('button', { name: 'Add recipes' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Add to Dinners' });
+        await within(sheet).findByRole('checkbox', { name: 'Tomato Soup' });
+        await user.type(within(sheet).getByRole('searchbox', { name: 'Search your recipes' }), 'soup');
 
-            await user.click(await screen.findByRole('radio', { name: 'Private' }));
-            await user.click(screen.getByRole('button', { name: 'Save changes' }));
+        expect(within(sheet).queryByRole('checkbox', { name: 'Weeknight Pasta' })).toBeNull();
 
-            await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledWith('col_9', { visibility: 'private' }));
+        await user.click(within(sheet).getByRole('button', { name: 'Done' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to Dinners' })).not.toBeInTheDocument());
+    });
+});
+
+describe('CollectionDetailContainer — creating a recipe from the empty picker', () => {
+    // Drift settled with mobile: the picker closes BEFORE the route changes (a native Modal left open is re-parented by
+    // the pop); web used to navigate with the picker still open.
+    it('closes the picker before it opens the editor', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', recipes: [] }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue({
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: 100,
+            hasMore: false,
+        });
+        const pickerOpenWhenLeaving: boolean[] = [];
+        pushMock.mockImplementation(() => {
+            pickerOpenWhenLeaving.push(isOpen(screen.queryByRole('dialog', { name: 'Add to Dinners' })));
         });
 
-        it('a free viewer cannot reach a private save — the private option is disabled', async () => {
-            useUserProfileMock.mockReturnValue(profileWithTier('free'));
-            const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', visibility: 'public' }));
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        await user.click((await screen.findAllByRole('button', { name: 'Add recipes' }))[1] as HTMLElement);
+        await user.click(await screen.findByRole('button', { name: 'Add a recipe' }));
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
+        expect(pickerOpenWhenLeaving).toEqual([false]);
+    });
+});
 
-            const privateOption = await screen.findByRole('radio', { name: 'Private' });
-            expect(privateOption).toBeDisabled();
+describe('CollectionDetailContainer — an empty collection', () => {
+    it('says so, and Add recipes opens the picker', async () => {
+        const user = userEvent.setup();
+        const client = clientSeededWith(makeCollectionWithRecipes({ id: 'col_9', name: 'Dinners', recipes: [] }));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue({
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: 100,
+            hasMore: false,
         });
+
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
+
+        expect(await screen.findByRole('heading', { level: 2, name: 'No recipes here yet' })).toBeInTheDocument();
+
+        await user.click(screen.getAllByRole('button', { name: 'Add recipes' })[1] as HTMLElement);
+
+        expect(await screen.findByRole('dialog', { name: 'Add to Dinners' })).toBeInTheDocument();
+        expect(await screen.findByText('You have no recipes yet.')).toBeInTheDocument();
     });
 });

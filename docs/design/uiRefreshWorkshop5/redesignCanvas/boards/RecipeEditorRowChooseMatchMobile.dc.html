@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, choose a match (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    h1,
+                    h2,
+                    p,
+                    ul,
+                    dl,
+                    dd {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .page {
+                        width: 390px;
+                        padding: 16px 0 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                    }
+                    .cap {
+                        padding: 0 16px 8px;
+                        font: 500 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .rowpad {
+                        position: relative;
+                        padding: 0 16px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0 0 -8px;
+                        background: var(--scrim);
+                        pointer-events: none;
+                    }
+                    .sheet {
+                        margin-top: 8px;
+                        border-radius: 20px 20px 0 0;
+                        background: var(--paper-overlay);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .sh {
+                        display: flex;
+                        align-items: flex-start;
+                        padding: 4px 4px 0 16px;
+                    }
+                    .sm {
+                        min-width: 0;
+                        flex: 1;
+                        padding-top: 12px;
+                    }
+                    .st2 {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        font: 600 17px/1.2 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .sc {
+                        display: flex;
+                        min-width: 48px;
+                        min-height: 48px;
+                        align-items: center;
+                        justify-content: center;
+                        border: 0;
+                        background: transparent;
+                        font: 400 17px/24px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .sb2 {
+                        padding: 8px 16px 16px;
+                    }
+                    .nmi {
+                        display: flex;
+                        min-height: 48px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 17px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .nsep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .dngc {
+                        color: var(--danger-text);
+                    }
+                    .cb {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 8px;
+                    }
+                    .tx {
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .grp {
+                        width: 100%;
+                    }
+                    .ol {
+                        width: 100%;
+                    }
+                    .gh {
+                        padding: 8px 12px 0;
+                        font: 600 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .op {
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        width: 100%;
+                        min-height: 48px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: transparent;
+                        padding: 8px 12px;
+                        text-align: left;
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .os {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dng {
+                        color: var(--danger-text);
+                    }
+                    .nb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .fl {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fr {
+                        display: flex;
+                        flex-wrap: wrap;
+                        column-gap: 16px;
+                    }
+                    .fk {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fv {
+                        font: 400 15px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    /* Redesign canvas (workshop 5, round 9): type ramp 13/15/17, native text classes mapped onto it. */
+                    .sr-only,
+                    .r-109y4c4,
+                    [style*='width: 1px'][style*='clip'] {
+                        font-size: 13px;
+                    }
+                    .r-n6v787 {
+                        font-size: 13px !important;
+                    }
+                    .r-1gkfh8e,
+                    .r-1enofrn {
+                        font-size: 13px !important;
+                    }
+                    .r-1b43r93,
+                    .r-a023e6 {
+                        font-size: 15px !important;
+                    }
+                    .r-ubezar,
+                    .r-1inkyih,
+                    .r-1i10wst,
+                    .r-adyw6z,
+                    .r-1x35g6 {
+                        font-size: 17px !important;
+                    }
+                    /* food2 */
+                    .fn {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        margin-top: 8px;
+                        padding: 12px 16px;
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-md);
+                        color: var(--ink);
+                        font: 400 15px/1.4 var(--font-body);
+                    }
+                    .fn .fi {
+                        display: inline-flex;
+                        flex: none;
+                        margin-top: 1px;
+                        color: var(--attention);
+                    }
+                    .fn .fb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .fn .fb p {
+                        margin: 0;
+                        font: 400 15px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .fbtn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        align-self: flex-start;
+                        min-height: 44px;
+                        padding: 0 18px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                        color: var(--ink);
+                        font: 600 15px/1 var(--font-body);
+                    }
+                    .fin {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 4px;
+                        font: 500 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fin svg {
+                        flex: none;
+                        animation: finSpin 1s linear infinite;
+                    }
+                    @keyframes finSpin {
+                        to {
+                            transform: rotate(360deg);
+                        }
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                        .fin svg {
+                            animation: none;
+                        }
+                    }
+                    [role='option'] .text-body-md {
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    [aria-label^='Food suggestions'] button .r-1inkyih {
+                        font-size: 15px !important;
+                        font-weight: 600 !important;
+                    }
+                </style></helmet
+            >
+            <main class="page">
+                <section>
+                    <p class="cap">Row 6, unresolved. The options, with more food databases still being searched.</p>
+                    <div class="rowpad" id="stage0">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r0}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="apple sauce">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">apple sauce</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for apple sauce">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <div class="cb n">
+                                <p class="tx">
+                                    We found more than one food this could be, and we need you to say which.
+                                </p>
+                                <div class="grp">
+                                    <ul aria-label="Which “apple sauce” did you mean?" class="ol">
+                                        <li><button type="button" class="op">apple sauce, homemade</button></li>
+                                        <li><button type="button" class="op">Applesauce</button></li>
+                                        <li>
+                                            <button type="button" class="op">
+                                                Applesauce<span class="os">unsweetened</span>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="grp">
+                                    <p aria-hidden="true" class="gh">From Open Food Facts</p>
+                                    <ul aria-label="From Open Food Facts" class="ol">
+                                        <li>
+                                            <button
+                                                type="button"
+                                                aria-label="Apple sauce, organic, from Open Food Facts"
+                                                class="op"
+                                            >
+                                                Apple sauce, organic
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button
+                                                type="button"
+                                                aria-label="Apple puree, no sugar, from Open Food Facts"
+                                                class="op"
+                                            >
+                                                Apple puree, no sugar
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <p role="status" class="hint">Still searching other food databases</p>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="search"
+                                    >Search for another food</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Row 7, ambiguous. One option is being saved, the others wait.</p>
+                    <div class="rowpad" id="stage1">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r1}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="apple sauce">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">apple sauce</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for apple sauce">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <div class="cb n">
+                                <p class="tx">
+                                    Two or more foods match closely and their nutrition differs, so we’d rather you
+                                    chose.
+                                </p>
+                                <div class="grp">
+                                    <ul aria-label="Which “apple sauce” did you mean?" class="ol">
+                                        <li>
+                                            <button type="button" disabled class="op">apple sauce, homemade</button>
+                                        </li>
+                                        <li><button type="button" disabled class="op">Applesauce</button></li>
+                                        <li>
+                                            <button type="button" aria-busy="true" class="op">
+                                                Applesauce<span class="os">unsweetened</span>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="grp">
+                                    <p aria-hidden="true" class="gh">From Open Food Facts</p>
+                                    <ul aria-label="From Open Food Facts" class="ol">
+                                        <li>
+                                            <button
+                                                type="button"
+                                                aria-label="Apple sauce, organic, from Open Food Facts"
+                                                disabled
+                                                class="op"
+                                            >
+                                                Apple sauce, organic
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button
+                                                type="button"
+                                                aria-label="Apple puree, no sugar, from Open Food Facts"
+                                                disabled
+                                                class="op"
+                                            >
+                                                Apple puree, no sugar
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="search"
+                                    >Search for another food</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1308}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; const fx=(r)=>({...r,actions:r.actions.map(a=>({...a,onSelect:noop})),destructiveAction:r.destructiveAction&&{...r.destructiveAction,onSelect:noop},openFocus:{requested:false,onHandled:noop},actionsFocus:{requested:false,onHandled:noop},shortlist:()=>({}),onRemove:noop,onRetryLookup:noop,onOpen:noop,onBeginEntry:noop,onLeaveEntry:noop,onFocusLeft:noop,edit:{},lineEditor:{},entryField:{}}); return {entry:{form:{}},panel:()=>null,nothing:null,mm:{},speak:x=>x,col:72,r0:fx({"line": {"key": "k1"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "candidates"}, "standIn": false, "displayName": "apple sauce", "triggerFood": "apple sauce", "amountText": "1 cup", "openLabel": "Edit 1 cup apple sauce", "secondLine": {"kind": "attention", "text": "Choose a match", "label": "Choose a match: apple sauce", "opens": "panel"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for apple sauce", "actionsTrigger": "Actions for apple sauce", "actionsClose": "Close actions for apple sauce"}, "actions": [{"id": "edit", "label": "Edit"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r1:fx({"line": {"key": "k2"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "shortlist"}, "standIn": false, "displayName": "apple sauce", "triggerFood": "apple sauce", "amountText": "1 cup", "openLabel": "Edit 1 cup apple sauce", "secondLine": {"kind": "attention", "text": "Choose a match", "label": "Choose a match: apple sauce", "opens": "panel"}, "inEntry": false, "busy": true, "busyText": "Adding from the food catalog", "labels": {"panelClose": "Close details for apple sauce", "actionsTrigger": "Actions for apple sauce", "actionsClose": "Close actions for apple sauce"}, "actions": [{"id": "edit", "label": "Edit"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}})}; } }
+        </script>
+    </body>
+</html>

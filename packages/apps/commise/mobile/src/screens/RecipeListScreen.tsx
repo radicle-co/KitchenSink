@@ -1,109 +1,173 @@
 /**
- * Recipe-list screen (mobile). The container that drives the shared, presentational native `RecipeList`
- * building block from the typed `useRecipes` query: it maps the query's loading/error/ready state to the
- * view's `status`, owns the search field, derives the (client-side) filtered rows from the loaded page,
- * and forwards selection / create / retry intents upward. It performs no rendering of its own — the view
- * lives in `@commise/features-recipes`, shared with web.
+ * Recipe-list screen (mobile, orchestration). The shared native recipe-list FRAME (title band + search field) around a suspense read
+ * of the caller's library: `Suspense` renders `RecipeListLoading`, the error boundary renders `RecipeListLoadError`
+ * (its retry refetches; the frame keeps the create button), and once settled the RESULTS render the facet chips, the rows
+ * narrowed by the search term and chips with pull-to-refresh, and a notice for a failed refresh of them.
+ *
+ * The screen owns the search term and the active chips, because both outlive the boundary: typing while the library
+ * loads, or pressing Try again, must not reset them. A retry from the refresh notice that succeeds moves the
+ * screen-reader cursor to the heading; the notice is inside the boundary and the heading outside it, so the recovery
+ * crosses as a `useRecoverySignal` counter. Community switching is the shell's Discover tab on mobile, so the frame
+ * mounts no source switcher (L5 parity).
+ *
+ * Slice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.3): the screen reads the WHOLE library in
+ * chunks of up to 500 (`recipeQueries(client).library`), so the chips, their counts and the no-match states are right
+ * past the first page (blueprint A11); forwards the sort to the server; reads and saves the list/grid choice as an account setting; and
+ * decides the card variant from the container class. The My recipes · Collections segments are the host's to pass
+ * (`segments`), with the large title's avatar (`headerAction`).
+ *
+ * @pattern Layout slot — the persistent frame around a Suspense read boundary, with the viewer's narrowing and the
+ *     recovery counter lifted to the frame's side
  */
 import {
-    QUICK_TIME_FACET,
-    RecipeList,
-    isQuickRecipe,
-    matchesListFacet,
-    toRecipeListItem,
-    type RecipeListStatus,
+    RecipeListFrame,
+    RecipeListLoadError,
+    RecipeListLoading,
+    RecipeListResults,
+    nutritionSlotRenderer,
+    ViewSaveFailedNotice,
+    type ListViewMode,
+    type RecipesSegmentControl,
 } from '@commise/features-recipes';
-import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
+import {
+    useRecipeLibraryControls,
+    useRecipeListPresentation,
+    useSettledRecipeList,
+    type RecipeLibraryControls,
+    type RecipeListPresentation,
+} from '@commise/features-recipes/list';
+import { useLocale } from '@commise/i18n/react';
+import { QueryBoundary } from '@commise/query/boundary';
+import { useRecoverySignal } from '@commise/query/recovery-signal';
+import { useRefreshNotice } from '@commise/query/refresh-notice';
+import type { HeaderAction } from '@commise/ui/large-title-header';
+import type { ScrollBind } from '@commise/ui/scroll-host';
+import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
-import { useMemo, useState } from 'react';
+
+import { useRecipeViewSetting } from '../hooks/useRecipeViewSetting.js';
 
 /** Props for {@link RecipeListScreen}. */
 export interface RecipeListScreenProps {
     /** Invoked with the recipe id when a row is activated (the composing screen navigates to detail). */
     readonly onSelectRecipe: (id: string) => void;
-    /** Invoked when the create-recipe action is activated. */
-    readonly onCreateRecipe?: () => void;
+    /** Invoked when the create-recipe action is activated. Required, as on web: an optional handler leaves a dead button. */
+    readonly onCreateRecipe: () => void;
+    /**
+     * The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (build spec §7.5.4).
+     *
+     * ⛔ Forwarded UNDEFAULTED: the first run removes the button when this is absent, and defaulting it to a no-op
+     * would render a button that silently does nothing instead.
+     */
+    readonly onPasteIngredients?: () => void;
+    /** The My recipes · Collections segments, when the host shows them on this screen. */
+    readonly segments?: RecipesSegmentControl;
+    /** The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it. */
+    readonly headerAction?: HeaderAction;
+    /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
+    readonly scrollBind?: ScrollBind;
 }
-
-const noop = (): void => undefined;
 
 /**
  * The recipe-list screen.
  *
- * @param props - Selection + create callbacks the composing screen wires to navigation.
- * @returns The rendered list view.
+ * @param props - Selection and create callbacks the composing screen wires to navigation.
+ * @returns The frame around the read boundary.
  */
-export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListScreenProps): JSX.Element {
-    const [searchValue, setSearchValue] = useState('');
-    const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
-    const query = useRecipes();
-
-    const status: RecipeListStatus = query.isError ? 'error' : query.isLoading ? 'loading' : 'ready';
-
-    // The raw loaded rows (never copy server data into local state). Facets read `dietaryFlags` + `cuisine`
-    // from the DTO, so filtering runs on the raw rows before projecting to card view-models.
-    const rawRecipes = useMemo(() => (query.data ? query.data.data : []), [query.data]);
-
-    // Quick-filter facets (L4): the sorted union of the library's REAL dimensions — dietary flags + cuisine
-    // (parity with the web container) — PLUS the fixed "Quick (<30m)" time-bucket chip (#4) when at least one
-    // loaded recipe qualifies (`QUICK_TIME_FACET` leads the list — a fixed dimension, not data-driven).
-    // Favorites / AI-Generated from the mockup are omitted (no backing data).
-    const availableFacets = useMemo(() => {
-        const facets = new Set<string>();
-        let hasQuickRecipe = false;
-
-        for (const recipe of rawRecipes) {
-            recipe.dietaryFlags.forEach((flag) => facets.add(flag));
-
-            if (recipe.cuisine !== undefined) {
-                facets.add(recipe.cuisine);
-            }
-
-            if (isQuickRecipe(recipe.totalTimeMinutes)) {
-                hasQuickRecipe = true;
-            }
-        }
-
-        const sorted = [...facets].sort((a, b) => a.localeCompare(b));
-
-        return hasQuickRecipe ? [QUICK_TIME_FACET, ...sorted] : sorted;
-    }, [rawRecipes]);
-
-    // Filter by the title term AND every active facet chip (a row must satisfy ALL — dietary flag, cuisine,
-    // or the Quick bucket).
-    const recipes = useMemo(() => {
-        const term = searchValue.trim().toLowerCase();
-
-        return rawRecipes
-            .filter(
-                (recipe) =>
-                    (term.length === 0 || recipe.title.toLowerCase().includes(term)) &&
-                    activeFacets.every((facet) => matchesListFacet(recipe, facet)),
-            )
-            .map(toRecipeListItem);
-    }, [rawRecipes, searchValue, activeFacets]);
+export function RecipeListScreen({
+    onSelectRecipe,
+    onCreateRecipe,
+    onPasteIngredients,
+    segments,
+    headerAction,
+    scrollBind,
+}: RecipeListScreenProps): JSX.Element {
+    const controls = useRecipeLibraryControls();
+    // The grid/list choice is an account setting (ADR-0059), shared with the web app and the collection screen.
+    const { viewChoice, chooseView, saveFailed } = useRecipeViewSetting();
+    const recovery = useRecoverySignal();
+    const presentation = useRecipeListPresentation(viewChoice);
 
     return (
-        <RecipeList
-            status={status}
-            recipes={recipes}
-            searchValue={searchValue}
-            onSearchChange={setSearchValue}
-            onSelectRecipe={onSelectRecipe}
-            onCreateRecipe={onCreateRecipe ?? noop}
-            onRetry={() => void query.refetch()}
-            // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the query.
+        <RecipeListFrame
+            searchValue={controls.searchValue}
+            onSearchChange={controls.onSearchChange}
+            searchVisible={controls.searchVisible}
+            onCreateRecipe={onCreateRecipe}
+            createEntryYields={controls.createEntryYields}
+            {...(segments === undefined ? {} : { segments })}
+            {...(headerAction === undefined ? {} : { headerAction })}
+            headingFocusSignal={recovery.signal}
+        >
+            {saveFailed ? <ViewSaveFailedNotice /> : null}
+            <QueryBoundary
+                loading={<RecipeListLoading variant={presentation.variant} />}
+                renderError={({ resetErrorBoundary }) => <RecipeListLoadError onRetry={resetErrorBoundary} />}
+            >
+                <SettledRecipeList
+                    controls={controls}
+                    presentation={presentation}
+                    onViewModeChange={chooseView}
+                    onSelectRecipe={onSelectRecipe}
+                    onCreateRecipe={onCreateRecipe}
+                    onPasteIngredients={onPasteIngredients}
+                    onRecovered={recovery.onRecovered}
+                    scrollBind={scrollBind}
+                />
+            </QueryBoundary>
+        </RecipeListFrame>
+    );
+}
+
+/** Props for {@link SettledRecipeList}. */
+interface SettledRecipeListProps {
+    readonly controls: RecipeLibraryControls;
+    readonly presentation: RecipeListPresentation;
+    readonly onViewModeChange: (mode: ListViewMode) => void;
+    readonly onSelectRecipe: (id: string) => void;
+    readonly onCreateRecipe: () => void;
+    readonly onPasteIngredients?: () => void;
+    readonly onRecovered: () => void;
+    readonly scrollBind: ScrollBind | undefined;
+}
+
+/**
+ * The library once it has settled: the shared results props over the whole library, plus the native-only pieces — the
+ * failed-refresh notice, pull-to-refresh, the scroll bind and one calorie batch per chunk.
+ *
+ * @param props - The viewer's narrowing and presentation, and the intents to forward.
+ * @returns The results.
+ */
+function SettledRecipeList({
+    controls,
+    onRecovered,
+    scrollBind,
+    onPasteIngredients,
+    ...rest
+}: SettledRecipeListProps): JSX.Element {
+    const viewerLocale = useLocale();
+    const query = useSuspenseInfiniteQuery(controls.read);
+    const refreshNotice = useRefreshNotice(query, { onRecovered });
+    const { results, chunkIds } = useSettledRecipeList({
+        query,
+        locale: viewerLocale,
+        controls,
+        refreshNotice,
+        onPasteIngredients,
+        ...rest,
+    });
+    // ⛔ THE LOADED CHUNKS (`chunkIds`), never the narrowed rows: one batch per chunk (≤ 500).
+    const nutritionFor = useRecipeNutritionBatches(chunkIds);
+
+    return (
+        <RecipeListResults
+            {...(scrollBind === undefined ? {} : { scrollBind })}
+            {...results}
+            // ONE promise, N slots: `null` means no batch covers this recipe — render nothing.
+            renderNutrition={nutritionSlotRenderer(nutritionFor)}
+            // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the read.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
-            // Community switching is the shell's Discover tab on mobile, so no in-list tab here (L5 parity).
-            filters={{
-                available: availableFacets,
-                active: activeFacets,
-                onToggle: (facet) =>
-                    setActiveFacets((current) =>
-                        current.includes(facet) ? current.filter((value) => value !== facet) : [...current, facet],
-                    ),
-                onClear: () => setActiveFacets([]),
-            }}
         />
     );
 }

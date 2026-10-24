@@ -1,22 +1,22 @@
 ---
 description: Generate a V-Model Requirements Specification with traceable REQ-NNN
-  IDs from a feature description or existing spec.md.
+    IDs from a feature description or existing spec.md.
 handoffs:
-- label: Generate Acceptance Tests
-  agent: speckit.v-model.acceptance
-  prompt: Generate the acceptance test plan for these requirements
-  send: true
-- label: Back to Specify
-  agent: speckit.specify
-  prompt: Refine the feature specification
+    - label: Generate Acceptance Tests
+      agent: speckit.v-model.acceptance
+      prompt: Generate the acceptance test plan for these requirements
+      send: true
+    - label: Back to Specify
+      agent: speckit.specify
+      prompt: Refine the feature specification
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json
+    sh: .specify/scripts/bash/setup-v-model.sh --json
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -36,6 +36,7 @@ Transform a feature description or existing `spec.md` into a structured V-Model 
 Run `.specify/scripts/bash/setup-v-model.sh --json` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -50,15 +51,17 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 Load `v-model-config.yml` (if it exists at the repository root).
 
 **If `domain` is set** (e.g., `iso_26262`, `do_178c`, `iec_62304`):
+
 1. Read the command overlay: `commands/overlays/{domain}/requirements.md`
-   - If it exists: note its additional sections and preferences
-   - If it does not exist: this domain does not extend this command — proceed with base only
+    - If it exists: note its additional sections and preferences
+    - If it does not exist: this domain does not extend this command — proceed with base only
 2. Read the template overlay: `.specify/templates/overlays/{domain}/requirements-template.md`
-   - If it exists: its output sections will be appended after the base template's output
-   - If it does not exist: use the base template only
+    - If it exists: its output sections will be appended after the base template's output
+    - If it does not exist: use the base template only
 3. Where the base command has a domain-variant section (marked with "If a domain overlay is loaded, prefer its content"), use the overlay's version instead of the base default
 
 **If `domain` is empty or absent:**
+
 - Proceed with the base command only
 - Do NOT include any safety-critical or domain-specific sections
 - Use generic best-practice terminology throughout
@@ -68,15 +71,15 @@ Load `v-model-config.yml` (if it exists at the repository root).
 1. **Load the template**: Read `.specify/templates/requirements-template.md` from the extension directory to understand the required output structure.
 
 2. **Load the source** (in priority order):
-   - If `AVAILABLE_DOCS` contains `"spec.md"`: Read `spec.md` from the feature directory (`SPEC` path). This is the primary source of truth.
-   - If `$ARGUMENTS` is not empty: Use the user's feature description as the source.
-   - If both exist: Use `spec.md` as the primary source, with `$ARGUMENTS` as supplementary context or instructions.
-   - If neither exists: ERROR — "No feature description or spec.md found. Run `/speckit.specify` first or provide a feature description."
+    - If `AVAILABLE_DOCS` contains `"spec.md"`: Read `spec.md` from the feature directory (`SPEC` path). This is the primary source of truth.
+    - If `$ARGUMENTS` is not empty: Use the user's feature description as the source.
+    - If both exist: Use `spec.md` as the primary source, with `$ARGUMENTS` as supplementary context or instructions.
+    - If neither exists: ERROR — "No feature description or spec.md found. Run `/speckit.specify` first or provide a feature description."
 
 3. **Load existing requirements** (if `AVAILABLE_DOCS` contains `"requirements.md"`):
-   - Read the existing `requirements.md` (`REQUIREMENTS` path) to preserve existing IDs and content.
-   - Identify the highest existing REQ number to continue the sequence.
-   - New requirements append after existing ones — **never renumber**.
+    - Read the existing `requirements.md` (`REQUIREMENTS` path) to preserve existing IDs and content.
+    - Identify the highest existing REQ number to continue the sequence.
+    - New requirements append after existing ones — **never renumber**.
 
 ### 4. Lifecycle Rules (When Evolving Existing Artifacts)
 
@@ -85,8 +88,8 @@ before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by REQ-NNN]`: Replaced by a new requirement
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by REQ-NNN]`: Replaced by a new requirement
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Modified requirements:** When source material (`spec.md`) changes the intent
    of an existing requirement, update its content in-place and preserve the
    original REQ ID. Downstream artifacts (ATPs, SYS, HAZ) tracing to this REQ
@@ -108,10 +111,10 @@ Follow the **strict translator constraint**: You are extracting and formalizing 
 For each requirement identified in the source material:
 
 1. **Assign a unique ID** using the naming convention:
-   - **Functional**: `REQ-NNN` (e.g., REQ-001, REQ-002)
-   - **Non-Functional**: `REQ-NF-NNN` (e.g., REQ-NF-001)
-   - **Interface**: `REQ-IF-NNN` (e.g., REQ-IF-001)
-   - **Constraint**: `REQ-CN-NNN` (e.g., REQ-CN-001)
+    - **Functional**: `REQ-NNN` (e.g., REQ-001, REQ-002)
+    - **Non-Functional**: `REQ-NF-NNN` (e.g., REQ-NF-001)
+    - **Interface**: `REQ-IF-NNN` (e.g., REQ-IF-001)
+    - **Constraint**: `REQ-CN-NNN` (e.g., REQ-CN-001)
 
 2. **Write a requirement description** that satisfies ALL 8 quality criteria (see §6).
 
@@ -127,7 +130,7 @@ Every requirement MUST satisfy **all 8 criteria** before it is included in the o
 
 #### Criterion 1: Unambiguous (Clear)
 
-The requirement has exactly **one possible interpretation**. It avoids subjective words: *fast, user-friendly, robust, seamless, approximately, intuitive, efficient, reasonable, significant, adequate, minimal*.
+The requirement has exactly **one possible interpretation**. It avoids subjective words: _fast, user-friendly, robust, seamless, approximately, intuitive, efficient, reasonable, significant, adequate, minimal_.
 
 - ❌ "The system shall load the dashboard quickly."
 - ✅ "The system shall fully render the user dashboard within 2.0 seconds of a successful authentication."
@@ -150,8 +153,8 @@ The requirement describes exactly **one** function or constraint. It must NOT co
 - ❌ "The system shall save the user profile and send a confirmation email."
   (If the save works but the email fails, does this requirement pass or fail?)
 - ✅ Split into two:
-  - `REQ-010`: "The system shall save the user profile to the database upon clicking 'Submit'."
-  - `REQ-011`: "The system shall dispatch a confirmation email within 1 minute of a successful profile save."
+    - `REQ-010`: "The system shall save the user profile to the database upon clicking 'Submit'."
+    - `REQ-011`: "The system shall dispatch a confirmation email within 1 minute of a successful profile save."
 
 **Check**: Does the requirement contain "and", "or", "but", or "unless"? If yes, consider splitting.
 
@@ -175,6 +178,7 @@ The requirement does **not contradict** any other requirement in the specificati
 #### Criterion 6: Traceable
 
 The requirement has a **unique, persistent identifier** (`REQ-NNN`) so it can be tracked:
+
 - **Forward** → to test cases (`ATP-NNN-X`) and code
 - **Backward** → to the specific business need, user scenario, or regulatory rule in the source
 
@@ -201,17 +205,17 @@ After validating all 8 criteria above, verify that the specification adequately 
 
 For each characteristic below, check whether the source material implies requirements that should be captured:
 
-| Quality Characteristic | Check | Example REQ-NF |
-|---|---|---|
-| **Functional Suitability** | Does the feature need accuracy, completeness, or appropriateness guarantees? | "The calculation shall be accurate to ±0.1%" |
-| **Reliability** | Does the feature need availability, fault tolerance, or recoverability guarantees? | "The service shall maintain 99.9% uptime" |
-| **Performance Efficiency** | Does the feature have time behavior, resource utilization, or capacity constraints? | "Response time shall not exceed 200ms at P99" |
-| **Compatibility** | Does the feature need to coexist with or interoperate with other systems? | "The API shall support JSON and XML formats" |
-| **Interaction Capability** | Does the feature have usability, accessibility, or learnability needs? | "The workflow shall be completable in ≤3 steps" |
-| **Security** | Does the feature need confidentiality, integrity, or authenticity guarantees? | "All data at rest shall be encrypted with AES-256" |
-| **Maintainability** | Does the feature have modularity, reusability, or testability constraints? | "Code coverage shall exceed 80% at unit level" |
-| **Flexibility** | Does the feature need adaptability, scalability, or installability properties? | "The system shall support horizontal scaling to 10K users" |
-| **Safety** | Does the feature have harm prevention or risk mitigation needs? | "The system shall fail to a safe state within 100ms" |
+| Quality Characteristic     | Check                                                                               | Example REQ-NF                                             |
+| -------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Functional Suitability** | Does the feature need accuracy, completeness, or appropriateness guarantees?        | "The calculation shall be accurate to ±0.1%"               |
+| **Reliability**            | Does the feature need availability, fault tolerance, or recoverability guarantees?  | "The service shall maintain 99.9% uptime"                  |
+| **Performance Efficiency** | Does the feature have time behavior, resource utilization, or capacity constraints? | "Response time shall not exceed 200ms at P99"              |
+| **Compatibility**          | Does the feature need to coexist with or interoperate with other systems?           | "The API shall support JSON and XML formats"               |
+| **Interaction Capability** | Does the feature have usability, accessibility, or learnability needs?              | "The workflow shall be completable in ≤3 steps"            |
+| **Security**               | Does the feature need confidentiality, integrity, or authenticity guarantees?       | "All data at rest shall be encrypted with AES-256"         |
+| **Maintainability**        | Does the feature have modularity, reusability, or testability constraints?          | "Code coverage shall exceed 80% at unit level"             |
+| **Flexibility**            | Does the feature need adaptability, scalability, or installability properties?      | "The system shall support horizontal scaling to 10K users" |
+| **Safety**                 | Does the feature have harm prevention or risk mitigation needs?                     | "The system shall fail to a safe state within 100ms"       |
 
 This checklist supplements the source material review — if the source mentions performance concerns, a corresponding REQ-NF should exist. Do NOT invent requirements the source does not justify. The strict translator constraint still applies.
 
@@ -232,6 +236,7 @@ Write the complete requirements document to `{VMODEL_DIR}/requirements.md` using
 ### 8. Report Completion
 
 Display a summary:
+
 - Total requirements generated (broken down by category)
 - Source used (spec.md, user input, or both)
 - Any assumptions made
@@ -244,6 +249,7 @@ Display a summary:
 ### Strict Translation Rules
 
 When deriving from `spec.md`:
+
 - **DO NOT** invent new features or capabilities not in the source
 - **DO NOT** add requirements based on "common sense" or "best practices" unless explicitly stated
 - **DO** atomize compound statements into separate requirements (Criterion 3: Atomic)
@@ -261,23 +267,23 @@ When deriving from `spec.md`:
 
 The following words are **banned** from requirement descriptions. If the source uses them, you must translate them into measurable, testable language:
 
-| Banned Word | Replace With |
-|-------------|-------------|
-| fast | specific time threshold (e.g., "within 2 seconds") |
+| Banned Word   | Replace With                                                 |
+| ------------- | ------------------------------------------------------------ |
+| fast          | specific time threshold (e.g., "within 2 seconds")           |
 | user-friendly | specific usability criteria (e.g., "completable in 3 steps") |
-| robust | specific failure-handling behavior |
-| seamless | specific integration behavior |
-| intuitive | specific learnability criteria |
-| efficient | specific resource or time metrics |
-| reasonable | specific threshold or range |
-| significant | specific percentage or quantity |
-| adequate | specific minimum criteria |
-| minimal | specific maximum value |
-| approximately | specific range or tolerance |
-| scalable | specific load targets (e.g., "10,000 concurrent users") |
-| secure | specific security measures (e.g., "TLS 1.2+ encryption") |
-| reliable | specific availability or MTBF targets |
-| flexible | specific extensibility or configuration points |
+| robust        | specific failure-handling behavior                           |
+| seamless      | specific integration behavior                                |
+| intuitive     | specific learnability criteria                               |
+| efficient     | specific resource or time metrics                            |
+| reasonable    | specific threshold or range                                  |
+| significant   | specific percentage or quantity                              |
+| adequate      | specific minimum criteria                                    |
+| minimal       | specific maximum value                                       |
+| approximately | specific range or tolerance                                  |
+| scalable      | specific load targets (e.g., "10,000 concurrent users")      |
+| secure        | specific security measures (e.g., "TLS 1.2+ encryption")     |
+| reliable      | specific availability or MTBF targets                        |
+| flexible      | specific extensibility or configuration points               |
 
 ---
 
@@ -285,10 +291,10 @@ The following words are **banned** from requirement descriptions. If the source 
 
 This command is governed by the following standards for requirements engineering best practices:
 
-| Standard | Scope | How Used |
-|---|---|---|
-| **IEEE 29148:2018** | Requirements engineering processes | Primary framework for requirement types, quality criteria, and traceability |
-| **ISO/IEC 25010:2023** | Systems and software quality models | Quality characteristics taxonomy for non-functional requirements (Step 6) |
-| **INCOSE Guide for Writing Requirements** | Requirement authoring best practices | 8-criterion quality validation checklist (Step 6) |
+| Standard                                  | Scope                                | How Used                                                                    |
+| ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
+| **IEEE 29148:2018**                       | Requirements engineering processes   | Primary framework for requirement types, quality criteria, and traceability |
+| **ISO/IEC 25010:2023**                    | Systems and software quality models  | Quality characteristics taxonomy for non-functional requirements (Step 6)   |
+| **INCOSE Guide for Writing Requirements** | Requirement authoring best practices | 8-criterion quality validation checklist (Step 6)                           |
 
 > **Note:** If a domain overlay is loaded (Step 2), additional domain-specific standards are applied alongside these base standards (e.g., ISO 26262 Part 6 §6.4 for automotive ASIL allocation, DO-178C §5.2.1 Table A-4 for aerospace derived requirements, IEC 62304 §5.2 for medical device risk analysis input).

@@ -1,0 +1,83 @@
+appId: ${APP_ID}
+---
+# After a food is picked, the new row stays in view (`docs/design/uiOverhaul/ingredientArrival.md`). Mobile mirror of the
+# web Playwright `ingredientArrival.spec.ts`.
+#
+# ⛔ THE DEFECT. Opening the add field's list scrolls the field to the top of the visible area. A pick closes the list and
+# adds the row straight above the field; the field holds its place, so the row ended up above the top edge and the cook
+# saw nothing arrive. The fix scrolls the row and the field into view together after the pick.
+#
+# One run: a list long enough that the add field sits low on the screen with the keyboard up, then one more pick, and NO
+# scroll command before looking. The new row's text and the field are both asserted on screen as the pick leaves the page.
+#
+# ⚠️ OPEN CHECK (the spec's second). The combobox's module doc warns that a programmatic scroll can blur the field. After
+# the arrival this flow types the next line straight into the field, with no tap on it: if the scroll had blurred it, the
+# text would go nowhere and the next option would never show.
+#
+# The lines are declared "as written", so the flow needs no food service. It discards its draft at the end.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Arrival'
+
+# Seven lines make the list taller than the screen above the keyboard.
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row One'
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Two'
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Three'
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Four'
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Five'
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Six'
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Seven'
+
+# The eighth pick. The sub-flow ends on the line committed and the keyboard up; nothing scrolls here.
+- runFlow:
+      file: common/addDeclaredLine.yaml
+      env:
+          NAME: 'Maestro Row Eight'
+
+# The arrival: the new row and the field show together, with no scroll command in between.
+- extendedWaitUntil:
+      visible: 'Edit Maestro Row Eight'
+      timeout: 20000
+- assertVisible: 'Add an ingredient'
+
+# The field kept the keyboard: the next line's text goes straight into it, with no tap on it first.
+- inputText: 'Maestro Row Nine'
+- extendedWaitUntil:
+      visible:
+          text: 'Use .*Maestro Row Nine.* as written.*'
+      timeout: 20000
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

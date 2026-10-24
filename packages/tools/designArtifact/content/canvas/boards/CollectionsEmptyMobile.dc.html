@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collections, empty (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+
+                    .cap {
+                        margin: 0;
+                        padding: 0 16px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 12px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .fm {
+                        position: relative;
+                        box-sizing: border-box;
+                        width: 390px;
+                        height: 400px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        padding: 8px 16px 0;
+                    }
+                </style></helmet
+            >
+            <div class="pg">
+                <div class="fg">
+                    <p class="cap">
+                        Empty, with recipes in the library: the call to action makes a collection. The floating button
+                        is hidden on first run.
+                    </p>
+                    <div class="fm">
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="recipes-title-0"
+                            title="Recipes"
+                            action="{{v6}}"
+                            segments="{{v7}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                align-self: center;
+                                width: 100%;
+                                max-width: 448px;
+                                gap: 12px;
+                                padding: 32px 0;
+                                box-sizing: border-box;
+                            "
+                        >
+                            <h2
+                                style="
+                                    margin: 0;
+                                    font-size: 18px;
+                                    line-height: 1.25;
+                                    font-weight: 600;
+                                    color: var(--ink);
+                                "
+                            >
+                                Group recipes your way
+                            </h2>
+                            <p
+                                style="
+                                    margin: 0;
+                                    text-align: center;
+                                    font-size: 16px;
+                                    line-height: 1.5;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                Make a collection for weeknights, holidays or anything else.
+                            </p>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                icon="plus"
+                                size="lg"
+                                width="fill"
+                                >New collection</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fg">
+                    <p class="cap">Empty, no recipes yet: add a recipe first.</p>
+                    <div class="fm">
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="recipes-title-1"
+                            title="Recipes"
+                            action="{{v6}}"
+                            segments="{{v7}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                align-self: center;
+                                width: 100%;
+                                max-width: 448px;
+                                gap: 12px;
+                                padding: 32px 0;
+                                box-sizing: border-box;
+                            "
+                        >
+                            <h2
+                                style="
+                                    margin: 0;
+                                    font-size: 18px;
+                                    line-height: 1.25;
+                                    font-weight: 600;
+                                    color: var(--ink);
+                                "
+                            >
+                                Group recipes your way
+                            </h2>
+                            <p
+                                style="
+                                    margin: 0;
+                                    text-align: center;
+                                    font-size: 16px;
+                                    line-height: 1.5;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                Make a collection for weeknights, holidays or anything else.
+                            </p>
+                            <div style="font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                Add a few recipes first.
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                icon="pencilLine"
+                                size="lg"
+                                width="fill"
+                                >Add a recipe</x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":940}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){};
+             return {
+              v0: 16,
+              v1: 16,
+              v2: 16,
+              v3: 16,
+              v4: 16,
+              v5: 16,
+              v6: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
+              v7: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"collections",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
+              v8: noop,
+              v9: noop,
+              v10: 24,
+              v11: 24,
+              v12: 24, v13:34, chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
+             }; } }
+        </script>
+    </body>
+</html>

@@ -97,7 +97,24 @@ Playwright (web), Maestro (mobile).
 | STS-003-C1 | Provider returns 429                 | Classified as throttled, distinct from a generic failure  |
 | STS-003-C2 | Provider returns an unexpected shape | `IMPORT_PROVIDER_UNAVAILABLE`; no partial draft (HAZ-012) |
 
-## STP-004 — OCR (SYS-004)
+## STP-004 — OCR (SYS-004) — ⛔ TRANSFERRED TO 011, 2026-08-16
+
+> **Where the coverage went.** SYS-004 moved to 011 with the photo channel (D-001 as amended; ADR-0019 §3).
+> STP-004-A…D and STS-004-A1…D2 are **retained here in full and NOT deleted** — they are the system-test suite
+> **011 inherits**, and 011 MUST run them rather than re-derive them. Three re-homing corrections apply, each
+> of which would leave a passing-but-wrong test if missed:
+>
+> - **STS-004-A1's `imported_physical` becomes `imported_paid`** (011 §A-5). The property being asserted —
+>   private on confirm, never publishable — is unchanged, because both classes are private-only under the
+>   shipped C-004 policy.
+> - **STS-004-A1 additionally asserts ZERO calls to the cloud OCR provider** on device-capable hardware,
+>   because 011 runs on-device first (011 §A-1). Asserting a cloud call would now assert the fallback path.
+> - **A new scenario 011 owes that 004 never could**: the "re-run in the cloud" control is reachable on a job
+>   with a **perfect** confidence score (011 §A-2). It is the only coverage of the wrong-but-confident class,
+>   and a confidence-gated version of it would test the blind spot instead of the remedy.
+>
+> **004 retains no OCR system test.** 004's remaining photo obligation — the chooser renders the method
+> unavailable-until-011 with a reason, never as a dead control — is covered under STP-012 (`FR-046`).
 
 #### Test Case: STP-004-A (Clear printed recipe photo)
 

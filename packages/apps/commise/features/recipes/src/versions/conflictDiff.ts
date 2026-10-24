@@ -3,7 +3,7 @@
  * (W7 Task 1).
  *
  * {@link computeConflictDiff} is the foundation the W7 conflict-resolution UI consumes: it classifies every
- * one of the 7 diffable `RecipeSnapshot` fields (the same scope `diff.ts`'s two-way {@link diffSnapshots}
+ * one of the 7 diffable `RecipeSnapshot` fields (the same scope `diff.ts`'s two-way `diffSnapshots`
  * covers — `version` is excluded there and here for the same reason: it is the snapshot's own sequence
  * number, not authored content) as `unchanged` / `changed` / `conflict` by comparing MINE and THEIRS
  * against the common BASE they both started editing from, and reports ONLY the changed-or-conflicting rows
@@ -35,15 +35,20 @@
  * reuse `diff.ts`'s exported {@link stepContentChanged}, {@link ingredientIdentity}, and
  * {@link ingredientContentChanged} — the SAME "what counts as changed content" rules the W6 two-way diff
  * uses, so the two-way and three-way diffs can never disagree about whether a given step or ingredient
- * changed. Ingredient line formatting reuses {@link formatQuantity} (the detail view's own formatter) for
- * the same reason — one authoritative "how a quantity+unit reads" regardless of which surface renders it.
+ * changed. Ingredient line formatting reuses {@link formatIngredientLine} (`detail/model.ts`) for the same
+ * reason — one authoritative "how an ingredient line reads" regardless of which surface renders it. That
+ * function was EXTRACTED for U26: this module and `model.ts`'s version-preview projection each carried a
+ * byte-identical copy of it, so a field added to one and forgotten in the other rendered a version's
+ * history and its conflict merge differently for the same line.
  *
  * Pure: never mutates `base`, `mine`, `theirs`, or their nested `steps`/`ingredients`.
  */
 import type { Locale } from '@commise/i18n';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
-import { formatQuantity } from '../detail/model.js';
+import { variantPartTexts } from '../detail/lineName.js';
+import { formatIngredientLine } from '../detail/model.js';
+import type { IngredientLineNameMessages } from '../messages.js';
 import { ingredientContentChanged, ingredientIdentity, stepContentChanged } from './diff.js';
 
 /** Whether a field/element differs between two sides: `[=]` neither side changed it, `[→]` exactly one side
@@ -53,20 +58,13 @@ export type ConflictMarker = 'unchanged' | 'changed' | 'conflict';
 /** The kind of field a {@link ConflictFieldRow} reports — the 5 scalar `RecipeSnapshot` fields, plus the two
  *  per-element collection kinds (one row PER changed step/ingredient, never one row for the whole collection). */
 export type ConflictFieldKind =
-    | 'title'
-    | 'description'
-    | 'servings'
-    | 'prepTimeMinutes'
-    | 'cookTimeMinutes'
-    | 'step'
-    | 'ingredient';
+    'title' | 'description' | 'servings' | 'prepTimeMinutes' | 'cookTimeMinutes' | 'step' | 'ingredient';
 
-/** One changed-or-conflicting field or element, three-way classified against a common base. */
-export interface ConflictFieldRow {
+/** What every row states: its key, its marker, and each side's formatted value. */
+interface ConflictRowValues {
     /** Stable key: the scalar field name (`'title'`) for scalars, or a per-element key (`'steps[2]'`,
      *  `'ingredients:<ingredientId>'`) for collection rows. */
     readonly key: string;
-    readonly fieldKind: ConflictFieldKind;
     readonly marker: ConflictMarker;
     /** The formatted base value. ABSENT when `base` itself is evicted/undefined (see module docs), OR when
      *  the element does not exist in `base` at all (an element added by mine and/or theirs has no base
@@ -83,6 +81,53 @@ export interface ConflictFieldRow {
     /** `theirs !== base` (deep-equal for structured elements). See {@link mineChanged}. */
     readonly theirsChanged: boolean;
 }
+
+/** A scalar field's row, or a step's: each side is its text alone. */
+export interface FieldConflictRow extends ConflictRowValues {
+    readonly fieldKind: Exclude<ConflictFieldKind, 'ingredient'>;
+}
+
+/** A variant's parts as `VariantPartsLine` takes them: display text, wire order, never empty. */
+type VariantPartTexts = readonly [string, ...string[]];
+
+/**
+ * An ingredient line's row: each side's text, and the variant parts that side froze, for `VariantPartsLine` under the
+ * text (curated U15, `docs/design/ingredientSpecialization.md` §S1). A side's parts are ABSENT when that side has no
+ * such line, when the base was evicted (base only), or when the line is root-bound (R28). Never joined into the text:
+ * no surface shows a comma-joined variant label (R25).
+ */
+export interface IngredientConflictRow extends ConflictRowValues {
+    readonly fieldKind: 'ingredient';
+    readonly baseVariantParts?: VariantPartTexts;
+    readonly mineVariantParts?: VariantPartTexts;
+    readonly theirsVariantParts?: VariantPartTexts;
+}
+
+/** One changed-or-conflicting field or element, three-way classified against a common base. */
+export type ConflictFieldRow = FieldConflictRow | IngredientConflictRow;
+
+/** Which of a row's three values a reader asks about. */
+export type ConflictRowSide = 'base' | 'mine' | 'theirs';
+
+/**
+ * The variant parts a row's side froze, or `undefined` when that side shows none — always so for a scalar or step row.
+ * Pure.
+ *
+ * @param row - The row.
+ * @param side - Which side's parts.
+ * @returns The parts, in wire order.
+ */
+export const conflictSideParts = (row: ConflictFieldRow, side: ConflictRowSide): VariantPartTexts | undefined => {
+    if (row.fieldKind !== 'ingredient') {
+        return undefined;
+    }
+
+    if (side === 'base') {
+        return row.baseVariantParts;
+    }
+
+    return side === 'mine' ? row.mineVariantParts : row.theirsVariantParts;
+};
 
 /** The result of a 3-way conflict comparison. */
 export interface ConflictDiff {
@@ -120,19 +165,44 @@ const formatStep = (step: RecipeStep | undefined): string => {
     return step.timerSeconds !== undefined ? `${step.instruction} (${step.timerSeconds}s timer)` : step.instruction;
 };
 
-/** Format an ingredient line for display: "{quantity}{unit} {name}", with any `displayText` override appended
- *  in parens. `undefined` (no ingredient with this identity on this side) formats as the empty string. Pure. */
-const formatIngredient = (ingredient: RecipeIngredient | undefined, locale: Locale): string => {
-    if (ingredient === undefined) {
-        return '';
-    }
+/**
+ * Format an ingredient line for a MERGE ROW. `undefined` (no ingredient with this identity on this side)
+ * formats as the empty string. Pure.
+ *
+ * ⚠️ The line itself comes from the SHARED {@link formatIngredientLine}, which the version-preview
+ * projection also calls — this function used to be a byte-identical copy of it, so a field added to one and
+ * forgotten in the other rendered a version's history and its conflict merge differently for the same line.
+ *
+ * ⛔ The SECTION comes from that shared formatter too, and DELIBERATELY not from a bracket added here. This
+ * surface needs it most — `ingredientContentChanged` counts a section-only edit as changed, so a merge row
+ * without the label would ask a cook to CHOOSE between two strings that read identically — but the version
+ * preview reads off the same tally, so rendering it on one surface and not the other is exactly the
+ * self-contradiction the preparation argument rules out.
+ */
+const formatIngredient = (
+    ingredient: RecipeIngredient | undefined,
+    locale: Locale,
+    lineNames: IngredientLineNameMessages,
+): string => (ingredient === undefined ? '' : formatIngredientLine(ingredient, locale, lineNames));
 
-    const name =
-        ingredient.displayText !== undefined
-            ? `${ingredient.ingredientName} (${ingredient.displayText})`
-            : ingredient.ingredientName;
+/**
+ * Each side's frozen variant parts, as an ingredient row carries them: a side with no line, or a root-bound line, states
+ * none. Pure.
+ */
+const sideVariantParts = (
+    base: RecipeIngredient | undefined,
+    mine: RecipeIngredient | undefined,
+    theirs: RecipeIngredient | undefined,
+): Pick<IngredientConflictRow, 'baseVariantParts' | 'mineVariantParts' | 'theirsVariantParts'> => {
+    const baseParts = variantPartTexts(base?.variantParts);
+    const mineParts = variantPartTexts(mine?.variantParts);
+    const theirsParts = variantPartTexts(theirs?.variantParts);
 
-    return `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`;
+    return {
+        ...(baseParts === undefined ? {} : { baseVariantParts: baseParts }),
+        ...(mineParts === undefined ? {} : { mineVariantParts: mineParts }),
+        ...(theirsParts === undefined ? {} : { theirsVariantParts: theirsParts }),
+    };
 };
 
 /**
@@ -362,6 +432,7 @@ const ingredientRows = (
     mine: readonly RecipeIngredient[],
     theirs: readonly RecipeIngredient[],
     locale: Locale,
+    lineNames: IngredientLineNameMessages,
 ): ConflictFieldRow[] => {
     const baseByIdentity = byIdentity(base);
     const mineByIdentity = byIdentity(mine);
@@ -385,11 +456,12 @@ const ingredientRows = (
             key: `ingredients:${identity}`,
             fieldKind: 'ingredient',
             marker,
-            ...(baseIngredient === undefined ? {} : { base: formatIngredient(baseIngredient, locale) }),
-            mine: formatIngredient(mineIngredient, locale),
-            theirs: formatIngredient(theirsIngredient, locale),
+            ...(baseIngredient === undefined ? {} : { base: formatIngredient(baseIngredient, locale, lineNames) }),
+            mine: formatIngredient(mineIngredient, locale, lineNames),
+            theirs: formatIngredient(theirsIngredient, locale, lineNames),
             mineChanged,
             theirsChanged,
+            ...sideVariantParts(baseIngredient, mineIngredient, theirsIngredient),
         });
     }
 
@@ -404,6 +476,7 @@ const ingredientRowsFallback = (
     mine: readonly RecipeIngredient[],
     theirs: readonly RecipeIngredient[],
     locale: Locale,
+    lineNames: IngredientLineNameMessages,
 ): ConflictFieldRow[] => {
     const mineByIdentity = byIdentity(mine);
     const theirsByIdentity = byIdentity(theirs);
@@ -421,10 +494,11 @@ const ingredientRowsFallback = (
             key: `ingredients:${identity}`,
             fieldKind: 'ingredient',
             marker: 'conflict',
-            mine: formatIngredient(mineIngredient, locale),
-            theirs: formatIngredient(theirsIngredient, locale),
+            mine: formatIngredient(mineIngredient, locale, lineNames),
+            theirs: formatIngredient(theirsIngredient, locale, lineNames),
             mineChanged: true,
             theirsChanged: true,
+            ...sideVariantParts(undefined, mineIngredient, theirsIngredient),
         });
     }
 
@@ -443,6 +517,7 @@ const isDefinedRow = (row: ConflictFieldRow | undefined): row is ConflictFieldRo
  * @param mine - The current user's (in-progress or resubmitted) snapshot.
  * @param theirs - The latest saved snapshot the user's edit collided with.
  * @param locale - The active BCP-47 locale, for locale-correct ingredient-quantity formatting.
+ * @param lineNames - The stand-in for an ingredient line that has no name.
  * @returns The changed-only rows, whether any is a genuine conflict, and whether there is nothing to merge.
  */
 export const computeConflictDiff = (
@@ -450,6 +525,7 @@ export const computeConflictDiff = (
     mine: RecipeSnapshot,
     theirs: RecipeSnapshot,
     locale: Locale,
+    lineNames: IngredientLineNameMessages,
 ): ConflictDiff => {
     const rows: ConflictFieldRow[] =
         base === undefined
@@ -458,14 +534,14 @@ export const computeConflictDiff = (
                       isDefinedRow,
                   ),
                   ...stepRowsFallback(mine.steps, theirs.steps),
-                  ...ingredientRowsFallback(mine.ingredients, theirs.ingredients, locale),
+                  ...ingredientRowsFallback(mine.ingredients, theirs.ingredients, locale, lineNames),
               ]
             : [
                   ...SCALAR_FIELD_KINDS.map((fieldKind) => scalarRow(fieldKind, base, mine, theirs)).filter(
                       isDefinedRow,
                   ),
                   ...stepRows(base.steps, mine.steps, theirs.steps),
-                  ...ingredientRows(base.ingredients, mine.ingredients, theirs.ingredients, locale),
+                  ...ingredientRows(base.ingredients, mine.ingredients, theirs.ingredients, locale, lineNames),
               ];
 
     return {

@@ -2,7 +2,7 @@
  * End-to-end guard for the mobile display-font faces (U8). Three links have to hold, and only the middle one
  * is visible to the type checker:
  *
- *   design scale (`nativeTokens.fontFace.display`) → `theme/fonts.ts` aliases → the faces `App.tsx` LOADS
+ *   design scale (`nativeTokens.fontFace.display` / `.body`) → `theme/fonts.ts` aliases → the faces `App.tsx` LOADS
  *
  * If the last link breaks — a token naming a face nobody registers — React Native falls back to the system
  * serif silently, with no error and no failing type, which is exactly how the Playfair regression this suite
@@ -44,6 +44,27 @@ describe('mobile display-font faces', () => {
         expect(faces.length).toBeGreaterThan(0);
         expect(faces).toContain(DISPLAY_FONT_SEMIBOLD);
         expect(faces).toContain(DISPLAY_FONT_BOLD);
+    });
+
+    // §1.5: native must register Inter 400/500/600/700. A body type role naming a face nobody loads renders the
+    // system font with no error — the same silent failure as the Playfair regression above, one family over.
+    it('loads every body (Inter) face the design system names', () => {
+        const faces = registeredFaces();
+
+        for (const face of Object.values(nativeTokens.fontFace.body)) {
+            expect(faces, `${face} is named by the design system but never loaded`).toContain(face);
+        }
+    });
+
+    it('loads every face any native type role selects', () => {
+        const faces = registeredFaces();
+        const roleFaces = Object.values(nativeTokens.type).flatMap((entry) =>
+            'fontFamily' in entry ? [entry.fontFamily] : Object.values(entry).map((style) => style.fontFamily),
+        );
+
+        for (const face of new Set(roleFaces)) {
+            expect(faces).toContain(face);
+        }
     });
 
     it('are single registered face names, never a CSS font stack', () => {

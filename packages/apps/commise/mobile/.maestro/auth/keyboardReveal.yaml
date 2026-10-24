@@ -1,0 +1,26 @@
+# Maestro E2E: the sign-in form with the keyboard UP (build spec §8.1; `specSharedSystem.md` §16.2).
+#
+# The frame holds a focused field inside the part of the screen the keyboard and the pinned footer leave (the scroll
+# ends where the footer begins, so the footer is outside the visible area by construction). With the keyboard up on a
+# short screen the focused password field and the pinned `Sign in` are both visible, so the cook can see what they are
+# typing and press the primary without dismissing the keyboard.
+#
+# ⚠️ Written, NOT run: it needs a device or emulator. The Android `ReactScrollView` possibly scrolling a focused child
+# itself (a double scroll) is a device check, recorded in the slice report.
+#
+# Run: maestro test .maestro/auth/keyboardReveal.yaml
+
+appId: ${APP_ID}
+---
+- runFlow: launchCleared.yaml
+
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
+
+# Focus the password: the keyboard rises, the footer pins above it, and the field must not end up under either.
+- tapOn: 'Your password'
+- inputText: 'x'
+
+- assertVisible: 'Password'
+- assertVisible: 'Sign in'

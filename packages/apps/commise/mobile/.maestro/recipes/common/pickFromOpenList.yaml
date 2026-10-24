@@ -1,0 +1,55 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: pick `TARGET` (a regex on an option's text) from an OPEN food list. Called as
+# `runFlow: { file: common/pickFromOpenList.yaml, env: { TARGET: '…' } }`, with `DIRECTION: UP` to go back up the list.
+# It scrolls with `scrollOpenList.yaml`, then taps the option. A caller that only needs the option on screen calls
+# `scrollOpenList.yaml` itself.
+#
+# ⛔ WHY THE TAP IS NEAR THE OPTION'S TOP, NOT AT ITS CENTRE. On iOS with the soft keyboard up, the helper stops once the
+# option is `above` the keyboard, and Maestro's `above` compares TOP edges only (`maestro.Filters.above`, read from the
+# maestro-client bytecode, 2026-10-18). So the top is on screen and the centre, where a plain `tapOn` lands, may not be.
+# Moving the row was wrong both ways it could be written. An unconditional "lift" drag started on the page below a SHORT
+# list and closed it, because a drag outside an open list closes it (`Combobox.native.tsx`; CI run 39400327458, iOS
+# shard 1, `versions`: "Use .*Tomato.* as written.*" was gone after the lift). A lift gated on "some option starts below
+# the keyboard" skipped exactly when the target was the LAST option straddling the keyboard's edge, and the tap landed
+# on the suggestion strip (Mac run, `ingredientArrival`: "Use .*Maestro Row Four.* as written.*" was still there after
+# the tap). Tapping near the top needs nothing to move.
+#
+# ⚠️ THE POINT IS `50%,5%`. Maestro puts it at `top + height * 5 / 100` in whole units (`calculateElementRelativePoint`,
+# maestro-orchestra): 2 pt into a 48 pt option row on iOS (`Combobox.native.tsx`: `minHeight` 48, and the row's
+# Pressable is the one accessible element, so the whole row is the match and every point in it is its hit area). Not
+# lower: bounds arrive rounded to whole units, and a tap ON the top edge can fall on the option ABOVE, which picks a
+# different food without failing. Not higher: the helper only promises the top is above the keyboard, so the tap still
+# lands on the keyboard when the top cleared it by less than the offset. That window is now 2 pt instead of half a row.
+# Positions are fixed per device and list, so a miss would repeat on every run, not flake.
+#
+# ⚠️ `index: 0` IS THE TOPMOST MATCH (`Filters.index` sorts by y, then x). The helper's guarantee is about the highest
+# match, so that is the one to tap. Without an index Maestro takes the first CLICKABLE match instead.
+#
+# Going UP the option comes in at the top of the list, so its top may be clipped under the field there. That branch
+# taps the centre, as every caller did before. Android needs no special case: it drops what the keyboard covers, so
+# the top of any option it reports is on screen. The two taps are two `runFlow when` blocks because a point is parsed
+# when the file LOADS, like a swipe's coordinates (`maestroSwipeCoordinatesLiteral.test.ts`).
+#
+# `maestroOpenListPick.test.ts` refuses a `scrollOpenList.yaml` call followed by a tap on its TARGET anywhere else, and
+# holds the point and the index above.
+- runFlow:
+      file: scrollOpenList.yaml
+      env:
+          TARGET: ${TARGET}
+          DIRECTION: "${typeof DIRECTION === 'undefined' ? 'DOWN' : DIRECTION}"
+- runFlow:
+      when:
+          true: ${DIRECTION == 'UP'}
+      commands:
+          - tapOn:
+                text: ${TARGET}
+                index: 0
+- runFlow:
+      when:
+          true: ${DIRECTION != 'UP'}
+      commands:
+          - tapOn:
+                text: ${TARGET}
+                index: 0
+                point: '50%,5%'

@@ -1,0 +1,3 @@
+Text whose appearance and changes are spoken by screen readers. `politeness` is `polite` (a status) or `assertive` (an alert that interrupts), and the region is mounted empty so that a later change is announced. Pass `occurrence` to make the same message speak again; without it, only a change of text is spoken. `visuallyHidden` makes a region that is only spoken, for changes the screen already shows another way, such as a stepper count. The message must be plain text.
+
+On native, Android speaks a live-region text node and iOS gets an imperative announcement instead, never both; mount it empty before there is anything to say.

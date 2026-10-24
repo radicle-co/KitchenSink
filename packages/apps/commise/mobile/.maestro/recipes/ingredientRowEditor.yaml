@@ -1,0 +1,161 @@
+appId: ${APP_ID}
+---
+# The ingredient row editor's stories on a device (plan 002 V1 B7). Mobile mirror of the web Playwright
+# `ingredientRowEditor.spec.ts`:
+#
+# - US7, Change food: the cook reopens a matched line's food and picks another, and the amount and unit stay.
+# - `docs/design/rowEditorOpenDecisions.md` R7: text a Change food row holds refuses Publish; the row says why, and
+#   choosing "Use … as written" lets Publish go ahead. REWRITTEN for slice 7: Save Draft is gone (the editor saves at
+#   checkpoints), so the refusal R7 describes now happens at Publish, the one gated write left.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form, so each pick goes into the draft
+# (blueprint decision 7). The first food is the run's probe `Flour` (`e2e-seed provision`); the second is the KTD-16
+# root `boneless skinless chicken breasts` from the stage's catalog seed. It publishes one recipe, which the next flow's
+# reset deletes.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Row Editor'
+
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
+# The probe food, then an amount the cook chose, set in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet
+# on a phone).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+- tapOn: 'Flour, your food'
+# The line lands above the add field the cook is at: one page, so it is UP.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit Flour'
+          DIRECTION: UP
+          TIMEOUT: 30000
+- tapOn: 'Edit Flour'
+- tapOn: 'Amount'
+- inputText: '3'
+- tapOn: 'Unit'
+- inputText: 'cups'
+# ⛔ On Android the keyboard's own action key is ALSO named "Done" (`key_pos_ime_action`), and with the keyboard up a bare
+# `tapOn: 'Done'` resolves to it, not to the sheet's button (maestro.log, local run 2026-10-18). So Android closes the
+# keyboard first. Inside the sheet's Modal its BACK closes only the keyboard, as `quantityRange.yaml` relies on. iOS keeps
+# the bare tap: `hideKeyboard` failed there (run 38988891871).
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - hideKeyboard
+- tapOn: 'Done'
+- assertVisible: 'Edit 3 cups Flour'
+
+# US7: Change food keeps the cook's amount and unit. The field opens on the food's name with the caret at its end
+# (`Combobox.native.tsx`'s focus request), so the name is erased before the search is typed.
+- tapOn: 'Actions for Flour'
+- tapOn: 'Change food'
+- eraseText: 20
+- inputText: 'boneless skinless chicken brea'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'KTD-16 root "boneless skinless chicken breasts" is in this stage’s food catalog'
+- tapOn: 'boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts'
+      timeout: 30000
+# The pick moved the food, not the cook's amount and unit: the row reads them first.
+- assertVisible: 'Edit 3 cups boneless skinless chicken breasts'
+
+# R7: Change food again and type, but choose nothing. A step first, so the only thing Publish can refuse is the
+# held text (a new recipe has no steps, and an empty Steps section would be refused too).
+- tapOn: 'Actions for boneless skinless chicken breasts'
+- tapOn: 'Change food'
+- eraseText: 40
+- inputText: 'smoked flour'
+# Close the keyboard and jump to Steps first, as `create.yaml` does. With the keyboard and the held text's list up, the
+# tap meant for `Add step` moved the page back to Details instead, and no step was added (CI run 39387415456, Android
+# shard 8). The tap on `Add step` blurred the field anyway, so the held text is kept the same way.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+# ⚠️ Centred, so the tap lands mid-screen: with the held text's option list open the page is long, and an element
+# scrolled only just into view sits under the floating action bar, where the tap reaches Publish (run 38973223138
+# showed "Fix 2 things to publish" with no step added).
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Roast.'
+# The step field keeps the soft keyboard up, and while it is up the action bar UNPINS and scrolls with the page, below
+# this screen (build spec §7.1). The first heading closes the keyboard, and the bar pins to the foot again.
+- runFlow: common/closeEditorKeyboard.yaml
+- tapOn: 'Publish'
+
+# The refusal says how many things there are to fix (the bar), and the row says why. Nothing was published: the editor
+# is still open.
+- assertVisible:
+      text: 'Fix 1 thing to publish'
+- scrollUntilVisible:
+      element: '“smoked flour” isn’t in the recipe yet\. Choose a food for it, or press Cancel to keep boneless skinless chicken breasts\.'
+      direction: UP
+      timeout: 20000
+- assertVisible: 'Close editor'
+
+# Build spec §7.8, native: the refusal moves only the screen-reader cursor to the row's field. The keyboard stays down
+# and the list stays shut (it replaces R7 items 2-4 on native). The cook's first tap on the field opens the list on the
+# words it holds (`openOnFocus`), so the cook keeps them without editing them.
+- assertNotVisible: 'Use “smoked flour” as written, without nutrition'
+- tapOn: 'smoked flour'
+# The way on is the list's last option, after every food the words match, so how far down it sits depends on the
+# stage's catalog.
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Use “smoked flour” as written, without nutrition'
+# The row's field may still hold focus, and the keyboard with it, which unpins the bar (build spec §7.1).
+- runFlow: common/closeEditorKeyboard.yaml
+- tapOn:
+      text: 'Publish'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Row Editor.*'
+      timeout: 40000
+- assertNotVisible: 'Close editor'

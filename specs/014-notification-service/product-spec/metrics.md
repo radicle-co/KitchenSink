@@ -35,3 +35,20 @@
 | MET-014-010 | Global broadcast audit completeness            |                                      100% | admin audit log        |
 | MET-014-011 | Producer contract compatibility test pass rate |                                      100% | integration test suite |
 | MET-014-012 | Notification owner drift incidents             |                                         0 | governance review      |
+
+### Dual ingress (added 2026-08-10)
+
+The event path introduced two signals nothing above measures. MET-014-009 claims 100% coverage of failure
+classes, and an event-path rejection is a failure class that produces no response to anyone — so without
+MET-014-013 that claim is not measurable.
+
+| Metric ID   | Metric                                                    | Target | Source                            |
+| ----------- | --------------------------------------------------------- | -----: | --------------------------------- |
+| MET-014-013 | Event-path rejections dead-lettered with a reason code    |   100% | DLQ records vs rejection counters |
+| MET-014-014 | Event-path rejections silently dropped                    |      0 | DLQ depth vs adapter reject count |
+| MET-014-015 | Non-allowlisted `source` envelopes delivered              |      0 | security tests + delivery audit   |
+| MET-014-016 | Ingress parity: paired per-rule tests agreeing on outcome |   100% | integration test suite            |
+| MET-014-017 | Duplicate delivery from transport redelivery              |      0 | delivery audit vs replayed events |
+
+MET-014-015 is the only metric here whose target is a security property rather than a quality one: a single
+non-zero reading means a notification was addressed to a user by an unauthorized principal.

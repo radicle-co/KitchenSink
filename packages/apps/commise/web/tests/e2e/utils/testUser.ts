@@ -6,26 +6,34 @@ import {
     LEAKED_FIXTURE_MAX_AGE_MS,
     planE2EUserCleanup,
     resolveRunKey,
-    signInFixtureEmail,
-    signInFixtureUsername,
     signUpEmail,
-} from './runFixtureIdentity';
+} from '@kitchensink/e2e-fixtures';
+import { clerkLeasePort, resolvePoolUser } from '@kitchensink/e2e-fixtures/lease';
+import { POOL_PASSWORD } from '@kitchensink/e2e-fixtures/testPool';
+
+import { webPoolSlot } from './poolSlot';
 
 /**
- * This run's identity, derived once per process and pinned into the environment so `globalSetup`, every
- * Playwright worker, and `globalTeardown` agree. See `runFixtureIdentity.ts` for WHY it is per-run: a
- * fixed, shared fixture on the shared sandbox Clerk instance let two concurrent CI runs delete each
- * other's sign-in user.
+ * This run's key, derived once per process and pinned into the environment so `globalSetup`, every Playwright
+ * worker, and `globalTeardown` agree. It scopes the ONE user this suite still creates — `signUp.spec.ts`'s, whose
+ * subject is registration itself — and this process's auth-state file.
  */
 export const RUN_KEY = resolveRunKey();
 
 /**
- * The sign-IN identity for THIS run. `+clerk_test` marks it a Clerk test account (no real email is sent;
- * it verifies with the fixed dev code 424242), and the password clears Clerk's strength checks.
+ * The fixed test-pool slot this process signs in as — see `poolSlot.ts`. `+clerk_test` marks it a Clerk test
+ * account (no real email is sent; it verifies with the fixed dev code 424242).
  */
-export const TEST_USER_EMAIL = signInFixtureEmail(RUN_KEY);
-export const TEST_USER_USERNAME = signInFixtureUsername(RUN_KEY);
-export const TEST_USER_PASSWORD = 'Commise-e2e-Test-9j2xQ!';
+export const TEST_SLOT = webPoolSlot({
+    COMMISE_E2E_SHARD: process.env['COMMISE_E2E_SHARD'],
+    PLAYWRIGHT_MOCKED_ONLY: process.env['PLAYWRIGHT_MOCKED_ONLY'],
+});
+
+/** The sign-IN identity: the slot's address. */
+export const TEST_USER_EMAIL = TEST_SLOT.email;
+
+/** The password `poolAdmin` creates a web slot with, which `signIn.spec.ts` types. */
+export const TEST_USER_PASSWORD = POOL_PASSWORD;
 
 function client() {
     const secretKey = process.env['CLERK_SECRET_KEY'];
@@ -38,85 +46,27 @@ function client() {
 }
 
 /**
- * Idempotently ensure THIS RUN's sign-in test user exists with a known, verified email + password.
+ * Resolve this process's pool slot to its Clerk user, refusing a slot `poolAdmin` has not provisioned.
  *
- * @returns the Clerk user id — the caller ({@link globalSetup}) uses it to wait for the `external_id`
- *   backfill (see {@link waitForTestUserExternalId}) before any owner-gated spec runs.
- * @sideEffect Reads and writes Clerk users via the Backend API.
+ * ⛔ IT CREATES NOTHING. This used to find-or-create a run-scoped user and then block on the `user.created` webhook
+ * backfilling its `external_id`. A pool slot is created once by `poolAdmin`, which waits for that backfill itself,
+ * so `resolvePoolUser` simply refuses a slot that is absent, unmarked, or still missing its `external_id` — and
+ * the fix it names is `poolAdmin --apply`, never a user minted by a test run.
+ *
+ * ⚠️ The local `E2E_LOCAL_IDENTITY` path that WROTE a made-up `external_id` onto the user is gone with it: on a
+ * shared pool user that write would re-point a real slot at an app user that does not exist, for every run after.
+ *
+ * @returns the Clerk user id.
+ * @sideEffect Reads Clerk users via the Backend API.
  */
-export async function ensureSignInTestUser(): Promise<string> {
-    const clerk = client();
-    const existing = await clerk.users.getUserList({ emailAddress: [TEST_USER_EMAIL] });
-    const found = existing.data[0];
+export async function resolveSignInTestUser(): Promise<string> {
+    const secretKey = process.env['CLERK_SECRET_KEY'];
 
-    if (found !== undefined) {
-        return found.id;
+    if (!secretKey) {
+        throw new Error('CLERK_SECRET_KEY is required to resolve the e2e test-pool slot');
     }
 
-    try {
-        // This Clerk instance requires first/last name + username on every user; the username is unique
-        // per instance, so it is run-scoped too (a shared literal made concurrent runs race on it).
-        const created = await clerk.users.createUser({
-            emailAddress: [TEST_USER_EMAIL],
-            password: TEST_USER_PASSWORD,
-            firstName: 'Commise',
-            lastName: 'Signin',
-            username: TEST_USER_USERNAME,
-            skipPasswordChecks: true,
-        });
-
-        return created.id;
-    } catch (err) {
-        // Lost a create race (two processes of the same run): the user now exists, so adopt it rather
-        // than failing the whole suite on an identifier-exists 422. Anything else is a real failure.
-        const raced = await clerk.users.getUserList({ emailAddress: [TEST_USER_EMAIL] });
-        const adopted = raced.data[0];
-
-        if (adopted !== undefined) {
-            return adopted.id;
-        }
-
-        throw err;
-    }
-}
-
-/**
- * Block until the Clerk user's `external_id` (the app-user ULID) has been backfilled by the async
- * `user.created` webhook (identity-webhooks → `clerk.users.updateUser({ externalId })`). Every run
- * provisions a FRESH user (its identity is run-scoped) and so re-races this backfill; gating here makes
- * `external_id` a deterministic precondition, so every per-test token carries it (it is a USER property —
- * once set, all subsequently-minted tokens include it via the session-token customization).
- *
- * On timeout this throws LOUD, naming the webhook prerequisite — so a genuine sandbox webhook outage surfaces
- * as a clear setup failure rather than a mystery flake, and is never masked.
- *
- * @sideEffect Polls the Clerk Backend API (`users.getUser`) and sleeps between attempts.
- */
-export async function waitForTestUserExternalId(
-    userId: string,
-    { timeoutMs = 30_000, intervalMs = 1_000 }: { timeoutMs?: number; intervalMs?: number } = {},
-): Promise<void> {
-    const clerk = client();
-    // Date.now()/setTimeout are fine here — Node test setup, not the deterministic workflow sandbox.
-    const deadline = Date.now() + timeoutMs;
-
-    for (;;) {
-        const user = await clerk.users.getUser(userId);
-
-        if (typeof user.externalId === 'string' && user.externalId.length > 0) {
-            return;
-        }
-
-        if (Date.now() >= deadline) {
-            throw new Error(
-                `waitForTestUserExternalId: Clerk user ${userId} still has no externalId after ${timeoutMs}ms. ` +
-                    'The user.created webhook (identity-webhooks → clerk.users.updateUser) must backfill it; a ' +
-                    'persistent failure here is a sandbox webhook outage, not a test bug.',
-            );
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
+    return (await resolvePoolUser(TEST_SLOT, clerkLeasePort(secretKey))).id;
 }
 
 /**
@@ -140,7 +90,7 @@ export async function clerkSessionStatus(sessionId: string): Promise<string> {
 /**
  * The session id (`sid`) carried by the browser's `__session` cookie — i.e. the session THIS browser context
  * is actually authenticated with, as opposed to any other session the shared test user may still hold from an
- * earlier spec (the suite runs serially against one fixture user and specs do not sign out).
+ * earlier spec (the suite runs serially against one pool user and specs do not sign out).
  *
  * @param cookies - `page.context().cookies()` output.
  * @returns the `sid` claim, or `null` when no `__session` cookie is present (i.e. already signed out).
@@ -177,20 +127,20 @@ export function uniqueSignUpEmail(): string {
 }
 
 /**
- * Teardown cleanup, SCOPED so it can never touch a concurrent run.
+ * Teardown cleanup of the SIGN-UP carve-out, SCOPED so it can never touch a concurrent run or the test pool.
  *
- * Two passes over ONE list call (`query: 'commise-e2e'`, the shared prefix of every e2e user):
- *   1. This run's own users — the sign-in fixture plus any sign-up user a crashed spec left behind.
+ * Two passes over ONE list call (`query: 'commise-e2e'`, the shared prefix of every run-minted e2e user):
+ *   1. This run's own sign-up users — any a crashed `signUp.spec.ts` left behind.
  *   2. An AGE-GATED sweep of run-scoped users from OTHER runs, older than {@link LEAKED_FIXTURE_MAX_AGE_MS}
- *      (12h > the 6h GitHub job cap), i.e. provably not owned by anything still running. This is the
- *      safety net for crashed runs that never reached their own teardown.
- * The fixed Maestro fixture (`commise-e2e-signin+clerk_test@example.com`) matches NEITHER rule by
- * construction — it has no run-key segment — so the mobile job's long-lived user survives.
+ *      (12h > the 6h GitHub job cap), i.e. provably not owned by anything still running — including the
+ *      pre-cutover run-minted sign-in fixtures still on the shared instance.
+ * No test-pool slot matches either rule (`runFixtureIdentity.test.ts` asserts it over the whole roster), so the
+ * pool survives every sweep.
  *
- * Deleting from Clerk is the only cleanup the e2e can do (the identity DB is VPC-private), and it is
- * sufficient: each delete fires the `user.deleted` webhook, which the sandbox deletion-worker turns into a
- * DB purge (account + profile removed, user row anonymized). Best-effort per user — one failed delete must
- * not fail an otherwise-green run.
+ * ⚠️ A Clerk delete is NOT data cleanup — a deleted user's public content survives, pseudonymised — which is
+ * exactly why sign-in identities are a fixed pool whose DATA `resetPool` empties instead. A sign-up user authors
+ * nothing, so for this carve-out the delete is enough. Best-effort per user — one failed delete must not fail an
+ * otherwise-green run.
  *
  * @returns the ids actually deleted, split by rule (own vs leaked), for the teardown log.
  * @sideEffect Lists and deletes Clerk users.

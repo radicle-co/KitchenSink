@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { backoffSeconds, isRetryBudgetExhausted, MAX_FAILURE_ATTEMPTS } from '../backoff.js';
+import {
+    backoffSeconds,
+    isRetryBudgetExhausted,
+    isTimeoutBudgetExhausted,
+    MAX_FAILURE_ATTEMPTS,
+    MAX_TIMEOUT_DEFERRALS,
+} from '../backoff.js';
 
 describe('backoffSeconds (FR-016 — exponential 2^attempts)', () => {
     it('doubles with each real failure (1→2, 2→4, 3→8, 4→16, 5→32)', () => {
@@ -21,5 +27,17 @@ describe('retry budget (FR-016/FR-027)', () => {
         expect(isRetryBudgetExhausted(4)).toBe(false);
         expect(isRetryBudgetExhausted(5)).toBe(true);
         expect(isRetryBudgetExhausted(6)).toBe(true);
+    });
+});
+
+describe('timeout budget (a source that never answers must not defer a row forever)', () => {
+    it('tolerates exactly 5 timeout deferrals before the row fails', () => {
+        expect(MAX_TIMEOUT_DEFERRALS).toBe(5);
+    });
+
+    it('is exhausted once the post-increment count reaches the cap', () => {
+        expect(isTimeoutBudgetExhausted(4)).toBe(false);
+        expect(isTimeoutBudgetExhausted(5)).toBe(true);
+        expect(isTimeoutBudgetExhausted(6)).toBe(true);
     });
 });

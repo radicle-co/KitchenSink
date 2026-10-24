@@ -1,0 +1,666 @@
+/**
+ * The manifest is the contract between a TypeScript package, a bash script and twenty-odd YAML flows. These
+ * assertions pin the properties every one of those consumers depends on.
+ */
+import { deriveRunKey } from '@kitchensink/e2e-fixtures';
+import {
+    consumableSlots,
+    MAESTRO_PLATFORMS,
+    maestroShardCapacity,
+    maestroSlotForShard,
+    POOL_PASSWORD,
+    DOWNGRADED_OWNER_LANE_ID,
+    ROLE_LANE_IDS,
+    slotFor,
+} from '@kitchensink/e2e-fixtures/testPool';
+import { createRecipeRequestSchema, MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
+import { describe, expect, it } from 'vitest';
+
+import {
+    CAP_FOOD_BASE_NAME,
+    deriveAmbiguityProbe,
+    deriveFixtureManifest,
+    FIXTURE_ENV_KEYS,
+    manifestToEnvLines,
+    PRIVATE_FOOD_NAME,
+    PRIVATE_FOOD_RECIPE,
+    runScopedTitle,
+    DOWNGRADED_OWNER_WORLD,
+    SEED_WORLD,
+    UNATTACHED_PROBE_INGREDIENT,
+} from '../src/fixtureManifest.js';
+import { toCreateRequest } from '../src/recipeWorld.js';
+
+const RUN = 'gh42-1-maestro';
+/** The shard whose identities these assertions are about; shard 1 is the unsharded tier. */
+const SHARD = 1;
+/** The platform these assertions are about, unless a case says otherwise. */
+const PLATFORM = 'android';
+/** The erasure subject `provision` leased — a consumable pool slot, resolved at run time, never derived. */
+const ERASURE = consumableSlots('maestro')[2]?.email ?? '';
+/** The probe words `provision` chose and verified against the live search — NOT derivable from the run key. */
+const PROBE_WORDS = {
+    appendWord: 'paneer',
+    appendFood: `paneer ${RUN}`,
+    changeWord: 'gochujang',
+    unresolvedWord: 'halloumi',
+    ambiguityWord: 'mirin',
+    noMatchFood: 'Zorbleflax',
+} as const;
+/** What `provision` knows that the run key does not: the leased erasure subject and the chosen probe words. */
+const provisioned = (erasureEmail: string | null): Parameters<typeof manifestToEnvLines>[1] => ({
+    erasureEmail,
+    probeWords: PROBE_WORDS,
+});
+
+describe('deriveFixtureManifest', () => {
+    it('is deterministic — provision, ~35 resets and teardown must agree without passing state', () => {
+        expect(deriveFixtureManifest(RUN, PLATFORM, SHARD)).toEqual(deriveFixtureManifest(RUN, PLATFORM, SHARD));
+    });
+
+    it('scopes every title to the run, with the run key LAST', () => {
+        // Suffix, not prefix: several flows scroll to a row by its leading words and match unanchored, so a
+        // prefix would break every one of them while a suffix keeps the base title matchable.
+        for (const recipe of deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes) {
+            expect(recipe.title).toBe(`${recipe.baseTitle} ${RUN}`);
+            expect(recipe.title.startsWith(recipe.baseTitle)).toBe(true);
+        }
+    });
+
+    it('gives two runs disjoint titles — the whole reason titles are scoped at all', () => {
+        const mine = deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes.map((recipe) => recipe.title);
+        const theirs = deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD).recipes.map((recipe) => recipe.title);
+
+        expect(mine.filter((title) => theirs.includes(title))).toEqual([]);
+    });
+
+    /**
+     * ⛔ REWRITTEN for the fixed pool (owner ruling 2026-09-13): the identities used to be derived from the RUN
+     * KEY, three `createUser` calls per run. They are now the Maestro tier's roster slots — the SAME users on every
+     * run, serialized by the tier's concurrency group — and only the recipe TITLES stay run-scoped.
+     */
+    it('signs in as the maestro tier’s fixed pool slots, the same on every run', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+        expect(manifest.signInEmail).toBe(maestroSlotForShard('signer', PLATFORM, SHARD).email);
+        expect(manifest.coAuthorEmail).toBe(maestroSlotForShard('coauthor', PLATFORM, SHARD).email);
+        expect(deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD).signInEmail).toBe(manifest.signInEmail);
+        expect(manifest.signInEmail).not.toBe(manifest.coAuthorEmail);
+    });
+
+    /**
+     * ⛔ EXTENDED for SHARDING. `signInEmail` is the address the DEVICE types into the login form, so two shards
+     * whose manifests named one signer would drive their emulators as the same user while holding separate API
+     * sessions — and the per-flow reset, which reconciles that signer's library to the manifest, would then
+     * delete the sibling shard's fixtures mid-flow. The platform and shard are REQUIRED parameters for exactly this reason:
+     * a default would make the collision the quiet outcome.
+     */
+    it('⛔ gives each shard of each platform its OWN signer and co-author, so no two lanes ever drive one user', () => {
+        const manifests = MAESTRO_PLATFORMS.flatMap((platform) =>
+            Array.from({ length: maestroShardCapacity(platform) }, (_, index) =>
+                deriveFixtureManifest(RUN, platform, index + 1),
+            ),
+        );
+        const emails = manifests.flatMap((manifest) => [manifest.signInEmail, manifest.coAuthorEmail]);
+
+        expect(manifests, 'the roster must declare more than one lane for this to be a real assertion').toHaveLength(
+            16,
+        );
+        expect(new Set(emails).size).toBe(emails.length);
+    });
+
+    /**
+     * ADDED 2026-10-13. The same shard number on the two platforms is the case the per-platform lanes exist for:
+     * iOS shard 1 must not sign in as Android shard 1.
+     */
+    it('⛔ gives iOS shard 1 its own signer and co-author, not Android shard 1’s', () => {
+        const android = deriveFixtureManifest(RUN, 'android', 1);
+        const ios = deriveFixtureManifest(RUN, 'ios', 1);
+
+        expect(ios.signInEmail).toBe(maestroSlotForShard('signer', 'ios', 1).email);
+        expect(ios.signInEmail).toBe(slotFor('maestro', 'iossigner01').email);
+        expect(ios.coAuthorEmail).toBe(slotFor('maestro', 'ioscoauthor01').email);
+        expect(ios.signInEmail).not.toBe(android.signInEmail);
+        expect(ios.coAuthorEmail).not.toBe(android.coAuthorEmail);
+    });
+
+    it('keeps Android shard 1 on the original addresses, so the split re-provisions no Clerk user', () => {
+        expect(deriveFixtureManifest(RUN, 'android', 1).signInEmail).toBe(slotFor('maestro', 'signer').email);
+        expect(deriveFixtureManifest(RUN, 'android', 1).coAuthorEmail).toBe(slotFor('maestro', 'coauthor').email);
+    });
+
+    it('⛔ refuses a shard the roster cannot identify rather than wrapping onto shard 1', () => {
+        for (const platform of MAESTRO_PLATFORMS) {
+            expect(() => deriveFixtureManifest(RUN, platform, maestroShardCapacity(platform) + 1)).toThrow(
+                /poolAdmin/u,
+            );
+        }
+    });
+
+    it('types the password the pool provisions its password-bearing slots with', () => {
+        expect(deriveFixtureManifest(RUN, PLATFORM, SHARD).password).toBe(POOL_PASSWORD);
+    });
+
+    it('is frozen — a manifest a caller can edit is a manifest that drifts between processes', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+        expect(Object.isFrozen(manifest)).toBe(true);
+        expect(Object.isFrozen(manifest.recipes)).toBe(true);
+        expect(manifest.recipes.every((recipe) => Object.isFrozen(recipe))).toBe(true);
+    });
+
+    it('owns exactly three signer recipes, which is what makes "3 recipes" true', () => {
+        // `searchNavigation.yaml` and `servingScale.yaml` both assert `^3 recipes$` on the library screen.
+        expect(
+            deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes.filter((recipe) => recipe.owner === 'signer'),
+        ).toHaveLength(3);
+    });
+
+    it('gives the co-author exactly one PUBLIC recipe — a row the signer does not own', () => {
+        const coAuthored = deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes.filter(
+            (recipe) => recipe.owner === 'coAuthor',
+        );
+
+        expect(coAuthored).toHaveLength(1);
+        expect(coAuthored[0]?.visibility).toBe('public');
+        expect(coAuthored[0]?.baseTitle).toBe('Herb Risotto');
+    });
+
+    it('NEVER attaches the discovery probe ingredient to any recipe', () => {
+        // `searchNavigation.yaml` filters discovery by this name and asserts the feed collapses to "No
+        // matching recipes". Attaching it anywhere turns that flow red for a reason no diff explains.
+        const attached = SEED_WORLD.flatMap((recipe) => recipe.ingredients.map((line) => line.name));
+
+        expect(attached).not.toContain(UNATTACHED_PROBE_INGREDIENT);
+    });
+
+    it('omits `unit` on a unitless line rather than sending an empty string', () => {
+        // `seed.ts` writes `''` because the database accepts it; the WRITE schema rejects it. The read
+        // projection turns both into an absent unit, so the rendered detail is identical either way.
+        const units = SEED_WORLD.flatMap((recipe) => recipe.ingredients.map((line) => line.unit));
+
+        expect(units).not.toContain('');
+    });
+
+    it('keeps the scalars `servingScale.yaml` asserts', () => {
+        // That flow's own docblock explains why THIS recipe: doubled, 10/10/20 gives 20/10/30, all
+        // distinct — whereas the lamb's 15/30 doubles into a prep that reads the same as its cook time.
+        const asparagus = SEED_WORLD.find((recipe) => recipe.baseTitle === 'Asparagus with Green Sauce');
+
+        expect(asparagus).toMatchObject({
+            servings: 2,
+            prepTimeMinutes: 10,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 20,
+        });
+        expect(asparagus?.ingredients).toHaveLength(5);
+    });
+
+    /**
+     * The service refuses to publish a recipe without a cuisine (`PUBLISH_REQUIREMENTS_UNMET`), and every seeded
+     * recipe is published — so a world recipe without a list-spelled cuisine would fail the whole reset at runtime.
+     * Parsing through the wire schema's own cuisine field means this cannot drift from the `CUISINES` list.
+     */
+    it('gives every recipe a cuisine the wire schema accepts', () => {
+        for (const recipe of [...SEED_WORLD, PRIVATE_FOOD_RECIPE]) {
+            const parsed = createRecipeRequestSchema.shape.cuisine.safeParse(recipe.cuisine);
+
+            expect(parsed.success, recipe.baseTitle).toBe(true);
+            expect(parsed.data, recipe.baseTitle).toBe(recipe.cuisine);
+        }
+    });
+
+    it('gives every recipe real lines and real steps', () => {
+        for (const recipe of [...SEED_WORLD, PRIVATE_FOOD_RECIPE]) {
+            expect(recipe.ingredients.length).toBeGreaterThan(0);
+            expect(recipe.steps.length).toBeGreaterThan(0);
+            expect(recipe.ingredients.every((line) => line.quantity > 0)).toBe(true);
+            expect(recipe.steps.every((step) => step.instruction.length > 0)).toBe(true);
+        }
+    });
+});
+
+/**
+ * `recipes/privateFoodStandIn.yaml` opens this recipe as the SIGNER and asserts the line reads "2 tbsp Private
+ * ingredient" (plan 002 R9). Each rule below is one way that flow could pass or fail for a reason that is not the
+ * one it tests.
+ */
+describe('the private-food recipe', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+    it('scopes its title to the run, with the run key last, like every other fixture title', () => {
+        expect(manifest.privateFoodRecipe.title).toBe(`${PRIVATE_FOOD_RECIPE.baseTitle} ${RUN}`);
+        expect(deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD).privateFoodRecipe.title).not.toBe(
+            manifest.privateFoodRecipe.title,
+        );
+    });
+
+    it('is the co-author’s PUBLIC recipe — a public row the signer does not own, so the signer can open it', () => {
+        expect(manifest.privateFoodRecipe).toMatchObject({ owner: 'coAuthor', visibility: 'public' });
+    });
+
+    it('has exactly one line — 2 tbsp of the private food — which is the label the flow asserts', () => {
+        expect(manifest.privateFoodRecipe.ingredients).toEqual([
+            { name: PRIVATE_FOOD_NAME, quantity: 2, unit: 'tbsp' },
+        ]);
+        expect(manifest.privateFoodName).toBe(PRIVATE_FOOD_NAME);
+    });
+
+    /**
+     * ⛔ OUTSIDE `SEED_WORLD`, on purpose. Everything in `manifest.recipes` is reconciled by the per-flow reset (the
+     * signer's) or created by `provision`'s DECLARED-name loop (the co-author's). A declared name has no food, so that
+     * loop would publish a line every viewer can read — the opposite of what this fixture exists to show.
+     */
+    it('is not in SEED_WORLD, so neither the reset nor the declared-name loop can touch it', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.key)).not.toContain(PRIVATE_FOOD_RECIPE.key);
+        expect(manifest.recipes.map((recipe) => recipe.title)).not.toContain(manifest.privateFoodRecipe.title);
+        expect(SEED_WORLD.map((recipe) => recipe.baseTitle)).not.toContain(PRIVATE_FOOD_RECIPE.baseTitle);
+    });
+
+    /**
+     * The flow asserts the food's name is NOT on screen. If the title, the description or a step said it, the check
+     * would fail on text the recipe itself shows, not on a leak.
+     */
+    it('never says the food’s name anywhere the signer can read', () => {
+        const visible = [
+            PRIVATE_FOOD_RECIPE.baseTitle,
+            PRIVATE_FOOD_RECIPE.description,
+            ...PRIVATE_FOOD_RECIPE.steps.map((step) => step.instruction),
+        ];
+
+        expect(visible.filter((text) => text.toLowerCase().includes(PRIVATE_FOOD_NAME.toLowerCase()))).toEqual([]);
+    });
+
+    it('uses a food name with no regex metacharacters — the flow puts it inside a Maestro pattern', () => {
+        expect(PRIVATE_FOOD_NAME).toMatch(/^[A-Za-z ]+$/u);
+    });
+
+    /**
+     * `recipes/accessibility.yaml` waits for the risotto in the Discover rails with no search, so the risotto must stay
+     * on the first screen of every rail. Provision publishes this recipe BEFORE the risotto (so "New", and "Trending"
+     * on a tie, put the risotto first); its longer total time keeps it behind the risotto in "Quick" as well.
+     */
+    it('sorts behind the co-author’s risotto in the Quick rail', () => {
+        const risotto = SEED_WORLD.find((recipe) => recipe.key === 'risotto');
+
+        expect(PRIVATE_FOOD_RECIPE.totalTimeMinutes).toBeGreaterThan(risotto?.totalTimeMinutes ?? Infinity);
+    });
+
+    it('is a different food from the discovery probe, which must stay attached to nothing', () => {
+        expect(PRIVATE_FOOD_NAME).not.toBe(UNATTACHED_PROBE_INGREDIENT);
+    });
+
+    it('is frozen with the rest of the manifest', () => {
+        expect(Object.isFrozen(manifest.privateFoodRecipe)).toBe(true);
+    });
+});
+
+/**
+ * `recipes/discoverIngredientCap.yaml` types `${E2E_CAP_FOOD_PREFIX}` into the filter's search and taps
+ * `^Filter by ${E2E_CAP_FOOD_PREFIX} .+$` until the filter holds as many foods as one search allows. Each rule
+ * below is one way that flow could fail for a reason that is not the cap.
+ */
+describe('the cap foods', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+    it('reaches the flow as E2E_CAP_FOOD_PREFIX', () => {
+        expect(FIXTURE_ENV_KEYS.capFoodPrefix).toBe('E2E_CAP_FOOD_PREFIX');
+    });
+
+    it('scopes the prefix to the run, with the run key last, like every other fixture name', () => {
+        expect(manifest.capFoodPrefix).toBe(`${CAP_FOOD_BASE_NAME} ${RUN}`);
+    });
+
+    it('names exactly as many foods as one search may filter on — the cap the flow reaches', () => {
+        expect(manifest.capFoodNames).toEqual(
+            Array.from({ length: MAX_SEARCH_FOOD_FILTERS }, (_, index) => `${manifest.capFoodPrefix} ${index + 1}`),
+        );
+    });
+
+    it('gives two runs disjoint prefixes and names', () => {
+        const theirs = deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD);
+
+        expect(theirs.capFoodPrefix).not.toBe(manifest.capFoodPrefix);
+        expect(manifest.capFoodNames.filter((name) => theirs.capFoodNames.includes(name))).toEqual([]);
+    });
+
+    /** Food-service dedups an author's foods on the lowercased name, so two names differing only by case are one food. */
+    it('names six DIFFERENT foods, even to the case-insensitive dedup', () => {
+        expect(new Set(manifest.capFoodNames.map((name) => name.toLowerCase())).size).toBe(MAX_SEARCH_FOOD_FILTERS);
+    });
+
+    /**
+     * The flow puts the prefix inside a Maestro pattern. The run key is the one part a caller does not write, so it
+     * is checked as `deriveRunKey` really produces it, clamped and hashed, for the CI shape and the local one.
+     */
+    it('uses no regex metacharacters, for the run keys CI and a laptop really derive', () => {
+        const keys = [
+            deriveRunKey(
+                {
+                    GITHUB_RUN_ID: '34856885723',
+                    GITHUB_RUN_ATTEMPT: '2',
+                    GITHUB_JOB: 'e2e-mobile-maestro',
+                    COMMISE_E2E_SHARD: '2',
+                },
+                'unused',
+            ),
+            deriveRunKey({}, `local-${process.pid}-${Date.now().toString(36)}`),
+        ];
+
+        for (const key of keys) {
+            for (const name of deriveFixtureManifest(key, PLATFORM, SHARD).capFoodNames) {
+                expect(name).toMatch(/^[A-Za-z0-9 -]+$/u);
+            }
+        }
+    });
+
+    /**
+     * `searchNavigation` types the probe's name into the same search and taps `Filter by ${probe}` unanchored; the
+     * food search matches a substring of the name. A cap food containing either fixture food's name would answer
+     * that search too.
+     */
+    it('contains neither the discovery probe’s name nor the private food’s', () => {
+        for (const name of manifest.capFoodNames) {
+            expect(name.toLowerCase()).not.toContain(UNATTACHED_PROBE_INGREDIENT.toLowerCase());
+            expect(name.toLowerCase()).not.toContain(PRIVATE_FOOD_NAME.toLowerCase());
+        }
+    });
+
+    it('is frozen with the rest of the manifest', () => {
+        expect(Object.isFrozen(manifest.capFoodNames)).toBe(true);
+    });
+});
+
+describe('manifestToEnvLines', () => {
+    it('carries the cap foods’ run-scoped prefix', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(
+            `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
+        );
+    });
+
+    it('emits exactly the registry, one KEY=VALUE per line, nothing else', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(lines.map((line) => line.split('=')[0]).sort()).toEqual([...Object.values(FIXTURE_ENV_KEYS)].sort());
+        expect(lines.every((line) => /^[A-Z0-9_]+=.+$/.test(line))).toBe(true);
+    });
+
+    /**
+     * Every lane seeds its own public Herb Risotto, so a Discover search for the bare word matched twelve cards in run
+     * 39165813897 and the lane's own card scrolled out of view. The flows search `Risotto ${E2E_RUN_KEY}`, which only
+     * this lane's risotto answers, and which the search field cannot satisfy as a match for the card's full title.
+     */
+    it('carries the run key alone, so a Discover search can reach this lane’s recipe and nothing else', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(FIXTURE_ENV_KEYS.runKey).toBe('E2E_RUN_KEY');
+        expect(lines).toContain(`E2E_RUN_KEY=${RUN}`);
+    });
+
+    it('carries the run-scoped titles, not the base ones', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.risotto}=${runScopedTitle('Herb Risotto', RUN)}`);
+        expect(lines).toContain(
+            `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${runScopedTitle(PRIVATE_FOOD_RECIPE.baseTitle, RUN)}`,
+        );
+    });
+
+    it('carries the private food’s name, which the flow asserts is never shown', () => {
+        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE))).toContain(
+            `${FIXTURE_ENV_KEYS.privateFoodName}=${PRIVATE_FOOD_NAME}`,
+        );
+    });
+
+    /**
+     * The `roles` tier's users (plan 2026-10-14-009 D12), whom `recipes/paidFeaturesByRole.yaml` signs in as. The SAME
+     * address on every run and every shard: the users are read-only and need no lease, and the address comes from the
+     * roster (`slotFor`), never a literal.
+     */
+    it.each([
+        ['roleDefaultEmail', 'default'],
+        ['roleAdminEmail', 'admin'],
+        ['rolePremiumEmail', 'premium'],
+        ['roleVipEmail', 'vip'],
+        ['roleSuperuserEmail', 'superuser'],
+    ] as const)('carries %s, the %s role user’s pool address', (key, role) => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS[key]}=${slotFor('roles', ROLE_LANE_IDS[role]).email}`);
+    });
+
+    it('carries the downgraded owner’s address and its fixed world, for `recipes/makePublicConfirm.yaml`', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(lines).toContain(
+            `${FIXTURE_ENV_KEYS.roleDowngradedEmail}=${slotFor('roles', DOWNGRADED_OWNER_LANE_ID).email}`,
+        );
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.downgradedRecipe}=${DOWNGRADED_OWNER_WORLD.recipe.title}`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.downgradedCollection}=${DOWNGRADED_OWNER_WORLD.collectionName}`);
+    });
+
+    it('carries the co-author’s email, which the session handoff flow signs in as second', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+
+        expect(FIXTURE_ENV_KEYS.coAuthorEmail).toBe('E2E_COAUTHOR_EMAIL');
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(
+            `${FIXTURE_ENV_KEYS.coAuthorEmail}=${manifest.coAuthorEmail}`,
+        );
+        expect(manifest.coAuthorEmail).not.toBe(manifest.signInEmail);
+    });
+
+    it('carries the LEASED erasure subject, not a derived one', () => {
+        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE))).toContain(
+            `${FIXTURE_ENV_KEYS.erasureEmail}=${ERASURE}`,
+        );
+    });
+
+    it('refuses an erasure subject that is not a consumable pool slot — the flow really erases it', () => {
+        expect(() =>
+            manifestToEnvLines(
+                deriveFixtureManifest(RUN, PLATFORM, SHARD),
+                provisioned(slotFor('maestro', 'signer').email),
+            ),
+        ).toThrow(/consumable/u);
+        expect(() =>
+            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned('someone@example.com')),
+        ).toThrow(/consumable/u);
+    });
+
+    /**
+     * ADDED 2026-10-13. The refusal is scoped to the manifest's OWN platform's subjects: Android may erase only
+     * `erasure01-05` and iOS only `erasure06-10`. A subject of the OTHER platform is a consumable pool slot, so the old
+     * "any of the ten" check admitted it — and it belongs to a lane some other job holds right now.
+     */
+    it.each([
+        ['android', 'erasure06'],
+        ['android', 'erasure10'],
+        ['ios', 'erasure01'],
+        ['ios', 'erasure05'],
+    ] as const)('⛔ refuses the OTHER platform’s subject: a %s manifest may not erase %s', (platform, subject) => {
+        expect(() =>
+            manifestToEnvLines(
+                deriveFixtureManifest(RUN, platform, SHARD),
+                provisioned(slotFor('maestro', subject).email),
+            ),
+        ).toThrow(/consumable maestro pool slot of this platform/u);
+    });
+
+    it.each([
+        ['android', 'erasure01'],
+        ['android', 'erasure05'],
+        ['ios', 'erasure06'],
+        ['ios', 'erasure10'],
+    ] as const)('accepts its OWN platform’s subject: a %s manifest may erase %s', (platform, subject) => {
+        expect(() =>
+            manifestToEnvLines(
+                deriveFixtureManifest(RUN, platform, SHARD),
+                provisioned(slotFor('maestro', subject).email),
+            ),
+        ).not.toThrow();
+    });
+
+    it('records its platform, because that is what scopes the erasure refusal', () => {
+        expect(deriveFixtureManifest(RUN, 'ios', SHARD).platform).toBe('ios');
+        expect(deriveFixtureManifest(RUN, 'android', SHARD).platform).toBe('android');
+    });
+
+    /**
+     * Only the ERASURE shard leases a subject (`maestroErasureSlots`, 2026-10-08), so every other shard's manifest
+     * names none. Omitted rather than blank: a blank would render as the literal `${VAR}`, and the runner refuses an
+     * erasing flow on a manifest that names no subject (`maestroShardPartition.test.ts`).
+     */
+    it('OMITS the erasure key when this shard leased no subject, and keeps every other key', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+        const withSubject = manifestToEnvLines(manifest, provisioned(ERASURE));
+        const without = manifestToEnvLines(manifest, provisioned(null));
+
+        expect(without.some((line) => line.startsWith(`${FIXTURE_ENV_KEYS.erasureEmail}=`))).toBe(false);
+        expect(without).toEqual(withSubject.filter((line) => !line.startsWith(`${FIXTURE_ENV_KEYS.erasureEmail}=`)));
+        expect(without.every((line) => line.split('=')[1] !== '')).toBe(true);
+    });
+
+    it('never emits an empty value — a blank renders as the literal ${VAR} on screen', () => {
+        expect(
+            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE)).every(
+                (line) => line.split('=')[1] !== '',
+            ),
+        ).toBe(true);
+    });
+
+    /**
+     * ADDED 2026-10-18 (owner ruling: probe words are chosen and verified at seed time). The words are chosen by
+     * searching the live catalog, so they cannot be derived from the run key the way a title is; they travel in the
+     * second parameter, and a flow reads them as the keys below.
+     */
+    it('carries the chosen probe words, each under its own key', () => {
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), provisioned(ERASURE));
+
+        expect(FIXTURE_ENV_KEYS.remoteAppendWord).toBe('E2E_REMOTE_APPEND_WORD');
+        expect(FIXTURE_ENV_KEYS.remoteAppendFood).toBe('E2E_REMOTE_APPEND_FOOD');
+        expect(FIXTURE_ENV_KEYS.remoteChangeWord).toBe('E2E_REMOTE_CHANGE_WORD');
+        expect(FIXTURE_ENV_KEYS.unresolvedWord).toBe('E2E_UNRESOLVED_WORD');
+        expect(FIXTURE_ENV_KEYS.ambiguityWord).toBe('E2E_AMBIGUITY_WORD');
+        expect(FIXTURE_ENV_KEYS.noMatchFood).toBe('E2E_NO_MATCH_FOOD');
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.ambiguityWord}=mirin`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteAppendWord}=paneer`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteAppendFood}=paneer ${RUN}`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.remoteChangeWord}=gochujang`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.unresolvedWord}=halloumi`);
+        expect(lines).toContain(`${FIXTURE_ENV_KEYS.noMatchFood}=Zorbleflax`);
+    });
+
+    it('emits whatever words it is given, so two lanes that chose different words get different manifests', () => {
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+        const other = { ...PROBE_WORDS, appendWord: 'tahini', appendFood: `tahini ${RUN}` };
+
+        expect(manifestToEnvLines(manifest, { erasureEmail: ERASURE, probeWords: other })).toContain(
+            `${FIXTURE_ENV_KEYS.remoteAppendWord}=tahini`,
+        );
+    });
+});
+
+/**
+ * Audit 2026-10-19, plan 013 C3: `recipes/ambiguityReview` needs a recipe the viewer owns whose lines the verification
+ * gate calls AMBIGUOUS. The gate's verdict is the worker's, so the fixture can only SET UP the inputs that make the
+ * verdict near-certain: a line bound to one food whose source line names a plainly different one.
+ */
+describe('the ambiguity probe', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    /** The word `provision` chose for the ambiguity role and carried to the reset in the session state. */
+    const WORD = 'mirin';
+    const probe = deriveAmbiguityProbe(manifest, WORD);
+
+    it('scopes its title to the run, with the run key last, like every other fixture title', () => {
+        expect(manifest.ambiguityProbeTitle).toBe(runScopedTitle('Ambiguity Probe', RUN));
+        expect(probe.title).toBe(manifest.ambiguityProbeTitle);
+    });
+
+    /**
+     * ⛔ The title is what `planWorldReset` finds the probe by as residue, and the per-flow reset deletes it by that
+     * title whatever word made it. A title that carried the word would let a probe made from another word survive the reset.
+     */
+    it('takes its title from the manifest alone, never from the word', () => {
+        expect(deriveAmbiguityProbe(manifest, 'ponzu').title).toBe(probe.title);
+    });
+
+    it('is the SIGNER’s PRIVATE recipe, because the review is the owner’s alone and Discover must not list it', () => {
+        expect(probe.owner).toBe('signer');
+        expect(probe.visibility).toBe('private');
+        expect(probe.key).toBe('ambiguityProbe');
+    });
+
+    /**
+     * ⛔ Two lines, not one. The merged flow picks twice (the detail’s review, then the editor’s row), and each pick
+     * re-points ONE line, so a one-line fixture leaves the second leg nothing to choose. ⛔ Both are named for the WORD:
+     * the review row and the editor's attention line are named by the line's words, and the shortlist searches them.
+     */
+    it('has TWO lines of the word’s food, 1 cup and 2 tbsp — the rows "1 cup <word>" and "2 tbsp <word>"', () => {
+        expect(probe.ingredients.map((line) => [line.name, line.quantity, line.unit])).toEqual([
+            [WORD, 1, 'cup'],
+            [WORD, 2, 'tbsp'],
+        ]);
+        expect(deriveAmbiguityProbe(manifest, 'ponzu').ingredients.map((line) => line.name)).toEqual([
+            'ponzu',
+            'ponzu',
+        ]);
+    });
+
+    /**
+     * ⛔ THE LINES MUST CONTRADICT THEIR FOOD. A source line that agrees with the bound food is `verified`, and a
+     * verified line is never AMBIGUOUS. The candidate lists are held off these words by `remoteProbeWords.test.ts`.
+     */
+    it('gives every line a fixed source line that names a DIFFERENT food than the word', () => {
+        expect(probe.ingredients.map((line) => line.sourceLine)).toEqual([
+            '1 cup chicken stock',
+            '2 tbsp cocoa powder',
+        ]);
+
+        for (const line of probe.ingredients) {
+            expect(line.sourceLine?.toLowerCase()).not.toContain(WORD);
+        }
+    });
+
+    it('gives each line its own source line, so each carries its own verdict', () => {
+        const lines = probe.ingredients.map((line) => line.sourceLine);
+
+        expect(new Set(lines).size).toBe(lines.length);
+    });
+
+    it('is NOT in SEED_WORLD and not in manifest.recipes, so every other flow still sees "3 recipes"', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.key)).not.toContain('ambiguityProbe');
+        expect(manifest.recipes.map((recipe) => recipe.key)).not.toContain('ambiguityProbe');
+    });
+
+    it('builds a request the shipped contract accepts, carrying each line’s source line', () => {
+        const ids = new Map([[WORD, '00000000-0000-4000-8000-0000000000b1']]);
+        const request = toCreateRequest(probe, ids);
+
+        expect(createRecipeRequestSchema.safeParse(request).success).toBe(true);
+        expect(request.ingredients.map((line) => line.ingredientId)).toEqual([
+            '00000000-0000-4000-8000-0000000000b1',
+            '00000000-0000-4000-8000-0000000000b1',
+        ]);
+        expect(request.ingredients.map((line) => line.sourceLine)).toEqual(
+            probe.ingredients.map((line) => line.sourceLine),
+        );
+    });
+
+    it('reaches the flow as E2E_RECIPE_AMBIGUITY_PROBE, with the run-scoped title', () => {
+        expect(FIXTURE_ENV_KEYS.ambiguityProbeRecipe).toBe('E2E_RECIPE_AMBIGUITY_PROBE');
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(
+            `E2E_RECIPE_AMBIGUITY_PROBE=${runScopedTitle('Ambiguity Probe', RUN)}`,
+        );
+    });
+
+    it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
+        expect(manifest.ambiguityProbeTitle).toMatch(/^[A-Za-z0-9 -]+$/u);
+    });
+
+    it('is frozen, lines and all, like the rest of the manifest', () => {
+        expect(Object.isFrozen(probe)).toBe(true);
+        expect(Object.isFrozen(probe.ingredients)).toBe(true);
+    });
+});

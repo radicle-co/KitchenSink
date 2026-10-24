@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, merge field by field (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    h3,
+                    p,
+                    ul {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 0 0 24px;
+                    }
+                    .fig {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .cap {
+                        padding: 0 32px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .gutter {
+                        padding: 0 32px;
+                    }
+                    .view {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        max-width: 768px;
+                        margin: 0 auto;
+                        padding: 32px 0;
+                    }
+                    .discard {
+                        align-self: flex-start;
+                        font: 600 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .h2 {
+                        font: 600 24px/1.2 var(--font-display);
+                        color: var(--ink);
+                    }
+                    .h3 {
+                        font: 600 18px/1.2 var(--font-display);
+                        color: var(--ink);
+                    }
+                    .lead {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .box {
+                        display: flex;
+                        flex-direction: column;
+                        background: var(--paper);
+                        border-radius: 16px;
+                        box-shadow: 0 0 0 1px var(--line-divider);
+                    }
+                    .banner {
+                        gap: 4px;
+                        padding: 16px;
+                    }
+                    .banner p {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .row {
+                        display: flex;
+                        flex-direction: row;
+                        gap: 16px;
+                    }
+                    .vcard {
+                        flex: 1;
+                        padding: 16px;
+                    }
+                    .vcard .t {
+                        font: 600 12px/1.4 var(--font-body);
+                        text-transform: uppercase;
+                        letter-spacing: 0.025em;
+                        color: var(--ink);
+                    }
+                    .vcard .s {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .opt {
+                        flex: 1;
+                        gap: 4px;
+                        padding: 20px;
+                        text-align: left;
+                        box-shadow:
+                            0 0 0 1px var(--line-divider),
+                            var(--shadow-sm);
+                    }
+                    .opt .t {
+                        font: 600 18px/1.5 var(--font-display);
+                        color: var(--ink);
+                    }
+                    .opt .s {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .opt.off {
+                        opacity: 0.5;
+                    }
+                    .stale {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding: 16px;
+                        border-radius: 16px;
+                        background: var(--attention-tint);
+                        box-shadow: 0 0 0 1px var(--attention);
+                    }
+                    .stale p {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .stale label {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        font: 500 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .section {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .list {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .cf {
+                        gap: 8px;
+                        padding: 12px;
+                    }
+                    .cf .hd {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .cf .mk {
+                        font: 400 14px/1.5 var(--font-mono);
+                        color: var(--ink-muted);
+                    }
+                    .cf .fl {
+                        font: 400 12px/1.4 var(--font-body);
+                        text-transform: uppercase;
+                        letter-spacing: 0.025em;
+                        color: var(--ink-muted);
+                    }
+                    .cf .was {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cf .v {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .legend {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 12px;
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .status {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .groups {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    fieldset.g {
+                        margin: 0;
+                        gap: 8px;
+                        padding: 16px;
+                        border: 0;
+                        min-width: 0;
+                    }
+                    fieldset.g legend {
+                        padding: 0;
+                        font: 400 12px/1.4 var(--font-body);
+                        text-transform: uppercase;
+                        letter-spacing: 0.025em;
+                        color: var(--ink-muted);
+                    }
+                    fieldset.g label {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    fieldset.g input {
+                        margin: 6px 0 0;
+                    }
+                    .sum {
+                        font: 500 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .hint {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 12px;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div class="fig">
+                    <div class="gutter">
+                        <section class="view" aria-label="Merge changes field by field">
+                            <p class="discard"><span aria-hidden="true">‹ </span>Discard and close</p>
+                            <h2 class="h2">Merge changes field by field</h2>
+                            <p class="lead">
+                                Choose a value for each changed field. Nothing is selected by default; the Save button
+                                stays disabled until you pick at least one.
+                            </p>
+                            <div class="groups">
+                                <fieldset class="box g" role="radiogroup" aria-label="Title">
+                                    <legend>Title</legend>
+                                    <label
+                                        ><input type="radio" name="title" /><span
+                                            >Latest saved version: Quick Weeknight Pasta</span
+                                        ></label
+                                    ><label
+                                        ><input type="radio" name="title" /><span
+                                            >Your version: Weeknight Garlic Pasta</span
+                                        ></label
+                                    >
+                                </fieldset>
+                                <fieldset class="box g" role="radiogroup" aria-label="Servings">
+                                    <legend>Servings</legend>
+                                    <label
+                                        ><input type="radio" name="servings" /><span
+                                            >Latest saved version: 4</span
+                                        ></label
+                                    ><label><input type="radio" name="servings" /><span>Your version: 6</span></label>
+                                </fieldset>
+                                <fieldset class="box g" role="radiogroup" aria-label="Cook time">
+                                    <legend>Cook time</legend>
+                                    <label
+                                        ><input type="radio" name="cookTimeMinutes" /><span
+                                            >Latest saved version: 15</span
+                                        ></label
+                                    ><label
+                                        ><input type="radio" name="cookTimeMinutes" /><span
+                                            >Your version: 20</span
+                                        ></label
+                                    >
+                                </fieldset>
+                                <fieldset class="box g" role="radiogroup" aria-label="Step 2">
+                                    <legend>Step 2</legend>
+                                    <label
+                                        ><input type="radio" name="steps[1]" /><span
+                                            >Latest saved version: Toss with olive oil.</span
+                                        ></label
+                                    ><label
+                                        ><input type="radio" name="steps[1]" /><span
+                                            >Your version: Toss with olive oil and garlic.</span
+                                        ></label
+                                    >
+                                </fieldset>
+                                <fieldset class="box g" role="radiogroup" aria-label="Ingredient: 2 tbsp Olive oil">
+                                    <legend>Ingredient: 2 tbsp Olive oil</legend>
+                                    <label
+                                        ><input type="radio" name="ingredients:ing_2" /><span
+                                            >Latest saved version: 2 tbsp Olive oil</span
+                                        ></label
+                                    ><label
+                                        ><input type="radio" name="ingredients:ing_2" /><span
+                                            >Your version: 3 tbsp Olive oil</span
+                                        ></label
+                                    >
+                                </fieldset>
+                            </div>
+                            <p class="sum" aria-live="polite">
+                                Summary: 0 choices from server, 0 choices from your version
+                            </p>
+                            <p class="hint" role="status">
+                                Choose a value for at least one field to save the merged version.
+                            </p>
+                            <div class="acts">
+                                <x-import component-from-global-scope="Commise.Button" icon="check" disabled="{{yes}}"
+                                    >Save merged version</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Button"
+                                    icon="chevronLeft"
+                                    variant="secondary"
+                                    >Back to options</x-import
+                                >
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":938}}'>
+            class Component extends DCLogic { renderVals(){ const yes=true; return {yes}; } }
+        </script>
+    </body>
+</html>

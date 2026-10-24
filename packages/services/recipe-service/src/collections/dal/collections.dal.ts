@@ -19,7 +19,7 @@
  * only to its `recipe_collections` junction rows (FK `ON DELETE CASCADE`), never to the `recipes`.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, getTableColumns, sql } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../../database/database.module.js';
 import {
@@ -29,10 +29,14 @@ import {
     type RecipeCollectionAddedVia,
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
+import { authorHandles } from '../../database/schema/authorHandles.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
-import { withTransaction, type RecipeTx, type Writer } from '../../database/unit-of-work.js';
+import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
+import { activeRecipe, readableBy } from '../../recipes/dal/recipePredicates.js';
+import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
+import { COLLECTION_COVER_LIMIT } from '../collections.schema.js';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
 export interface CreateCollectionRow {
@@ -51,7 +55,7 @@ export interface CreateCollectionRow {
      * source-owner rename — CR-003). `null`/absent when the source owner has no resolvable handle yet,
      * in which case attribution degrades to the name only.
      */
-    readonly sourceOwnerHandle?: string | null;
+    readonly sourceOwnerDisplayName?: string | null;
     /** W5 Task 2: the source collection's name, FROZEN at clone time. */
     readonly sourceCollectionName?: string | null;
 }
@@ -67,6 +71,14 @@ export interface UpdateCollectionRow {
 export interface CollectionPage {
     readonly rows: CollectionRow[];
     readonly total: number;
+}
+
+/** What a collection's card shows about its members, as the VIEWER may see them. */
+export interface CollectionMemberSummary {
+    /** Members the viewer may read (non-tombstoned, public-or-own, published-or-own). */
+    readonly recipeCount: number;
+    /** Photo keys of up to {@link COLLECTION_COVER_LIMIT} members that have one, in membership order. */
+    readonly coverKeys: readonly string[];
 }
 
 @Injectable()
@@ -97,7 +109,7 @@ export class CollectionsDal {
                 description: input.description ?? null,
                 visibility: input.visibility,
                 sourceCollectionId: input.sourceCollectionId ?? null,
-                sourceOwnerHandle: input.sourceOwnerHandle ?? null,
+                sourceOwnerDisplayName: input.sourceOwnerDisplayName ?? null,
                 sourceCollectionName: input.sourceCollectionName ?? null,
             })
             .returning();
@@ -112,6 +124,29 @@ export class CollectionsDal {
     }
 
     /** Look up a collection by id, or `undefined` when it does not exist. */
+    /**
+     * The CURRENT Clerk username of each source collection's owner, read from the byline read model (plan
+     * 2026-10-15-010 D7). A clone freezes its source owner's display name but never the username, so a clone's
+     * byline joins its source → that source's owner → `author_handles` whenever it is read.
+     *
+     * @param sourceCollectionIds - The `source_collection_id`s of the collections being answered.
+     * @returns Source collection id → username, for each source that still exists and whose owner has one.
+     * @sideEffect Reads `collections` and `author_handles`.
+     */
+    public async sourceOwnerUsernames(sourceCollectionIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+        if (sourceCollectionIds.length === 0) {
+            return new Map();
+        }
+
+        const rows = await this.db
+            .select({ sourceId: collections.id, username: authorHandles.username })
+            .from(collections)
+            .innerJoin(authorHandles, eq(authorHandles.userId, collections.ownerId))
+            .where(and(inArray(collections.id, [...sourceCollectionIds]), sql`${authorHandles.username} IS NOT NULL`));
+
+        return new Map(rows.flatMap((row) => (row.username === null ? [] : [[row.sourceId, row.username] as const])));
+    }
+
     public async findById(id: string): Promise<CollectionRow | undefined> {
         const rows = await this.db.select().from(collections).where(eq(collections.id, id)).limit(1);
 
@@ -134,6 +169,67 @@ export class CollectionsDal {
     }
 
     /**
+     * The member count and cover keys of each given collection, scoped to what `viewerId` may read — the SAME
+     * predicate as {@link listRecipes} ({@link readableBy}), so a card can never count or show a member the open
+     * collection would hide (another cook's private or draft recipe, a tombstone). Two reads, however many
+     * collections: one grouped COUNT, one ranked cover pick.
+     *
+     * A collection with no readable members is ABSENT from the map; the caller defaults it to zero.
+     *
+     * @param collectionIds - The page's collection ids (empty → no statement).
+     * @param viewerId - The requesting principal's app-user ULID.
+     * @sideEffect Reads `recipe_collections`, `recipes` and `recipe_photos`.
+     */
+    public async memberSummaries(
+        collectionIds: readonly string[],
+        viewerId: string,
+    ): Promise<ReadonlyMap<string, CollectionMemberSummary>> {
+        if (collectionIds.length === 0) {
+            return new Map();
+        }
+
+        const inCollections = inArray(recipeCollections.collectionId, [...collectionIds]);
+        const counts = await this.db.execute<{ collection_id: string; member_count: number | string }>(sql`
+            SELECT ${recipeCollections.collectionId} AS collection_id, count(*)::int AS member_count
+            FROM recipe_collections
+            JOIN recipes ON recipes.id = ${recipeCollections.recipeId}
+            WHERE ${inCollections} AND ${readableBy(viewerId)}
+            GROUP BY ${recipeCollections.collectionId}
+        `);
+        // Only members WITH a photo take a slot, so a collection of four photo-less recipes and one photographed
+        // one still shows that photo; the rank is per collection, in the order the members were added.
+        const covers = await this.db.execute<{ collection_id: string; cover_key: string }>(sql`
+            SELECT collection_id, cover_key
+            FROM (
+                SELECT ${recipeCollections.collectionId} AS collection_id, cp.cover_photo_key AS cover_key,
+                    row_number() OVER (
+                        PARTITION BY ${recipeCollections.collectionId}
+                        ORDER BY ${recipeCollections.addedAt}, ${recipeCollections.recipeId}
+                    ) AS member_rank
+                FROM recipe_collections
+                JOIN recipes ON recipes.id = ${recipeCollections.recipeId}
+                JOIN ${coverPhotoLateral()} ON true
+                WHERE ${inCollections} AND ${readableBy(viewerId)}
+            ) ranked
+            WHERE member_rank <= ${COLLECTION_COVER_LIMIT}
+            ORDER BY collection_id, member_rank
+        `);
+
+        const coverKeysBy = new Map<string, string[]>();
+
+        for (const row of covers.rows) {
+            coverKeysBy.set(row.collection_id, [...(coverKeysBy.get(row.collection_id) ?? []), row.cover_key]);
+        }
+
+        return new Map(
+            counts.rows.map((row) => [
+                row.collection_id,
+                { recipeCount: Number(row.member_count), coverKeys: coverKeysBy.get(row.collection_id) ?? [] },
+            ]),
+        );
+    }
+
+    /**
      * COUNT of an owner's collections — the REQ-049b 50-collection-per-owner cap read. Exposed standalone
      * for callers that just want the current count (e.g. `listByOwner`'s total); {@link createIfUnderCap}
      * is the one that ATOMICALLY enforces the cap against a create.
@@ -147,7 +243,7 @@ export class CollectionsDal {
      * insert, within ONE Postgres transaction (mirrors `PhotosDal.create`'s identical per-recipe photo-cap
      * pattern). A bare COUNT-then-INSERT across two separate statements/round-trips leaves a TOCTOU
      * window: two concurrent creates for the same owner can both COUNT 49, both pass, and both INSERT, landing the
-     * owner at 51. `pg_advisory_xact_lock(hashtext(ownerId))` takes a transaction-scoped, per-owner lock
+     * owner at 51. `pg_advisory_xact_lock(ADVISORY_LOCK_CLASSES.recipeCollectionOwner, hashtext(ownerId))` takes a transaction-scoped, per-owner lock
      * BEFORE the COUNT: a second concurrent create for the SAME owner blocks here until the first commits
      * or rolls back, so the COUNT this transaction reads is always current by the time it decides whether
      * to insert. (An occasional cross-owner hash collision just serializes two unrelated creates — never a
@@ -158,7 +254,9 @@ export class CollectionsDal {
      */
     public async createIfUnderCap(input: CreateCollectionRow, cap: number): Promise<CollectionRow> {
         return this.transaction(async (tx) => {
-            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.ownerId})::bigint)`);
+            await tx.execute(
+                sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.recipeCollectionOwner}, hashtext(${input.ownerId}))`,
+            );
 
             const existingCount = await this.countCollections(input.ownerId, tx);
 
@@ -253,15 +351,19 @@ export class CollectionsDal {
 
     /**
      * Add a recipe to a collection (idempotent). Returns the membership row whether it was newly
-     * inserted or already present. Many-to-many: the same recipe can live in any number of collections.
-     * Pass `tx` (from {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
+     * inserted or already present, with `created` saying WHICH — the distinction is load-bearing for
+     * analytics plan U3: a `recipe_saved` event fires only on a genuinely new membership, because a
+     * replayed add minting save credit would permanently diverge `save_count` from this table (R11's
+     * reconcilability promise) and let one user farm 015's recognition by re-adding the same recipe.
+     * Many-to-many: the same recipe can live in any number of collections. Pass `tx` (from
+     * {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
      */
     public async addRecipe(
         collectionId: string,
         recipeId: string,
         addedVia: RecipeCollectionAddedVia = 'manual',
         tx: Writer = this.db,
-    ): Promise<RecipeCollectionRow> {
+    ): Promise<{ row: RecipeCollectionRow; created: boolean }> {
         const inserted = await tx
             .insert(recipeCollections)
             .values({ collectionId, recipeId, addedVia })
@@ -271,7 +373,7 @@ export class CollectionsDal {
         const row = inserted[0];
 
         if (row) {
-            return row;
+            return { row, created: true };
         }
 
         const existing = await this.findMembership(collectionId, recipeId, tx);
@@ -280,7 +382,7 @@ export class CollectionsDal {
             throw new Error('Membership insert conflicted but no existing row was found.');
         }
 
-        return existing;
+        return { row: existing, created: false };
     }
 
     /**
@@ -350,7 +452,7 @@ export class CollectionsDal {
      *    draft (which add-time validation cannot catch) is filtered out here at read time. This ONE read
      *    serves three callers (the `CollectionWithRecipes` embed, `cloneCollection`'s clone-seed, and
      *    `pullFromSource`/preview), so patching this predicate covers all three. Keep it in lockstep with
-     *    `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
+     *    `isRecipeViewableBy` (recipes/domain/recipeVisibility.ts).
      *
      * Also projects each membership's `added_via` (W5 Task 4) alongside the recipe columns, so the
      * `CollectionWithRecipes` embed can surface per-member provenance (the source-indicator checkbox,
@@ -409,15 +511,10 @@ export class CollectionsDal {
 
     /**
      * The viewer-scoped collection-membership predicate (C-007 tombstone + the W8-a.3 read boundary). The
-     * RULE lives once in the predicate helpers ({@link activeRecipe}/{@link viewableBy}/{@link publishedOrOwnedBy});
+     * RULE lives once in the predicate helpers (`activeRecipe`/`viewableBy`/`publishedOrOwnedBy`);
      * this composes them for `listRecipes` and the preview read so both enforce the identical scope. Pure.
      */
     private membershipPredicate(collectionId: string, viewerId: string) {
-        return and(
-            eq(recipeCollections.collectionId, collectionId),
-            activeRecipe(),
-            viewableBy(viewerId),
-            publishedOrOwnedBy(viewerId),
-        );
+        return and(eq(recipeCollections.collectionId, collectionId), readableBy(viewerId));
     }
 }

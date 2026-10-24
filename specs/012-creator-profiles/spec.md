@@ -227,6 +227,90 @@ shipped package uses (see [GR-009 Current State](../governance-rules.md#gr-009-p
 | GET    | `/api/v1/creators/:handle/widget`          | Embed widget HTML fragment             |
 | POST   | `/api/v1/creators/:handle/tip`             | Initiate tip (delegates to 010)        |
 
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing._
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+| Role                                        | Binding for 012                                                                                 |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)        | `@kitchensink/creator-profiles-service` — `src/**/*.schema.ts`, beside the controller it serves |
+| Schema package (generated, committed)       | `@kitchensink/schema-creator-profiles` — `packages/schemas/creator-profiles`                    |
+| Consuming client                            | `packages/clients/creator-profiles`                                                             |
+| Consuming apps                              | `@commise/web`, `@commise/mobile`                                                               |
+| Domain types (a **different** axis, GR-007) | `@kitchensink/recipe-core` — reused `import type`, never re-declared inside the schema package  |
+
+**The service MUST** author every profile, collection, follow, analytics and tip-initiation request/response
+shape as **zod in the service** beside its controller; **validate its own requests with that same zod** via
+`nestjs-zod`'s `createZodDto` (handle format and uniqueness-error shapes included, so a client sees the same
+constraint the server enforces); generate and commit `@kitchensink/schema-creator-profiles` exporting the zod,
+`z.infer` types, `contractHash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — for `oasdiff`,
+docs and integrators, **never a codegen input**); and keep every `*.schema.ts` importing **only `zod` and other
+`*.schema.ts` files**.
+
+**Every client MUST** — separately mandatory, because mandating only the service half is exactly how the client
+half got skipped portfolio-wide (276 + 144 lines of redeclared wire types survived behind green builds):
+
+- Import its wire **types and zod** from `@kitchensink/schema-creator-profiles`, and **declare no
+  creator-profile request or response body type of its own** — including in `@commise/web`, `@commise/mobile`
+  and feature packages (GR-015 §15-b.4).
+- **The SSR public-profile payload is the load-bearing case.** `/@handle` is server-rendered, so its response
+  shape is consumed by web SSR, by mobile, and by the embed fragment. A hand-written "profile page props"
+  interface is a second representation of that payload; it must be a **DERIVATION** of the wire type via
+  `Pick` / `Omit` / `Partial`. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- A follower-count badge model or an analytics chart series is likewise derived, not re-declared.
+- **A new endpoint is not complete until its types are reachable from the schema package.** "The profile page
+  will add the type" is a contract fork, not a task.
+
+⚠️ **`GET /api/v1/creators/:handle/widget` returns an HTML fragment, not JSON.** Its **response body** is
+therefore not a wire _shape_ the schema package can express — but its **request** (path/query params) and its
+**error** responses are, and they are authored as zod like everything else. Do not treat "it returns HTML" as
+an exemption from the rest of this section.
+
+⚠️ **Third-party APIs (GR-015 §15-d).** 012 owns no external integration: the tip endpoint **delegates to 010**,
+so **Stripe's shapes are 010's boundary concern and must not appear here**. `POST .../tip`'s own request and
+response are ours and are authored in this service. If 012 ever calls an external API directly, that client is
+the **opposite** case — it **validates the raw upstream shape at the boundary with zod**, **may declare its own
+types**, and **gets no OpenAPI document**. `packages/clients/usda` is the reference implementation and its
+`schemas.ts` must never be "converged"; deleting a boundary schema in the name of this section removes a
+validation boundary rather than tidying one.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, not reinvented here: turbo `inputs` rebuild,
+the regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion.
+
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _GR-016_](./plan.md#gr-016--input-validation-at-every-boundary). The section above decides who
+**authors** the contract; this one is where it is **enforced**. It adds no FR (GR-003).
+
+- **One mechanism, one `400`.** `@kitchensink/creator-profiles-service` parses every profile, handle,
+  collection, follow, analytics and widget input — body, path params (including the public `/@handle` segment)
+  and query params — with its own authored zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`.
+  ⚠️ Under Nest's **own** `ValidationPipe` a `createZodDto` DTO validates **nothing while looking correctly
+  wired** (a live case on identity's `PATCH /users/me`), so the registered pipe is stated and proven by a
+  bad-body route test.
+- **⚠️ `handle` is the highest-risk input in this feature**: it is uniqueness-constrained, length-bounded, and
+  rendered into a **public URL**. Its charset, length, normalisation form and reserved-word policy belong in the
+  authored zod so a client sees the same rule the server enforces. Uniqueness and reservation remain **domain**
+  checks (`409`), and neither substitutes for the other.
+- **⛔ The storage floor applies to every bounded column** — handle/display-name lengths, collection ordering
+  integers against their `int4` ceiling (**2,147,483,647**), analytics window/limit integers, status enums,
+  nullability. **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+  `*.schema.ts`. Bio text columns are unbounded, so their limits are **product decisions this feature owns**.
+- **The analytics-snapshot scheduler is ingress a pipe never sees** and parses its event before it drives a
+  write. A request-selected analytics metric, interval or sort maps through a **validated enum to a closed
+  allowlist of literals** — never into a `sql.raw()` fragment.
+- **The HTML-fragment widget is OUTPUT.** Its request and error shapes are validated like everything else; the
+  fragment itself is governed by escaping and rendering rules, and **⛔ response validation is DEFERRED**
+  portfolio-wide (GR-016 §16-g) — do not add an emission-side parse.
+
 ## Entity Ownership
 
 **`CreatorProfile`** is defined and owned by this feature. Fields: `id`, `userId` (FK → auth), `handle` (unique), `displayName`, `bio`, `avatarKey` (S3), `followerCount`, `followingCount`, `isVerified`, `monetizationEnabled`, `createdAt`, `updatedAt`.

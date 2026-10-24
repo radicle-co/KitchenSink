@@ -1,0 +1,122 @@
+{
+    "about": "Redesign values for the theme objects inside the canvas bundle.js. The native components read these objects, not the CSS variables. Each key replaces the value of that key inside every copy of that object. Values are JavaScript source text.",
+    "objects": {
+        "palette": {
+            "seafoam": "\"#325C7F\"",
+            "\"seafoam-light\"": "\"#96BCDE\"",
+            "\"ocean-dark\"": "\"#264A68\"",
+            "sand": "\"#EFF3F6\"",
+            "charcoal": "\"#171B20\"",
+            "slate": "\"#5C646E\"",
+            "mist": "\"#DFE3E8\"",
+            "pearl": "\"#E9EDF2\"",
+            "pewter": "\"#80878F\"",
+            "honey": "\"#171B20\"",
+            "premium": "\"#5C646E\"",
+            "white": "\"#FCFDFF\""
+        },
+        "role": {
+            "actionText": "\"#325C7F\"",
+            "selectedFill": "\"#E4EEF7\"",
+            "focusRing": "\"#325C7F\"",
+            "paperRaised": "\"#FFFFFF\"",
+            "paperOverlay": "\"#FFFFFF\""
+        },
+        "roleDark": {
+            "canvas": "\"#0E161E\"",
+            "paper": "\"#172029\"",
+            "paperRaised": "\"#212B36\"",
+            "paperOverlay": "\"#26313D\"",
+            "surfaceMuted": "\"#212B36\"",
+            "ink": "\"#EBEFF2\"",
+            "inkMuted": "\"#A3ACB6\"",
+            "lineControl": "\"#7D8792\"",
+            "lineDivider": "\"#262F38\"",
+            "action": "\"#96BCDE\"",
+            "actionText": "\"#96BCDE\"",
+            "onAction": "\"#0E161E\"",
+            "actionPressed": "\"#B4CFE8\"",
+            "selectedFill": "\"#1F3548\"",
+            "selectedEdge": "\"#96BCDE\"",
+            "hereBar": "\"#96BCDE\"",
+            "focusRing": "\"#96BCDE\"",
+            "rating": "\"#EBEFF2\"",
+            "inverse": "\"#EBEFF2\"",
+            "inverseInk": "\"#171B20\"",
+            "inverseAction": "\"#325C7F\"",
+            "photoChip": "tint(\"#172029\", 0.86)"
+        },
+        "coverTint": {
+            "seafoam": "\"#E1EDFA\"",
+            "coral": "\"#F7E9D7\"",
+            "sky": "\"#DDEEFC\"",
+            "premium": "\"#F5E9DF\"",
+            "success": "\"#E4EDF2\"",
+            "warning": "\"#F7E9D7\""
+        },
+        "coverTintDark": {
+            "seafoam": "\"#202B37\"",
+            "coral": "\"#342817\"",
+            "sky": "\"#1C2C38\"",
+            "premium": "\"#32281F\"",
+            "success": "\"#232B30\"",
+            "warning": "\"#342817\""
+        },
+        "fontWeight": {
+            "bold": "600"
+        },
+        "fontSize": {
+            "displayXl": "28",
+            "displayLg": "28",
+            "displayMd": "28",
+            "headingLg": "17",
+            "headingMd": "17",
+            "headingSm": "17",
+            "bodyLg": "17",
+            "bodyMd": "17",
+            "bodySm": "15",
+            "caption": "13"
+        },
+        "typeRole": {
+            "largeTitle": "{ face: \"display\", size: { narrow: 28, regular: 28, wide: 28 }, weight: \"semibold\", lineHeight: 1.15 }",
+            "sectionTitle": "{ face: \"body\", size: 17, weight: \"semibold\", lineHeight: 1.25 }",
+            "cardTitle": "{ face: \"body\", size: 17, weight: \"semibold\", lineHeight: 1.3 }",
+            "body": "{ face: \"body\", size: 17, weight: \"normal\", lineHeight: 1.5 }",
+            "readingBody": "{ face: \"body\", size: 17, weight: \"normal\", lineHeight: 1.6 }",
+            "meta": "{ face: \"body\", size: 15, weight: \"normal\", lineHeight: 1.4 }",
+            "label": "{ face: \"body\", size: 15, weight: \"semibold\", lineHeight: 1.2 }",
+            "caption": "{ face: \"body\", size: 13, weight: \"medium\", lineHeight: 1.4 }",
+            "figureStat": "{ face: \"body\", size: 17, weight: \"semibold\", lineHeight: 1.2, figure: true }"
+        },
+        "difficultyTone": {
+            "easy": "{ fill: role.surfaceMuted, text: role.ink }",
+            "medium": "{ fill: role.surfaceMuted, text: role.ink }",
+            "hard": "{ fill: role.surfaceMuted, text: role.ink }"
+        },
+        "difficultyToneDark": {
+            "easy": "{ fill: roleDark.surfaceMuted, text: roleDark.ink }",
+            "medium": "{ fill: roleDark.surfaceMuted, text: roleDark.ink }",
+            "hard": "{ fill: roleDark.surfaceMuted, text: roleDark.ink }"
+        },
+        "displayFontFace": {
+            "semibold": "\"Manrope\"",
+            "bold": "\"Manrope\""
+        },
+        "radius": {
+            "sm": "8",
+            "lg": "18",
+            "xl": "24"
+        }
+    },
+    "literals": {
+        "gradient": {
+            "\"#F0F7F4\"": "\"#EFF3F6\"",
+            "\"#E8F4F8\"": "\"#EFF3F6\""
+        },
+        "heroDark": {
+            "\"#141210\"": "\"#0E161E\"",
+            "\"#101714\"": "\"#0E161E\"",
+            "\"#0F181A\"": "\"#0E161E\""
+        }
+    }
+}

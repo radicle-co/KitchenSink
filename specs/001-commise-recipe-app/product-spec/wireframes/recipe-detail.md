@@ -28,8 +28,9 @@
 |  +-- Nutrition (per serving) -----------------+ |
 |  |  420 cal  |  18g protein  |  62g carbs  | 12g fat |  |  <- FR-007, FR-007a
 |  +------------------------------------------+   |
-|  Note: Nutrition includes USDA database items.   |  <- FR-007a: user-entered flag
-|  User-entered ingredients marked with (*).      |
+|  Nutrition comes from public food databases.     |  <- FR-007a; curated §S15 (no single
+|  Custom ingredients count only the nutrition    |     source is named)
+|  you entered for them.  Data sources >           |
 |                                                  |
 |  +-- Ingredients (12) -------------------------+ |
 |  |                                            |   |
@@ -78,6 +79,13 @@
 | Instructions        | Numbered steps; checkbox per step for cooking progress                          |
 | Footer bar          | Clone CTA (public recipes only); version badge; visibility badge                |
 | Bottom nav          | Same as recipe-list.md                                                          |
+
+## Refresh Failure State
+
+- **When:** a focus/reconnect refresh fails while the recipe is on screen.
+- **Shown:** the recipe stays, and an inline notice below the title band reads "We couldn’t refresh this recipe." with **Try again**. A load that failed with nothing to show is the not-found or load-error state instead.
+- **Behaviour:** the notice announces politely, keeps its button (busy) while any retry runs, and clears on the next successful refresh. When its own Try again succeeds, focus moves to the recipe title.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0.
 
 ## FR Annotation Summary
 

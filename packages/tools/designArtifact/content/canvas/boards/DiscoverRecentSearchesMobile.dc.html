@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Discover, recent searches, proposal (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <!-- PROPOSAL (owner, 2026-10-17): the pill row wraps on mobile, and the Filters button and the pills share one
+             wrapping flow across the full width rather than the pills wrapping in a narrow column beside the button. -->
+        <style>
+            .ks-pills,
+            .ks-pills > div,
+            .ks-pills [role='radiogroup'][aria-label='Browse recipes'],
+            .ks-pills [role='radiogroup'][aria-label='Browse recipes'] > div {
+                display: contents;
+            }
+            .ks-pillflow {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }</style
+                ><style>
+                    .fig {
+                        margin: 0 0 24px;
+                    }
+                    .cap {
+                        margin: 0 0 8px;
+                        padding: 0 16px;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .frame {
+                        box-sizing: border-box;
+                        width: 390px;
+                        border: 0;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .ks-sk {
+                        background: var(--surface-muted);
+                        border-radius: 4px;
+                    }
+
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    min-height: 1392px;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    overflow: hidden;
+                "
+            >
+                <x-import component-from-global-scope="Commise.Native.GradientSurface" gradient="hero" style="{{fill}}"
+                    ><div style="flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                padding: 8px 16px 20px;
+                                overflow: hidden;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="discover-title"
+                                title="Discover"
+                                action="{{action}}"
+                            ></x-import>
+                            <x-import
+                                component-from-global-scope="Commise.Native.SearchField"
+                                id="discover-search"
+                                label="Search recipes"
+                                label-visibility="hidden"
+                                clear-label="Clear search"
+                                placeholder="Search recipes"
+                                value=""
+                                on-change-text="{{noop}}"
+                            ></x-import>
+                            <div
+                                style="
+                                    flex-shrink: 1;
+                                    border-radius: 12px;
+                                    border: 0.5px solid var(--line-divider);
+                                    background: var(--paper);
+                                    padding: 8px 12px;
+                                "
+                            >
+                                <div style="display: flex; align-items: center; justify-content: space-between">
+                                    <div role="heading" class="text-overline uppercase text-ink-muted">
+                                        Recent searches
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.Button"
+                                        variant="ghost"
+                                        size="sm"
+                                        accessibility-label="Clear recent searches"
+                                        on-press="{{noop}}"
+                                        >Clear</x-import
+                                    >
+                                </div>
+                                <div
+                                    role="button"
+                                    aria-label="Search for “lamb stew”"
+                                    style="
+                                        min-height: 44px;
+                                        display: flex;
+                                        align-items: center;
+                                        font: 400 16px/1.5 var(--font-body);
+                                        color: var(--ink);
+                                    "
+                                >
+                                    lamb stew
+                                </div>
+                                <div
+                                    role="button"
+                                    aria-label="Search for “sourdough”"
+                                    style="
+                                        min-height: 44px;
+                                        display: flex;
+                                        align-items: center;
+                                        font: 400 16px/1.5 var(--font-body);
+                                        color: var(--ink);
+                                    "
+                                >
+                                    sourdough
+                                </div>
+                                <div
+                                    role="button"
+                                    aria-label="Search for “pasta carbonara”"
+                                    style="
+                                        min-height: 44px;
+                                        display: flex;
+                                        align-items: center;
+                                        font: 400 16px/1.5 var(--font-body);
+                                        color: var(--ink);
+                                    "
+                                >
+                                    pasta carbonara
+                                </div>
+                                <div
+                                    role="button"
+                                    aria-label="Search for “red lentil dal”"
+                                    style="
+                                        min-height: 44px;
+                                        display: flex;
+                                        align-items: center;
+                                        font: 400 16px/1.5 var(--font-body);
+                                        color: var(--ink);
+                                    "
+                                >
+                                    red lentil dal
+                                </div>
+                                <div
+                                    role="button"
+                                    aria-label="Search for “banana bread”"
+                                    style="
+                                        min-height: 44px;
+                                        display: flex;
+                                        align-items: center;
+                                        font: 400 16px/1.5 var(--font-body);
+                                        color: var(--ink);
+                                    "
+                                >
+                                    banana bread
+                                </div>
+                            </div>
+                            <!-- PROPOSAL (owner comment on the canvas, 2026-10-17): one pill row under the search bar, beside
+                                 the Filters button, at every width. Trending, New, Quick and the cuisines are one choice:
+                                 exactly one pill is on, and it picks the recipes listed below, which scroll vertically. -->
+                            <div class="ks-pillflow">
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    size="sm"
+                                    icon="slidersHorizontal"
+                                    accessibility-label="Filters"
+                                    on-press="{{noop}}"
+                                    >Filters</x-import
+                                >
+                                <div class="ks-pills">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ChipRow"
+                                        mode="choice"
+                                        label="Browse recipes"
+                                        overflow="wrap"
+                                        options="{{pillOpts}}"
+                                        value="trending"
+                                        on-change="{{noop}}"
+                                    ></x-import>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: grid;
+                                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                                    gap: 12px;
+                                    padding-bottom: 20px;
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                    variant="compact"
+                                    heading-level="{{n2}}"
+                                    recipe="{{c00.recipe}}"
+                                    author-username="{{c00.user}}"
+                                    save-copy="{{idle}}"
+                                    nutrition="{{c00.cal}}"
+                                    on-select="{{noop}}"
+                                    on-save="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                    variant="compact"
+                                    heading-level="{{n2}}"
+                                    recipe="{{c01.recipe}}"
+                                    author-username="{{c01.user}}"
+                                    save-copy="{{idle}}"
+                                    nutrition="{{c01.cal}}"
+                                    on-select="{{noop}}"
+                                    on-save="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                    variant="compact"
+                                    heading-level="{{n2}}"
+                                    recipe="{{c02.recipe}}"
+                                    author-username="{{c02.user}}"
+                                    save-copy="{{idle}}"
+                                    nutrition="{{c02.cal}}"
+                                    on-select="{{noop}}"
+                                    on-save="{{noop}}"
+                                ></x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.RecipeDiscoveryCard"
+                                    variant="compact"
+                                    heading-level="{{n2}}"
+                                    recipe="{{c03.recipe}}"
+                                    author-username="{{c03.user}}"
+                                    save-copy="{{idle}}"
+                                    nutrition="{{c03.cal}}"
+                                    on-select="{{noop}}"
+                                    on-save="{{noop}}"
+                                ></x-import>
+                            </div>
+                        </div>
+                    </div>
+                    <x-import
+                        component-from-global-scope="Commise.Native.HomeTabBar"
+                        chrome="{{chrome}}"
+                        live-capabilities="{{none}}"
+                        active-id="discover"
+                        on-press="{{noop}}"
+                        bottom-inset="{{n34}}"
+                        compact="{{no}}"
+                        left-inset="{{n0}}"
+                        right-inset="{{n0}}"
+                    ></x-import>
+                </x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1392}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement; const D={"carbonara": ["Spaghetti alla carbonara", "Italian", 25, "medium", 4.7, 112, 690, 4, ["pasta", "weeknight"], "nonna_lucia"], "shakshuka": ["Shakshuka with feta", "Middle Eastern", 30, "easy", 4.8, 64, 360, 3, ["eggs", "vegetarian", "brunch"], "marisol_cooks"], "curry": ["Chickpea and spinach curry", "Indian", 35, "easy", 4.6, 81, 390, 4, ["vegan", "weeknight", "legumes"], "priya_kitchen"], "ramen": ["Miso butter mushroom ramen", "Japanese", 45, "medium", 4.8, 55, 520, 2, ["noodles", "soup", "umami"], "kenji_t"], "lentil": ["Red lentil dal with crispy shallots", "Indian", 25, "easy", 4.8, 140, 340, 4, ["vegan", "weeknight", "legumes"], "priya_kitchen"], "cookies": ["Brown butter chocolate chip cookies", "American", 40, "easy", 4.9, 210, 210, 24, ["baking", "dessert", "cookies"], "jo_bakes"], "sheet": ["Harissa sheet-pan chicken", "Moroccan", 50, "easy", 4.6, 58, 520, 4, ["sheet-pan", "weeknight"], null], "risotto": ["Lemon asparagus risotto", "Italian", 40, "medium", 4.5, 31, 450, 4, ["rice", "spring", "vegetarian"], "nonna_lucia"], "banhmi": ["Lemongrass pork banh mi", "Vietnamese", 30, "medium", 4.6, 47, 640, 4, ["sandwich", "pork"], "linh_nguyen"], "bibim": ["Bibimbap with gochujang", "Korean", 50, "medium", 4.5, 26, 580, 2, ["rice", "bowl"], null], "oats": ["Overnight oats with roasted plums", "American", 10, "easy", 4.3, 18, 330, 2, ["breakfast", "make-ahead", "fruit"], "jo_bakes"], "tacos": ["Crispy fish tacos with lime slaw", "Mexican", 40, "medium", 4.5, 39, 480, 4, ["seafood", "tacos", "lime"], null], "gazpacho": ["Chilled tomato gazpacho", "Spanish", 15, "easy", 4.4, 22, 150, 4, ["soup", "vegan", "summer"], "carmen_r"]}; const C={"c00": "carbonara", "c01": "shakshuka", "c02": "curry", "c03": "ramen", "c04": "lentil", "c05": "cookies"};
+            const mk=(k)=>{const [title,cuisine,mins,level,rating,count,cal,serves,tags,user]=D[k];return {recipe:{id:'r-'+k,title,totalTimeMinutes:mins,servings:serves,difficulty:level,averageRating:rating,ratingCount:count,usesPremiumCapability:false,createdAt:'2026-09-01T10:00:00.000Z',updatedAt:'2026-09-01T10:00:00.000Z',cuisine,tags,currentVersion:1,visibility:'public',status:'published'},user:user||undefined,cal:h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal')};};
+            const out={no:false,n0:0,n2:2,n34:34,none:[],noop:()=>{},fill:{flex:1},idle:{kind:'idle'},
+            pillOpts:[{value:'trending',label:'Trending'},{value:'new',label:'New'},{value:'quick',label:'Quick'},{value:'italian',label:'Italian'},{value:'indian',label:'Indian'},{value:'mexican',label:'Mexican'},{value:'thai',label:'Thai'},{value:'japanese',label:'Japanese'},{value:'greek',label:'Greek'},{value:'american',label:'American'},{value:'middle-eastern',label:'Middle Eastern'},{value:'korean',label:'Korean'},{value:'vietnamese',label:'Vietnamese'},{value:'spanish',label:'Spanish'},{value:'moroccan',label:'Moroccan'}],
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(window.Commise.Native.Avatar,{status:'ready',initials:'ER',label:'Profile, Eliza Ramirez',onPress:()=>{}})}};
+            Object.assign(out,{"timeOpts": [{"value": "any", "label": "Any"}, {"value": "15", "label": "Under 15 min"}, {"value": "30", "label": "Under 30 min"}, {"value": "60", "label": "Under 60 min"}], "cnt": {"vegetarian": 38, "vegan": 21, "gluten_free": 17, "dairy_free": 12, "nut_free": 9, "italian": 42, "american": 33, "indian": 27, "mexican": 19, "thai": 16, "japanese": 14, "weeknight": 56, "baking": 31, "soup": 24, "one_pot": 22, "breakfast": 19, "noodles": 17, "dessert": 15, "sheet_pan": 12, "salad": 11, "grilling": 10, "brunch": 9, "make_ahead": 8, "holiday": 7, "snack": 6}, "n3": 3, "n20": 20, "yes": true, "one": 1});for(const id in C)out[id]=mk(C[id]); return out; } }
+        </script>
+    </body>
+</html>

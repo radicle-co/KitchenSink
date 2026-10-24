@@ -7,8 +7,18 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_RECIPE_PHOTOS as CORE_MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
 
-import { makePhoto } from '../../__fixtures__/index.js';
-import { isAtPhotoCap, isCoverPhoto, MAX_RECIPE_PHOTOS } from '../model.js';
+import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
+import {
+    admitPhotoBatch,
+    isAtPhotoCap,
+    isCoverPhoto,
+    movedPhotoIds,
+    coverFirstPhotoIds,
+    MAX_RECIPE_PHOTOS,
+    photoGridColumns,
+    remainingPhotoSlots,
+    uploadedCount,
+} from '../model.js';
 
 describe('MAX_RECIPE_PHOTOS (single source of truth)', () => {
     it('is the SAME constant recipe-core exports — not a locally hand-restated value', () => {
@@ -49,5 +59,138 @@ describe('isCoverPhoto (cover = the lowest-sort-order photo, i.e. index 0)', () 
 
     it('is false for any id when there are no photos', () => {
         expect(isCoverPhoto([], 'ph_1')).toBe(false);
+    });
+});
+
+/**
+ * The ONE client admission rule for the photo cap. It used to exist as three copies — the queue's own slice, and
+ * inline arithmetic in both create containers — and the edit container had none, which is how a multi-file pick
+ * past the cap dropped files silently and leaked their preview URLs.
+ */
+describe('remainingPhotoSlots', () => {
+    it('subtracts the held photos and every unsettled queue item from the cap', () => {
+        const items = [
+            makeQueueItem({ fileId: 1, status: 'queued' }),
+            makeQueueItem({ fileId: 2, status: 'uploading' }),
+            makeQueueItem({ fileId: 3, status: 'failed' }),
+        ];
+
+        expect(remainingPhotoSlots(4, items)).toBe(MAX_RECIPE_PHOTOS - 4 - 3);
+    });
+
+    it('does not count an `ok` item, which the held photos already include once the refetch lands', () => {
+        expect(remainingPhotoSlots(2, [makeQueueItem({ fileId: 1, status: 'ok' })])).toBe(MAX_RECIPE_PHOTOS - 2);
+    });
+
+    it('never goes below zero when the held count already exceeds the cap', () => {
+        expect(remainingPhotoSlots(MAX_RECIPE_PHOTOS + 3, [])).toBe(0);
+    });
+});
+
+describe('admitPhotoBatch — a batch is admitted WHOLE or refused whole, never truncated', () => {
+    it('accepts a batch that fits', () => {
+        expect(admitPhotoBatch(3, 2)).toEqual({ status: 'accepted' });
+    });
+
+    it('accepts a batch that exactly fills the remaining slots', () => {
+        expect(admitPhotoBatch(3, 3)).toEqual({ status: 'accepted' });
+    });
+
+    it('refuses a batch one larger than what is left, reporting how many would fit', () => {
+        expect(admitPhotoBatch(3, 4)).toEqual({ status: 'overCap', remaining: 3 });
+    });
+
+    it('refuses any non-empty batch once nothing is left', () => {
+        expect(admitPhotoBatch(0, 1)).toEqual({ status: 'overCap', remaining: 0 });
+    });
+
+    it('accepts an empty batch, which asks for nothing', () => {
+        expect(admitPhotoBatch(0, 0)).toEqual({ status: 'accepted' });
+    });
+});
+
+/**
+ * A-010 (buildSpec §7.7): "3 columns below 600, 4 above" — of the grid's own measured width. The boundary is the
+ * point of the test: 600 itself is four-up ("from 600"), 599 is not.
+ */
+describe('photoGridColumns', () => {
+    it('is three below 600 and four from 600', () => {
+        expect(photoGridColumns(320)).toBe(3);
+        expect(photoGridColumns(599)).toBe(3);
+        expect(photoGridColumns(600)).toBe(4);
+        expect(photoGridColumns(1200)).toBe(4);
+    });
+
+    it('holds the narrow reading until the grid has been measured', () => {
+        expect(photoGridColumns(undefined)).toBe(3);
+        expect(photoGridColumns(0)).toBe(3);
+    });
+});
+
+describe('uploadedCount', () => {
+    it('counts only the files whose upload completed', () => {
+        const items = [
+            makeQueueItem({ fileId: 1, status: 'ok' }),
+            makeQueueItem({ fileId: 2, status: 'failed' }),
+            makeQueueItem({ fileId: 3, status: 'queued' }),
+            makeQueueItem({ fileId: 4, status: 'ok' }),
+        ];
+
+        expect(uploadedCount(items)).toBe(2);
+    });
+
+    it('is zero for no queue at all', () => {
+        expect(uploadedCount(undefined)).toBe(0);
+        expect(uploadedCount([])).toBe(0);
+    });
+});
+
+describe('movedPhotoIds (2026-10-17: Move earlier / Move later)', () => {
+    const photos = [makePhoto({ id: 'a' }), makePhoto({ id: 'b' }), makePhoto({ id: 'c' })];
+
+    it('swaps a photo with its earlier neighbour', () => {
+        expect(movedPhotoIds(photos, 'b', 'earlier')).toEqual(['b', 'a', 'c']);
+        expect(movedPhotoIds(photos, 'c', 'earlier')).toEqual(['a', 'c', 'b']);
+    });
+
+    it('swaps a photo with its later neighbour', () => {
+        expect(movedPhotoIds(photos, 'a', 'later')).toEqual(['b', 'a', 'c']);
+        expect(movedPhotoIds(photos, 'b', 'later')).toEqual(['a', 'c', 'b']);
+    });
+
+    it('answers nothing for a move off either end — the first cannot go earlier, the last cannot go later', () => {
+        expect(movedPhotoIds(photos, 'a', 'earlier')).toBeUndefined();
+        expect(movedPhotoIds(photos, 'c', 'later')).toBeUndefined();
+    });
+
+    it('answers nothing for a photo it does not hold, and for a lone photo', () => {
+        expect(movedPhotoIds(photos, 'zzz', 'later')).toBeUndefined();
+        expect(movedPhotoIds([makePhoto({ id: 'only' })], 'only', 'later')).toBeUndefined();
+        expect(movedPhotoIds([], 'a', 'earlier')).toBeUndefined();
+    });
+
+    it('does not mutate the list it was given', () => {
+        const before = photos.map((photo) => photo.id);
+        movedPhotoIds(photos, 'b', 'earlier');
+
+        expect(photos.map((photo) => photo.id)).toEqual(before);
+    });
+
+    it('moving to the front makes the photo the cover — the same rule isCoverPhoto reads', () => {
+        const ids = movedPhotoIds(photos, 'b', 'earlier') ?? [];
+
+        expect(ids[0]).toBe('b');
+    });
+});
+
+describe('coverFirstPhotoIds', () => {
+    const photos = [makePhoto({ id: 'a' }), makePhoto({ id: 'b' }), makePhoto({ id: 'c' })];
+
+    it('puts the chosen photo first and keeps the others in their order', () => {
+        expect(coverFirstPhotoIds(photos, 'c')).toEqual(['c', 'a', 'b']);
+    });
+
+    it('is the identity for the current cover', () => {
+        expect(coverFirstPhotoIds(photos, 'a')).toEqual(['a', 'b', 'c']);
     });
 });

@@ -39,7 +39,7 @@ export function cssColor(token: string): string {
 /**
  * Convert a design-token colour to the ALPHA-TINTED notation `getComputedStyle` returns.
  *
- * React Native has no alpha-suffix colour syntax (the web's `bg-error/10`), so native leaves spell a tint out
+ * React Native has no alpha-suffix colour syntax (the web's `bg-danger/10`), so native leaves spell a tint out
  * as an `rgba(...)` literal — which is precisely how a tint ends up on the wrong hue without anyone noticing.
  * Deriving the expected value from the token here means such a literal cannot pass by coincidence, and a
  * re-theme of the palette moves the test with it. Pure.

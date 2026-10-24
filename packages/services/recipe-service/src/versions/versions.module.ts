@@ -2,27 +2,30 @@ import { forwardRef, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
+import { IngredientsModule } from '../ingredients/ingredients.module.js';
 import { RecipesModule } from '../recipes/recipes.module.js';
 import { VersionsController } from './versions.controller.js';
 import { VersionsService, VERSIONS_DAL } from './versions.service.js';
 import { VersionsDal } from './dal/versions.dal.js';
-import { PendingArchivesDal } from './dal/pending-archives.dal.js';
+import { PendingArchivesDal } from './dal/pendingArchives.dal.js';
+import { VersionLineRestorer } from './versionLine.restorer.js';
 import {
     VERSION_ARCHIVE_READER,
     createS3VersionArchiveReader,
     type VersionArchiveReader,
-} from './version-archive.storage.js';
+} from './versionArchive.storage.js';
 
 /**
  * Versions module (FR-007b). Owns recipe version history: snapshot writes, the last-10 Postgres
  * retention window, and the S3-archive OUTBOX for pruned versions. Wires the {@link VersionsDal} and the
  * {@link PendingArchivesDal} over the global Drizzle client, the
  * {@link VersionsService} (which reuses {@link RecipesModule}'s `RecipesService` for read authorization
- * and restore), and the {@link VersionsController} REST surface. The global `AuthMiddleware` populates
+ * and restore, and {@link VersionLineRestorer} for the restored lines), and the {@link VersionsController} REST
+ * surface. The global `AuthMiddleware` populates
  * `req.principal`; the global `ApiExceptionFilter` maps thrown `RecipeDomainError`s to HTTP.
  */
 @Module({
-    imports: [forwardRef(() => RecipesModule)],
+    imports: [forwardRef(() => RecipesModule), IngredientsModule],
     controllers: [VersionsController],
     providers: [
         {
@@ -46,6 +49,9 @@ import {
                         : {}),
                 }),
         },
+        // Plan 002 R52 — what each snapshot line is restored as. Its bindings reader and name resolution come from
+        // `IngredientsModule`.
+        VersionLineRestorer,
         VersionsService,
     ],
     exports: [VersionsService],

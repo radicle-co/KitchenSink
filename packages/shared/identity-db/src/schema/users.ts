@@ -1,5 +1,6 @@
-import { customType, index, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { customType, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import type { UserId } from '../ulid.js';
 
 // citext — case-insensitive text (requires pg extension citext)
 export const citext = customType<{ data: string; driverData: string }>({
@@ -18,7 +19,7 @@ export const userStatusEnum = pgEnum('user_status', ['active', 'suspended', 'tom
 export const users = pgTable(
     'users',
     {
-        id: text('id').primaryKey(),
+        id: text('id').$type<UserId>().primaryKey(),
         identityId: text('identity_id').unique().notNull(),
         email: citext('email').notNull(),
         name: text('name'),
@@ -34,6 +35,32 @@ export const users = pgTable(
         // once and then bounded out — while a genuinely stuck leg is never stamped and keeps being re-driven
         // (and keeps feeding the ErasureIncomplete alarm). See migration 0012.
         reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
+        /**
+         * U10 (R26/R27): the INTENT. Incremented inside the same transaction as every status change.
+         *
+         * ⛔ It exists because closure and reactivation both reach Clerk through an SQS STANDARD queue,
+         * which is unordered — so the two can arrive in either order, and a worker that reads the EVENT off
+         * the message applies whichever came last. The reachable outcome is an account `active` here and
+         * BANNED at Clerk, with nothing recording that the two disagree.
+         */
+        statusVersion: integer('status_version').notNull().default(1),
+        /**
+         * U10: the version the identity provider was last brought to.
+         *
+         * Owed work is exactly `statusAppliedVersion IS DISTINCT FROM statusVersion` on a non-erased
+         * account. A VERSION rather than a boolean because a boolean cannot say which intent is outstanding
+         * — a second change during a failed apply would be indistinguishable from the first.
+         */
+        statusAppliedVersion: integer('status_applied_version').notNull().default(1),
+        /**
+         * P1 #5: the instant the identity provider CONFIRMED this account no longer exists. NULL = not confirmed.
+         *
+         * Written by the deletion worker after Clerk's delete succeeds or 404s, by the `user.deleted` webhook path,
+         * and by the tombstone sweep. Erasure reconciliation treats a NULL on an `erased` row as an incomplete leg
+         * and refuses to stamp `reconciled_at` (a CHECK makes that combination unstorable). Only an `erased` row may
+         * carry it. See migration 0017.
+         */
+        providerDeletedAt: timestamp('provider_deleted_at', { withTimezone: true }),
     },
     (table) => [
         // Partial: email is unique only among ACTIVE users. A soft-deleted user (deleted_at set)

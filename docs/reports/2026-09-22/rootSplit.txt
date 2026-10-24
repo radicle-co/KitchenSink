@@ -1,0 +1,20 @@
+roots (raw FoodOn label)            : 2036
+  multi-member                      : 721
+  needing a split (spread >= 10%)  : 474
+
+after a depth<=2 local split:
+  ⛔ groups fully resolved           : 400  (84%)
+  ⛔ residue -> THE CURATION LIST    : 74
+  roots after splitting             : 2753  (was 2036)
+
+  the 10 worst unresolved (this is the whole human backlog):
+       195%  n=90   ham (cured)
+        91%  n=2    taro leaf (raw)
+        88%  n=3    prickly pear pad (raw)
+        81%  n=7    sweet red bell pepper
+        77%  n=9    beef (ground, raw)
+        73%  n=17   potato (french-fried)
+        56%  n=13   beef small end rib roast (raw)
+        56%  n=36   beef (ground)
+        44%  n=17   beef strip steak (boneless, raw)
+        42%  n=10   turkey meat (ground)

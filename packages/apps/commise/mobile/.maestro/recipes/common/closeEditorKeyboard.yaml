@@ -1,0 +1,16 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: from anywhere on the editor page with a field focused, close the soft keyboard the way a cook does,
+# by a tap on the first section's heading (`common/typeTitle.yaml` says why a heading, and why not Return or
+# `hideKeyboard`). The keyboard covers the lower ~38% of the screen on both platforms, so a row read below an ingredient
+# field is behind it until it is closed (run 38988891871). The page is left at the top: a caller scrolls to what it reads.
+# 60 s, the time `pinnedActionBar.yaml` measured for the same page: from the foot of a long recipe the heading arrives
+# only as a 30 s timeout runs out on CI's slower emulator (run 39153198436, conflictMerge: the failure's screenshot shows
+# the heading on screen).
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'About the recipe'
+          DIRECTION: UP
+          TIMEOUT: 60000
+- tapOn: 'About the recipe'

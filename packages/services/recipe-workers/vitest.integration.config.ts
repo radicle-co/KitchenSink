@@ -1,21 +1,22 @@
 import { defineConfig } from 'vitest/config';
 
+import { INTEGRATION_AWS_PIN } from '@kitchensink/service-test-harness/integration-aws-pin';
+
 /**
- * Integration test config for `@kitchensink/recipe-workers`. Runs the S3-backed specs against a real
- * S3 API (LocalStack from the repo test harness — CI provides it; locally set `S3_ENDPOINT`). Kept
- * separate from the default unit run so the Docker-dependent specs never bleed into it. The specs
- * self-provision their bucket and `describe.skipIf(!hasS3Endpoint)` so a machine without the harness
- * skips cleanly rather than failing.
+ * Integration test config for `@kitchensink/recipe-workers`: every dependency is MOCKED
+ * (`docs/CODING_STANDARDS.md` §7.1a), so this tier opens no database and starts no LocalStack. The suites that
+ * need a real one are LOCAL e2e (`vitest.e2e.config.ts`).
  */
 export default defineConfig({
     test: {
+        // The integration AWS pin (`@kitchensink/service-test-harness`'s `awsPin.ts`).
+        env: { ...INTEGRATION_AWS_PIN.env },
+        setupFiles: [...INTEGRATION_AWS_PIN.setupFiles],
         include: ['**/__tests__/integration/**/*.integration.test.ts'],
         exclude: ['node_modules', 'dist'],
         typecheck: { enabled: false },
-        // Specs share one S3 endpoint; run serially to avoid cross-file bucket interference.
-        fileParallelism: false,
         testTimeout: 30_000,
         hookTimeout: 60_000,
-        passWithNoTests: true,
+        passWithNoTests: false,
     },
 });

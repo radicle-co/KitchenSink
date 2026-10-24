@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 
-import { isMissingConfigError, MissingConfigError, requireEnv } from '../config.js';
+import { isMissingConfigError, MissingConfigError, requireEnv, requirePositiveEnv } from '../config.js';
+import { InvalidConfigError, isInvalidConfigError } from '../invalidConfigError.js';
 
 const TEST_KEY = 'RECIPE_WORKERS_TEST_VAR';
 
@@ -54,5 +55,58 @@ describe('isMissingConfigError', () => {
         expect(isMissingConfigError(new Error('X'))).toBe(false);
         expect(isMissingConfigError('X')).toBe(false);
         expect(isMissingConfigError(undefined)).toBe(false);
+    });
+});
+
+describe('isInvalidConfigError', () => {
+    it('is true only for InvalidConfigError instances', () => {
+        expect(isInvalidConfigError(new InvalidConfigError('X', 'X is bad'))).toBe(true);
+        expect(isInvalidConfigError(new MissingConfigError('X'))).toBe(false);
+        expect(isInvalidConfigError(new Error('X'))).toBe(false);
+        expect(isInvalidConfigError(undefined)).toBe(false);
+    });
+});
+
+describe('requirePositiveEnv', () => {
+    it('parses a positive integer from the given environment', () => {
+        expect(requirePositiveEnv(TEST_KEY, { [TEST_KEY]: '90' })).toBe(90);
+    });
+
+    it.each([undefined, ''])('an absent variable (%j) is a MissingConfigError, like requireEnv', (value) => {
+        let caught: unknown;
+
+        try {
+            requirePositiveEnv(TEST_KEY, { [TEST_KEY]: value });
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isMissingConfigError(caught)).toBe(true);
+        expect((caught as MissingConfigError).variableName).toBe(TEST_KEY);
+    });
+
+    it.each(['0', '-3', '1.5', 'abc'])('a present but invalid value (%j) is an InvalidConfigError', (value) => {
+        let caught: unknown;
+
+        try {
+            requirePositiveEnv(TEST_KEY, { [TEST_KEY]: value });
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isInvalidConfigError(caught)).toBe(true);
+        expect(isMissingConfigError(caught)).toBe(false);
+        expect((caught as InvalidConfigError).variableName).toBe(TEST_KEY);
+        expect((caught as InvalidConfigError).message).toBe(`${TEST_KEY} must be a positive integer`);
+    });
+
+    it('reads process.env when no environment is given', () => {
+        process.env[TEST_KEY] = '7';
+
+        try {
+            expect(requirePositiveEnv(TEST_KEY)).toBe(7);
+        } finally {
+            delete process.env[TEST_KEY];
+        }
     });
 });

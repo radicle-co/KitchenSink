@@ -18,15 +18,20 @@ vi.mock('next/navigation', () => ({
         // Mirrors Next's real `redirect()`: typed `never`, aborts the page by throwing.
         throw new Error(`NEXT_REDIRECT:${url}`);
     }),
+    notFound: vi.fn(() => {
+        // Mirrors Next's real `notFound()`: typed `never`, aborts the page by throwing.
+        throw new Error('NEXT_NOT_FOUND');
+    }),
 }));
 
 const { auth } = await import('@clerk/nextjs/server');
 const mockedAuth = vi.mocked(auth);
 
-const { redirect } = await import('next/navigation');
+const { notFound, redirect } = await import('next/navigation');
 const mockedRedirect = vi.mocked(redirect);
+const mockedNotFound = vi.mocked(notFound);
 
-const { HomeWidgetSurface } = await import('@/components/home');
+const { HomeWidgetSurface } = await import('@/components/home/HomeWidgetSurface');
 const { default: HomePage } = await import('../page.js');
 
 /** Resolve `auth()` as a signed-out caller. */
@@ -45,6 +50,7 @@ function mockSignedIn(): void {
 beforeEach(() => {
     mockedAuth.mockReset();
     mockedRedirect.mockClear();
+    mockedNotFound.mockClear();
 });
 
 afterEach(() => {
@@ -55,10 +61,12 @@ describe('the locale root auth gate (front door)', () => {
     it('sends a SIGNED-OUT caller straight to the sign-in form', async () => {
         mockSignedOut();
 
+        // Sign-in is the target, and it carries the destination (W-01): the locale root, so a signed-in visitor
+        // lands on Home again.
         await expect(HomePage({ params: Promise.resolve({ locale: 'en' }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/en/sign-in',
+            'NEXT_REDIRECT:/en/sign-in?redirect_url=%2Fen',
         );
-        expect(mockedRedirect).toHaveBeenCalledWith('/en/sign-in');
+        expect(mockedRedirect).toHaveBeenCalledWith('/en/sign-in?redirect_url=%2Fen');
     });
 
     it('never routes a signed-out caller through an interstitial landing surface', async () => {
@@ -70,15 +78,7 @@ describe('the locale root auth gate (front door)', () => {
         await expect(HomePage({ params: Promise.resolve({ locale: 'en' }) })).rejects.toThrow(/NEXT_REDIRECT/);
 
         const targets = mockedRedirect.mock.calls.map(([url]) => url);
-        expect(targets).toEqual(['/en/sign-in']);
-    });
-
-    it('keeps the caller in their own locale', async () => {
-        mockSignedOut();
-
-        await expect(HomePage({ params: Promise.resolve({ locale: 'fr' }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/fr/sign-in',
-        );
+        expect(targets).toEqual(['/en/sign-in?redirect_url=%2Fen']);
     });
 
     it('renders Home for a SIGNED-IN caller, without redirecting', async () => {
@@ -89,4 +89,32 @@ describe('the locale root auth gate (front door)', () => {
         expect(element.type).toBe(HomeWidgetSurface);
         expect(mockedRedirect).not.toHaveBeenCalled();
     });
+});
+
+/**
+ * ⛔ A path that is not a locale never reaches Clerk.
+ *
+ * The middleware matcher skips `/favicon.ico`, `/robots.txt` and `/sitemap.xml`, and the app ships none of the
+ * three, so a browser's or crawler's request for one routed HERE with that file name as `locale`. The layout's
+ * `notFound()` does not stop this page: Next renders a layout and its page concurrently, so the response was
+ * the layout's 404 while `auth()` here ran with no `clerkMiddleware()` in the request and threw — a server
+ * error reported to Sentry for every favicon fetch.
+ */
+describe('a path segment that is not a supported locale', () => {
+    /**
+     * `fr` is here, not a locale this app ships (`SUPPORTED_LOCALES` is `['en']`). It used to be the input of a
+     * "keeps the caller in their own locale" case that expected `/fr/sign-in` — a page outcome the layout's own
+     * `notFound()` already made unreachable. That case is deleted rather than kept: with one locale shipped,
+     * the locale in the redirect target is proved by the `en` cases above.
+     */
+    it.each(['favicon.ico', 'robots.txt', 'sitemap.xml', 'fr'])(
+        '⛔ answers %s with not-found and never calls auth()',
+        async (segment) => {
+            mockSignedIn();
+
+            await expect(HomePage({ params: Promise.resolve({ locale: segment }) })).rejects.toThrow('NEXT_NOT_FOUND');
+            expect(mockedAuth).not.toHaveBeenCalled();
+            expect(mockedRedirect).not.toHaveBeenCalled();
+        },
+    );
 });

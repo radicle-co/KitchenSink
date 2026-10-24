@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, paste a list: refused (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <script>
+            (function () {
+                const d = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+                Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+                    configurable: true,
+                    get() {
+                        const s = this.style.height;
+                        this.style.height = '0px';
+                        const v = d.get.call(this);
+                        this.style.height = s;
+                        const cs = getComputedStyle(this);
+                        return v - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+                    },
+                });
+            })();
+        </script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 32px;
+                    padding: 47px 0 0;
+                    width: 390px;
+                    background: var(--canvas);
+                "
+            >
+                <section aria-label="Line too long" style="display: flex; flex-direction: column; gap: 8px">
+                    <div style="font: 600 14px/1.2 var(--font-body); color: var(--ink-muted); padding: 0 16px">
+                        Line too long
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--paper-overlay);
+                            border-radius: 20px 20px 0 0;
+                            box-shadow: var(--shadow-lg);
+                            overflow: hidden;
+                        "
+                    >
+                        <div
+                            style="display: flex; flex-direction: row; align-items: flex-start; padding: 4px 4px 0 16px"
+                        >
+                            <div style="flex: 1; min-width: 0; padding-top: 12px">
+                                <div style="font: 600 17px/1.2 var(--font-body); color: var(--ink)">Paste a list</div>
+                            </div>
+                            <span
+                                aria-hidden="true"
+                                style="
+                                    display: flex;
+                                    min-width: 48px;
+                                    min-height: 48px;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Icon"
+                                    name="x"
+                                    size="{{ic20}}"
+                                    tone="inkMuted"
+                                ></x-import
+                            ></span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 4px;
+                                padding: 8px 16px 16px;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.FieldLabel"
+                                for-id="paste-list-0"
+                                label="Ingredient lines"
+                                hint="One ingredient per line. You can add the steps next."
+                            ></x-import>
+                            <x-import
+                                component-from-global-scope="Commise.Native.TextArea"
+                                id="paste-list-0"
+                                value="{{text0}}"
+                                min-rows="{{rows10}}"
+                                max-rows="{{rows10}}"
+                                label="Ingredient lines"
+                                hint="One ingredient per line. You can add the steps next."
+                                error="{{err0}}"
+                                on-change-text="{{noop}}"
+                            ></x-import>
+                            <div
+                                style="
+                                    font: 500 14px/1.4 var(--font-body);
+                                    font-variant-numeric: tabular-nums;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                4 lines
+                            </div>
+                            <div style="font: 400 14px/1.4 var(--font-body); color: var(--danger-text)">
+                                Line 4 is longer than 1000 characters. Shorten it and try again.
+                            </div>
+                            <div
+                                role="alert"
+                                style="font: 400 14px/1.4 var(--font-body); color: var(--danger-text)"
+                            ></div>
+                        </div>
+                        <div
+                            style="
+                                border-top: 1px solid var(--line-divider);
+                                padding: 16px 16px 24px;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                icon="plus"
+                                width="fill"
+                                disabled="{{yes}}"
+                                >Add 4 ingredients</x-import
+                            >
+                        </div>
+                    </div>
+                </section>
+                <section aria-label="Too many lines" style="display: flex; flex-direction: column; gap: 8px">
+                    <div style="font: 600 14px/1.2 var(--font-body); color: var(--ink-muted); padding: 0 16px">
+                        Too many lines
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--paper-overlay);
+                            border-radius: 20px 20px 0 0;
+                            box-shadow: var(--shadow-lg);
+                            overflow: hidden;
+                        "
+                    >
+                        <div
+                            style="display: flex; flex-direction: row; align-items: flex-start; padding: 4px 4px 0 16px"
+                        >
+                            <div style="flex: 1; min-width: 0; padding-top: 12px">
+                                <div style="font: 600 17px/1.2 var(--font-body); color: var(--ink)">Paste a list</div>
+                            </div>
+                            <span
+                                aria-hidden="true"
+                                style="
+                                    display: flex;
+                                    min-width: 48px;
+                                    min-height: 48px;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Icon"
+                                    name="x"
+                                    size="{{ic20}}"
+                                    tone="inkMuted"
+                                ></x-import
+                            ></span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 4px;
+                                padding: 8px 16px 16px;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.FieldLabel"
+                                for-id="paste-list-1"
+                                label="Ingredient lines"
+                                hint="One ingredient per line. You can add the steps next."
+                            ></x-import>
+                            <x-import
+                                component-from-global-scope="Commise.Native.TextArea"
+                                id="paste-list-1"
+                                value="{{text1}}"
+                                min-rows="{{rows10}}"
+                                max-rows="{{rows10}}"
+                                label="Ingredient lines"
+                                hint="One ingredient per line. You can add the steps next."
+                                error="{{err1}}"
+                                on-change-text="{{noop}}"
+                            ></x-import>
+                            <div
+                                style="
+                                    font: 500 14px/1.4 var(--font-body);
+                                    font-variant-numeric: tabular-nums;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                201 lines
+                            </div>
+                            <div style="font: 400 14px/1.4 var(--font-body); color: var(--danger-text)">
+                                That’s more than 200 lines. Paste them in smaller batches.
+                            </div>
+                            <div
+                                role="alert"
+                                style="font: 400 14px/1.4 var(--font-body); color: var(--danger-text)"
+                            ></div>
+                        </div>
+                        <div
+                            style="
+                                border-top: 1px solid var(--line-divider);
+                                padding: 16px 16px 24px;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                icon="plus"
+                                width="fill"
+                                disabled="{{yes}}"
+                                >Add 201 ingredients</x-import
+                            >
+                        </div>
+                    </div>
+                </section>
+                <section aria-label="Reading did not start" style="display: flex; flex-direction: column; gap: 8px">
+                    <div style="font: 600 14px/1.2 var(--font-body); color: var(--ink-muted); padding: 0 16px">
+                        Reading did not start
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--paper-overlay);
+                            border-radius: 20px 20px 0 0;
+                            box-shadow: var(--shadow-lg);
+                            overflow: hidden;
+                        "
+                    >
+                        <div
+                            style="display: flex; flex-direction: row; align-items: flex-start; padding: 4px 4px 0 16px"
+                        >
+                            <div style="flex: 1; min-width: 0; padding-top: 12px">
+                                <div style="font: 600 17px/1.2 var(--font-body); color: var(--ink)">Paste a list</div>
+                            </div>
+                            <span
+                                aria-hidden="true"
+                                style="
+                                    display: flex;
+                                    min-width: 48px;
+                                    min-height: 48px;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><x-import
+                                    component-from-global-scope="Commise.Native.Icon"
+                                    name="x"
+                                    size="{{ic20}}"
+                                    tone="inkMuted"
+                                ></x-import
+                            ></span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 4px;
+                                padding: 8px 16px 16px;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.FieldLabel"
+                                for-id="paste-list-2"
+                                label="Ingredient lines"
+                                hint="One ingredient per line. You can add the steps next."
+                            ></x-import>
+                            <x-import
+                                component-from-global-scope="Commise.Native.TextArea"
+                                id="paste-list-2"
+                                value="{{text2}}"
+                                min-rows="{{rows10}}"
+                                max-rows="{{rows10}}"
+                                label="Ingredient lines"
+                                hint="One ingredient per line. You can add the steps next."
+                                on-change-text="{{noop}}"
+                            ></x-import>
+                            <div
+                                style="
+                                    font: 500 14px/1.4 var(--font-body);
+                                    font-variant-numeric: tabular-nums;
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                4 lines
+                            </div>
+
+                            <div role="alert" style="font: 400 14px/1.4 var(--font-body); color: var(--danger-text)">
+                                We couldn’t start reading that. Your text is still here — try again.
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                border-top: 1px solid var(--line-divider);
+                                padding: 16px 16px 24px;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <x-import component-from-global-scope="Commise.Native.Button" icon="plus" width="fill"
+                                >Add 4 ingredients</x-import
+                            >
+                        </div>
+                    </div>
+                </section>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1824}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return { ic20:20,rows10:10,noop,yes:true,text0:"1 cup orzo\n2 cups baby spinach\n1 tbsp Dijon mustard\n3 tbsp unsalted butter, browned then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirring until it smells nutty, then stir it through slowly and keep stirr",text1:"8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil\n3 tbsp unsalted butter, browned\n4 cloves garlic, thinly sliced\n2 tbsp capers, drained and rinsed\n1 lemon, zested and juiced\n1/2 cup low-sodium chicken stock\n1 cup orzo\n8 chicken thighs, bone-in, skin-on\n1/4 cup all-purpose flour\n2 tbsp olive oil",text2:"1 cup orzo\n2 cups baby spinach\n1 tbsp Dijon mustard\n1 pinch red pepper flakes",err0:"Line 4 is longer than 1000 characters. Shorten it and try again.",err1:"That’s more than 200 lines. Paste them in smaller batches." }; } }
+        </script>
+    </body>
+</html>

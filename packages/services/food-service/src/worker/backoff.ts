@@ -2,7 +2,7 @@
  * Pure retry-budget helpers for the fan-out worker (T-153, FR-016/FR-027). The exponential backoff and
  * the retry-budget ceiling are isolated here so they are unit-testable without a database. The
  * `fetch_queue` row's `last_requested` gate is set to `now() + interval 'backoffSeconds(attempts) s'`
- * by {@link FetchQueueDao.recordFailure}; this module just states the curve and the ceiling.
+ * by `FetchQueueDao.recordFailure`; this module just states the curve and the ceiling.
  *
  * @implements FR-016 FR-027
  */
@@ -29,4 +29,21 @@ export function backoffSeconds(attempts: number): number {
  */
 export function isRetryBudgetExhausted(attempts: number): boolean {
     return attempts >= MAX_FAILURE_ATTEMPTS;
+}
+
+/**
+ * Client-timeout deferrals tolerated before a food is tombstoned `FAILED`. A timeout is not a per-food defect, so it
+ * never spends {@link MAX_FAILURE_ATTEMPTS}; but a food that times out on every pass is a defect somewhere, and an
+ * uncapped deferral hid it from the queue watcher for ever.
+ */
+export const MAX_TIMEOUT_DEFERRALS = 5;
+
+/**
+ * Whether the food has timed out too often to be deferred again.
+ *
+ * @param timeoutCount - The post-increment timeout-deferral count.
+ * @returns `true` once `timeoutCount` reaches {@link MAX_TIMEOUT_DEFERRALS}. Pure.
+ */
+export function isTimeoutBudgetExhausted(timeoutCount: number): boolean {
+    return timeoutCount >= MAX_TIMEOUT_DEFERRALS;
 }

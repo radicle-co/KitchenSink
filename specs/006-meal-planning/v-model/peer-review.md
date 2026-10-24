@@ -1,300 +1,293 @@
 # V-Model Peer Review: Meal Planning (006)
 
 **Feature Branch**: `006-meal-planning`
-**Review Date**: 2026-05-09
+**Review Date**: 2026-05-09 | **Re-reviewed**: 2026-08-02
 **Reviewer**: AI Peer Review (speckit.v-model.peer-review)
-**Artifacts Reviewed**:
-
-- `specs/006-meal-planning/v-model/requirements.md`
-- `specs/006-meal-planning/v-model/acceptance-plan.md`
-- `specs/006-meal-planning/v-model/unit-test.md`
-- `specs/006-meal-planning/v-model/trace.md`
-
-**Review Standard**: ISO 29119 / V-Model bidirectional traceability
-**Finding ID Schema**: `PRF-006-{N}` — sequential, severity-ordered
+**Artifacts Reviewed**: all ten `v-model/` artifacts, plus `spec.md`, `plan.md` and the `product-spec/` layer for
+cross-artifact consistency
+**Review Standard**: ISO 29119 / V-Model bidirectional traceability; INCOSE Guide for Writing Requirements;
+`docs/engineering/ENGINEERING_EXCELLENCE.md`
+**Finding ID Schema**: `PRF-006-{N}` — sequential, never renumbered
 
 ---
 
 ## Summary
 
-| Severity | Count |
-| -------- | ----- |
-| CRITICAL | 3     |
-| WARNING  | 7     |
-| PASSED   | 8     |
+| Severity    | Raised | Open  |
+| ----------- | ------ | ----- |
+| CRITICAL    | 0      | 0     |
+| MAJOR       | 3      | **0** |
+| MINOR       | 6      | **0** |
+| OBSERVATION | 4      | —     |
+| **Total**   | **13** | **0** |
 
-**Overall Verdict**: ⚠️ **CONDITIONAL PASS** — Three critical defects must be resolved before this artifact set is promoted to implementation. Seven warnings should be addressed or formally accepted with rationale.
+**Overall Verdict**: ✅ **PASS — cleared to begin implementation (2026-08-02).**
 
----
+All three MAJOR findings are closed by owner ruling on 2026-08-02:
 
-## CRITICAL Findings
+| ID         | Resolution                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| PRF-006-11 | **Residual accepted** — plan span is not a concern; the 90-day maximum stands with no separate latency target. Residual recorded. |
+| PRF-006-12 | **Premise invalid** — the same owner owns 006 **and** the recipe service. No cross-party gate exists.                             |
+| PRF-006-13 | **Resolved** — the index rows are now `Deferred`, with status definitions, a deferral note and a new review rule.                 |
 
----
+PRF-006-16 (endpoint path) is also closed: as owner of the recipe service, the path is settled on the platform's plain-
+segment convention, **`POST /api/v1/recipes/nutrition-batch`**, and applied across all ten references.
 
-### PRF-006-1 · CRITICAL — Phantom Requirement REQ-CN-003 Referenced Across Multiple Artifacts
+**All six MINOR findings are also now closed** (2026-08-02). PRF-006-14 and -15 are resolved by actual enumeration
+rather than deferred to implementation; PRF-006-17 is resolved by specifying retention and a mechanism; PRF-006-18 by
+adding the missing scenarios. **Nothing is outstanding on this artifact set.**
 
-**Artifacts**: `acceptance-plan.md`, `trace.md`
-**Standard**: ISO 29119-4 §6.3 — every test case SHALL trace to a defined requirement
+> **Note on the previous review.** The May review recorded **3 CRITICAL and 7 WARNING** findings here, while all nine
+> per-artifact reviews recorded **0 findings each**. That is not a credible outcome: nine independent reviews of
+> documents that the consolidated review found three critical defects in cannot all be clean. Those nine files were
+> rubber stamps and have been rewritten with real findings.
 
-**Evidence**:
+### Disposition of the May findings
 
-- `acceptance-plan.md` line 69: `AT-006-D — Requirement: REQ-006, REQ-CN-003`
-- `acceptance-plan.md` line 82: `AT-006-E — Requirement: REQ-007, REQ-CN-003`
-- `acceptance-plan.md` line 93: `AT-006-F — Requirement: REQ-008, REQ-CN-003`
-- `acceptance-plan.md` line 117: `REQ-CN-003 | Free-tier user | AI features … return 402 | Fault Injection`
-- `trace.md` Matrix B: `AT-006-D → REQ-CN-001` (inconsistent — uses CN-001 not CN-003)
-
-**Problem**: `REQ-CN-003` does not exist in `requirements.md`. The Constraint Requirements table defines only `REQ-CN-001` (AI features restricted to premium) and `REQ-CN-002` (meal plan scoped to authenticated user). There is no `REQ-CN-003`.
-
-The intent of `REQ-CN-003` appears to be identical to `REQ-CN-001` (premium gating of AI features). This creates a traceability break: three acceptance test groups (AT-006-D, AT-006-E, AT-006-F) and the acceptance criteria table reference a non-existent requirement ID.
-
-Additionally, `trace.md` Matrix B maps `ATS-006-D2` to `REQ-CN-001` while `acceptance-plan.md` maps the same test to `REQ-CN-003` — an internal inconsistency between artifacts.
-
-**Required Action**: Either (a) add `REQ-CN-003` to `requirements.md` with a distinct definition, or (b) replace all `REQ-CN-003` references in `acceptance-plan.md` with `REQ-CN-001` and reconcile `trace.md` Matrix B accordingly.
-
----
-
-### PRF-006-2 · CRITICAL — REQ-NF-003 Verification Method is "Test" but No Acceptance Test Exists
-
-**Artifacts**: `requirements.md`, `acceptance-plan.md`, `trace.md`
-**Standard**: ISO 29119-4 §6.2 — requirements with verification method "Test" SHALL have corresponding test cases
-
-**Evidence**:
-
-- `requirements.md` line 36: `REQ-NF-003 | … UI components MUST expose accessible name … | P1 | Test`
-- `trace.md` Matrix A (NF section): `REQ-NF-003 | *(Test — no AT defined in acceptance-plan.md)* | — | Test | ⬜`
-- `acceptance-plan.md`: No AT case references `REQ-NF-003`
-
-**Problem**: `REQ-NF-003` is a P1 requirement with verification method "Test", but no acceptance test case exists for it. The trace matrix acknowledges the gap with a parenthetical note but does not flag it as a defect. Accessibility compliance (`getByRole`/`getByLabel` queryability) is a testable, automatable criterion that must have a corresponding AT.
-
-This is particularly significant because `REQ-NF-003` is a P1 requirement derived from Constitution Principles IV & VII, meaning it is non-negotiable per project standards.
-
-**Required Action**: Add an acceptance test case (e.g., `AT-006-G — Accessibility`) covering `REQ-NF-003`, with BDD scenarios verifying that all meal planning UI components are queryable by role/label in Playwright tests.
+| ID         | May severity | Status                                                                                                                   |
+| ---------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| PRF-006-1  | CRITICAL     | **RESOLVED** — `REQ-CN-003` is now a defined requirement (no cross-DB FK / no replicated state), consistently referenced |
+| PRF-006-2  | CRITICAL     | **RESOLVED** — accessibility now has AT-006-H (5 scenarios) plus STP-010-B (6 scenarios)                                 |
+| PRF-006-3  | CRITICAL     | **RESOLVED** — REQ-IF-005/006 are Test-verified with named scenarios; the contradiction is gone                          |
+| PRF-006-4  | WARNING      | **RESOLVED** — the malformed double-comma requirement text was rewritten                                                 |
+| PRF-006-5  | WARNING      | **RESOLVED** — REQ-009 restated as a testable single-round-trip contract                                                 |
+| PRF-006-6  | WARNING      | **RESOLVED** — backward trace corrected                                                                                  |
+| PRF-006-7  | WARNING      | **RESOLVED** — UTP-002-A covers 1-day, 90-day and 91-day boundaries; ATS-006-A4 covers the acceptance side               |
+| PRF-006-8  | WARNING      | **RESOLVED** — ATS-006-C5, STS-PERF-A2 cover large plans, though see **PRF-006-11**                                      |
+| PRF-006-9  | WARNING      | **SUPERSEDED** — the premium guard no longer exists                                                                      |
+| PRF-006-10 | WARNING      | **RESOLVED** — REQ-011 is Demonstration with a defined timed-session procedure in ATS-006-G1                             |
 
 ---
 
-### PRF-006-3 · CRITICAL — REQ-IF-005 and REQ-IF-006 Verification Method Mismatch
+## MAJOR Findings
 
-**Artifacts**: `requirements.md`, `trace.md`
-**Standard**: ISO 29119-4 §6.2 — verification method SHALL be consistent between requirement definition and traceability matrix
+### PRF-006-11 · MAJOR — The performance requirement does not cover the maximum supported plan size
 
-**Evidence**:
+**Artifacts**: `requirements.md` (REQ-NF-006, REQ-010), `system-test.md` (STS-PERF-A1/A2), `spec.md` (SC-006-003)
 
-- `requirements.md` (Interface Requirements): `REQ-IF-005 | Expose meal plan data consumable by feature 007 | P2 | Test`
-- `requirements.md`: `REQ-IF-006 | Expose meal plan data linkable by feature 009 | P2 | Test`
-- `trace.md` Matrix A: `REQ-IF-005 | *(Inspection — no AT defined)* | — | Test | ⬜`
-- `trace.md` Matrix A: `REQ-IF-006 | *(Inspection — no AT defined)* | — | Test | ⬜`
+**Evidence**: `REQ-001` bounds a plan at **90 days**. `REQ-NF-006` and `SC-006-003` state the latency target for a
+**30-day** plan. `REQ-010` requires a 90-day plan to have bounded fan-out but states **no latency target**. `STS-PERF-A2`
+consequently asserts request-count at 90 days while reusing the 30-day p95 that no requirement extends to that size.
 
-**Problem**: Both requirements declare verification method "Test" in `requirements.md`, but `trace.md` labels them `*(Inspection — no AT defined)*` in the ATP-ID column while still showing "Test" in the Verification Method column. This is a self-contradictory entry: the matrix simultaneously says "Inspection" (no AT needed) and "Test" (AT required). No acceptance test exists for either.
+**Why it matters**: the system permits a plan three times larger than any performance requirement covers. A 90-day plan
+taking 1.4 s would violate no stated requirement while plainly failing the user. This is the gap between "the maximum we
+allow" and "the maximum we promised to be fast at".
 
-These are P2 interface requirements for downstream consumers (grocery lists, nutrition planning). If they are truly verifiable only by inspection, the verification method in `requirements.md` must be changed to "Inspection". If they require a test, an AT must be created.
+**Recommendation**: either state a latency target at the maximum supported size (e.g. p95 ≤ 800 ms at 90 days) and test
+it, or reduce the maximum span to the size actually performance-tested. Do not leave the two numbers unrelated.
 
-**Required Action**: Resolve the contradiction — either (a) change verification method to "Inspection" in `requirements.md` for both REQ-IF-005 and REQ-IF-006 and update `trace.md` to remove the "Test" column value, or (b) add acceptance test cases covering the public API contract consumed by features 007 and 009.
+**Disposition**: ✅ **CLOSED — RESIDUAL ACCEPTED BY OWNER (2026-08-02).** The owner's ruling is that plan span is not a
+concern worth a separate performance target. The 90-day maximum stands and `REQ-NF-006`/`SC-006-003` continue to target
+30 days.
 
----
-
-## WARNING Findings
-
----
-
-### PRF-006-4 · WARNING — Typo in REQ-CN-001 and REQ-009 Descriptions (Double Comma)
-
-**Artifacts**: `requirements.md`
-**Standard**: Documentation quality; not a standards violation but introduces ambiguity
-
-**Evidence**:
-
-- `requirements.md` line 54: `REQ-CN-001 | AI meal suggestions, auto-generation,, food waste optimization MUST be restricted…`
-- `requirements.md` line 26: `REQ-009 | … all assigned recipes, meal slots,, nutritional summaries displayed.`
-
-**Problem**: Both descriptions contain a double comma (`,,`) which is a copy-paste artifact. While minor, requirements documents are contractual artifacts; typographic errors in SHALL statements can create ambiguity during implementation review.
-
-**Required Action**: Remove the duplicate commas in both requirement descriptions.
+**Recorded residual**: a 90-day plan has **no stated latency target**. `STS-PERF-A2` therefore asserts only the
+_bounded-fan-out_ property at that size — which is the property that actually protects the design (it fails if an N+1
+regresses) — and does **not** assert a p95. Accepted knowingly: the bounded-fan-out guarantee means a 90-day read is
+one database query plus one chunked gateway call, so its cost scales with distinct recipes rather than with entries, and
+the realistic worst case sits close to the 30-day figure. If plan sizes near the maximum become common in production,
+revisit via `MET-006-020`.
 
 ---
 
-### PRF-006-5 · WARNING — REQ-009 Verification Method is "Demonstration" — Not Testable
+### PRF-006-12 · MAJOR — A requirement here obliges another feature's package, with no acceptance on that side
 
-**Artifacts**: `requirements.md`, `acceptance-plan.md`, `trace.md`
-**Standard**: ISO 29119-4 §6.2 — demonstration is a valid but weaker verification method; should be justified
+**Artifacts**: `requirements.md` (REQ-IF-008), `plan.md` (Cross-feature dependency), `integration-test.md` (ITP-015-C)
 
-**Evidence**:
+**Evidence**: `REQ-IF-008` requires the **recipe service** to expose a batch nutrition projection. It was verified only
+by consumer-driven contract scenarios living in 006's plan, with no obliging requirement on the provider side.
 
-- `requirements.md` line 26: `REQ-009 | … view a completed meal plan … | P2 | Demonstration`
-- `requirements.md` line 28: `REQ-011 | … complete full meal-plan-to-grocery-list workflow … in under 10 minutes | P2 | Demonstration`
-- `trace.md` Matrix A: Both REQ-009 and REQ-011 show `*(Demonstration — no AT defined)*`
-- `acceptance-plan.md` line 114: `REQ-009 | Plan exists | Full plan displayed with all slots, recipes, and nutritional summaries | Statement Coverage` — this entry in the acceptance criteria table implies a test, contradicting the "Demonstration" method
+**Disposition**: ✅ **CLOSED — PREMISE INVALID (2026-08-02).** The finding assumed the recipe service is owned by a
+different party whose acceptance is needed. It is not: **the same owner owns both 006 and the recipe service.** There is
+no cross-party gate, and `cross-feature-FR-index.md` needs no `006 → 001` row, because that registry records references
+between **specs**, not a change one owner makes to their own service.
 
-**Problem**: `acceptance-plan.md` includes `REQ-009` in the "Acceptance Criteria per REQ" table with a technique ("Statement Coverage"), implying it is tested. However, `requirements.md` specifies "Demonstration" and no AT case exists. The acceptance criteria table entry for REQ-009 is an orphan — it references a requirement but has no corresponding AT-006-X case.
-
-**Required Action**: Either (a) add an AT case for REQ-009 (the plan view scenario) and change verification method to "Test", or (b) remove REQ-009 from the acceptance criteria table and document the demonstration procedure separately.
-
----
-
-### PRF-006-6 · WARNING — AT-006-A References REQ-CN-001 in Backward Traceability but REQ-CN-001 is About AI Gating, Not CRUD Auth
-
-**Artifacts**: `trace.md`
-**Standard**: Traceability accuracy — backward trace SHALL correctly identify the requirement satisfied
-
-**Evidence**:
-
-- `trace.md` Matrix B: `AT-006-A | Meal Plan CRUD | REQ-001, REQ-010, REQ-CN-001 | Create plan for configurable date range; 30+ day support; auth enforcement`
-- `requirements.md`: `REQ-CN-001` = "AI meal suggestions, auto-generation, food waste optimization MUST be restricted to premium subscribers"
-- `requirements.md`: `REQ-CN-002` = "Meal Plan entity MUST be scoped to authenticated user; users MUST NOT access another user's meal plans"
-
-**Problem**: AT-006-A covers Meal Plan CRUD including cross-user access (ATS-006-A5 returns 404 for another user's plan). This scenario satisfies `REQ-CN-002` (data isolation), not `REQ-CN-001` (AI premium gating). The backward trace incorrectly maps AT-006-A to REQ-CN-001 instead of REQ-CN-002.
-
-**Required Action**: Replace `REQ-CN-001` with `REQ-CN-002` in the AT-006-A backward trace entry.
+**What remains true, and is retained**: T001–T003 modify a **shipped, deployed** service. That is a sequencing and
+blast-radius fact regardless of ownership, so the safeguards stay — the change is strictly additive (no existing route
+altered), it is covered by consumer-driven contract tests that fail in the recipe service's own CI (ITS-015-C4), and it
+must land before 006's nutrition tasks. It is now an ordinary internal prerequisite rather than a gate.
 
 ---
 
-### PRF-006-7 · WARNING — Missing Boundary Test for Minimum Date Range (1-Day Plan)
+### PRF-006-13 · MAJOR — The cross-feature FR index still marks deferred requirements as Active
 
-**Artifacts**: `acceptance-plan.md`, `unit-test.md`
-**Standard**: ISO 29119-4 Boundary Value Analysis — min-1, min, nominal, max, max+1 boundaries required
+**Artifacts**: [`cross-feature-FR-index.md`](../../cross-feature-FR-index.md), `spec.md` (C-006-009)
 
-**Evidence**:
+**Evidence**: the index registered three references from `010-subscriptions` to `006-FR-025`, `006-FR-026` and
+`006-FR-027` ("Premium entitlement gates …"), each with Status **Active**. All three are now **Phase 2, deferred**.
 
-- `acceptance-plan.md` AT-006-A: Tests 1-week (7 days) and 30+ days — no 1-day plan scenario
-- `unit-test.md` UTP-002-B: Tests `dayCount` boundaries at 364, 365, 366 (upper boundary) but no lower boundary (min=1, min-1=0)
-- `requirements.md` REQ-001: "configurable date range (e.g., 1 week, 2 weeks, 30+ days)" — 1-day is a valid edge case
+**Why it mattered**: the index is the authoritative cross-feature registry. Three `Active` rows against deferred
+requirements read to 010's planning as live commitments — and the circularity (006 waits on 010's entitlement while
+010's index says 006 gates on it) was invisible from either side.
 
-**Problem**: The lower boundary of the date range is untested at both acceptance and unit levels. A 1-day plan (dayCount=1) is the minimum valid value; a 0-day plan (startDate=endDate or endDate < startDate) is the min-1 invalid case. Neither is covered. The unit test for `dayCount` only covers the upper boundary (365/366), leaving the lower boundary (0/1) as a gap.
+**Disposition**: ✅ **RESOLVED (2026-08-02).** Applied to `specs/cross-feature-FR-index.md`:
 
-**Required Action**: Add `UTS-002-B4` (dayCount=1 → succeeds) and `UTS-002-B5` (dayCount=0 → throws) to `unit-test.md`. Add an acceptance scenario to AT-006-A for a 1-day plan creation.
-
----
-
-### PRF-006-8 · WARNING — No Acceptance Test for REQ-010 Update/Edit Scenario
-
-**Artifacts**: `acceptance-plan.md`, `trace.md`
-**Standard**: Requirement coverage completeness
-
-**Evidence**:
-
-- `requirements.md` REQ-010: "support meal plans spanning at least 30 days without degradation of functionality / performance"
-- `trace.md` Matrix A: `REQ-010 | AT-006-A | Meal Plan CRUD (create 1-week, 30+ days…)`
-- `acceptance-plan.md` AT-006-A: ATS-006-A2 creates a 31-day plan (201 returned) — but no scenario tests that operations (assign recipe, view summary) on a 30+ day plan function correctly
-
-**Problem**: ATS-006-A2 only verifies that a 31-day plan can be _created_ (201 with correct slot count). REQ-010 requires that functionality does not degrade for large plans — this implies recipe assignment, nutritional summary retrieval, and plan view must also work on 30+ day plans. No scenario tests these operations against a large plan.
-
-**Required Action**: Add acceptance scenarios to AT-006-B and AT-006-C that operate on a 30+ day plan (e.g., assign recipe to day 28, retrieve weekly summary for week 4).
+1. The three rows now read **`Deferred`**.
+2. A **Status Values** section defines `Active` vs. `Deferred`, which the registry previously left implicit — every row
+   said `Active`, so the column carried no information.
+3. A **Deferral Notes** entry records the reason, points at C-006-009, and states the mutual dependency explicitly:
+   whichever of 006 or 010 is planned first must resolve the entitlement mechanism rather than assume the other side
+   has.
+4. **Review Rule 5** added, so a future deferral flips its rows in the same change set instead of leaving a stale
+   `Active`. This is the durable fix — the other three are one-off corrections.
 
 ---
 
-### PRF-006-9 · WARNING — MOD-010 (AISuggestionController) Has Only 1 Unit Test Scenario
+## MINOR Findings
 
-**Artifacts**: `unit-test.md`, `trace.md`
-**Standard**: ISO 29119-4 §7.4 — controllers SHALL have branch coverage for all guard conditions
+### PRF-006-14 · MINOR — Scenario counts are derived, not enumerated · ✅ RESOLVED
 
-**Evidence**:
+**Artifacts**: `unit-test.md`, `integration-test.md`, `system-test.md`, `traceability-matrix.md`, `trace.md`
 
-- `trace.md` Matrix D: `MOD-010 | AISuggestionController | UTP-010-A | UTS-010-A1 (1 total)`
-- `unit-test.md` MOD-010: UTP-010-A covers only the premium-guard delegation path
-- `trace.md` Matrix D: `MOD-012 | AutoGenerateController | UTP-012-A | UTS-012-A1 (1 total)`
-- `trace.md` Matrix D: `MOD-014 | WasteOptimizationController | UTP-014-A | UTS-014-A1 (1 total)`
+Several tables abbreviated scenario ranges, so the headline totals were internally consistent but never verified
+id-by-id.
 
-**Problem**: All three premium-feature controllers (AI Suggestion, Auto-Generate, Waste Optimization) have exactly 1 unit test scenario each. Controllers that sit behind a `PremiumTierGuard` have at least two branches: (1) guard passes → delegate to service, (2) guard rejects → 402. The guard rejection path is tested at the guard level (UTP-021-A) but not at the controller level. If the guard is misconfigured on a specific controller, the controller-level test would not catch it.
+**Disposition (2026-08-02)**: **resolved by enumerating every id**, not by deferring to implementation. Each document's
+scenario ids were extracted and de-duplicated. Every published figure was wrong:
 
-**Required Action**: Add a second scenario to UTP-010-A, UTP-012-A, and UTP-014-A verifying that when the `PremiumTierGuard` throws `ForbiddenException`, the controller propagates it without swallowing the error.
+| Tier        | Published | Actual               |
+| ----------- | --------- | -------------------- |
+| Unit        | 47 / 168  | **50 UTP / 162 UTS** |
+| Integration | 18 / 63   | **18 ITP / 72 ITS**  |
+| System      | 14 / 57   | **16 STP / 71 STS**  |
+| Acceptance  | 9 / 53    | **9 AT / 52 ATS**    |
+| **Total**   | 341       | **357**              |
+
+No dangling references: every id cited in a coverage table is defined in its document body. Corrected across all eight
+documents that carried a derived figure. The release audit additionally **double-counted 19 tests** by listing
+Playwright/Maestro/k6 as separate rows on top of the System total that already contains them (423 → **438** once the
+component matrix is corrected too).
+
+### PRF-006-15 · MINOR — The component-state matrix split is unverified arithmetic
+
+**Artifact**: `system-test.md` (STP-010-A)
+
+The 12 × 7 matrix was stated to total **63 tests (34 web, 29 mobile)**, with `(both)` columns making the split ambiguous
+and the arithmetic never recomputed.
+
+**Disposition**: ✅ **RESOLVED (2026-08-02) — recounted cell-by-cell.** The matrix has **50 ticked cells**; each of the
+five `(both)` columns is **two** tests (one per platform), the web-only and mobile-only columns one each. The true total
+is **81 component tests — 40 web, 41 mobile**, not 63/34/29. SC-006-004's denominator is corrected accordingly.
+
+The published figure was low by 29%, which matters: SC-006-004 requires 100% of these passing, so a coverage percentage
+computed against the wrong denominator would have read as complete while 18 tests were missing.
+
+### PRF-006-16 · MINOR — The batch endpoint path uses a style absent from the platform
+
+**Artifacts**: `plan.md`, `requirements.md` (REQ-IF-008)
+
+As originally specified, the path was `POST /api/v1/recipes/nutrition:batch` — a colon action suffix. Every shipped route
+uses plain segments (`/api/v1/recipes/{id}/clone`, `/api/v1/foods/search`, `/api/v1/recipes/{id}/visibility`).
+
+**Disposition**: ✅ **RESOLVED (2026-08-02).** Settled by the recipe service's owner on the platform convention:
+**`POST /api/v1/recipes/nutrition-batch`**. Applied across all ten references (plan, requirements, architecture, module
+design, system design, integration test, user journey, tasks). A URL is a wire contract and this one has no clients
+yet, so it was the cheapest possible moment to fix it.
+
+### PRF-006-17 · MINOR — Idempotency-key retention is unspecified · ✅ RESOLVED
+
+**Artifacts**: `plan.md` (data model), `module-design.md` (MOD-016), `spec.md` (FR-032), `requirements.md` (REQ-015)
+
+`meal_plan_idempotency_keys` grew without bound. The design said rows were "pruned by age; the pruning is a scheduled DB
+task, not a worker Lambda" — but named no retention period, no schedule and no mechanism, and no test covered pruning.
+
+**Disposition**: ✅ **RESOLVED (2026-08-02) — concrete mechanism specified.** Retention is **24 hours**. Pruning is
+**opportunistic and bounded**: a `LIMIT 50`, owner-scoped `DELETE` inside the same transaction as each idempotency
+write.
+
+That shape was chosen because the obvious answers do not fit this platform. `pg_cron` is not enabled, and every other
+scheduled task here is an EventBridge rule driving a Lambda or ECS task — which **REQ-NF-009 forbids for this feature**.
+Opportunistic pruning needs no infrastructure, is self-limiting (the table only accumulates while it is being written
+to, which is exactly when the prune runs), and is capped so one owner's backlog cannot slow an unrelated request. The
+interaction with REQ-020 is now stated explicitly: erasure deletes a user's keys immediately regardless of age, so
+retention can never hold data past an erasure.
+
+Covered by UTS-016-C1/C2 and ITS-012-B5..B8; FR-032 and REQ-015 now carry the retention window.
+
+### PRF-006-18 · MINOR — GDPR erasure has thin acceptance coverage for its severity · ✅ RESOLVED
+
+**Artifacts**: `acceptance-plan.md` (AT-006-I), `requirements.md` (REQ-020), `hazard-analysis.md` (HAZ-040)
+
+`REQ-020` carries a Critical hazard (HAZ-040, a right-to-erasure violation) but had one acceptance scenario, web-only.
+
+**Disposition (2026-08-02)**: **resolved.** Added **ATS-006-I2** (mobile erasure entry point reaching the _same_
+mechanism, not a second one — the parity risk the single web scenario could not catch) and **ATS-006-I3** (a
+re-driven partial erasure completes). AT-006-I now has three scenarios across both platforms, and T038 is tagged
+`[BOTH]` for its entry points.
+
+### PRF-006-19 · MINOR — A hazard-id collision was found and fixed during this review
+
+**Artifact**: `hazard-analysis.md`
+
+The SYS-009 row was authored as `HAZ-034b · HAZ-037`, duplicating `HAZ-034` (already allocated to the socket-leak hazard
+under SYS-007) and violating the document's own uniqueness rule. `HAZ-014`'s cross-reference pointed at `HAZ-034`
+instead of `HAZ-037`, and `HAZ-007` was marked "re-scoped — see HAZ-030", where HAZ-030 concerns idempotency
+transactions, not slot mapping.
+
+**Disposition**: **RESOLVED** — the id is now `HAZ-037`, the cross-reference is corrected, `HAZ-007` is restated as an
+active hazard with its own mitigation, and a uniqueness check over all `HAZ-` ids passes.
 
 ---
 
-### PRF-006-10 · WARNING — REQ-011 (10-Minute Workflow) Has No Measurable Acceptance Criterion
+## OBSERVATIONS
 
-**Artifacts**: `requirements.md`, `acceptance-plan.md`
-**Standard**: IEEE 830 §4.3 — requirements SHALL be verifiable
+### PRF-006-20 · OBSERVATION — Removing components removed hazards
 
-**Evidence**:
+Four hazards (HAZ-009, HAZ-010, HAZ-016, HAZ-018) are eliminated outright because the cache, the stored rollup,
+recurrence and the ingredient manifest no longer exist. This is the strongest available argument for the reconciled
+design and should be carried into the release audit rather than left in the FMEA.
 
-- `requirements.md` line 28: `REQ-011 | … complete full meal-plan-to-grocery-list workflow … in under 10 minutes | P2 | Demonstration`
-- `acceptance-plan.md`: No AT or acceptance criterion defined for REQ-011
-- `trace.md` Matrix A: `REQ-011 | *(Demonstration — no AT defined)* | — | Demonstration | ⬜`
+### PRF-006-21 · OBSERVATION — The cost estimate is by analogy, not measurement
 
-**Problem**: REQ-011 is a usability/performance requirement with a specific measurable threshold (10 minutes). "Demonstration" as a verification method is acceptable for usability, but no demonstration procedure, test environment, or pass/fail criterion is documented. Without a defined procedure, this requirement cannot be objectively verified or signed off.
+`plan.md` estimates ≈ $8/mo per open PR preview by analogy with the food service's measured figure. This service's task
+sizing is not yet set. Given ADR-0008's account budget is a real constraint, re-derive once the task definition exists.
 
-**Required Action**: Document a demonstration procedure for REQ-011 — specify the test environment, user persona, starting state, steps to execute, and the 10-minute pass criterion. Alternatively, if this is a UX metric tracked post-launch, mark it as "Post-Launch Metric" and remove it from the V-Model verification scope.
+### PRF-006-22 · OBSERVATION — Phase-2 deferral creates a mutual block
 
----
+006 waits on 010 for entitlement; 010's index references 006 as a gated consumer. Neither document is wrong, but the
+circularity should be surfaced to whoever plans either feature next. See PRF-006-13.
 
-## PASSED Findings
+### PRF-006-23 · OBSERVATION — Degraded-state coverage is unusually strong
 
----
-
-### PRF-006-P1 · PASSED — Forward Traceability Coverage for Functional Requirements
-
-All 11 functional requirements (REQ-001 through REQ-011) are mapped to at least one acceptance test case in `trace.md` Matrix A. No functional requirement is left without an ATP-ID (excluding REQ-009 and REQ-011 which use "Demonstration" — addressed in PRF-006-5 and PRF-006-10).
-
----
-
-### PRF-006-P2 · PASSED — Backward Traceability: No Orphan Acceptance Tests
-
-`trace.md` Matrix B maps all AT cases (AT-006-A through AT-006-F) and all ATS scenarios back to parent requirements. No acceptance test is orphaned (i.e., every AT traces to at least one REQ). The single exception (REQ-CN-001 vs REQ-CN-002 mapping for AT-006-A) is flagged in PRF-006-6.
+Six acceptance scenarios (AT-006-D), seven gateway fault-injection scenarios and a degraded k6 profile cover behaviour
+under dependency failure — most specs at this stage cover only the happy path. These are the first tests dropped under
+schedule pressure and the ones protecting against confidently-wrong nutrition (HAZ-032). Preserve them.
 
 ---
 
-### PRF-006-P3 · PASSED — Unit Test ISO 29119-4 Technique Coverage
+## Per-Artifact Verdicts
 
-`unit-test.md` correctly applies all six mandatory white-box techniques across the 21 testable modules:
-
-- Statement & Branch Coverage (all controller and service modules)
-- Boundary Value Analysis (date ranges, TTL, macro aggregation)
-- Equivalence Partitioning (meal types, tier enum)
-- Strict Isolation (all external dependencies mocked)
-- Error Guessing (null returns, malformed AI responses, USDA outage)
-- State Transition Testing (circuit breaker CLOSED→OPEN→HALF-OPEN in MOD-017)
-
-Each UTP correctly identifies its technique and anchors it to a named source view.
-
----
-
-### PRF-006-P4 · PASSED — Hazard Traceability (Matrix H) is Complete and Well-Formed
-
-`trace.md` Matrix H defines 7 hazards (HAZ-001 through HAZ-007) covering IDOR, unauthenticated access, premium bypass, cross-user recipe assignment, AI response parsing failures, USDA outage cascade, and Redis cache failure. Each hazard links to: severity, REQ-IDs, mitigation description, and verification reference (AT or UTP). This is a thorough security and resilience hazard register.
-
----
-
-### PRF-006-P5 · PASSED — Premium Gating Tested at Multiple Levels
-
-The premium tier restriction (REQ-CN-001) is verified at three independent levels:
-
-1. **Unit**: UTP-021-A (PremiumTierGuard branch coverage), UTP-021-B (equivalence partitioning on tier enum)
-2. **Acceptance**: ATS-006-D2 (402 for free-tier AI suggestions), ATS-006-E free-tier scenario, ATS-006-F free-tier scenario
-3. **Hazard**: HAZ-003 with fault injection verification
-
-This defense-in-depth approach to premium gating verification is well-structured.
-
----
-
-### PRF-006-P6 · PASSED — USDA Integration Failure Modes Thoroughly Tested
-
-MOD-017 (UsdaFoodApiAdapter) has 7 unit test scenarios (UTS-017-A1 through A3, UTS-017-B1 through B4) covering the circuit breaker state machine (CLOSED, OPEN, HALF-OPEN transitions) and HTTP error handling. HAZ-006 links the USDA outage hazard to both the circuit breaker unit tests and the cache fallback (UTP-008-B). This is a complete treatment of a critical external dependency failure mode.
-
----
-
-### PRF-006-P7 · PASSED — BDD Scenario Format Consistently Applied
-
-All acceptance test scenarios in `acceptance-plan.md` follow the Given/When/Then format with concrete, testable values (specific UUIDs, HTTP methods, status codes, response field names). Scenarios are unambiguous and directly executable by a QA engineer or Playwright automation.
-
----
-
-### PRF-006-P8 · PASSED — Module Design Traceability (Matrix D) is Complete
-
-`trace.md` Matrix D maps all 21 testable modules (MOD-001 through MOD-021; MOD-022 excluded as build-time only) to their UTP cases and UTS scenario counts. Every module has at least one UTP. The cross-cutting module exclusion is documented with rationale. Total scenario count (92 UTS) is consistent with the artifact information header.
+| Artifact                 | Findings                        | Verdict |
+| ------------------------ | ------------------------------- | ------- |
+| Artifact                 | Findings                        | Verdict |
+| ------------------------ | ------------------------------- | ------- |
+| `requirements.md`        | PRF-006-11, -12 — closed        | ✅ Pass |
+| `system-design.md`       | —                               | ✅ Pass |
+| `architecture-design.md` | PRF-006-16 — resolved           | ✅ Pass |
+| `module-design.md`       | PRF-006-17 — resolved           | ✅ Pass |
+| `hazard-analysis.md`     | PRF-006-19 — resolved; -20      | ✅ Pass |
+| `unit-test.md`           | PRF-006-14 — resolved           | ✅ Pass |
+| `integration-test.md`    | PRF-006-14 — resolved           | ✅ Pass |
+| `system-test.md`         | PRF-006-11, -14, -15 — resolved | ✅ Pass |
+| `acceptance-plan.md`     | PRF-006-18 — resolved           | ✅ Pass |
+| `traceability-matrix.md` | PRF-006-14 — resolved           | ✅ Pass |
+| `trace.md`               | —                               | ✅ Pass |
 
 ---
 
 ## Required Actions Summary
 
-| PRF-ID     | Severity | Action Required                                                                                                         | Owner               |
-| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| PRF-006-1  | CRITICAL | Add REQ-CN-003 to requirements.md OR replace all REQ-CN-003 references with REQ-CN-001; reconcile trace.md Matrix B     | Requirements Author |
-| PRF-006-2  | CRITICAL | Add AT-006-G (Accessibility) covering REQ-NF-003 with Playwright role/label scenarios                                   | Test Author         |
-| PRF-006-3  | CRITICAL | Resolve REQ-IF-005 / REQ-IF-006 verification method contradiction (Test vs Inspection) in requirements.md and trace.md  | Requirements Author |
-| PRF-006-4  | WARNING  | Remove double commas in REQ-CN-001 and REQ-009 descriptions                                                             | Requirements Author |
-| PRF-006-5  | WARNING  | Reconcile REQ-009 acceptance criteria table entry with "Demonstration" verification method; add AT or remove from table | Test Author         |
-| PRF-006-6  | WARNING  | Replace REQ-CN-001 with REQ-CN-002 in AT-006-A backward trace entry                                                     | Trace Author        |
-| PRF-006-7  | WARNING  | Add lower boundary unit tests (dayCount=0, dayCount=1) and 1-day plan acceptance scenario                               | Test Author         |
-| PRF-006-8  | WARNING  | Add acceptance scenarios for recipe assignment and summary retrieval on 30+ day plans                                   | Test Author         |
-| PRF-006-9  | WARNING  | Add guard-rejection scenario to UTP-010-A, UTP-012-A, UTP-014-A                                                         | Test Author         |
-| PRF-006-10 | WARNING  | Document demonstration procedure for REQ-011 or reclassify as post-launch metric                                        | Requirements Author |
+| PRF-ID     | Severity | Action                                                                           | Owner    | When            |
+| ---------- | -------- | -------------------------------------------------------------------------------- | -------- | --------------- |
+| PRF-006-11 | MAJOR    | ✅ Closed — residual accepted; 90-day span stands                                | Owner    | Done 2026-08-02 |
+| PRF-006-12 | MAJOR    | ✅ Closed — premise invalid; same owner owns both                                | Owner    | Done 2026-08-02 |
+| PRF-006-13 | MAJOR    | ✅ Resolved — index rows `Deferred` + rule 5 added                               | Owner    | Done 2026-08-02 |
+| PRF-006-16 | MINOR    | ✅ Resolved — path settled on `/nutrition-batch`                                 | Owner    | Done 2026-08-02 |
+| PRF-006-19 | MINOR    | ✅ Resolved during review — hazard-id collision                                  | —        | Done            |
+| PRF-006-14 | MINOR    | ✅ Resolved — every id enumerated; 341 → 357, and a 19-test double-count removed | Reviewer | Done 2026-08-02 |
+| PRF-006-15 | MINOR    | ✅ Resolved — matrix recounted; 63 → **81** (40 web, 41 mobile)                  | Reviewer | Done 2026-08-02 |
+| PRF-006-17 | MINOR    | ✅ Resolved — 24 h retention, bounded owner-scoped opportunistic prune           | Reviewer | Done 2026-08-02 |
+| PRF-006-18 | MINOR    | ✅ Resolved — ATS-006-I2 (mobile) and I3 (re-drive) added                        | Reviewer | Done 2026-08-02 |
+
+**Every finding on this artifact set is closed. Nothing gates the start of implementation, and nothing is deferred into
+it.**

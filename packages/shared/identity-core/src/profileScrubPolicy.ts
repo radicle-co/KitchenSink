@@ -47,8 +47,11 @@ export interface ProfileScrubDirective {
      * closure keeps them and scrubs only the avatar (see {@link ProfileScrubDirective.profileScrub}).
      */
     readonly purgeCompanionRows: boolean;
-    /** Profile columns to scrub when companion rows are KEPT (closure); `null` when they are purged (erasure). */
-    readonly profileScrub: { readonly avatarUrl: null } | null;
+    /**
+     * Profile columns to scrub when companion rows are KEPT (closure); `null` when they are purged (erasure). Both avatar
+     * columns, or the one left behind would keep serving the closed account's photograph (ADR-0064).
+     */
+    readonly profileScrub: { readonly avatarUrl: null; readonly avatarKey: null } | null;
     /** Both events delete the avatar S3 object; the caller performs it where it holds S3 capability. */
     readonly removeAvatarObject: true;
     /** The persisted lifecycle state — mirrors `userColumns.status`, surfaced for audit/logging. */
@@ -76,7 +79,7 @@ export function computeProfileScrub(event: LifecycleScrubEvent, userId: string):
             // name is deliberately OMITTED — closure keeps it (R2).
             userColumns: { email: scrubbedEmail(userId, 'closure'), picture: null, status: 'tombstoned' },
             purgeCompanionRows: false,
-            profileScrub: { avatarUrl: null },
+            profileScrub: { avatarUrl: null, avatarKey: null },
             removeAvatarObject: true,
             state: 'tombstoned',
         };

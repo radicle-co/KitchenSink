@@ -4,7 +4,7 @@
  * Each VU iteration runs the realistic user journey against the deployed food service:
  *   search a varied corpus query  ->  add-by-name (POST /api/v1/foods)  ->  poll status to a terminal
  * lifecycle state (or a bounded timeout), with think-time between steps. VU `i` authenticates as a
- * distinct Clerk user `i` from a pre-minted pool (see auth/provision-users.mjs), so the load looks like
+ * distinct Clerk user `i` from the fixed test pool leased by `provisionPool.ts`, so the load looks like
  * N distinct users, not one.
  *
  * CORRECTNESS INVARIANTS (each learned from an adversarial review — do not regress):
@@ -22,7 +22,7 @@
  *   5. The pool must have >= MAX_VUS tokens or the distinct-user invariant breaks under scale-up
  *      (setup() asserts this).
  *
- * Run:  k6 run --env FOOD_BASE_URL=https://food-pr-59.commise.app journey.js
+ * Run:  k6 run --env FOOD_BASE_URL="$(node printPublicOrigin.mjs food pr-73 commise.app)" journey.js
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -30,14 +30,14 @@ import { SharedArray } from 'k6/data';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
 // ── Config (env with safe smoke-run defaults) ───────────────────────────────────────────────────────
-const BASE_URL = (__ENV.FOOD_BASE_URL || 'https://food-pr-59.commise.app').replace(/\/$/, '');
+const BASE_URL = (__ENV.FOOD_BASE_URL || '').replace(/\/$/, '');
 const POOL_FILE = __ENV.POOL_FILE || './pool.json';
-const CORPUS_FILE = __ENV.CORPUS_FILE || './corpus/food-queries.json';
+const CORPUS_FILE = __ENV.CORPUS_FILE || './corpus/foodQueries.json';
 
-// Token refresh (invariant #1). Two pool shapes: a FAPI entry carries {devJwt, cookie} and refreshes via
-// the Frontend API; a Backend entry carries just {sessionId} and refreshes via the Backend API — no FAPI,
-// so no per-IP sign-in throttle. The backend path needs CLERK_SECRET_KEY in __ENV (the harness passes it;
-// sk_test_, dev instance only). Which path is used is decided per-entry by whether it has a cookie.
+// Token refresh (invariant #1). Two pool shapes: a FAPI entry carries {sessionId, devJwt} and refreshes via
+// the Frontend API; a Backend entry carries just {sessionId} and refreshes via the Backend API. The pool is
+// LEASED by `provisionPool.ts`, which writes FAPI entries — the only shape whose token carries the `azp` the
+// deployed guard requires. Which path is used is decided per-entry by whether it has a dev-browser JWT.
 const FAPI = (__ENV.FAPI || 'https://nice-fowl-6.clerk.accounts.dev').replace(/\/$/, '');
 const ORIGIN = __ENV.ORIGIN || 'https://sandbox.commise.app';
 const CLERK_SK = __ENV.CLERK_SECRET_KEY || '';
@@ -145,11 +145,20 @@ export const options = {
 };
 
 // ── Per-VU token state (module scope = per-VU instance) ─────────────────────────────────────────────
-let handle = null; // this VU's { userId, sessionId, devJwt, cookie, jwt }
+let handle = null; // this VU's { name, email, userId, sessionId, devJwt, jwt } from provisionPool.ts
 let token = null;
 let mintedAt = 0;
 
-/** Refresh this VU's session token when it is older than REFRESH_AFTER_S (invariant #1). */
+/**
+ * Refresh this VU's session token when it is older than REFRESH_AFTER_S (invariant #1).
+ *
+ * ⛔ DELIBERATELY NOT `k6/session.js`'s `freshBearer`, which does the same thing for the service tiers.
+ * The two diverge on four axes and each divergence is a decision — see that module's header for the full
+ * argument. The two that matter most here: this one accepts a BACKEND-API pool entry, which `session.js`
+ * is guaranteed never to do, and this one KEEPS a stale token on a failed re-mint so the iteration
+ * finishes and `food_token_refresh_fail` carries the verdict, where `session.js` throws. Sharing an
+ * implementation would need a flag for each, and the first of those flags re-opens sign-in.
+ */
 function freshToken() {
     if (token && Date.now() - mintedAt < REFRESH_AFTER_S * 1000) {
         return token;
@@ -157,11 +166,12 @@ function freshToken() {
 
     let res;
 
-    if (handle.cookie) {
-        // FAPI pool entry: refresh via the Frontend API with the dev-browser + session cookie.
+    if (handle.devJwt) {
+        // FAPI pool entry: refresh via the Frontend API with the dev-browser JWT — the same call
+        // `remintFromSession` makes. A cookie is sent only when an entry carries one; the leased pool's do not.
         const q = `__clerk_db_jwt=${encodeURIComponent(handle.devJwt)}`;
         res = http.post(`${FAPI}/v1/client/sessions/${handle.sessionId}/tokens?${q}`, null, {
-            headers: { Origin: ORIGIN, Cookie: handle.cookie },
+            headers: handle.cookie ? { Origin: ORIGIN, Cookie: handle.cookie } : { Origin: ORIGIN },
             tags: { step: 'token-refresh' },
         });
     } else {
@@ -222,15 +232,21 @@ const pool = new SharedArray('pool', () => {
     const list = Array.isArray(parsed) ? parsed : parsed.pool;
 
     if (!Array.isArray(list) || list.length === 0) {
-        throw new Error(
-            `Pool ${POOL_FILE} is empty — run \`npm run provision:pool\` (or auth/provision-users.mjs) first`,
-        );
+        throw new Error(`Pool ${POOL_FILE} is empty — run \`npm run provision:pool\` first`);
     }
 
     return list;
 });
 
 export function setup() {
+    // ⛔ No target, no run — never a green run against a default host that no longer exists.
+    if (!BASE_URL) {
+        throw new Error(
+            'FOOD_BASE_URL is required — resolve it with `node printPublicOrigin.mjs food <stage> <apex>`. ' +
+                'It used to default to a typed host that stopped resolving when that PR closed.',
+        );
+    }
+
     // Distinct-user invariant (invariant #5): every concurrent VU needs its own user.
     if (pool.length < MAX_VUS) {
         throw new Error(

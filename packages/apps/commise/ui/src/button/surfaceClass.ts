@@ -23,68 +23,125 @@
  * contracts: a platform-specific hook that the platform which understands it consumes, and the other ignores.
  *
  * NOTE: this returns the SURFACE only. It does not supply the icon slot, the busy spinner, or the press-scale
- * motion — those are behaviour, and behaviour belongs to {@link import('./Button.js').Button}. Reach for the
+ * motion — those are behaviour, and behaviour belongs to `Button`. Reach for the
  * component whenever the control CAN be a `<button>`; reach for this only when it cannot.
  */
-import type { ButtonVariant } from './props.js';
+import { BUSY_CONTROL_CLASS } from './busyControlProps.js';
+import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
 
 /**
- * Tier-independent surface: pill geometry, the icon+label flex layout, the focus ring, the disabled
- * treatment, and the touch floor. The `min-h-11` (44px) floor is RESET at `md:` so the mouse density
- * (`py-2.5`, ~40px) is unchanged on desktop — a comfort bump for touch, not a desktop restyle.
+ * Tier-independent surface: the icon+label flex row, the label type role, the `focusRing` (2 px, 2 px off, §1.4), the
+ * 40% disabled state (§1.10) and the busy (`aria-disabled`) treatment.
+ *
+ * ## `shrink-0 max-w-full` — a row wraps between controls, never inside one (F5)
+ *
+ * A flex item's minimum is its min-content, so a crowded row squeezed "Sort: Recently edited" to three lines at every
+ * width. `shrink-0` holds a button at its label's width; the ROW must then wrap or re-lay out (§1.1, rung 1).
+ * `max-w-full` caps it at its container, so a label longer than the whole container (200% text, §1.1's standing
+ * exception) still wraps inside the box rather than overflowing the page.
+ *
+ * ## `px-3 md:px-5` — horizontal room is the scarce dimension on a phone
+ *
+ * ⛔ Measured in Chromium on the real geometry: three actions in one row at `px-5` need 383px against 288 available at
+ * 320, so the label wrapped and the primary was clipped off the right edge. At `px-3` the same row fits with 27px to
+ * spare. `px-4` was measured too and REJECTED at 3px of slack. It is the BASE rather than a per-caller override because
+ * the constraint is systemic: any row of three actions on a narrow viewport hits it.
  */
 const BASE =
-    'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-body-sm ' +
-    'font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam ' +
-    'disabled:cursor-not-allowed disabled:opacity-60 md:min-h-0';
+    'inline-flex shrink-0 max-w-full items-center justify-center gap-2 px-3 md:px-5 text-label transition ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
+    `disabled:cursor-not-allowed disabled:opacity-40 ${BUSY_CONTROL_CLASS}`;
 
 /**
- * Per-tier surface. Each tier renders a distinct, visible affordance — the whole point of the design-system
- * button is that none of them reads as plain text. (This map is the WEB idiom of the shared
- * {@link ButtonVariant} set; the native leaf carries its own StyleSheet mapping — the two change for
- * different reasons, so they are deliberately not merged.)
- *
- * ## `secondary` is the mockups' CORAL-outlined glass, not a grey-bordered white pill
- *
- * The tier used to paint `border border-border bg-white text-charcoal` — a flat grey hairline that appears
- * in NO mockup. The mockups' secondary button is one recurring recipe across `screen-grocery`,
- * `screen-profile` and `screen-recipe-detail` ("Add to Meal Plan", "Change Plan", "Change Password"):
- *
- *     bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px] saturate-[130%]
- *     border-2 border-coral text-coral
- *     hover:from-coral hover:to-coral/90 hover:text-white hover:border-coral
- *
- * Coral is the brand's documented accent for exactly this role (`semantic.secondary` IS `palette.coral`), and
- * `glass.subtle`'s own JSDoc already records that its 12px/1.3 pair was transcribed FROM this button — the
- * design system simply never wired the tier to it. The blur/saturate arbitrary values are written literally
- * because Tailwind only compiles arbitrary values it can see in source text; a test pins them to
- * `glass.subtle` so the two representations cannot drift.
- *
- * **Two deliberate divergences from the mockup, both for WCAG AA (the repo's U4 bar):**
- *  1. The resting label is `text-slate` (5.24:1 over the glass), not the mockups' `text-coral` — coral as
- *     TEXT is 2.40:1, below the 4.5:1 floor. This is the same demotion already applied to the native tag
- *     chips ("coral-as-text 2.2:1 → slate"); coral survives where it is an ACCENT, on the border.
- *  2. The hover label is `hover:text-charcoal` (5.29:1 on the coral fill), not the mockups' `hover:text-white`
- *     (2.40:1). The coral fill itself is transcribed verbatim.
- *
- * The mockups' `hover:shadow-[0_2px_12px_rgba(232,145,122,0.3)]` coral halo is NOT transcribed: it would
- * re-spell the coral hex as a raw literal here, and adding a one-caller `elevation` token for a single hover
- * state buys nothing the border already communicates.
+ * The edge class of a ghost text button that STARTS a line in a column — the eyebrow back link, Version history: a
+ * negative start margin equal to {@link BASE}'s inline padding, so the LABEL, not the box, sits on the column edge its
+ * sibling headings share (F15). Kept beside `BASE` because the two change together; a test derives one from the other.
+ * Only for a button that starts a line: inside a row of controls, the box is what aligns.
  */
-const VARIANT: Record<ButtonVariant, string> = {
-    primary: 'bg-gradient-to-br from-seafoam to-ocean-dark text-white shadow-sm hover:opacity-95',
-    secondary:
-        'border-2 border-coral bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px] ' +
-        'backdrop-saturate-[1.3] text-slate hover:from-coral hover:to-coral/90 hover:text-charcoal',
-    destructive: 'border border-error/40 bg-white text-error-dark shadow-sm hover:bg-error/10',
+export const GHOST_EDGE_CLASS = '-ms-3 md:-ms-5';
+
+/**
+ * Per-size geometry (§1.6: 52, 44 and 36 visual px).
+ *
+ * ## The radius is HALF the height, not a full pill (E2 I2, kept against spec §1.6)
+ *
+ * Each `rounded-[calc(var(--spacing)*N)]` is half its size's `min-h-*` on the same `--spacing` base, so the two move
+ * together. On one line the browser clamps the radius to half the box, which still draws a pill. A label that wraps
+ * (200% text) makes a rounded rectangle, so its words stay inside the curve; on a full pill they ran past it.
+ *
+ * ## `md` resets its floor only for a fine pointer (E2 I12)
+ *
+ * A width breakpoint stood in for "has a mouse", and a touch iPad at 768 px and wider got a 41 px target. The reset now
+ * needs BOTH `md:` and `pointer: fine`, so a touch screen keeps 44 px at every width and a desktop keeps its density.
+ *
+ * ## `sm` draws 36 px and is hit at 44
+ *
+ * A transparent `::before` overlay extends the hit area four px above and below the visual box (SC 2.5.8 is met at
+ * 24 px; 44 is the coarse-pointer floor this file keeps everywhere).
+ */
+const SIZE: Readonly<Record<ButtonSize, string>> = {
+    lg: 'min-h-13 rounded-[calc(var(--spacing)*6.5)] py-3',
+    md: 'min-h-11 rounded-[calc(var(--spacing)*5.5)] py-2.5 md:pointer-fine:min-h-0',
+    sm:
+        "relative min-h-9 rounded-[calc(var(--spacing)*4.5)] py-1.5 before:content-[''] before:absolute " +
+        'before:inset-x-0 before:-inset-y-1',
 };
+
+/**
+ * Per-tier surface (§1.10). Hover is fine-pointer only by construction: Tailwind v4's `hover:` applies under
+ * `(hover: hover)`. Pressed adds the motion-safe 0.98 scale `PressScale` owns.
+ *
+ * Every colour is a ROLE (D15), so each tier re-themes through the dark block; hover and press are an `ink` wash at
+ * 6% (`darkTheme.md` §1).
+ *
+ * - `primary`: ONE flat `action` fill (the owner removed the gradient, `modernizeB.md` §3) under an `onAction` label
+ *   (4.67:1), `actionPressed` on hover and press.
+ * - `secondary`: NEUTRAL — `paper`, a `lineControl` edge (SC 1.4.11), an `ink` label. ⚠️ This REPLACES the mockups'
+ *   coral-outlined glass: the owner overruled coral on every control.
+ * - `ghost`: an `actionText` label with no surface at rest.
+ * - `destructive` inline: a `dangerText` label on the neutral surface; `confirm`: the `danger` fill with an `onAction`
+ *   label (4.66:1), which only a confirm dialog's action takes (§1.11). Its press darkens the fill (`danger/90`):
+ *   `dangerText` is a light red in the dark theme and cannot be a fill.
+ */
+const SURFACE = {
+    primary: 'bg-action text-on-action shadow-sm hover:bg-action-pressed active:bg-action-pressed',
+    secondary: 'border border-line-control bg-paper text-ink hover:bg-ink/6 active:bg-ink/6',
+    ghost: 'text-action-text hover:bg-ink/6 active:bg-ink/6',
+    destructiveInline: 'border border-line-control bg-paper text-danger-text hover:bg-ink/6 active:bg-ink/6',
+    destructiveConfirm: 'bg-danger text-on-action shadow-sm hover:bg-danger/90 active:bg-danger/90',
+} as const;
+
+/** The surface key a tier and tone select. Pure. */
+function surfaceKey(variant: ButtonVariant, tone: DestructiveTone): keyof typeof SURFACE {
+    if (variant !== 'destructive') {
+        return variant;
+    }
+
+    return tone === 'confirm' ? 'destructiveConfirm' : 'destructiveInline';
+}
 
 /**
  * The design-system Button surface as a Tailwind class string. Pure.
  *
- * @param variant - The visual tier. Defaults to `primary`, matching the Button component's default.
+ * @param variant - The tier. Defaults to `primary`, matching the Button component's default.
+ * @param size - The size. Defaults to `md`.
  * @returns The `className` to apply to the control.
  */
-export function buttonSurfaceClass(variant: ButtonVariant = 'primary'): string {
-    return `${BASE} ${VARIANT[variant]}`;
+export function buttonSurfaceClass(variant?: Exclude<ButtonVariant, 'destructive'>, size?: ButtonSize): string;
+/**
+ * The destructive Button surface as a Tailwind class string. Pure.
+ *
+ * @param variant - `destructive`.
+ * @param size - The size. Defaults to `md`.
+ * @param tone - `inline` (the default) or `confirm`, the filled surface of a confirm dialog's action.
+ * @returns The `className` to apply to the control.
+ */
+export function buttonSurfaceClass(variant: 'destructive', size?: ButtonSize, tone?: DestructiveTone): string;
+
+export function buttonSurfaceClass(
+    variant: ButtonVariant = 'primary',
+    size: ButtonSize = 'md',
+    tone: DestructiveTone = 'inline',
+): string {
+    return `${BASE} ${SIZE[size]} ${SURFACE[surfaceKey(variant, tone)]}`;
 }

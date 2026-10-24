@@ -39,7 +39,7 @@ graph through explicit consent.
 
 ## Competitive segments
 
-| Segment               | Competitors                                                     | Strengths                                                      | Weaknesses Commise can exploit                                                                 |
+| Segment               | Competitors                                                     | Strengths                                                      | Weaknesses Commise can exploit                                                                  |
 | --------------------- | --------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | Recipe management     | Paprika, Samsung Food, Plan to Eat, Recipe Keeper               | Importing, organization, durable utility                       | Limited integrated nutrition, creator monetization, AI, and grocery execution.                  |
 | Meal planning         | Mealime, Eat This Much, Plan to Eat, Samsung Food               | Planning efficiency, diet filters, shopping lists              | Weak recipe ownership, household collaboration, creator/ecosystem expansion.                    |
@@ -54,7 +54,7 @@ graph through explicit consent.
 The CEO-level read is nuanced: competitors are already doing AI recipes, but
 few appear to own the full trusted workflow.
 
-| Competitor type             | Examples                                               | What they prove                                                                                               | Commise opening                                                                                                |
+| Competitor type             | Examples                                               | What they prove                                                                                               | Commise opening                                                                                                 |
 | --------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | General AI assistants       | ChatGPT, Gemini, Perplexity                            | Users can get recipes, substitutions, meal plans, budget ideas, and food-safety answers without a recipe app. | Become the persistent system of record and execution layer for AI cooking intent.                               |
 | Pure AI recipe generators   | DishGen, ChefGPT, ChefPro-style tools                  | Prompt-to-recipe, pantry recipes, macros recipes, and meal plans are now table stakes.                        | Differentiate through saved recipe ownership, cooking mode, grocery flow, confidence UX, and household context. |
@@ -79,7 +79,7 @@ strategic assets than generic generation alone.
 
 ## Competitive positioning
 
-| Dimension      | Commise target position                                                                                                 |
+| Dimension      | Commise target position                                                                                                  |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Core promise   | Make home cooking easier from idea to table.                                                                             |
 | Differentiator | Full-stack cooking workflow, not isolated recipe storage or generic AI.                                                  |

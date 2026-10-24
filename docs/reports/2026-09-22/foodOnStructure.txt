@@ -1,0 +1,88 @@
+==========================================================================
+1. WHAT IS IN THE FILE — native FoodOn vs imported vocabulary
+==========================================================================
+  FOODON           25175  labelled classes
+  NCBITaxon         5221  labelled classes
+  CHEBI             1704  labelled classes
+  AfPO               391  labelled classes
+  HANCESTRO          316  labelled classes
+  UBERON             200  labelled classes
+  PO                 197  labelled classes
+  ENVO               184  labelled classes
+  FAO                112  labelled classes
+  TOTAL            33706
+
+  top-level classes (no parent): 0
+
+==========================================================================
+2. THE `food product` BRANCH — the naming backbone, SOURCE-INDEPENDENT
+==========================================================================
+  ⚠️ Deliberately NOT measured against USDA. USDA is one supplier of NUMBERS into this
+  vocabulary and will not be the only one; the branch is the catalog regardless.
+  labelled classes in branch   :   14184   (of 33706 labelled overall)
+  ... carrying >=1 synonym     :    2337
+  ... total synonym strings    :    5153
+  internal nodes / leaves      :    3628 / 10556
+
+  ⛔ CONTAMINATION CHECK — the branch predicate is the whole fix
+     (`foodOnCoverage.py` pulled in Chondrichthyes n=141 and restaurant n=52 without it)
+     chondrichthyes                 OUT
+     restaurant                     OUT
+     gnathostomata <vertebrates>    OUT
+     infant formula                 IN 
+     bread                          IN 
+     cheddar cheese                 IN 
+     soy sauce                      IN 
+     ham (cured)                    IN 
+     beef (ground)                  IN 
+     olive oil                      IN 
+
+  the 16 direct children — FoodOn is FACETED, not a single tree:
+     - biofortified food
+     - biotechnologically derived food
+     - cultural food
+     - food (raw)
+     - food product analog
+     - food product by consumer group
+     - food product by meal type
+     - food product by organism
+     - food product by process
+     - food product component
+     - food product type (to be processed)
+     - food supplement form
+     - multi-component food product
+     - processed food product
+     - regulated food product
+     - unpackaged or non-packaged food
+
+==========================================================================
+3. TREE OR DAG? — decides whether a parent can be ONE column
+==========================================================================
+  parents-within-branch: 0:16 1:12192 2:1826 3:144 4:5 5:1
+  ⛔ 1976 of 14184 (14%) have MORE THAN ONE parent.
+  ⛔ So FoodOn is a DAG. A single `parent_id` column would be WRONG for one food in seven.
+     "lemongrass powder" sits under:
+         <- lemongrass food product
+         <- herb (powdered)
+     "Redsun carrot root (raw, peeled)" sits under:
+         <- Redsun carrot root (raw)
+         <- Redsun carrot root (peeled)
+     "Sy ingmar hard red spring wheat kernel (" sits under:
+         <- Sy ingmar hard red spring wheat kernel
+         <- food (raw)
+
+==========================================================================
+4. NAME QUALITY + SYNONYMS — is this consumer language?
+==========================================================================
+  labels reading as plain food :   12664  (89%)
+  plain-name length            : median 20  p90 36  max 95
+  classes with >=1 synonym     :   11298   (33282 strings overall)
+  sample plain names:
+     - O's cereal
+     - red potato (raw)
+     - lemongrass powder
+     - catfish stick
+     - macaroni dough
+     - diluted fruit beverage
+     - Redsun carrot root (raw, peeled)
+     - vegetable with twoenjang (preserved)

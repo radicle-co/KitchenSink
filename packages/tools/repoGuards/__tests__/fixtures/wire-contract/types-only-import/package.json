@@ -1,0 +1,7 @@
+{
+    "name": "@kitchensink/types-only-import-client",
+    "private": true,
+    "dependencies": {
+        "@kitchensink/schema-thing": "*"
+    }
+}

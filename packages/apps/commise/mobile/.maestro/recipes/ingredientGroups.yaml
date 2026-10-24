@@ -1,0 +1,141 @@
+appId: ${APP_ID}
+---
+# Ingredient groups and row order on a device (UI overhaul slice 8, build spec §7.5.1 and §7.5.5). Mobile mirror of the
+# web Playwright `ingredientGroups.spec.ts`: the cook names a group, moves a line into it with the row's ⋯ Move to
+# group…, reorders with Move up (no drag, SC 2.5.7), renames the group, and removes it keeping its lines.
+#
+# Lines are declared "as written" from the add field (no food-service dependency, the same rationale as `create.yaml`).
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Groups'
+
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Cumin'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Cumin.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Cumin.* as written.*'
+      timeout: 30000
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Garlic'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Garlic.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Garlic.* as written.*'
+      timeout: 30000
+
+# Move up: Garlic leads, Cumin follows. An ungrouped list shows no group chrome, so the ⋯ offers no Move to group yet.
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for Maestro Garlic'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Actions for Maestro Garlic'
+# Audit 2026-10-19, A1.18 (a false green before): on iOS the absence check ran before the menu had any items. Wait for
+# 'Move up' (an item this row has), then check the absence.
+- extendedWaitUntil:
+      visible: 'Move up'
+      timeout: 10000
+- assertNotVisible: 'Move to group…'
+- tapOn: 'Move up'
+# Garlic moves up a row, which can be above the top of the screen (run 38447859313 kept the page still and left only
+# Cumin's top edge in view), so it is scrolled back to before the order is read.
+- scrollUntilVisible:
+      element: 'Edit Maestro Garlic'
+      direction: UP
+      timeout: 20000
+- assertVisible:
+      text: 'Edit Maestro Garlic'
+      above: 'Edit Maestro Cumin'
+
+# + Add a group: a name, then an empty group with its own add field.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add a group'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add a group'
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Group name'
+          TEXT: 'Paste'
+# The keyboard's done key saves (the field's submit), and Save sits under the keyboard on a phone.
+- pressKey: Enter
+- assertVisible: 'Paste'
+- assertVisible: 'Add to Paste'
+
+# Move to group…: Garlic joins the group, under its heading.
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for Maestro Garlic'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Actions for Maestro Garlic'
+- tapOn: 'Move to group…'
+- assertVisible: 'Move to group'
+- tapOn: 'Paste'
+- extendedWaitUntil:
+      notVisible: 'No group'
+      timeout: 10000
+- assertVisible:
+      text: 'Edit Maestro Garlic'
+      below: 'Actions for Paste'
+
+# Rename the group; its line follows.
+- tapOn: 'Actions for Paste'
+- tapOn: 'Rename group'
+# Typed through the shared step, which reads the name back: CI run 39400327458 (iOS shard 4) dropped keystrokes and
+# renamed the group `C`, and the old check after Enter still passed. The heading's own control is the proof.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Group name'
+          TEXT: 'Curry paste'
+- pressKey: Enter
+- extendedWaitUntil:
+      visible: 'Actions for Curry paste'
+      timeout: 20000
+
+# Remove the group, keeping its line: no heading is left, and both lines are still here.
+- tapOn: 'Actions for Curry paste'
+- tapOn: 'Remove group (keep its ingredients)'
+- assertNotVisible: 'Curry paste'
+- assertVisible: 'Edit Maestro Garlic'
+- assertVisible: 'Edit Maestro Cumin'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

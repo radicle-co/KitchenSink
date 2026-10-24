@@ -1,0 +1,39 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        // No `outDir`: nothing is emitted, and an `outDir` makes this directory the `rootDir`, which rejects (TS6059) the
+        // product files the aliases below reach.
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": true,
+        // `bundler`, like the feature packages: the typed card registry imports types from their sources, which only
+        // resolve the way they are built (extensionless `next/link`, default-import interop). This package is only
+        // ever run by tsx, esbuild and vitest, which resolve the same way; nothing compiles it to Node.
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        // TYPE-ONLY aliases over the Commise product tree, used with `import type` and nowhere else
+        // (`src/__tests__/commiseTypeOnlyImports.test.ts` fails on any other form). The apps' chrome and the feature
+        // leaves are internals: no package exports them, and widening an `exports` map would publish a contract nobody
+        // asked for, while depending on `@commise/web` or `@commise/mobile` would pull in their whole Next / Expo build.
+        // The alias points at the very files `src/surface/productSurface.ts` registers by path, so the type a card is
+        // checked against and the file the artifact bundles are one fact. Nothing here reaches a bundle.
+        "paths": {
+            "#commise/*": ["../../apps/commise/*"],
+            // The specifiers of the web app's own `@/` alias that its chrome (`HomeSidebar`) reaches, one by one. Exact,
+            // not `@/*`: a new `@/` import reached through the registry must fail loudly, not resolve silently.
+            "@/i18n/messages": ["../../apps/commise/web/src/i18n/messages.ts"],
+            "@/components/app/shellSurfaces": ["../../apps/commise/web/src/components/app/shellSurfaces.ts"]
+        }
+    },
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.ts",
+        "bin/**/*.ts",
+        "content/**/*.ts",
+        "content/**/*.tsx",
+        "*.config.ts"
+    ],
+    "exclude": ["node_modules", "dist"]
+}

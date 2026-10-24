@@ -1,0 +1,2 @@
+AvatarDisc is the 32 px avatar disc alone, for a row that is itself the link, such as the sidebar's profile row. It shows blank while the profile loads, initials on the action colour when ready, and the user glyph without a name or after a failed read. It is decorative and has no name of its own. Use it only inside a control that carries the accessible name.
+The native leaf draws the same 32 pt disc and is decorative, hidden from assistive tech, with the control around it carrying the name.

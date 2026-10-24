@@ -16,14 +16,14 @@ import {
 } from './photos.service.js';
 import { PhotosDal } from './dal/photos.dal.js';
 import { createS3PhotoStorage } from './photos.storage.js';
-import { createCloudFrontInvalidation } from './cdn-invalidation.js';
+import { createCloudFrontInvalidation } from './cdnInvalidation.js';
 
 /**
  * Photos module (recipe photos vertical). Owns the presign → upload → confirm → delete flow and the
  * `recipe_photos` metadata rows. Wires the {@link PhotosDal} over the global Drizzle client, the S3
  * storage port ({@link createS3PhotoStorage} — the real `S3Client` + presigner, adapted to
  * `PhotoStoragePort`), the CDN-invalidation port ({@link createCloudFrontInvalidation} — real
- * `CloudFrontClient`, or a no-op when `CLOUDFRONT_DISTRIBUTION_ID` is unset; HAZ-051/067/039), the
+ * `CloudFrontClient`, or a no-op when `MEDIA_DISTRIBUTION_ID` is unset; HAZ-051/067/039), the
  * CloudFront base config, the {@link PhotosService}, and the {@link PhotosController} REST surface.
  * Mirrors `RecipesModule`. The global `AuthMiddleware` populates `req.principal`; the global
  * `ApiExceptionFilter` maps thrown errors to HTTP.
@@ -53,7 +53,7 @@ import { createCloudFrontInvalidation } from './cdn-invalidation.js';
             provide: PHOTOS_CONFIG,
             inject: [ConfigService],
             useFactory: (config: ConfigService): PhotosConfig => ({
-                cloudfrontUrl: config.getOrThrow<string>('CLOUDFRONT_URL'),
+                mediaCdnUrl: config.getOrThrow<string>('MEDIA_CDN_URL'),
                 thumbnailMaxPx: config.get<number>('THUMBNAIL_MAX_PX') ?? 400,
                 thumbnailQuality: config.get<number>('THUMBNAIL_QUALITY') ?? 80,
             }),
@@ -61,11 +61,11 @@ import { createCloudFrontInvalidation } from './cdn-invalidation.js';
         {
             provide: PHOTOS_CDN,
             inject: [ConfigService],
-            // CLOUDFRONT_DISTRIBUTION_ID is OPTIONAL (config.types.ts) — an unset/blank value degrades to
-            // the adapter's own logged no-op rather than failing here; see cdn-invalidation.ts.
+            // MEDIA_DISTRIBUTION_ID is required on a deployed task (config.types.ts, ADR-0064); locally an
+            // unset/blank value degrades to the adapter's own logged no-op; see cdnInvalidation.ts.
             useFactory: (config: ConfigService) =>
                 createCloudFrontInvalidation({
-                    distributionId: config.get<string>('CLOUDFRONT_DISTRIBUTION_ID'),
+                    distributionId: config.get<string>('MEDIA_DISTRIBUTION_ID'),
                     region: config.get<string>('AWS_REGION') ?? DEFAULT_AWS_REGION,
                 }),
         },

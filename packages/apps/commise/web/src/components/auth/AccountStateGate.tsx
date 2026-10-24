@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
-import { deriveAuthState } from '@commise/features-account';
+import { authBlockMessages, deriveAuthState } from '@commise/features-account';
 
 import { AccountStateNotice } from '@/components/auth/AccountStateNotice';
 import { authMessages } from '@/components/auth/messages';
@@ -30,6 +30,7 @@ interface AccountStateGateProps {
  */
 export function AccountStateGate({ children }: AccountStateGateProps) {
     const { state: stateCopy } = useMessages(authMessages);
+    const blockCopy = useMessages(authBlockMessages);
     const { isLoaded, isSignedIn, userId, sessionClaims } = useAuth();
     const { user } = useUser();
 
@@ -43,14 +44,14 @@ export function AccountStateGate({ children }: AccountStateGateProps) {
 
     if (state.status === 'loading') {
         return (
-            <p role="status" className="text-body-md text-slate">
+            <p role="status" className="text-body-md text-ink-muted">
                 {stateCopy.loading}
             </p>
         );
     }
 
     if (state.status === 'blocked') {
-        return <AccountStateNotice message={state.reason} />;
+        return <AccountStateNotice message={blockCopy[state.reason.code]} />;
     }
 
     return <>{children}</>;

@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -6,6 +8,8 @@ export default defineConfig({
         globals: true,
         setupFiles: [],
         include: ['tests/**/*.test.ts'],
+        // The integration tier has its own config and script (`vitest.integration.config.ts`); it must not run here.
+        exclude: ['node_modules', 'dist', 'tests/__integration__/**'],
 
         // `src/config/env.ts` validates the app's endpoints at MODULE LOAD and has no defaults, so any
         // screen test that reaches a service client would otherwise die with a configuration error.
@@ -18,6 +22,9 @@ export default defineConfig({
         env: {
             EXPO_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
             EXPO_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
+            EXPO_PUBLIC_FOOD_API_URL: 'http://localhost:3002',
+            // A development instance, coherent with the localhost endpoints above (decodes to nice-fowl-6.clerk.accounts.dev).
+            EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA',
         },
         coverage: {
             provider: 'v8',
@@ -27,13 +34,24 @@ export default defineConfig({
         },
     },
     resolve: {
+        // ⚠️ ABSOLUTE, resolved from THIS file — and the schema alias was BOTH relative AND off by one level.
+        //
+        // It read `'../../schemas/identity/src/index.ts'`, which points at `packages/apps/schemas/identity` (this
+        // file sits at `packages/apps/commise/mobile/`, so two levels up is `packages/apps`, not `packages`). The
+        // target has never existed. It cost nothing for as long as `@kitchensink/schema-identity` was reached only
+        // with `import type` — erased before resolution ever ran — and surfaced the moment
+        // `@commise/features-account` began importing that package's RUNTIME zod, as `Cannot find package`, which
+        // reads like a missing dependency rather than a wrong path. `fileURLToPath(new URL(…))` fixes the second
+        // half of the trap too: a relative alias TARGET is re-resolved from the IMPORTING file, so it would still
+        // have broken for any importer that does not sit at this package's depth.
         alias: {
-            '@kitchensink/identity-service': '../../services/identity/src/index.ts',
-            '@kitchensink/identity-service/*': '../../services/identity/src/*',
-            '@commise/features-account': '../features/account/src/index.ts',
+            '@kitchensink/schema-identity': fileURLToPath(
+                new URL('../../../schemas/identity/src/index.ts', import.meta.url),
+            ),
+            '@commise/features-account': fileURLToPath(new URL('../features/account/src/index.ts', import.meta.url)),
             // Resolve the shared numeric design scale to its source so the token drift guard runs without a
             // built `@commise/ui/dist` (mirrors the workspace-src aliasing used for the other packages above).
-            '@commise/ui/scale': '../ui/src/tokens/scale.ts',
+            '@commise/ui/scale': fileURLToPath(new URL('../ui/src/tokens/scale.ts', import.meta.url)),
         },
     },
 });

@@ -7,9 +7,9 @@ e2e is now wired and green. Date: 2026-06-30. Branch: `003-rebaseline-source-agn
 This audit maps EVERY `/v1/foods/*` endpoint × {integration, e2e} × {happy path, each status code,
 auth 401/403, validation 400, lifecycle}. "Integration" = booted Nest + real Postgres with
 `@kitchensink/clerk-verify` and `@kitchensink/usda-client` **mocked** (deterministic auth + no USDA
-network) — `tests/foods-api.integration.test.ts`. "E2E" = booted Nest + real Postgres + manually-driven
+network) — `tests/foodsApi.integration.test.ts`. "E2E" = booted Nest + real Postgres + manually-driven
 worker `drain()` with a **real minted RS256 Clerk JWT** (no auth mock) and a **programmable stub
-`FoodSourceAdapter`** — `tests/e2e/foods-api.e2e.test.ts`.
+`FoodSourceAdapter`** — `tests/e2e/foodsApi.e2e.test.ts`.
 
 ---
 
@@ -34,7 +34,7 @@ Status-code precedence enforced everywhere: **401 → 403 → 400 → 404/202/20
 
 Legend: ✅ covered · ➕ added by this slice · n/a not applicable.
 
-### Integration (`tests/foods-api.integration.test.ts` — mocked auth, real Postgres)
+### Integration (`tests/foodsApi.integration.test.ts` — mocked auth, real Postgres)
 
 | Endpoint               | Happy 200/202                                                                                                                                                                            | Lifecycle codes                                                                           | 400 validation           | 401                 | 403                                 | 404                   | 409                                        | 503                               |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------ | ------------------- | ----------------------------------- | --------------------- | ------------------------------------------ | --------------------------------- |
@@ -50,7 +50,7 @@ Legend: ✅ covered · ➕ added by this slice · n/a not applicable.
 
 Integration result: **140 passed** (was 132; +8 added — marked ➕).
 
-### E2E (`tests/e2e/foods-api.e2e.test.ts` — real minted JWT + stub adapter + worker drain)
+### E2E (`tests/e2e/foodsApi.e2e.test.ts` — real minted JWT + stub adapter + worker drain)
 
 | Flow / endpoint behaviour                                                                                                                                                                                                                                                                                                     | Specs | Status |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------ |
@@ -69,7 +69,7 @@ health). T-190 satisfied.
 
 ---
 
-## 3. E2E harness (`tests/e2e/foods-api.e2e.test.ts` + `tests/support/`)
+## 3. E2E harness (`tests/e2e/foodsApi.e2e.test.ts` + `tests/support/`)
 
 1. **App + worker over one Postgres.** `@nestjs/testing` is not in the tree, so instead of
    `overrideProvider` the suite **module-mocks** `../../src/sources/usda/usda.adapter.js` so the real
@@ -81,7 +81,7 @@ health). T-190 satisfied.
    (PATCH-resolve re-fetch) and the worker (fan-out). Flows are driven with `consumer.drain()`; the
    FAILED path clears the failure-backoff gate between passes (a deterministic stand-in for elapsed
    time). No `LISTEN/NOTIFY`, no timers, no `waitForTimeout`.
-2. **Stub source adapter** (`tests/support/stub-source-adapter.ts`): a module-level `stub` controller
+2. **Stub source adapter** (`tests/support/StubSourceAdapter.ts`): a module-level `stub` controller
    programs, per normalized name, `programResolve` (1 candidate → RESOLVED), `programUnresolved`
    (>1 distinct → UNRESOLVED), `programNotFound` (0 hits), or `programSearchError` (5xx → FAILED).
    It returns canonical candidates directly (per-100g nutrients, portions, optional barcode) and tracks

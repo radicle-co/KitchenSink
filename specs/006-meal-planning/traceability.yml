@@ -1,0 +1,410 @@
+# Traceability matrix — feature 006-meal-planning
+# Emitted at Phase 5B (tasks). Consumed by validate-traceability.js and Phase 7 verify-full.
+#
+# Rows map a requirement to the tasks that deliver it, the code that implements it, and the
+# tests that verify it. `code[]` becomes required once implement completes; `tests[]` once
+# test_run completes — both are intentionally empty now (nothing implemented, nothing run).
+#
+# must_have marks Phase-1 scope. Phase-2 requirements (REQ-006/007/008, REQ-IF-004, REQ-CN-001)
+# are must_have: false — deferred pending features 005 and 010 (spec Clarification C-006-009),
+# so they carry no tasks by decision rather than by omission.
+
+version: 1
+feature: 006-meal-planning
+generated: 2026-08-02
+phase_emitted: tasks
+
+rows:
+    - req: REQ-001
+      must_have: true
+      tasks: [T007, T008, T022, T023, T028, T029, T050]
+      code: []
+      tests: []
+    - req: REQ-002
+      must_have: true
+      tasks: [T009, T010, T022, T023, T029, T050]
+      code: []
+      tests: []
+    - req: REQ-003
+      must_have: true
+      tasks: [T030, T031, T046, T047, T048, T049]
+      code: []
+      tests: []
+    - req: REQ-004
+      must_have: true
+      tasks: [T011, T012, T033, T034, T035, T051]
+      code: []
+      tests: []
+    - req: REQ-005
+      must_have: true
+      tasks: [T011, T012, T035, T051]
+      code: []
+      tests: []
+    - req: REQ-006
+      must_have: false
+      deferred: 'Phase 2 — blocked on 005 (no AI provider) and 010 (tier not a token claim). C-006-009.'
+      tasks: []
+      code: []
+      tests: []
+    - req: REQ-007
+      must_have: false
+      deferred: 'Phase 2 — see C-006-009.'
+      tasks: []
+      code: []
+      tests: []
+    - req: REQ-008
+      must_have: false
+      deferred: 'Phase 2 — see C-006-009.'
+      tasks: []
+      code: []
+      tests: []
+    - req: REQ-009
+      must_have: true
+      tasks: [T027, T029, T035, T041]
+      code: []
+      tests: []
+    - req: REQ-010
+      must_have: true
+      tasks: [T035, T040]
+      code: []
+      tests: []
+    - req: REQ-011
+      must_have: true
+      tasks: [T032, T054, T071]
+      code: []
+      tests: []
+    - req: REQ-012
+      must_have: true
+      tasks: [T016, T036, T037, T052]
+      code: []
+      tests: []
+    - req: REQ-013
+      must_have: true
+      tasks: [T016, T036, T037, T052]
+      code: []
+      tests: []
+    - req: REQ-014
+      must_have: true
+      tasks: [T011, T012, T030, T031, T047]
+      code: []
+      tests: []
+    - req: REQ-015
+      must_have: true
+      tasks: [T026, T030, T031]
+      code: []
+      tests: []
+    - req: REQ-016
+      must_have: true
+      tasks: [T046, T047, T048, T049, T050, T051, T052, T053, T054, T058, T059, T060, T061, T062]
+      code: []
+      tests: []
+    - req: REQ-017
+      must_have: true
+      tasks: [T055, T056, T057]
+      code: []
+      tests: []
+    - req: REQ-018
+      must_have: true
+      tasks: [T007, T008, T053]
+      code: []
+      tests: []
+    - req: REQ-019
+      must_have: true
+      tasks: [T044]
+      code: []
+      tests: []
+    - req: REQ-020
+      must_have: true
+      tasks: [T038]
+      code: []
+      tests: []
+    - req: REQ-021
+      must_have: true
+      note: 'Move, incl. swap-on-occupied (C-006-012). Split from REQ-003 by peer review PRF-REQ-006.'
+      tasks: [T030, T031]
+      code: []
+      tests: []
+    - req: REQ-022
+      must_have: true
+      note: 'Remove, incl. removing an orphaned entry. Split from REQ-003 by peer review PRF-REQ-006.'
+      tasks: [T030, T031]
+      code: []
+      tests: []
+    - req: REQ-NF-001
+      must_have: true
+      tasks: [T006, T021, T067]
+      code: []
+      tests: []
+    - req: REQ-NF-002
+      must_have: true
+      tasks: [T067]
+      code: []
+      tests: []
+    - req: REQ-NF-003
+      must_have: true
+      tasks: [T047, T048, T062]
+      code: []
+      tests: []
+    - req: REQ-NF-004
+      must_have: true
+      tasks: [T047, T051, T062]
+      code: []
+      tests: []
+    - req: REQ-NF-005
+      must_have: true
+      tasks:
+          [
+              T005,
+              T007,
+              T009,
+              T011,
+              T013,
+              T014,
+              T020,
+              T022,
+              T028,
+              T030,
+              T033,
+              T036,
+              T039,
+              T040,
+              T045,
+              T047,
+              T055,
+              T060,
+              T061,
+          ]
+      code: []
+      tests: []
+    - req: REQ-NF-006
+      must_have: true
+      tasks: [T035, T040]
+      code: []
+      tests: []
+    - req: REQ-NF-007
+      must_have: true
+      tasks: [T042, T048, T049, T058, T059, T060, T061]
+      code: []
+      tests: []
+    - req: REQ-NF-008
+      must_have: true
+      tasks: [T025]
+      code: []
+      tests: []
+    - req: REQ-NF-009
+      must_have: true
+      tasks: [T067]
+      code: []
+      tests: []
+    - req: REQ-NF-010
+      must_have: true
+      note: 'Test-category presence. Split from REQ-NF-005 (which now owns test-first ordering only) by PRF-REQ-006.'
+      tasks: [T060, T061, T067]
+      code: []
+      tests: []
+    - req: REQ-IF-001
+      must_have: true
+      tasks: [T033, T034]
+      code: []
+      tests: []
+    - req: REQ-IF-002
+      must_have: false
+      superseded: '006 makes no food-service call; nutrition arrives via 001. Asserted by absence (STS-008-A5).'
+      tasks: [T067]
+      code: []
+      tests: []
+    - req: REQ-IF-003
+      must_have: true
+      tasks: [T024]
+      code: []
+      tests: []
+    - req: REQ-IF-004
+      must_have: false
+      deferred: 'Phase 2 — 005 does not exist. C-006-009.'
+      tasks: []
+      code: []
+      tests: []
+    - req: REQ-IF-005
+      must_have: true
+      tasks: [T017, T032, T054]
+      code: []
+      tests: []
+    - req: REQ-IF-006
+      must_have: true
+      tasks: [T017, T032, T054]
+      code: []
+      tests: []
+    - req: REQ-IF-007
+      must_have: true
+      tasks: [T047, T048, T049, T058, T059, T060, T061]
+      code: []
+      tests: []
+    - req: REQ-IF-008
+      must_have: true
+      tasks: [T001, T002, T003]
+      code: []
+      tests: []
+    - req: REQ-CN-001
+      must_have: false
+      deferred: 'Phase 2 — entitlement unenforceable until 010. C-006-009.'
+      tasks: []
+      code: []
+      tests: []
+    - req: REQ-CN-002
+      must_have: true
+      tasks: [T015, T028, T029]
+      code: []
+      tests: []
+    - req: REQ-CN-003
+      must_have: true
+      tasks: [T023]
+      code: []
+      tests: []
+    - req: REQ-CN-004
+      must_have: true
+      tasks: [T023, T035]
+      code: []
+      tests: []
+    - req: REQ-CN-005
+      must_have: true
+      tasks: [T022, T023]
+      code: []
+      tests: []
+    - req: REQ-CN-006
+      must_have: true
+      note: 'Phase-1 counterpart of the deferred REQ-CN-001: the premium surfaces are unreachable (C-006-013).'
+      tasks: [T067]
+      code: []
+      tests: []
+    - req: REQ-CN-007
+      must_have: true
+      note: 'Re-raises the live half of the withdrawn REQ-IF-002 — no food-service call (C-006-003).'
+      tasks: [T067]
+      code: []
+      tests: []
+    - req: REQ-CN-008
+      must_have: true
+      tasks: [T022, T023]
+      code: []
+      tests: []
+    - req: REQ-CN-009
+      must_have: true
+      tasks: [T022, T023]
+      code: []
+      tests: []
+    - req: REQ-CN-010
+      must_have: true
+      note: 'Cell single-occupancy, deferrable unique constraint (C-006-012). Deferrable is load-bearing for the REQ-021 swap.'
+      tasks: [T022, T023]
+      code: []
+      tests: []
+    - req: REQ-CN-011
+      must_have: true
+      note: 'Note length bound (<=500), DB-enforced. Previously traced only to phantom identifiers in the 030/031 range.'
+      tasks: [T022, T023]
+      code: []
+      tests: []
+    - req: REQ-CN-013
+      must_have: true
+      note: 'Entry slot must be selected by its plan, both directions. Found while building T016; closes an invisible-data hole the column CHECK did not cover.'
+      tasks: [T022, T023, T036, T037]
+      code: []
+      tests: []
+    - req: REQ-CN-012
+      must_have: true
+      note: 'Note stored/returned verbatim and never interpreted as instructions — a prompt-injection boundary for Phase-2 AI.'
+      tasks: [T030, T031]
+      code: []
+      tests: []
+
+    - req: STRUCT-API-PREFIX
+      must_have: true
+      note: 'Owner directive 2026-08-02 — every API path begins with /api/{version}/. LANDED UPSTREAM in main as ADR-0011 (commits daac10c6, 9658ed05, 22e8ef15, ac06d703, dcd13187, 1422c4b8) before 006 reached implementation; 006 T073-T076 withdrawn as redundant. The residual obligation on 006 is that T002 registers the new endpoint canonical-only, since ADR-0011 says the alias set only ever shrinks.'
+      tasks: [T002]
+      code: []
+      tests: []
+    - req: STRUCT-WORKSPACES
+      must_have: true
+      note: 'Workspace scaffolding. Enables delivery rather than satisfying a requirement, but produces code.'
+      tasks: [T004, T019, T043]
+      code: []
+      tests: []
+    - req: STRUCT-INFRA
+      must_have: true
+      note: 'CDK stack, listener-priority band, DB-name parity test, deploy gate. Traces to ADR-0003/0004/0005/0006/0008/0010 and HAZ-041/042.'
+      tasks: [T018, T063, T064, T065, T066]
+      code: []
+      tests: []
+    - req: STRUCT-RELEASE
+      must_have: false
+      note: 'Post-deploy confirmations — produce evidence, not code. T068/T069 re-reconcile counts; T070 confirms cost; T072 updates the release audit.'
+      tasks: [T068, T069, T070, T072]
+      code: []
+      tests: []
+
+journeys:
+    - id: JRN-A
+      name: Weekly planning and assignment
+      tests: [STS-E2E-A1, STS-E2E-A2, STS-E2E-B1, STS-E2E-B2]
+      edges:
+          - { id: EDGE-A1, priority: P0, desc: 'End date precedes start date', tests: [ATS-006-A3] }
+          - { id: EDGE-A2, priority: P0, desc: 'Span exceeds 90 days', tests: [ATS-006-A4] }
+          - { id: EDGE-A3, priority: P1, desc: 'Locale first-day-of-week differs', tests: [ATS-006-A5] }
+          - { id: EDGE-A4, priority: P1, desc: 'Plan created across a DST transition', tests: [ATS-006-A6] }
+    - id: JRN-B
+      name: Degraded and orphaned states
+      tests: [STS-E2E-A8]
+      edges:
+          - { id: EDGE-B1, priority: P0, desc: 'Referenced recipe no longer readable', tests: [ATS-006-D1] }
+          - { id: EDGE-B2, priority: P0, desc: 'Recipe service unavailable on plan read', tests: [ATS-006-D3] }
+          - {
+                id: EDGE-B3,
+                priority: P0,
+                desc: 'Assignment attempted while gateway unavailable (fail closed)',
+                tests: [ATS-006-D5],
+            }
+          - { id: EDGE-B4, priority: P1, desc: 'Partial batch response — degraded availability', tests: [ITS-015-A6] }
+    - id: JRN-C
+      name: Reuse a week (templates)
+      tests: [STS-E2E-A5, STS-E2E-B4]
+      edges:
+          - {
+                id: EDGE-C1,
+                priority: P0,
+                desc: 'Template entry recipe no longer readable — skip reported',
+                tests: [ATS-006-E4],
+            }
+          - {
+                id: EDGE-C2,
+                priority: P1,
+                desc: 'Template span exceeds target range — skip reported',
+                tests: [ATS-006-E5],
+            }
+          - { id: EDGE-C3, priority: P0, desc: 'Apply fails partway — no half-built plan', tests: [ATS-006-E6] }
+    - id: JRN-D
+      name: Home entry point
+      tests: [STS-E2E-A6, STS-E2E-B5]
+      edges:
+          - {
+                id: EDGE-D1,
+                priority: P0,
+                desc: 'Capability off — widget absent, no residual skeleton',
+                tests: [ATS-006-F4],
+            }
+          - {
+                id: EDGE-D2,
+                priority: P1,
+                desc: 'Widget request fails — error boundary, rest of Home renders',
+                tests: [ATS-006-F5],
+            }
+    - id: JRN-E
+      name: Handoff to shopping
+      tests: [STS-E2E-A7, STS-E2E-B6]
+      edges:
+          - {
+                id: EDGE-E1,
+                priority: P1,
+                desc: 'Feature 007 unavailable — action disabled with stated reason',
+                tests: [ATS-006-G4],
+            }
+          - { id: EDGE-E2, priority: P1, desc: 'Plan partially filled — gaps listed', tests: [ATS-006-G2] }

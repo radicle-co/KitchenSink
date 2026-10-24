@@ -15,6 +15,7 @@ import {
     addRecentSearch,
     mergeRecentSearches,
     parseRecentSearches,
+    recentSearchesKeyFor,
     serializeRecentSearches,
 } from '../recentSearches.js';
 
@@ -52,6 +53,43 @@ describe('addRecentSearch', () => {
         expect(next[0]).toBe('newest');
         expect(next).not.toContain(`query-${MAX_RECENT_SEARCHES - 1}`);
         expect(next).toContain('query-0');
+    });
+});
+
+describe('addRecentSearch — A-027: a partial query typed this session is replaced, not kept', () => {
+    it('replaces the previous query of this session when the new one extends it ("r", then "rice")', () => {
+        expect(addRecentSearch(['r', 'pasta'], 'rice', 'r')).toEqual(['rice', 'pasta']);
+    });
+
+    // Owner ruling 2026-10-18: deleting letters never rewrites a search the cook ran. Erasing "Risotto" one letter at a
+    // time commits "Risott" at the first pause, and that used to replace "Risotto" (discoverRecentSearches on iOS).
+    it('records nothing when the new one is shorter (the cook deleted a letter): the search they ran stays', () => {
+        const existing = ['rice', 'pasta'];
+
+        expect(addRecentSearch(existing, 'ric', 'rice')).toBe(existing);
+        expect(addRecentSearch(['Risotto'], 'Risott', 'Risotto')).toEqual(['Risotto']);
+    });
+
+    it('compares ignoring case and surrounding whitespace', () => {
+        expect(addRecentSearch(['Ri', 'pasta'], ' RICE ', 'Ri')).toEqual(['RICE', 'pasta']);
+    });
+
+    it('keeps an unrelated previous query of this session', () => {
+        expect(addRecentSearch(['pasta'], 'risotto', 'pasta')).toEqual(['risotto', 'pasta']);
+    });
+
+    it('keeps a prefix from an EARLIER session: with no previous query this session, nothing is replaced', () => {
+        expect(addRecentSearch(['rice', 'pasta'], 'r', undefined)).toEqual(['r', 'rice', 'pasta']);
+    });
+
+    it('replaces only the previous query, never an older entry that happens to share the prefix', () => {
+        expect(addRecentSearch(['ri', 'rice', 'pasta'], 'rich', 'ri')).toEqual(['rich', 'rice', 'pasta']);
+    });
+
+    it('ignores a blank query without touching the list, whatever came before it', () => {
+        const existing = ['r'];
+
+        expect(addRecentSearch(existing, '  ', 'r')).toBe(existing);
     });
 });
 
@@ -109,5 +147,22 @@ describe('parseRecentSearches', () => {
         const queries = ['risotto', 'pasta', 'lamb tagine'];
 
         expect(parseRecentSearches(serializeRecentSearches(queries))).toEqual(queries);
+    });
+});
+
+/** Owner ruling 2026-10-17 (`docs/design/uiOverhaul/ownerDecisions.md`): the history is kept per signed-in user. */
+describe('recentSearchesKeyFor', () => {
+    it('gives each user their own key, so one user can never read another`s history', () => {
+        expect(recentSearchesKeyFor('user_a')).not.toBe(recentSearchesKeyFor('user_b'));
+        expect(recentSearchesKeyFor('user_a')).toContain('user_a');
+    });
+
+    it('is stable for the same user (a reload reads what the last visit wrote)', () => {
+        expect(recentSearchesKeyFor('user_a')).toBe(recentSearchesKeyFor('user_a'));
+    });
+
+    it('⛔ is not the unscoped key the history used before the ruling, which is never read again', () => {
+        expect(recentSearchesKeyFor('user_a')).not.toBe('commise.recipes.recentSearches.v1');
+        expect(recentSearchesKeyFor('v1')).not.toBe('commise.recipes.recentSearches.v1');
     });
 });

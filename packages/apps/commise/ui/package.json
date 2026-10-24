@@ -44,6 +44,7 @@
         "./confirm-dialog": "./src/confirmDialog/index.ts",
         "./compact-height": "./src/layout/compactHeight.ts",
         "./container-class": "./src/layout/containerClass.ts",
+        "./main-element": "./src/layout/mainElement.ts",
         "./dialog-frame": "./src/dialogFrame/index.ts",
         "./dialog-focus": "./src/dialogFocus/index.ts",
         "./duration": "./src/durationField/duration.ts",

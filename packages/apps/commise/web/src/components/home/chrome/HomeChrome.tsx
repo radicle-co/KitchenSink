@@ -21,6 +21,7 @@
  */
 import type { HomeNavItemId } from '@commise/features-core';
 import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { MainElementContext } from '@commise/ui/main-element';
 import { PinnedBarSlotContext } from '@commise/ui/pushed-page';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';
 
@@ -81,6 +82,9 @@ export function HomeChrome({
     // The slot a pushed page draws its pinned bar into: the first thing in `<main>`, ahead of the notice, so Back comes
     // before the notice in reading and focus order as it does on the screen (a bar drawn by the page would come after).
     const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
+    // This `<main>`, handed to the page, so a page sizing itself to the main column measures THIS element and never the
+    // document's first `<main>`, which during a load can be a hidden one (`@commise/ui/main-element`).
+    const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
 
     // Transparent, so the `body` canvas wash shows through (issue #145): one canvas, defined in the token layer.
     return (
@@ -103,6 +107,7 @@ export function HomeChrome({
             />
 
             <main
+                ref={setMainElement}
                 className={`@container/main min-w-0 flex-1 ${
                     focusedTask
                         ? // The task's frame runs edge to edge and owns its gutter: `main`'s gutter and top padding drew the
@@ -112,25 +117,27 @@ export function HomeChrome({
                         : 'px-4 pt-[var(--main-top)] medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+6.5rem)]'
                 }`}
             >
-                <PopupInsetsContext value={readInsets}>
-                    <PinnedBarSlotContext value={barSlot}>
-                        {/* Empty: the bar is `fixed`, so the slot takes no room. */}
-                        <div ref={setBarSlot} />
-                        {syncNotice === undefined ? null : (
-                            // The notice carries its own side padding; `main`'s gutter already provides it on a page.
-                            <div
-                                className={
-                                    focusedTask
-                                        ? ''
-                                        : 'nav:sticky nav:top-0 nav:z-10 [&_[role=status]]:px-0 [&_[role=status]>div]:mb-4'
-                                }
-                            >
-                                {syncNotice}
-                            </div>
-                        )}
-                        {children}
-                    </PinnedBarSlotContext>
-                </PopupInsetsContext>
+                <MainElementContext value={mainElement}>
+                    <PopupInsetsContext value={readInsets}>
+                        <PinnedBarSlotContext value={barSlot}>
+                            {/* Empty: the bar is `fixed`, so the slot takes no room. */}
+                            <div ref={setBarSlot} />
+                            {syncNotice === undefined ? null : (
+                                // The notice carries its own side padding; `main`'s gutter already provides it on a page.
+                                <div
+                                    className={
+                                        focusedTask
+                                            ? ''
+                                            : 'nav:sticky nav:top-0 nav:z-10 [&_[role=status]]:px-0 [&_[role=status]>div]:mb-4'
+                                    }
+                                >
+                                    {syncNotice}
+                                </div>
+                            )}
+                            {children}
+                        </PinnedBarSlotContext>
+                    </PopupInsetsContext>
+                </MainElementContext>
             </main>
 
             {focusedTask ? null : (

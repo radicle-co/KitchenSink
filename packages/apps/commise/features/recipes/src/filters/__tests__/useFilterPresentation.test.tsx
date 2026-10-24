@@ -22,8 +22,10 @@ class FakeObserver {
 
     disconnect(): void {}
 
+    /** Give `<main>` a width and signal the change: the hook reads the element's live width (jsdom has no layout). */
     resize(width: number): void {
-        this.callback([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+        Object.defineProperty(main, 'clientWidth', { configurable: true, get: () => width });
+        this.callback([], this as unknown as ResizeObserver);
     }
 }
 

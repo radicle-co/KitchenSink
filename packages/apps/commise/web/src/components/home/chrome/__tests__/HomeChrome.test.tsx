@@ -6,10 +6,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { use, type ReactNode } from 'react';
 
 import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { MainElementContext } from '@commise/ui/main-element';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
@@ -221,5 +222,39 @@ describe('HomeChrome (web)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
         expect(document.cookie).toContain(`${SIDEBAR_COOKIE}=collapsed`);
+    });
+});
+
+// ⛔ A page measures ITS `<main>`, never the document's first one: during a load the document held a second, hidden
+// `<main>` (0 px wide) ahead of the shell's, and Discover's filter panel stayed a Filters button at 1440 px because the
+// container-class hook measured that one (`useMainContainerClass.test.tsx` has the measured history).
+describe('HomeChrome (web) — the <main> it hands its page', () => {
+    it('provides its own <main> element to the page through MainElementContext', () => {
+        const seen: (HTMLElement | null)[] = [];
+
+        const Page = (): ReactNode => {
+            seen.push(use(MainElementContext) ?? null);
+
+            return <h1>Page</h1>;
+        };
+
+        render(
+            <SidebarPreferenceProvider collapsed={false}>
+                <ScrollHost>
+                    <HomeChrome
+                        chrome={chrome}
+                        locale="en"
+                        liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                        activeId="home"
+                        profile={{ status: 'ready', name: 'Eliza' }}
+                        newRecipe={(): ReactNode => <button type="button">New recipe</button>}
+                    >
+                        <Page />
+                    </HomeChrome>
+                </ScrollHost>
+            </SidebarPreferenceProvider>,
+        );
+
+        expect(seen.at(-1)).toBe(screen.getByRole('main'));
     });
 });

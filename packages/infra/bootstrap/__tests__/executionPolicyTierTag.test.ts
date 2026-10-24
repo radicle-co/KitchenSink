@@ -26,7 +26,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { isTagAddPattern, tagKeySupport } from '../src/iamCatalogue.js';
-import { ACCOUNT, type PolicyDocument, type Statement } from '../src/policyDocument.js';
+import { ACCOUNT, REGION, type PolicyDocument, type Statement } from '../src/policyDocument.js';
 import { QUALIFIERS, STACK_TAG_PATTERNS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
 import { allows as evaluates } from './boundaryEval.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
@@ -357,6 +357,55 @@ describe.each(stageQualifiers)('executionPolicy(%s) — an EC2 instance profile 
                 evaluates(merged, 'iam:PassRole', roleArn(name), { 'iam:PassedToService': 'lambda.amazonaws.com' }),
                 name,
             ).toBe(false);
+        }
+    });
+});
+
+/**
+ * CloudFormation tags a CloudWatch Logs delivery resource when it creates it, and `logs:*Delivery*` (on `*`) does not
+ * include `logs:TagResource`. The first production edge deploy through ksprod failed creating its access-log
+ * destination: "not authorized to perform: logs:TagResource on resource: ...:delivery-destination:
+ * kitchensink-edge-access-logs-prod" (2026-10-24). The sandbox never creates one, so only production showed it.
+ */
+describe.each(stageQualifiers)('executionPolicy(%s) — CloudWatch Logs delivery tags', (qualifier) => {
+    const nonprod = qualifier === QUALIFIERS.nonprod;
+    const stage = nonprod ? 'sandbox' : 'prod';
+    const merged: PolicyDocument = { Version: '2012-10-17', Statement: statements(qualifier) };
+    const logsArn = (resource: string): string => `arn:aws:logs:${REGION}:${ACCOUNT}:${resource}`;
+    const resources = [
+        logsArn(`delivery-destination:kitchensink-edge-access-logs-${stage}`),
+        logsArn(`delivery-source:kitchensink-edge-identity-${stage}`),
+        logsArn('delivery:AbCdEf0123456789'),
+    ];
+    const own = tierTagValue(qualifier);
+    const other = tierTagValue(nonprod ? QUALIFIERS.prod : QUALIFIERS.nonprod);
+
+    it('lets a new delivery resource receive its own tier tag (the create path)', () => {
+        for (const resource of resources) {
+            expect(
+                evaluates(merged, 'logs:TagResource', resource, { [REQUEST_TAG]: own, 'aws:TagKeys': TIER_TAG_KEY }),
+                resource,
+            ).toBe(true);
+        }
+    });
+
+    it('lets a delivery resource of its own tier change its tags', () => {
+        for (const resource of resources) {
+            expect(evaluates(merged, 'logs:TagResource', resource, { [RESOURCE_TAG]: own }), resource).toBe(true);
+            expect(evaluates(merged, 'logs:UntagResource', resource, { [RESOURCE_TAG]: own }), resource).toBe(true);
+        }
+    });
+
+    it("never tags another tier's delivery resource, nor stamps the other tier's tag", () => {
+        for (const resource of resources) {
+            expect(evaluates(merged, 'logs:TagResource', resource, { [RESOURCE_TAG]: other }), resource).toBe(false);
+            expect(evaluates(merged, 'logs:TagResource', resource, { [REQUEST_TAG]: other }), resource).toBe(false);
+        }
+    });
+
+    it("never tags a delivery destination or source that is not KitchenSink's", () => {
+        for (const resource of [logsArn('delivery-destination:armoury-logs'), logsArn('delivery-source:other-app')]) {
+            expect(evaluates(merged, 'logs:TagResource', resource, { [REQUEST_TAG]: own }), resource).toBe(false);
         }
     });
 });

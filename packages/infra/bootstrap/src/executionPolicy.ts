@@ -916,6 +916,22 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
             ['*'],
             ['AWS::Logs::Delivery', 'AWS::Logs::DeliveryDestination', 'AWS::Logs::DeliverySource'],
         ),
+        // ⛔ CloudFormation TAGS a delivery resource as it creates it, and `logs:*Delivery*` does not include
+        // `logs:TagResource`: the first production edge deploy through ksprod failed creating its access-log destination
+        // on exactly that (2026-10-24). Tagging is gated by the tier tag like every other tag write, so it cannot reach
+        // another tier's or another application's delivery.
+        ...ownAllow(
+            'observe',
+            'LogDeliveryTags',
+            ['logs:ListTagsForResource', 'logs:TagResource', 'logs:UntagResource'],
+            [
+                arn('logs', `delivery-destination:${KS}`),
+                arn('logs', `delivery-source:${KS}`),
+                arn('logs', 'delivery:*'),
+            ],
+            [],
+            own,
+        ),
         allow(
             'observe',
             'CloudWatchAlarms',

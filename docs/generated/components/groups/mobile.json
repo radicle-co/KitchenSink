@@ -11,8 +11,8 @@
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
         "documentedProps": 148,
-        "classifiedComponents": 38,
-        "componentsWithPatternTag": 25,
+        "classifiedComponents": 39,
+        "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -3647,7 +3647,7 @@
                             "text": "Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and\n    nowhere below"
                         }
                     ],
-                    "description": "The Profile page, inside its own scroll host (it is a pushed screen, not a tab root).",
+                    "description": "The Profile page, inside the shared pushed-page frame (it is a pushed screen, not a tab root): the frame owns the one\nscroll host and pins Back in the bar, so Back is reachable at every scroll position.",
                     "tags": [
                         {
                             "name": "param",
@@ -4158,8 +4158,10 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one screen over the shared version-history session, in the shared pushed-page frame"
+            ],
             "platforms": [
                 "web"
             ],
@@ -4172,8 +4174,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeVersionsScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe version-history screen (mobile, T069): the screen's read boundary around the shared `RecipeVersionsView`. The view\nreads the history and the recipe (for the authoritative current version, which the list marks as non-restorable) with\nsuspense queries, drives the shared native `RecipeVersionList`, the Preview full-screen modal and the two-version Compare\nsheet, and wires each restore action to `useRestoreRecipeVersion`; the session behind it (`useRecipeVersions`) is shared\nwith the web container, and its module docs carry the Preview, Compare and restore rationale.\n\nWhat stays here is what is mobile's: the boundary owns the localized loading state and the failure (whose retry\nrefetches), and Back is drawn by the list's own header in every state. The restore invalidates the recipe and its\nversions, so the list refreshes itself.",
-                    "moduleTags": [],
+                    "moduleDoc": "Recipe version-history screen (mobile, T069): the screen's read boundary around the shared `RecipeVersionsView`. The view\nreads the history and the recipe (for the authoritative current version, which the list marks as non-restorable) with\nsuspense queries, drives the shared native `RecipeVersionList`, the Preview full-screen modal and the two-version Compare\nsheet, and wires each restore action to `useRestoreRecipeVersion`; the session behind it (`useRecipeVersions`) is shared\nwith the web container, and its module docs carry the Preview, Compare and restore rationale.\n\nWhat stays here is what is mobile's: the boundary owns the localized loading state and the failure (whose retry\nrefetches), and the way back. Back is the pinned bar's (`PushedPageFrame`, `docs/design/uiRefreshWorkshop5/\npinnedBackBar.md`), and EVERY branch of the boundary mounts its own frame with the same Back in the same place: the bar\ncannot be lifted out of the boundary, because the title lives only in the loading and settled states, and the cost is\nthat the bar remounts when the loading state settles. The frame also gives the settled history the scroller it did not\nhave, so a long history can be scrolled. The restore invalidates the recipe and its versions, so the list refreshes itself.\n\nORCHESTRATION: the boundary, the three frames and the navigator's way back meet here.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one screen over the shared version-history session, in the shared pushed-page frame"
+                        }
+                    ],
                     "description": "The recipe version-history screen.",
                     "tags": [
                         {
@@ -4182,7 +4189,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "Back, above the read boundary: the loading and error states, or the version history once both reads\nsettle."
+                            "text": "The read boundary, each of whose branches — loading, failed and settled — sits in the pinned-page frame."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -4211,7 +4218,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

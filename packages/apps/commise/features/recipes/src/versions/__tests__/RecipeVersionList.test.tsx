@@ -4,6 +4,9 @@
  * the current version, so the two-version checkbox selection is gone (its coverage moved to `compare.test.ts`, which
  * pins the per-row diff). The current version is marked and offers neither restore nor compare. Empty: the clock
  * glyph, "No earlier versions yet", the explanation and Back to recipe.
+ *
+ * Pinned back bar: with a way back the list sits in the `PushedPageFrame`, so Back is in the bar below 840 and the header's
+ * eyebrow from 840. jsdom has no stylesheet, so the classes that carry the breakpoint are asserted (`pinnedBackBar.ts`).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -11,7 +14,7 @@ import userEvent from '@testing-library/user-event';
 
 import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.js';
-import type { RecipeVersionListProps } from '../history.js';
+import type { RecipeVersionListWebProps } from '../history.js';
 import { recipeVersionMessages } from '../messages.js';
 import { formatVersionTimestamp } from '../timeFormat.js';
 
@@ -21,8 +24,8 @@ afterEach(cleanup);
 
 const NOW = '2026-04-12T09:00:00.000Z';
 
-function renderList(overrides: Partial<RecipeVersionListProps> = {}) {
-    const props: RecipeVersionListProps = {
+function renderList(overrides: Partial<RecipeVersionListWebProps> = {}) {
+    const props: RecipeVersionListWebProps = {
         versions: [],
         currentVersion: 1,
         restoringVersion: null,
@@ -34,6 +37,21 @@ function renderList(overrides: Partial<RecipeVersionListProps> = {}) {
     render(<RecipeVersionList {...props} />);
 
     return props;
+}
+
+/** {@link renderList}, with the container so a test can look at the bar's markup. */
+function renderListIn(overrides: Partial<RecipeVersionListWebProps>) {
+    const props: RecipeVersionListWebProps = {
+        versions: [],
+        currentVersion: 1,
+        restoringVersion: null,
+        onRestore: vi.fn(),
+        now: NOW,
+        recipeTitle: 'Slow-roasted lamb',
+        ...overrides,
+    };
+
+    return render(<RecipeVersionList {...props} />);
 }
 
 const threeVersions = [
@@ -62,14 +80,64 @@ describe('RecipeVersionList (web) — chrome', () => {
         expect(screen.getByText('Slow-roasted lamb')).toBeTruthy();
     });
 
+    /** The page's only Back: the header's eyebrow (the bar and its frame are the container's). */
+    const eyebrowBack = (): HTMLElement => {
+        const all = screen.getAllByRole('link', { name: 'Back to recipe', hidden: true });
+
+        expect(all).toHaveLength(1);
+
+        return all[0] as HTMLElement;
+    };
+
     it('offers Back to recipe when the caller wires it', async () => {
         const user = userEvent.setup();
         const onBack = vi.fn();
         renderList({ versions: threeVersions, currentVersion: 3, onBack, backHref: '/en/recipes/rec_1' });
 
-        await user.click(screen.getAllByRole('link', { name: 'Back to recipe' })[0] as HTMLElement);
+        await user.click(eyebrowBack());
 
         expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    it('has exactly one Back, the header’s eyebrow, and draws no bar or frame of its own: the container owns them', () => {
+        const { container } = renderListIn({
+            versions: threeVersions,
+            currentVersion: 3,
+            onBack: vi.fn(),
+            backHref: '/en/recipes/rec_1',
+        });
+
+        eyebrowBack();
+        expect(container.querySelector('[data-condensed]')).toBeNull();
+        expect(container.querySelector('[data-pushed-page]')).toBeNull();
+    });
+
+    it('names the eyebrow’s parent for the recipe', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, onBack: vi.fn(), backHref: '/en/recipes/rec_1' });
+
+        expect(eyebrowBack().textContent).toBe('Slow-roasted lamb');
+    });
+
+    it('falls back to “Recipe”, the parent’s name, and never to the control’s own label, without a title', () => {
+        render(
+            <RecipeVersionList
+                versions={threeVersions}
+                currentVersion={3}
+                onRestore={vi.fn()}
+                now={NOW}
+                onBack={vi.fn()}
+                backHref="/en/recipes/rec_1"
+            />,
+        );
+
+        expect(eyebrowBack().textContent).toBe(versionList.recipeParent);
+        expect(eyebrowBack().textContent).not.toBe(versionList.backToRecipe);
+    });
+
+    it('draws no bar and no frame without a way back', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        expect(document.querySelector('[data-pushed-page]')).toBeNull();
     });
 });
 

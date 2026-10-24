@@ -58,6 +58,23 @@ describe('DataSourcesPushedPage (native)', () => {
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 
+    // Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2): Back lives in the pinned bar and nowhere
+    // else. The header's own copy used to stay in the tree off screen, so the page had two elements named "Back to
+    // Profile" and a Maestro tap found the off-screen one (CI run 39949307086). `hidden: true` counts a copy a plain query skips.
+    it('has exactly one Back, in the pinned bar before the title', () => {
+        render(
+            <DataSourcesPushedPage back={BACK} headingFocusSignal={0}>
+                {null}
+            </DataSourcesPushedPage>,
+        );
+
+        const backs = screen.getAllByRole('button', { name: 'Back to Profile', hidden: true });
+        const heading = screen.getByRole('heading', { name: 'Data sources', level: 1 });
+
+        expect(backs).toHaveLength(1);
+        expect(backs[0]!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('states where the numbers come from, and the rule for a food no database lists exactly', () => {
         render(
             <DataSourcesPushedPage back={BACK} headingFocusSignal={0}>

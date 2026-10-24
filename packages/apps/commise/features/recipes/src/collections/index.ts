@@ -17,5 +17,8 @@ export { useCollectionDetail } from './useCollectionDetail.js';
 export type { CollectionDetail, CollectionDetailInput, CollectionDetailNav } from './useCollectionDetail.js';
 export { useCollectionsList } from './useCollectionsList.js';
 export type { CollectionsList, CollectionsListInput } from './useCollectionsList.js';
+export { CollectionMoreMenu } from './CollectionMoreMenu.js';
+export { COLLECTION_TITLE_ID, collectionMenuPropsOf, collectionsBackOf } from './detailModel.js';
+export type { CollectionMoreMenuProps } from './detailModel.js';
 export { CollectionLoadError } from './CollectionLoadError.js';
 export type { CollectionLoadErrorProps } from './CollectionLoadError.js';

@@ -3,10 +3,11 @@
  * `CondensedTitleBar` (`docs/design/uiOverhaul/buildSpec.md` §3.3; blueprint slice 3 step 3). Every screen with a
  * title uses them.
  *
- * - **Phone and tablet (web below 840, native at every size):** a transparent 44 px row holds `back` (start) and
- *   `action` (end); the H1 sits under it in `largeTitle`. On a pushed web screen and on every native screen, once the
- *   heading scrolls under that row the SCREEN shows a `CondensedTitleBar` — a 56 px bar on the floating layer, the title
- *   in `barTitle`, one line. A top-level web page mounts none: the tab bar already says where you are.
+ * - **Phone and tablet (web below 840, native at every size):** a transparent 44 px row holds `action` (end); the H1 sits
+ *   under it in `largeTitle`. `back` is NOT drawn here: a pushed page's Back is the PINNED `CondensedTitleBar` (a 56 px
+ *   bar on the floating layer, in `PushedPageFrame`), reachable at every scroll position, and its title, in `barTitle`,
+ *   one line, shows once the heading scrolls under it. A top-level web page mounts none: the tab bar already says where
+ *   you are.
  * - **840 and wider (web):** no bar. `action` sits on the title's row at the end; `back` becomes an eyebrow link above
  *   the H1 ("‹ Collections"). Without room, the action moves below the title AS A GROUP — never a wrap inside a button.
  *
@@ -64,14 +65,30 @@ export interface LargeTitleHeaderProps {
     readonly focusSignal?: number;
 }
 
-/** The cross-platform `CondensedTitleBar` contract. */
+/**
+ * The cross-platform `CondensedTitleBar` contract: the PINNED bar of a pushed page
+ * (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md`). A given `back` or `menu` is always rendered, named and pressable,
+ * whatever the two display facts say; the facts decide only what is drawn around them.
+ */
 export interface CondensedTitleBarProps {
-    /** The title, repeated from the H1 in one line; hidden from assistive tech. */
-    readonly title: string;
-    /** The way back, kept one tap away (Nielsen #3). */
+    /** The title, repeated from the H1 in one line; hidden from assistive tech. Absent while the page does not know it. */
+    readonly title?: string;
+    /** The way back, kept one tap away at every scroll position (Nielsen #3). */
     readonly back?: HeaderBack;
     /** A ⋯ menu at the end. */
     readonly menu?: ReactNode;
-    /** Whether the bar shows: the screen's `ScrollHost` `condensed`. Display derivation, not a mode. */
-    readonly visible: boolean;
+    /** Whether the bar's material shows. Display derivation, not a mode: the page has scrolled, or the title is under it. */
+    readonly surfaceShown: boolean;
+    /** Whether the one-line title shows: the screen's `ScrollHost` `condensed`. Display derivation, not a mode. */
+    readonly titleShown: boolean;
+}
+
+/**
+ * The web `CondensedTitleBar`'s props: the shared contract plus the one thing only the DOM can do. The bar is
+ * `3.5rem + env(safe-area-inset-top)` tall, and only the browser can resolve the second term, so the frame reads the
+ * element's rendered height (an `IntersectionObserver` margin takes px, not `calc()`). Native has no such input.
+ */
+export interface CondensedTitleBarWebProps extends CondensedTitleBarProps {
+    /** Receives the bar's element when it mounts and `null` when it unmounts. */
+    readonly barRef?: (node: HTMLElement | null) => void;
 }

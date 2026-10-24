@@ -10,12 +10,14 @@ import type { RecipeMakePublicDialogProps } from '../actions/model.js';
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
+import type { HeaderBack } from '@commise/ui/large-title-header';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { RecipeVisibility, type Recipe } from '@kitchensink/recipe-core';
 
 import type { RefreshNoticeControl } from '../refresh/model.js';
 import type { PickerSummary } from './pickerModel.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
-import type { CollectionMenuMessages } from './messages.js';
+import type { CollectionDetailMessages, CollectionListMessages, CollectionMenuMessages } from './messages.js';
 import type { CollectionMemberRecipe } from './model.js';
 import type { ReactNode } from 'react';
 
@@ -40,6 +42,12 @@ export interface CollectionMemberRowProps {
  * 4 to match the collection-view wireframe.
  */
 export const MEMBER_WINDOW_SIZE = 4;
+
+/**
+ * The id of the detail's H1. The body draws it and takes focus to it when the last row is removed; web's pinned back bar
+ * watches the same element to decide when it shows the title, so the two must agree.
+ */
+export const COLLECTION_TITLE_ID = 'collection-title';
 
 /** Props for a collection's member list: the view switch, the rows or cards, the empty state and the failed-removal alert. */
 export interface CollectionMembersProps {
@@ -121,6 +129,67 @@ export function collectionMenuItems(input: {
     }
 
     return items;
+}
+
+/**
+ * Whether a collection is a copy of another: it states its source by name or by id. ONE definition, read by the header's
+ * "Copied from" line and by the ⋯ menu's Pull updates entry, so the two cannot disagree. Pure.
+ *
+ * @param collection - Any object carrying the two optional source facts.
+ * @returns True when the collection is a copy.
+ */
+export function isCollectionCopy(collection: {
+    readonly sourceCollectionName?: string | undefined;
+    readonly sourceCollectionId?: string | undefined;
+}): boolean {
+    return collection.sourceCollectionName !== undefined || collection.sourceCollectionId !== undefined;
+}
+
+/** Props for the collection's ⋯ menu: the collection it is named for, and what each entry asks for. */
+export interface CollectionMoreMenuProps extends CollectionMenuActions {
+    /** The collection's name: the trigger is "More actions for {name}" and the sheet's title. */
+    readonly name: string;
+    readonly visibility: RecipeVisibility;
+    /** Whether the collection is a copy, which adds Pull updates. */
+    readonly isCopy: boolean;
+}
+
+/** The parts of a settled collection detail's session the ⋯ menu reads. Structural, so a test needs no full session. */
+export interface CollectionMenuSource {
+    readonly collection: {
+        readonly name: string;
+        readonly visibility: RecipeVisibility;
+        readonly sourceCollectionName?: string | undefined;
+        readonly sourceCollectionId?: string | undefined;
+    };
+    readonly onToggleVisibility: (() => void) | undefined;
+    readonly rename: { readonly onStart: () => void };
+    readonly saveCopy: { readonly onSave: () => void };
+    readonly pull: { readonly start: () => void };
+    readonly deletion: { readonly onStart: () => void };
+}
+
+/**
+ * The ⋯ menu's props from a settled collection detail's session: the ONE place the session becomes the menu, so the native
+ * screen can draw the menu in the pinned bar while `CollectionDetailBody` keeps the rest. The visibility toggle is left out,
+ * not set to `undefined`, when the host offers none (plan 2026-10-14-009 D14). Pure.
+ *
+ * @param detail - The session's menu-relevant parts.
+ * @returns The menu's props.
+ */
+export function collectionMenuPropsOf(detail: CollectionMenuSource): CollectionMoreMenuProps {
+    const { collection, onToggleVisibility } = detail;
+
+    return {
+        name: collection.name,
+        visibility: collection.visibility,
+        isCopy: isCollectionCopy(collection),
+        onRename: detail.rename.onStart,
+        ...(onToggleVisibility === undefined ? {} : { onToggleVisibility }),
+        onSaveCopy: detail.saveCopy.onSave,
+        onPullUpdates: detail.pull.start,
+        onDelete: detail.deletion.onStart,
+    };
 }
 
 /**
@@ -242,4 +311,31 @@ export interface CollectionRecipePickerCandidatesProps {
     readonly onCreateRecipe: () => void;
     /** Draw one row; the host closes over the membership and the toggle. */
     readonly renderRow: (recipe: Recipe) => ReactNode;
+}
+
+/** The two pieces of copy "Back to Collections" is made from. */
+export interface CollectionsBackMessages {
+    readonly detail: Pick<CollectionDetailMessages, 'backTo'>;
+    readonly list: Pick<CollectionListMessages, 'heading'>;
+}
+
+/**
+ * The detail's way back to the Collections list, built ONCE for every place that draws it: the native bar, the web bar and
+ * the web header's eyebrow, and the not-found notice's own action. They must say the same thing, so they are made by the
+ * same function. Pure.
+ *
+ * @param messages - The collections copy: the Back's template and the list's heading, which is its parent.
+ * @param onPress - Go back.
+ * @param href - The list's address, so a modified click still works (web); absent on native.
+ * @returns The Back; `href` is absent, not `undefined`, when there is no address.
+ */
+export function collectionsBackOf(messages: CollectionsBackMessages, onPress: () => void, href?: string): HeaderBack {
+    const parent = messages.list.heading;
+
+    return {
+        label: fillTemplate(messages.detail.backTo, { parent }),
+        parent,
+        onPress,
+        ...(href === undefined ? {} : { href }),
+    };
 }

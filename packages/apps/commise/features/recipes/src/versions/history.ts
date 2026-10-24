@@ -4,6 +4,7 @@
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) leaves, so
  * the two renders can never drift. No React, no platform APIs.
  */
+import type { HeaderBack } from '@commise/ui/large-title-header';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { isVersionConflictError, isVersionLineUnrestorableError } from '@kitchensink/recipe-service-client';
 
@@ -143,10 +144,58 @@ export interface RecipeVersionListProps {
     readonly now: string;
     /** The recipe's title, the page's subtitle. */
     readonly recipeTitle?: string;
-    /** Return to the recipe (web: the header's back link; native screens compose their own back chrome). */
+}
+
+/**
+ * Props for the WEB version list: the shared props and the way back. Native draws no Back of its own, because the screen's
+ * pinned bar owns it in every state (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5), so its leaf takes
+ * {@link RecipeVersionListProps} and no prop it would ignore.
+ */
+export interface RecipeVersionListWebProps extends RecipeVersionListProps {
+    /** Return to the recipe: the header's eyebrow from 840; the container's pinned bar carries the same Back below it. */
     readonly onBack?: () => void;
-    /** Web: the recipe's address, so a modified click on the back link still works. */
+    /** The recipe's address, so a modified click on the back link still works. */
     readonly backHref?: string;
+}
+
+/**
+ * The id of the version history's H1 on web. The leaves draw it and the container's `PushedPageFrame` watches the same
+ * element to decide when the bar shows the title, so the two must agree (as `COLLECTION_TITLE_ID` does for collections).
+ */
+export const VERSION_TITLE_ID = 'version-history-title';
+
+/**
+ * The Back that every web state of the history gives both the header's eyebrow and the pinned bar, so the two cannot
+ * disagree. Pure.
+ *
+ * @param label - The control's accessible name ("Back to recipe").
+ * @param parent - The parent's name, drawn beside the chevron.
+ * @param onBack - Go back; absent means there is no Back.
+ * @param backHref - The recipe's address, so a modified click still works.
+ * @returns The Back, or `undefined` when the host offers none; `href` is absent, not `undefined`, when there is no address.
+ */
+export function versionBackOf(
+    label: string,
+    parent: string,
+    onBack: () => void,
+    backHref: string | undefined,
+): HeaderBack;
+export function versionBackOf(
+    label: string,
+    parent: string,
+    onBack: (() => void) | undefined,
+    backHref: string | undefined,
+): HeaderBack | undefined;
+
+export function versionBackOf(
+    label: string,
+    parent: string,
+    onBack: (() => void) | undefined,
+    backHref: string | undefined,
+): HeaderBack | undefined {
+    return onBack === undefined
+        ? undefined
+        : { label, parent, onPress: onBack, ...(backHref === undefined ? {} : { href: backHref }) };
 }
 
 /**

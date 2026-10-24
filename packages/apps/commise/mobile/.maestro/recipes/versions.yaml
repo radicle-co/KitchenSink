@@ -248,3 +248,20 @@ appId: ${APP_ID}
       visible: 'Restored version 3.'
       timeout: 30000
 - assertNotVisible: 'Undo'
+
+# BACK IS PINNED (docs/design/uiRefreshWorkshop5/pinnedBackBar.md). The history now holds more than one screen of cards (the
+# oldest sat below the fold on CI, 2026-08-26), and the page has its own scroller. Scroll to the end, then tap Back with NO
+# scroll back up: a tap that missed the pinned bar would land on the status bar and scroll the page to its top, and the
+# assertions below would fail. A row's ⋯ sheet closes with its own label (`Close actions for version N`), so `Back to recipe` is the
+# page's alone and names exactly one element, sheet open or not.
+- scrollUntilVisible:
+      element: 'Initial version'
+      direction: DOWN
+      timeout: 20000
+- scroll
+- tapOn: 'Back to recipe'
+- assertNotVisible: 'Version history'
+- extendedWaitUntil:
+      visible:
+          text: '${E2E_RECIPE_LAMB} .v3.*'
+      timeout: 40000

@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 
 import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
 import { webMessages } from '@/i18n/messages';
@@ -159,6 +160,41 @@ describe('HomeChrome (web)', () => {
             );
         });
 
+        it('⛔ a pushed page’s Back comes BEFORE the notice in the DOM, because the shell offers the frame a slot ahead of it', () => {
+            render(
+                <SidebarPreferenceProvider collapsed={false}>
+                    <ScrollHost>
+                        <HomeChrome
+                            chrome={chrome}
+                            locale="en"
+                            liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                            activeId="home"
+                            profile={{ status: 'ready', name: 'Eliza' }}
+                            focusedTask={false}
+                            syncNotice={notice}
+                            newRecipe={(): ReactNode => <button type="button">New recipe</button>}
+                        >
+                            <PushedPageFrame
+                                back={{ label: 'Back to Profile', parent: 'Profile', onPress: () => undefined }}
+                                headingId="page-title"
+                            >
+                                {() => <h1 id="page-title">Page</h1>}
+                            </PushedPageFrame>
+                        </HomeChrome>
+                    </ScrollHost>
+                </SidebarPreferenceProvider>,
+            );
+            const main = screen.getByRole('main');
+            const back = screen.getByRole('button', { name: 'Back to Profile', hidden: true });
+            const region = screen.getByRole('status', { name: 'Sync status' });
+
+            expect(main.contains(back)).toBe(true);
+            expect(back.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(region.compareDocumentPosition(screen.getByRole('heading', { name: 'Page' }))).toBe(
+                Node.DOCUMENT_POSITION_FOLLOWING,
+            );
+        });
+
         it('draws nothing extra when the shell is given none', () => {
             renderChrome();
 
@@ -169,7 +205,9 @@ describe('HomeChrome (web)', () => {
     it('keeps the page gutter and top padding on every other page', () => {
         renderChrome();
 
-        expect(screen.getByRole('main').className.split(/\s+/u)).toEqual(expect.arrayContaining(['px-4', 'pt-6']));
+        expect(screen.getByRole('main').className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['px-4', 'pt-[var(--main-top)]']),
+        );
     });
 
     it('starts from the server-read preference and writes the collapse to its cookie', () => {

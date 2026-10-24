@@ -99,6 +99,7 @@
         "./photo-control": "./src/photoControl/index.ts",
         "./large-title-header": "./src/largeTitleHeader/index.ts",
         "./scroll-host": "./src/scrollHost/index.ts",
+        "./pushed-page": "./src/pushedPage/index.ts",
         "./route-link": "./src/routeLink/index.ts"
     },
     "dependencies": {

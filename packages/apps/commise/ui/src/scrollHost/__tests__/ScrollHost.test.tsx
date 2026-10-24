@@ -12,7 +12,7 @@ import { useScrollHost } from '../scrollHostContext.js';
 
 type ObserverCallback = (entries: readonly Partial<IntersectionObserverEntry>[]) => void;
 
-const observers: { callback: ObserverCallback; target?: Element }[] = [];
+const observers: { callback: ObserverCallback; options?: IntersectionObserverInit; target?: Element }[] = [];
 let reducedMotion = false;
 
 beforeEach(() => {
@@ -21,10 +21,14 @@ beforeEach(() => {
     vi.stubGlobal(
         'IntersectionObserver',
         class {
-            private readonly record: { callback: ObserverCallback; target?: Element };
+            private readonly record: {
+                callback: ObserverCallback;
+                options?: IntersectionObserverInit;
+                target?: Element;
+            };
 
-            constructor(callback: ObserverCallback) {
-                this.record = { callback };
+            constructor(callback: ObserverCallback, options?: IntersectionObserverInit) {
+                this.record = { callback, ...(options === undefined ? {} : { options }) };
                 observers.push(this.record);
             }
 
@@ -45,7 +49,7 @@ afterEach(() => {
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
 });
 
-function renderHost(): () => ScrollHostApi {
+function renderHost(topInset?: number): () => ScrollHostApi {
     const seen: { api?: ScrollHostApi } = {};
 
     const Probe = (): null => {
@@ -55,7 +59,7 @@ function renderHost(): () => ScrollHostApi {
     };
 
     render(
-        <ScrollHost headingId="page-title" sections={['a', 'b']}>
+        <ScrollHost headingId="page-title" sections={['a', 'b']} {...(topInset === undefined ? {} : { topInset })}>
             <h1 id="page-title">Recipes</h1>
             <section id="a" />
             <section id="b" tabIndex={-1} />
@@ -87,6 +91,26 @@ describe('ScrollHost (web)', () => {
         expect(api().condensed).toBe(true);
 
         act(() => watch?.callback([{ isIntersecting: true, boundingClientRect: { top: 10 } as DOMRectReadOnly }]));
+        expect(api().condensed).toBe(false);
+    });
+
+    // Pinned back bar, blueprint step 7 (the web half of step 1): a fixed 56 px bar covers the top of the viewport, so the
+    // heading is "gone" when it is under the BAR, not under the viewport's top; without it the web has the dead band.
+    it('with a top inset, watches from under the pinned bar: the margin and the line both move by the inset', () => {
+        const api = renderHost(56);
+        const watch = observers.find((observer) => observer.target?.id === 'page-title');
+
+        expect(watch?.options?.rootMargin).toBe('-56px 0px 0px 0px');
+        act(() => watch?.callback([{ isIntersecting: false, boundingClientRect: { top: 20 } as DOMRectReadOnly }]));
+        expect(api().condensed).toBe(true);
+    });
+
+    it('with no inset, watches from the viewport top and a heading at y 20 outside it is not above it', () => {
+        const api = renderHost();
+        const watch = observers.find((observer) => observer.target?.id === 'page-title');
+
+        expect(watch?.options?.rootMargin).toBe('0px 0px 0px 0px');
+        act(() => watch?.callback([{ isIntersecting: false, boundingClientRect: { top: 20 } as DOMRectReadOnly }]));
         expect(api().condensed).toBe(false);
     });
 

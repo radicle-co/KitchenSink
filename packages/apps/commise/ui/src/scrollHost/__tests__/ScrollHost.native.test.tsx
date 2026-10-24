@@ -127,6 +127,21 @@ describe('ScrollHost (native)', () => {
         expect(api().condensed).toBe(true);
     });
 
+    // Pinned back bar, blueprint step 1 (native half). A page that pins a 56 pt bar over its scroller pads its content by
+    // 56, so the title block's `onLayout` y (relative to the header) is 56 short of its content y, and the bar covers the
+    // top 56 pt of the scroller. The two 56s cancel: the heading's bottom meets the BAR's bottom edge at
+    // `y = layout.y + layout.height`, exactly the rule above. This pins that the host needs no inset input on native.
+    it('needs no inset for a pinned bar: a 40 pt title at layout y 0 is under a 56 pt bar at scroll y 40', () => {
+        const { bind, api } = renderHost();
+
+        act(() => api().headingLayout({ nativeEvent: { layout: { y: 0, height: 40 } } }));
+        act(() => bind().onScroll(report(39)));
+        expect(api().condensed).toBe(false);
+
+        act(() => bind().onScroll(report(40)));
+        expect(api().condensed).toBe(true);
+    });
+
     it('follows the direction and the top', () => {
         const { bind, api } = renderHost();
 

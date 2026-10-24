@@ -6,6 +6,12 @@ import type { Locator, Page } from '@playwright/test';
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import {
+    expectBackPinnedWhileScrolling,
+    expectBarIsChevronOnly,
+    expectEyebrowBackAndNoBar,
+    expectNoticeUnderBarAndAfterBack,
+} from './utils/pinnedBackBar';
 
 /**
  * The one Profile page (`docs/design/uiOverhaul/buildSpec.md` §9.1, slice 9). Settings and Account were folded into it,
@@ -207,3 +213,46 @@ for (const [scheme, colors] of [
         });
     });
 }
+
+/**
+ * The pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Below 840 Back is pinned in a bar and is
+ * reachable wherever the page is scrolled; from 840 the header's eyebrow is the Back and the fixed bar is not displayed.
+ */
+test.describe('the Profile page: the pinned back bar', () => {
+    test.describe('at 390', () => {
+        test.use({ viewport: { width: 390, height: 420 } });
+
+        test('Back stays in view at the end of the page, is never covered by a focused control, and goes Home', async ({
+            page,
+        }) => {
+            await openProfile(page);
+
+            await expectBackPinnedWhileScrolling(page, 'Back to Home', /\/en\/?$/u);
+        });
+
+        test('the connectivity notice sits under the bar and after Back, and the H1 starts at the bar’s edge', async ({
+            page,
+            context,
+        }) => {
+            await openProfile(page);
+
+            await expectNoticeUnderBarAndAfterBack(page, context, 'Back to Home', 'Profile');
+        });
+
+        test('the bar’s Back is the chevron alone on a phone', async ({ page }) => {
+            await openProfile(page);
+
+            await expectBarIsChevronOnly(page, 'Back to Home', 'Home');
+        });
+    });
+
+    test.describe('at 1280', () => {
+        test.use({ viewport: { width: 1280, height: 900 } });
+
+        test('the eyebrow link is the Back and the fixed bar is not displayed', async ({ page }) => {
+            await openProfile(page);
+
+            await expectEyebrowBackAndNoBar(page, 'Back to Home');
+        });
+    });
+});

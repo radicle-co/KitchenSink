@@ -3,7 +3,7 @@
  * title, a polite caption, and three inert rows. The way back is the SCREEN's (it sits above the read boundary in every
  * state), and so is the failed state, which is already an alert with a Try again button.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { RecipeVersionListSkeleton } from '../RecipeVersionListSkeleton.native.js';
@@ -20,13 +20,13 @@ describe('RecipeVersionListSkeleton (native)', () => {
         expect(screen.getByRole('heading', { name: versionList.heading })).toBeTruthy();
     });
 
-    it('draws a Back in the header only when it is given one', () => {
-        const { rerender } = render(<RecipeVersionListSkeleton label="Loading version history…" />);
-        expect(screen.queryByRole('button', { name: versionList.backToRecipe })).toBeNull();
+    // REWRITES "draws a Back in the header only when it is given one": the pinned bar owns Back on native, and a header
+    // Back left in the tree beside it is a second element with the same name. `onBack` is the web leaf's prop, so this
+    // leaf's props no longer carry it.
+    it('draws no Back: the screen’s pinned bar owns it, and the props carry no way back to ignore', () => {
+        render(<RecipeVersionListSkeleton label="Loading version history…" />);
 
-        rerender(<RecipeVersionListSkeleton label="Loading version history…" onBack={vi.fn()} />);
-
-        expect(screen.getByRole('button', { name: versionList.backToRecipe })).toBeTruthy();
+        expect(screen.queryAllByRole('button', { name: versionList.backToRecipe, hidden: true })).toHaveLength(0);
     });
 
     it('shows the caption once, over three inert rows kept out of the accessibility tree', () => {

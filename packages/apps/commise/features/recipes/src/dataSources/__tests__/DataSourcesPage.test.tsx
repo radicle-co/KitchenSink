@@ -2,14 +2,24 @@
 /**
  * The web Data sources page frame (design §S16): the heading and both intro sentences show at once, whatever state the
  * read below them is in, so a loading or failed read never leaves the page without its title.
+ *
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6): with a way back, the page sits in the
+ * `PushedPageFrame`, so Back is in the pinned bar below 840 and the header's eyebrow carries it from 840. jsdom applies no
+ * stylesheet, so both copies are in its tree and what is asserted is the structure and the classes that carry the
+ * breakpoint: the bar is `nav:hidden`, the eyebrow is `hidden nav:inline-flex`. A browser shows exactly one at each width
+ * (`tests/e2e/dataSources.spec.ts`).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { expectOneBackInBarAndOneInHeader } from '@commise/test-utils';
+
 import { DataSourcesPage } from '../DataSourcesPage.js';
 
 afterEach(cleanup);
+
+const BACK_NAME = 'Back to Profile';
 
 describe('DataSourcesPage (web)', () => {
     it('heads the page with a level-one heading', () => {
@@ -31,7 +41,7 @@ describe('DataSourcesPage (web)', () => {
             </DataSourcesPage>,
         );
 
-        const back = screen.getByRole('link', { name: 'Back to Profile' });
+        const back = expectOneBackInBarAndOneInHeader(BACK_NAME).eyebrow;
 
         expect(back.getAttribute('href')).toBe('/en/profile');
 
@@ -40,10 +50,49 @@ describe('DataSourcesPage (web)', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('has no back link when the host offers none', () => {
-        render(<DataSourcesPage headingFocusSignal={0}>{null}</DataSourcesPage>);
+    describe('with a way back, on the pinned bar', () => {
+        const props = { label: 'Back to Profile', parent: 'Profile', href: '/en/profile', onPress: vi.fn() };
 
-        expect(screen.queryByRole('link')).toBeNull();
+        it('has one Back in the pinned bar, gone from 840, and the header’s eyebrow, shown from it', () => {
+            render(
+                <DataSourcesPage headingFocusSignal={0} back={props}>
+                    {null}
+                </DataSourcesPage>,
+            );
+
+            expectOneBackInBarAndOneInHeader(BACK_NAME);
+        });
+
+        it('sits in the pinned-page frame', () => {
+            const { container } = render(
+                <DataSourcesPage headingFocusSignal={0} back={props}>
+                    {null}
+                </DataSourcesPage>,
+            );
+
+            expect(container.querySelector('[data-pushed-page]')).not.toBeNull();
+        });
+
+        it('reaches Profile from the bar’s Back as well', async () => {
+            const onPress = vi.fn();
+
+            render(
+                <DataSourcesPage headingFocusSignal={0} back={{ ...props, onPress }}>
+                    {null}
+                </DataSourcesPage>,
+            );
+            await userEvent.click(expectOneBackInBarAndOneInHeader(BACK_NAME).bar);
+
+            expect(onPress).toHaveBeenCalledOnce();
+        });
+    });
+
+    it('has no back link when the host offers none', () => {
+        const { container } = render(<DataSourcesPage headingFocusSignal={0}>{null}</DataSourcesPage>);
+
+        expect(screen.queryByRole('link', { hidden: true })).toBeNull();
+        // No Back means no bar: the frame is only for a page with somewhere to go back to.
+        expect(container.querySelector('[data-pushed-page]')).toBeNull();
     });
 
     it('states where the numbers come from, and the rule for a food no database lists exactly', () => {

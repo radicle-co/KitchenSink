@@ -9,3 +9,4 @@ export { RecipeVersionsView } from './RecipeVersionsView.js';
 export type { RecipeVersionsViewProps } from './RecipeVersionsView.js';
 export { useRecipeVersions } from './useRecipeVersions.js';
 export type { RecipeVersionsInput, RecipeVersionsSession } from './useRecipeVersions.js';
+export { useRecipeTitle } from './useRecipeTitle.js';

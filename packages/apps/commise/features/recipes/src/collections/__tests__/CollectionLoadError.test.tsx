@@ -13,7 +13,7 @@ import { collectionMessages } from '../messages.js';
 afterEach(cleanup);
 
 const { detail } = collectionMessages.en;
-const back = { label: 'Back to Collections', icon: 'chevronLeft', onPress: vi.fn(), href: '/en/collections' } as const;
+const back = { label: 'Back to Collections', parent: 'Collections', onPress: vi.fn(), href: '/en/collections' };
 
 describe('CollectionLoadError', () => {
     it('⛔ says a missing collection is not found, with why, and offers NO retry: a 404 is final', () => {
@@ -35,15 +35,20 @@ describe('CollectionLoadError', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps a real link back in both states', () => {
-        const { rerender } = render(
-            <CollectionLoadError error={new NotFoundError('gone')} onRetry={vi.fn()} back={back} />,
-        );
+    it('keeps a real link back for a missing collection: its one action', () => {
+        render(<CollectionLoadError error={new NotFoundError('gone')} onRetry={vi.fn()} back={back} />);
 
         expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe('/en/collections');
+    });
 
-        rerender(<CollectionLoadError error={new Error('x')} onRetry={vi.fn()} back={back} />);
+    // The not-found rule lives HERE, not in the hosts: both hosts pass `back` unconditionally (it is a required prop), and
+    // the notice draws it only for a missing collection, because the pinned bar owns Back in every other state
+    // (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5). REPLACES a type-level test that only asserted a deleted
+    // prop name was gone.
+    it('⛔ draws NO Back for a generic failure even when it is handed one: the bar owns it', () => {
+        render(<CollectionLoadError error={new Error('network down')} onRetry={vi.fn()} back={back} />);
 
-        expect(screen.getByRole('link', { name: 'Back to Collections' })).toBeTruthy();
+        expect(screen.queryByRole('link', { name: 'Back to Collections' })).toBeNull();
+        expect(screen.getByRole('button', { name: detail.retry })).toBeTruthy();
     });
 });

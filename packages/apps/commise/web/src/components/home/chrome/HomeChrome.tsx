@@ -11,12 +11,17 @@
  * 2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,
  * "Back to top" and the snackbar stand on.
  *
+ * A pushed page (`PushedPageFrame`) pins a Back bar over the top below `nav`. `<main>` takes the bar's height as its top
+ * padding on such a page (`--main-top`, `globals.css`), so the notice below sits under the bar, and it offers the frame a
+ * slot ahead of the notice, so Back also comes first in reading and focus order.
+ *
  * The sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.
  *
  * ⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.
  */
 import type { HomeNavItemId } from '@commise/features-core';
 import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { PinnedBarSlotContext } from '@commise/ui/pushed-page';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';
 
 import type { WebChromeMessages } from '@/i18n/messages';
@@ -73,6 +78,9 @@ export function HomeChrome({
     // place themselves. A new reader only when the bar node changes.
     const [tabBar, setTabBar] = useState<HTMLElement | null>(null);
     const readInsets = useCallback(() => tabBarInsets(tabBar), [tabBar]);
+    // The slot a pushed page draws its pinned bar into: the first thing in `<main>`, ahead of the notice, so Back comes
+    // before the notice in reading and focus order as it does on the screen (a bar drawn by the page would come after).
+    const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
 
     // Transparent, so the `body` canvas wash shows through (issue #145): one canvas, defined in the token layer.
     return (
@@ -101,23 +109,27 @@ export function HomeChrome({
                           // editor as an inset card (F15). Its own bar is `sticky` in the form column, so it already
                           // takes its place in the flow and pads the safe area itself: `main` reserves nothing (E21).
                           ''
-                        : 'px-4 pt-6 medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+6.5rem)]'
+                        : 'px-4 pt-[var(--main-top)] medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+6.5rem)]'
                 }`}
             >
                 <PopupInsetsContext value={readInsets}>
-                    {syncNotice === undefined ? null : (
-                        // The notice carries its own side padding; `main`'s gutter already provides it on a page.
-                        <div
-                            className={
-                                focusedTask
-                                    ? ''
-                                    : 'nav:sticky nav:top-0 nav:z-10 [&_[role=status]]:px-0 [&_[role=status]>div]:mb-4'
-                            }
-                        >
-                            {syncNotice}
-                        </div>
-                    )}
-                    {children}
+                    <PinnedBarSlotContext value={barSlot}>
+                        {/* Empty: the bar is `fixed`, so the slot takes no room. */}
+                        <div ref={setBarSlot} />
+                        {syncNotice === undefined ? null : (
+                            // The notice carries its own side padding; `main`'s gutter already provides it on a page.
+                            <div
+                                className={
+                                    focusedTask
+                                        ? ''
+                                        : 'nav:sticky nav:top-0 nav:z-10 [&_[role=status]]:px-0 [&_[role=status]>div]:mb-4'
+                                }
+                            >
+                                {syncNotice}
+                            </div>
+                        )}
+                        {children}
+                    </PinnedBarSlotContext>
                 </PopupInsetsContext>
             </main>
 

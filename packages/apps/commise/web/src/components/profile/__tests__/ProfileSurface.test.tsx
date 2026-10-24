@@ -6,6 +6,11 @@
  * save, and the keyboard-shortcuts switch (on by default, persisted per device).
  *
  * The three account controls are stubbed: their own suites own their flows, this one owns the page around them.
+ *
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6): the page sits in the `PushedPageFrame`, so in
+ * EVERY state it has one "Back to Home" in the bar (`nav:hidden`, below 840) and one in the header (`hidden
+ * nav:inline-flex`, from 840). jsdom applies no stylesheet, so both are in its tree and the breakpoint is asserted through
+ * those classes; a browser shows exactly one at each width (`tests/e2e/profile.spec.ts`).
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
@@ -14,7 +19,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithProviders } from '@commise/test-utils';
+import { expectOneBackInBarAndOneInHeader, renderWithProviders } from '@commise/test-utils';
 
 const { patchMe, getSettings, patchSettings, refetch, push, profileQuery, clerkUser } = vi.hoisted(() => ({
     patchMe: vi.fn(),
@@ -76,6 +81,39 @@ beforeEach(() => {
 });
 
 afterEach(cleanup);
+
+describe('ProfileSurface — the pinned back bar', () => {
+    const states: readonly [string, () => void][] = [
+        ['loading', () => (profileQuery.current = { isError: false })],
+        ['read failed', () => (profileQuery.current = { isError: true })],
+        ['ready', () => (profileQuery.current = ready('Eliza Moreno'))],
+    ];
+
+    it.each(states)('%s: one Back in the bar (gone from 840) and the eyebrow (hidden below it)', (_state, arrange) => {
+        arrange();
+        mount();
+
+        expectOneBackInBarAndOneInHeader('Back to Home');
+    });
+
+    it('puts the bar before the page’s H1, so the reading order matches the screen', () => {
+        mount();
+        const { bar } = expectOneBackInBarAndOneInHeader('Back to Home');
+        const heading = screen.getByRole('heading', { level: 1, name: 'Profile' });
+
+        expect(bar.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('goes Home from the bar’s Back, and keeps the address for a modified click', async () => {
+        mount();
+        const { bar } = expectOneBackInBarAndOneInHeader('Back to Home');
+
+        await userEvent.click(bar);
+
+        expect(push).toHaveBeenCalledWith('/en');
+        expect(bar.getAttribute('href')).toBe('/en');
+    });
+});
 
 describe('ProfileSurface — the page', () => {
     it('has one H1, “Profile”, and a way back to Home', () => {

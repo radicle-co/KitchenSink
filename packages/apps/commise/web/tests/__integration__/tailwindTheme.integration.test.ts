@@ -149,6 +149,18 @@ describe('the sign-in and Profile classes, compiled', () => {
     });
 });
 
+describe('the pinned back bar’s height, compiled', () => {
+    it('reaches the browser as ONE property, with the notch’s inset added once, for every web use to read', async () => {
+        const css = await compileAppCss();
+
+        // Not a Tailwind namespace, so it survives only if something reads it: the stylesheet's own rules do.
+        expect(css).toMatch(/--pinned-bar-height:\s*3\.5rem/);
+        expect(css).toMatch(
+            /--pinned-bar-block:\s*calc\(var\(--pinned-bar-height\)\s*\+\s*env\(safe-area-inset-top\)\)/,
+        );
+    });
+});
+
 describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     // One compile shared by every assertion: the scan is the expensive part, and each `it` reads a different
     // property of the same artifact.

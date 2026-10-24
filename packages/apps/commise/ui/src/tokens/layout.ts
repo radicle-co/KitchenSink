@@ -49,6 +49,13 @@ export const gutter = {
     expanded: 32,
 } as const;
 
+/**
+ * The pinned back bar's height, px (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §3): ONE height, and it never
+ * changes. Native lays content out by the number; web gets it as `--pinned-bar-height` (`themeCss.ts`), which the bar, the
+ * page's top padding and `scroll-padding-top` all read, so the two platforms and the three web uses cannot disagree.
+ */
+export const pinnedBarHeight = 56;
+
 /** A container class: the layout content takes at the width it gets. */
 export type ContainerClass = 'narrow' | 'regular' | 'wide';
 

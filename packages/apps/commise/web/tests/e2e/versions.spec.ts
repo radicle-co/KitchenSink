@@ -13,6 +13,7 @@ import {
     readViewerAppId,
 } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { expectBackPinnedWhileScrolling, expectEyebrowBackAndNoBar } from './utils/pinnedBackBar';
 
 /**
  * Recipe version-history happy paths (W6 Task 6, FR-007b) — preview, compare, and restore — driven through
@@ -399,3 +400,35 @@ for (const [scheme, colors] of [
         });
     });
 }
+
+/**
+ * The pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Below 840 Back is pinned in a bar and is
+ * reachable wherever the page is scrolled; from 840 the header's eyebrow is the Back and the fixed bar is not displayed.
+ * The empty state also holds a button named "Back to recipe"; it is a button, not a link, and these specs seed earlier
+ * versions so the list is shown.
+ */
+test.describe('recipe version history: the pinned back bar', () => {
+    test.describe('at 390', () => {
+        test.use({ viewport: { width: 390, height: 300 } });
+
+        test('Back stays in view at the end of the history, is never covered by a focused control, and goes to the recipe', async ({
+            page,
+        }) => {
+            await signInWithTicket(page);
+            await openVersionHistory(page);
+
+            await expectBackPinnedWhileScrolling(page, 'Back to recipe', new RegExp(`/recipes/${RECIPE_ID}/?$`, 'u'));
+        });
+    });
+
+    test.describe('at 1280', () => {
+        test.use({ viewport: { width: 1280, height: 900 } });
+
+        test('the eyebrow link is the Back and the fixed bar is not displayed', async ({ page }) => {
+            await signInWithTicket(page);
+            await openVersionHistory(page);
+
+            await expectEyebrowBackAndNoBar(page, 'Back to recipe');
+        });
+    });
+});

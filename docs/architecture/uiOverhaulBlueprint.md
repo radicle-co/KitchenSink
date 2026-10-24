@@ -783,8 +783,11 @@ index.ts}` · `./large-title-header`. Not `./layout`, which is native-only.
 HeaderAction; segments?: ReactNode; focusSignal?: number }`.
     - `type HeaderAction = { kind: 'avatar'; avatar: ReactNode } | { kind: 'controls'; button?: ReactNode; menu?:
 ReactNode }`. This makes "at most one button plus one ⋯, or the avatar" structural.
-    - `CondensedTitleBarProps { title; back?; menu?; visible: boolean }`. `visible` is display derivation, so it
-      does not breach §11.1.
+    - `CondensedTitleBarProps { title?; back?; menu?; surfaceShown: boolean; titleShown: boolean }`. The two facts
+      are display derivation, so they do not breach §11.1. A given `back` or `menu` is always rendered and pressable:
+      the bar is PINNED, and only its material and its title fade (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md`).
+      `PushedPageFrame` (`ui/src/pushedPage/`, `./pushed-page`) mounts the page's one `ScrollHost` and this bar, and
+      derives the two facts once (`barFacts.ts`); the native `LargeTitleHeader` draws no Back.
     - The **screen** (orchestration) decides whether a condensed bar exists at all: pushed web screens and every
       native screen. Top-level web pages mount none. No mode prop.
     - `ui/src/avatar/{Avatar(.native).tsx, props.ts, index.ts}` · `./avatar`: `{ name?: string; status: 'loading' |

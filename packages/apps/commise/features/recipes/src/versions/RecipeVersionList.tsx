@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-recipes — web recipe version-history view (T069 building block; build spec §6.6).
  *
- * Controlled, presentational: the `LargeTitleHeader` ("Version history", the recipe as its subtitle, Back to recipe),
+ * Controlled, presentational: the `LargeTitleHeader` ("Version history", the recipe as its subtitle, and Back to recipe as
+ * its eyebrow from 840; the container's `PushedPageFrame` pins the same Back in a bar below it),
  * then the versions newest first. Each row reads "Version 12 · Edited 2 days ago", what it changed against the version
  * before it ("Initial version" for the first), and a ⋯ menu: Preview · Restore this version · Compare with current. (Not
  * the editor's handle, which is their display name, nor the server's raw change summary: §6.6 draws neither.) The
@@ -18,22 +19,24 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
-import { useId, type FC } from 'react';
+import type { FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import {
-    type RecipeVersionListProps,
+    type RecipeVersionListWebProps,
+    VERSION_TITLE_ID,
     changeSummaryForVersion,
     formatChangedFieldNames,
     hasEarlierVersions,
     restoreErrorMessage,
     sortVersionsDescending,
+    versionBackOf,
 } from './history.js';
 import { recipeVersionMessages } from './messages.js';
 import { formatRelativeTimeAgo, formatVersionTimestamp } from './timeFormat.js';
 
 /** The web version history. */
-export const RecipeVersionList: FC<RecipeVersionListProps> = ({
+export const RecipeVersionList: FC<RecipeVersionListWebProps> = ({
     versions,
     currentVersion,
     restoringVersion,
@@ -48,7 +51,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
 }) => {
     const { versionList, conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
-    const headingId = useId();
     const isRestoring = restoringVersion !== undefined && restoringVersion !== null;
     // B17 — a failed restore is a mandated UI state, never a silent no-op.
     const restoreErrorText = restoreError === undefined ? undefined : restoreErrorMessage(restoreError, versionList);
@@ -81,22 +83,15 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
               ]),
     ];
 
+    const back = versionBackOf(versionList.backToRecipe, recipeTitle ?? versionList.recipeParent, onBack, backHref);
+
     return (
-        <section aria-labelledby={headingId} className="flex w-full max-w-list flex-col gap-4 pb-10">
+        <section aria-labelledby={VERSION_TITLE_ID} className="flex w-full max-w-list flex-col gap-4 pb-10">
             <LargeTitleHeader
-                headingId={headingId}
+                headingId={VERSION_TITLE_ID}
                 title={versionList.heading}
                 {...(recipeTitle === undefined ? {} : { subtitle: recipeTitle })}
-                {...(onBack === undefined
-                    ? {}
-                    : {
-                          back: {
-                              label: versionList.backToRecipe,
-                              parent: recipeTitle ?? versionList.backToRecipe,
-                              onPress: onBack,
-                              ...(backHref === undefined ? {} : { href: backHref }),
-                          },
-                      })}
+                {...(back === undefined ? {} : { back })}
             />
             {restoreErrorText !== undefined && (
                 <p role="alert" className="rounded-md bg-attention-tint px-4 py-3 text-meta text-ink">
@@ -167,7 +162,9 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                         title={fillTemplate(versionList.versionLabel, {
                                             version: version.versionNumber,
                                         })}
-                                        closeLabel={versionList.backToRecipe}
+                                        closeLabel={fillTemplate(versionList.rowMenuClose, {
+                                            version: version.versionNumber,
+                                        })}
                                         items={rowMenu(version)}
                                         unavailable={isRestoring}
                                     />

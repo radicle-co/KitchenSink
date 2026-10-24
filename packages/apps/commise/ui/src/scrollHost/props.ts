@@ -127,6 +127,21 @@ export interface ScrollHostProps {
     readonly children: ReactNode | ((bind: ScrollBind) => ReactNode);
 }
 
+/**
+ * The web `ScrollHost`'s props: the shared contract plus the one input only the DOM has. Native does not take it: its
+ * title block reports its layout relative to the header, and the content's top padding (the bar's height) cancels the bar's
+ * cover, so `y >= layout.y + layout.height` already is the line under the bar.
+ */
+export interface ScrollHostWebProps extends ScrollHostProps {
+    /**
+     * How tall a bar pinned over the top of the viewport is, px, AS RENDERED (a bar of `3.5rem + env(safe-area-inset-top)`
+     * is taller on a notched phone than on a desktop). The `condensed` watch measures the heading from under the bar (a
+     * `-topInset` top margin on the observer), because the bar, not the viewport's top, is where a heading is gone.
+     * Defaults to 0.
+     */
+    readonly topInset?: number;
+}
+
 /** The scroll state the host derives from one position. */
 export interface ScrollState {
     readonly condensed: boolean;

@@ -9,6 +9,12 @@
  * two-version Compare view (a checkbox-per-row selection capped at two, diffed via `diffSnapshots`), and a
  * "Back to recipe" control present in every state (loading/error/populated), not just populated.
  *
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6): each state sits in the `PushedPageFrame`, so below
+ * 840 Back is in the bar and from 840 it is the header's eyebrow. jsdom applies no stylesheet, so both are in its tree and
+ * the breakpoint is asserted through the classes that carry it; and the loading state is drawn by `RecipeVersionsRouteLoading`,
+ * which `loading.tsx` also renders, so a frame in both places would draw TWO bars: every state is asserted to have one.
+ * A browser shows exactly one Back at each width (`tests/e2e/versions.spec.ts`).
+ *
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
  * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks over
  * a real, network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with
@@ -32,7 +38,7 @@ import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithRecipeClient } from '@commise/test-utils';
+import { expectOneBackInBarAndOneInHeader, renderWithRecipeClient } from '@commise/test-utils';
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import type { ReactElement } from 'react';
@@ -401,6 +407,94 @@ describe('RecipeVersionsContainer', () => {
             await screen.findByText('Current version');
 
             expect(screen.getAllByRole('link', { name: 'Back to recipe' })).toHaveLength(whileLoading);
+        });
+    });
+
+    describe('the pinned back bar', () => {
+        it('loading: one bar, with one Back in it and the eyebrow in the header', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+            vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+            expectOneBackInBarAndOneInHeader('Back to recipe');
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+        });
+
+        it('error: one bar, and the alert holds Try again only', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipeVersions').mockRejectedValue(new Error('boom'));
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail());
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            const alert = await screen.findByRole('alert');
+
+            expectOneBackInBarAndOneInHeader('Back to recipe');
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+            expect(within(alert).queryByRole('link', { hidden: true })).toBeNull();
+        });
+
+        it('settled: one bar, titled “Version history”, with Back going to the recipe', async () => {
+            const user = userEvent.setup();
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, readyTwoVersionsClient());
+            await screen.findByText('Current version');
+            const { bar } = expectOneBackInBarAndOneInHeader('Back to recipe');
+
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+            expect(bar.closest('[data-condensed]')?.querySelector('p')?.textContent).toBe('Version history');
+
+            await user.click(bar);
+
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+        });
+
+        // One page names its parent the same at every width: the settled bar says whose history this is, by the recipe's title,
+        // as the 840+ eyebrow already does (`pinnedBackBar.md` §6). Only the label text changes when the page settles.
+        it('⛔ settled: the bar AND the eyebrow name the recipe by its title', async () => {
+            const client = readyTwoVersionsClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({ currentVersion: 2, title: 'Slow-roasted lamb' }),
+            );
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await screen.findByText('Current version');
+            const { bar, eyebrow } = expectOneBackInBarAndOneInHeader('Back to recipe');
+
+            expect(bar.textContent).toBe('Slow-roasted lamb');
+            expect(eyebrow.textContent).toBe('Slow-roasted lamb');
+        });
+
+        it('error: the bar says "Recipe", since the title is not known yet', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipeVersions').mockRejectedValue(new Error('boom'));
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Slow-roasted lamb' }));
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await screen.findByRole('alert');
+
+            expect(expectOneBackInBarAndOneInHeader('Back to recipe').bar.textContent).toBe('Recipe');
+        });
+
+        it('loading: the bar says "Recipe", since the title is not known yet', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+            vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+            expect(expectOneBackInBarAndOneInHeader('Back to recipe').bar.textContent).toBe('Recipe');
+        });
+
+        it('the eyebrow names the recipe as the parent while loading and on error', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+            vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+            expect(expectOneBackInBarAndOneInHeader('Back to recipe').eyebrow.textContent).toBe('Recipe');
         });
     });
 

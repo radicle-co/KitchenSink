@@ -14,12 +14,19 @@
  * Clone), a bespoke "Remove" button per row and a rename PAGE; a ⋯ menu, an Undo snackbar and a sheet replace them. The
  * loading, error, not-found, server-render, background-refresh and remount-scrub cases are kept; the pull machine is
  * covered by `useCollectionPull.test.tsx` and its guard test.
+ *
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5, §6): the loading and settled states each sit in
+ * the `PushedPageFrame`, so below 840 Back is in the bar and from 840 it is the header's eyebrow. jsdom applies no
+ * stylesheet, so both copies are in its tree and the breakpoint is asserted through the classes that carry it; a browser
+ * shows exactly one at each width (`tests/e2e/collections.spec.ts`). The error and not-found states have no header, so they
+ * keep the notice's own Back and draw no bar.
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { expectOneBackInBarAndOneInHeader } from '@commise/test-utils';
 import { NotFoundError } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -171,6 +178,18 @@ describe('CollectionDetailContainer — states', () => {
             expect(screen.getByRole('alert')).toHaveTextContent('We couldn’t save your view.');
         });
 
+        it('FAILED: puts the notice after the header, as native does, so the heading comes first in reading order', async () => {
+            useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'grid', chooseView: vi.fn(), saveFailed: true });
+            renderWithSnackbar(
+                <CollectionDetailContainer id="col_1" locale="en" />,
+                clientSeededWith(makeCollectionWithRecipes()),
+            );
+            const heading = await screen.findByRole('heading', { level: 1 });
+            const notice = screen.getByText('We couldn’t save your view. Try choosing it again.');
+
+            expect(heading.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
         it('SAVED: shows no alert', async () => {
             renderWithSnackbar(
                 <CollectionDetailContainer id="col_1" locale="en" />,
@@ -197,9 +216,127 @@ describe('CollectionDetailContainer — states', () => {
         const client = clientSeededWith(makeCollectionWithRecipes());
 
         renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
-        await user.click(await screen.findByRole('link', { name: 'Back to Collections' }));
+        await screen.findByRole('heading', { level: 1 });
+        await user.click(expectOneBackInBarAndOneInHeader('Back to Collections').bar);
 
         expect(pushMock).toHaveBeenCalledWith('/en/collections');
+    });
+
+    describe('the pinned back bar', () => {
+        it('settled: one Back in the bar (gone from 840) and the header’s eyebrow (hidden below it)', async () => {
+            const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+
+            expectOneBackInBarAndOneInHeader('Back to Collections');
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+        });
+
+        it('settled: the bar is titled with the collection, and the ⋯ menu stays in the header, not the bar', async () => {
+            const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+
+            expect(bar.querySelector('p')?.textContent).toBe('Weeknight dinners');
+            expect(within(bar).queryByRole('button', { name: /More actions/ })).toBeNull();
+            expect(screen.getByRole('button', { name: 'More actions for Weeknight dinners' })).toBeInTheDocument();
+        });
+
+        it('settled: the bar watches the page’s own H1, so its title can show when the H1 passes under it', async () => {
+            const watched: Element[] = [];
+            vi.stubGlobal(
+                'IntersectionObserver',
+                class {
+                    observe(target: Element): void {
+                        watched.push(target);
+                    }
+
+                    disconnect(): void {}
+                },
+            );
+            const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            const heading = await screen.findByRole('heading', { level: 1, name: 'Weeknight dinners' });
+
+            expect(watched).toContain(heading);
+            vi.unstubAllGlobals();
+        });
+
+        it('loading: Back is in the bar and the bar is not titled, since the name is not known yet', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+
+            expect(within(bar).getByRole('link', { name: 'Back to Collections', hidden: true })).toBeInTheDocument();
+            expect(bar.querySelector('p')).toBeNull();
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+        });
+
+        // From 840 the bar is `display: none` and the state has no header, so without the eyebrow it would have no Back at all.
+        // Below 840 the eyebrow is `display: none`, so the bar's Back stays the only one.
+        it('⛔ loading: draws the header’s eyebrow Back too, for the widths where the bar is gone', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+
+            expectOneBackInBarAndOneInHeader('Back to Collections');
+        });
+
+        it('loading: Back goes to the list', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            await user.click(expectOneBackInBarAndOneInHeader('Back to Collections').bar);
+
+            expect(pushMock).toHaveBeenCalledWith('/en/collections');
+        });
+
+        // REWRITES "error: no bar, and the notice keeps its one Back" and its not-found twin. The failed read now sits in
+        // the same frame as native's: the bar owns Back in every state, so a generic failure keeps Try again only, and a
+        // missing collection keeps Back as its one action (`isNotFoundError`, decided by the container). The notice's
+        // Back is the only allowed second element with that name.
+        it('error: the bar and the eyebrow carry Back, and the notice keeps Try again only', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockRejectedValue(new Error('network down'));
+
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            const alert = await screen.findByRole('alert');
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+            // Exactly two in the tree: the bar's (gone from 840) and the eyebrow (gone below it), so one is visible at any width.
+            expectOneBackInBarAndOneInHeader('Back to Collections');
+            expect(within(bar).getByRole('link', { name: 'Back to Collections', hidden: true })).toBeInTheDocument();
+            expect(within(alert).queryByRole('link', { hidden: true })).toBeNull();
+            expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+        });
+
+        it('not found: the bar’s Back AND the notice’s one action, the only allowed pair at any width', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockRejectedValue(new NotFoundError());
+
+            renderWithSnackbar(<CollectionDetailContainer id="missing" locale="en" />, client);
+            await screen.findByText(/couldn.t find that collection/i);
+            const bar = document.querySelector('[data-condensed]') as HTMLElement;
+            const backs = screen.getAllByRole('link', { name: 'Back to Collections', hidden: true });
+
+            expect(document.querySelectorAll('[data-condensed]')).toHaveLength(1);
+            // Three in the tree, two visible at any width: the eyebrow is `hidden nav:inline-flex` and the bar is `nav:hidden`.
+            expect(backs).toHaveLength(3);
+            expect(bar.contains(backs[0] as HTMLElement)).toBe(true);
+            expect(bar.contains(backs[2] as HTMLElement)).toBe(false);
+            expect(backs[1]?.className).toContain('nav:inline-flex');
+            expect(backs[2]?.className).not.toMatch(/(^|\s)(hidden|nav:hidden)(\s|$)/u);
+        });
     });
 
     it('renders a generic error with retry when the load fails', async () => {
@@ -228,7 +365,8 @@ describe('CollectionDetailContainer — states', () => {
         expect(await screen.findByText(/couldn.t find that collection/i)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
 
-        await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
+        // The bar's Back comes first, in the frame; the notice's own action is the last of the two.
+        await user.click(screen.getAllByRole('link', { name: 'Back to Collections' }).at(-1) as HTMLElement);
 
         expect(pushMock).toHaveBeenCalledWith('/en/collections');
     });

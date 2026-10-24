@@ -16,7 +16,6 @@
  * @pattern Composite — the title, meta, description and actions of one collection
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { ActionMenu } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -26,7 +25,8 @@ import type { FC, ReactNode } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { collectionMenuItems, type CollectionHeaderProps } from './detailModel.js';
+import { CollectionMoreMenu } from './CollectionMoreMenu.js';
+import { collectionsBackOf, isCollectionCopy, type CollectionHeaderProps } from './detailModel.js';
 import { recipeMessages } from '../messages.js';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
@@ -68,12 +68,13 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     onPullUpdates,
     onDelete,
 }) => {
-    const { detail, list, menu: copy, header } = useMessages(collectionMessages);
+    const messages = useMessages(collectionMessages);
+    const { detail, header } = messages;
     const bylineCopy = useMessages(bylineMessages);
     const { card } = useMessages(recipeMessages);
     const locale = useLocale();
     const isPublic = visibility === RecipeVisibility.PUBLIC;
-    const isCopy = sourceCollectionName !== undefined || sourceCollectionId !== undefined;
+    const isCopy = isCollectionCopy({ sourceCollectionName, sourceCollectionId });
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the name.
     const focusSignal = headingFocusSignal + (refreshNotice?.recoveries ?? 0);
 
@@ -97,24 +98,16 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             {detail.addRecipeCta}
         </Button>
     );
-    const items = collectionMenuItems({
-        copy,
-        visibility,
-        isCopy,
-        actions: {
-            onRename,
-            onSaveCopy,
-            onPullUpdates,
-            ...(onToggleVisibility === undefined ? {} : { onToggleVisibility }),
-        },
-    });
     const menu = (
-        <ActionMenu
-            triggerLabel={fillTemplate(copy.moreActions, { name })}
-            title={name}
-            closeLabel={copy.close}
-            items={items}
-            destructiveItem={{ id: 'delete', label: copy.delete, icon: 'trash', onSelect: onDelete }}
+        <CollectionMoreMenu
+            name={name}
+            visibility={visibility}
+            isCopy={isCopy}
+            onRename={onRename}
+            {...(onToggleVisibility === undefined ? {} : { onToggleVisibility })}
+            onSaveCopy={onSaveCopy}
+            onPullUpdates={onPullUpdates}
+            onDelete={onDelete}
         />
     );
 
@@ -130,12 +123,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
                 headingId={headingId}
                 title={name}
                 focusSignal={focusSignal}
-                back={{
-                    label: fillTemplate(detail.backTo, { parent: list.heading }),
-                    parent: list.heading,
-                    onPress: onBack,
-                    ...(backHref === undefined ? {} : { href: backHref }),
-                }}
+                back={collectionsBackOf(messages, onBack, backHref)}
                 {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add, menu } } : {})}
             />
             <div className="overflow-hidden">

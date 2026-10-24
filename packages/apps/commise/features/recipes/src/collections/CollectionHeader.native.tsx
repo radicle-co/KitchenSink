@@ -1,17 +1,19 @@
 /**
  * @module @commise/features-recipes/collections — the native collection header (W5 Task 6; slice 5 of the UI overhaul),
- * the twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): "‹ Collections" back, the name as the screen's
- * large title, the meta line — visibility as an icon and a word, "6 recipes" and, for a copy, "Copied from @clara" — the
- * description, and ONE primary (Add recipes) with ONE ⋯ menu named for the collection (a sheet on native): Rename · Make
- * private / Make public · Save a copy · Pull updates (copies only) · divider · Delete collection.
+ * the twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): the name as the screen's large title, the meta
+ * line — visibility as an icon and a word, "6 recipes" and, for a copy, "Copied from @clara" — the description, and ONE
+ * primary (Add recipes).
  *
- * The pair sits at the end of the title row from a 600 container and under the description below it, decided by the host
- * (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).
+ * It draws NO Back and NO ⋯ menu: on native both are in the screen's pinned bar (`docs/design/uiRefreshWorkshop5/
+ * pinnedBackBar.md` §7), the menu as `CollectionMoreMenu`. Their props stay because the web header, which shares this
+ * contract, draws both.
+ *
+ * Add recipes sits at the end of the title row from a 600 container and under the description below it, decided by the
+ * host (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).
  *
  * @pattern Composite — the title, meta, description and actions of one collection
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { ActionMenu } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -24,7 +26,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { collectionMenuItems, type CollectionHeaderProps } from './detailModel.js';
+import { isCollectionCopy, type CollectionHeaderProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';
@@ -43,22 +45,16 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     actionsPlacement,
     headingId,
     headingFocusSignal,
-    onBack,
     onAddRecipes,
     onViewSource,
     refreshNotice,
-    onRename,
-    onToggleVisibility,
-    onSaveCopy,
-    onPullUpdates,
-    onDelete,
 }) => {
-    const { detail, list, menu: copy, header } = useMessages(collectionMessages);
+    const { detail, header } = useMessages(collectionMessages);
     const bylineCopy = useMessages(bylineMessages);
     const locale = useLocale();
     const { colors } = useTheme();
     const isPublic = visibility === RecipeVisibility.PUBLIC;
-    const isCopy = sourceCollectionName !== undefined || sourceCollectionId !== undefined;
+    const isCopy = isCollectionCopy({ sourceCollectionName, sourceCollectionId });
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so the cursor goes to the name.
     const focusSignal = headingFocusSignal + (refreshNotice?.recoveries ?? 0);
 
@@ -82,27 +78,6 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             {detail.addRecipeCta}
         </Button>
     );
-    const items = collectionMenuItems({
-        copy,
-        visibility,
-        isCopy,
-        actions: {
-            onRename,
-            onSaveCopy,
-            onPullUpdates,
-            ...(onToggleVisibility === undefined ? {} : { onToggleVisibility }),
-        },
-    });
-    const menu = (
-        <ActionMenu
-            triggerLabel={fillTemplate(copy.moreActions, { name })}
-            title={name}
-            closeLabel={copy.close}
-            items={items}
-            destructiveItem={{ id: 'delete', label: copy.delete, icon: 'trash', onSelect: onDelete }}
-        />
-    );
-
     const metaItem = (key: string, children: ReactNode): ReactNode => (
         <View key={key} style={styles.metaItem}>
             {children}
@@ -116,12 +91,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
                 headingId={headingId}
                 title={name}
                 focusSignal={focusSignal}
-                back={{
-                    label: fillTemplate(detail.backTo, { parent: list.heading }),
-                    parent: list.heading,
-                    onPress: onBack,
-                }}
-                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add, menu } } : {})}
+                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add } } : {})}
             />
             <View style={styles.metaRow}>
                 {metaItem(
@@ -167,12 +137,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             {description === undefined || description === '' ? null : (
                 <Text style={[styles.body, { color: colors.ink }]}>{description}</Text>
             )}
-            {actionsPlacement === 'below' ? (
-                <View style={styles.actions}>
-                    <View style={styles.grow}>{add}</View>
-                    {menu}
-                </View>
-            ) : null}
+            {actionsPlacement === 'below' ? add : null}
             {refreshNotice === undefined ? null : (
                 <RefreshNotice
                     failed={refreshNotice.failed}
@@ -199,6 +164,4 @@ const styles = StyleSheet.create({
     meta: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
     body: { ...nativeTokens.type.body },
-    actions: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    grow: { flex: 1, minWidth: 0 },
 });

@@ -6,6 +6,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { expectOneBackInBarAndOneInHeader } from '@commise/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeDetailRouteLoading } from '@/components/recipes/RecipeDetailRouteLoading';
@@ -42,7 +43,9 @@ describe('RecipeVersionsRouteLoading', () => {
         expect(screen.getByRole('status', { name: 'Loading version history…' })).toBeInTheDocument();
         expect(container.querySelectorAll('[data-skeleton-row]')).toHaveLength(3);
 
-        await user.click(screen.getAllByRole('link', { name: 'Back to recipe' })[0] as HTMLElement);
+        // The pinned bar's Back (below 840): the same control `loading.tsx` shows, in exactly one bar.
+        expect(container.querySelectorAll('[data-condensed]')).toHaveLength(1);
+        await user.click(expectOneBackInBarAndOneInHeader('Back to recipe').bar);
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
     });

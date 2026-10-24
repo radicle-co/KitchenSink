@@ -105,6 +105,38 @@ appId: ${APP_ID}
       below:
           text: 'Maestro renamed collection.*'
 
+# BACK IS PINNED (docs/design/uiRefreshWorkshop5/pinnedBackBar.md §8). Give the collection every recipe this signer owns (lamb,
+# asparagus, salad: the risotto is the co-author's, so the picker does not list it), so the page is as long as this signer can
+# make it, scroll to the END, then tap Back with NO scroll
+# back up: Back lives in the bar over the scroller, so it is under the finger wherever the page is. A tap that missed it would
+# land on the status bar, which scrolls the page to its top and leaves us here, and the assertion on the list below fails. The
+# collection is then reopened from the list, which also proves the rename persisted.
+#
+# ⚠️ Whether the page really scrolls depends on the device's height; this flow does not assert that it did (an `assertNotVisible`
+# on something at the top would fail on a tall tablet for a reason that is not an app defect). `Back to Collections` is the
+# bar's own label, never a bare `Back` (three-button Android publishes a node with that exact name).
+- tapOn: 'Add recipes'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_ASPARAGUS}'
+      timeout: 30000
+- tapOn: '${E2E_RECIPE_ASPARAGUS}'
+- tapOn: '${E2E_RECIPE_SALAD}'
+- assertVisible: 'Done · 2 added'
+- tapOn: 'Done · 2 added'
+- assertNotVisible: 'Add to Maestro renamed collection.*'
+- repeat:
+      times: 3
+      commands:
+          - scroll
+- tapOn: 'Back to Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- tapOn: 'Maestro renamed collection.*'
+- extendedWaitUntil:
+      visible: 'More actions for Maestro renamed collection.*'
+      timeout: 40000
+
 # DELETE (also this flow's cleanup). The ⋯ menu's Delete collection asks first; confirming returns to the collections
 # list, and the row must be GONE, which is the assertion that proves the delete actually happened.
 - tapOn: 'More actions for Maestro renamed collection.*'

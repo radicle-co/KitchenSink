@@ -43,6 +43,25 @@
         }
     }
 
+    /* The same for the top. A pushed page pins its Back bar over the document below 840 (`PushedPageFrame`,
+       `docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). The bar's rendered height is ONE property, `--pinned-bar-block`
+       (`@commise/ui`'s theme: `--pinned-bar-height`, the same number as `PINNED_BAR_HEIGHT`, plus the notch's inset), and it is
+       read twice here, keyed on the frame being in the page:
+       - `scroll-padding-top`, so a focused control scrolled into view is never left under the bar (WCAG 2.2 SC 2.4.11);
+       - `--main-top`, the top padding of `<main>` (`HomeChrome.tsx`), so what the shell draws above the page, the
+         connectivity notice, sits UNDER the bar, and the H1 lands at the bar's height instead of 24 px below it.
+       Below 840 only: the bar is `display: none` from 840, so the default declared here stands there and is declared once. */
+    html {
+        --main-top: 1.5rem;
+    }
+
+    @media (width < 52.5rem) {
+        html:has([data-pushed-page]) {
+            scroll-padding-top: var(--pinned-bar-block);
+            --main-top: var(--pinned-bar-block);
+        }
+    }
+
     body {
         font-family: var(--font-body);
         /* The brand beach-glow canvas (issue #145). All nine wireframes paint their `body` with the SAME named

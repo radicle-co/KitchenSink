@@ -265,8 +265,12 @@ export {
     conflictRowLabel,
     snapshotFieldLabel,
 } from './versions/diffLabels.js';
-export { classifyRestoreError, sortVersionsDescending } from './versions/history.js';
-export type { RecipeVersionListProps, RecipeVersionRestoreError } from './versions/history.js';
+export { VERSION_TITLE_ID, classifyRestoreError, sortVersionsDescending, versionBackOf } from './versions/history.js';
+export type {
+    RecipeVersionListProps,
+    RecipeVersionListWebProps,
+    RecipeVersionRestoreError,
+} from './versions/history.js';
 export {
     applyServerSnapshotToRecipeDetail,
     composeConflictMerge,

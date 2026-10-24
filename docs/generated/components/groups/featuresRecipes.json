@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 155,
-        "implementations": 264,
-        "props": 1298,
-        "documentedComponents": 155,
-        "implementationsWithModuleDoc": 264,
-        "implementationsWithComponentDoc": 157,
+        "components": 156,
+        "implementations": 265,
+        "props": 1301,
+        "documentedComponents": 156,
+        "implementationsWithModuleDoc": 265,
+        "implementationsWithComponentDoc": 158,
         "documentedProps": 1022,
-        "classifiedComponents": 135,
-        "componentsWithPatternTag": 77,
+        "classifiedComponents": 136,
+        "componentsWithPatternTag": 78,
         "crossPlatformComponents": 109
     },
     "components": [
@@ -1078,6 +1078,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "afterHeader",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What comes right after the header and before the members: the mobile screen's \"view choice not saved\" notice. A slot,\nbecause the native header must be the scroller's FIRST child (its layout is the pinned bar's title threshold), and the\nnotice used to sit before it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx"
+                        },
+                        {
                             "name": "detail",
                             "type": "CollectionDetail",
                             "typeDetail": null,
@@ -1398,7 +1407,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionHeader.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the native collection header (W5 Task 6; slice 5 of the UI overhaul),\nthe twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): \"‹ Collections\" back, the name as the screen's\nlarge title, the meta line — visibility as an icon and a word, \"6 recipes\" and, for a copy, \"Copied from @clara\" — the\ndescription, and ONE primary (Add recipes) with ONE ⋯ menu named for the collection (a sheet on native): Rename · Make\nprivate / Make public · Save a copy · Pull updates (copies only) · divider · Delete collection.\n\nThe pair sits at the end of the title row from a 600 container and under the description below it, decided by the host\n(`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).",
+                    "moduleDoc": "@commise/features-recipes/collections — the native collection header (W5 Task 6; slice 5 of the UI overhaul),\nthe twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): the name as the screen's large title, the meta\nline — visibility as an icon and a word, \"6 recipes\" and, for a copy, \"Copied from @clara\" — the description, and ONE\nprimary (Add recipes).\n\nIt draws NO Back and NO ⋯ menu: on native both are in the screen's pinned bar (`docs/design/uiRefreshWorkshop5/\npinnedBackBar.md` §7), the menu as `CollectionMoreMenu`. Their props stay because the web header, which shares this\ncontract, draws both.\n\nAdd recipes sits at the end of the title row from a 600 container and under the description below it, decided by the\nhost (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2231,7 +2240,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — `CollectionLoadError`: what a collection read's boundary renders when\nthe read fails. A 404 is final (the collection was deleted, or is not the viewer's), so it says why and offers no retry;\nany other failure is the generic one, whose retry is the boundary's reset, which refetches. Both keep a way back, which\nthe host names because only it knows where back goes.\n\nONE file for both apps: the design system's `StateNotice` is a platform pair, so the web page gets an alert in its flow\nand the mobile screen gets the thumb-reach stack. It replaces the web app's raw-`<button>` copy and the mobile screen's\nhand-built fallback.",
+                    "moduleDoc": "@commise/features-recipes/collections — `CollectionLoadError`: what a collection read's boundary renders when\nthe read fails. A 404 is final (the collection was deleted, or is not the viewer's), so it says why and offers no retry;\nany other failure is the generic one, whose retry is the boundary's reset, which refetches. The host names the way back, because only it knows\nwhere back goes, and passes it only for a missing collection.\n\nONE file for both apps: the design system's `StateNotice` is a platform pair, so the web page gets an alert in its flow\nand the mobile screen gets the thumb-reach stack. It replaces the web app's raw-`<button>` copy and the mobile screen's\nhand-built fallback.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2249,11 +2258,11 @@
                     "props": [
                         {
                             "name": "back",
-                            "type": "StateNoticeAction",
+                            "type": "HeaderBack",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "The way back, if the host has one.",
+                            "description": "The way back, the same value the host hands the pinned bar. Required, so a host cannot forget it; drawn ONLY for a\nmissing collection (`isNotFoundError`), where it is the one next step and sits in reach. A generic failure keeps Try\nagain only, because the bar owns Back there (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionLoadError.tsx"
                         },
                         {
@@ -2837,6 +2846,130 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's list/grid choice, shared with My recipes.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionMoreMenu",
+            "name": "CollectionMoreMenu",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design system's `ActionMenu` — the entries come from `collectionMenuItems`"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionMoreMenu",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionMoreMenu.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — the collection's ⋯ menu, drawn once for both platforms and both homes: the\nweb header (beside Add recipes) and the native pinned bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §7). One\ntrigger named for the collection (\"More actions for {name}\"), then Rename · Make private / Make public · Save a copy ·\nPull updates (copies only) · divider · Delete collection (a sheet on native).\n\nPresentational: props → JSX over the design system's `ActionMenu`, which resolves to its web or native leaf. It sends\nnothing; the entries come from `collectionMenuItems`, and the host's session supplies each action\n(`collectionMenuPropsOf`).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — the collection's ⋯ menu, drawn once for both platforms and both homes: the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design system's `ActionMenu` — the entries come from `collectionMenuItems`"
+                        }
+                    ],
+                    "description": "The collection's ⋯ menu.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "isCopy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the collection is a copy, which adds Pull updates.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The collection's name: the trigger is \"More actions for {name}\" and the sheet's title.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onDelete",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onPullUpdates",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Pull updates from the original; offered for a copy only.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onRename",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onSaveCopy",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onToggleVisibility",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Make the collection private (shown while it is public) or public (while it is private). Absent leaves the item\nout: the host omits it when Private is not offered and the collection is public (plan 2026-10-14-009 D14).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "visibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"public\"",
+                                "\"private\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         }
                     ],
@@ -5262,7 +5395,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesPage.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/dataSources",
-                    "moduleDoc": "@commise/features-recipes/dataSources — web Data sources PAGE frame (presentational; plan R55, design §S16).\n\nThe page's heading and its two intro sentences, rendered OUTSIDE the read's boundary, which the composing route\npasses as `children`. So a loading, failed or offline read swaps only what is under the intro, and the page never\nloses its title. One column, the `reading` width, at every width; Back goes to Profile (`buildSpec.md` §9.2). The heading takes focus when\n`headingFocusSignal` advances: a retry that took Try again away.",
+                    "moduleDoc": "@commise/features-recipes/dataSources — web Data sources PAGE frame (presentational; plan R55, design §S16).\n\nThe page's heading and its two intro sentences, rendered OUTSIDE the read's boundary, which the composing route\npasses as `children`. So a loading, failed or offline read swaps only what is under the intro, and the page never\nloses its title. One column, the `reading` width, at every width; Back goes to Profile (`buildSpec.md` §9.2). The heading takes focus when\n`headingFocusSignal` advances: a retry that took Try again away.\n\nWith a way back the page sits in the design system's `PushedPageFrame`, so Back is pinned in a bar below 840 and the\nheader's own eyebrow carries it from 840 (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Without one there is\nnowhere to go back to, so there is no bar and no frame.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5394,7 +5527,7 @@
             "dir": "packages/apps/commise/features/recipes/src/dataSources",
             "kind": "presentational",
             "patterns": [
-                "Template — the same frame as Profile: a scroll host, the large title, and the condensed bar once it scrolls"
+                "Template — the same frame as Profile: the shared `PushedPageFrame` (host and pinned bar), then the large title"
             ],
             "platforms": [
                 "native"
@@ -5408,7 +5541,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesPushedPage.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/dataSources",
-                    "moduleDoc": "@commise/features-recipes/dataSources — native Data sources PAGE, as a stack pushes it (presentational;\nA-026, `docs/design/uiOverhaul/buildSpec.md` §9.2, design §S16).\n\nThe React Native twin of the web `DataSourcesPage.tsx`: one scrolling column under a `LargeTitleHeader` whose back\ncontrol is named for where it goes (\"Back to Profile\"), then the two intro sentences and the read's state, which the\nhost passes as `children`. It is a screen in a stack, not a modal, so it keeps the tab bar and the navigator moves\nthe reading cursor into it and restores the opener's on pop; the page moves the cursor to the title only when\n`headingFocusSignal` advances (a retry that took Try again away).",
+                    "moduleDoc": "@commise/features-recipes/dataSources — native Data sources PAGE, as a stack pushes it (presentational;\nA-026, `docs/design/uiOverhaul/buildSpec.md` §9.2, design §S16).\n\nThe React Native twin of the web `DataSourcesPage.tsx`: one scrolling column under a `LargeTitleHeader`, then the two\nintro sentences and the read's state, which the host passes as `children`. Back is the pinned bar's, named for where it\ngoes (\"Back to Profile\") and reachable at every scroll position. It is a screen in a stack, not a modal, so it keeps\nthe tab bar and the navigator moves the reading cursor into it and restores the opener's on pop; the page moves the\ncursor to the title only when `headingFocusSignal` advances (a retry that took Try again away).\n\nPresentational: props → JSX, inside the shared `PushedPageFrame`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5416,10 +5549,10 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Template — the same frame as Profile: a scroll host, the large title, and the condensed bar once it scrolls"
+                            "text": "Template — the same frame as Profile: the shared `PushedPageFrame` (host and pinned bar), then the large title"
                         }
                     ],
-                    "description": "The page frame: its large title with Back, the two intro sentences, then the read's state.",
+                    "description": "The page frame: its large title under the pinned Back, the two intro sentences, then the read's state.",
                     "tags": [
                         {
                             "name": "param",
@@ -21290,7 +21423,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -21298,7 +21431,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionList.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — web recipe version-history view (T069 building block; build spec §6.6).\n\nControlled, presentational: the `LargeTitleHeader` (\"Version history\", the recipe as its subtitle, Back to recipe),\nthen the versions newest first. Each row reads \"Version 12 · Edited 2 days ago\", what it changed against the version\nbefore it (\"Initial version\" for the first), and a ⋯ menu: Preview · Restore this version · Compare with current. (Not\nthe editor's handle, which is their display name, nor the server's raw change summary: §6.6 draws neither.) The\ncurrent version is marked and has no menu — there is nothing to restore or compare. While a\nrestore is in flight its row says so and every menu is unavailable. Empty — a recipe with only its current version\nis empty too: the clock glyph, \"No earlier versions yet\", why, and Back to recipe. It fetches nothing; the composing\napp wires the history read and the restore.",
+                    "moduleDoc": "@commise/features-recipes — web recipe version-history view (T069 building block; build spec §6.6).\n\nControlled, presentational: the `LargeTitleHeader` (\"Version history\", the recipe as its subtitle, and Back to recipe as\nits eyebrow from 840; the container's `PushedPageFrame` pins the same Back in a bar below it),\nthen the versions newest first. Each row reads \"Version 12 · Edited 2 days ago\", what it changed against the version\nbefore it (\"Initial version\" for the first), and a ⋯ menu: Preview · Restore this version · Compare with current. (Not\nthe editor's handle, which is their display name, nor the server's raw change summary: §6.6 draws neither.) The\ncurrent version is marked and has no menu — there is nothing to restore or compare. While a\nrestore is in flight its row says so and every menu is unavailable. Empty — a recipe with only its current version\nis empty too: the clock glyph, \"No earlier versions yet\", why, and Back to recipe. It fetches nothing; the composing\napp wires the history read and the restore.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21320,7 +21453,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Web: the recipe's address, so a modified click on the back link still works.",
+                            "description": "The recipe's address, so a modified click on the back link still works.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/history.ts"
                         },
                         {
@@ -21347,7 +21480,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Return to the recipe (web: the header's back link; native screens compose their own back chrome).",
+                            "description": "Return to the recipe: the header's eyebrow from 840; the container's pinned bar carries the same Back below it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/history.ts"
                         },
                         {
@@ -21426,7 +21559,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — native recipe version-history view (T069 building block; build spec §6.6): the\nmirror of `RecipeVersionList.tsx`. The `LargeTitleHeader` (\"Version history\", the recipe as its subtitle, and a Back\nwhen the host gives a way back), then the versions newest first with the relative edit time, what each changed,\nthe editor and a ⋯ menu (a bottom sheet): Preview · Restore this version · Compare with current. The current version\nis marked and has no menu. Colours come from the theme at render.",
+                    "moduleDoc": "@commise/features-recipes — native recipe version-history view (T069 building block; build spec §6.6): the\nmirror of `RecipeVersionList.tsx`. The `LargeTitleHeader` (\"Version history\" and the recipe as its subtitle; Back is the\nscreen's pinned bar, so the props carry no `onBack`), then the versions newest first with the relative edit time, what each changed,\nthe editor and a ⋯ menu (a bottom sheet): Preview · Restore this version · Compare with current. The current version\nis marked and has no menu. Colours come from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21443,15 +21576,6 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "backHref",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Web: the recipe's address, so a modified click on the back link still works.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/history.ts"
-                        },
-                        {
                             "name": "currentVersion",
                             "type": "number",
                             "typeDetail": null,
@@ -21467,15 +21591,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The moment the list is read at (ISO 8601), which \"Edited 2 days ago\" is measured from. The caller holds it,\nso the render stays pure.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/history.ts"
-                        },
-                        {
-                            "name": "onBack",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Return to the recipe (web: the header's back link; native screens compose their own back chrome).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/history.ts"
                         },
                         {
@@ -21565,7 +21680,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -21573,7 +21688,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the web version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"Error:\n\"We couldn't load the history.\" + Try again\").\n\nUnder the SAME header the settled list draws, so a failed read still has its way back in its usual place. It replaces\na bare paragraph and a raw button beside a floating text link. The copy arrives as props from the app's boundary\ndictionary.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the web version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"Error:\n\"We couldn't load the history.\" + Try again\").\n\nUnder the SAME header the settled list draws, (its pinned-back-bar frame is the container's), so a failed read still has its way back in its usual place. It replaces\na bare paragraph and a raw button beside a floating text link. The copy arrives as props from the app's boundary\ndictionary.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21609,7 +21724,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Back to the recipe; absent draws no Back (the native screen keeps its own above the read boundary).",
+                            "description": "Back to the recipe, the header's eyebrow from 840; absent draws no Back.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
                         },
                         {
@@ -21652,7 +21767,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.\nThe way back is the SCREEN's — it sits above the read boundary in every state — so the header draws a Back only when it\nis given one, as the native skeleton does. The copy arrives as props from the app's boundary dictionary. The props are the\nweb leaf's (`backHref` is the one that has no meaning here and is ignored).\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.\nThe way back is the SCREEN's pinned bar, which is there in every state, so the header draws none and the props carry no\nway back (`onBack` and `backHref` are the web leaf's, `RecipeVersionListErrorWebProps`), as the native skeleton does. The\ncopy arrives as props from the app's boundary dictionary.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21673,24 +21788,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "backHref",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The recipe's address, so a modified click on Back still works.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
-                        },
-                        {
-                            "name": "onBack",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Back to the recipe; absent draws no Back (the native screen keeps its own above the read boundary).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
-                        },
                         {
                             "name": "onRetry",
                             "type": "() => void",
@@ -21749,7 +21846,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListHeader.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the header the web version history's LOADING and FAILED states share (D3, D13;\n`docs/design/uiOverhaul/buildSpec.md` §6.6).\n\nThe SAME `LargeTitleHeader` the settled list draws — the back control and the title — so the page does not move when\nthe history lands, and a failed read still has its way back in its usual place.\n\nPresentational: props → JSX. The header's words are the list's own.",
+                    "moduleDoc": "@commise/features-recipes — the header the web version history's LOADING and FAILED states share (D3, D13;\n`docs/design/uiOverhaul/buildSpec.md` §6.6).\n\nThe SAME `LargeTitleHeader` the settled list draws — the back control and the title — so the page does not move when\nthe history lands, and a failed read still has its way back in its usual place.\n\nPresentational: props → JSX. The header's words are the list's own. Its Back is the eyebrow from 840; below it the page's\npinned bar carries the same `back`, which the caller builds once (`versionBackOf`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21762,21 +21859,21 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "backHref",
-                            "type": "string",
+                            "name": "back",
+                            "type": "HeaderBack | undefined",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": null
                         },
                         {
-                            "name": "onBack",
-                            "type": "(() => void)",
+                            "name": "headingId",
+                            "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The H1's id (`VERSION_TITLE_ID`): the container's frame watches it.",
                             "declaredIn": null
                         }
                     ],
@@ -21803,7 +21900,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -21811,7 +21908,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the web version history's LOADING state (D3; `buildSpec.md` §6.6: \"Loading: 3\nskeleton rows\").\n\nUnder the SAME header the settled list draws, so the page does not move when the history lands. The copy arrives as\nprops from the app's boundary dictionary.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the web version history's LOADING state (D3; `buildSpec.md` §6.6: \"Loading: 3\nskeleton rows\").\n\nUnder the SAME header the settled list draws, so the page does not move when the history lands. The pinned-back-bar frame\nis the container's (`RecipeVersionsRouteLoading`). The copy arrives as props from the app's boundary dictionary.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21856,7 +21953,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Back to the recipe; absent draws no Back (the native screen keeps its own above the read boundary).",
+                            "description": "Back to the recipe, the header's eyebrow from 840; absent draws no Back.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.tsx"
                         }
                     ],
@@ -21872,7 +21969,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the native version history's LOADING state (D3; `buildSpec.md` §6.6: \"Loading: 3\nskeleton rows\").\n\nThe settled list's title, a caption spoken politely through `LiveRegion` (React Native has no live region of its own on\niOS), and three inert rows kept out of the accessibility tree. The way back is the SCREEN's — it sits above the read\nboundary in every state — and so is the failed state, which is already an alert with Try again, so only the loading\nstate lives here. Inert, not pulsing, as the native list skeletons are.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native version history's LOADING state (D3; `buildSpec.md` §6.6: \"Loading: 3\nskeleton rows\").\n\nThe settled list's title, a caption spoken politely through `LiveRegion` (React Native has no live region of its own on\niOS), and three inert rows kept out of the accessibility tree. The way back is the SCREEN's pinned bar — it is there in\nevery state — and so is the failed state, which is already an alert with Try again, so only the loading\nstate lives here. Inert, not pulsing, as the native list skeletons are.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21883,7 +21980,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The caption and, when given, the way back."
+                            "text": "props - The caption."
                         },
                         {
                             "name": "returns",
@@ -21894,30 +21991,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "backHref",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Web only: the recipe's address. Native has none.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.native.tsx"
-                        },
-                        {
                             "name": "label",
                             "type": "string",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "What is loading, localised (\"Loading version history…\"): the caption, which is also spoken.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.native.tsx"
-                        },
-                        {
-                            "name": "onBack",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Back to the recipe; absent draws no Back (the screen keeps its own above the read boundary).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.native.tsx"
                         }
                     ],
@@ -21953,7 +22032,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes/versions — the SETTLED version history, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §6.6): the version list, the Preview modal and the Compare sheet over one\n{@link useRecipeVersions} session.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform — plain `.tsx` with no native twin. The app keeps what\ndiffers — the read boundary and its loading and failed states, and the way back: both hand the list `onBack`\n(web adds `backHref` for a real link), so Back looks the same in the loading, failed and settled states.",
+                    "moduleDoc": "@commise/features-recipes/versions — the SETTLED version history, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §6.6): the version list, the Preview modal and the Compare sheet over one\n{@link useRecipeVersions} session.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform — plain `.tsx` with no native twin. The app keeps what\ndiffers — the read boundary and its loading and failed states, the pinned-back-bar frame, and the way back: web hands the\nlist `onBack` and `backHref` (`RecipeVersionListWebProps`), for the header's eyebrow; native passes none, because its\nscreen's bar owns Back in every state.",
                     "moduleTags": [
                         {
                             "name": "module",

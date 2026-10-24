@@ -11,18 +11,16 @@
  */
 import { GlassView } from 'expo-glass-effect';
 import type { FC, Ref } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { hasLiquidGlass } from '../chromeSurface/liquidGlass.native.js';
 import { Icon } from '../icon/Icon.native.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import type { HeroButtonProps } from './props.js';
 
 /** The disc's diameter: the 44 pt minimum touch target, and the spec's size. */
 const DISC_PX = 44;
-
-/** The touch floor: 44 pt on iOS, 48 dp on Android ("every 44 is 48 dp there"). On Android a transparent frame carries it. */
-const touchFloor = (): number => (Platform.OS === 'android' ? 48 : DISC_PX);
 
 /** Native props: the shared contract plus the handle a screen-reader focus request needs. */
 export interface HeroButtonNativeProps extends HeroButtonProps {

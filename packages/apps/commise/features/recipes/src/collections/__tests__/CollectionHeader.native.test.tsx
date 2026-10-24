@@ -1,9 +1,13 @@
 /**
- * The native collection header (`docs/design/uiOverhaul/buildSpec.md` §5.2): "‹ Collections" back, the name as the page's one H1,
- * the meta line — visibility (icon and word), "6 recipes" and, for a copy, "Copied from @clara" — the description, and ONE
- * primary (Add recipes) with ONE ⋯ menu named for the collection: Rename · Make private / Make public · Save a copy · Pull
- * updates (copies only) · divider · Delete collection. At a 600 container the pair sits at the end of the title row; below
- * it, under the description. Either way it is drawn once.
+ * The native collection header (`docs/design/uiOverhaul/buildSpec.md` §5.2): the name as the page's one H1, the meta line —
+ * visibility (icon and word), "6 recipes" and, for a copy, "Copied from @clara" — the description, and ONE primary (Add
+ * recipes). At a 600 container it sits at the end of the title row; below it, under the description. Either way it is drawn
+ * once.
+ *
+ * ⚠️ REWRITTEN for the pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §4, §7). The header no longer draws
+ * Back (the pinned bar owns it: a second one here was an off-screen duplicate with the same name) and no longer draws the ⋯
+ * menu (it moved into the bar, as `CollectionMoreMenu`). The menu's cases moved to `CollectionMoreMenu.native.test.tsx`
+ * and the Back case became "draws no Back".
  *
  * ⚠️ REWRITTEN for slice 5. The header used to carry its own Edit and Delete buttons and a separate actions panel held
  * Add, Pull, Clone and the visibility toggle; one primary and one menu replace them all (the pair
@@ -57,12 +61,10 @@ describe('CollectionHeader (native) — what it says', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Weeknight Dinners' })).toBeTruthy();
     });
 
-    it('goes back to the collections list from “Back to Collections”', () => {
-        const props = renderHeader();
+    it('draws no Back, though it is given one: the screen’s pinned bar owns it', () => {
+        renderHeader();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Back to Collections' }));
-
-        expect(props.onBack).toHaveBeenCalledOnce();
+        expect(screen.queryAllByRole('button', { name: 'Back to Collections', hidden: true })).toHaveLength(0);
     });
 
     it('states visibility as a word, the recipe count, and the description', () => {
@@ -141,11 +143,13 @@ describe('CollectionHeader (native) — what it says', () => {
 describe.each(['title', 'below'] as const)(
     'CollectionHeader (native) — actions placed in the %s',
     (actionsPlacement) => {
-        it('draws one Add recipes and one ⋯ menu named for the collection, whichever placement', () => {
+        it('draws one Add recipes and no ⋯ menu: the menu is in the pinned bar', () => {
             const props = renderHeader({ actionsPlacement });
 
             expect(screen.getAllByRole('button', { name: 'Add recipes' })).toHaveLength(1);
-            expect(screen.getAllByRole('button', { name: 'More actions for Weeknight Dinners' })).toHaveLength(1);
+            expect(
+                screen.queryByRole('button', { name: 'More actions for Weeknight Dinners', hidden: true }),
+            ).toBeNull();
 
             fireEvent.click(screen.getByRole('button', { name: 'Add recipes' }));
 
@@ -169,103 +173,6 @@ describe('CollectionHeader (native) — placement in the document', () => {
         const description = screen.getByText('Quick dinners for school nights.');
 
         expect(description.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-});
-
-describe('CollectionHeader (native) — the ⋯ menu', () => {
-    function open() {
-        fireEvent.click(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
-
-        return screen;
-    }
-
-    it('lists Rename, Make public (for a private collection) and Save a copy for an original, then Delete after a divider', () => {
-        renderHeader({ visibility: RecipeVisibility.PRIVATE });
-        const menu = open();
-
-        expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-            'Rename',
-            'Make public',
-            'Save a copy',
-            'Delete collection',
-        ]);
-    });
-
-    /** The glyph an item drew: the stand-in publishes the Lucide name it was drawn with. */
-    const glyphOf = (item: HTMLElement): string | undefined =>
-        item.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'];
-
-    it('draws a glyph on every item, from the one glyph list (A-020, §1.7)', () => {
-        renderHeader({ visibility: RecipeVisibility.PRIVATE, sourceCollectionName: 'Dinners' });
-        const menu = open();
-        const glyph = (name: string): string | undefined => glyphOf(menu.getByRole('menuitem', { name }));
-
-        expect(glyph('Rename')).toBe('pencil-line');
-        expect(glyph('Make public')).toBe('globe');
-        expect(glyph('Save a copy')).toBe('copy-plus');
-        expect(glyph('Pull updates')).toBe('refresh-cw');
-        expect(glyph('Delete collection')).toBe('trash');
-    });
-
-    /** Plan 2026-10-14-009 D14: the host leaves the visibility item out when Private is not offered (hidden, loading). */
-    it('offers no visibility item when the host gives no toggle', () => {
-        renderHeader({ onToggleVisibility: undefined });
-        const menu = open();
-
-        expect(menu.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
-        expect(menu.queryByRole('menuitem', { name: 'Make public' })).toBeNull();
-        expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeTruthy();
-    });
-
-    it('draws the lock on Make private', () => {
-        renderHeader({ visibility: RecipeVisibility.PUBLIC });
-        const menu = open();
-
-        expect(glyphOf(menu.getByRole('menuitem', { name: 'Make private' }))).toBe('lock');
-    });
-
-    it('offers Make private for a public collection', () => {
-        renderHeader({ visibility: RecipeVisibility.PUBLIC });
-        const menu = open();
-
-        expect(menu.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
-        expect(menu.queryByRole('menuitem', { name: 'Make public' })).toBeNull();
-    });
-
-    it('adds Pull updates, after Save a copy, for a copy only', () => {
-        renderHeader({ sourceCollectionName: 'Dinners' });
-        const menu = open();
-
-        expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-            'Rename',
-            'Make public',
-            'Save a copy',
-            'Pull updates',
-            'Delete collection',
-        ]);
-    });
-
-    it.each([
-        ['Rename', 'onRename'],
-        ['Make public', 'onToggleVisibility'],
-        ['Save a copy', 'onSaveCopy'],
-        ['Delete collection', 'onDelete'],
-    ] as const)('%s reports what it asks for', async (label, callback) => {
-        const props = renderHeader({ visibility: RecipeVisibility.PRIVATE });
-        const menu = open();
-
-        fireEvent.click(menu.getByRole('menuitem', { name: label }));
-
-        expect(props[callback]).toHaveBeenCalledOnce();
-    });
-
-    it('Pull updates reports it', () => {
-        const props = renderHeader({ sourceCollectionName: 'Dinners' });
-        const menu = open();
-
-        fireEvent.click(menu.getByRole('menuitem', { name: 'Pull updates' }));
-
-        expect(props.onPullUpdates).toHaveBeenCalledOnce();
     });
 });
 

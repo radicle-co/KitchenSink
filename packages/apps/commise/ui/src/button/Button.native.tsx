@@ -25,10 +25,11 @@
  *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
 import { useRef, type FC, type ReactNode } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import type { Role } from '../tokens/colors.js';
 import { nativeTokens } from '../tokens/native.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -37,9 +38,6 @@ import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
-
-/** The touch floor: 44 pt on iOS, 48 dp on Android (§1.6, "every 44 in this file is 48 dp on Android"). */
-const touchFloor = (): number => (Platform.OS === 'android' ? 48 : 44);
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);

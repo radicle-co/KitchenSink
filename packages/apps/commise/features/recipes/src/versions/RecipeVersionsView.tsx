@@ -6,8 +6,9 @@
  * {@link useRecipeVersions} session.
  *
  * Orchestration: every piece it draws is a leaf pair that resolves per platform — plain `.tsx` with no native twin. The app keeps what
- * differs — the read boundary and its loading and failed states, and the way back: both hand the list `onBack`
- * (web adds `backHref` for a real link), so Back looks the same in the loading, failed and settled states.
+ * differs — the read boundary and its loading and failed states, the pinned-back-bar frame, and the way back: web hands the
+ * list `onBack` and `backHref` (`RecipeVersionListWebProps`), for the header's eyebrow; native passes none, because its
+ * screen's bar owns Back in every state.
  *
  * @pattern Composite — the list, the preview and the compare over one session
  */

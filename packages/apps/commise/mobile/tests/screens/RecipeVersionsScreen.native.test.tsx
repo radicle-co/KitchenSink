@@ -13,7 +13,7 @@
  * retry is proven by a second request, not by a mocked `refetch` being called.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 
 import { recipeVersionMessages } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
@@ -156,6 +156,138 @@ describe('RecipeVersionsScreen — loading and error', () => {
         expect(screen.queryByText(versionList.loading)).toBeNull();
         expect(versionsSpy).not.toHaveBeenCalled();
         expect(recipeSpy).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2, §5; blueprint step 5): the screen mounts a
+ * `PushedPageFrame` in each of its three branches, so Back is the pinned bar's in every state and the list's own header
+ * draws none. `hidden: true` counts a copy a plain query would skip: a header Back left in the tree beside the bar's is the
+ * defect. The frame also gives the settled history a scroller, which a long history did not have.
+ */
+describe('RecipeVersionsScreen — one pinned Back in every state', () => {
+    const backs = () => screen.getAllByRole('button', { name: versionList.backToRecipe, hidden: true });
+
+    it('has exactly one Back while loading, before the title', () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+        vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+
+        expect(backs()).toHaveLength(1);
+        expect(
+            backs()[0]!.compareDocumentPosition(screen.getByRole('heading', { name: versionList.heading })) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('has exactly one Back when the read failed, and the alert keeps Try again only', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipeVersions').mockRejectedValue(new Error('boom'));
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail());
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+
+        await screen.findByRole('alert');
+
+        expect(backs()).toHaveLength(1);
+    });
+
+    it('has exactly one Back once settled, and the history sits in a scroller', async () => {
+        await renderReady(readyClient());
+
+        expect(backs()).toHaveLength(1);
+
+        const scroller = ((): HTMLElement | null => {
+            for (
+                let node = screen.getByText('Current version').parentElement;
+                node !== null;
+                node = node.parentElement
+            ) {
+                if (/scroll|auto/u.test(getComputedStyle(node).overflowY)) {
+                    return node;
+                }
+            }
+
+            return null;
+        })();
+
+        expect(scroller).not.toBeNull();
+        expect(scroller!.contains(backs()[0]!)).toBe(false);
+    });
+
+    it('presses the one pinned Back once settled', async () => {
+        const onBack = vi.fn();
+        await renderReady(readyClient(), onBack);
+
+        fireEvent.click(backs()[0]!);
+
+        expect(onBack).toHaveBeenCalledOnce();
+    });
+
+    // The tablet label is "‹ {parent}". One page names its parent the same at every width, so the SETTLED history names the
+    // recipe's title (`pinnedBackBar.md` §4): the bar is the only place left that says whose history this is once the H1 and
+    // its subtitle scroll away. Loading and failed do not know the title yet, so they say "Recipe". The accessible name
+    // never changes.
+    describe('on a tablet, the bar’s parent name', () => {
+        /** Runs `body` at a tablet's width, then puts the width back. */
+        async function atTabletWidth(body: () => Promise<void> | void): Promise<void> {
+            Object.defineProperty(document.documentElement, 'clientWidth', { value: 834, configurable: true });
+            act(() => {
+                window.dispatchEvent(new Event('resize'));
+            });
+
+            try {
+                await body();
+            } finally {
+                Reflect.deleteProperty(document.documentElement, 'clientWidth');
+                act(() => {
+                    window.dispatchEvent(new Event('resize'));
+                });
+            }
+        }
+
+        it('⛔ settled: names the recipe by its title, with the accessible name unchanged', async () => {
+            await atTabletWidth(async () => {
+                const client = readyClient();
+                vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                    makeRecipeDetail({ currentVersion: 2, title: 'Slow-roasted lamb' }),
+                );
+                await renderReady(client);
+
+                // The header's subtitle and the bar's parent: two, and the placeholder noun is gone.
+                expect(screen.getAllByText('Slow-roasted lamb')).toHaveLength(2);
+                expect(screen.queryByText(versionList.recipeParent)).toBeNull();
+                expect(backs()).toHaveLength(1);
+            });
+        });
+
+        it('loading: says "Recipe", since the title is not known yet', async () => {
+            await atTabletWidth(() => {
+                const client = createFakeRecipeServiceClient();
+                vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+                vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+                renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+
+                expect(versionList.recipeParent).toBe('Recipe');
+                expect(screen.getByText('Recipe')).toBeTruthy();
+                expect(backs()).toHaveLength(1);
+            });
+        });
+
+        it('failed: says "Recipe", since the title is not known yet', async () => {
+            await atTabletWidth(async () => {
+                const client = createFakeRecipeServiceClient();
+                vi.spyOn(client, 'listRecipeVersions').mockRejectedValue(new Error('boom'));
+                vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ title: 'Slow-roasted lamb' }));
+                vi.spyOn(console, 'error').mockImplementation(() => undefined);
+                renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+                await screen.findByRole('alert');
+
+                expect(screen.getByText('Recipe')).toBeTruthy();
+                expect(screen.queryByText('Slow-roasted lamb')).toBeNull();
+            });
+        });
     });
 });
 

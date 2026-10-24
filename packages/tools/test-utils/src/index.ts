@@ -18,3 +18,4 @@ export {
     withFoodClient,
 } from './renderWithFoodClient.js';
 export { renderWithRecipeClient, type RenderWithRecipeClientOptions } from './renderWithRecipeClient.js';
+export { expectOneBackInBarAndOneInHeader, type FramedBack } from './pinnedBackBar.js';

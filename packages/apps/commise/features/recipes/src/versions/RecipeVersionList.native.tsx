@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe version-history view (T069 building block; build spec §6.6): the
- * mirror of `RecipeVersionList.tsx`. The `LargeTitleHeader` ("Version history", the recipe as its subtitle, and a Back
- * when the host gives a way back), then the versions newest first with the relative edit time, what each changed,
+ * mirror of `RecipeVersionList.tsx`. The `LargeTitleHeader` ("Version history" and the recipe as its subtitle; Back is the
+ * screen's pinned bar, so the props carry no `onBack`), then the versions newest first with the relative edit time, what each changed,
  * the editor and a ⋯ menu (a bottom sheet): Preview · Restore this version · Compare with current. The current version
  * is marked and has no menu. Colours come from the theme at render.
  *
@@ -40,7 +40,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     onCompare,
     now,
     recipeTitle,
-    onBack,
 }) => {
     const { versionList, conflict } = useMessages(recipeVersionMessages);
     const locale = useLocale();
@@ -84,15 +83,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                 headingId={headingId}
                 title={versionList.heading}
                 {...(recipeTitle === undefined ? {} : { subtitle: recipeTitle })}
-                {...(onBack === undefined
-                    ? {}
-                    : {
-                          back: {
-                              label: versionList.backToRecipe,
-                              parent: versionList.backToRecipe,
-                              onPress: onBack,
-                          },
-                      })}
             />
             {restoreErrorText !== undefined && (
                 <View
@@ -165,7 +155,9 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                         title={fillTemplate(versionList.versionLabel, {
                                             version: version.versionNumber,
                                         })}
-                                        closeLabel={versionList.backToRecipe}
+                                        closeLabel={fillTemplate(versionList.rowMenuClose, {
+                                            version: version.versionNumber,
+                                        })}
                                         items={rowMenu(version)}
                                         unavailable={isRestoring}
                                     />

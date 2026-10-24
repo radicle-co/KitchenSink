@@ -75,7 +75,7 @@ export function HomeScreen({
                 onPasteIngredients={onPasteIngredients}
                 onFindOnDiscover={onFindOnDiscover}
             />
-            <CondensedTitleBar title={greeting} visible={condensed} />
+            <CondensedTitleBar title={greeting} surfaceShown={condensed} titleShown={condensed} />
             {/* One tap opens the empty editor (build spec §3.4, slice 8); paste lives in its Ingredients section. */}
             <RecipeCreateButton onCreateRecipe={onCreateRecipe} yielded={createEntryYields} />
         </View>

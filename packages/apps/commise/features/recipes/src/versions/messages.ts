@@ -69,6 +69,13 @@ export interface RecipeVersionListMessages {
     readonly retry: string;
     /** The "back to the recipe" affordance. */
     readonly backToRecipe: string;
+    /**
+     * The recipe, as the NAME of the place Back goes: the tablet's pinned bar draws it beside the chevron ("‹ Recipe").
+     * It is the noun, not the label, which would read "‹ Back to recipe".
+     */
+    readonly recipeParent: string;
+    /** The name of a row's ⋯ sheet's close control (native), per version. Not {@link backToRecipe}: it closes a sheet. */
+    readonly rowMenuClose: string;
 }
 
 /** Shared copy for the concurrent-edit conflict resolution view (T070 / C-005 / W7). */
@@ -356,6 +363,8 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             loadError: 'We couldn’t load the version history.',
             retry: 'Try again',
             backToRecipe: 'Back to recipe',
+            recipeParent: 'Recipe',
+            rowMenuClose: 'Close actions for version {version}',
         },
         conflict: {
             discardAndClose: 'Discard and close',

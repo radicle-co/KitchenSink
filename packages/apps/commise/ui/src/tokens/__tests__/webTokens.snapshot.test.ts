@@ -292,6 +292,8 @@ describe('web tokens — generated theme.css artifact', () => {
               --container-list: 48rem;
               --container-detail: 72rem;
               --container-page: 90rem;
+              --pinned-bar-height: 3.5rem;
+              --pinned-bar-block: calc(var(--pinned-bar-height) + env(safe-area-inset-top));
               --color-cover-seafoam: #E6F0EF;
               --color-cover-coral: #FAE9E4;
               --color-cover-sky: #DFF0F8;

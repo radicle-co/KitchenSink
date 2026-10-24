@@ -5,10 +5,12 @@
  * A7). The document scrolls, so the host holds NO ref: it finds the heading and the sections by their element ids,
  * which the accessibility contract already requires.
  *
- * - `condensed` comes from an `IntersectionObserver` on the heading: no scroll listener for it.
+ * - `condensed` comes from an `IntersectionObserver` on the heading: no scroll listener for it. A page that pins a bar
+ *   over the top passes its height as `topInset`, and the observer then measures from under the bar.
  * - The direction and the top come from ONE passive `scroll` listener on `window`, throttled to a frame. It is the one
- *   permitted web scroll listener, and it exists because an `IntersectionObserver` cannot tell direction; the floating
- *   button and "Back to top" both read it from here.
+ *   web scroll listener PER HOST, and it exists because an `IntersectionObserver` cannot tell direction; the floating
+ *   button and "Back to top" both read it from here. A pushed page's `PushedPageFrame` mounts a second, nested host (the
+ *   shell's has no `headingId`, so it never reports `condensed`), so such a page has two, each read by its own chrome.
  * - `revealSpan` shows a new row and the field under it together (`ingredientArrival.md`): it reads both positions, keeps
  *   clear of the document's `scroll-padding`, and takes the pure `spanTarget`'s offset. It never calls `focus()`.
  * - Jumps call `scrollIntoView` and `history.replaceState`, instant under `prefers-reduced-motion`.
@@ -26,7 +28,7 @@
  */
 import { useEffect, useMemo, useState, type FC } from 'react';
 
-import type { ScrollBind, ScrollHostApi, ScrollHostProps, ScrollTarget } from './props.js';
+import type { ScrollBind, ScrollHostApi, ScrollHostWebProps, ScrollTarget } from './props.js';
 import { createCurrentChangeSubject } from './currentChange.js';
 import { currentSectionOf } from './currentSection.js';
 import { ScrollHostContext } from './scrollHostContext.js';
@@ -80,7 +82,13 @@ const pxOf = (length: string): number => {
 };
 
 /** The web design-system scroll host. */
-export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activationOffset = 0, children }) => {
+export const ScrollHost: FC<ScrollHostWebProps> = ({
+    headingId,
+    sections,
+    activationOffset = 0,
+    topInset = 0,
+    children,
+}) => {
     const [state, setState] = useState(INITIAL_SCROLL_STATE);
     const [changes] = useState(createCurrentChangeSubject);
     const [headingGone, setHeadingGone] = useState(false);
@@ -97,15 +105,19 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
             return undefined;
         }
 
-        const observer = new IntersectionObserver(([entry]) => {
-            if (entry !== undefined) {
-                setHeadingGone(!entry.isIntersecting && entry.boundingClientRect.top < 0);
-            }
-        });
+        // A bar pinned over the top covers `topInset` px of the viewport: the heading is gone when it is under the bar.
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry !== undefined) {
+                    setHeadingGone(!entry.isIntersecting && entry.boundingClientRect.top < topInset);
+                }
+            },
+            { rootMargin: `${-topInset}px 0px 0px 0px` },
+        );
         observer.observe(heading);
 
         return () => observer.disconnect();
-    }, [headingId]);
+    }, [headingId, topInset]);
 
     // @sideEffect Subscribes to the document's scroll, passive and once per frame.
     useEffect(() => {

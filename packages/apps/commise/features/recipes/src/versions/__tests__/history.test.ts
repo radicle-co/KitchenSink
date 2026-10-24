@@ -1,7 +1,7 @@
 /**
  * Unit tests for the version-history list model (`versions/history.ts`).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { VersionConflictError, VersionLineUnrestorableError } from '@kitchensink/recipe-service-client';
 
 import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
@@ -16,6 +16,7 @@ import {
     restoreErrorMessage,
     sortVersionsDescending,
     unrestorablePositionsFor,
+    versionBackOf,
 } from '../history.js';
 
 const conflict = recipeVersionMessages.en.conflict;
@@ -226,5 +227,26 @@ describe('unrestorablePositionsFor', () => {
         expect(unrestorablePositionsFor(refused, 3)).toStrictEqual([]);
         expect(unrestorablePositionsFor({ kind: 'generic', versionNumber: 2 }, 2)).toStrictEqual([]);
         expect(unrestorablePositionsFor(undefined, 2)).toStrictEqual([]);
+    });
+});
+
+describe('versionBackOf', () => {
+    it('has no Back without a way back', () => {
+        expect(versionBackOf('Back to recipe', 'Recipe', undefined, '/en/recipes/r1')).toBeUndefined();
+    });
+
+    it('carries the label, the parent and the press, and the address only when there is one', () => {
+        const onBack = vi.fn();
+        const withHref = versionBackOf('Back to recipe', 'Recipe', onBack, '/en/recipes/r1');
+        const withoutHref = versionBackOf('Back to recipe', 'Recipe', onBack, undefined);
+
+        expect(withHref).toEqual({
+            label: 'Back to recipe',
+            parent: 'Recipe',
+            onPress: onBack,
+            href: '/en/recipes/r1',
+        });
+        // Absent, not `undefined`: the contract's `href?` rejects an explicit `undefined`.
+        expect('href' in withoutHref).toBe(false);
     });
 });

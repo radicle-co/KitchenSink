@@ -32,12 +32,10 @@ import { CollectionRecipePickerLoadError } from './CollectionRecipePickerLoadErr
 import { CollectionRecipePickerLoading } from './CollectionRecipePickerLoading.js';
 import { CollectionSheet } from './CollectionSheet.js';
 import { CollectionUpsellSheet } from './CollectionUpsellSheet.js';
+import { COLLECTION_TITLE_ID } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { PullUpdatesDialog } from './PullUpdatesDialog.js';
 import type { CollectionDetail } from './useCollectionDetail.js';
-
-/** The id of the detail's heading, which takes focus when the last row is removed. */
-const COLLECTION_TITLE_ID = 'collection-title';
 
 /** What the picker's read boundary takes: the structural subset of `QueryBoundary` this body uses. */
 export interface CollectionPickerBoundaryProps {
@@ -67,6 +65,12 @@ export interface CollectionDetailBodyProps {
     readonly links?: CollectionDetailLinks;
     /** The app's read boundary for the picker's settled body. */
     readonly PickerBoundary: ComponentType<CollectionPickerBoundaryProps>;
+    /**
+     * What comes right after the header and before the members: the mobile screen's "view choice not saved" notice. A slot,
+     * because the native header must be the scroller's FIRST child (its layout is the pinned bar's title threshold), and the
+     * notice used to sit before it.
+     */
+    readonly afterHeader?: ReactNode;
 }
 
 export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
@@ -76,6 +80,7 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
     onViewSource,
     links,
     PickerBoundary,
+    afterHeader,
 }) => {
     const { member: copy } = useMessages(collectionMessages);
     const { collection, members, layout, picker, rename, deletion, pull, visibility, removal, makePublic } = detail;
@@ -104,6 +109,8 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
                 onPullUpdates={pull.start}
                 onDelete={deletion.onStart}
             />
+
+            {afterHeader}
 
             {visibility.failed ? <CollectionDetailAlert text={copy.visibilityFailed} /> : null}
             {detail.saveCopy.failed ? <CollectionDetailAlert text={copy.saveCopyFailed} /> : null}

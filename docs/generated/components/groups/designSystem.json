@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 70,
-        "implementations": 121,
-        "props": 697,
-        "documentedComponents": 70,
-        "implementationsWithModuleDoc": 121,
-        "implementationsWithComponentDoc": 113,
-        "documentedProps": 662,
-        "classifiedComponents": 63,
-        "componentsWithPatternTag": 70,
-        "crossPlatformComponents": 51
+        "components": 72,
+        "implementations": 125,
+        "props": 713,
+        "documentedComponents": 72,
+        "implementationsWithModuleDoc": 125,
+        "implementationsWithComponentDoc": 117,
+        "documentedProps": 678,
+        "classifiedComponents": 65,
+        "componentsWithPatternTag": 72,
+        "crossPlatformComponents": 53
     },
     "components": [
         {
@@ -6355,7 +6355,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -6363,7 +6363,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.tsx",
                     "dir": "packages/apps/commise/ui/src/largeTitleHeader",
-                    "moduleDoc": "@commise/ui/large-title-header — the web design-system {@link CondensedTitleBar} (see `props.ts`): the 56 px\nbar a PUSHED web screen shows below `nav` once its H1 scrolls under the top. It sits on the floating layer\n(`ChromeSurface`), keeps the back control one tap away, and repeats the title for sight only.\n\nPresentational: props → JSX; `visible` is display derivation.",
+                    "moduleDoc": "@commise/ui/large-title-header — the web design-system {@link CondensedTitleBar} (see `props.ts`): the 56 px\nPINNED bar a pushed web screen shows below `nav`. Its back control and menu are always rendered, focusable and\nclickable; the material (`ChromeSurface`) shows once the page has scrolled, and the one-line title, repeated for sight\nonly, once the H1 is under the bar. Where the viewport covers the notch (`viewport-fit=cover`) it pads its top by\n`env(safe-area-inset-top)`. Its height is the one `--pinned-bar-block` property (`tokens/themeCss.ts`: `--pinned-bar-height`, the same number\nas `PINNED_BAR_HEIGHT`, plus the inset); from `medium` its back control names the parent too, as native's does.\n\nThe chevron sits on the page's content gutter: the bar pads its start by `<main>`'s own padding (16 px, 24 px from\n`medium`) and the control starts its glyph at its own edge, so the control's box and the chevron both line up with the\nH1 below (`pinnedBackBar.md` §6; native does the same through `barStartPadding`). A centred glyph would sit 10 px in.\n\nThe band itself takes no clicks (`pointer-events-none`) and each control opts back in, so an empty stretch of the bar\nnever blocks the page behind it. Nothing is `inert`, `aria-hidden` or `opacity-0` as a whole: only the material and the\ntitle fade, and not under `prefers-reduced-motion`.\n\nPresentational: props → JSX; `surfaceShown` and `titleShown` are display derivation.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6385,7 +6385,16 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The way back, kept one tap away (Nielsen #3).",
+                            "description": "The way back, kept one tap away at every scroll position (Nielsen #3).",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
+                        },
+                        {
+                            "name": "barRef",
+                            "type": "((node: HTMLElement | null) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Receives the bar's element when it mounts and `null` when it unmounts.",
                             "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
                         },
                         {
@@ -6398,21 +6407,30 @@
                             "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
                         },
                         {
-                            "name": "title",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The title, repeated from the H1 in one line; hidden from assistive tech.",
-                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
-                        },
-                        {
-                            "name": "visible",
+                            "name": "surfaceShown",
                             "type": "boolean",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Whether the bar shows: the screen's `ScrollHost` `condensed`. Display derivation, not a mode.",
+                            "description": "Whether the bar's material shows. Display derivation, not a mode: the page has scrolled, or the title is under it.",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The title, repeated from the H1 in one line; hidden from assistive tech. Absent while the page does not know it.",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
+                        },
+                        {
+                            "name": "titleShown",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the one-line title shows: the screen's `ScrollHost` `condensed`. Display derivation, not a mode.",
                             "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
                         }
                     ],
@@ -6428,7 +6446,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.native.tsx",
                     "dir": "packages/apps/commise/ui/src/largeTitleHeader",
-                    "moduleDoc": "@commise/ui/large-title-header — the native design-system {@link CondensedTitleBar} (see `props.ts`): the\n56 pt bar every native screen lays over the top of its scroller, shown once the large title scrolls under the top. It\nsits on the floating layer — Liquid Glass on iOS 26, a solid `paperRaised` surface elsewhere (`ChromeSurface`). It\nsits at the top of its screen's SAFE-AREA frame, which already clears the status bar, so it adds no inset of its own\n(measured on a device: padding the inset again drew a 56 pt bar twice as tall, below the status bar).\n\n⛔ It hides by `ChromeSurface`'s own `visible` and by the TITLE's opacity, never by an opacity on this bar: an opacity\non a `GlassView`'s ancestor stops the glass rendering at all. A hidden bar takes no touches and is hidden from\nassistive tech; the large header's own controls are on screen then.\n\nPresentational: props → JSX; `visible` is display derivation.",
+                    "moduleDoc": "@commise/ui/large-title-header — the native design-system {@link CondensedTitleBar} (see `props.ts`): the\n56 pt PINNED bar every native pushed page lays over the top of its scroller (`PINNED_BAR_HEIGHT`). Its back control and\nmenu are always rendered and pressable; the material (Liquid Glass on iOS 26, a solid `paperRaised` surface elsewhere,\n`ChromeSurface`) shows once the page has scrolled, and the one-line title once the large title is under the bar. It sits\nat the top of its screen's SAFE-AREA frame, which already clears the status bar, so it adds no inset of its own\n(measured on a device: padding the inset again drew a 56 pt bar twice as tall, below the status bar).\n\n⛔ It fades by `ChromeSurface`'s own `visible` and by the TITLE's opacity, never by an opacity on this bar: an opacity\non a `GlassView`'s ancestor stops the glass rendering at all. Nor is it ever hidden from assistive tech or from touches\nas a whole: the empty band is `box-none`, so a control under it (Home's avatar) still gets its taps, and the surface and\nthe title, which are not controls, take none.\n\nThe motion is the platform's: the glass animates through its own `glassEffectStyle`, and the title's opacity changes at\nonce, which is also what Reduce Motion asks for. That is a UX concession, not a technical limit: the change is instant\nand a fade is later polish. `ui/src/motion` has only the rise-and-fade enter transition, so a fade needs a new one; an\n`Animated.Value` held in `useState` would do it without a ref.\n\nPresentational: props → JSX; `surfaceShown` and `titleShown` are display derivation.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6450,7 +6468,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The way back, kept one tap away (Nielsen #3).",
+                            "description": "The way back, kept one tap away at every scroll position (Nielsen #3).",
                             "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
                         },
                         {
@@ -6463,22 +6481,129 @@
                             "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
                         },
                         {
-                            "name": "title",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The title, repeated from the H1 in one line; hidden from assistive tech.",
-                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
-                        },
-                        {
-                            "name": "visible",
+                            "name": "surfaceShown",
                             "type": "boolean",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Whether the bar shows: the screen's `ScrollHost` `condensed`. Display derivation, not a mode.",
+                            "description": "Whether the bar's material shows. Display derivation, not a mode: the page has scrolled, or the title is under it.",
                             "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The title, repeated from the H1 in one line; hidden from assistive tech. Absent while the page does not know it.",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
+                        },
+                        {
+                            "name": "titleShown",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the one-line title shows: the screen's `ScrollHost` `condensed`. Display derivation, not a mode.",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/largeTitleHeader/HeaderEyebrowBack",
+            "name": "HeaderEyebrowBack",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/largeTitleHeader",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over `RouteAction` — the \"‹ {parent}\" eyebrow, shown from 840",
+                "Null Object — draws nothing where the pinned bar owns Back"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "HeaderEyebrowBack",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/HeaderEyebrowBack.tsx",
+                    "dir": "packages/apps/commise/ui/src/largeTitleHeader",
+                    "moduleDoc": "@commise/ui/large-title-header — the web {@link HeaderEyebrowBack}: the \"‹ {parent}\" eyebrow Back, drawn from\n`nav` (840) and `display: none` below it, where the pinned `CondensedTitleBar` owns Back\n(`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Hidden with `display: none`, so it leaves the accessibility tree\ntoo and the page has exactly one Back at every width.\n\nIt is its own leaf so every web surface that needs the 840+ Back draws ONE element: the settled `LargeTitleHeader`, and\nthe states that have no header to carry it (collection loading and failed read, §5), which render it above their content.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/large-title-header — the web {@link HeaderEyebrowBack}: the \"‹ {parent}\" eyebrow Back, drawn from"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `RouteAction` — the \"‹ {parent}\" eyebrow, shown from 840"
+                        }
+                    ],
+                    "description": "The web eyebrow Back.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "HeaderBack",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way back.",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/HeaderEyebrowBack.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "HeaderEyebrowBack",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/HeaderEyebrowBack.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/largeTitleHeader",
+                    "moduleDoc": "@commise/ui/large-title-header — the native {@link HeaderEyebrowBack}: nothing. Native has no eyebrow, and Back\nis the pinned `CondensedTitleBar`'s in every state (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §4), so a second\ncontrol here would be a duplicate with the same accessible name. It exists so the package export resolves on both\nplatforms, as `LargeTitleHeader.native` keeps its `back` prop and draws no Back.\n\nPresentational: props → null.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/large-title-header — the native {@link HeaderEyebrowBack}: nothing. Native has no eyebrow, and Back"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Null Object — draws nothing where the pinned bar owns Back"
+                        }
+                    ],
+                    "description": "The native eyebrow Back: it draws nothing.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "HeaderBack",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way back.",
+                            "declaredIn": "packages/apps/commise/ui/src/largeTitleHeader/HeaderEyebrowBack.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -6514,7 +6639,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.tsx",
                     "dir": "packages/apps/commise/ui/src/largeTitleHeader",
-                    "moduleDoc": "@commise/ui/large-title-header — the web design-system {@link LargeTitleHeader} (see `props.ts`).\n\nBelow `nav` (840) a grid: the 44 px row holds the back control and the action, the title spans the row under it.\nFrom `nav` a wrapping flex row: the back control becomes an eyebrow on its own line, the title takes `flex: 1 1 18rem`\nand the action `flex: none`, so without room the action drops below the title as one group.\n\nDOM order is back → H1 → subtitle → action → `afterTitle` → segments: a screen reader meets the title first, then the\navatar, then the floating button (§4.2 focus order), wherever each is drawn.\n\nThe H1's focus ref is `useFocusOnSignal`'s, sanctioned in the ref register: `.focus()` has no declarative form.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/large-title-header — the web design-system {@link LargeTitleHeader} (see `props.ts`).\n\nBelow `nav` (840) a grid: the 44 px row holds the action, the title spans the row under it; the back control is the\npinned `CondensedTitleBar`'s there.\nFrom `nav` a wrapping flex row: the back control becomes an eyebrow on its own line, the title takes `flex: 1 1 18rem`\nand the action `flex: none`, so without room the action drops below the title as one group.\n\nDOM order is back → H1 → subtitle → action → `afterTitle` → segments: a screen reader meets the title first, then the\navatar, then the floating button (§4.2 focus order), wherever each is drawn.\n\nThe H1's focus ref is `useFocusOnSignal`'s, sanctioned in the ref register: `.focus()` has no declarative form.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6615,7 +6740,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx",
                     "dir": "packages/apps/commise/ui/src/largeTitleHeader",
-                    "moduleDoc": "@commise/ui/large-title-header — the native design-system {@link LargeTitleHeader} (see `props.ts`): the\ntransparent 44 pt row (back at the start, the action at the end) over the H1 in `largeTitle`, sized by the screen's\ncontainer class. Native shows it at every size, as iOS's large title and Material's collapsing bar do.\n\nThe accessibility tree reads back → title → subtitle → action → `afterTitle` → segments, whatever is drawn where, so\nthe title comes before the avatar and the floating button (§4.2). The back control and the action are laid over the\nrow by absolute position for that reason.\n\nInside a `ScrollHost` the title block reports its layout, so the host knows when the title has scrolled under the top\nand the screen's `CondensedTitleBar` shows. That needs this header to be the scroller's FIRST child.\n\nThe H1's ref is `useScreenReaderFocusOnSignal`'s, sanctioned in the ref register: moving the screen-reader cursor has\nno declarative form.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/large-title-header — the native design-system {@link LargeTitleHeader} (see `props.ts`): the\nH1 in `largeTitle`, sized by the screen's container class, under a transparent 44 pt row that holds the `action` at the\nend. Native shows it at every size, as iOS's large title and Material's collapsing bar do.\n\n⛔ It draws NO Back control, though it keeps the `back` prop (web uses it for the 840+ eyebrow). On native Back is the\npinned `CondensedTitleBar`'s, in every state and at every scroll position (`docs/design/uiRefreshWorkshop5/\npinnedBackBar.md` §4): a second one here would be an off-screen duplicate with the same accessible name, and a dead band\nabove the title. The 44 pt row is therefore drawn for an `action` and for nothing else.\n\nThe accessibility tree reads title → subtitle → action → `afterTitle` → segments, whatever is drawn where, so the title\ncomes before the avatar and the floating button (§4.2). The action is laid over the row by absolute position for that\nreason.\n\nInside a `ScrollHost` the title block reports its layout, so the host knows when the title has scrolled under the top\nand the screen's `CondensedTitleBar` shows. That needs this header to be the scroller's FIRST child.\n\nThe H1's ref is `useScreenReaderFocusOnSignal`'s, sanctioned in the ref register: moving the screen-reader cursor has\nno declarative form.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8564,6 +8689,175 @@
             ]
         },
         {
+            "id": "designSystem/pushedPage/PushedPageFrame",
+            "name": "PushedPageFrame",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/pushedPage",
+            "kind": "orchestration",
+            "patterns": [
+                "Template — ScrollHost, pinned CondensedTitleBar, content inset"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PushedPageFrame",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/pushedPage/PushedPageFrame.tsx",
+                    "dir": "packages/apps/commise/ui/src/pushedPage",
+                    "moduleDoc": "@commise/ui/pushed-page — the web design-system {@link PushedPageFrame} (see `props.ts`): below 840 the same\npinned bar as native, over the document's scroll; from 840 nothing changes, because the bar is `nav:hidden` and the\nheader's own eyebrow link is the Back there (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6).\n\nORCHESTRATION of the page's frame. It mounts its OWN nested `ScrollHost` with the page's `headingId` and the bar's\nRENDERED height as `topInset`: the app shell's host has no `headingId`, so it never reports `condensed`, and the observer\nmust measure the H1 from under the bar, which on a notched phone is taller than `--pinned-bar-height` (the inset is added).\nThe bar is `fixed` at the top and comes before the page in the DOM, so the reading order and the screen agree. Where the\nshell offers a slot (`PinnedBarSlotContext`) the bar is drawn into it, ahead of the shell's own notice.\n\nThe frame adds NO padding of its own: `<main>` takes the bar's height as its top padding on a pushed page below 840\n(`globals.css`, keyed on `data-pushed-page`), so what the shell draws above the page (the connectivity notice) sits under\nthe bar instead of behind it. `data-pushed-page` also lets the stylesheet keep focused controls clear of the bar with\n`scroll-padding-top` (SC 2.4.11).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/pushed-page — the web design-system {@link PushedPageFrame} (see `props.ts`): below 840 the same"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Template — ScrollHost, pinned CondensedTitleBar, content inset"
+                        }
+                    ],
+                    "description": "The web design-system pushed-page frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "HeaderBack",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way back, pinned in the bar. Its `label` is the one accessible \"Back to {parent}\" on the page.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "(bind: ScrollBind, inset: PushedPageInset) => ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page. On native, the screen's ONE vertical scroller spreads `bind` and merges `inset` into its content style, so\nits content starts under the bar; a loading or error state that does not scroll merges the same `inset` into its\nwrapper. On web the document scrolls, `bind` is unused and `inset` is empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "headingId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page's H1 id: web watches it to decide when the bar's title shows. Native finds the heading by its layout.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "menu",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The page's ⋯ menu, drawn in the bar.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bar's one-line title; absent while the page does not know it (loading).",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                },
+                {
+                    "name": "PushedPageFrame",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/pushedPage/PushedPageFrame.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/pushedPage",
+                    "moduleDoc": "@commise/ui/pushed-page — the native design-system {@link PushedPageFrame} (see `props.ts`): the frame every\nnative pushed page mounts, so Back is pinned at the top of the safe area at every scroll position and in every state\n(`docs/design/uiRefreshWorkshop5/pinnedBackBar.md`).\n\nORCHESTRATION of the page's frame. It mounts the page's ONE `ScrollHost`, reads the host's scroll state into the two\ndisplay facts (`barFactsOf`), and lays the pinned `CondensedTitleBar` over the page. The bar comes BEFORE the scroller\nin the tree and is drawn over it by absolute position, so the reading order and the screen agree: Back, the menu, the H1,\nthen the content. The page's scroller spreads the `bind` it is handed and merges the `inset` it is handed (`PINNED_BAR_HEIGHT` of top\npadding), so the large title starts under the bar and no page restates the bar's height.\n\n⛔ One `ScrollHost` per page. A page that mounted a second, inner host would bind its scroller to that one while the bar\nread this one, and the bar would never change. The host needs no bar height on native (see `ScrollHostWebProps.topInset`).\n\nThe root `View` takes `onAccessibilityEscape` (iOS), so VoiceOver's two-finger scrub goes back, as it does in native iOS\napps. System back and predictive back stay with the navigator; `BackInterceptProvider` is unchanged (ADR-0056).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/pushed-page — the native design-system {@link PushedPageFrame} (see `props.ts`): the frame every"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Template — ScrollHost, pinned CondensedTitleBar, content inset"
+                        }
+                    ],
+                    "description": "The native design-system pushed-page frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "HeaderBack",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way back, pinned in the bar. Its `label` is the one accessible \"Back to {parent}\" on the page.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "(bind: ScrollBind, inset: PushedPageInset) => ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page. On native, the screen's ONE vertical scroller spreads `bind` and merges `inset` into its content style, so\nits content starts under the bar; a loading or error state that does not scroll merges the same `inset` into its\nwrapper. On web the document scrolls, `bind` is unused and `inset` is empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "headingId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page's H1 id: web watches it to decide when the bar's title shows. Native finds the heading by its layout.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "menu",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The page's ⋯ menu, drawn in the bar.",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bar's one-line title; absent while the page does not know it (loading).",
+                            "declaredIn": "packages/apps/commise/ui/src/pushedPage/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/recipeCover/RecipeCover",
             "name": "RecipeCover",
             "group": "designSystem",
@@ -9014,7 +9308,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -9022,7 +9316,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/scrollHost/ScrollHost.tsx",
                     "dir": "packages/apps/commise/ui/src/scrollHost",
-                    "moduleDoc": "@commise/ui/scroll-host — the web design-system {@link ScrollHost} (`docs/architecture/uiOverhaulBlueprint.md`\nA7). The document scrolls, so the host holds NO ref: it finds the heading and the sections by their element ids,\nwhich the accessibility contract already requires.\n\n- `condensed` comes from an `IntersectionObserver` on the heading: no scroll listener for it.\n- The direction and the top come from ONE passive `scroll` listener on `window`, throttled to a frame. It is the one\n  permitted web scroll listener, and it exists because an `IntersectionObserver` cannot tell direction; the floating\n  button and \"Back to top\" both read it from here.\n- `revealSpan` shows a new row and the field under it together (`ingredientArrival.md`): it reads both positions, keeps\n  clear of the document's `scroll-padding`, and takes the pure `spanTarget`'s offset. It never calls `focus()`.\n- Jumps call `scrollIntoView` and `history.replaceState`, instant under `prefers-reduced-motion`.\n- A jump HOLDS `current` on the section it named until the cook scrolls again, even when the page is too short for\n  that section to reach the activation line. The jump's own scroll never releases it; the cook's own input does (a\n  wheel, a touch, a scroll key outside a field, `scrollToTop`), and so does any scroll once the jump's scroll has\n  ended (`scrollend`, or {@link JUMP_SETTLE_MS} for a jump that did not move), which is how a scrollbar drag reads.\n- A change of the scroll spy's section is raised from the same scroll listener (`onCurrentChange`), so a consumer\n  that acts on it subscribes rather than watching `current` through an effect.\n\nORCHESTRATION of the screen's scroll: it holds the state its chrome reads and moves the scroller.",
+                    "moduleDoc": "@commise/ui/scroll-host — the web design-system {@link ScrollHost} (`docs/architecture/uiOverhaulBlueprint.md`\nA7). The document scrolls, so the host holds NO ref: it finds the heading and the sections by their element ids,\nwhich the accessibility contract already requires.\n\n- `condensed` comes from an `IntersectionObserver` on the heading: no scroll listener for it. A page that pins a bar\n  over the top passes its height as `topInset`, and the observer then measures from under the bar.\n- The direction and the top come from ONE passive `scroll` listener on `window`, throttled to a frame. It is the one\n  web scroll listener PER HOST, and it exists because an `IntersectionObserver` cannot tell direction; the floating\n  button and \"Back to top\" both read it from here. A pushed page's `PushedPageFrame` mounts a second, nested host (the\n  shell's has no `headingId`, so it never reports `condensed`), so such a page has two, each read by its own chrome.\n- `revealSpan` shows a new row and the field under it together (`ingredientArrival.md`): it reads both positions, keeps\n  clear of the document's `scroll-padding`, and takes the pure `spanTarget`'s offset. It never calls `focus()`.\n- Jumps call `scrollIntoView` and `history.replaceState`, instant under `prefers-reduced-motion`.\n- A jump HOLDS `current` on the section it named until the cook scrolls again, even when the page is too short for\n  that section to reach the activation line. The jump's own scroll never releases it; the cook's own input does (a\n  wheel, a touch, a scroll key outside a field, `scrollToTop`), and so does any scroll once the jump's scroll has\n  ended (`scrollend`, or {@link JUMP_SETTLE_MS} for a jump that did not move), which is how a scrollbar drag reads.\n- A change of the scroll spy's section is raised from the same scroll listener (`onCurrentChange`), so a consumer\n  that acts on it subscribes rather than watching `current` through an effect.\n\nORCHESTRATION of the screen's scroll: it holds the state its chrome reads and moves the scroller.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9076,6 +9370,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The section ids, in page order, for `current` and `scrollToSection`.",
+                            "declaredIn": "packages/apps/commise/ui/src/scrollHost/props.ts"
+                        },
+                        {
+                            "name": "topInset",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "How tall a bar pinned over the top of the viewport is, px, AS RENDERED (a bar of `3.5rem + env(safe-area-inset-top)`\nis taller on a notched phone than on a desktop). The `condensed` watch measures the heading from under the bar (a\n`-topInset` top margin on the observer), because the bar, not the viewport's top, is where a heading is gone.\nDefaults to 0.",
                             "declaredIn": "packages/apps/commise/ui/src/scrollHost/props.ts"
                         }
                     ],

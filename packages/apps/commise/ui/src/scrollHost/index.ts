@@ -9,4 +9,12 @@ export { useOptionalScrollHost } from './useOptionalScrollHost.js';
 export { currentSectionOf } from './currentSection.js';
 export type { SectionTop } from './currentSection.js';
 export type { CurrentChangeListener } from './currentChange.js';
-export type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';
+export type {
+    LayoutReport,
+    ScrollBind,
+    ScrollHostApi,
+    ScrollHostProps,
+    ScrollHostWebProps,
+    ScrollReport,
+    ScrollTarget,
+} from './props.js';

@@ -3,8 +3,11 @@
  * The `/legal/sources` route content (curated U25, design §S16): the Data sources page inside the shared shell,
  * reading food-service directly. The page's own states are covered by `DataSourcesScreen.test.tsx`; this suite
  * proves the route composes it, names itself, and owns the page's only `h1`.
+ *
+ * Its Back sits in the pinned bar below 840 and is the header's eyebrow from it; jsdom has no stylesheet, so both are in
+ * its tree and the breakpoint is asserted through the classes that carry it (`expectOneBackInBarAndOneInHeader`).
  */
-import { renderWithProviders } from '@commise/test-utils';
+import { expectOneBackInBarAndOneInHeader, renderWithProviders } from '@commise/test-utils';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -72,7 +75,7 @@ describe('SourcesContent (U25)', () => {
             </QueryClientProvider>,
         );
 
-        const back = screen.getByRole('link', { name: 'Back to Profile' });
+        const { bar: back } = expectOneBackInBarAndOneInHeader('Back to Profile');
 
         expect(back.getAttribute('href')).toBe('/en/profile');
 

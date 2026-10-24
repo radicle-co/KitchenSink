@@ -26,18 +26,26 @@
  * @pattern Port — the navigator callbacks, as the session's navigation
  */
 import { collectionMessages, ViewSaveFailedNotice } from '@commise/features-recipes';
-import { CollectionDetailBody, CollectionLoadError, useCollectionDetail } from '@commise/features-recipes/collections';
+import {
+    CollectionDetailBody,
+    CollectionLoadError,
+    CollectionMoreMenu,
+    collectionMenuPropsOf,
+    collectionsBackOf,
+    useCollectionDetail,
+} from '@commise/features-recipes/collections';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { nativeTokens } from '@commise/ui/native';
+import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import type { JSX } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { useId, type JSX, type ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { useRecipeViewSetting } from '../hooks/useRecipeViewSetting.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -68,22 +76,26 @@ export interface CollectionDetailScreenProps {
  */
 export function CollectionDetailScreen(props: CollectionDetailScreenProps): JSX.Element {
     const { collectionId, onBack } = props;
-    const { detail, list } = useMessages(collectionMessages);
+    const messages = useMessages(collectionMessages);
+    const headingId = useId();
+    const back = collectionsBackOf(messages, onBack);
+    // A branch with no scroller of its own (loading, failed) sits under the bar, in the room the frame hands it.
+    const beneathBar = (content: ReactNode): JSX.Element => (
+        <PushedPageFrame back={back} headingId={headingId}>
+            {(_bind, inset) => <View style={[styles.beneathBar, inset]}>{content}</View>}
+        </PushedPageFrame>
+    );
 
     return (
         <QueryBoundary
-            loading={<LoadingNotice label={detail.loadingLabel} />}
-            renderError={({ error, resetErrorBoundary }) => (
-                <CollectionLoadError
-                    error={error}
-                    onRetry={resetErrorBoundary}
-                    back={{
-                        label: detail.backTo.replace('{parent}', list.heading),
-                        icon: 'chevronLeft',
-                        onPress: onBack,
-                    }}
-                />
-            )}
+            loading={beneathBar(<LoadingNotice label={messages.detail.loadingLabel} />)}
+            renderError={({ error, resetErrorBoundary }) =>
+                beneathBar(
+                    // The bar owns Back; the notice draws its own only for a missing collection, the only allowed
+                    // second element with that name.
+                    <CollectionLoadError error={error} onRetry={resetErrorBoundary} back={back} />,
+                )
+            }
             resetKeys={[collectionId]}
         >
             <CollectionDetailView key={collectionId} {...props} />
@@ -130,17 +142,35 @@ function CollectionDetailView({
         nav: { onDeleted, onCloned, onCreateRecipe },
     });
 
+    const messages = useMessages(collectionMessages);
+    const headingId = useId();
+    const back = collectionsBackOf(messages, onBack);
+
     return (
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.container} contentContainerStyle={styles.content}>
-            {saveFailed ? <ViewSaveFailedNotice /> : null}
-            <CollectionDetailBody
-                detail={detail}
-                onBack={onBack}
-                onSelectRecipe={onSelectRecipe}
-                onViewSource={onViewSource}
-                PickerBoundary={QueryBoundary}
-            />
-        </ScrollView>
+        <PushedPageFrame
+            back={back}
+            headingId={headingId}
+            title={detail.collection.name}
+            menu={<CollectionMoreMenu {...collectionMenuPropsOf(detail)} />}
+        >
+            {(bind, inset) => (
+                <ScrollView
+                    {...bind}
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.container}
+                    contentContainerStyle={[styles.content, inset]}
+                >
+                    <CollectionDetailBody
+                        detail={detail}
+                        onBack={onBack}
+                        onSelectRecipe={onSelectRecipe}
+                        onViewSource={onViewSource}
+                        PickerBoundary={QueryBoundary}
+                        afterHeader={saveFailed ? <ViewSaveFailedNotice /> : null}
+                    />
+                </ScrollView>
+            )}
+        </PushedPageFrame>
     );
 }
 
@@ -148,6 +178,7 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     // The screen gutter the Collections list keeps (`CollectionListFrame`), so the title and its row do not start at
     // the screen's edge.
+    // The room under the pinned bar is the frame's: it hands each branch its `inset`, which is merged in beside these.
     content: { paddingHorizontal: nativeTokens.spacing[4], paddingBottom: 120 },
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+    beneathBar: { flex: 1 },
 });

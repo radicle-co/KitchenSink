@@ -90,6 +90,47 @@ describe('LargeTitleHeader (web)', () => {
         expect(screen.getByText('Collections').className).toContain('nav:inline');
     });
 
+    // Pinned back bar (`pinnedBackBar.md` §6): below 840 the bar owns Back, so the header's own link shows from `nav`
+    // only; above it the eyebrow stays. A page below 840 that mounts no bar has no Back here by design.
+    it('shows the Back link from 840 only: below it the pinned bar owns Back', () => {
+        render(
+            <LargeTitleHeader
+                headingId="h"
+                title="Weeknight dinners"
+                back={{
+                    label: 'Back to Collections',
+                    parent: 'Collections',
+                    href: '/en/collections',
+                    onPress: vi.fn(),
+                }}
+            />,
+        );
+
+        const link = screen.getByRole('link', { name: 'Back to Collections', hidden: true });
+
+        expect(link.className).toContain('hidden');
+        expect(link.className).toContain('nav:inline-flex');
+        expect(link.className).not.toMatch(/(^|\s)inline-flex/);
+    });
+
+    it('keeps its 2.75rem row only for an action: a lone Back is hidden below 840, so it needs none', () => {
+        const back = { label: 'Back to Collections', parent: 'Collections', onPress: vi.fn() };
+        const { container, rerender } = render(<LargeTitleHeader headingId="h" title="Dinners" back={back} />);
+
+        expect(container.querySelector('header')?.className).not.toContain('grid-rows-[2.75rem_auto]');
+
+        rerender(
+            <LargeTitleHeader
+                headingId="h"
+                title="Dinners"
+                back={back}
+                action={{ kind: 'controls', menu: <button type="button">More</button> }}
+            />,
+        );
+
+        expect(container.querySelector('header')?.className).toContain('grid-rows-[2.75rem_auto]');
+    });
+
     it('renders the segments under the title', () => {
         render(<LargeTitleHeader headingId="h" title="Recipes" segments={<nav aria-label="Recipes sections" />} />);
 

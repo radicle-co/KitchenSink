@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { mockRecipeApi } from './utils/recipeApi';
+import { expectBackPinnedWhileScrolling, expectEyebrowBackAndNoBar } from './utils/pinnedBackBar';
 
 /**
  * Curated plan R55 (U25), through the real web app: a signed-in cook opens the Data sources page from Profile, at
@@ -180,5 +181,45 @@ test.describe('the Data sources page (curated plan R55)', () => {
             main.getByRole('region', { name: 'U.S. Department of Agriculture, Agricultural Research Service' }),
         ).toBeVisible();
         await expect(main.getByRole('heading', { level: 1, name: 'Data sources' })).toBeFocused();
+    });
+});
+
+/**
+ * The pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Below 840 Back is pinned in a bar and is
+ * reachable wherever the page is scrolled; from 840 the header's eyebrow is the Back and the fixed bar is not displayed.
+ * The viewport is short on purpose so the page really scrolls (the helper fails if it did not).
+ */
+test.describe('the Data sources page: the pinned back bar', () => {
+    test.describe('at 390', () => {
+        test.use({ viewport: { width: 390, height: 260 } });
+
+        test('Back stays in view at the end of the page, is never covered by a focused control, and goes to Profile', async ({
+            page,
+        }) => {
+            await signInWithTicket(page);
+            await mockRecipeApi(page);
+            await page.route('**/api/v1/foods/sources', (request) => request.fulfill({ json: SOURCES }));
+
+            await page.goto(route('/legal/sources'));
+            // The sources are the page's focusable content: wait for them, or the Tab walk has nothing to walk.
+            await expect(page.getByRole('region', { name: 'Anses' })).toBeVisible();
+
+            await expectBackPinnedWhileScrolling(page, 'Back to Profile', /\/profile\/?$/u);
+        });
+    });
+
+    test.describe('at 1280', () => {
+        test.use({ viewport: { width: 1280, height: 900 } });
+
+        test('the eyebrow link is the Back and the fixed bar is not displayed', async ({ page }) => {
+            await signInWithTicket(page);
+            await mockRecipeApi(page);
+            await page.route('**/api/v1/foods/sources', (request) => request.fulfill({ json: SOURCES }));
+
+            await page.goto(route('/legal/sources'));
+            await expect(page.getByRole('heading', { level: 1, name: 'Data sources' })).toBeVisible();
+
+            await expectEyebrowBackAndNoBar(page, 'Back to Profile');
+        });
     });
 });

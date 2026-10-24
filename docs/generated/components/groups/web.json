@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 81,
-        "implementations": 81,
-        "props": 96,
-        "documentedComponents": 78,
-        "implementationsWithModuleDoc": 62,
-        "implementationsWithComponentDoc": 57,
-        "documentedProps": 63,
-        "classifiedComponents": 34,
-        "componentsWithPatternTag": 29,
+        "components": 82,
+        "implementations": 82,
+        "props": 98,
+        "documentedComponents": 79,
+        "implementationsWithModuleDoc": 63,
+        "implementationsWithComponentDoc": 58,
+        "documentedProps": 65,
+        "classifiedComponents": 35,
+        "componentsWithPatternTag": 30,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -2370,7 +2370,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the\n{@link HomeSidebar} at `nav` (840) and wider, the bottom {@link HomeTabBar} below it, and the page in the `<main>`\nlandmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).\n\n`<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below\n`nav` its foot reserves the tab bar plus the floating create button's 88 px, and the same reservation is the\ndocument's `scroll-padding-bottom` (`globals.css`, keyed on the bar), so a focused last card is never hidden (SC\n2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,\n\"Back to top\" and the snackbar stand on.\n\nThe sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.\n\n⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.",
+                    "moduleDoc": "home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the\n{@link HomeSidebar} at `nav` (840) and wider, the bottom {@link HomeTabBar} below it, and the page in the `<main>`\nlandmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).\n\n`<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below\n`nav` its foot reserves the tab bar plus the floating create button's 88 px, and the same reservation is the\ndocument's `scroll-padding-bottom` (`globals.css`, keyed on the bar), so a focused last card is never hidden (SC\n2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,\n\"Back to top\" and the snackbar stand on.\n\nA pushed page (`PushedPageFrame`) pins a Back bar over the top below `nav`. `<main>` takes the bar's height as its top\npadding on such a page (`--main-top`, `globals.css`), so the notice below sits under the bar, and it offers the frame a\nslot ahead of the notice, so Back also comes first in reading and focus order.\n\nThe sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.\n\n⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3530,7 +3530,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/profile/ProfileSurface.tsx",
                     "dir": "packages/apps/commise/web/src/components/profile",
-                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the settings read and write\n(a preference is a setting on the server, D19 / ADR-0059, saved optimistically and put back with a message when the\nsave fails), the router and the display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
+                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the settings read and write\n(a preference is a setting on the server, D19 / ADR-0059, saved optimistically and put back with a message when the\nsave fails), the router and the display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nThe page sits in the design system's `PushedPageFrame`: below 840 Back is pinned in a bar that follows the scroll, and\nfrom 840 the header's own eyebrow carries it (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Both are given\nthe one `back` value, so the two links cannot disagree.\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3646,7 +3646,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe collection header (back, name, meta, description, Add recipes and the ⋯ menu), the members list, the rename sheet,\nthe delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The work —\nremoval, visibility, pull, rename, delete, Save a copy and the picker — is `useCollectionDetail`'s, shared with the mobile\nscreen, and the settled body is `CollectionDetailBody`'s. What stays here is what is web's: the page frame, the\nhydration-gated read boundary, the router, the grid/list choice (an account setting) and the links that make a card an anchor.\n\nPaid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe\ndetail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing\nprivate does. While the profile loads, or if it failed, nothing private is offered.",
+                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe collection header (back, name, meta, description, Add recipes and the ⋯ menu), the members list, the rename sheet,\nthe delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The work —\nremoval, visibility, pull, rename, delete, Save a copy and the picker — is `useCollectionDetail`'s, shared with the mobile\nscreen, and the settled body is `CollectionDetailBody`'s. What stays here is what is web's: the page frame, the\nhydration-gated read boundary, the router, the grid/list choice (an account setting) and the links that make a card an anchor.\n\nPaid-feature gate (plan 2026-10-14-009 D14): the viewer's `paidFeatureStateOf` the profile — the SAME signal the recipe\ndetail container and the mobile screen read — decides whether the ⋯ menu offers the visibility item and what choosing\nprivate does. While the profile loads, or if it failed, nothing private is offered.\n\nThe loading and settled states each sit in the design system's `PushedPageFrame`: below 840 Back is pinned in a bar\nthat follows the scroll, and from 840 the header's own eyebrow carries it (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md`\n§5, §6). The bar cannot sit outside the read boundary, because its title and the page's name exist only once the read\nsettles, so each state mounts its own frame with the same Back in the same place; the bar remounts when loading settles,\nwhich is the accepted cost. The failed state sits in the frame too (it has no header, so below 840 the bar is its Back and from\n840 the eyebrow, drawn above the notice, is; the notice keeps its own only for a missing collection). The ⋯ menu stays in the header at every width.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4505,6 +4505,82 @@
             ]
         },
         {
+            "id": "web/components/recipes/RecipeVersionsFrame",
+            "name": "RecipeVersionsFrame",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design system's `PushedPageFrame` — names the history's title and its Back"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeVersionsFrame",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeVersionsFrame.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "components/recipes/RecipeVersionsFrame — the version history's pinned-back-bar frame, shared by its three states\n(loading, failed, settled) so each draws the SAME bar over the SAME page\n(`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6), and the route's way back.\n\nThe frame belongs to the ROUTE, not to the presentational leaves: `RecipeVersionsRouteLoading` and\n`RecipeVersionsContainer` mount it around the leaves, which draw the header's eyebrow (from 840) and no bar. The bar's\ntitle is \"Version history\" in every state. Its parent is \"Recipe\" while loading and failed, and the recipe's own title\nonce settled (`parent`): only the label text changes when the page settles, the chevron does not move.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/recipes/RecipeVersionsFrame — the version history's pinned-back-bar frame, shared by its three states"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design system's `PushedPageFrame` — names the history's title and its Back"
+                        }
+                    ],
+                    "description": "The pinned bar over one state of the version history.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The recipe, the parent's name once known, and the state's content."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The content in the frame."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "parent",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The parent's name beside the chevron: the recipe's title once it is known; absent says \"Recipe\".",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeVersionsFrame.tsx"
+                        },
+                        {
+                            "name": "recipeId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the history belongs to.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeVersionsFrame.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/components/recipes/RecipeVersionsRouteLoading",
             "name": "RecipeVersionsRouteLoading",
             "group": "web",
@@ -4525,7 +4601,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeVersionsRouteLoading.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "components/recipes/RecipeVersionsRouteLoading — the version history's loading state, localized: the shared\n{@link RecipeVersionListSkeleton} (D3; `buildSpec.md` §6.6 \"Loading: 3 skeleton rows\") with its way back to the recipe.\n\nBoth `recipes/[id]/versions/loading.tsx` and `RecipeVersionsContainer`'s boundary render THIS, so the swap moves\nnothing. It reads the route's own params, as the container does, because a `loading.tsx` is given none.\n\nPure `props → JSX` (no props); the navigation is the router's.",
+                    "moduleDoc": "components/recipes/RecipeVersionsRouteLoading — the version history's loading state, localized: the shared\n{@link RecipeVersionListSkeleton} (D3; `buildSpec.md` §6.6 \"Loading: 3 skeleton rows\") with its way back to the recipe, in\nthe route's pinned-back-bar frame.\n\nBoth `recipes/[id]/versions/loading.tsx` and `RecipeVersionsContainer`'s boundary render THIS, so the swap moves\nnothing, and the frame is mounted here and nowhere else in the loading state: the skeleton draws the header's eyebrow\nonly. It reads the route's own params, as the container does, because a `loading.tsx` is given none.\n\nPure `props → JSX` (no props); the navigation is the router's.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4536,7 +4612,7 @@
                     "tags": [
                         {
                             "name": "returns",
-                            "text": "The header, one polite status and three placeholder rows."
+                            "text": "The header, one polite status and three placeholder rows, under the pinned bar."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",

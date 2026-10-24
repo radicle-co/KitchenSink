@@ -191,6 +191,19 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 
+    // Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2): Back lives in the pinned bar and nowhere
+    // else. The header used to draw its own, scrolled off screen but still in the tree, so the page had two elements
+    // named "Back to Home". `hidden: true` counts a copy a plain query would skip, which is the defect.
+    it('has exactly one Back, in the pinned bar before the title, and none in the scroller', () => {
+        renderProfile();
+
+        const backs = screen.getAllByRole('button', { name: t.back, hidden: true });
+        const heading = screen.getByRole('heading', { name: t.title, level: 1 });
+
+        expect(backs).toHaveLength(1);
+        expect(backs[0]!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     // Owner 2026-10-13: the Email row stays OUT (a3e787f52, evaluateFinal.md). The header is the identity block and
     // carries the address; a read-only Email row repeats it.
     it('shows the email once, in the header, and the display-name row in the Account group', () => {

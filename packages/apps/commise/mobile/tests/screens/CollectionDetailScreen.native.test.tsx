@@ -197,7 +197,8 @@ describe('CollectionDetailScreen — loading and error', () => {
 
         expect((await screen.findByRole('alert')).textContent).toContain(collectionMessages.en.detail.notFoundTitle);
         expect(screen.queryByRole('button', { name: collectionMessages.en.detail.retry })).toBeNull();
-        expect(screen.getByRole('button', { name: BACK_TO_COLLECTIONS })).toBeTruthy();
+        // The bar's Back and the notice's own action: the one place the page has two (`pinnedBackBar.md` §5).
+        expect(screen.getAllByRole('button', { name: BACK_TO_COLLECTIONS })).toHaveLength(2);
     });
 
     it('⛔ keeps a loaded collection when a background refetch fails, says so, and a Try again that works clears it', async () => {
@@ -244,6 +245,78 @@ describe('CollectionDetailScreen — loading and error', () => {
 
         expect(await screen.findByRole('heading', { name: 'Collection B' })).toBeTruthy();
         expect(screen.queryByText('Delete Collection A?')).toBeNull();
+    });
+});
+
+/**
+ * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2, §5; blueprint step 6): every branch of the read
+ * boundary mounts its own `PushedPageFrame`, so Back is the bar's at the same place in loading, failed and settled. The
+ * generic failure keeps Try again only; a missing collection keeps "Back to Collections" as its one action, which is the
+ * ONE allowed second element with that name. The ⋯ menu moved into the bar, ahead of the H1. `hidden: true` counts a copy
+ * a plain query would skip, which is the defect.
+ */
+describe('CollectionDetailScreen — one pinned Back in every state', () => {
+    const backs = () => screen.getAllByRole('button', { name: BACK_TO_COLLECTIONS, hidden: true });
+
+    it('has exactly one Back while loading', () => {
+        vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+        renderOver(<CollectionDetailScreen {...props} />);
+
+        expect(backs()).toHaveLength(1);
+        expect(screen.getByRole('progressbar', { name: collectionMessages.en.detail.loadingLabel })).toBeTruthy();
+    });
+
+    it('has exactly one Back for a generic failure, and the notice keeps Try again only', async () => {
+        vi.spyOn(client, 'getCollectionById').mockRejectedValue(new Error('network down'));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        const alert = await screen.findByRole('alert');
+
+        expect(alert).toBeTruthy();
+        expect(backs()).toHaveLength(1);
+        expect(screen.getByRole('button', { name: collectionMessages.en.detail.retry })).toBeTruthy();
+    });
+
+    it('has the bar’s Back AND the notice’s one action for a missing collection: the only allowed pair', async () => {
+        vi.spyOn(client, 'getCollectionById').mockRejectedValue(new NotFoundError());
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        const alert = await screen.findByRole('alert');
+
+        // One in the bar, before the notice; one is the notice's own action, after its words.
+        const [inBar, inNotice] = backs();
+
+        expect(backs()).toHaveLength(2);
+        expect(inBar!.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(alert.compareDocumentPosition(inNotice!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('has exactly one Back once settled, with the ⋯ menu in the bar ahead of the H1', async () => {
+        renderOver(<CollectionDetailScreen {...props} />);
+        const heading = await screen.findByRole('heading', { name: 'Weeknight favourites' });
+        const menu = screen.getByRole('button', { name: 'More actions for Weeknight favourites' });
+
+        expect(backs()).toHaveLength(1);
+        expect(menu.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(backs()[0]!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // Add recipes stays in the content, under the title.
+        expect(
+            heading.compareDocumentPosition(screen.getByRole('button', { name: 'Add recipes' })) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('puts the “view not saved” notice after the header, so the heading stays the scroller’s first child', async () => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView: vi.fn(), saveFailed: true });
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        const heading = await screen.findByRole('heading', { name: 'Weeknight favourites' });
+        const notice = screen.getByText('We couldn’t save your view. Try choosing it again.');
+
+        expect(heading.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });
 

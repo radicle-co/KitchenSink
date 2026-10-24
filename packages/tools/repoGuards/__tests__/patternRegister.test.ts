@@ -378,8 +378,12 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * ⚠️ It went 97 → 96 with the account consolidation (UI consolidation S2). `ImpersonationWarning`, which stated no
  * layer, was deleted as dead code (nothing rendered it), and every component the slice added (`SignOutRow`,
  * `ProfileAccountGroup`) states its layer in its own docblock.
+ *
+ * ⚠️ It went 93 → 92 with the pinned back bar. `RecipeVersionsScreen`, which stated no layer, now says it is the
+ * orchestration of its three framed branches; the two components the change added (`PushedPageFrame`,
+ * `CollectionMoreMenu`) state theirs in their own docblocks.
  */
-const LAYER_UNSTATED_CENSUS = 93;
+const LAYER_UNSTATED_CENSUS = 92;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

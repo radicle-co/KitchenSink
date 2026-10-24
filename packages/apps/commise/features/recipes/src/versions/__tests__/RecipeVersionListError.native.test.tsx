@@ -2,8 +2,8 @@
  * The native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: Error: "We couldn't load the history." + Try
  * again) — the twin of the web `RecipeVersionListError`. Written FIRST: mobile's `RecipeVersionsScreen` hand-built this
  * tree (a bare `Text` alert and a button), which is the reinvention the audit named. Like the native skeleton it keeps the
- * settled list's title, so nothing moves between loading, failed and loaded, and draws a Back in the header only when it
- * is given one (the screen keeps its own above the read boundary).
+ * settled list's title, so nothing moves between loading, failed and loaded. It draws NO Back: on native the screen's
+ * pinned bar owns it in every state (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -38,14 +38,13 @@ describe('RecipeVersionListError (native)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('draws a Back in the header only when it is given one', () => {
-        const onBack = vi.fn();
-        const { rerender } = render(<RecipeVersionListError {...props} />);
-        expect(screen.queryByRole('button', { name: versionList.backToRecipe })).toBeNull();
+    // REWRITES "draws a Back in the header only when it is given one": the pinned bar owns Back on native, and a header
+    // Back left in the tree beside it is a second element with the same name. `onBack` is the web leaf's prop, so this
+    // leaf's props no longer carry it.
+    it('draws no Back: the screen’s pinned bar owns it, and the props carry no way back to ignore', () => {
+        render(<RecipeVersionListError {...props} />);
 
-        rerender(<RecipeVersionListError {...props} onBack={onBack} />);
-        fireEvent.click(screen.getByRole('button', { name: versionList.backToRecipe }));
-
-        expect(onBack).toHaveBeenCalledTimes(1);
+        expect(screen.queryAllByRole('button', { name: versionList.backToRecipe, hidden: true })).toHaveLength(0);
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
     });
 });

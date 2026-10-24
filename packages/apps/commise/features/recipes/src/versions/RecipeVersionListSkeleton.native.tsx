@@ -3,8 +3,8 @@
  * skeleton rows").
  *
  * The settled list's title, a caption spoken politely through `LiveRegion` (React Native has no live region of its own on
- * iOS), and three inert rows kept out of the accessibility tree. The way back is the SCREEN's — it sits above the read
- * boundary in every state — and so is the failed state, which is already an alert with Try again, so only the loading
+ * iOS), and three inert rows kept out of the accessibility tree. The way back is the SCREEN's pinned bar — it is there in
+ * every state — and so is the failed state, which is already an alert with Try again, so only the loading
  * state lives here. Inert, not pulsing, as the native list skeletons are.
  *
  * Presentational: props → JSX.
@@ -26,17 +26,13 @@ const PLACEHOLDER_ROWS = [0, 1, 2] as const;
 export interface RecipeVersionListSkeletonProps {
     /** What is loading, localised ("Loading version history…"): the caption, which is also spoken. */
     readonly label: string;
-    /** Back to the recipe; absent draws no Back (the screen keeps its own above the read boundary). */
-    readonly onBack?: () => void;
-    /** Web only: the recipe's address. Native has none. */
-    readonly backHref?: string;
 }
 
 /**
- * @param props - The caption and, when given, the way back.
+ * @param props - The caption.
  * @returns The title, the caption, and three placeholder rows.
  */
-export const RecipeVersionListSkeleton: FC<RecipeVersionListSkeletonProps> = ({ label, onBack }) => {
+export const RecipeVersionListSkeleton: FC<RecipeVersionListSkeletonProps> = ({ label }) => {
     const { versionList } = useMessages(recipeVersionMessages);
     const { colors } = useTheme();
     const headingId = useId();
@@ -44,19 +40,7 @@ export const RecipeVersionListSkeleton: FC<RecipeVersionListSkeletonProps> = ({ 
 
     return (
         <View style={styles.container}>
-            <LargeTitleHeader
-                headingId={headingId}
-                title={versionList.heading}
-                {...(onBack === undefined
-                    ? {}
-                    : {
-                          back: {
-                              label: versionList.backToRecipe,
-                              parent: versionList.backToRecipe,
-                              onPress: onBack,
-                          },
-                      })}
-            />
+            <LargeTitleHeader headingId={headingId} title={versionList.heading} />
             <LiveRegion politeness="polite" style={[styles.caption, { color: colors.inkMuted }]}>
                 {label}
             </LiveRegion>

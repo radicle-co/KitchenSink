@@ -4,7 +4,7 @@
  * so the host can condense; and a screen-reader focus signal moves the cursor to it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { Pressable, Text } from 'react-native';
 
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
@@ -43,19 +43,44 @@ describe('LargeTitleHeader (native)', () => {
         expect(avatar.compareDocumentPosition(fab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('names the back control "Back to {parent}" and calls it', () => {
-        const onPress = vi.fn();
+    // Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §4 "No duplicate"). REWRITES the old "names the
+    // back control "Back to {parent}" and calls it" test: on native the pinned `CondensedTitleBar` owns Back, and a header
+    // that also drew one left a second element with the same name, scrolled off screen but still in the tree. The prop
+    // stays (web uses it for the 840+ eyebrow); native simply draws nothing for it.
+    it('renders no Back control, even when given a back: the pinned bar owns it', () => {
         render(
             <LargeTitleHeader
                 headingId="h"
                 title="Weeknight dinners"
-                back={{ label: 'Back to Collections', parent: 'Collections', onPress }}
+                back={{ label: 'Back to Collections', parent: 'Collections', onPress: vi.fn() }}
             />,
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Back to Collections' }));
+        expect(screen.queryAllByRole('button', { name: 'Back to Collections', hidden: true })).toHaveLength(0);
+        expect(screen.getByRole('heading', { name: 'Weeknight dinners' })).toBeTruthy();
+    });
 
-        expect(onPress).toHaveBeenCalledOnce();
+    it('draws its 44 pt row for an action and for nothing else', () => {
+        const { rerender } = render(
+            <LargeTitleHeader
+                headingId="h"
+                title="Weeknight dinners"
+                back={{ label: 'Back to Collections', parent: 'Collections', onPress: vi.fn() }}
+            />,
+        );
+        const titleBlock = (): HTMLElement => screen.getByRole('heading', { name: 'Weeknight dinners' }).parentElement!;
+
+        expect(getComputedStyle(titleBlock()).paddingTop).not.toBe('44px');
+
+        rerender(
+            <LargeTitleHeader
+                headingId="h"
+                title="Weeknight dinners"
+                action={{ kind: 'controls', menu: <Text>more</Text> }}
+            />,
+        );
+
+        expect(getComputedStyle(titleBlock()).paddingTop).toBe('44px');
     });
 
     it('reports the title block’s layout to its ScrollHost, which then condenses past it', () => {

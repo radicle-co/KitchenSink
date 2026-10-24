@@ -45,16 +45,9 @@ appId: ${APP_ID}
 # Back to Profile returns the cook to Profile. The control is named "Back to Profile", never the bare `Back` that the
 # Android three-button nav bar also publishes (see `recipes/systemBackGuard.yaml`), so a full-match selector cannot
 # resolve to the OS button. The row is on screen again because the navigator restores the page it popped to.
-# The control scrolls with the page. After the scrolls above, CI's iOS found it parked under the status bar
-# (bounds [16,-2][60,41], run 39949307086), so the tap reached the status bar and scrolled the page to its top. It
-# counts as visible there, so `common/scrollIntoTapView.yaml` would skip it: this is that step's own centring pass.
-- scrollUntilVisible:
-      element:
-          text: 'Back to Profile'
-      direction: UP
-      centerElement: true
-      timeout: 4000
-      optional: true
+# Back is pinned in the bar at every scroll position (docs/design/uiRefreshWorkshop5/pinnedBackBar.md), so the tap
+# follows the scroll to the end with no scroll back up. A tap that missed it would hit the status bar and scroll the
+# page to its top, and the assertions below would fail, so this is the regression check for the dead band.
 - tapOn: 'Back to Profile'
 - assertNotVisible: 'The nutrition figures in this app come from these public food databases.'
 - assertVisible: 'Food data sources'

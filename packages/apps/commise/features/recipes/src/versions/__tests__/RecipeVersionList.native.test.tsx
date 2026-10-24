@@ -59,20 +59,13 @@ describe('RecipeVersionList (native)', () => {
         expect(screen.getByText('Slow-roasted lamb')).toBeTruthy();
     });
 
-    // The screen's own hand-built Back is gone: the list draws the header's Back when the host gives a way back, as the
-    // loading and failed states already do, so the way back looks the same in all three.
-    it('draws a Back to the recipe in its header when given a way back, and none when not', () => {
-        const onBack = vi.fn();
-        renderList({ onBack });
-
-        fireEvent.click(screen.getByRole('button', { name: versionList.backToRecipe }));
-
-        expect(onBack).toHaveBeenCalledTimes(1);
-
-        cleanup();
+    // REWRITES "draws a Back to the recipe in its header when given a way back": the pinned bar owns Back on native, and
+    // a header Back left in the tree beside it is a second element with the same name. `onBack` is the web leaf's prop
+    // (`RecipeVersionListWebProps`), so this leaf's props no longer carry it.
+    it('draws no Back: the screen’s pinned bar owns it, and the props carry no way back to ignore', () => {
         renderList();
 
-        expect(screen.queryByRole('button', { name: versionList.backToRecipe })).toBeNull();
+        expect(screen.queryAllByRole('button', { name: versionList.backToRecipe, hidden: true })).toHaveLength(0);
     });
 
     it('says there are no earlier versions yet, and why', () => {
@@ -164,6 +157,15 @@ describe('RecipeVersionList (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'More actions for version 1' }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Preview' }));
         expect(onPreview).toHaveBeenCalledWith(1);
+    });
+
+    it('names the row ⋯ sheet’s close control for the version, not “Back to recipe”', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for version 2' }));
+
+        expect(screen.getByRole('button', { name: 'Close actions for version 2' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: versionList.backToRecipe, hidden: true })).toBeNull();
     });
 
     it('says which version is restoring, and the row menus are unavailable meanwhile', () => {

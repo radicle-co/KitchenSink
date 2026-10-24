@@ -1,9 +1,17 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { simulateOutage } from './utils/outage';
 import { E2E_RECIPE_IDS, makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import {
+    expectBackOnContentGutter,
+    expectBackPinnedWhileScrolling,
+    expectBarNamesItsParent,
+    expectEyebrowBackAndNoBar,
+    expectVisibleBacks,
+} from './utils/pinnedBackBar';
 
 /**
  * Recipe ids as UUIDs rather than readable `rec_*` slugs, because this spec puts a recipe id in a REQUEST BODY:
@@ -570,3 +578,166 @@ test.describe('collections list — W-11: the card says how many recipes it hold
         await expect(page.getByRole('article', { name: 'Weeknight Dinners, 1 recipe, Private' })).toBeVisible();
     });
 });
+
+/**
+ * The pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5, §6). Below 840 Back is pinned in a bar and is
+ * reachable wherever the page is scrolled; from 840 the header's eyebrow is the Back and the fixed bar is not displayed. The
+ * ⋯ menu stays in the header at every width.
+ */
+test.describe('the collection detail: the pinned back bar', () => {
+    /** A collection of six recipes, so the page is long enough to scroll in a short viewport. */
+    async function openCollection(page: Page): Promise<void> {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const recipes = [
+            [RECIPE_IDS.pasta, 'Weeknight Pasta'],
+            [RECIPE_IDS.soup, 'Lentil Soup'],
+            [RECIPE_IDS.family, 'Family Stew'],
+            [RECIPE_IDS.risotto, 'Mushroom Risotto'],
+            [RECIPE_IDS.duck, 'Roast Duck'],
+            [RECIPE_IDS.tart, 'Lemon Tart'],
+        ] as const;
+
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: recipes.map(([id, title]) => makeRecipeDetail({ id, ownerId: viewerId, title })),
+            collections: [
+                makeCollection({
+                    id: 'col_dinners',
+                    ownerId: viewerId,
+                    name: 'Weeknight dinners',
+                    recipeIds: recipes.map(([id]) => id),
+                }),
+            ],
+        });
+        await page.goto(route('/collections/col_dinners'));
+        await expect(page.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeVisible();
+    }
+
+    test.describe('at 390', () => {
+        test.use({ viewport: { width: 390, height: 420 } });
+
+        test('Back stays in view at the end of the page, is never covered by a focused control, and goes to Collections', async ({
+            page,
+        }) => {
+            await openCollection(page);
+
+            await expectBackOnContentGutter(page, 'Back to Collections', 16);
+            await expectBackPinnedWhileScrolling(page, 'Back to Collections', /\/collections\/?$/u);
+        });
+
+        test('Back is there while the read loads, after it fails, and for a missing collection: the bar’s, plus the notice’s for a missing one', async ({
+            page,
+        }) => {
+            await openStatesWithNoHeader(page, async (states) => {
+                await states.loading();
+                await expectVisibleBacks(page, 'Back to Collections', 1);
+                await states.genericError();
+                await expectVisibleBacks(page, 'Back to Collections', 1);
+                await states.notFound();
+                await expectVisibleBacks(page, 'Back to Collections', 2);
+            });
+        });
+    });
+
+    test.describe('at 768', () => {
+        test.use({ viewport: { width: 768, height: 420 } });
+
+        test('the bar names its parent from tablet width: “‹ Collections”, and the accessible name stays whole', async ({
+            page,
+        }) => {
+            await openCollection(page);
+
+            await expectBarNamesItsParent(page, 'Back to Collections', 'Collections');
+            await expectBackOnContentGutter(page, 'Back to Collections', 24);
+        });
+    });
+
+    test.describe('at 1280', () => {
+        test.use({ viewport: { width: 1280, height: 900 } });
+
+        test('the eyebrow link is the Back and the fixed bar is not displayed', async ({ page }) => {
+            await openCollection(page);
+
+            await expectEyebrowBackAndNoBar(page, 'Back to Collections');
+            await expect(page.getByRole('button', { name: 'More actions for Weeknight dinners' })).toBeVisible();
+        });
+
+        // From 840 the bar is gone, and loading and a failed read have no header, so their Back is the eyebrow drawn above
+        // the notice. A missing collection keeps its notice Back too: exactly two, the only allowed pair.
+        test('Back is there while the read loads, after it fails, and for a missing collection', async ({ page }) => {
+            await openStatesWithNoHeader(page, async (states) => {
+                await states.loading();
+                await expectVisibleBacks(page, 'Back to Collections', 1);
+                await states.genericError();
+                await expectVisibleBacks(page, 'Back to Collections', 1);
+                await states.notFound();
+                await expectVisibleBacks(page, 'Back to Collections', 2);
+            });
+        });
+    });
+});
+
+/** The three states of a collection read that have no header to carry Back. */
+interface StatesWithNoHeader {
+    /** The read is held open: the loading state. */
+    readonly loading: () => Promise<void>;
+    /** The read fails with a 503 until the spec ends it: the generic error. */
+    readonly genericError: () => Promise<void>;
+    /** The read answers 404: a missing collection. */
+    readonly notFound: () => Promise<void>;
+}
+
+/**
+ * Drives a collection's read into each state with no header, one after another on one page.
+ *
+ * @sideEffect Signs in, installs routes that hold or refuse the collection read, and releases them on the way out.
+ * @param page - The page to drive.
+ * @param body - The spec's steps, given the three states.
+ */
+async function openStatesWithNoHeader(page: Page, body: (states: StatesWithNoHeader) => Promise<void>): Promise<void> {
+    const read = /\/api\/v1\/collections\/col_dinners$/;
+    await signInWithTicket(page);
+    const viewerId = await readViewerAppId(page);
+    await mockRecipeApi(page, { viewerId, collections: [] });
+
+    let held: Promise<void> | undefined;
+    let release: () => void = () => undefined;
+    await page.route(read, async (request) => {
+        if (held !== undefined) {
+            await held;
+        }
+
+        await request.fallback();
+    });
+
+    try {
+        await body({
+            loading: async () => {
+                held = new Promise<void>((resolve) => {
+                    release = resolve;
+                });
+                await page.goto(route('/collections/col_dinners'));
+                await expect(page.getByText('Loading collection…')).toBeVisible();
+            },
+            genericError: async () => {
+                release();
+                held = undefined;
+                const outage = await simulateOutage(page, read);
+                await page.goto(route('/collections/col_dinners'));
+                await expect(
+                    page.getByRole('alert').filter({ hasText: 'We couldn’t load this collection.' }),
+                ).toBeVisible({ timeout: 15_000 });
+                outage.end();
+            },
+            notFound: async () => {
+                await page.goto(route('/collections/col_missing'));
+                await expect(
+                    page.getByRole('alert').filter({ hasText: 'We couldn’t find that collection' }),
+                ).toBeVisible();
+            },
+        });
+    } finally {
+        release();
+    }
+}

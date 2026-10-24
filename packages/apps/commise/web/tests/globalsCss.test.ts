@@ -62,6 +62,34 @@ describe('globals.css', () => {
         expect(layers.indexOf('clerk')).toBeLessThan(layers.indexOf('components'));
     });
 
+    /**
+     * A pushed page pins a Back bar over the top of the document below 840 (`PushedPageFrame`,
+     * `docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). The bar's rendered height is ONE property,
+     * `--pinned-bar-block` (`@commise/ui`'s theme: `--pinned-bar-height` plus the notch's inset), and this stylesheet reads
+     * it twice, keyed on the frame being in the page and ONLY below 840, where the bar is shown:
+     *   - `scroll-padding-top`, so a focused control scrolled into view is never left under the bar (WCAG 2.2 SC 2.4.11);
+     *   - `--main-top`, the top padding of `<main>`, so what the shell draws above the page (the connectivity notice) sits
+     *     under the bar and the H1 lands at the bar's height instead of 24 px below it.
+     * The default `--main-top` (1.5rem, the old `pt-6`) is declared ONCE: the reservation is a max-width rule, so there is no
+     * reset from 840 to restate it. A text check: the browser behaviour is asserted by the pushed-page Playwright specs.
+     */
+    it('reserves the pinned back bar’s rendered height below 840 only, keyed on the frame, from the one property', () => {
+        const compact = globalsCss.replace(/\s+/g, ' ');
+        const reserve =
+            /@media \(width < 52\.5rem\) \{[^@]*html:has\(\[data-pushed-page\]\) \{ scroll-padding-top: var\(--pinned-bar-block\); --main-top: var\(--pinned-bar-block\); \}/.exec(
+                compact,
+            );
+
+        expect(reserve, 'the reservation under the pinned bar, below 840 only').not.toBeNull();
+        expect(globalsCss, 'no height literal of its own: the property is the one source').not.toContain('3.5rem');
+    });
+
+    it('declares the main top padding default once', () => {
+        const declarations = globalsCss.match(/--main-top:\s*1\.5rem/g) ?? [];
+
+        expect(declarations, 'the 1.5rem default, restated nowhere else').toHaveLength(1);
+    });
+
     it('still imports the brand webfont families', () => {
         // Guards against "fixing" the ordering by deleting the import outright. If these ever move to
         // `next/font`, delete this test in the same commit that adds the replacement.

@@ -34,9 +34,10 @@ import {
     useProfileScreen,
 } from '@commise/features-account/profile';
 import { useMessages } from '@commise/i18n/react';
-import { CondensedTitleBar, LargeTitleHeader } from '@commise/ui/large-title-header';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { nativeTokens } from '@commise/ui/native';
-import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
+import { PushedPageFrame, type PushedPageInset } from '@commise/ui/pushed-page';
+import type { ScrollBind } from '@commise/ui/scroll-host';
 import { useTheme } from '@commise/ui/theme';
 import { useId, useState, type JSX } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -56,32 +57,48 @@ export interface ProfileScreenProps {
     readonly onOpenDataSources: () => void;
 }
 
-/** Props for the page inside its scroll host. */
-interface ProfileSurfaceProps extends ProfileScreenProps {
+/** Props for the page inside the frame. */
+interface ProfileSurfaceProps {
     /** The bind for the page's one vertical scroller. */
     readonly scrollBind: ScrollBind;
+    /** The room the frame leaves under the pinned bar. */
+    readonly inset: PushedPageInset;
+    /** The H1's id, which the frame's bar watches. */
+    readonly headingId: string;
+    /** Open Food data sources. */
+    readonly onOpenDataSources: () => void;
 }
 
 /**
- * The Profile page, inside its own scroll host (it is a pushed screen, not a tab root).
+ * The Profile page, inside the shared pushed-page frame (it is a pushed screen, not a tab root): the frame owns the one
+ * scroll host and pins Back in the bar, so Back is reachable at every scroll position.
  *
  * @param props - The way back, and the way to Data sources.
  * @returns The page.
  */
 export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps): JSX.Element {
+    const t = useMessages(profileMessages);
+    const headingId = useId();
+    const back = { label: t.back, parent: t.homeParent, onPress: onBack };
+
     return (
-        <ScrollHost>
-            {(bind) => <ProfileSurface scrollBind={bind} onBack={onBack} onOpenDataSources={onOpenDataSources} />}
-        </ScrollHost>
+        <PushedPageFrame back={back} headingId={headingId} title={t.title}>
+            {(bind, inset) => (
+                <ProfileSurface
+                    scrollBind={bind}
+                    inset={inset}
+                    headingId={headingId}
+                    onOpenDataSources={onOpenDataSources}
+                />
+            )}
+        </PushedPageFrame>
     );
 }
 
 /** The page. */
-function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfaceProps): JSX.Element {
+function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: ProfileSurfaceProps): JSX.Element {
     const t = useMessages(profileMessages);
     const { colors } = useTheme();
-    const { condensed } = useScrollHost();
-    const headingId = useId();
     const query = useUserProfile();
     const { user: clerkUser } = useUser();
     // The name and the photo are two mutations, so a photo upload never reads as the name saving, and back.
@@ -94,7 +111,6 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
     // while the write is in flight.
     const [pickedPreview, setPickedPreview] = useState('');
     const user = query.data?.user;
-    const back = { label: t.back, parent: t.homeParent, onPress: onBack };
     // While a new photo is being saved the preview shows it, so the pick does not appear to be lost.
     const photoUrl = photoUpdate.isPending ? pickedPreview : (user?.avatarUrl ?? '');
     const photoError = pickError ?? (photoUpdate.isError ? t.avatarUploadError : undefined);
@@ -105,10 +121,10 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
             <ScrollView
                 {...scrollBind}
                 style={styles.region}
-                contentContainerStyle={styles.content}
+                contentContainerStyle={[styles.content, inset]}
                 keyboardShouldPersistTaps="handled"
             >
-                <LargeTitleHeader headingId={headingId} title={t.title} back={back} />
+                <LargeTitleHeader headingId={headingId} title={t.title} />
                 {user === undefined ? null : <SuspensionBanner status={user.status} />}
                 <ProfileHeader
                     read={read}
@@ -143,7 +159,6 @@ function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfac
                 </ProfileGroup>
                 <AccountDangerZone />
             </ScrollView>
-            <CondensedTitleBar title={t.title} back={back} visible={condensed} />
             <DisplayNameSheet
                 open={editor.open}
                 onOpenChange={editor.setOpen}
@@ -164,7 +179,6 @@ const styles = StyleSheet.create({
     region: { flex: 1 },
     content: {
         paddingHorizontal: nativeTokens.spacing[4],
-        paddingTop: nativeTokens.spacing[2],
         paddingBottom: nativeTokens.spacing[6],
         gap: nativeTokens.spacing[5],
     },

@@ -15,13 +15,12 @@
  * @pattern Facade — the route's boundary and navigation over the shared version-history view
  */
 import { RecipeVersionListError, recipeVersionMessages } from '@commise/features-recipes';
-import { RecipeVersionsView } from '@commise/features-recipes/versions';
+import { RecipeVersionsView, useRecipeTitle } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
-import type { Route } from 'next';
-import { useParams, useRouter } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { RecipeVersionsFrame, useRecipeVersionsNav } from '@/components/recipes/RecipeVersionsFrame';
 import { RecipeVersionsRouteLoading } from '@/components/recipes/RecipeVersionsRouteLoading';
 
 /** Props for {@link RecipeVersionsContainer}. */
@@ -50,6 +49,23 @@ const VersionsError: FC<{ readonly onBack: () => void; readonly backHref: string
 };
 
 /**
+ * The settled history in its frame: the bar names the recipe by its title, which only a settled read knows.
+ *
+ * @param props - The recipe id.
+ * @returns The frame around the history.
+ */
+const SettledVersions: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
+    const { recipeHref, goToRecipe } = useRecipeVersionsNav(recipeId);
+    const title = useRecipeTitle(recipeId);
+
+    return (
+        <RecipeVersionsFrame recipeId={recipeId} parent={title}>
+            <RecipeVersionsView recipeId={recipeId} onBack={goToRecipe} backHref={recipeHref} />
+        </RecipeVersionsFrame>
+    );
+};
+
+/**
  * The live recipe version-history container: the route's read boundary around {@link RecipeVersionsView}.
  *
  * @param props - The recipe id whose version history to load.
@@ -57,24 +73,21 @@ const VersionsError: FC<{ readonly onBack: () => void; readonly backHref: string
  *   version history.
  */
 export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
-    const { locale } = useParams<{ locale: string }>();
-    const router = useRouter();
+    const { recipeHref, goToRecipe } = useRecipeVersionsNav(recipeId);
 
-    const recipeHref = `/${locale}/recipes/${recipeId}`;
-
-    const goToRecipe = (): void => {
-        router.push(recipeHref as Route);
-    };
-
+    // The loading state's frame is `RecipeVersionsRouteLoading`'s own (`loading.tsx` renders it too); the failed and the
+    // settled state each mount the same frame here, so the bar is the same bar, in the same place, in all three.
     return (
         <ClientQueryBoundary
             loading={<RecipeVersionsRouteLoading />}
             renderError={({ resetErrorBoundary }) => (
-                <VersionsError onBack={goToRecipe} backHref={recipeHref} onRetry={resetErrorBoundary} />
+                <RecipeVersionsFrame recipeId={recipeId}>
+                    <VersionsError onBack={goToRecipe} backHref={recipeHref} onRetry={resetErrorBoundary} />
+                </RecipeVersionsFrame>
             )}
             resetKeys={[recipeId]}
         >
-            <RecipeVersionsView recipeId={recipeId} onBack={goToRecipe} backHref={recipeHref} />
+            <SettledVersions recipeId={recipeId} />
         </ClientQueryBoundary>
     );
 };

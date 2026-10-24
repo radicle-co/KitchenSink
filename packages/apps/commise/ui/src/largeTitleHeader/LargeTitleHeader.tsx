@@ -3,7 +3,8 @@
 /**
  * @module @commise/ui/large-title-header — the web design-system {@link LargeTitleHeader} (see `props.ts`).
  *
- * Below `nav` (840) a grid: the 44 px row holds the back control and the action, the title spans the row under it.
+ * Below `nav` (840) a grid: the 44 px row holds the action, the title spans the row under it; the back control is the
+ * pinned `CondensedTitleBar`'s there.
  * From `nav` a wrapping flex row: the back control becomes an eyebrow on its own line, the title takes `flex: 1 1 18rem`
  * and the action `flex: none`, so without room the action drops below the title as one group.
  *
@@ -19,33 +20,9 @@
 import type { FC, ReactNode } from 'react';
 
 import { useFocusOnSignal } from '../dialogFocus/useFocusOnSignal.js';
-import { Icon } from '../icon/Icon.js';
-import { RouteAction } from '../routeLink/RouteAction.js';
+import { HeaderEyebrowBack } from './HeaderEyebrowBack.js';
 import { LARGE_SUBTITLE_CLASS, LARGE_TITLE_CLASS } from './largeTitleClass.js';
-import type { HeaderAction, HeaderBack, LargeTitleHeaderProps } from './props.js';
-
-/** The back control: a 44 px ‹ below `nav`, the "‹ {parent}" eyebrow from it. */
-const BackLink: FC<{ readonly back: HeaderBack }> = ({ back }) => {
-    const className =
-        'col-start-1 row-start-1 inline-flex min-h-11 min-w-11 items-center gap-1 self-center justify-self-start rounded-md text-action-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring nav:basis-full nav:min-h-6 nav:text-label';
-    const content = (
-        <>
-            <Icon name="chevronLeft" size={24} />
-            <span className="hidden nav:inline">{back.parent}</span>
-        </>
-    );
-
-    return (
-        <RouteAction
-            label={back.label}
-            onPress={back.onPress}
-            {...(back.href === undefined ? {} : { href: back.href })}
-            className={className}
-        >
-            {content}
-        </RouteAction>
-    );
-};
+import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
 
 /** The action group at the end of the title row. */
 function actionOf(action: HeaderAction): ReactNode {
@@ -75,7 +52,8 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
     focusSignal = 0,
 }) => {
     const heading = useFocusOnSignal<HTMLHeadingElement>(focusSignal);
-    const hasRow = back !== undefined || action !== undefined;
+    // The 2.75rem row holds the action; a lone Back is hidden below 840, where that row is drawn, so it needs none.
+    const hasRow = action !== undefined;
 
     return (
         <header
@@ -83,7 +61,7 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
                 hasRow ? 'grid-rows-[2.75rem_auto]' : ''
             }`}
         >
-            {back === undefined ? null : <BackLink back={back} />}
+            {back === undefined ? null : <HeaderEyebrowBack back={back} />}
             <div className={`col-span-3 min-w-0 nav:flex-[1_1_18rem] ${hasRow ? 'row-start-2' : 'row-start-1'}`}>
                 <h1 id={headingId} ref={heading} tabIndex={-1} className={`${LARGE_TITLE_CLASS} focus:outline-none`}>
                     {title}

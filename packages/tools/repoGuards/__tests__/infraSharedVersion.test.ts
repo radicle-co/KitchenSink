@@ -30,7 +30,8 @@
  * ## Channels
  *
  * Merging to prod publishes a RELEASE (`0.2.0`). A sandbox publishes a PRERELEASE of the version that release
- * would be (`0.2.0-alpha.47`), so the two sort correctly: semver orders `0.2.0-alpha.47` BEFORE `0.2.0`, and
+ * would be (`0.2.0-alpha.47.1`, run 47, attempt 1), so the two sort correctly: semver orders `0.2.0-alpha.47.1`
+ * BEFORE `0.2.0`, and
  * a stable range like `^0.1.0` never resolves a prerelease. A sandbox build can therefore be installed
  * explicitly by a preview without any chance of a production consumer picking it up.
  *
@@ -100,22 +101,64 @@ describe('deriveVersion — release channel', () => {
 describe('deriveVersion — prerelease channel', () => {
     it('prereleases the version the release WOULD be', () => {
         expect(
-            deriveVersion({ current: '0.1.0', commits: ['feat!: x'], channel: 'prerelease', buildId: 47 }).version,
-        ).toBe('0.2.0-alpha.47');
+            deriveVersion({ current: '0.1.0', commits: ['feat!: x'], channel: 'prerelease', buildId: 47, attempt: 1 })
+                .version,
+        ).toBe('0.2.0-alpha.47.1');
     });
 
     it('still produces a build when there is nothing to release — a sandbox always has something to test', () => {
         // ⛔ Deliberately NOT the release behaviour. A PR that only touches a consumer still needs a
         // resolvable prerelease to install, or its preview silently tests the last published version.
-        expect(deriveVersion({ current: '0.1.0', commits: [], channel: 'prerelease', buildId: 3 }).version).toBe(
-            '0.1.1-alpha.3',
-        );
+        expect(
+            deriveVersion({ current: '0.1.0', commits: [], channel: 'prerelease', buildId: 3, attempt: 1 }).version,
+        ).toBe('0.1.1-alpha.3.1');
     });
 
     it('requires a build id, so two sandbox publishes can never collide', () => {
-        expect(() => deriveVersion({ current: '0.1.0', commits: ['fix: x'], channel: 'prerelease' })).toThrow(
-            /buildId/i,
-        );
+        expect(() =>
+            deriveVersion({ current: '0.1.0', commits: ['fix: x'], channel: 'prerelease', attempt: 1 }),
+        ).toThrow(/buildId/i);
+    });
+
+    // ⛔ A RERUN KEEPS ITS RUN NUMBER. GitHub's `run_number` is the same on every attempt of a run, so a
+    // version made from it alone was published twice by a rerun, and the registry refused the second:
+    // `409 Conflict ... Cannot publish over existing version` (run 40060254519, attempt 2, 2026-10-24).
+    it('gives two attempts of the same run two different versions', () => {
+        const first = deriveVersion({
+            current: '0.1.0',
+            commits: ['fix: x'],
+            channel: 'prerelease',
+            buildId: 1102,
+            attempt: 1,
+        });
+        const second = deriveVersion({
+            current: '0.1.0',
+            commits: ['fix: x'],
+            channel: 'prerelease',
+            buildId: 1102,
+            attempt: 2,
+        });
+
+        expect(first.version).toBe('0.1.1-alpha.1102.1');
+        expect(second.version).toBe('0.1.1-alpha.1102.2');
+        expect(semver.gt(second.version, first.version)).toBe(true);
+    });
+
+    it('requires an attempt, for the same reason it requires a build id', () => {
+        expect(() =>
+            deriveVersion({ current: '0.1.0', commits: ['fix: x'], channel: 'prerelease', buildId: 4 }),
+        ).toThrow(/attempt/i);
+    });
+
+    // The CLI hands over `Number(argv)`, so a missing or mistyped argument arrives as NaN, and a stray
+    // `1102.2` would print a version with three identifiers that names no attempt.
+    it.each([Number.NaN, 0, -1, 1.5])('refuses %s as a build id or an attempt', (bad: number) => {
+        expect(() =>
+            deriveVersion({ current: '0.1.0', commits: [], channel: 'prerelease', buildId: bad, attempt: 1 }),
+        ).toThrow(/buildId/i);
+        expect(() =>
+            deriveVersion({ current: '0.1.0', commits: [], channel: 'prerelease', buildId: 1, attempt: bad }),
+        ).toThrow(/attempt/i);
     });
 
     it('sorts BEFORE the release it anticipates, and outside a stable range', () => {
@@ -124,13 +167,14 @@ describe('deriveVersion — prerelease channel', () => {
             commits: ['feat: x'],
             channel: 'prerelease',
             buildId: 9,
+            attempt: 1,
         }).version;
 
         // ⛔ Asserted with a real semver comparator, not `<`. String order says `0.1.1-alpha.9` is GREATER
         // than `0.1.1` — the release is a prefix of the prerelease — so a lexicographic assertion here would
         // be testing the opposite of the property and would have passed for the wrong reason on any version
         // where the two happen to compare the other way.
-        expect(pre).toBe('0.1.1-alpha.9');
+        expect(pre).toBe('0.1.1-alpha.9.1');
         // Semver §11: a version with a prerelease sorts below the same version without one.
         expect(semver.lt(pre, '0.1.1')).toBe(true);
         // The property that keeps a sandbox build out of production: a stable range never resolves a
@@ -158,9 +202,10 @@ describe('deriveVersion — the FIRST release', () => {
                 commits: [],
                 channel: 'prerelease',
                 buildId: 5,
+                attempt: 1,
                 firstRelease: true,
             }).version,
-        ).toBe('0.1.0-alpha.5');
+        ).toBe('0.1.0-alpha.5.1');
     });
 
     it('does not refuse an empty commit set — there is nothing to compare against yet', () => {

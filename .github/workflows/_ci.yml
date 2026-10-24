@@ -91,8 +91,8 @@ jobs:
     # Publishes only when `shared/infra/**` actually changed. When it did not, `version` is empty and every
     # consumer installs the range already pinned in its manifest.
     #
-    # ⚠️ A PRERELEASE, always — `X.Y.Z-alpha.<run_number>`, on the `alpha` dist-tag. Semver orders it below
-    # the release it anticipates and no `^`/`~` range resolves one, so a sandbox build cannot reach a
+    # ⚠️ A PRERELEASE, always — `X.Y.Z-alpha.<run_number>.<run_attempt>`, on the `alpha` dist-tag. Semver
+    # orders it below the release it anticipates and no `^`/`~` range resolves one, so a sandbox build cannot reach a
     # production consumer even though it lives in the same registry. The matching RELEASE is published by
     # `publishInfraShared.yml` on the prod side, which is also the only thing that writes a git tag.
     infra-shared:
@@ -173,7 +173,10 @@ jobs:
               if: steps.decide.outputs.publish == 'true'
               env:
                   BUILD_ID: ${{ github.run_number }}
-              run: node scripts/infraSharedVersion.mjs prerelease "$BUILD_ID" >> "$GITHUB_OUTPUT"
+                  # ⛔ A rerun keeps its run number: without the attempt, attempt 2 re-publishes attempt 1's version
+                  # and the registry answers `409 Cannot publish over existing version` (run 40060254519).
+                  BUILD_ATTEMPT: ${{ github.run_attempt }}
+              run: node scripts/infraSharedVersion.mjs prerelease "$BUILD_ID" "$BUILD_ATTEMPT" >> "$GITHUB_OUTPUT"
             - name: Build
               if: steps.decide.outputs.publish == 'true'
               working-directory: shared/infra

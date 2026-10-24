@@ -23,7 +23,7 @@
  * ## Two channels, and the property that keeps them apart
  *
  * A merge to prod publishes a RELEASE (`0.2.0`). A sandbox publishes a PRERELEASE of whatever that release
- * would be (`0.2.0-alpha.47`). Semver orders a prerelease BELOW its release, and `^`/`~` ranges never resolve
+ * would be (`0.2.0-alpha.47.1`, build 47, attempt 1). Semver orders a prerelease BELOW its release, and `^`/`~` ranges never resolve
  * a prerelease unless it is named explicitly — so a preview can install a sandbox build by exact version
  * while no production consumer can drift onto one.
  *
@@ -117,10 +117,12 @@ function applyBump(current, bump) {
  * @param {readonly string[]} input.commits - Commits touching this package since that release.
  * @param {'release'|'prerelease'} input.channel - Prod merge, or sandbox.
  * @param {number} [input.buildId] - Monotonic build number; required for a prerelease.
+ * @param {number} [input.attempt] - The attempt of that build; required for a prerelease, because a rerun keeps
+ *     its build number.
  * @param {boolean} [input.firstRelease] - True when no release tag exists yet.
  * @returns {{ version: string, bump: string }} The version to publish and the bump it came from.
  */
-export function deriveVersion({ current, commits, channel, buildId, firstRelease = false }) {
+export function deriveVersion({ current, commits, channel, buildId, attempt, firstRelease = false }) {
     if (SEMVER.exec(current) === null) {
         throw new Error(`current version ${current} is not semver (major.minor.patch)`);
     }
@@ -138,7 +140,7 @@ export function deriveVersion({ current, commits, channel, buildId, firstRelease
             return { version: current, bump: 'initial' };
         }
 
-        return { version: `${current}-${PRERELEASE_ID}.${requireBuildId(buildId)}`, bump: 'initial' };
+        return { version: `${current}-${prereleaseSuffix(buildId, attempt)}`, bump: 'initial' };
     }
 
     const bump = bumpFor(commits);
@@ -154,21 +156,36 @@ export function deriveVersion({ current, commits, channel, buildId, firstRelease
     // A sandbox with no qualifying commit still needs an installable version — hence the patch floor.
     const next = applyBump(current, bump === 'none' ? 'patch' : bump);
 
-    return { version: `${next}-${PRERELEASE_ID}.${requireBuildId(buildId)}`, bump };
+    return { version: `${next}-${prereleaseSuffix(buildId, attempt)}`, bump };
 }
 
 /**
- * A build id, or a refusal.
+ * The prerelease identifiers `alpha.<buildId>.<attempt>`, or a refusal.
  *
- * @param {number | undefined} buildId - The candidate.
- * @returns {number} The same value, once it is known to exist.
+ * ⛔ The attempt is not optional. A CI rerun keeps its run number, so a version made from the build number alone
+ * is published twice by a rerun, and the registry refuses the second (`409 Cannot publish over existing version`).
+ *
+ * @param {number | undefined} buildId - The build number.
+ * @param {number | undefined} attempt - The attempt of that build.
+ * @returns {string} The prerelease part of the version.
  */
-function requireBuildId(buildId) {
-    if (buildId === undefined || buildId === null) {
-        throw new Error('a prerelease requires a buildId, so two sandbox publishes cannot collide');
+function prereleaseSuffix(buildId, attempt) {
+    return `${PRERELEASE_ID}.${requirePositiveInteger(buildId, 'buildId')}.${requirePositiveInteger(attempt, 'attempt')}`;
+}
+
+/**
+ * A positive integer, or a refusal naming the input, so two sandbox publishes cannot collide.
+ *
+ * @param {number | undefined} value - The candidate (from the CLI, `Number(argv)`, so possibly NaN).
+ * @param {string} name - Its name, for the error.
+ * @returns {number} The same value, once it is known to be a positive integer.
+ */
+function requirePositiveInteger(value, name) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+        throw new Error(`a prerelease requires a positive integer ${name}, so two sandbox publishes cannot collide`);
     }
 
-    return buildId;
+    return value;
 }
 
 /**
@@ -222,6 +239,7 @@ export function commitsSince(tag) {
 function main() {
     const channel = process.argv[2] === 'prerelease' ? 'prerelease' : 'release';
     const buildId = process.argv[3] === undefined ? undefined : Number(process.argv[3]);
+    const attempt = process.argv[4] === undefined ? undefined : Number(process.argv[4]);
     const { version: current, tag } = lastRelease();
     const commits = commitsSince(tag);
     const { version, bump } = deriveVersion({
@@ -229,6 +247,7 @@ function main() {
         commits,
         channel,
         buildId,
+        attempt,
         firstRelease: tag === null,
     });
 

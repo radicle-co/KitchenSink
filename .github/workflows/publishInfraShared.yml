@@ -107,8 +107,8 @@ jobs:
             # ⛔ THE VERSION IS DERIVED, NEVER TYPED. `scripts/infraSharedVersion.mjs` reads the last
             # `infra-shared-v*` tag and the Conventional Commits since it: `feat!:`/`BREAKING CHANGE:` is
             # major, `feat:` minor, everything else patch — demoted one step while the major is 0, so 1.0.0
-            # stays a deliberate act. A prerelease is that same number with `-alpha.<run>`, which semver
-            # orders BELOW the release and which no `^`/`~` range will ever resolve.
+            # stays a deliberate act. A prerelease is that same number with `-alpha.<run>.<attempt>`, which
+            # semver orders BELOW the release and which no `^`/`~` range will ever resolve.
             # A `push` carries no inputs, so the channel and the dry-run default to a real release; a
             # dispatch can still ask for a prerelease or a rehearsal.
             # ⛔ Via `env:`, never `${{ }}` interpolated into the command body — this file's convention, and
@@ -130,7 +130,9 @@ jobs:
               env:
                   CHANNEL: ${{ steps.intent.outputs.channel }}
                   BUILD_ID: ${{ github.run_number }}
-              run: node scripts/infraSharedVersion.mjs "$CHANNEL" "$BUILD_ID" >> "$GITHUB_OUTPUT"
+                  # A rerun keeps its run number, so a prerelease also names the attempt (the script requires it).
+                  BUILD_ATTEMPT: ${{ github.run_attempt }}
+              run: node scripts/infraSharedVersion.mjs "$CHANNEL" "$BUILD_ID" "$BUILD_ATTEMPT" >> "$GITHUB_OUTPUT"
 
             - name: Write the derived version into the manifest
               working-directory: shared/infra

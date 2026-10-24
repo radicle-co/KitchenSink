@@ -258,16 +258,12 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
     // a local stage without `recipe-workers`; there is no planned stage it could pass on.
     'recipes/pasteListStalled',
-    // The offline write path: the sync layer beneath these is complete and unit-tested
-    // (`@kitchensink/sync`, `@commise/query/sync`), and both apps mount the queue — but NO recipe write is
-    // registered with it yet, so `submit` has zero call sites and nothing enqueues. These flows assert the
-    // cook-visible half (a save that succeeds offline, a queued write surviving an app restart), which is
-    // exactly the behaviour that does not exist until registration lands.
+    // The offline write path: the editor saves through the outbox (ADR-0057), and these flows assert the cook-visible
+    // half (a save that succeeds offline, a queued write surviving an app restart). Android-bound like their siblings
+    // (`setAirplaneMode` has no iOS Simulator equivalent), so they run by hand on an emulator.
     //
-    // ⛔ RECORDED HERE RATHER THAN DELETED, because the restart flow is the ONLY test that can prove the
-    // outbox is genuinely durable — everything else about offline is reproducible with an in-memory queue.
-    // Losing it would lose the one check that justifies persisting on device at all. Promote both to
-    // FLOW_PLAN in the same change that registers the first recipe write.
+    // ⛔ The restart flow is the ONLY test that can prove the outbox is genuinely durable: everything else about offline
+    // is reproducible with an in-memory queue. Keep it, and run it by hand after any change to the outbox or the draft.
     'offline/offlineSave',
     'offline/offlineSurvivesRestart',
     // Discard while offline (plan 2026-10-13-004): Android-bound like its siblings (`setAirplaneMode`), manual-only.

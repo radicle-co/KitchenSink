@@ -65,6 +65,7 @@ import type { PendingBar } from '@commise/ui/pending-bar';
 import type { PhotoControl } from '@commise/ui/photo-control';
 import type { Popover } from '@commise/ui/popover';
 import type { PressScale } from '@commise/ui/press-scale';
+import type { PushedPageFrame } from '@commise/ui/pushed-page';
 import type { RecipeCover } from '@commise/ui/recipe-cover';
 import type { RefreshNotice } from '@commise/ui/refresh-notice';
 import type { RouteAction } from '@commise/ui/route-link';
@@ -161,6 +162,7 @@ export interface CardComponents {
     readonly ProfileGroup: typeof ProfileGroup;
     readonly ProfileRow: typeof ProfileRow;
     readonly PublishLine: typeof PublishLine;
+    readonly PushedPageFrame: typeof PushedPageFrame;
     readonly RecentRecipeGrid: typeof RecentRecipeGrid;
     readonly RecipeCard: typeof RecipeCard;
     readonly RecipeCover: typeof RecipeCover;

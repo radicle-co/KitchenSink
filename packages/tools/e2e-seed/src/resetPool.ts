@@ -49,6 +49,10 @@
  *
  * ## Sessions
  *
+ * Last, each slot's STRAY Clerk sessions are ended (`clerkSessionSweepPort`): every active session of the slot's user
+ * except the held one. Nothing else ends them, and they live seven days. A failure fails the slot, like a refused
+ * settings reset.
+ *
  * A stored handle (`--handles <file>`, the `Record<slotId, SessionHandle>` the k6 pool writes) is re-minted
  * first, because a sign-in is the per-IP-throttled half; a slot with no usable handle is LEASED — resolved,
  * checked against its provisioning, and signed in (`leaseSession`).
@@ -66,7 +70,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 import { remintFromSession, type SessionCredential, type SessionHandle } from '@kitchensink/e2e-fixtures';
-import { clerkLeasePort, leaseSession } from '@kitchensink/e2e-fixtures/lease';
+import {
+    clerkLeasePort,
+    clerkSessionSweepPort,
+    leaseSession,
+    type SessionSweepPort,
+} from '@kitchensink/e2e-fixtures/lease';
 import {
     k6VuSlots,
     MAESTRO_PLATFORMS,
@@ -116,6 +125,8 @@ export type SlotResetOutcome =
           readonly pickedRoots: number | 'notPurged';
           /** Whether identity's `DELETE /users/me/settings` restored the slot to "never chosen", or no port was passed. */
           readonly settings: 'reset' | 'notReset';
+          /** How many stray Clerk sessions of the slot's user the sweep ended, or `notSwept` when no port was passed. */
+          readonly sessionsEnded: number | 'notSwept';
       }
     | { readonly slot: PoolSlot; readonly ok: false; readonly reason: string };
 
@@ -224,6 +235,12 @@ export interface SlotResetDeps {
      * (ADR-0059). A pool user is reused, and a setting a run chose is residue the recipe purge cannot reach.
      */
     readonly settings: SettingsResetPort | undefined;
+    /**
+     * OPTIONAL. Ends every ACTIVE Clerk session of the slot's user except the held one, after the rest of the slot
+     * reset. The tooling and the apps start a session per run or flow and nothing ends them (measured 2026-10-24: 614
+     * on one signer, each a live credential for seven days). Absent, every outcome line says `NOT ended`.
+     */
+    readonly sessions?: SessionSweepPort;
 }
 
 const positiveInteger = (raw: string | undefined): number | undefined => {
@@ -392,7 +409,7 @@ export async function resetSlots(
 async function settle(
     purge: RequestedPurge,
     timing: PurgeTiming,
-    deps: Pick<SlotResetDeps, 'authoredFoods' | 'settings'>,
+    deps: Pick<SlotResetDeps, 'authoredFoods' | 'settings' | 'sessions'>,
 ): Promise<SlotResetOutcome> {
     try {
         await awaitPurge(purge.client, purge.jobId, timing);
@@ -416,6 +433,9 @@ async function settle(
             await resetSettings(deps.settings, purge);
         }
 
+        // Last, and only once everything above succeeded: the held session survives, because later steps reuse it.
+        const sessionsEnded = deps.sessions === undefined ? undefined : await endStraySessions(deps.sessions, purge);
+
         return {
             slot: purge.slot,
             ok: true,
@@ -425,6 +445,7 @@ async function settle(
             authoredFoods: foods?.authoredFoods ?? 'notPurged',
             pickedRoots: foods?.pickedRoots ?? 'notPurged',
             settings: deps.settings === undefined ? 'notReset' : 'reset',
+            sessionsEnded: sessionsEnded ?? 'notSwept',
         };
     } catch (error) {
         return { slot: purge.slot, ok: false, reason: reasonOf(error) };
@@ -459,6 +480,21 @@ async function resetSettings(port: SettingsResetPort, purge: RequestedPurge): Pr
         await port.reset(purge.handle);
     } catch (error) {
         throw new Error(`recipe data purged by job ${purge.jobId}, but settings were not reset: ${reasonOf(error)}`, {
+            cause: error,
+        });
+    }
+}
+
+/**
+ * End one slot's stray Clerk sessions (never the held one), naming the half that failed.
+ *
+ * @sideEffect Revokes Clerk sessions through the port.
+ */
+async function endStraySessions(port: SessionSweepPort, purge: RequestedPurge): Promise<number> {
+    try {
+        return await port.endOtherSessions(purge.handle);
+    } catch (error) {
+        throw new Error(`recipe data purged by job ${purge.jobId}, but sessions were not ended: ${reasonOf(error)}`, {
             cause: error,
         });
     }
@@ -509,7 +545,12 @@ export function describeOutcomes(outcomes: readonly SlotResetOutcome[]): readonl
                   (outcome.authoredFoods === 'notPurged'
                       ? 'authored foods NOT purged (no food-service port passed)'
                       : `-${outcome.authoredFoods} authored foods, -${outcome.pickedRoots} picked roots`) +
-                  (outcome.settings === 'reset' ? ', settings reset' : ', settings NOT reset (no identity port passed)')
+                  (outcome.settings === 'reset'
+                      ? ', settings reset'
+                      : ', settings NOT reset (no identity port passed)') +
+                  (outcome.sessionsEnded === 'notSwept'
+                      ? ', sessions NOT ended (no Clerk port passed)'
+                      : `, ${outcome.sessionsEnded} sessions ended`)
                 : `FAILED ${outcome.slot.tier}/${outcome.slot.id}: ${outcome.reason}`,
         ),
         failed === 0
@@ -576,6 +617,7 @@ async function main(): Promise<void> {
         client: (handle) => clientFor(env.recipeOrigin, handle),
         authoredFoods: authoredFoodPurgeVia((handle) => foodClientFor(foodOrigin, handle)),
         settings: settingsResetVia(identityOrigin),
+        sessions: clerkSessionSweepPort(env.clerkSecretKey),
     });
 
     for (const line of describeOutcomes(outcomes)) {

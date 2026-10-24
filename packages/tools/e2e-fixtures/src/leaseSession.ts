@@ -205,6 +205,21 @@ export async function leaseErasureSubject(
 }
 
 /**
+ * Run one Backend API call inside the 429 retry, naming the step and identity of a final failure. The limit is
+ * instance-wide and shared with every concurrent suite, so EVERY Backend call in this module goes through here.
+ */
+async function backendCall<T>(step: string, identity: string, call: () => Promise<T>): Promise<T> {
+    try {
+        return await withClerkBackendRetry(call, {
+            retries: BACKEND_RETRIES,
+            maxWaitSeconds: BACKEND_MAX_WAIT_SECONDS,
+        });
+    } catch (error) {
+        throw describeClerkBackendFailure(step, identity, error);
+    }
+}
+
+/**
  * The {@link LeasePort} over Clerk's Backend API. A 429 is retried — that limit is instance-wide and recovers in
  * seconds — and anything else is final.
  *
@@ -213,20 +228,9 @@ export async function leaseErasureSubject(
 export function clerkLeasePort(secretKey: string): LeasePort {
     const clerk = createClerkClient({ secretKey });
 
-    const backend = async <T>(step: string, identity: string, call: () => Promise<T>): Promise<T> => {
-        try {
-            return await withClerkBackendRetry(call, {
-                retries: BACKEND_RETRIES,
-                maxWaitSeconds: BACKEND_MAX_WAIT_SECONDS,
-            });
-        } catch (error) {
-            throw describeClerkBackendFailure(step, identity, error);
-        }
-    };
-
     return {
         findUsers: async (email) => {
-            const { data } = await backend('user lookup', email, () =>
+            const { data } = await backendCall('user lookup', email, () =>
                 clerk.users.getUserList({ emailAddress: [email] }),
             );
 
@@ -237,11 +241,109 @@ export function clerkLeasePort(secretKey: string): LeasePort {
             }));
         },
         mintTicket: async (userId) => {
-            const { token } = await backend('sign-in ticket mint', userId, () =>
+            const { token } = await backendCall('sign-in ticket mint', userId, () =>
                 clerk.signInTokens.createSignInToken({ userId, expiresInSeconds: TICKET_LIFETIME_SECONDS }),
             );
 
             return token;
         },
     };
+}
+
+/** Sessions asked of Clerk per page (its maximum is 500; a pool user holds hundreds when nothing ends them). */
+export const SESSION_PAGE_SIZE = 100;
+
+/** The part of Clerk's Backend client the session sweep uses, so a test can hand it a fake. */
+export interface SessionSweepClerk {
+    readonly users: {
+        readonly getUserList: (params: { emailAddress: string[] }) => Promise<{ data: readonly { id: string }[] }>;
+    };
+    readonly sessions: {
+        readonly getSessionList: (params: {
+            userId: string;
+            status: 'active';
+            limit: number;
+            offset: number;
+        }) => Promise<{ data: readonly { id: string; status: string }[] }>;
+        readonly revokeSession: (sessionId: string) => Promise<unknown>;
+    };
+}
+
+/** What a reset needs from Clerk to end a pool user's stray sessions. */
+export interface SessionSweepPort {
+    /**
+     * End every ACTIVE session of the handle's user EXCEPT the handle's own; resolves to how many it ended.
+     *
+     * @sideEffect Revokes Clerk sessions, one at a time.
+     */
+    readonly endOtherSessions: (held: SessionHandle) => Promise<number>;
+}
+
+/**
+ * The {@link SessionSweepPort} over a Clerk Backend client.
+ *
+ * Sessions only expire after seven days, and the tooling and the apps start one per run or flow, so a pool user
+ * collects hundreds of live credentials (measured 2026-10-24: 614 on one signer). The user is resolved by the
+ * handle's address, which must be on the pool roster and name exactly ONE user — a sweep never guesses whose
+ * sessions to end. All active sessions are listed BEFORE the first revoke, because revoking while paging by offset
+ * would shift the list under the cursor and skip sessions. Revokes go one at a time (the limit is shared), and the
+ * held session is excluded twice: by id, and by the listing's own status.
+ *
+ * @param clerk - A Clerk Backend client.
+ * @returns The port.
+ * @sideEffect The returned port reads and revokes Clerk sessions.
+ */
+export function sessionSweepVia(clerk: SessionSweepClerk): SessionSweepPort {
+    return {
+        endOtherSessions: async (held) => {
+            assertPoolMember(held.email);
+
+            const { data: users } = await backendCall('user lookup', held.email, () =>
+                clerk.users.getUserList({ emailAddress: [held.email] }),
+            );
+            const [user, ...others] = users;
+
+            if (user === undefined || others.length > 0) {
+                throw new Error(`${users.length} Clerk users hold ${held.email} — a session sweep needs exactly one`);
+            }
+
+            const stray: string[] = [];
+
+            for (let offset = 0; ; offset += SESSION_PAGE_SIZE) {
+                const { data } = await backendCall('session listing', held.email, () =>
+                    clerk.sessions.getSessionList({
+                        userId: user.id,
+                        status: 'active',
+                        limit: SESSION_PAGE_SIZE,
+                        offset,
+                    }),
+                );
+
+                stray.push(
+                    ...data
+                        .filter((entry) => entry.status === 'active' && entry.id !== held.sessionId)
+                        .map((entry) => entry.id),
+                );
+
+                if (data.length < SESSION_PAGE_SIZE) {
+                    break;
+                }
+            }
+
+            for (const sessionId of stray) {
+                await backendCall('session revoke', sessionId, () => clerk.sessions.revokeSession(sessionId));
+            }
+
+            return stray.length;
+        },
+    };
+}
+
+/**
+ * The {@link SessionSweepPort} over Clerk's Backend API for a secret key.
+ *
+ * @sideEffect The returned port calls the Clerk Backend API.
+ */
+export function clerkSessionSweepPort(secretKey: string): SessionSweepPort {
+    return sessionSweepVia(createClerkClient({ secretKey }));
 }

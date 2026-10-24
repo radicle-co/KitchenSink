@@ -16,6 +16,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
+import { sessionSweepVia, SESSION_PAGE_SIZE, type SessionSweepClerk } from '@kitchensink/e2e-fixtures/lease';
 import { k6VuSlots } from '@kitchensink/e2e-fixtures/testPool';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import type { CollectionListItem } from '@kitchensink/schema-recipe';
@@ -567,6 +568,70 @@ describe('resetSlots over a real wire', () => {
             });
 
             expect(outcome).toMatchObject({ ok: true, settings: 'reset' });
+        });
+    });
+
+    describe('the session sweep, through the SHIPPED Clerk adapter over a fake Clerk client', () => {
+        /** A Clerk fake holding `count` active sessions for one user, the first of which is the held one. */
+        const fakeClerk = (count: number, heldId: string) => {
+            const live = new Set<string>([heldId, ...Array.from({ length: count - 1 }, (_, index) => `sess_${index}`)]);
+            const revoked: string[] = [];
+            const clerk: SessionSweepClerk = {
+                users: { getUserList: async () => ({ data: [{ id: 'user_alfa' }] }) },
+                sessions: {
+                    getSessionList: async ({ status, limit, offset }) => ({
+                        data: [...live]
+                            .slice(offset, offset + limit)
+                            .map((id) => ({ id, status: status === 'active' ? 'active' : 'ended' })),
+                    }),
+                    revokeSession: async (id) => {
+                        live.delete(id);
+                        revoked.push(id);
+                    },
+                },
+            };
+
+            return { clerk, live, revoked };
+        };
+
+        it('ends every stray session of the slot over several pages after its purge, and keeps the held one', async () => {
+            libraries.set('alfa', { recipes: ['a1'], collections: [] });
+            const held = { ...handle('alfa'), email: alfa!.email };
+            const total = SESSION_PAGE_SIZE * 2 + 7;
+            const fake = fakeClerk(total, 'alfa');
+
+            const [outcome] = await resetSlots([alfa!], {
+                session: async () => held,
+                client,
+                purge: fastPurge,
+                authoredFoods: undefined,
+                settings: undefined,
+                sessions: sessionSweepVia(fake.clerk),
+            });
+
+            expect(outcome).toMatchObject({ ok: true, sessionsEnded: total - 1 });
+            expect([...fake.live]).toEqual(['alfa']);
+            expect(fake.revoked).not.toContain('alfa');
+            expect(traffic.some((line) => line.includes('POST /api/v1/account/test-reset'))).toBe(true);
+        });
+
+        it('ends nothing when the purge failed', async () => {
+            libraries.set('alfa', { recipes: ['a1'], collections: [] });
+            jobScripts.set('alfa', ['failed']);
+            const held = { ...handle('alfa'), email: alfa!.email };
+            const fake = fakeClerk(5, 'alfa');
+
+            const [outcome] = await resetSlots([alfa!], {
+                session: async () => held,
+                client,
+                purge: fastPurge,
+                authoredFoods: undefined,
+                settings: undefined,
+                sessions: sessionSweepVia(fake.clerk),
+            });
+
+            expect(outcome).toMatchObject({ ok: false });
+            expect(fake.revoked).toEqual([]);
         });
     });
 

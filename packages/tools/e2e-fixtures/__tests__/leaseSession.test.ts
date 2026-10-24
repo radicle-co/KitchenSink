@@ -12,22 +12,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionHandle } from '../src/clerkSession.js';
 import {
     clerkLeasePort,
+    clerkSessionSweepPort,
     firstAvailableSlot,
     leaseErasureSubject,
     leaseSession,
     resolvePoolUser,
+    SESSION_PAGE_SIZE,
     type LeasePort,
     type PoolUserRecord,
 } from '../src/leaseSession.js';
 import { consumableSlots, MAESTRO_ERASURE_SHARD, maestroErasureSlots, slotFor } from '../src/testPool.js';
 
-const clerk = vi.hoisted(() => ({ getUserList: vi.fn(), createSignInToken: vi.fn() }));
+const clerk = vi.hoisted(() => ({
+    getUserList: vi.fn(),
+    createSignInToken: vi.fn(),
+    getSessionList: vi.fn(),
+    revokeSession: vi.fn(),
+}));
 
 vi.mock('@clerk/backend', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@clerk/backend')>()),
     createClerkClient: () => ({
         users: { getUserList: clerk.getUserList },
         signInTokens: { createSignInToken: clerk.createSignInToken },
+        sessions: { getSessionList: clerk.getSessionList, revokeSession: clerk.revokeSession },
     }),
 }));
 
@@ -275,4 +283,131 @@ describe('clerkLeasePort', () => {
         await expect(clerkLeasePort('sk_test_x').mintTicket('user_1')).resolves.toBe('ticket_9');
         expect(clerk.createSignInToken).toHaveBeenCalledWith({ userId: 'user_1', expiresInSeconds: 60 });
     });
+});
+
+describe('clerkSessionSweepPort', () => {
+    const held: SessionHandle = { ...HANDLE, sessionId: 'sess_held', email: 'test-signer+clerk_test@radcile.com' };
+    const session = (id: string, status = 'active') => ({ id, status });
+    const page = (prefix: string, count: number) =>
+        Array.from({ length: count }, (_, index) => session(`${prefix}${index}`));
+
+    beforeEach(() => {
+        clerk.getUserList.mockReset();
+        clerk.getSessionList.mockReset();
+        clerk.revokeSession.mockReset();
+        clerk.getUserList.mockResolvedValue({ data: [{ id: 'user_signer' }] });
+        clerk.revokeSession.mockResolvedValue({});
+    });
+
+    it('pages through every active session and revokes all of them except the held one, one at a time', async () => {
+        const first = [...page('a', SESSION_PAGE_SIZE - 1), session('sess_held')];
+        const second = page('b', 3);
+        clerk.getSessionList.mockResolvedValueOnce({ data: first }).mockResolvedValueOnce({ data: second });
+        let inFlight = 0;
+        let overlapped = false;
+        clerk.revokeSession.mockImplementation(async () => {
+            inFlight += 1;
+            overlapped ||= inFlight > 1;
+            await Promise.resolve();
+            inFlight -= 1;
+        });
+
+        await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).resolves.toBe(
+            SESSION_PAGE_SIZE - 1 + 3,
+        );
+
+        expect(clerk.getUserList).toHaveBeenCalledWith({ emailAddress: [held.email] });
+        expect(clerk.getSessionList).toHaveBeenNthCalledWith(1, {
+            userId: 'user_signer',
+            status: 'active',
+            limit: SESSION_PAGE_SIZE,
+            offset: 0,
+        });
+        expect(clerk.getSessionList).toHaveBeenNthCalledWith(2, {
+            userId: 'user_signer',
+            status: 'active',
+            limit: SESSION_PAGE_SIZE,
+            offset: SESSION_PAGE_SIZE,
+        });
+        const revoked = clerk.revokeSession.mock.calls.map(([id]) => id as string);
+        expect(revoked).toHaveLength(SESSION_PAGE_SIZE - 1 + 3);
+        expect(new Set(revoked)).toEqual(
+            new Set([...first, ...second].map((entry) => entry.id).filter((id) => id !== 'sess_held')),
+        );
+        expect(overlapped).toBe(false);
+    });
+
+    it('⛔ NEVER revokes the held session, even when it is the only one', async () => {
+        clerk.getSessionList.mockResolvedValue({ data: [session('sess_held')] });
+
+        await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).resolves.toBe(0);
+
+        expect(clerk.revokeSession).not.toHaveBeenCalled();
+    });
+
+    it('does not revoke a session Clerk lists as anything but active, whatever the filter did', async () => {
+        clerk.getSessionList.mockResolvedValue({ data: [session('s_ended', 'ended'), session('s_live')] });
+
+        await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).resolves.toBe(1);
+
+        expect(clerk.revokeSession.mock.calls).toEqual([['s_live']]);
+    });
+
+    it('retries a 429 on a revoke through the shared backend wrapper', async () => {
+        clerk.getSessionList.mockResolvedValue({ data: [session('s_1')] });
+        clerk.revokeSession
+            .mockRejectedValueOnce(new ClerkAPIResponseError('', { data: [], status: 429, retryAfter: 0 }))
+            .mockResolvedValueOnce({});
+
+        await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).resolves.toBe(1);
+
+        expect(clerk.revokeSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries a 429 on a session listing too', async () => {
+        clerk.getSessionList
+            .mockRejectedValueOnce(new ClerkAPIResponseError('', { data: [], status: 429, retryAfter: 0 }))
+            .mockResolvedValueOnce({ data: [session('s_1')] });
+
+        await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).resolves.toBe(1);
+
+        expect(clerk.getSessionList).toHaveBeenCalledTimes(2);
+    });
+
+    it('names the step and the session when a revoke is refused for good', async () => {
+        clerk.getSessionList.mockResolvedValue({ data: [session('s_1')] });
+        clerk.revokeSession.mockRejectedValue(
+            new ClerkAPIResponseError('', {
+                data: [{ code: 'authorization_invalid', message: 'nope', long_message: '', meta: {} }],
+                status: 401,
+            }),
+        );
+
+        await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).rejects.toThrow(
+            /session revoke for s_1: 401/u,
+        );
+    });
+
+    it('REFUSES an address that is not on the pool roster, before any lookup', async () => {
+        await expect(
+            clerkSessionSweepPort('sk_test_x').endOtherSessions({ ...held, email: 'real.person@example.com' }),
+        ).rejects.toThrow();
+
+        expect(clerk.getUserList).not.toHaveBeenCalled();
+        expect(clerk.revokeSession).not.toHaveBeenCalled();
+    });
+
+    it.each([[[]], [[{ id: 'u1' }, { id: 'u2' }]]])(
+        'REFUSES to sweep when the address resolves to %j users — it ends nothing',
+        async (users) => {
+            clerk.getUserList.mockResolvedValue({ data: users });
+
+            await expect(clerkSessionSweepPort('sk_test_x').endOtherSessions(held)).rejects.toThrow(
+                /Clerk users? hold/u,
+            );
+
+            expect(clerk.getSessionList).not.toHaveBeenCalled();
+            expect(clerk.revokeSession).not.toHaveBeenCalled();
+        },
+    );
 });

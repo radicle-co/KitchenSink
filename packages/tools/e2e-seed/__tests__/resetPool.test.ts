@@ -234,6 +234,7 @@ describe('resetSlots', () => {
                 authoredFoods: 'notPurged',
                 pickedRoots: 'notPurged',
                 settings: 'notReset',
+                sessionsEnded: 'notSwept',
             },
             {
                 slot: bravo,
@@ -244,6 +245,7 @@ describe('resetSlots', () => {
                 authoredFoods: 'notPurged',
                 pickedRoots: 'notPurged',
                 settings: 'notReset',
+                sessionsEnded: 'notSwept',
             },
         ]);
         expect(libraries.get(alfa?.email)?.state).toMatchObject({ posts: 1, polls: 3, recipes: [], collections: [] });
@@ -603,6 +605,131 @@ describe('resetSlots', () => {
         expect(perFlow).toMatch(/settingsResetVia\(readIdentityOrigin\(process\.env\)\)\.reset\(state\.signer\)/u);
     });
 
+    it('⛔ ends the slot’s OTHER sessions with the HELD handle, AFTER purge, foods and settings, and reports the count', async () => {
+        const events: string[] = [];
+        const library = fakeLibrary(['r1'], [], {
+            polls: ['running', 'completed'],
+            onEvent: (event) => events.push(event),
+        });
+        const endOtherSessions = vi.fn(async (handle: SessionHandle) => {
+            events.push(`sessions ${handle.sessionId}`);
+
+            return 614;
+        });
+
+        const outcomes = await resetSlots([alfa!], {
+            session: async (slot) => handleFor(slot.email),
+            client: () => library.client,
+            purge: fastPurge,
+            authoredFoods: {
+                purgeOwn: async () => {
+                    events.push('foods');
+
+                    return { authoredFoods: 0, pickedRoots: 0 };
+                },
+            },
+            settings: {
+                reset: async () => {
+                    events.push('settings');
+                },
+            },
+            sessions: { endOtherSessions },
+        });
+
+        expect(outcomes[0]).toMatchObject({ ok: true, sessionsEnded: 614 });
+        expect(endOtherSessions).toHaveBeenCalledExactlyOnceWith(handleFor(alfa!.email));
+        expect(events.indexOf(`sessions sess_${alfa?.email}`)).toBeGreaterThan(events.indexOf('settings'));
+        expect(events.indexOf('settings')).toBeGreaterThan(events.indexOf('foods'));
+        expect(events.indexOf('foods')).toBeGreaterThan(events.indexOf('GET completed'));
+    });
+
+    it('never sweeps sessions for a slot whose recipe purge failed', async () => {
+        const library = fakeLibrary(['r1'], [], { polls: ['failed'] });
+        const endOtherSessions = vi.fn(async () => 0);
+
+        const [outcome] = await resetSlots([alfa!], {
+            session: async (slot) => handleFor(slot.email),
+            client: () => library.client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings: undefined,
+            sessions: { endOtherSessions },
+        });
+
+        expect(outcome).toMatchObject({ ok: false });
+        expect(endOtherSessions).not.toHaveBeenCalled();
+    });
+
+    it('never sweeps sessions for a slot whose settings reset failed', async () => {
+        const library = fakeLibrary(['r1'], []);
+        const endOtherSessions = vi.fn(async () => 0);
+
+        const [outcome] = await resetSlots([alfa!], {
+            session: async (slot) => handleFor(slot.email),
+            client: () => library.client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings: {
+                reset: async () => {
+                    throw new Error('identity answered 503');
+                },
+            },
+            sessions: { endOtherSessions },
+        });
+
+        expect(outcome).toMatchObject({ ok: false });
+        expect(endOtherSessions).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a sweep that fails fails the slot, saying the sessions half failed, and never abandons the next slot', async () => {
+        const libraries = new Map([
+            [alfa?.email, fakeLibrary(['r1'], [])],
+            [bravo?.email, fakeLibrary(['r2'], [])],
+        ]);
+        const endOtherSessions = vi.fn(async (handle: SessionHandle) => {
+            if (handle.email === alfa?.email) {
+                throw new Error('Clerk answered 401');
+            }
+
+            return 2;
+        });
+
+        const outcomes = await resetSlots([alfa!, bravo!], {
+            session: async (slot) => handleFor(slot.email),
+            client: (handle) => libraries.get(handle.email)!.client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings: undefined,
+            sessions: { endOtherSessions },
+        });
+
+        expect(outcomes[0]).toMatchObject({
+            ok: false,
+            reason: expect.stringMatching(/purged by job .*sessions were not ended.*Clerk answered 401/u),
+        });
+        expect(outcomes[1]).toMatchObject({ ok: true, sessionsEnded: 2 });
+        expect(endOtherSessions).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports sessionsEnded as notSwept when no sweep port is passed', async () => {
+        const [outcome] = await resetSlots([alfa!], {
+            session: async (slot) => handleFor(slot.email),
+            client: () => fakeLibrary(['r1'], []).client,
+            purge: fastPurge,
+            authoredFoods: undefined,
+            settings: undefined,
+        });
+
+        expect(outcome).toMatchObject({ ok: true, sessionsEnded: 'notSwept' });
+    });
+
+    it('⛔ the CLI wires the Clerk session sweep — a reset that left stray sessions alive must not be the shipped one', () => {
+        const cli = readFileSync(fileURLToPath(new URL('../src/resetPool.ts', import.meta.url)), 'utf8');
+        const main = cli.slice(cli.indexOf('async function main'));
+
+        expect(main).toMatch(/sessions: clerkSessionSweepPort\(env\.clerkSecretKey\)/u);
+    });
+
     it('reports a slot whose library cannot be read as failed, having requested no purge', async () => {
         const broken = fakeLibrary(['r1'], [], { failList: true });
 
@@ -675,12 +802,13 @@ describe('describeOutcomes', () => {
                 authoredFoods: 4,
                 pickedRoots: 1,
                 settings: 'reset',
+                sessionsEnded: 614,
             },
             { slot: bravo!, ok: false, reason: 'boom' },
         ]);
 
         expect(lines).toEqual([
-            'reset k6/alfa: purged by job job-1, -2 recipes, -0 collections, -4 authored foods, -1 picked roots, settings reset',
+            'reset k6/alfa: purged by job job-1, -2 recipes, -0 collections, -4 authored foods, -1 picked roots, settings reset, 614 sessions ended',
             'FAILED k6/bravo: boom',
             '1 of 2 slots could NOT be reset',
         ]);
@@ -697,6 +825,7 @@ describe('describeOutcomes', () => {
                 authoredFoods: 0,
                 pickedRoots: 0,
                 settings: 'notReset',
+                sessionsEnded: 'notSwept',
             },
         ]);
 
@@ -714,10 +843,30 @@ describe('describeOutcomes', () => {
                 authoredFoods: 'notPurged',
                 pickedRoots: 'notPurged',
                 settings: 'notReset',
+                sessionsEnded: 'notSwept',
             },
         ]);
 
         expect(line).toMatch(/authored foods NOT purged/u);
+    });
+
+    it('⛔ says so when stray sessions were NOT ended (no Clerk port wired), and names the count when they were', () => {
+        const base = {
+            slot: alfa!,
+            ok: true,
+            jobId: 'job-1',
+            deletedRecipes: 0,
+            deletedCollections: 0,
+            authoredFoods: 0,
+            pickedRoots: 0,
+            settings: 'reset',
+        } as const;
+
+        const [swept] = describeOutcomes([{ ...base, sessionsEnded: 3 }]);
+        const [notSwept] = describeOutcomes([{ ...base, sessionsEnded: 'notSwept' }]);
+
+        expect(swept).toMatch(/, 3 sessions ended$/u);
+        expect(notSwept).toMatch(/sessions NOT ended/u);
     });
 
     it('reports success only when every slot reset', () => {
@@ -732,6 +881,7 @@ describe('describeOutcomes', () => {
                     authoredFoods: 0,
                     pickedRoots: 0,
                     settings: 'reset',
+                    sessionsEnded: 0,
                 },
             ]).at(-1),
         ).toBe('all 1 slots reset');

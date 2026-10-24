@@ -308,7 +308,7 @@ Fold this in. The round 9 `recipeScrolled` boards already assume it, so this spe
 for every pushed page. Owed boards:
 
 - the scrolled state for collection detail, version history, data sources and profile, on phone and on 834
-- the tablet back label
+- the tablet back label: "‹ Collections", the short form (owner ruling 2026-10-24, `ownerFeedback.md` N8)
 - the topBar height corrected to 56.
 
 Keep P4: the bar is neutral and only the chevron is steel.

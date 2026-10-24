@@ -263,7 +263,9 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // (`setAirplaneMode` has no iOS Simulator equivalent), so they run by hand on an emulator.
     //
     // ⛔ The restart flow is the ONLY test that can prove the outbox is genuinely durable: everything else about offline
-    // is reproducible with an in-memory queue. Keep it, and run it by hand after any change to the outbox or the draft.
+    // is reproducible with an in-memory queue. It CANNOT pass on the shipped app: an offline cold start waits on the
+    // sign-in gate until Clerk loads (ADR-0069), so the relaunch never shows the pending change. Keep it: it is the test
+    // ADR-0069 requires before Clerk's resource cache may come back.
     'offline/offlineSave',
     'offline/offlineSurvivesRestart',
     // Discard while offline (plan 2026-10-13-004): Android-bound like its siblings (`setAirplaneMode`), manual-only.

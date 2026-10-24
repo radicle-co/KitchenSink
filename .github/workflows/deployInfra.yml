@@ -147,6 +147,14 @@ jobs:
               env:
                   AZP_STAGE: ${{ inputs.stage }}
               run: bash .github/scripts/exportClerkAzp.sh "${AZP_STAGE}"
+            # ⛔ The edge verifier inlines the key when it is bundled and the synth refuses without it (ADR-0020), and only
+            # `prod` synthesizes the edge. `main`'s checks run at `prod`, so they need it as the deploy does: the first
+            # push to `main` after PR 91 failed on "CLERK_JWT_KEY must be exported". Same script as `prod-deploy.yml`.
+            - name: Export the Clerk edge verification key
+              if: inputs.stage == 'prod'
+              env:
+                  KEY_STAGE: ${{ inputs.stage }}
+              run: bash .github/scripts/exportClerkEdgeKey.sh "${KEY_STAGE}"
             - uses: ./.github/actions/infra-package
               with:
                   directory: packages/infra/global

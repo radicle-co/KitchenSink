@@ -1,6 +1,7 @@
 /**
- * @module CondensedTitleBar.card — the design-system card of the CondensedTitleBar: a short title, and a long title
- * that truncates beside a menu control. The native bar is absolutely placed, so its column seats it in a slot.
+ * @module CondensedTitleBar.card — the design-system card of the CondensedTitleBar: the bar at the top of a page (Back
+ * only, no surface or title), a short title, and a long title that truncates beside a menu control. The native bar is
+ * absolutely placed, so its column seats it in a slot.
  */
 import type { ReactNode } from 'react';
 
@@ -22,7 +23,7 @@ const BAR_IN_FLOW =
 
 export default defineCard({
     group: 'Navigation',
-    height: 260,
+    height: 330,
     platforms: 'both',
     uses: ['CondensedTitleBar', 'Icon'],
     render: ({ CondensedTitleBar, Icon }, { platform }) => {
@@ -31,7 +32,10 @@ export default defineCard({
         return (
             <div style={{ display: 'grid', gap: 12 }}>
                 <style>{BAR_IN_FLOW}</style>
-                {seat(<CondensedTitleBar title="Weeknight pasta" back={back} visible />)}
+                {seat(
+                    <CondensedTitleBar title="Weeknight pasta" back={back} surfaceShown={false} titleShown={false} />,
+                )}
+                {seat(<CondensedTitleBar title="Weeknight pasta" back={back} surfaceShown titleShown />)}
                 {seat(
                     <CondensedTitleBar
                         title="Sunday sourdough and other long bakes for the whole family"
@@ -52,7 +56,8 @@ export default defineCard({
                                 <Icon name="ellipsis" size={24} tone="ink" />
                             </div>
                         }
-                        visible
+                        surfaceShown
+                        titleShown
                     />,
                 )}
             </div>

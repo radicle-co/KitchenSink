@@ -505,7 +505,14 @@
                     .rd .duo {
                         display: grid;
                         gap: 16px;
-                        align-items: start;
+                        align-items: stretch;
+                    }
+                    .rd .duo > div {
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .rd .duo > div > .card {
+                        flex: 1;
                     }
                     .rd .duo > div > .secHead:first-child {
                         margin-top: 28px;
@@ -900,7 +907,10 @@
                             </div>
                             <div>
                                 <div class="secHead">
-                                    <div><h2>Pick up where you left off</h2></div>
+                                    <div>
+                                        <h2>Pick up where you left off</h2>
+                                        <p class="secSub">The recipe you were cooking</p>
+                                    </div>
                                 </div>
                                 <a
                                     class="card resume"

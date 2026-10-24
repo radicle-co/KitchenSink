@@ -150,17 +150,10 @@ const branchUnreachable = (workflow: Workflow): boolean => {
 /**
  * Workflows exempted from carrying a registration trigger, each with the reason.
  *
- * ⛔ A stale entry FAILS, so this cannot rot into fiction.
+ * Empty: the last entry, `publishInfraShared.yml`, merged with PR 91 (2026-10-24), and an exemption goes once its
+ * workflow is on the default branch. ⛔ A stale entry FAILS, so this cannot rot into fiction.
  */
-const EXEMPT: ReadonlyMap<string, string> = new Map([
-    [
-        'publishInfraShared.yml',
-        'Its `push` on main IS its work trigger — publishing the shared package on a change to ' +
-            '`shared/infra/**` — so the job cannot be guarded against push without disabling the release ' +
-            'path it exists for. Registering it would mean restructuring a release workflow, which is a ' +
-            'larger and riskier change than the defect warrants. It is dispatchable the day it merges.',
-    ],
-]);
+const EXEMPT: ReadonlyMap<string, string> = new Map();
 
 describe('a dispatch-only workflow can be registered from a branch', () => {
     const subjects = () =>
@@ -168,9 +161,12 @@ describe('a dispatch-only workflow can be registered from a branch', () => {
             (workflow) => branchUnreachable(workflow) && !onDefaultBranch(workflow.name) && !EXEMPT.has(workflow.name),
         );
 
-    it('finds the workflows this applies to', () => {
-        // Non-vacuity: `it.each` over an empty population is a green suite asserting nothing.
-        expect(subjects().length).toBeGreaterThan(0);
+    it('finds the dispatch-only workflows the rule is about', () => {
+        // Non-vacuity of the PREDICATE, not of the pending set: once every such workflow is on the default branch,
+        // `subjects()` is rightly empty (as after PR 91 merged, 2026-10-24), and a guard that demanded a pending
+        // workflow would fail the default branch for being up to date. What must never be empty is the population the
+        // predicate selects from, or a broken trigger parse would pass every check below without looking at anything.
+        expect(workflows().filter(branchUnreachable).length).toBeGreaterThan(0);
     });
 
     it('every exemption still names a workflow that would otherwise be a subject', () => {

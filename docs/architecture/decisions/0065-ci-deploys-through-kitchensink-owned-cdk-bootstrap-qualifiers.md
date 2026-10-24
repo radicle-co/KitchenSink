@@ -138,7 +138,11 @@ match on it would admit that application's resources. The rules the execution po
 - `DenyOtherTierTag` refuses every action on a resource tagged with another tier's value, in the execution policy and in
   the boundary, so the request path cannot overwrite production's tag from a branch and a role a branch creates cannot
   touch a production-tagged resource. The tier-name Denies stay.
-- `iam:PassRole` requires the role to carry this tier's tag.
+- `iam:PassRole` requires the role to carry this tier's tag, except a role passed to EC2. EC2 checks an instance
+  profile's role with no role tags in its context, so the tag can never match there. Measured on 2026-10-24: a dry-run
+  `ec2:RunInstances` with the production NAT instance profile was refused while the role carried the tag, and its
+  decoded context held only `iam:RoleName`. A role passed to `ec2.amazonaws.com` is therefore allowed by the tier's own
+  role names (`role/kitchensink-*-prod*`, or the sandbox and `pr-` names), and that grant passes to nothing else.
 
 **Migration.** Resources that exist today carry no tier tag, so nothing can modify them until they are tagged. In order:
 (1) the owner deploys the policy stack, which adds `kitchensink-ci-exec-<qualifier>-tags` and the new conditions;

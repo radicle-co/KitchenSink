@@ -93,6 +93,8 @@ const NAMED_RESIDUALS: Readonly<Record<string, string>> = {
     CloudWatchAlarms: 'explicit names end in the stage; the Deny on the other tier names holds',
     CloudWatchDashboards: 'dashboards cannot be tagged; the tier is in the name pattern',
     IamInstanceProfiles: 'instance profiles cannot be tagged',
+    IamPassRoleToEc2:
+        "EC2 evaluates an instance profile's PassRole with no role tags in its context; scoped to the tier's own role names, passed to EC2 only",
     CloudFrontPolicies:
         'cache, origin-request, response-headers policies, access controls, key-value stores and functions are addressed by id and cannot be tagged',
     CloudFrontKeyMaterial:

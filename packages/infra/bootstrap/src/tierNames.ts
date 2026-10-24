@@ -89,6 +89,17 @@ const PATH_FORMS: Readonly<Record<TierNameForm, Readonly<Record<TierSide, readon
     compact: { production: ['*/prod/*', '*/prod'], nonproduction: ['*/sandbox*', '*/pr-*'] },
 };
 
+/**
+ * The anchored name patterns of one tier's OWN resources, without the leading wildcard, for an Allow that is scoped by
+ * name because the service authorizes no tag (`role/kitchensink-*-prod*`). Pure.
+ *
+ * @param side - The tier whose names the patterns match.
+ * @returns The patterns, each starting `kitchensink-`.
+ */
+export function tierOwnNamePatterns(side: TierSide): readonly string[] {
+    return FLAT_FORMS.anchored[side].map((pattern) => pattern.replace(/^\*/u, ''));
+}
+
 /** Services whose resource part is a bare name with no type segment (`kitchensink-queue`, `kitchensink-bucket/key`). */
 const BARE_NAME_SERVICES: ReadonlySet<TierService> = new Set<TierService>(['s3', 'sns', 'sqs']);
 

@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { hasValidProvenance, isValidPrincipal } from '../provenance.js';
+import { SVC_ADMIN_REQUEUE } from '../change-refresh/changeRefresh.consumer.js';
 
 /** A structurally valid app-user ULID (identity's `users.id`) — the post-U1 requester key. */
 const USER_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
@@ -23,6 +24,18 @@ describe('isValidPrincipal (FR-048, CR-002/U1)', () => {
     it('accepts an allowlisted named service principal (svc_*)', () => {
         expect(isValidPrincipal('svc_change_refresh')).toBe(true);
         expect(isValidPrincipal('svc_recipe_import')).toBe(true);
+    });
+
+    /**
+     * U9's operator requeue re-enqueues a blackholed food as this principal, which is the ENTIRE mechanism
+     * by which the escape hatch recovers anything: `tombstone` prunes `fetch_requesters` (DSN-10), so a
+     * blackholed food has no requester and the drain would refuse the requeued row. Pinned by name, not
+     * by shape — a rename that missed the constant would leave the requeue enqueuing an id this validator
+     * still accepts (any `svc_*` passes), so only naming it here ties the two together.
+     */
+    it('accepts SVC_ADMIN_REQUEUE — the principal U9 recovery depends on', () => {
+        expect(isValidPrincipal(SVC_ADMIN_REQUEUE)).toBe(true);
+        expect(SVC_ADMIN_REQUEUE).toBe('svc_admin_requeue');
     });
 
     it('rejects a raw Clerk sub (a legacy pre-U1 requester key) — it is not a ULID and not svc_*', () => {

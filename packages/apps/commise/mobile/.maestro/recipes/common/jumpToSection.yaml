@@ -1,0 +1,20 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: in the editor, go to section `SECTION` (Details, Ingredients, Steps or Photos & publish) the way a
+# cook jumps there, through the section index under the header ('Sections. Current: {section}.'), which opens a sheet of
+# the four sections. The page then lays the section out just under the sticky chrome every time, so a control a short way
+# into the section sits at a known place, clear of the bars. Prefer it to a free scroll whenever the caller then taps
+# something near a section's start: a free scroll stops wherever the target comes in, and on iOS (XCUITest) a target
+# under the sticky Sections bar still counts as visible, so the tap opens the bar instead (preparationGroups, full local
+# iOS run, 2026-10-19). `editorSections.yaml` drives the same sheet and asserts what it does.
+- tapOn:
+      text: 'Sections\. Current: .*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: ${SECTION}
+- extendedWaitUntil:
+      notVisible: 'Close sections'
+      timeout: 20000
+# A dropped tap leaves the page somewhere else; the section index names the section the page is on.
+- assertVisible: 'Sections\. Current: ${SECTION}\..*'

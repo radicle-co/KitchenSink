@@ -9,6 +9,7 @@ vi.mock('@clerk/nextjs/server', () => ({
 vi.mock('next/server', () => ({
     NextResponse: {
         redirect: (url: URL) => ({ type: 'redirect', location: url.toString() }),
+        rewrite: (url: URL) => ({ type: 'rewrite', location: url.toString() }),
         next: () => ({ type: 'next' }),
     },
 }));
@@ -96,5 +97,126 @@ describe('middleware matcher config', () => {
         expect(re.test('/en/profile')).toBe(true);
         expect(re.test('/_next/static/chunk.js')).toBe(false);
         expect(re.test('/sentry-tunnel')).toBe(false);
+    });
+
+    /**
+     * `/_vercel/*` is the PLATFORM's own path namespace, not an app route, and it is where Vercel Web
+     * Analytics both loads its script and posts its beacons. If the matcher admits it, this middleware
+     * locale-redirects it: `/_vercel/insights/script.js` is not `/api`, carries no locale prefix, and so
+     * falls through to `NextResponse.redirect(/en/_vercel/insights/script.js)` — a path that does not
+     * exist. The script 404s, `inject()` never arms, and NOT ONE page view is ever recorded.
+     *
+     * The failure is invisible from inside the app: no error, no console warning in production, no failed
+     * assertion — just a dashboard that stays permanently empty, which reads identically to "nobody
+     * visited". Vercel's own recommended matcher for locale middleware excludes `_vercel` for exactly this
+     * reason, and this is the assertion that keeps it excluded.
+     */
+    it('excludes the /_vercel platform namespace so analytics is never locale-redirected', async () => {
+        const { config } = await import('@/middleware');
+
+        const assetMatcher = config.matcher.find((m) => m.includes('_next/static'))!;
+        const re = new RegExp(`^${assetMatcher}$`);
+
+        // The script the browser loads, and the two beacon endpoints it posts to.
+        expect(re.test('/_vercel/insights/script.js')).toBe(false);
+        expect(re.test('/_vercel/insights/view')).toBe(false);
+        expect(re.test('/_vercel/insights/event')).toBe(false);
+        // Speed Insights uses the same namespace; excluding the whole prefix covers it before it is added.
+        expect(re.test('/_vercel/speed-insights/script.js')).toBe(false);
+    });
+
+    /**
+     * Next serves `public/` at the ROOT (`public/images/auth/authFood.jpg` is `/images/auth/authFood.jpg`), so a
+     * static file never carries a locale. If the matcher admits it, the handler redirects it to `/en/images/…`, a
+     * path that does not exist, and the image optimiser answers "not a valid image": the sign-in photo rendered as a
+     * broken image at 1024 px and wider (evaluateFinal F3). A file with a static extension is never an app route.
+     */
+    it('excludes static files served from public/ at the root', async () => {
+        const { config } = await import('@/middleware');
+
+        const assetMatcher = config.matcher.find((m) => m.includes('_next/static'))!;
+        const re = new RegExp(`^${assetMatcher}$`);
+
+        for (const path of [
+            '/images/auth/authFood.jpg',
+            '/images/logo.png',
+            '/images/drawing.svg',
+            '/icons/app.webp',
+            '/favicon.ico',
+            '/site.webmanifest',
+            '/fonts/inter.woff2',
+        ]) {
+            expect(re.test(path), path).toBe(false);
+        }
+
+        // Pages, including a locale-less one with no extension, still reach the locale redirect.
+        expect(re.test('/images')).toBe(true);
+        expect(re.test('/en/recipes/01JAAAAAAAAAAAAAAAAAAAAAAA')).toBe(true);
+        expect(re.test('/recipes/new')).toBe(true);
+    });
+
+    it('still matches an app path that merely CONTAINS the excluded names', async () => {
+        // The exclusions are anchored prefixes, not substrings: a real recipe whose slug happens to read
+        // `_vercel` or `sentry-tunnel` must still be locale-redirected like any other page.
+        const { config } = await import('@/middleware');
+
+        const assetMatcher = config.matcher.find((m) => m.includes('_next/static'))!;
+        const re = new RegExp(`^${assetMatcher}$`);
+
+        expect(re.test('/recipes/_vercel-cake')).toBe(true);
+        expect(re.test('/en/recipes/sentry-tunnel-soup')).toBe(true);
+    });
+});
+
+describe('middleware handler — platform paths must not be locale-redirected', () => {
+    // Defence in depth. The matcher is the primary gate, but it is a build-time manifest string: a typo
+    // there fails open (the path reaches the handler). Asserting the handler ALSO passes `/_vercel`
+    // through means one mistake cannot silently disable analytics on its own.
+    it('passes /_vercel/* through instead of redirecting it to a locale', async () => {
+        const mod = await import('@/middleware');
+
+        for (const path of ['/_vercel/insights/script.js', '/_vercel/insights/view', '/_vercel/insights/event']) {
+            expect((await (mod.default as unknown as Handler)(undefined, makeReq(path))).type).toBe('next');
+        }
+    });
+
+    it('still locale-redirects an app path that merely STARTS with the platform prefix', async () => {
+        // The platform namespace is `/_vercel/` — the slash is part of it. `/_vercel-cake`, `/_vercelx/…`
+        // and a bare `/_vercel` are app paths, and the matcher above (anchored on `_vercel/`) sends them
+        // here to be locale-redirected like any other page. A handler check on the bare prefix would pass
+        // them through un-localized instead, contradicting the matcher it exists to back up.
+        const mod = await import('@/middleware');
+
+        for (const path of ['/_vercel-cake', '/_vercelx/insights/view', '/_vercel']) {
+            const res = await (mod.default as unknown as Handler)(undefined, makeReq(path));
+
+            expect(res.type).toBe('redirect');
+            expect(res.location).toBe(`https://app.test/en${path}`);
+        }
+    });
+});
+
+/**
+ * The recipe routes' 404 (`lib/recipeRouteId.ts`). A page's `notFound()` streams under `[locale]/loading.tsx` and
+ * answers 200, so a segment that is not a recipe id is rewritten here, before any page renders, to a path no route
+ * matches — the app's global not-found then answers 404 in the first HTML. The URL the cook typed stays in the bar.
+ */
+describe('middleware handler — a recipe path that names no recipe', () => {
+    it('rewrites /en/recipes/parse to the 404', async () => {
+        const mod = await import('@/middleware');
+
+        const res = await (mod.default as unknown as Handler)(undefined, makeReq('/en/recipes/parse'));
+
+        expect(res).toEqual({ type: 'rewrite', location: 'https://app.test/en/_not-a-recipe' });
+    });
+
+    it('passes a recipe id and the static new-recipe route through', async () => {
+        const mod = await import('@/middleware');
+        const handler = mod.default as unknown as Handler;
+
+        expect((await handler(undefined, makeReq('/en/recipes/0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60'))).type).toBe(
+            'next',
+        );
+        expect((await handler(undefined, makeReq('/en/recipes/new'))).type).toBe('next');
     });
 });

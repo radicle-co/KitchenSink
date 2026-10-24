@@ -33,6 +33,12 @@ export function isFoodDaoError(error: unknown): error is FoodDaoError {
  * the requested target status is not reachable from the row's current status under the legal
  * lifecycle transition set (FR-028a), or the food id does not exist. The food's status is left
  * unchanged.
+ *
+ * ⛔ NEVER give this an arm in `ApiExceptionFilter`. It is raised from several call sites whose HTTP
+ * meanings differ — an operator requeue of a healthy food is a `409` the caller can act on, while the same
+ * rejection from the merge/persist path behind `PATCH /{id}` is a server-side lifecycle bug that must stay
+ * a `500` (and must keep its `error`-level log line, which a 4xx would demote to `warn`). One global
+ * mapping would be wrong at all but one site, so each caller translates it at its own boundary.
  */
 export class IllegalStatusTransitionError extends FoodDaoError {
     /** The food id whose transition was rejected. */
@@ -60,8 +66,74 @@ export function isIllegalStatusTransitionError(error: unknown): error is Illegal
     return error instanceof IllegalStatusTransitionError;
 }
 
+/**
+ * A caller stated an INFOODS tag for a `(name, unit)` that `NUTRIENT_DEFINITIONS` maps to a different tag (KTD-23).
+ * Storing it would file one definition's values under another's name, which no reader could detect (R53).
+ */
+export class NutrientDefinitionMismatchError extends FoodDaoError {
+    /** The dictionary pair's name and unit. */
+    public readonly nutrientName: string;
+    public readonly nutrientUnit: string;
+    /** The tag the caller stated, and the tag the mapping gives the pair. */
+    public readonly statedTag: string;
+    public readonly mappedTag: string;
+
+    public constructor(
+        nutrient: { readonly name: string; readonly unit: string },
+        statedTag: string,
+        mappedTag: string,
+    ) {
+        super(`nutrient (${nutrient.name}, ${nutrient.unit}) is ${mappedTag}, not ${statedTag}`);
+        this.name = 'NutrientDefinitionMismatchError';
+        this.nutrientName = nutrient.name;
+        this.nutrientUnit = nutrient.unit;
+        this.statedTag = statedTag;
+        this.mappedTag = mappedTag;
+        Object.setPrototypeOf(this, NutrientDefinitionMismatchError.prototype);
+    }
+}
+
+/**
+ * Type guard for {@link NutrientDefinitionMismatchError}.
+ *
+ * @param error - The thrown value.
+ * @returns `true` when `error` is a {@link NutrientDefinitionMismatchError}.
+ */
+export function isNutrientDefinitionMismatchError(error: unknown): error is NutrientDefinitionMismatchError {
+    return error instanceof NutrientDefinitionMismatchError;
+}
+
 /** Postgres `unique_violation` SQLSTATE (a duplicate-key race). */
 const PG_UNIQUE_VIOLATION = '23505';
+
+/** Postgres `lock_not_available` SQLSTATE: a lock was not granted within `lock_timeout`. */
+const PG_LOCK_NOT_AVAILABLE = '55P03';
+
+/**
+ * Whether a thrown value, or a cause beneath it, carries a Postgres SQLSTATE. Pure.
+ *
+ * ⚠️ Drizzle wraps the pg error in `DrizzleQueryError` with the original as `.cause` (verified against this tree's
+ * pg-core/session.ts, 2026-08-31), so the chain is walked, bounded, rather than reading only the top level. Before
+ * that, every `catch (isUniqueViolation)` recovery path in the DAOs silently rethrew as a 500 whenever the query ran
+ * through drizzle.
+ *
+ * @param error - The thrown value.
+ * @param sqlState - The SQLSTATE.
+ * @returns `true` when the value or one of its first five causes carries `sqlState` as its `code`.
+ */
+function hasSqlState(error: unknown, sqlState: string): boolean {
+    let candidate: unknown = error;
+
+    for (let depth = 0; depth < 5 && typeof candidate === 'object' && candidate !== null; depth += 1) {
+        if ('code' in candidate && candidate.code === sqlState) {
+            return true;
+        }
+
+        candidate = 'cause' in candidate ? candidate.cause : undefined;
+    }
+
+    return false;
+}
 
 /**
  * Type guard for a Postgres unique-violation error (SQLSTATE `23505`), used to recover from a
@@ -71,10 +143,15 @@ const PG_UNIQUE_VIOLATION = '23505';
  * @returns `true` when `error` carries the `23505` SQLSTATE `code`.
  */
 export function isUniqueViolation(error: unknown): error is { code: string } {
-    return (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: unknown }).code === PG_UNIQUE_VIOLATION
-    );
+    return hasSqlState(error, PG_UNIQUE_VIOLATION);
+}
+
+/**
+ * Whether a lock was refused because `lock_timeout` elapsed first (SQLSTATE `55P03`). Pure.
+ *
+ * @param error - The thrown value.
+ * @returns `true` when `error` carries the `55P03` SQLSTATE `code`.
+ */
+export function isLockNotAvailable(error: unknown): boolean {
+    return hasSqlState(error, PG_LOCK_NOT_AVAILABLE);
 }

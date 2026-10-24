@@ -1,0 +1,3 @@
+A short visual label beside a control, for icon-only controls such as the collapsed sidebar rail. Its `side` is end, top or bottom, and `fill` makes the wrapper a block for a full-width row. It shows on hover and on keyboard focus, dismisses with Escape, and stays while the pointer moves onto the tip. The tip is drawn in a portal so a clipping ancestor cannot cut it. It is aria-hidden and adds no description, so `label` must be the wrapped control's own accessible name. It is web only; touch never opens it.
+
+It has no native leaf, since a phone has neither hover nor keyboard focus, and a touch or screen-reader user gets the control's own accessible name.

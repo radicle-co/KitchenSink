@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Sign up, finish creating your account (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: captions are dashed-edge notes at 13 (spec, Patterns). */
+            .cap {
+                margin: 0 0 !important;
+                padding: 10px 12px !important;
+                border: 1px dashed var(--line-control);
+                border-radius: 12px;
+                font: 500 13px/1.35 var(--font-body) !important;
+                color: var(--ink-muted);
+            }
+            .wm {
+                font-family: var(--font-display);
+                font-weight: 600;
+                font-size: 17px;
+                line-height: 1.3;
+                letter-spacing: -0.012em;
+                color: var(--ink);
+            }
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .sr-only {
+                font-size: 13px !important;
+            }
+            /* Sidebar: the active item is --surface-muted with a steel icon, no bar (spec, Patterns). */
+            a[aria-current='page'] {
+                background: var(--surface-muted) !important;
+                color: var(--ink) !important;
+            }
+            a[aria-current='page'] > span[aria-hidden='true'] {
+                display: none !important;
+            }
+            a[aria-current='page'] svg {
+                color: var(--action-text);
+            }
+            body {
+                font-size: 15px;
+            }
+            [class~='r-14yzgew'] {
+                font-size: 15px !important;
+            } /* rating star glyphs */
+            script {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        font-family: var(--font-body);
+                        color: var(--ink);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        min-height: 100vh;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .split {
+                        min-height: 844px;
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                    }
+                    .photo {
+                        position: relative;
+                    }
+                    .col {
+                        display: flex;
+                        min-height: 844px;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 48px 24px;
+                    }
+                    .root {
+                        width: 100%;
+                        max-width: 400px;
+                    }
+                    .cap {
+                        margin: 0;
+                        font: 600 15px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .clerk {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        border: 2px dashed var(--line-control);
+                        border-radius: var(--radius-lg);
+                        padding: 32px 24px;
+                        text-align: center;
+                    }
+                </style></helmet
+            >
+            <main class="split">
+                <div class="photo" aria-hidden="true">
+                    <img
+                        src="assets/authFood.jpg"
+                        alt=""
+                        style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"
+                    />
+                </div>
+                <div class="col">
+                    <div class="root" style="display: flex; flex-direction: column; gap: 16px">
+                        <div class="clerk" role="note">
+                            <span style="font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--ink)"
+                                >Clerk renders this</span
+                            >
+                            <span style="font-size: 15px; line-height: 1.4; color: var(--ink-muted)"
+                                >After a Google sign-up, Clerk’s own continue step asks for what Google did not supply.
+                                It draws its fields and words, so they are not drawn here.</span
+                            >
+                        </div>
+                        <p class="cap" style="text-align: center">
+                            Sign up, after Google. The web has no finish step of ours.
+                        </p>
+                    </div>
+                </div>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":844}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, yes: true }; } }
+        </script>
+    </body>
+</html>

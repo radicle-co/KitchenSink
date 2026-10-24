@@ -23,8 +23,8 @@ describe('enterMotionMode', () => {
 
 describe('enter-motion constants', () => {
     it('matches the web keyframe: a 400ms enter rising 8px (0.5rem)', () => {
-        // Single-sourced with `--animate-section-enter` in the web app's globals.css, so the two platforms
-        // cannot drift on the pace or the distance of the same brand gesture.
+        // The web `--animate-section-enter` token is emitted from these (`tokens/motion.ts`, asserted in
+        // `tokens/__tests__/themeMotion.test.ts`), so the two platforms cannot drift on the pace or the distance.
         expect(ENTER_DURATION_MS).toBe(400);
         expect(ENTER_RISE_PX).toBe(8);
     });

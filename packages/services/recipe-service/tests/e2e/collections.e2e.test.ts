@@ -15,16 +15,17 @@
  * This suite asserts the REAL 403 behaviour, not a 404 IDOR pattern that does not apply to this endpoint.
  *
  * The booted app authenticates as OWNER (dev bypass). OTHER's collection is seeded directly via a raw
- * pg pool (mirroring `ratings.e2e.test.ts` / `pull-from-source.e2e.test.ts`) — OTHER never needs their
+ * pg pool (mirroring `ratings.e2e.test.ts` / `pullFromSource.e2e.test.ts`) — OTHER never needs their
  * own authenticated session, since the ownership check is symmetric: OWNER's authenticated attempt to
  * touch OTHER's row is a full proof of the boundary. Skips cleanly without a database.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
+import { recipeDb } from '../support/roleDb.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const roleDb = recipeDb();
 
 const OWNER = '01JCOLE2E00000OWNER000000A';
 const OTHER = '01JCOLE2E00000OTHER000000B';
@@ -54,13 +55,13 @@ interface ApiErrorBody {
     details?: Record<string, unknown>;
 }
 
-describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => {
+describe('collections CRUD (e2e, assembled app)', () => {
     let booted: BootedRecipeApp;
     let pool: pg.Pool;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: OWNER });
-        pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: OWNER });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 3 });
     });
 
     afterAll(async () => {
@@ -94,8 +95,11 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         expect(createdBody.ownerId).toBe(OWNER);
         expect(createdBody.name).toBe('CRUD E2E collection');
         expect(createdBody.description).toBe('a description');
-        // Visibility defaults to private (FR-010) when not requested.
-        expect(createdBody.visibility).toBe('private');
+        // Owner 2026-10-13 (supersedes FR-010's private default): a private collection is a Premium feature, so a
+        // free-tier cook's collection defaults to PUBLIC. The dev-auth principal holds no premium entitlement, which
+        // makes this the free-tier path; the premium default and the refusal are proved against the real database in
+        // `collections/crud.e2e.test.ts`.
+        expect(createdBody.visibility).toBe('public');
         const id = createdBody.id;
 
         const got = await fetch(`${booted.baseUrl}/api/v1/collections/${id}`);

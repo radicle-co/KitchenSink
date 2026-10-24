@@ -84,11 +84,66 @@ describe('mobile endpoint configuration', () => {
 
     it('never invents a production hostname the repo does not provision', async () => {
         const { env } = await loadEnv({
-            [RECIPE]: 'https://recipe.example.com',
-            [IDENTITY]: 'https://identity.example.com',
+            [RECIPE]: 'https://recipe-pr-73.commise.app',
+            [IDENTITY]: 'https://identity.sandbox.commise.app',
         });
 
-        expect(env[IDENTITY]).not.toMatch(/api\.commise\.io/);
-        expect(env[RECIPE]).not.toMatch(/api\.commise\.io/);
+        // `toContain`, not `toMatch`: the assertion is "this substring is absent anywhere", which a plain
+        // string states exactly and a regex only approximates.
+        expect(env[IDENTITY]).not.toContain('api.commise.io');
+        expect(env[RECIPE]).not.toContain('api.commise.io');
+    });
+
+    describe('Clerk stage coherence (the 2026-08-07 outage class, enforced at startup as web does at build)', () => {
+        const KEY = 'EXPO_PUBLIC_IDP_PUBLISHABLE_KEY';
+        /** Decodes to `nice-fowl-6.clerk.accounts.dev$` — a development instance. */
+        const SANDBOX_KEY = 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA';
+        /** Decodes to `clerk.commise.app$` — the production instance. */
+        const PROD_KEY = 'pk_live_Y2xlcmsuY29tbWlzZS5hcHAk';
+        const FOOD = 'EXPO_PUBLIC_FOOD_API_URL';
+
+        it('REFUSES a sandbox key paired with production endpoints', async () => {
+            await expect(
+                loadEnv({
+                    [KEY]: SANDBOX_KEY,
+                    [RECIPE]: 'https://recipe.commise.app',
+                    [IDENTITY]: 'https://identity.commise.app',
+                    [FOOD]: 'https://food.commise.app',
+                }),
+            ).rejects.toThrow(/disagree about which stage[\s\S]*EXPO_PUBLIC_IDENTITY_API_URL[\s\S]*PRODUCTION/);
+        });
+
+        it('REFUSES a production key paired with sandbox endpoints', async () => {
+            await expect(
+                loadEnv({
+                    [KEY]: PROD_KEY,
+                    [RECIPE]: 'https://recipe-pr-73.commise.app',
+                    [IDENTITY]: 'https://identity.sandbox.commise.app',
+                    [FOOD]: 'https://food-pr-73.commise.app',
+                }),
+            ).rejects.toThrow(/disagree about which stage/);
+        });
+
+        it('accepts a matched pair', async () => {
+            const { env } = await loadEnv({
+                [KEY]: PROD_KEY,
+                [RECIPE]: 'https://recipe.commise.app',
+                [IDENTITY]: 'https://identity.commise.app',
+                [FOOD]: 'https://food.commise.app',
+            });
+
+            expect(env[KEY]).toBe(PROD_KEY);
+        });
+
+        it('refuses to start without the key, naming it', async () => {
+            await expect(
+                loadEnv({
+                    [KEY]: undefined,
+                    [RECIPE]: 'https://recipe-pr-73.commise.app',
+                    [IDENTITY]: 'https://identity.sandbox.commise.app',
+                    [FOOD]: 'https://food-pr-73.commise.app',
+                }),
+            ).rejects.toThrow(/invalid environment variables[\s\S]*EXPO_PUBLIC_IDP_PUBLISHABLE_KEY/i);
+        });
     });
 });

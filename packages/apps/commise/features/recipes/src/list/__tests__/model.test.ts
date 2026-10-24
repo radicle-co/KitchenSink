@@ -10,29 +10,15 @@ import { toRecipeCardModel } from '../../card/model.js';
 import {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
-    fillTemplate,
     filterChipLabel,
     formatDurationMinutes,
     formatRecipeCount,
     isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
+    shouldShowCreateButton,
     toRecipeListItem,
 } from '../model.js';
-
-describe('fillTemplate', () => {
-    it('substitutes a single named token', () => {
-        expect(fillTemplate('{count} recipes', { count: 6 })).toBe('6 recipes');
-    });
-
-    it('substitutes multiple named tokens', () => {
-        expect(fillTemplate('{a} of {b}', { a: 1, b: 2 })).toBe('1 of 2');
-    });
-
-    it('leaves an unknown token untouched (never throws)', () => {
-        expect(fillTemplate('{count} of {missing}', { count: 3 })).toBe('3 of {missing}');
-    });
-});
 
 describe('toRecipeListItem', () => {
     it('is the shared card projection (the list and widget draw the identical card)', () => {
@@ -95,6 +81,12 @@ describe('isQuickRecipe (L4 "Quick (<30m)" chip)', () => {
         expect(isQuickRecipe(1)).toBe(true);
     });
 
+    // A-017: the editor stores 0 for a time the cook never stated, and the spec's rule is "a missing time hides its cell,
+    // never 0 min" (§6.1): an untimed recipe is not a quick one.
+    it('is false for 0, which is how the editor stores a time nobody stated', () => {
+        expect(isQuickRecipe(0)).toBe(false);
+    });
+
     it('is false at and above the threshold (the wireframe reads "<30m", not "<=30m")', () => {
         expect(isQuickRecipe(QUICK_TIME_THRESHOLD_MINUTES)).toBe(false);
         expect(isQuickRecipe(45)).toBe(false);
@@ -132,12 +124,14 @@ describe('matchesListFacet', () => {
 
 describe('filterChipLabel', () => {
     it('renders the localized quick label for the QUICK_TIME_FACET sentinel', () => {
-        expect(filterChipLabel(QUICK_TIME_FACET, 'Quick (<30m)')).toBe('Quick (<30m)');
+        expect(filterChipLabel(QUICK_TIME_FACET, 'Quick (<30m)', 'en')).toBe('Quick (<30m)');
     });
 
     it('passes every other facet value through unchanged (dietary flags/cuisine are free-text data, not copy)', () => {
-        expect(filterChipLabel('Vegetarian', 'Quick (<30m)')).toBe('Vegetarian');
-        expect(filterChipLabel('Italian', 'Quick (<30m)')).toBe('Italian');
+        expect(filterChipLabel('Vegetarian', 'Quick (<30m)', 'en')).toBe('Vegetarian');
+        expect(filterChipLabel('Italian', 'Quick (<30m)', 'en')).toBe('Italian');
+        // W-10: a stored dietary flag is lower case; its chip is sentence case, and only the label changes.
+        expect(filterChipLabel('dairy-free', 'Quick (<30m)', 'en')).toBe('Dairy-free');
     });
 });
 
@@ -164,5 +158,34 @@ describe('isListNarrowed (the empty-vs-no-match discriminator)', () => {
 
     it('is true when both a term and a facet are active', () => {
         expect(isListNarrowed('lamb', ['Vegetarian'])).toBe(true);
+    });
+});
+
+describe('shouldShowCreateButton (U34)', () => {
+    // REWRITTEN for the suspense split. The policy used to carry four gates — loading, error, true-empty, Community —
+    // and now carries one. Loading and error are no longer answered HERE but by which boundary branch renders:
+    // `RecipeListLoading` mounts no dial (its own test holds the mid-press-unmount defect) and `RecipeListLoadError`
+    // mounts it unconditionally (its own test holds "a failed load keeps a create affordance"). The Community gate
+    // went with the Community branch of this list, which no host renders — the community surface is discovery.
+    const show = (over: Partial<Parameters<typeof shouldShowCreateButton>[0]> = {}) =>
+        shouldShowCreateButton({ recipeCount: 3, narrowed: false, ...over });
+
+    it('shows the dial over populated results', () => {
+        expect(show()).toBe(true);
+        expect(show({ recipeCount: 1 })).toBe(true);
+    });
+
+    it('SUPPRESSES the dial on a TRUE empty library — the empty-state CTA is the sole create control there', () => {
+        expect(show({ recipeCount: 0 })).toBe(false);
+    });
+
+    it('KEEPS the dial on a narrowed zero, whose empty body renders no CTA to replace it', () => {
+        // The half that is easy to lose: a chip- or search-narrowed zero is a NO-MATCH, not a first run, so
+        // suppressing here would leave that viewer with no create affordance at all.
+        expect(show({ recipeCount: 0, narrowed: true })).toBe(true);
+    });
+
+    it('keeps the dial over narrowed populated results', () => {
+        expect(show({ recipeCount: 2, narrowed: true })).toBe(true);
     });
 });

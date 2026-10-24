@@ -1,0 +1,49 @@
+{
+    "name": "@kitchensink/cdk-bootstrap",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        "./appProps": "./src/appProps.ts",
+        "./qualifiers": "./src/qualifiers.ts",
+        "./executionPolicy": "./src/executionPolicy.ts",
+        "./boundary": "./src/boundary.ts",
+        "./policyDocument": "./src/policyDocument.ts",
+        "./customizeBootstrapTemplate": "./src/customizeBootstrapTemplate.ts",
+        "./iamPattern": "./src/iamPattern.ts",
+        "./iamCatalogue": "./manifests/iamCatalogue.json"
+    },
+    "dependencies": {
+        "yaml": "^2.8.1",
+        "zod": "^4.4.3"
+    },
+    "scripts": {
+        "build": "tsc --noEmit",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "bootstrap:golden": "tsx scripts/emitGolden.ts",
+        "bootstrap:stock": "tsx scripts/refreshStockTemplate.ts",
+        "bootstrap:derive": "tsx scripts/deriveResourceTypes.ts",
+        "bootstrap:catalogue": "tsx scripts/refreshIamCatalogue.ts",
+        "bootstrap:validate": "tsx scripts/validatePolicies.ts"
+    },
+    "devDependencies": {
+        "@kitchensink/db-schema-guard": "*",
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

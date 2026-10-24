@@ -3,20 +3,21 @@
  * module (P4).
  *
  * A composable set of pure, total predicates deciding what a {@link Viewer} may do with a recipe —
- * ownership, cloning, rating, and the premium private-visibility gate. Each predicate is a single
+ * ownership, cloning and rating. Each predicate is a single
  * authoritative representation of its rule, called identically by every platform, so web and mobile can
  * never diverge on a gate the way they did on the clone gate (D7: web read `isPublic`, mobile read
  * `isPublic && !isOwner` — two different rules for the same button).
  *
  * SECURITY-RELEVANT: every predicate here fails closed. An absent viewer id can never satisfy `isOwner`
  * (so it can never masquerade as the owner and, downstream, hide a rating control or unlock an edit
- * surface), and an absent/unrecognized tier can never satisfy `canGoPrivate`. These are the client-side
+ * surface). Whether a viewer may make a recipe PRIVATE is not decided here: it is a paid feature, and a client renders
+ * it from identity's `account.paidFeatures` alone (plan 2026-10-14-009 D15). These are the client-side
  * half of each gate — the backend is the real enforcement boundary — but the client predicates must agree
  * with it, and with each other, or the UI lies about what an action will do.
  */
 import type { Recipe } from './recipe.types.js';
 import { RecipeVisibility } from './recipe.types.js';
-import { rankTier, type Viewer } from './viewer.js';
+import type { Viewer } from './viewer.js';
 
 /**
  * Whether `viewer` owns `recipe`. True iff the viewer's id is KNOWN and matches the recipe's `ownerId`
@@ -56,16 +57,4 @@ export function canRate(recipe: Pick<Recipe, 'ownerId'>, viewer: Viewer): boolea
  */
 export function canClone(recipe: Pick<Recipe, 'visibility' | 'ownerId'>, viewer: Viewer): boolean {
     return recipe.visibility === RecipeVisibility.PUBLIC && !isOwner(recipe, viewer);
-}
-
-/**
- * Whether `viewer` may set a recipe's visibility to PRIVATE (C-004). A premium-only capability: gated on
- * the viewer's tier ranking at least `'premium'` on the {@link rankTier} ladder. Fails closed to `false`
- * when the tier is unknown (an unresolved/absent tier is never treated as premium). Pure.
- *
- * @param viewer - The viewer to check.
- * @returns True iff the viewer's tier permits a private recipe.
- */
-export function canGoPrivate(viewer: Viewer): boolean {
-    return rankTier(viewer.tier) >= rankTier('premium');
 }

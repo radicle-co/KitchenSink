@@ -5,18 +5,20 @@
  * `Object.setPrototypeOf` (so `instanceof` survives transpilation), and ships an `is*` guard
  * (CODING_STANDARDS). Mirrors the shape of `@kitchensink/food-service-client`'s error module.
  *
- * Status → error map (per `contracts/api.openapi.yaml`):
+ * Status → error map (per `packages/schemas/recipe/openapi.yaml`, derived from the service's zod):
  *   `400` → {@link BadRequestError}, `401` → {@link UnauthorizedError}, `403` → {@link ForbiddenError},
  *   `404` → {@link NotFoundError}, `409` → {@link VersionConflictError} (optimistic-concurrency) OR
  *   {@link PullDriftError} (pull-from-source drift — the two `409`s are disambiguated by the response
  *   body's `code`), `410` → {@link GoneError} (account already erased), anything else →
  *   {@link UnexpectedResponseError}.
  *
- * The optional `code` mirrors the recipe domain's `ErrorResponse.code` (see `RecipeErrorCode` in
- * `@kitchensink/recipe-core`); it is passed through verbatim as a `string` because the wire also emits
- * transport-level codes (`UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `ALREADY_ERASED`) outside that enum.
+ * The optional `code` is the PUBLISHED `ApiError.code` — `recipeErrorCodeSchema` in
+ * `@kitchensink/schema-recipe`, authored by the service. It is typed as a plain `string` on purpose, not as
+ * that enum: a deployed service may emit a code ahead of a released mobile binary, and narrowing here would turn
+ * a forward-compatible deploy into a client-side type error. The typed narrowing happens once, in
+ * `client.ts`'s `errorForCode`, whose `switch` IS exhaustive over the published set.
  */
-import type { VersionConflictSide } from '@kitchensink/recipe-core';
+import type { PublishRequirement, VersionConflictSide } from '@kitchensink/recipe-core';
 
 import type { PullDiff } from './types.js';
 
@@ -53,6 +55,29 @@ export class BadRequestError extends RecipeServiceClientError {
 /** Type guard for {@link BadRequestError}. */
 export function isBadRequestError(error: unknown): error is BadRequestError {
     return error instanceof BadRequestError;
+}
+
+/**
+ * `400 PUBLISH_REQUIREMENTS_UNMET` — the write would leave the recipe published without something Publish needs
+ * (owner rulings 2026-10-13). `missing` names each gap in page order, so a surface marks the fields in its own
+ * localized copy. A {@link BadRequestError}, so every caller that knows only that class (the outbox's terminal 400, the
+ * retry policy) treats it as before: re-sending the same body meets the same refusal.
+ */
+export class PublishRequirementsUnmetError extends BadRequestError {
+    /** Every unmet requirement, in page order. */
+    public readonly missing: readonly PublishRequirement[];
+
+    public constructor(missing: readonly PublishRequirement[], message = 'A published recipe is missing something') {
+        super(message, 'PUBLISH_REQUIREMENTS_UNMET');
+        this.name = 'PublishRequirementsUnmetError';
+        this.missing = missing;
+        Object.setPrototypeOf(this, PublishRequirementsUnmetError.prototype);
+    }
+}
+
+/** Type guard for {@link PublishRequirementsUnmetError}. */
+export function isPublishRequirementsUnmetError(error: unknown): error is PublishRequirementsUnmetError {
+    return error instanceof PublishRequirementsUnmetError;
 }
 
 /** `401` — no/invalid/expired token, or wrong authorized party (the caller is unauthenticated). */
@@ -95,6 +120,21 @@ export class NotFoundError extends RecipeServiceClientError {
 /** Type guard for {@link NotFoundError}. */
 export function isNotFoundError(error: unknown): error is NotFoundError {
     return error instanceof NotFoundError;
+}
+
+/**
+ * Whether the recipe service ITSELF answered that no active recipe has the id: a {@link NotFoundError} carrying
+ * `RECIPE_NOT_FOUND` (a soft-deleted recipe answers the same).
+ *
+ * ⛔ A 404 ALONE IS NOT THAT. The shared ALB answers a host with no listener rule with a code-less `text/plain` 404
+ * (ADR-0003), and the service answers a path it does not route with `NOT_FOUND`; neither says anything about the
+ * recipe. A caller that reads "the recipe is gone" from a 404 reads it here.
+ *
+ * @param error - The rejection.
+ * @returns Whether it is the service's own "no such recipe". Pure.
+ */
+export function isRecipeNotFoundError(error: unknown): error is NotFoundError {
+    return isNotFoundError(error) && error.code === 'RECIPE_NOT_FOUND';
 }
 
 /**
@@ -204,10 +244,123 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
     return error instanceof FetchUnavailableError;
 }
 
+/**
+ * A `502 SOURCE_UNAVAILABLE`: a route needed the food service and could not ask it. Nothing was done. Carries no
+ * retry window, because nothing on our side knows when food recovers.
+ */
+export class SourceUnavailableError extends RecipeServiceClientError {
+    public constructor(message = 'The ingredient source did not answer') {
+        super(message, 502, 'SOURCE_UNAVAILABLE');
+        this.name = 'SourceUnavailableError';
+        Object.setPrototypeOf(this, SourceUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceUnavailableError}. */
+export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
+    return error instanceof SourceUnavailableError;
+}
+
+/**
+ * The parse job's 24-hour TTL has passed — a `409 PARSE_JOB_EXPIRED` from `POST /{id}/retry` or
+ * `PATCH /{id}/lines/{lineIndex}` (plan U9).
+ *
+ * ⛔ ITS OWN TYPE, because the surfaces render it as a different sentence with a different control. Every
+ * other failure on this resource is worth trying again; an expired job is not — the row is terminal (the
+ * aggregate rule's `WHERE status IN ('running','partial')` guard means a late landing cannot even reopen it),
+ * so the only remedy is pasting the block afresh. Left as a bare {@link UnexpectedResponseError}, a surface
+ * could only tell by string-comparing `.code`, which is precisely the unvalidated read `errorForCode` exists
+ * to replace.
+ *
+ * ⚠️ A `GET` NEVER raises this. The service answers an expired job's read `200` with `status: 'expired'`, so
+ * the poll observes expiry as DATA and only a mutation observes it as a refusal. A surface that handled the
+ * error alone would show a cook a live-looking job until they touched it.
+ */
+export class ParseJobExpiredError extends RecipeServiceClientError {
+    public constructor(message = 'This parse job has expired') {
+        super(message, 409, 'PARSE_JOB_EXPIRED');
+        this.name = 'ParseJobExpiredError';
+        Object.setPrototypeOf(this, ParseJobExpiredError.prototype);
+    }
+}
+
+/** Type guard for {@link ParseJobExpiredError}. */
+export function isParseJobExpiredError(error: unknown): error is ParseJobExpiredError {
+    return error instanceof ParseJobExpiredError;
+}
+
+/**
+ * `409 VERSION_LINE_UNRESTORABLE` — a version restore would drop lines whose foods no longer exist and whose version
+ * froze no name to find them by (plan 002 R52). NOTHING was restored.
+ *
+ * ⛔ ITS OWN TYPE, not a {@link VersionConflictError}: a conflict is cured by re-reading and retrying, and this is
+ * not — retrying the same restore fails the same way. The surface names the lines (`positions`, 0-based in the
+ * version's snapshot) and offers the cook a different version or an edit instead.
+ */
+export class VersionLineUnrestorableError extends RecipeServiceClientError {
+    /** The 0-based positions, in the version's snapshot, of the lines that cannot be restored. */
+    public readonly positions: readonly number[];
+
+    public constructor(positions: readonly number[], message = 'This version cannot be restored') {
+        super(message, 409, 'VERSION_LINE_UNRESTORABLE');
+        this.name = 'VersionLineUnrestorableError';
+        this.positions = positions;
+        Object.setPrototypeOf(this, VersionLineUnrestorableError.prototype);
+    }
+}
+
+/** Type guard for {@link VersionLineUnrestorableError}. */
+export function isVersionLineUnrestorableError(error: unknown): error is VersionLineUnrestorableError {
+    return error instanceof VersionLineUnrestorableError;
+}
+
+/**
+ * The body the CALLER built does not satisfy the request schema the service publishes, so the request was
+ * never sent (ADR-0014, outbound half).
+ *
+ * ⚠️ It exists to keep three failures that all "look like a 400" distinguishable, because the right response
+ * to each is different and a caller cannot act on a conflated one:
+ *
+ *  1. **This error** — the caller's own bug. The body is illegal per `@kitchensink/schema-recipe`; no request
+ *     went out, nothing was charged, nothing partially applied, and a retry with the same body cannot work.
+ *  2. {@link BadRequestError} — the SERVER answered `400`. The body was legal per the contract this client
+ *     compiles against and the service rejected it anyway, which is either a rule the contract does not
+ *     express (a policy check) or genuine skew worth alerting on.
+ *  3. A bare `ZodError` out of `RecipeServiceClient`'s response parse — the SERVER's body drifted.
+ *
+ * Collapsing 1 into 2 would have a caller retry-and-alert on its own malformed input; collapsing 1 into 3
+ * would blame the service for the client's mistake. Carries the `ZodError` as `cause` so the offending
+ * field path is available without re-parsing.
+ */
+export class InvalidRequestError extends RecipeServiceClientError {
+    /** The `ZodError` from parsing the outbound body against the published request schema. */
+    public override readonly cause: unknown;
+
+    public constructor(operation: string, cause: unknown) {
+        super(`Request body for ${operation} does not satisfy the published recipe-service contract`);
+        this.name = 'InvalidRequestError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, InvalidRequestError.prototype);
+    }
+}
+
+/** Type guard for {@link InvalidRequestError}. */
+export function isInvalidRequestError(error: unknown): error is InvalidRequestError {
+    return error instanceof InvalidRequestError;
+}
+
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */
 export class UnexpectedResponseError extends RecipeServiceClientError {
-    public constructor(status: number, message = `Unexpected recipe-service response (${status})`) {
-        super(message, status);
+    /**
+     * @param status - The HTTP status that produced this error.
+     * @param message - Defaults to a status-only summary when the body carried none.
+     * @param code - The published `code` when the body carried one. It NOW usually does: since the recipe
+     *   service converged onto one error envelope, a status this client has no dedicated error class for still
+     *   arrives with a machine-readable code (`MAX_PHOTOS_EXCEEDED`, `TOO_MANY_REQUESTS`, `NOT_READY`, …), and
+     *   dropping it here would discard the only actionable part of the body.
+     */
+    public constructor(status: number, message = `Unexpected recipe-service response (${status})`, code?: string) {
+        super(message, status, code);
         this.name = 'UnexpectedResponseError';
         Object.setPrototypeOf(this, UnexpectedResponseError.prototype);
     }

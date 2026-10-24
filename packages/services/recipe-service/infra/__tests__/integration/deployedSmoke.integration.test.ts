@@ -38,6 +38,16 @@ let deadOrigin = '';
 let foodBehaviour: FoodBehaviour = 'unauthenticated-401';
 /** Headers the stub recorded for the most recent food probe. */
 let lastFoodRequestHeaders: Record<string, string | string[] | undefined> = {};
+/** Headers of every tokenless `401` probe the stub answered, in order. */
+const tokenlessRequestHeaders: Record<string, string | string[] | undefined>[] = [];
+/**
+ * How many CORS preflights the stub has answered. The negative assertion needs this: "the preflight was
+ * SKIPPED" is a claim about a request that was never sent, which no verdict or exit status can witness — a
+ * run that sent the preflight and merely dropped its verdict would look identical from the outside.
+ */
+let preflightCount = 0;
+/** The `access-control-request-method` of each preflight the POST-only route answered, in order. */
+const requestedMethods: (string | undefined)[] = [];
 
 beforeAll(async () => {
     server = createServer((request, response) => {
@@ -52,9 +62,57 @@ beforeAll(async () => {
             return;
         }
 
+        // The shared CORS policy's answer: echo the web origin, send nothing to any other. A fixed allow-origin for
+        // every caller would fail the smoke's foreign-origin preflight, which is correct, since no policy of ours
+        // sends one.
         if (url.pathname === '/api/v1/recipes' && request.method === 'OPTIONS') {
-            response.writeHead(204, { ...base, 'access-control-allow-origin': WEB_ORIGIN });
+            preflightCount += 1;
+            response.writeHead(
+                204,
+                request.headers.origin === WEB_ORIGIN
+                    ? { ...base, 'access-control-allow-origin': WEB_ORIGIN, vary: 'Origin' }
+                    : { ...base, vary: 'Origin' },
+            );
             response.end();
+
+            return;
+        }
+
+        // A route served only for POST: its preflight admits the web origin when, and only when, it is asked for POST.
+        if (url.pathname === '/api/v1/post-only' && request.method === 'OPTIONS') {
+            const method = request.headers['access-control-request-method'];
+
+            requestedMethods.push(method);
+            response.writeHead(
+                204,
+                request.headers.origin === WEB_ORIGIN && method === 'POST'
+                    ? { ...base, 'access-control-allow-origin': WEB_ORIGIN, vary: 'Origin' }
+                    : { ...base, vary: 'Origin' },
+            );
+            response.end();
+
+            return;
+        }
+
+        // A service that reflects ANY origin: it admits the web origin, so only the foreign preflight can catch it.
+        if (url.pathname === '/api/v1/reflects-any' && request.method === 'OPTIONS') {
+            response.writeHead(204, { ...base, 'access-control-allow-origin': request.headers.origin ?? '' });
+            response.end();
+
+            return;
+        }
+
+        // A tokenless request refused by the service itself, as food refuses it: its CORS layer runs first, so the 401
+        // echoes the web origin. The second path is a service whose 401 carries no CORS headers at all.
+        if (url.pathname === '/api/v1/foods/search/progressive' || url.pathname === '/api/v1/unauthorized-no-cors') {
+            tokenlessRequestHeaders.push(request.headers);
+            response.writeHead(
+                401,
+                url.pathname !== '/api/v1/unauthorized-no-cors' && request.headers.origin === WEB_ORIGIN
+                    ? { ...base, 'content-type': 'application/json', 'access-control-allow-origin': WEB_ORIGIN }
+                    : { ...base, 'content-type': 'application/json' },
+            );
+            response.end(JSON.stringify({ code: 'UNAUTHORIZED' }));
 
             return;
         }
@@ -137,7 +195,8 @@ describe('runSmoke — the ecosystem checks against a real HTTP dependency', () 
             configuredFoodOrigin: origin,
         });
 
-        expect(verdicts).toHaveLength(5);
+        // health, the web-origin preflight, the foreign-origin preflight, wiring, reachability.
+        expect(verdicts).toHaveLength(6);
         expect(
             verdicts.every((verdict) => verdict.ok),
             verdicts.map((v) => v.reason).join('\n'),
@@ -157,8 +216,22 @@ describe('runSmoke — the ecosystem checks against a real HTTP dependency', () 
     it('skips both ecosystem checks when no food origin is supplied', async () => {
         const verdicts = await runSmoke({ baseUrl: origin, webOrigin: WEB_ORIGIN });
 
-        expect(verdicts).toHaveLength(2);
+        // health, the web-origin preflight, the foreign-origin preflight.
+        expect(verdicts).toHaveLength(3);
         expect(verdicts.some((verdict) => verdict.reason.includes('food'))).toBe(false);
+    });
+
+    // ⛔ Over a real socket, the case the foreign preflight exists for (plan 002 S4 review, F4): every admit check
+    // passes a service that reflects any origin.
+    it('fails a service that reflects any origin, though its web-origin preflight passes', async () => {
+        const verdicts = await runSmoke({
+            baseUrl: origin,
+            webOrigin: WEB_ORIGIN,
+            preflightRoutes: [{ method: 'GET', path: '/api/v1/reflects-any' }],
+        });
+
+        expect(verdicts.map((verdict) => verdict.ok)).toEqual([true, true, false]);
+        expect(verdicts[2]?.reason).toContain('https://evil.invalid');
     });
 
     // The issue-#124 state: recipe is healthy and current, but its food host does not exist.
@@ -254,6 +327,35 @@ describe('runSmoke — the ecosystem checks against a real HTTP dependency', () 
     });
 });
 
+describe("runSmoke — the service's own 401 over a real socket (--unauthorized-path)", () => {
+    it('sends each probe with no bearer, from both origins, and passes a 401 that admits only the web origin', async () => {
+        tokenlessRequestHeaders.length = 0;
+
+        const verdicts = await runSmoke({
+            baseUrl: origin,
+            webOrigin: WEB_ORIGIN,
+            unauthorizedPaths: ['/api/v1/foods/search/progressive'],
+        });
+
+        // health, the two preflights of the default path, and the two tokenless probes.
+        expect(verdicts.map((verdict) => verdict.ok)).toEqual([true, true, true, true, true]);
+        expect(tokenlessRequestHeaders.map((headers) => headers.origin)).toEqual([WEB_ORIGIN, 'https://evil.invalid']);
+        expect(tokenlessRequestHeaders.some((headers) => 'authorization' in headers)).toBe(false);
+    });
+
+    it('fails, naming the path, a 401 that carries no CORS headers', async () => {
+        const verdicts = await runSmoke({
+            baseUrl: origin,
+            webOrigin: WEB_ORIGIN,
+            unauthorizedPaths: ['/api/v1/unauthorized-no-cors'],
+        });
+
+        expect(verdicts.filter((verdict) => !verdict.ok).map((verdict) => verdict.reason)).toEqual([
+            expect.stringContaining('/api/v1/unauthorized-no-cors'),
+        ]);
+    });
+});
+
 /**
  * Run the smoke CLI as the deploy workflow does.
  *
@@ -327,10 +429,59 @@ describe('deployedSmoke CLI — the exit status is what turns a deploy red', () 
         expect(result.output).toMatch(/usage/i);
     }, 60_000);
 
-    it('exits 2 when the required flags are missing', async () => {
-        const result = await runCli('--base-url', origin);
+    // `--base-url` is the ONLY required flag, and `--web-origin` is optional, so a service with no CORS can
+    // take the rest of the smoke. Which deploy legs OWE the preflight is not left to the caller's discretion:
+    // `prodDeploySmokeDepth.test.ts` derives it from whether the service's `main.ts` enables CORS.
+    it('exits 2 when --base-url, the only required flag, is missing', async () => {
+        const result = await runCli('--web-origin', WEB_ORIGIN);
 
         expect(result.status).toBe(2);
         expect(result.output).toMatch(/usage/i);
+    }, 60_000);
+
+    // The method rides in the flag's value, so only the real argument parser and a real socket show it reaching the wire.
+    it('sends a --preflight-path naming POST as a POST preflight, which a POST-only route admits', async () => {
+        requestedMethods.length = 0;
+
+        const asPost = await runCli(
+            '--base-url',
+            origin,
+            '--web-origin',
+            WEB_ORIGIN,
+            '--preflight-path',
+            'POST:/api/v1/post-only',
+        );
+
+        expect(asPost.status, asPost.output).toBe(0);
+        expect(requestedMethods).toEqual(['POST', 'POST']);
+
+        const asGet = await runCli(
+            '--base-url',
+            origin,
+            '--web-origin',
+            WEB_ORIGIN,
+            '--preflight-path',
+            '/api/v1/post-only',
+        );
+
+        expect(asGet.status, asGet.output).toBe(1);
+        expect(requestedMethods.slice(2)).toEqual(['GET', 'GET']);
+    }, 60_000);
+
+    // The other half of #152, and the half a unit test of `runSmoke` structurally cannot reach: the omission
+    // is expressed as an ABSENT CLI FLAG, so only the real argument parser can be asked whether it accepts it.
+    it('accepts --base-url ALONE, sending no preflight and still exiting 0', async () => {
+        const before = preflightCount;
+
+        const result = await runCli('--base-url', origin);
+
+        expect(result.status, result.output).toBe(0);
+        expect(result.output).not.toContain('FAIL');
+        // The skip is STATED, so a deploy log says which assertion did not apply and why — a check that
+        // silently stopped running is the whole failure class this file exists to catch.
+        expect(result.output).toMatch(/preflight skipped/i);
+        // ...and it really was not sent. On the exit status alone, a run that fired the preflight with an
+        // `undefined` origin and merely dropped its verdict would be indistinguishable from a real skip.
+        expect(preflightCount).toBe(before);
     }, 60_000);
 });

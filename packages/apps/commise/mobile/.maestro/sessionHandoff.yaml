@@ -1,0 +1,99 @@
+# A cook's cached recipes end with their session (ADR-0054). Cook A (the signer) opens their own PRIVATE recipe, so the
+# app's query cache holds it, then signs out; cook B (the co-author) signs in on the same device without the app being
+# restarted, and B's recipe list must not show A's recipe. Mobile keeps the process across a sign-out, so this is the
+# platform where a missing boundary leaks: the web twin (`web/tests/e2e/sessionHandoff.spec.ts`) cannot fail first,
+# because a web sign-out reloads the document.
+#
+# Planned in `runMaestroFlows.sh`'s `FLOW_PLAN` since owner decision 2026-10-19 (plan 013 C4, matrix G18). B signs in by
+# password: every co-author lane in `POOL_ROSTER` (`@kitchensink/e2e-fixtures`' `testPool.ts`) now carries
+# `signsInByPassword`, `poolAdmin --apply` gives the existing ones the committed password, and `${E2E_COAUTHOR_EMAIL}` is
+# written by `@kitchensink/e2e-seed`'s manifest (`FIXTURE_ENV_KEYS`).
+#
+# The flow never restarts the app between the two cooks: a restart empties the cache by itself and would hide the
+# defect. The app is cleared only in `onFlowComplete`, so the next flow signs in as the signer again, pass or fail.
+#
+# ⚠️ WHAT THIS FLOW CAN AND CANNOT SEE (audit 2026-10-19, sharedAndShellFlows §2). It checks that A's recipe is not on
+# screen right after B lands on Home and right after B's list title appears, BEFORE it waits for B's own rows, because a
+# check made after B's fresh fetch is in would see only the fetched list. On a fast device B's fetch can still win that
+# race, so the deterministic proof of the boundary is the component test
+# `mobile/tests/providers/RecipeServiceGate.native.test.tsx` ("removes the last cook's reads…"); this flow is the
+# device-level smoke of the same rule. An Android airplane-mode oracle would be exact but would make the whole flow
+# Android-only (`setAirplaneMode`), and ADR-0054 is cross-platform; that is left to a device pass.
+
+appId: ${APP_ID}
+onFlowComplete:
+    - runFlow: auth/launchCleared.yaml
+    # audit 2026-10-19, A1.3: `clearState` does not end a session on iOS (the Keychain outlives it), so without this the
+    # next flow would inherit the CO-AUTHOR's session. A no-op on Android, where the clear empties the store.
+    - runFlow: auth/signOutIfSignedIn.yaml
+---
+# Cook A signs in on a cleared device, opens the recipes list and their private recipe.
+- runFlow: auth/launchCleared.yaml
+- runFlow: auth/signin.yaml
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- assertVisible: 'Ingredients'
+
+# Back to Home WITHOUT relaunching the app, by the app's own controls so it runs on iOS too (audit 2026-10-19: the system
+# `back` is Android-only). The detail's Back is named for where it goes (`RecipeDetailScreen`'s `useBackLabel`: the
+# Recipes tab's root is "My recipes"), then the Home tab through the tab bar (`shell/goHome.yaml`).
+- tapOn: 'Back to My recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+- runFlow: shell/goHome.yaml
+- extendedWaitUntil:
+      visible: 'Profile.*'
+      timeout: 20000
+
+# Cook A signs out from the Profile page. The auth gate puts the sign-in form back.
+- tapOn: 'Profile.*'
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign out'
+          DIRECTION: DOWN
+- tapOn: 'Sign out'
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 40000
+
+# Cook B signs in on the same process. `signinHome.yaml` finds the form and types B's address.
+- runFlow:
+      file: auth/signinHome.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_COAUTHOR_EMAIL}
+
+# audit 2026-10-19, sharedAndShellFlows §2: A's recipe must be absent BEFORE B's own data is waited for. Home's recent
+# recipes read the same cache the list does.
+- assertNotVisible: '${E2E_RECIPE_LAMB}'
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'See all recipes'
+          DIRECTION: DOWN
+- tapOn: 'See all recipes'
+# 'My recipes' is drawn only on the Recipes root; 'Recipes' is also the tab label and was already on screen (A1.6).
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 40000
+
+# First paint of B's list: A's recipe is not there. This runs before the wait for B's rows below.
+- assertNotVisible: '${E2E_RECIPE_LAMB}'
+
+# B's own list has rendered (B's public recipe is in it), and A's private recipe is not, now or after a scroll.
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: '${E2E_RECIPE_LAMB}'
+- scrollUntilVisible:
+      element: 'My recipes'
+      direction: UP
+      timeout: 20000
+- assertNotVisible: '${E2E_RECIPE_LAMB}'

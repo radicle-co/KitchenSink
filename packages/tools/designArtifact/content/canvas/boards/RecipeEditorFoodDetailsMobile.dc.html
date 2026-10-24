@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, add details (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    p,
+                    ul,
+                    ol {
+                        margin: 0;
+                    }
+                    ul,
+                    ol {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fig {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .muted {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .err {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        padding: 0 0 24px;
+                    }
+                    .fig {
+                        gap: 8px;
+                    }
+                    .cap {
+                        padding: 0 16px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .stage > .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .form {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .fld {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .macros {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .macro {
+                        flex: 1 0 45%;
+                        min-width: 45%;
+                    }
+                    .legend {
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .stat {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 400 13px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .note {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    .lock {
+                        display: flex;
+                        align-items: center;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        padding: 0 12px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .dhead {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding: 0 16px 16px;
+                    }
+                    .food {
+                        font: 600 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .introrow {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .intro {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur {
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .cur b {
+                        font-weight: 600;
+                        color: var(--ink);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 12px 16px;
+                    }
+                    .opt .chk {
+                        display: flex;
+                        width: 16px;
+                        flex-shrink: 0;
+                        padding-top: 4px;
+                        color: var(--action-text);
+                    }
+                    .opt .main {
+                        display: flex;
+                        flex: 1;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        column-gap: 12px;
+                        min-width: 0;
+                    }
+                    .opt .parts {
+                        display: flex;
+                        flex: 1 1 192px;
+                        flex-direction: column;
+                        min-width: 0;
+                    }
+                    .opt .tag {
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--action-text);
+                    }
+                    .opt .cal {
+                        margin-inline-start: auto;
+                        flex-shrink: 0;
+                        font: 400 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .gh {
+                        padding: 20px 16px 8px;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .gh.first {
+                        padding-top: 12px;
+                    }
+                    .slabel {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        column-gap: 12px;
+                    }
+                    .slabel b {
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .srch {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .srch .box {
+                        display: flex;
+                        align-items: center;
+                        flex: 1;
+                        min-width: 0;
+                        min-height: 48px;
+                        border: 1px solid var(--line-control);
+                        border-radius: 12px;
+                        padding: 0 12px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .shim {
+                        height: 48px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .block {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 12px;
+                        padding: 0 16px;
+                    }
+                    .body16 {
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .foot {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div class="fig">
+                    <p class="cap">Edit details: the current one is listed, one option has no figure</p>
+                    <div class="stage" style="padding-top: 48px">
+                        <div class="scrim"></div>
+                        <div class="sh" style="">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Edit details"
+                                close-label="Close details"
+                                size="content"
+                                focus-signal="{{v9}}"
+                                reduce-motion="{{v10}}"
+                                on-close="{{v11}}"
+                                footer="{{v8}}"
+                                ><div class="dhead">
+                                    <p class="food">Boneless skinless chicken thighs</p>
+                                    <div class="introrow">
+                                        <p class="intro">Nutrition uses the one you pick.</p>
+                                        <span class="hint">Calories per 100 g</span>
+                                    </div>
+                                    <p class="cur">
+                                        <b>Current: </b
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.VariantPartsLine"
+                                            parts="{{v7}}"
+                                            tone="secondary"
+                                        ></x-import>
+                                    </p>
+                                </div>
+                                <div role="listbox">
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="false"
+                                        aria-label="with added solution, braised, 164 cal"
+                                    >
+                                        <span class="chk" aria-hidden="true"></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v0}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">164 cal</span></span
+                                        >
+                                    </div>
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="false"
+                                        aria-label="with added solution, roasted, 164 cal"
+                                    >
+                                        <span class="chk" aria-hidden="true"></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v1}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">164 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="braised, 176 cal">
+                                        <span class="chk" aria-hidden="true"></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v2}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">176 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="roasted, 179 cal">
+                                        <span class="chk" aria-hidden="true"></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v3}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">179 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="stewed, 195 cal">
+                                        <span class="chk" aria-hidden="true"></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v4}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">195 cal</span></span
+                                        >
+                                    </div>
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="true"
+                                        aria-label="fried, Current, 218 cal"
+                                    >
+                                        <span class="chk" aria-hidden="true"
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Icon"
+                                                name="check"
+                                                size="16"
+                                                tone="actionText"
+                                            ></x-import></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v5}}"
+                                                    tone="primary"
+                                                ></x-import
+                                                ><span class="tag">Current</span></span
+                                            ><span class="cal">218 cal</span></span
+                                        >
+                                    </div>
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="false"
+                                        aria-label="with added solution, no calorie figure"
+                                    >
+                                        <span class="chk" aria-hidden="true"></span
+                                        ><span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v6}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">no figure</span></span
+                                        >
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="fig">
+                    <p class="cap">Edit details: the current one is no longer listed</p>
+                    <div class="stage" style="padding-top: 48px">
+                        <div class="scrim"></div>
+                        <div class="sh" style="">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Edit details"
+                                close-label="Close details"
+                                size="content"
+                                focus-signal="{{v21}}"
+                                reduce-motion="{{v22}}"
+                                on-close="{{v23}}"
+                                footer="{{v20}}"
+                                ><div class="dhead">
+                                    <p class="food">Boneless skinless chicken thighs</p>
+                                    <div class="introrow">
+                                        <p class="intro">Nutrition uses the one you pick.</p>
+                                        <span class="hint">Calories per 100 g</span>
+                                    </div>
+                                    <p class="cur">
+                                        <b>Current: </b
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.VariantPartsLine"
+                                            parts="{{v19}}"
+                                            tone="secondary"
+                                        ></x-import
+                                        >. It’s no longer listed, so if you change it, you can’t pick it again.
+                                    </p>
+                                </div>
+                                <div role="listbox">
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="false"
+                                        aria-label="with added solution, 110 cal"
+                                    >
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v12}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">110 cal</span></span
+                                        >
+                                    </div>
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="false"
+                                        aria-label="with added solution, braised, 164 cal"
+                                    >
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v13}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">164 cal</span></span
+                                        >
+                                    </div>
+                                    <div
+                                        class="opt"
+                                        role="option"
+                                        aria-selected="false"
+                                        aria-label="with added solution, roasted, 164 cal"
+                                    >
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v14}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">164 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="braised, 176 cal">
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v15}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">176 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="roasted, 179 cal">
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v16}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">179 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="stewed, 195 cal">
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v17}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">195 cal</span></span
+                                        >
+                                    </div>
+                                    <div class="opt" role="option" aria-selected="false" aria-label="fried, 218 cal">
+                                        <span class="main"
+                                            ><span class="parts"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.VariantPartsLine"
+                                                    parts="{{v18}}"
+                                                    tone="primary"
+                                                ></x-import></span
+                                            ><span class="cal">218 cal</span></span
+                                        >
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1455}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement,C=window.Commise.Native,noop=()=>{},yes=true; return {noop,yes,v0:["with added solution", "braised"],v1:["with added solution", "roasted"],v2:["braised"],v3:["roasted"],v4:["stewed"],v5:["fried"],v6:["with added solution"],v7:["fried"],v8:h('div',{className:'foot'},h(C.Button,{variant:'secondary',icon:'minus',onPress:noop},"Remove details")),v9:1,v10:yes,v11:noop,v12:["with added solution"],v13:["with added solution", "braised"],v14:["with added solution", "roasted"],v15:["braised"],v16:["roasted"],v17:["stewed"],v18:["fried"],v19:["smoked"],v20:h('div',{className:'foot'},h(C.Button,{variant:'secondary',icon:'minus',onPress:noop},"Remove details")),v21:1,v22:yes,v23:noop}; } }
+        </script>
+    </body>
+</html>

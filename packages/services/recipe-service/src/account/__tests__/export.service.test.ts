@@ -1,6 +1,6 @@
 /**
  * Unit tests for {@link AccountExportService}: the assembly of the seven owner-scoped reads into the
- * {@link AccountExport} contract, over a mocked {@link AccountExportDal}.
+ * `AccountExport` contract, over a mocked {@link AccountExportDal}.
  *
  * Requirement → test map:
  *
@@ -32,7 +32,7 @@ import {
 type DalMock = { [K in keyof AccountExportDal]: ReturnType<typeof vi.fn> };
 
 const OWNER = '01JEXPORTSERVICEOWNER0000A';
-const CONFIG: AccountExportConfig = { cloudfrontUrl: 'https://cdn.example.com' };
+const CONFIG: AccountExportConfig = { mediaCdnUrl: 'https://cdn.example.com' };
 
 let dal: DalMock;
 let service: AccountExportService;

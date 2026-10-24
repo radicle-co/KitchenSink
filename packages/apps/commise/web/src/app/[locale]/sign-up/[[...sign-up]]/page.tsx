@@ -1,30 +1,39 @@
-import { SignUp } from '@clerk/nextjs';
-import { clerkAppearance } from '@commise/ui';
+import type { Metadata } from 'next';
 
+import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
+import { SignUpForm } from '@/components/auth/SignUpForm';
+import { getDictionary } from '@/i18n/getDictionary';
 import { withBasePath } from '@/lib/basePath';
+import { safeReturnPath, signInPathFor } from '@/lib/signInReturn';
 
-export default async function SignUpPage({ params }: { params: Promise<{ locale: string }> }) {
+/** The tab's title and the shared link's description, in the request's locale. */
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
     const { locale } = await params;
+    const { title, description } = getDictionary(locale).pageMetadata.signUp;
+
+    return { title, description };
+}
+
+/**
+ * The sign-up page. The routing and redirect rules live with the widget they govern, in `SignUpForm`. The
+ * `redirect_url` the visitor arrived with is parsed by `safeReturnPath` and carried both ways (see the sign-in page).
+ */
+export default async function SignUpPage({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ locale: string }>;
+    searchParams: Promise<{ redirect_url?: string | string[] }>;
+}) {
+    const { locale } = await params;
+    const returnTo = safeReturnPath((await searchParams).redirect_url, locale);
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12">
-            {/* hash routing — path routing renders an empty widget under a preview basePath because
-                Clerk derives its path from the basePath-stripped usePathname().
-                signInUrl is a page LOCATOR consumed as-is, so it must carry the basePath. But
-                forceRedirectUrl is different: Clerk runs the post-sign-up redirect through Next's
-                router, which ALREADY prepends basePath — so a pre-prefixed value double-prefixes to
-                /pr-{N}/pr-{N}/ (a dead route) and strands the now-signed-in user on a blank /sign-up
-                ("<SignUp/> cannot render when a user is already signed in"). Pass a BARE path and let
-                Next add the prefix exactly once. (Same double-prefix class as the reverted 9d8e86a.)
-                The OAuth/SSO-callback flow navigates this raw (router not wired during the callback
-                page load), dropping the prefix to the bare root → 404; that landing is re-homed onto
-                the basePath by the bare-root redirect in next.config.ts. See the sign-in page note. */}
-            <SignUp
-                routing="hash"
-                appearance={clerkAppearance}
-                signInUrl={withBasePath(`/${locale}/sign-in`)}
-                forceRedirectUrl={`/${locale}`}
+        <AuthSplitLayout>
+            <SignUpForm
+                signInUrl={withBasePath(signInPathFor(locale, returnTo))}
+                forceRedirectUrl={returnTo ?? `/${locale}`}
             />
-        </main>
+        </AuthSplitLayout>
     );
 }

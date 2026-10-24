@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, cuisine (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                        width: 390px;
+                        padding: 16px 0 24px;
+                    }
+                    .cap {
+                        padding: 0 16px 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .frame {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        min-height: 420px;
+                        padding: 16px;
+                        background: var(--canvas);
+                        border-block: 1px solid var(--line-divider);
+                    }
+                    .grp {
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <div>
+                    <p class="cap">Typed “Sich”: one cuisine matches, and “Use …” is offered under “Not listed?”.</p>
+                    <div class="frame">
+                        <div role="heading"><div class="grp">Kind of dish</div></div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.Combobox"
+                            id="cuisine-a"
+                            label="Cuisine"
+                            list-label="Cuisine suggestions"
+                            hint="Choose one, or type your own. You need one to publish."
+                            value="Sich"
+                            on-value-change="{{noop}}"
+                            groups="{{groupsa}}"
+                            on-select="{{noop}}"
+                            count-announcement="1 cuisine"
+                            typed-text="isValue"
+                            list-max-rows="{{rows}}"
+                            clear="{{clear}}"
+                            focus-requested="{{yes}}"
+                            list-requested="{{yes}}"
+                            on-focus-request-handled="{{noop}}"
+                        ></x-import>
+                    </div>
+                </div>
+                <div>
+                    <p class="cap">
+                        Typed “Sichuan hot pot”: no match, so the note shows and “Use …” is the only option.
+                    </p>
+                    <div class="frame">
+                        <div role="heading"><div class="grp">Kind of dish</div></div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.Combobox"
+                            id="cuisine-b"
+                            label="Cuisine"
+                            list-label="Cuisine suggestions"
+                            hint="Choose one, or type your own. You need one to publish."
+                            value="Sichuan hot pot"
+                            on-value-change="{{noop}}"
+                            groups="{{groupsb}}"
+                            status="{{statusb}}"
+                            on-select="{{noop}}"
+                            count-announcement="No cuisines match “Sichuan hot pot”. You can use it as your own."
+                            typed-text="isValue"
+                            list-max-rows="{{rows}}"
+                            clear="{{clear}}"
+                        ></x-import>
+                        <div
+                            role="listbox"
+                            aria-label="Cuisine suggestions"
+                            style="border-radius: 16px; background: var(--paper); padding: 4px 0"
+                        >
+                            <p
+                                style="
+                                    margin: 0;
+                                    padding: 12px;
+                                    font: 400 14px/1.4 var(--font-body);
+                                    color: var(--ink-muted);
+                                "
+                            >
+                                No cuisines match “Sichuan hot pot”. You can use it as your own.
+                            </p>
+                            <div
+                                role="option"
+                                aria-selected="false"
+                                aria-label="Use “Sichuan hot pot” as the cuisine"
+                                style="
+                                    display: flex;
+                                    min-height: 44px;
+                                    align-items: center;
+                                    padding: 0 12px;
+                                    font: 400 16px/1.5 var(--font-body);
+                                    color: var(--ink);
+                                "
+                            >
+                                Use “Sichuan hot pot”
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1100}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=()=>{}; return {groupsa:[{"key": "cuisines", "options": [{"key": "Sichuan", "label": "Sichuan"}]}, {"key": "own", "label": "Not listed?", "options": [{"key": "::use-own", "label": "Use “Sich”", "accessibleName": "Use “Sich” as the cuisine"}]}],groupsb:[{"key": "own", "options": [{"key": "::use-own", "label": "Use “Sichuan hot pot”", "accessibleName": "Use “Sichuan hot pot” as the cuisine"}]}],statusb:{"kind": "note", "text": "No cuisines match “Sichuan hot pot”. You can use it as your own."},meal:[{"value": "breakfast", "label": "Breakfast"}, {"value": "brunch", "label": "Brunch"}, {"value": "lunch", "label": "Lunch"}, {"value": "dinner", "label": "Dinner"}, {"value": "snack", "label": "Snack"}, {"value": "dessert", "label": "Dessert"}, {"value": "drink", "label": "Drink"}],noop:noop,yes:true,clear:{label:'Clear cuisine',icon:h(C.Icon,{name:'x',size:20,tone:'inkMuted'})},rows:5}; } }
+        </script>
+    </body>
+</html>

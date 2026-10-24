@@ -1,8 +1,13 @@
-import { eq } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { BylineSnapshot } from '@kitchensink/identity-core';
+import { and, eq, isNull } from 'drizzle-orm';
+import type { IdentityWriter } from '../identityWriter.js';
 
-import { users, accounts, profiles } from '../schema/index.js';
-import type { NewUserRow, ProfileRow, UserRow } from '../schema/index.js';
+import { profileClock } from '../profileClock.js';
+
+import { accounts } from '../schema/accounts.js';
+import { profiles } from '../schema/profiles.js';
+import { users } from '../schema/users.js';
+import type { NewUserRow, UserRow } from '../schema/users.js';
 import { newUserId, type UserId } from '../ulid.js';
 
 /**
@@ -20,10 +25,16 @@ export interface UserDaoLogger {
 
 const noopLogger: UserDaoLogger = { warn: () => {} };
 
+/** A byline snapshot with the `profileClock` stamp the statement that wrote it returned. */
+export interface StampedByline extends BylineSnapshot {
+    /** `profiles.updated_at` (= `handle_sync_owed_at`) as that statement stamped it — the snapshot's key. */
+    readonly stampedAt: Date;
+}
+
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 MOD-011 MOD-012 */
 export class UserDAO {
     constructor(
-        private readonly db: PostgresJsDatabase<Record<string, never>>,
+        private readonly db: IdentityWriter,
         private readonly logger: UserDaoLogger = noopLogger,
     ) {}
 
@@ -82,88 +93,158 @@ export class UserDAO {
     }
 
     /**
-     * Coherent `users`/`profiles` sync for `user.updated` (S-I3, corrected). `users.name`/
-     * `users.picture` are the Clerk MIRROR — the last-synced Clerk value — and are the gate.
-     * `profiles.displayName`/`avatarUrl` is the EFFECTIVE value the app renders, which a user can
-     * override independent of Clerk via self-service `PATCH /api/v1/users/me`.
+     * Coherent `users`/`profiles` sync for `user.updated` (S-I3, corrected; plan 2026-10-15-010 D5). `users.name`/
+     * `users.picture` are the Clerk MIRROR — the last-synced Clerk value — and are the gate for the name and the
+     * avatar. `profiles.displayName`/`avatarUrl` is the EFFECTIVE value the app renders, which a user can override
+     * independent of Clerk via self-service `PATCH /api/v1/users/me`.
      *
-     * The ORIGINAL bug gated on `users.name`, which this webhook path never wrote — the baseline never
-     * moved, so an A→B→A Clerk rename froze `profiles.displayName` at B (the B→A revert compared
-     * against the stale, never-moved `users.name` and saw no difference).
+     * Gating on the mirror is what makes both of these hold at once:
+     *   - A genuine Clerk change (mirror ≠ incoming) moves the mirror AND syncs `profiles` (Clerk wins on a real
+     *     change — decision 6), so the mirror never goes stale and A→B→A still round-trips.
+     *   - A non-name Clerk event (avatar-only, a redelivery) leaves `profiles.displayName` untouched, preserving a
+     *     self-service override. Each field is gated INDEPENDENTLY.
      *
-     * Gating on `profiles` instead (the first attempted fix) traded that bug for a WORSE one: after a
-     * self-service rename set `profiles.displayName` to X while Clerk's name stayed Y, ANY subsequent
-     * `user.updated` (an avatar-only change, an email change, a svix redelivery) recomputed Clerk's
-     * unchanged Y, compared it to X, saw a "difference", and REVERTED the self-service edit — data loss
-     * on every unrelated webhook delivery.
+     * The USERNAME needs no mirror: Clerk is its only authority and the app has no rename, so the incoming value is
+     * compared to `profiles.username` directly.
      *
-     * Gating on `users.name`/`users.picture` (the Clerk mirror) — and moving the mirror on every real
-     * Clerk-side change — fixes both at once:
-     *   - A genuine Clerk change (mirror ≠ incoming) moves the mirror AND syncs `profiles` (Clerk wins
-     *     on a real change — decision 6), so the mirror never goes stale and A→B→A still round-trips.
-     *   - A non-name Clerk event (mirror name == incoming name, e.g. avatar-only or a redelivery)
-     *     leaves `profiles.displayName` untouched, preserving a self-service override. The two fields
-     *     are gated INDEPENDENTLY — an avatar-only event still moves `profiles.avatarUrl` (and the
-     *     mirror), it just never touches `displayName`.
+     * ⛔ Returns the BYLINE SNAPSHOT — present only when the display name OR the username changed — read back from the
+     * `RETURNING` of the statement that wrote it. So a username-only change publishes the PROFILE's display name (a
+     * cook's own override), never Clerk's, and the snapshot's stamp is the row's `profileClock`, which the same
+     * statement writes to `handle_sync_owed_at` as the debt the publish must settle.
      *
-     * Both tables are written together in one transaction so they can never drift into a stale
-     * duplicate baseline. Returns whether `displayName` (specifically) changed, so the caller can gate
-     * the handle-sync publish on a genuine Clerk-driven name change only.
+     * Both tables are written in one transaction, the user row locked first (`FOR UPDATE`) and then the profile.
      *
-     * @sideEffect updates `users.name`/`users.picture` and, per-field, `profiles.displayName`/
-     * `avatarUrl` — only for the field(s) that genuinely changed on Clerk's side.
+     * @sideEffect Updates `users.name`/`users.picture` and, per field, `profiles.displayName`/`avatarUrl`/`username`.
      */
-    async syncNameAndPicture(
+    async syncProviderFields(
         userId: UserId,
-        data: { name: string; picture: string | null; now: Date },
-    ): Promise<{ displayNameChanged: boolean }> {
+        data: { name: string; picture: string | null; username?: string | null | undefined; now: Date },
+    ): Promise<{ readonly byline?: StampedByline }> {
         return this.db.transaction(async (tx) => {
-            const [user] = await tx.select().from(users).where(eq(users.id, userId));
+            const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update');
 
             if (!user) {
-                return { displayNameChanged: false };
+                return {};
+            }
+
+            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId)).for('update');
+
+            if (!profile) {
+                this.logger.warn(
+                    'UserDAO.syncProviderFields: users row exists but profiles row is missing (invariant violation)',
+                    { userId },
+                );
+
+                return {};
             }
 
             const nameChanged = data.name !== user.name;
             const pictureChanged = data.picture !== user.picture;
+            // `undefined` — an event that does not carry the username — leaves it alone; `null` clears it.
+            const usernameChanged = data.username !== undefined && data.username !== profile.username;
+            const bylineChanged = nameChanged || usernameChanged;
 
-            if (!nameChanged && !pictureChanged) {
-                return { displayNameChanged: false };
+            if (!nameChanged && !pictureChanged && !usernameChanged) {
+                return {};
             }
 
-            const [profile] = await tx.select().from(profiles).where(eq(profiles.userId, userId));
-
-            if (!profile) {
-                this.logger.warn(
-                    'UserDAO.syncNameAndPicture: users row exists but profiles row is missing (invariant violation)',
-                    { userId },
-                );
-
-                return { displayNameChanged: false };
+            if (nameChanged || pictureChanged) {
+                await tx
+                    .update(users)
+                    .set({ name: data.name, picture: data.picture, updatedAt: data.now })
+                    .where(eq(users.id, userId));
             }
 
-            await tx
-                .update(users)
-                .set({ name: data.name, picture: data.picture, updatedAt: data.now })
-                .where(eq(users.id, userId));
-
-            const profilePatch: Partial<Pick<ProfileRow, 'displayName' | 'avatarUrl'>> = {};
-
-            if (nameChanged) {
-                profilePatch.displayName = data.name;
-            }
-
-            if (pictureChanged) {
-                profilePatch.avatarUrl = data.picture;
-            }
-
-            await tx
+            const [written] = await tx
                 .update(profiles)
-                .set({ ...profilePatch, updatedAt: data.now })
-                .where(eq(profiles.userId, userId));
+                .set({
+                    ...(nameChanged ? { displayName: data.name } : {}),
+                    // ⛔ Clerk WINS on a real picture change (D5): the Clerk URL replaces an uploaded avatar, so the
+                    // key is cleared in the SAME statement. `profiles_avatar_key_xor_url` would refuse the write if it
+                    // were not, which is the point of that constraint.
+                    ...(pictureChanged ? { avatarUrl: data.picture, avatarKey: null } : {}),
+                    ...(usernameChanged ? { username: data.username ?? null } : {}),
+                    // ⛔ U9/R21: the OWED MARKER moves with the byline, inside this statement and on the same clock.
+                    // The publish happens after the commit and is best-effort, so without the marker a failed
+                    // fan-out left nothing behind. Both columns, because a new debt must not inherit the previous
+                    // attempt's failure code.
+                    ...(bylineChanged ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
+                    updatedAt: profileClock,
+                })
+                .where(eq(profiles.userId, userId))
+                .returning({
+                    displayName: profiles.displayName,
+                    username: profiles.username,
+                    stampedAt: profiles.updatedAt,
+                });
 
-            return { displayNameChanged: nameChanged };
+            return bylineChanged && written !== undefined ? { byline: written } : {};
         });
+    }
+
+    /**
+     * Settle the handle-sync debt this rename recorded (plan U9, R21/R25).
+     *
+     * ⛔ CONDITIONAL on the stamp the caller wrote, which is the whole safety of it. A second rename can land
+     * between a publish starting and finishing; settling unconditionally would erase the NEWER debt and leave
+     * that name un-synced with nothing recording it — the exact silence the marker exists to end,
+     * reintroduced by the successful path.
+     *
+     * @param userId - The renamed user.
+     * @param owedAt - The stamp the rename wrote; only a row still carrying it is settled.
+     * @param failureCode - `null` clears the debt (published); a code leaves it, saying why it is still owed.
+     * @sideEffect Updates `profiles`.
+     */
+    async settleHandleSync(userId: UserId, owedAt: Date, failureCode: string | null): Promise<void> {
+        await this.db
+            .update(profiles)
+            .set(
+                failureCode === null
+                    ? { handleSyncOwedAt: null, handleSyncFailureCode: null }
+                    : { handleSyncFailureCode: failureCode },
+            )
+            .where(and(eq(profiles.userId, userId), eq(profiles.handleSyncOwedAt, owedAt)));
+    }
+
+    /**
+     * Record that the provider was brought to `version` — CONDITIONALLY on the intent not having moved (U10).
+     *
+     * ⛔ The condition is the whole guarantee. A newer status change committed while the provider call was in
+     * flight means this result is already stale; settling anyway would mark the account converged at a state
+     * it is no longer in, and nothing downstream could tell. Zero rows matched IS that signal.
+     *
+     * @param id - The user.
+     * @param version - The `status_version` the caller read before calling the provider.
+     * @returns Whether the settle landed. `false` means the intent moved; the caller must not acknowledge.
+     * @sideEffect Updates `users.status_applied_version`.
+     */
+    async settleStatusVersion(id: UserId, version: number): Promise<boolean> {
+        const settled = await this.db
+            .update(users)
+            .set({ statusAppliedVersion: version })
+            .where(and(eq(users.id, id), eq(users.statusVersion, version)))
+            .returning({ id: users.id });
+
+        return settled.length > 0;
+    }
+
+    /**
+     * Record that the identity provider confirmed an erased account no longer exists (P1 #5).
+     *
+     * Idempotent and monotone: it stamps only an `erased` row whose confirmation is still NULL, so a duplicate
+     * delivery, a webhook echo or a reconciliation re-run can neither move the first instant nor stamp a row that
+     * is not erased (the CHECK would reject it). It leaves `updated_at` alone — this is bookkeeping about the
+     * provider, not a change to the identity, and `updated_at` is the reconciliation grace clock.
+     *
+     * @param id - The erased user.
+     * @param at - The instant the provider confirmed the deletion.
+     * @sideEffect Updates `users.provider_deleted_at`.
+     */
+    async confirmProviderDeleted(id: UserId, at: Date): Promise<void> {
+        await this.db
+            .update(users)
+            .set({ providerDeletedAt: at })
+            .where(and(eq(users.id, id), eq(users.status, 'erased'), isNull(users.providerDeletedAt)));
     }
 
     async softDelete(id: UserId): Promise<UserRow | undefined> {

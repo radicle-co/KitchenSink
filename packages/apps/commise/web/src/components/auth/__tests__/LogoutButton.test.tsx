@@ -67,13 +67,7 @@ describe('LogoutButton (U3)', () => {
     it('renders the localized default label as a button', () => {
         renderWithProviders(<LogoutButton />);
 
-        expect(screen.getByRole('button', { name: 'Sign out of your account' })).toBeTruthy();
-    });
-
-    it('lets a consumer override the label', () => {
-        renderWithProviders(<LogoutButton>Log out</LogoutButton>);
-
-        expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     });
 
     it('shows the localized busy label while the sign-out is in flight', async () => {
@@ -86,10 +80,12 @@ describe('LogoutButton (U3)', () => {
         );
         renderWithProviders(<LogoutButton />);
 
-        await user.click(screen.getByRole('button', { name: 'Sign out of your account' }));
+        await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
         const busy = await screen.findByRole('button', { name: 'Signing out…' });
-        expect(busy).toHaveProperty('disabled', true);
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus — WCAG 2.2 SC 2.4.3).
+        expect(busy).toHaveAttribute('aria-disabled', 'true');
+        expect(busy).toHaveProperty('disabled', false);
         expect(busy.getAttribute('aria-busy')).toBe('true');
 
         resolveSignOut?.();
@@ -99,7 +95,7 @@ describe('LogoutButton (U3)', () => {
         const user = userEvent.setup();
         renderWithProviders(<LogoutButton />);
 
-        await user.click(screen.getByRole('button', { name: 'Sign out of your account' }));
+        await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
         // No router-level `redirectUrl`: Clerk's own redirect goes through the Next router, which re-renders
         // the AUTHENTICATED shell from a payload resolved for the destroyed session. Same defect the
@@ -116,14 +112,11 @@ describe('LogoutButton (U3)', () => {
         signOut.mockRejectedValueOnce(new Error('clerk unreachable'));
         renderWithProviders(<LogoutButton />);
 
-        await user.click(screen.getByRole('button', { name: 'Sign out of your account' }));
+        await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
-        expect(await screen.findByRole('alert')).toHaveProperty(
-            'textContent',
-            'We couldn’t sign you out. Please try again.',
-        );
+        expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'We couldn’t sign you out. Try again.');
         // The control is usable again — a permanently-busy button is a dead end.
-        expect(screen.getByRole('button', { name: 'Sign out of your account' })).toHaveProperty('disabled', false);
+        expect(screen.getByRole('button', { name: 'Sign out' })).toHaveProperty('disabled', false);
         // And the viewer was NOT navigated away on a session that may still be live.
         expect(navigateTo).not.toHaveBeenCalled();
     });
@@ -135,15 +128,15 @@ describe('LogoutButton (U3)', () => {
             signOut.mockResolvedValueOnce(undefined);
             renderWithProviders(<LogoutButton />);
 
-            await user.click(screen.getByRole('button', { name: 'Sign out of your account' }));
+            await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
             expect(await screen.findByRole('alert')).toHaveProperty(
                 'textContent',
-                'We couldn’t sign you out. Please try again.',
+                'We couldn’t sign you out. Try again.',
             );
             expect(navigateTo).not.toHaveBeenCalled();
             // Retryable, not a dead end.
-            expect(screen.getByRole('button', { name: 'Sign out of your account' })).toHaveProperty('disabled', false);
+            expect(screen.getByRole('button', { name: 'Sign out' })).toHaveProperty('disabled', false);
         });
     });
 
@@ -156,18 +149,18 @@ describe('LogoutButton (U3)', () => {
         it('stays ACTIONABLE — a permanently disabled sign-out is a dead end', () => {
             renderWithProviders(<LogoutButton />);
 
-            expect(screen.getByRole('button', { name: 'Sign out of your account' })).toHaveProperty('disabled', false);
+            expect(screen.getByRole('button', { name: 'Sign out' })).toHaveProperty('disabled', false);
         });
 
         it('surfaces the alert instead of hanging on a load that will never finish', async () => {
             const user = userEvent.setup();
             renderWithProviders(<LogoutButton />);
 
-            await user.click(screen.getByRole('button', { name: 'Sign out of your account' }));
+            await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
             expect(await screen.findByRole('alert')).toHaveProperty(
                 'textContent',
-                'We couldn’t sign you out. Please try again.',
+                'We couldn’t sign you out. Try again.',
             );
             expect(signOut).not.toHaveBeenCalled();
             expect(navigateTo).not.toHaveBeenCalled();

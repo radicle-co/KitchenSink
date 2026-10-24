@@ -87,10 +87,10 @@ Traced from origin (`docs/brainstorms/2026-07-10-sandbox-subdomain-azp-spike-req
 - **Goal:** Let identity, food-service, and recipe-service each run predicate mode on sandbox while prod keeps exact-match, with fail-closed config validation.
 - **Requirements:** R1, R3, R5
 - **Dependencies:** U1
-- **Files:** the config schema + `ClerkAuthService`/guard for each consumer — `packages/services/identity/src/config/env.schema.ts` and `packages/services/identity/src/auth/clerk-auth.service.ts`; `packages/services/food-service/src/config/*` and `packages/services/food-service/src/auth/food-auth.guard.ts`; `packages/services/recipe-service/src/config/config.types.ts` and `packages/services/recipe-service/src/auth/clerk-auth.service.ts` — plus each service's config + auth test files
+- **Files:** the config schema + `ClerkAuthService`/guard for each consumer — `packages/services/identity/src/config/env.schema.ts` and `packages/services/identity/src/auth/clerkAuth.service.ts`; `packages/services/food-service/src/config/*` and `packages/services/food-service/src/auth/foodAuth.guard.ts`; `packages/services/recipe-service/src/config/config.types.ts` and `packages/services/recipe-service/src/auth/clerkAuth.service.ts` — plus each service's config + auth test files
 - **Approach:** Add a per-stage authorized-party pattern config alongside `CLERK_AUTHORIZED_PARTIES` in each service. In each zod schema, `superRefine` enforces exactly one of {pattern, list} per stage — reject "both set" and "neither set" — and forbid the pattern on prod-like stages. Each auth entry passes the pattern to the verifier when configured, else the existing list. No change to enforcement middleware/guards beyond the config wiring.
 - **Execution note:** Test-first — config validation is the guard that keeps prod on exact-match and prevents fail-open.
-- **Patterns to follow:** the existing stage-gated `superRefine` in `packages/services/identity/src/config/env.schema.ts`; `parseCommaList` in the recipe/identity `clerk-auth.service.ts`.
+- **Patterns to follow:** the existing stage-gated `superRefine` in `packages/services/identity/src/config/env.schema.ts`; `parseCommaList` in the recipe/identity `clerkAuth.service.ts`.
 - **Test scenarios (per service):**
     - Pattern + list both set → config validation error.
     - Neither pattern nor list set → config validation error (fail-open guard).
@@ -179,6 +179,6 @@ Traced from origin (`docs/brainstorms/2026-07-10-sandbox-subdomain-azp-spike-req
 - `docs/architecture/decisions/0001-sandbox-front-end-addressing.md` — the path-routing decision whose premise this spike tests; its "wildcard/pattern `azp` — not possible" line is corrected in U6.
 - `docs/CODING_STANDARDS.md §1` — the two naming regimes; basis for keeping `clerkVerify.ts` camelCase.
 - `packages/shared/clerk-verify/src/clerkVerify.ts` — where `authorizedParties` is passed to `verifyToken` and `azp` is surfaced (the seam U1 changes).
-- Consumers wired in U2: `packages/services/identity/src/auth/clerk-auth.service.ts`, `packages/services/food-service/src/auth/food-auth.guard.ts`, `packages/services/recipe-service/src/auth/clerk-auth.service.ts`.
+- Consumers wired in U2: `packages/services/identity/src/auth/clerkAuth.service.ts`, `packages/services/food-service/src/auth/foodAuth.guard.ts`, `packages/services/recipe-service/src/auth/clerkAuth.service.ts`.
 - `packages/services/identity/src/config/env.schema.ts` — stage-gated `superRefine` config-validation pattern to mirror.
 - Verified against `@clerk/backend` `assertAuthorizedPartiesClaim`: matching is literal `Array.includes`, and the SDK skip fires only when `authorizedParties` is unset — the basis for R4/U5's mobile concern and U1's predicate design.

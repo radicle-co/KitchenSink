@@ -1,8 +1,8 @@
-import { isValid, ulid } from 'ulidx';
+import { isValid, monotonicFactory } from 'ulidx';
 
 /**
  * Branded ULID for every canonical food-domain surrogate key (`food.id`, `food_sources.id`,
- * `nutrient.id`, `food_nutrients.id`, `food_portions.id`, `food_category.id`, `food_candidates.id`).
+ * `nutrient.id`, `food_nutrition.id`, `food_portions.id`, `food_category.id`, `food_candidates.id`).
  *
  * A food's identity is ALWAYS this internal ULID, NEVER a source-native key (R1/FR-IDN-1). Mirrors
  * the identity service's `UserId`/`newUserId` (`packages/services/identity/src/database/ulid.ts`).
@@ -10,12 +10,27 @@ import { isValid, ulid } from 'ulidx';
 export type FoodId = string & { __brand: 'FoodId' };
 
 /**
+ * ⛔ MONOTONIC, not the bare `ulid()`. A ULID orders by time to MILLISECOND precision only; within the same
+ * millisecond the 80-bit random component is random, so ids minted together sort arbitrarily.
+ *
+ * `food_portions` is read `ORDER BY id` to recover INSERTION order, so rows written in one batch (which is how
+ * the USDA pipeline writes them) must sort in the order they were minted. The order once decided what a `cup`
+ * of a food weighed; `normalizePortions` now picks by the labels alone (KTD-28), and the DAO keeps the order
+ * as its own contract. It surfaced as a CI failure in `foodNutritionBatch.integration.test.ts`, which passed
+ * locally only because the inserts happened to straddle a millisecond boundary.
+ *
+ * `monotonicFactory` guarantees each id within a millisecond is strictly greater than the last, so
+ * `ORDER BY id` IS insertion order.
+ */
+const nextUlid = monotonicFactory();
+
+/**
  * Mint a fresh lexicographically-sortable ULID for a food-domain row.
  *
  * @returns A new branded {@link FoodId}.
  * @sideEffect Reads the current time and a CSPRNG via `ulidx` (non-deterministic).
  */
-export const newFoodId = (): FoodId => ulid() as FoodId;
+export const newFoodId = (): FoodId => nextUlid() as FoodId;
 
 /**
  * Type guard asserting a string is a structurally valid ULID.

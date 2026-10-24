@@ -10,7 +10,7 @@
 - **`totalTimeMinutes` is independent, NOT `prep + cook`** (domain contract; OQ-4 pending owner ruling) — a recipe may carry inactive time (rest/marinate/chill). The version snapshots and the diff must treat it as its own field.
 - **The enriched 409 payload's `currentVersion` is the concurrency TOKEN, not display metadata** (W8-a.5). The resolve submit echoes it as `expectedVersion`; "Keep server" is a **client-side no-op** (no write); only "Overwrite"/"Merge" issue the CAS write with the full merged recipe. A second 409 during resolve re-opens the conflict UI.
 - **S3 is transparent** (owner decision 8): there is NO user-facing "View in S3 archive" link. `GET …/versions/{n}` falls back to S3 for versions evicted from the last-10 DB window (W8-a.7); Preview/Compare therefore work for all versions.
-- **Reuse `RecipeVersion.createdBy`; do NOT add `editedBy`** (DRY). Only `deviceLabel` is new (W8-a.6, nullable). `deviceLabel` and `editorHandle` are user-controlled → escape at every render surface (W6 attribution AND W7 banner).
+- **Reuse `RecipeVersion.createdBy`; do NOT add `editedBy`** (DRY). `editorHandle` is user-controlled → escape at every render surface (W6 attribution AND W7 banner). ⛔ The `deviceLabel` half of this rule was **DELETED by owner ruling on 2026-08-26** — see the amendment below; do not reintroduce the field.
 
 ## Context
 
@@ -22,7 +22,7 @@
 
 1. Per-row **Preview** + **Preview modal** (fields + ingredients at that version), backed by `GET …/versions/{n}` with **transparent S3 fallback** (W8-a.7).
 2. **Compare/diff sidebar**: pick two versions → Added/Removed/Modified summary + full diff, computed client-side by a **pure diff function** (mutation-tested: reorder / add / remove / modify / no-change; v1-edge; non-adjacent).
-3. Editor/device attribution: `createdBy` + denormalized `editorHandle` (W8-a.2) + `deviceLabel` (W8-a.6, "unknown device" when null), rendered via the escaping path.
+3. Editor/device attribution: `createdBy` + denormalized `editorHandle` (W8-a.2) + `deviceLabel` (W8-a.6, "unknown device" when null), rendered via the escaping path. ⛔ **AMENDED 2026-08-26 — the `deviceLabel` half is deleted;** what ships is editor + timestamp attribution only.
 4. No user-facing S3 link; "all versions available" is informational.
 
 **Conflict resolution (W7, FR-007c):**
@@ -41,13 +41,52 @@
 - **A user-facing S3 archive link.** Rejected: S3 is a cheap-storage implementation detail; users load any prior version through the normal API (owner decision 8).
 - **Selection-gating alone for X5.** Rejected: it fixes the zero-choice UI default but not the concurrent-write lost-update — the resolve must CAS on the reconciled server version.
 
+## ⛔ AMENDMENT — device attribution is DELETED (owner ruling, 2026-08-26)
+
+The owner ruled on **2026-08-26** that device attribution comes out entirely: _"I don't care what device
+they were on when they edited something."_ This amends **W8-a.6** and, through it, the FR-007b version-history
+story recorded below. Every mention of `deviceLabel` / `device_label` in this document is **historical** from
+this date; the field is gone from the Drizzle definition, the create/update REQUEST contract, the
+`RecipeVersion` and `VersionConflictSide` RESPONSE contracts, the GDPR export projection, the W6 row
+attribution and the W7 conflict banner and per-side cards.
+
+**What the removal actually costs: nothing that ever reached a user.** Verified before deleting — **no writer
+for the field existed anywhere.** Neither app, nor the typed client, nor any test outside the field's own unit
+tests ever put `deviceLabel` on a create or update body, so every `recipe_versions.device_label` was `NULL`,
+every render took the omit branch, and the _"(from iPhone)"_ suffix, the banner's _" on {device}"_ clause and
+the per-side card's _"Device:"_ row have never once appeared in the product. There is also a recorded reason
+it was never wired: this document's own trap list and `recipes.schema.ts` note that the published contract
+listed the field only on the RESPONSE while marking both request bodies `additionalProperties: false` — the
+contract forbade the field the service was waiting for. That defect had already been fixed; the ruling makes
+the fix moot.
+
+**What is genuinely lost is a capability, not a behaviour.** The W6/W7 designs below intended a cook editing
+from two devices to be able to tell _which_ device produced a given version, which is the most legible way to
+answer "did I do that on my phone?" during a conflict. After this amendment the version row attributes an
+EDITOR (`by @handle`, W8-a.2) and a TIME, and nothing distinguishes two versions the same person wrote from
+two different devices. That is a real reduction in the conflict story's explanatory power, and it is accepted
+rather than denied — the owner's judgement is that it is not worth the field.
+
+⚠️ **The `device_label` COLUMN is still in the physical table, deliberately, and its DROP is deferred to a
+later release.** ADR-0022's standing precondition is EXPAND-FIRST — a contracting migration ships a release
+LATER than the code that stopped reading the column — and migrations run in-stack BEFORE the new tasks serve,
+so dropping it in the same release would leave the previous image issuing statements against a column that no
+longer exists: a permanently-lost version row on every save (`recordSnapshot` swallows its error), plus
+user-visible `500`s on version history, on the enriched 409, and on the GDPR export. The full per-path trace
+is in `0014_version_device_label.sql`'s header.
+
+**FOLLOW-UP (must ship):** a later release adds its own numbered migration performing
+`ALTER TABLE recipe_versions DROP COLUMN IF EXISTS device_label;`. By then no image names the column, so that
+migration carries no window. Do **not** amend `0014` to do it — that file has already run, and the runner
+tracks applied migrations by name only.
+
 ## Impact
 
-| Artifact                                            | Change                                                                                                                                        |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| recipe-service versions module + `api.openapi.yaml` | enriched 409 payload (W8-a.5), `deviceLabel` column (W8-a.6), S3-fallback on the snapshot GET (W8-a.7), `editorHandle` (W8-a.2).              |
-| `@commise/features-recipes` `versions/*`            | Preview modal, Compare/diff sidebar + pure diff fn, changed-only conflict diff, A/B/C cards, per-element merge, CAS-resolve; web + `.native`. |
-| `version-history.md` / `conflict-resolution.md`     | reconciled during the W6/W7 child plans with native-adaptation notes.                                                                         |
+| Artifact                                            | Change                                                                                                                                                    |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| recipe-service versions module + `api.openapi.yaml` | enriched 409 payload (W8-a.5), ~~`deviceLabel` column (W8-a.6)~~ — deleted 2026-08-26, S3-fallback on the snapshot GET (W8-a.7), `editorHandle` (W8-a.2). |
+| `@commise/features-recipes` `versions/*`            | Preview modal, Compare/diff sidebar + pure diff fn, changed-only conflict diff, A/B/C cards, per-element merge, CAS-resolve; web + `.native`.             |
+| `version-history.md` / `conflict-resolution.md`     | reconciled during the W6/W7 child plans with native-adaptation notes.                                                                                     |
 
 ## Consequences
 
@@ -57,5 +96,5 @@
 
 ## Hand-off
 
-- **Backend (`be-1` / `db-arch-1`):** the enriched-409 same-transaction payload, `deviceLabel` migration, S3-fallback read (W8-a.5/.6/.7), with the concurrency + fallback integration tests.
+- **Backend (`be-1` / `db-arch-1`):** the enriched-409 same-transaction payload, ~~`deviceLabel` migration~~ (deleted 2026-08-26), S3-fallback read (W8-a.5/.7), with the concurrency + fallback integration tests.
 - **Frontend (`fe-1`):** the W6 and W7 child plans; the **X5-min** retrofit lands earlier as a ship-gate item (see the reconciliation plan, §Delivery & release gating).

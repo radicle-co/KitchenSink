@@ -1,0 +1,54 @@
+/**
+ * `CollectionLoadError` (web): what a collection page's read boundary shows when the read fails. A 404 is final, so it
+ * says so with its reason and offers no retry; any other failure is the generic one, whose retry is the boundary's reset.
+ * Both keep a way back. It replaces the web app's raw-`<button>` copy and the mobile screen's hand-built fallback.
+ */
+import { NotFoundError } from '@kitchensink/recipe-service-client';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { CollectionLoadError } from '../CollectionLoadError.js';
+import { collectionMessages } from '../messages.js';
+
+afterEach(cleanup);
+
+const { detail } = collectionMessages.en;
+const back = { label: 'Back to Collections', parent: 'Collections', onPress: vi.fn(), href: '/en/collections' };
+
+describe('CollectionLoadError', () => {
+    it('⛔ says a missing collection is not found, with why, and offers NO retry: a 404 is final', () => {
+        render(<CollectionLoadError error={new NotFoundError('gone')} onRetry={vi.fn()} back={back} />);
+
+        expect(screen.getByRole('alert').textContent).toContain(detail.notFoundTitle);
+        expect(screen.getByRole('alert').textContent).toContain(detail.notFoundBody);
+        expect(screen.queryByRole('button', { name: detail.retry })).toBeNull();
+    });
+
+    it('says any other failure generically, with a retry that calls the boundary’s reset', () => {
+        const onRetry = vi.fn();
+        render(<CollectionLoadError error={new Error('network down')} onRetry={onRetry} back={back} />);
+
+        expect(screen.getByRole('alert').textContent).toContain(detail.errorTitle);
+
+        fireEvent.click(screen.getByRole('button', { name: detail.retry }));
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a real link back for a missing collection: its one action', () => {
+        render(<CollectionLoadError error={new NotFoundError('gone')} onRetry={vi.fn()} back={back} />);
+
+        expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe('/en/collections');
+    });
+
+    // The not-found rule lives HERE, not in the hosts: both hosts pass `back` unconditionally (it is a required prop), and
+    // the notice draws it only for a missing collection, because the pinned bar owns Back in every other state
+    // (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §5). REPLACES a type-level test that only asserted a deleted
+    // prop name was gone.
+    it('⛔ draws NO Back for a generic failure even when it is handed one: the bar owns it', () => {
+        render(<CollectionLoadError error={new Error('network down')} onRetry={vi.fn()} back={back} />);
+
+        expect(screen.queryByRole('link', { name: 'Back to Collections' })).toBeNull();
+        expect(screen.getByRole('button', { name: detail.retry })).toBeTruthy();
+    });
+});

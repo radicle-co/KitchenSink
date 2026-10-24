@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Discover, row states (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }</style
+                ><style>
+                    .fig {
+                        margin: 0 0 24px;
+                    }
+                    .cap {
+                        margin: 0 0 8px;
+                        padding: 0 16px;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .frame {
+                        box-sizing: border-box;
+                        width: 390px;
+                        border: 0;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .ks-sk {
+                        background: var(--surface-muted);
+                        border-radius: 4px;
+                    }
+
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    min-height: 1076px;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    overflow: hidden;
+                "
+            >
+                <x-import component-from-global-scope="Commise.Native.GradientSurface" gradient="hero" style="{{fill}}"
+                    ><div style="flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 16px;
+                                padding: 8px 16px 20px;
+                                overflow: hidden;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                heading-id="discover-title"
+                                title="Discover"
+                                action="{{action}}"
+                            ></x-import>
+                            <x-import
+                                component-from-global-scope="Commise.Native.SearchField"
+                                id="discover-search"
+                                label="Search recipes"
+                                label-visibility="hidden"
+                                clear-label="Clear search"
+                                placeholder="Search recipes"
+                                value=""
+                                on-change-text="{{noop}}"
+                            ></x-import>
+                            <div
+                                style="
+                                    display: flex;
+                                    flex-direction: row;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    gap: 12px;
+                                "
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    size="sm"
+                                    icon="slidersHorizontal"
+                                    accessibility-label="Filters"
+                                    on-press="{{noop}}"
+                                    >Filters</x-import
+                                >
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 48px; padding-bottom: 20px">
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                        "
+                                    >
+                                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                            Trending
+                                        </div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            size="sm"
+                                            accessibility-label="See all Trending"
+                                            on-press="{{noop}}"
+                                            >See all</x-import
+                                        >
+                                    </div>
+                                    <div role="status" style="display: flex; flex-direction: column; gap: 8px">
+                                        <div class="text-meta text-ink-muted">Loading recipes</div>
+                                        <div
+                                            aria-hidden="true"
+                                            style="
+                                                display: flex;
+                                                flex-direction: row;
+                                                gap: 16px;
+                                                overflow: hidden;
+                                                padding-bottom: 0;
+                                            "
+                                        >
+                                            <div
+                                                style="
+                                                    width: 256px;
+                                                    height: 224px;
+                                                    flex: none;
+                                                    border-radius: 12px;
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    width: 256px;
+                                                    height: 224px;
+                                                    flex: none;
+                                                    border-radius: 12px;
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                            <div
+                                                style="
+                                                    width: 256px;
+                                                    height: 224px;
+                                                    flex: none;
+                                                    border-radius: 12px;
+                                                    background: var(--line-divider);
+                                                "
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                        "
+                                    >
+                                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">New</div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            size="sm"
+                                            accessibility-label="See all New"
+                                            on-press="{{noop}}"
+                                            >See all</x-import
+                                        >
+                                    </div>
+                                    <div class="text-meta text-ink-muted">Nothing here yet.</div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                        "
+                                    >
+                                        <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">Quick</div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            size="sm"
+                                            accessibility-label="See all Quick"
+                                            on-press="{{noop}}"
+                                            >See all</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        role="alert"
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            flex-wrap: wrap;
+                                            align-items: center;
+                                            gap: 8px;
+                                        "
+                                    >
+                                        <div class="text-body-sm text-ink-muted">Couldn’t load this row.</div>
+                                        <div
+                                            role="button"
+                                            style="
+                                                min-height: 44px;
+                                                display: flex;
+                                                align-items: center;
+                                                padding: 0 8px;
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--action-text);
+                                            "
+                                        >
+                                            Try again
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <div style="font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                        Browse by cuisine
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ChipRow"
+                                        mode="filter"
+                                        label="Browse by cuisine"
+                                        overflow="scroll"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Italian"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Indian"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Mexican"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Thai"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Japanese"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Greek"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="American"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Middle Eastern"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Korean"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Vietnamese"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Spanish"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Moroccan"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                    ></x-import>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <x-import
+                        component-from-global-scope="Commise.Native.HomeTabBar"
+                        chrome="{{chrome}}"
+                        live-capabilities="{{none}}"
+                        active-id="discover"
+                        on-press="{{noop}}"
+                        bottom-inset="{{n34}}"
+                        compact="{{no}}"
+                        left-inset="{{n0}}"
+                        right-inset="{{n0}}"
+                    ></x-import>
+                </x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1076}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement; const D={"carbonara": ["Spaghetti alla carbonara", "Italian", 25, "medium", 4.7, 112, 690, 4, ["pasta", "weeknight"], "nonna_lucia"], "shakshuka": ["Shakshuka with feta", "Middle Eastern", 30, "easy", 4.8, 64, 360, 3, ["eggs", "vegetarian", "brunch"], "marisol_cooks"], "curry": ["Chickpea and spinach curry", "Indian", 35, "easy", 4.6, 81, 390, 4, ["vegan", "weeknight", "legumes"], "priya_kitchen"], "ramen": ["Miso butter mushroom ramen", "Japanese", 45, "medium", 4.8, 55, 520, 2, ["noodles", "soup", "umami"], "kenji_t"], "lentil": ["Red lentil dal with crispy shallots", "Indian", 25, "easy", 4.8, 140, 340, 4, ["vegan", "weeknight", "legumes"], "priya_kitchen"], "cookies": ["Brown butter chocolate chip cookies", "American", 40, "easy", 4.9, 210, 210, 24, ["baking", "dessert", "cookies"], "jo_bakes"], "sheet": ["Harissa sheet-pan chicken", "Moroccan", 50, "easy", 4.6, 58, 520, 4, ["sheet-pan", "weeknight"], null], "risotto": ["Lemon asparagus risotto", "Italian", 40, "medium", 4.5, 31, 450, 4, ["rice", "spring", "vegetarian"], "nonna_lucia"], "banhmi": ["Lemongrass pork banh mi", "Vietnamese", 30, "medium", 4.6, 47, 640, 4, ["sandwich", "pork"], "linh_nguyen"], "bibim": ["Bibimbap with gochujang", "Korean", 50, "medium", 4.5, 26, 580, 2, ["rice", "bowl"], null], "oats": ["Overnight oats with roasted plums", "American", 10, "easy", 4.3, 18, 330, 2, ["breakfast", "make-ahead", "fruit"], "jo_bakes"], "tacos": ["Crispy fish tacos with lime slaw", "Mexican", 40, "medium", 4.5, 39, 480, 4, ["seafood", "tacos", "lime"], null], "gazpacho": ["Chilled tomato gazpacho", "Spanish", 15, "easy", 4.4, 22, 150, 4, ["soup", "vegan", "summer"], "carmen_r"]}; const C={"c00": "carbonara", "c01": "shakshuka", "c02": "curry", "c03": "ramen", "c04": "lentil", "c05": "cookies", "c10": "sheet", "c11": "risotto", "c12": "banhmi", "c13": "bibim", "c14": "oats", "c15": "tacos", "c20": "oats", "c21": "gazpacho", "c22": "carbonara", "c23": "lentil", "c24": "shakshuka", "c25": "banhmi"};
+            const mk=(k)=>{const [title,cuisine,mins,level,rating,count,cal,serves,tags,user]=D[k];return {recipe:{id:'r-'+k,title,totalTimeMinutes:mins,servings:serves,difficulty:level,averageRating:rating,ratingCount:count,usesPremiumCapability:false,createdAt:'2026-09-01T10:00:00.000Z',updatedAt:'2026-09-01T10:00:00.000Z',cuisine,tags,currentVersion:1,visibility:'public',status:'published'},user:user||undefined,cal:h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal')};};
+            const out={no:false,n0:0,n3:3,n34:34,none:[],noop:()=>{},fill:{flex:1},idle:{kind:'idle'},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(window.Commise.Native.Avatar,{status:'ready',initials:'ER',label:'Profile, Eliza Ramirez',onPress:()=>{}})}};
+            Object.assign(out,{"timeOpts": [{"value": "any", "label": "Any"}, {"value": "15", "label": "Under 15 min"}, {"value": "30", "label": "Under 30 min"}, {"value": "60", "label": "Under 60 min"}], "cnt": {"vegetarian": 38, "vegan": 21, "gluten_free": 17, "dairy_free": 12, "nut_free": 9, "italian": 42, "american": 33, "indian": 27, "mexican": 19, "thai": 16, "japanese": 14, "weeknight": 56, "baking": 31, "soup": 24, "one_pot": 22, "breakfast": 19, "noodles": 17, "dessert": 15, "sheet_pan": 12, "salad": 11, "grilling": 10, "brunch": 9, "make_ahead": 8, "holiday": 7, "snack": 6}, "n3": 3, "n20": 20, "yes": true, "one": 1});for(const id in C)out[id]=mk(C[id]); return out; } }
+        </script>
+    </body>
+</html>

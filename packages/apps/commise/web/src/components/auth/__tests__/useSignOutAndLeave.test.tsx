@@ -15,6 +15,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook } from '@testing-library/react';
 import { SignOutNotVerifiedError } from '@commise/features-account';
+import { onlineManager } from '@tanstack/react-query';
 
 const { rawClerkSignOut, loadSafeSignOut, clerkState } = vi.hoisted(() => ({
     // The raw, premount-queuing method. The command must NEVER call this one.
@@ -40,12 +41,15 @@ vi.mock('@clerk/nextjs', () => ({
             return clerkState.session;
         },
     }),
-    useAuth: () => ({ signOut: loadSafeSignOut }),
+    useAuth: () => ({ signOut: loadSafeSignOut, userId: 'user_cook' }),
 }));
 vi.mock('@/lib/basePath', () => ({ withBasePath: (p: string) => p }));
 
 const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 vi.mock('@/lib/navigation', () => ({ navigateTo }));
+
+const { endDeviceSession } = vi.hoisted(() => ({ endDeviceSession: vi.fn(async () => undefined) }));
+vi.mock('@/components/recipes/deviceSession', () => ({ endDeviceSession }));
 
 const { useSignOutAndLeave } = await import('../useSignOutAndLeave');
 
@@ -57,14 +61,31 @@ beforeEach(() => {
         clerkState.session = null;
     });
     navigateTo.mockReset();
+    endDeviceSession.mockClear();
     clerkState.loaded = true;
     clerkState.status = 'ready';
     clerkState.session = { id: 'sess_live' };
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    onlineManager.setOnline(true);
+});
 
 describe('useSignOutAndLeave (U3 / B23)', () => {
+    // ADR-0068, the web mirror of mobile's case: offline, the command refuses before Clerk is asked, and the viewer is
+    // not navigated away from a session that is still live.
+    it('refuses offline without calling either sign-out, and does not leave', async () => {
+        onlineManager.setOnline(false);
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await expect(result.current.signOutAndLeave()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(loadSafeSignOut).not.toHaveBeenCalled();
+        expect(rawClerkSignOut).not.toHaveBeenCalled();
+        expect(navigateTo).not.toHaveBeenCalled();
+        expect(endDeviceSession).not.toHaveBeenCalled();
+    });
+
     it('signs out through the LOAD-SAFE wrapper, never the raw premount-queuing method', async () => {
         const { result } = renderHook(() => useSignOutAndLeave());
 
@@ -163,5 +184,35 @@ describe('useSignOutAndLeave (U3 / B23)', () => {
             expect(loadSafeSignOut).toHaveBeenCalledTimes(1);
             expect(navigateTo).toHaveBeenCalledWith('/');
         });
+    });
+});
+
+/**
+ * ADR-0057: the cook's editor drafts and outbox end with the session — after the sign-out is proven, before leaving, and
+ * for the cook who was signed in.
+ */
+describe('useSignOutAndLeave — the device session end (ADR-0057)', () => {
+    it('clears the signed-in cook`s device state after the proof and before the navigation', async () => {
+        const order: string[] = [];
+        endDeviceSession.mockImplementationOnce(async () => {
+            order.push('endDeviceSession');
+        });
+        navigateTo.mockImplementationOnce(() => {
+            order.push('navigate');
+        });
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await result.current.signOutAndLeave();
+
+        expect(endDeviceSession).toHaveBeenCalledWith('user_cook');
+        expect(order).toEqual(['endDeviceSession', 'navigate']);
+    });
+
+    it('keeps the device state when the sign-out could not be proven', async () => {
+        loadSafeSignOut.mockImplementationOnce(async () => undefined);
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await expect(result.current.signOutAndLeave()).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(endDeviceSession).not.toHaveBeenCalled();
     });
 });

@@ -1,0 +1,106 @@
+/**
+ * The ACCOUNT-scoped CDK app: infrastructure that exists once per AWS account, not once per stage.
+ *
+ * ## Why this is a separate entrypoint
+ *
+ * "Global" was being used for two different things, and they were living in one app:
+ *
+ * - **stage-shared** — the VPC, RDS, shared ALB, domain certificates and the identity service. There is one
+ *   of each PER PERSISTENT STAGE: a sandbox set and a production set. Those belong to `bin/app.ts`, are
+ *   named `…-{stage}`, and are tagged `sandbox` / `production`.
+ * - **account-scoped** — the cost budget and the anomaly monitor. There is exactly ONE, for the whole
+ *   account. It has no stage, it watches every stage's spend including sandbox's, and deploying a second
+ *   copy would register a duplicate account-wide budget.
+ *
+ * Mixing them had two concrete consequences. `CostGuardrailsStack` was reachable only through
+ * `if (stage === 'prod')` in `bin/app.ts`, so the account's cost monitoring could not be touched without
+ * running a production deploy — and it inherited the per-stage app's `Environment` tag, which labelled an
+ * account-wide resource as a production one. The guard was doing the right thing (one copy, never in
+ * sandbox) by the wrong mechanism (coupling to a stage), and the wrong mechanism is what shows up as a tag
+ * that lies about what the resource is.
+ *
+ * ## ⛔ THIS APP TAKES NO STAGE, AND MUST NOT ACQUIRE ONE
+ *
+ * There is no `stage` variable here, nothing reads `STAGE`, and no stack name carries a suffix. That is the
+ * property `accountScopedInfra.test.ts` asserts, and it is what makes "deployed once" structural instead of
+ * conditional: an app that cannot express a stage cannot be deployed per stage, so the sandbox case is not
+ * refused at deploy time — it is unrepresentable.
+ *
+ * `Environment=global` here means exactly "account-scoped" — not "persistent, do not reap", which the
+ * per-stage tier words `sandbox`/`production` carry. The teardown selector is
+ * unaffected either way: `global` carries no digits, so no `pr-{N}` matcher in `.github/scripts/prScope.sh`
+ * can claim it.
+ */
+import { config as dotenvConfig } from 'dotenv';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { App, Tags } from 'aws-cdk-lib';
+
+import { accountAppProps } from '@kitchensink/cdk-bootstrap/appProps';
+import { TIER_TAG_KEY, accountTierTagValue } from '@kitchensink/cdk-bootstrap/qualifiers';
+import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
+
+import { CI_POLICIES_CONTEXT_FLAG, CiExecutionPolicyStack } from '../lib/platform/CiExecutionPolicyStack.js';
+import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
+import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// ⛔ `quiet: true` IS LOAD-BEARING — this app's STDOUT is parsed by `verifyDeployment.sh`, which runs
+// `cdk ls --long --json --app "<this app>"`. One stray line ahead of the JSON makes the verifier report
+// nothing at all. Asserted for every discovered app by `cdkAppStdoutPurity.test.ts`.
+dotenvConfig({ path: join(__dirname, '../../.env'), quiet: true });
+
+// ADR-0065: the account app deploys through the `ksaccount` bootstrap qualifier and every role it creates sits under
+// that qualifier's permissions boundary. ⛔ A bare `new App()` would use the account's DEFAULT bootstrap, whose
+// execution role is another application's AdministratorAccess. `cdkQualifierCoverage.test.ts` holds this wiring and
+// `accountAppQualifier.integration.test.ts` holds what it synthesizes. The owner-only policy stack below keeps its own
+// CliCredentialsStackSynthesizer, so it still deploys with the owner's admin session and no bootstrap role.
+const app = new App(accountAppProps());
+// ADR-0065: the CloudFormation execution role authorizes every modify and delete by THIS tag, because
+// CloudFormation's own stack-name tag is missing from ACM certificates, ECS, DynamoDB, CloudFront and some SQS
+// queues. This app has no stage: its value is always `account`. `tierTagCoverage.test.ts` holds it.
+Tags.of(app).add(TIER_TAG_KEY, accountTierTagValue());
+// cdk-nag AwsSolutions review, ADVISORY — annotation-only, so the synthesized template is unchanged.
+attachSecurityChecks(app);
+// The COMMIT this deploy was built from, as a stack tag, so `scripts/deploymentDrift.mjs` can answer
+// "is what is running the code we think it is?".
+stampCommitProvenance(app);
+
+// ⛔ A CONSTANT, and the one place in this repository where that is correct. Every other app derives the
+// value from its stage because it has one; this app has no stage to derive from, which is the whole point.
+Tags.of(app).add('Environment', 'global');
+
+const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
+const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
+const alertEmail = process.env['COST_ALERT_EMAIL'];
+
+// ADR-0008: the account's $300 monthly budget, its anomaly monitor and the subscription that notifies on a
+// spike. ⚠️ The monitor watches the WHOLE ACCOUNT — sandbox and every `pr-{N}` preview included — which is
+// the clearest statement of why it cannot be a per-stage resource: there is nothing stage-shaped about it,
+// and a second copy would double-count the same spend.
+new CostGuardrailsStack(app, 'CostGuardrails', {
+    env: { account, region },
+    stackName: 'kitchensink-cost-guardrails',
+    alertEmail,
+});
+
+// ADR-0063: the GitHub OIDC provider and the three roles CI assumes, so no job holds a long-lived access key.
+// Account-scoped for the same reason as the budget above: there is one provider per issuer per account.
+new GithubActionsAccessStack(app, 'GithubActionsAccess', {
+    env: { account, region },
+    stackName: 'kitchensink-github-actions-access',
+});
+
+// ADR-0065: the permissions boundaries and CloudFormation execution policies of KitchenSink's CDK bootstrap
+// qualifiers. ⛔ OWNER-ONLY. A role that could deploy this stack could widen the policy that bounds it, so it is
+// built only when the owner passes `-c ciPoliciesOwnerDeploy=true` from an admin session; no workflow does, and
+// `accountDeploy.yml`'s `cdk deploy --all` therefore never sees it. `ciPolicyStackOwnerOnly.test.ts` holds this.
+// See docs/runbooks/cdkBootstrapQualifiers.md.
+if (String(app.node.tryGetContext(CI_POLICIES_CONTEXT_FLAG)) === 'true') {
+    new CiExecutionPolicyStack(app, 'CiExecutionPolicy', {
+        env: { account, region },
+        stackName: 'kitchensink-ci-policies',
+    });
+}
+
+app.synth();

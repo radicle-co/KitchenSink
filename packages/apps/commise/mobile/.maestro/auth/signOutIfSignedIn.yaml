@@ -1,0 +1,40 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: launch the app and, when a session is persisted, sign it out from the Profile page, so the next
+# `signinHome.yaml` meets the login form and signs in as whoever its `E2E_SIGNIN_EMAIL` names. Called by every flow that
+# must be a DIFFERENT cook than the shard's signer, right after its `launchCleared.yaml`.
+#
+# ⛔ `clearState` DOES NOT END A SESSION ON iOS. The session lives in `expo-secure-store`, which is the Keychain there,
+# and the Keychain outlives a cleared app container. In run 38988891871 `accountErasure` on iOS shard 1 cleared state, found
+# NO login form (`signinHome.yaml`'s guard skipped), and erased the SIGNER, `maestro/iossigner01`, which is why that
+# shard's `resetPool` ended on "no Clerk user holds pool slot". On iOS `makePublicConfirm` likewise ran as the shard's
+# signer and could not find the downgraded owner's recipe. Android's clear does empty it, so there this is a no-op.
+#
+# The sign-out is the app's own (`useSignOutAndLeave` verifies the session ended, ADR-0009), never a cleared Keychain.
+#
+# ⛔ `stopApp: false`: bring the app the caller just launched to the front, never stop and start it again. Every caller but
+# one comes here straight from `launchApp: clearState: true`, and a second stop-and-start within a second of a data clear
+# lost a race with Android's own cleanup: the clear's task removal timed out and killed the NEW process ("Killing 6592:
+# <app> ... remove task", then "failed to attach"), and the screen stayed blank (local Android suite,
+# 2026-10-20 `sessionHandoff`, 2026-10-21 `makePublicConfirm`). A caller that wants a fresh start launches the app itself.
+- launchApp:
+      permissions: {}
+      stopApp: false
+- extendedWaitUntil:
+      visible: 'you@example\.com|Profile.*'
+      timeout: 30000
+- runFlow:
+      when:
+          visible: 'Profile.*'
+      commands:
+          - tapOn: 'Profile.*'
+          - runFlow:
+                file: ../recipes/common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Sign out'
+                    DIRECTION: DOWN
+                    TIMEOUT: 20000
+          - tapOn: 'Sign out'
+          - extendedWaitUntil:
+                visible: 'you@example\.com'
+                timeout: 40000

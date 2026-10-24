@@ -1,0 +1,24 @@
+grouped roots that need an election : 703
+  ... with consumption data on any member : 240  (34%)
+
+rule                               eaten-weighted mean error   unweighted median
+lowest source id                                      35.0%                7.4%
+median energy                                         28.7%                6.1%
+most eaten (else median energy)                        1.9%                6.5%
+
+groups with a plain member: plain member vs most eaten
+  AGREE                broccoli floret (raw)                plain=   34 kcal
+  AGREE                cabbage head (raw)                   plain=   25 kcal
+  AGREE                canola oil                           plain=  884 kcal
+  no consumption data  chicken egg white (dried)            plain=  382 kcal
+  AGREE                chicken fat                          plain=  900 kcal
+  AGREE                coconut oil                          plain=  892 kcal
+  no consumption data  lamb meat (ground, raw)              plain=  282 kcal
+  DIFFER               orange peel (raw)                    plain=   97 kcal   most eaten=  148 kcal  Orange juice, frozen concentrate, unswee
+  no consumption data  palm oil                             plain=  884 kcal
+  DIFFER               prune puree                          plain=  257 kcal   most eaten=  100 kcal  Babyfood, prunes, without vitamin c, str
+  AGREE                taro leaf (raw)                      plain=  112 kcal
+  no consumption data  turkey meat (ground, raw)            plain=  148 kcal
+  DIFFER               vanilla bean extract                 plain=  288 kcal   most eaten=   56 kcal  Vanilla extract, imitation, no alcohol
+  no consumption data  white sweet corn kernel (raw)        plain=   86 kcal
+  AGREE                yellow sweet corn kernel (raw)       plain=   86 kcal

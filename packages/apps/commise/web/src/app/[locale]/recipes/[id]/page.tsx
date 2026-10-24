@@ -1,12 +1,12 @@
-import type { Route } from 'next';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeDetailContainer } from '@/components/recipes/RecipeDetailContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
+import { isRecipeRouteId } from '@/lib/recipeRouteId';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,11 +28,14 @@ export default async function RecipeDetailPage({
     params: Promise<{ locale: string; id: string }>;
 }): Promise<React.ReactElement> {
     const { locale, id } = await params;
-    const { userId, getToken } = await auth();
 
-    if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+    // Before auth and any request: a segment that is not a recipe id names nothing (the middleware has already
+    // answered it with the 404 — this keeps the page from ever asking the service about one).
+    if (!isRecipeRouteId(id)) {
+        notFound();
     }
+
+    const { getToken } = await requireSignedIn(locale, `/${locale}/recipes/${encodeURIComponent(id)}`);
 
     const queryClient = new QueryClient();
     const client = new RecipeServiceClient({

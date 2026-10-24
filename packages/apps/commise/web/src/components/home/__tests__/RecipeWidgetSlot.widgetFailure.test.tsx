@@ -13,12 +13,13 @@
  * replaces for determinism), which is what a failed chunk or a bad recipe record does in production.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import type { JSX, ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+
+import { renderWithRecipeClient } from '@commise/test-utils';
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
@@ -53,7 +54,17 @@ const HostBoundary = ({ children }: { readonly children: ReactNode }): JSX.Eleme
     <ErrorBoundary fallback={<p>{HOST_BOUNDARY_SENTINEL}</p>}>{children}</ErrorBoundary>
 );
 
-const renderSlot = (): void => {
+/**
+ * ⚠️ ASYNC, and the `await act` is load-bearing. The slot resolves its recipes in an inner container (it needs
+ * the ids to start the deferred calorie batch) BEFORE the widget mounts, so a synchronous render only ever
+ * reaches the loading card and the throwing widget never runs — every assertion below would then pass or fail
+ * for reasons that have nothing to do with the boundary. Flushing that resolution is what actually puts the
+ * failing widget on screen.
+ *
+ * `renderWithRecipeClient` supplies the production provider pair (`QueryClientProvider` +
+ * `RecipeServiceProvider`, as `RecipeProviders` mounts them), since the slot now reads the query cache.
+ */
+const renderSlot = async (onWidgetError?: (error: unknown) => void, readError?: Error): Promise<void> => {
     const client = createFakeRecipeServiceClient();
 
     // Stub the read even though the widget body is mocked to throw. The fake client's un-stubbed methods
@@ -61,54 +72,56 @@ const renderSlot = (): void => {
     // leaving it un-stubbed leaks an UNHANDLED REJECTION. Vitest then fails the whole file on unhandled
     // errors even while both assertions pass, and whether the rejection lands before the run ends depends
     // on machine load — which is exactly how it turned `turbo run test` nondeterministic.
-    vi.spyOn(client, 'listRecipes').mockResolvedValue({
-        data: [],
-        total: 0,
-        page: 1,
-        pageSize: 0,
-        hasMore: false,
-    });
+    const listRecipes = vi.spyOn(client, 'listRecipes');
 
-    render(
-        <RecipeServiceProvider client={client}>
+    if (readError === undefined) {
+        listRecipes.mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0, hasMore: false });
+    } else {
+        listRecipes.mockRejectedValue(readError);
+    }
+
+    await act(async () => {
+        renderWithRecipeClient(
             <HostBoundary>
-                <RecipeWidgetSlot />
-            </HostBoundary>
-        </RecipeServiceProvider>,
-    );
+                <RecipeWidgetSlot {...(onWidgetError === undefined ? {} : { onWidgetError })} />
+            </HostBoundary>,
+            client,
+        );
+    });
 };
 
 describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
-    it('keeps the "see all recipes" link when the widget throws', () => {
-        renderSlot();
+    it('keeps the "see all recipes" link when the widget throws', async () => {
+        await renderSlot();
 
         expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
     });
 
-    it('does not escalate the widget failure to the host boundary', () => {
-        renderSlot();
+    it('does not escalate the widget failure to the host boundary', async () => {
+        await renderSlot();
 
         // The host fallback firing means the whole slot — navigation included — was replaced.
         expect(screen.queryByText(HOST_BOUNDARY_SENTINEL)).toBeNull();
     });
 
-    it('explains the loss with the localized notice, in the same words mobile uses', () => {
-        renderSlot();
+    it('explains the loss with the localized notice, in the same words mobile uses', async () => {
+        await renderSlot();
 
+        // ⚠️ Slice 4: the block's own load error (`buildSpec.md` §4.2), the same words on both platforms.
         // The inner boundary's own copy was previously unasserted on BOTH platforms: mobile had drifted to a
         // silent `null` here, and nothing on web would have failed if this fallback had been deleted too. The
         // literal is asserted (not `webMessages.en...`) and is character-identical to the mobile catalog's
         // `home.widgetError`, so the two surfaces cannot drift apart again without one of these tests going red.
-        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t load your recent recipes.')).toBeTruthy();
     });
 
-    it('announces the loss POLITELY instead of leaving it silent to assistive tech', () => {
-        renderSlot();
+    it('announces the loss POLITELY instead of leaving it silent to assistive tech', async () => {
+        await renderSlot();
 
         // Announced (the original drift was a plain <p>, silent to a screen reader) but POLITE, not
         // assertive — see `HomeWidgetErrorNotice`'s own suite for why `status` is the right register here,
         // and mobile's mirror of this test for the matching native decision.
-        expect(screen.getByRole('status').textContent).toBe('This section couldn’t load.');
+        expect(screen.getByRole('status').textContent).toBe('We couldn’t load your recent recipes.');
         expect(screen.queryByRole('alert')).toBeNull();
 
         // …and it must be the INNER boundary's notice. Were the throw escaping to the host, the sentinel would
@@ -117,8 +130,8 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
     });
 
-    it('does not offer a retry affordance it cannot honour (React.lazy caches the rejection)', () => {
-        renderSlot();
+    it('does not offer a retry affordance it cannot honour (React.lazy caches the rejection)', async () => {
+        await renderSlot();
 
         // Deliberate, and matched by mobile: the ONLY control left in the failed slot is the route out of
         // Home. React's `lazyInitializer` (react 19.2.7, `cjs/react.development.js`) invokes the loader only
@@ -130,6 +143,27 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         const controls = screen.getAllByRole('link');
 
         expect(controls).toHaveLength(1);
-        expect(controls[0]?.textContent).toBe('See all recipes');
+        expect(controls[0]?.getAttribute('aria-label')).toBe('See all recipes');
+    });
+
+    // B23/DA9 — both of the slot's inner boundaries catch a throw before the host's per-widget boundary ever sees it,
+    // so the report must be threaded in or the failure is unobserved. Mobile has threaded `onWidgetError` into both
+    // since the boundaries were added; web did not, so a recipe-widget failure never reached the injected reporter.
+    it('reports a widget-body failure through onWidgetError (the chunk boundary)', async () => {
+        const onWidgetError = vi.fn();
+
+        await renderSlot(onWidgetError);
+
+        expect(onWidgetError).toHaveBeenCalledTimes(1);
+        expect(onWidgetError).toHaveBeenCalledWith(expect.objectContaining({ message: 'widget body failed' }));
+    });
+
+    it('reports a failed recent-recipes READ through onWidgetError (the read boundary)', async () => {
+        const onWidgetError = vi.fn();
+        const readError = new Error('recent recipes read failed');
+
+        await renderSlot(onWidgetError, readError);
+
+        expect(onWidgetError).toHaveBeenCalledWith(readError);
     });
 });

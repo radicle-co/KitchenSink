@@ -1,14 +1,14 @@
 ---
 name: speckit.product-forge.change-request
 description: 'Cross-cutting scope change management. When requirements change mid-lifecycle,
-  captures the change formally, analyzes impact across all artifacts, estimates effort
-  delta, and propagates approved changes. Runs sync-verify after application. Use:
-  "change request", "scope change", "add requirement", "/speckit.product-forge.change-request"'
+    captures the change formally, analyzes impact across all artifacts, estimates effort
+    delta, and propagates approved changes. Runs sync-verify after application. Use:
+    "change request", "scope change", "add requirement", "/speckit.product-forge.change-request"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Change Request
 
 You are the **Change Request Analyst** for Product Forge.
@@ -22,6 +22,7 @@ $ARGUMENTS
 ```
 
 Parse the input:
+
 1. **Change description** (e.g., "Add notification sound selection to preferences") → new scope
 2. **Feature slug** (if not obvious from context) → target feature
 3. **Empty** → ask for change description interactively
@@ -81,16 +82,16 @@ For each existing artifact, analyze how the change affects it:
 
 ### 2A: Artifact Impact Matrix
 
-| Artifact | Exists? | Impact | Changes Needed |
-|----------|:-------:|:------:|---------------|
-| product-spec/product-spec.md | {✅/❌} | {None/Minor/Major} | {description of changes} |
-| product-spec/journeys/journeys.yml | {✅/❌} | {None/Minor/Major} | {new/modified JRN/STEP/EDGE} |
-| product-spec/wireframes* | {✅/❌} | {None/Minor/Major} | {new screen or modified screen} |
-| spec.md | {✅/❌} | {None/Minor/Major} | {new US-NNN, new FR-NNN, modified AC} |
-| plan.md | {✅/❌} | {None/Minor/Major} | {new component, modified architecture} |
-| tasks.md | {✅/❌} | {None/Minor/Major} | {new tasks, modified tasks} |
-| Code (implemented) | {✅/❌} | {None/Minor/Major} | {new files, modified files} |
-| Tests | {✅/❌} | {None/Minor/Major} | {new test cases, modified tests} |
+| Artifact                           | Exists? |       Impact       | Changes Needed                         |
+| ---------------------------------- | :-----: | :----------------: | -------------------------------------- |
+| product-spec/product-spec.md       | {✅/❌} | {None/Minor/Major} | {description of changes}               |
+| product-spec/journeys/journeys.yml | {✅/❌} | {None/Minor/Major} | {new/modified JRN/STEP/EDGE}           |
+| product-spec/wireframes*           | {✅/❌} | {None/Minor/Major} | {new screen or modified screen}        |
+| spec.md                            | {✅/❌} | {None/Minor/Major} | {new US-NNN, new FR-NNN, modified AC}  |
+| plan.md                            | {✅/❌} | {None/Minor/Major} | {new component, modified architecture} |
+| tasks.md                           | {✅/❌} | {None/Minor/Major} | {new tasks, modified tasks}            |
+| Code (implemented)                 | {✅/❌} | {None/Minor/Major} | {new files, modified files}            |
+| Tests                              | {✅/❌} | {None/Minor/Major} | {new test cases, modified tests}       |
 
 ### 2B: Effort Delta
 
@@ -117,12 +118,12 @@ Phase rollback needed:
 
 ### 2C: Risk Assessment
 
-| Risk | Likelihood | Impact | Notes |
-|------|:----------:|:------:|-------|
-| Scope creep — more changes will follow | {H/M/L} | {H/M/L} | |
-| Schedule delay — blocks release | {H/M/L} | {H/M/L} | {estimated delay} |
-| Regression — affects completed work | {H/M/L} | {H/M/L} | {what might break} |
-| Test invalidation — existing tests need updates | {H/M/L} | {H/M/L} | {which test cases} |
+| Risk                                            | Likelihood | Impact  | Notes              |
+| ----------------------------------------------- | :--------: | :-----: | ------------------ |
+| Scope creep — more changes will follow          |  {H/M/L}   | {H/M/L} |                    |
+| Schedule delay — blocks release                 |  {H/M/L}   | {H/M/L} | {estimated delay}  |
+| Regression — affects completed work             |  {H/M/L}   | {H/M/L} | {what might break} |
+| Test invalidation — existing tests need updates |  {H/M/L}   | {H/M/L} | {which test cases} |
 
 ---
 
@@ -169,12 +170,13 @@ If ACCEPTED:
 6. **tasks.md** — Add new tasks, modify existing tasks with marker
 7. **features/{slug}/specs/<domain>/spec.md** — Write/update the **delta spec** for
    each domain the change touches, in delta format (`## ADDED / ## MODIFIED / ##
-   REMOVED Requirements`) keyed on the affected `FR-*` ids (the same ids changed in
+REMOVED Requirements`) keyed on the affected `FR-*` ids (the same ids changed in
    spec.md above), each carrying the `<!-- CR-{NNN} -->` marker. This is the delta
    [`spec-merge`](./spec-merge.md) will later fold into canonical `specs/`. Omit any
    section with no entries.
 
 Each artifact modification:
+
 - Show the proposed edit to the user
 - Wait for confirmation
 - Apply with change marker: `<!-- CR-{NNN}: {brief description} -->`
@@ -197,6 +199,7 @@ If the change requires re-running an earlier phase:
 ```
 
 If user confirms rollback:
+
 - Update `.forge-status.yml` to set affected phases back to `in_progress`
 - The forge orchestrator will pick up from the rolled-back phase on next run
 
@@ -216,26 +219,29 @@ Append to `{FEATURE_DIR}/change-log.md`:
 
 ## CR-{NNN}: {title} — {date}
 
-| Field | Value |
-|-------|-------|
-| **Status** | ACCEPTED / DEFERRED / REJECTED |
-| **Priority** | Must Have / Should Have / Could Have |
-| **Requested at phase** | {current phase when requested} |
-| **Rationale** | {why the change was needed} |
-| **Impact** | {N} artifacts, +{N} tasks, {effort delta} |
-| **Phase rollback** | {yes/no — to which phase} |
+| Field                  | Value                                     |
+| ---------------------- | ----------------------------------------- |
+| **Status**             | ACCEPTED / DEFERRED / REJECTED            |
+| **Priority**           | Must Have / Should Have / Could Have      |
+| **Requested at phase** | {current phase when requested}            |
+| **Rationale**          | {why the change was needed}               |
+| **Impact**             | {N} artifacts, +{N} tasks, {effort delta} |
+| **Phase rollback**     | {yes/no — to which phase}                 |
 
 ### Artifacts Modified
-| Artifact | Change Type | Description |
-|----------|:----------:|-------------|
-| {file} | Added / Modified / Removed | {what changed} |
+
+| Artifact |        Change Type         | Description    |
+| -------- | :------------------------: | -------------- |
+| {file}   | Added / Modified / Removed | {what changed} |
 
 ### New Tasks Added
-| Task | Description | Phase |
-|------|-------------|-------|
+
+| Task   | Description   | Phase     |
+| ------ | ------------- | --------- |
 | {task} | {description} | Phase {N} |
 
 ### Decision Notes
+
 {User's reasoning for accept/defer/reject}
 ```
 
@@ -247,13 +253,13 @@ Update `.forge-status.yml`:
 
 ```yaml
 change_requests:
-  - id: "CR-{NNN}"
-    title: "{title}"
-    status: "{accepted/deferred/rejected}"
-    timestamp: "{ISO timestamp}"
-    artifacts_affected: {N}
-    tasks_added: {N}
-    phase_rollback: "{phase or null}"
+    - id: 'CR-{NNN}'
+      title: '{title}'
+      status: '{accepted/deferred/rejected}'
+      timestamp: '{ISO timestamp}'
+      artifacts_affected: { N }
+      tasks_added: { N }
+      phase_rollback: '{phase or null}'
 ```
 
 ---
@@ -261,6 +267,7 @@ change_requests:
 ## Deferred Changes
 
 If DEFERRED:
+
 - **No delta spec is emitted** — a deferred change does not alter canonical behavior,
   so `spec-merge` has nothing to fold. If a delta was drafted, remove it.
 - Log in `change-log.md` with status DEFERRED
@@ -272,6 +279,7 @@ If DEFERRED:
 Deferred changes and v2 improvements logged during the lifecycle.
 
 ## CR-{NNN}: {title} [DEFERRED]
+
 - **Priority:** {priority}
 - **Rationale for deferral:** {reason}
 - **Estimated effort:** {effort}
@@ -284,6 +292,7 @@ Deferred changes and v2 improvements logged during the lifecycle.
 ## Rejected Changes
 
 If REJECTED:
+
 - **No delta spec is emitted** — the change is discarded, so canonical `specs/` is
   untouched and `spec-merge` has nothing to fold. If a delta was drafted, remove it.
 - Log in `change-log.md` with status REJECTED (including the decision notes).

@@ -1,0 +1,168 @@
+appId: ${APP_ID}
+---
+# Remote foods on a device (plan 002 S7.8, ADR-0055 points 9 and 10). Mobile mirror of the web Playwright
+# `ingredientRemoteFoods.spec.ts` create and Change food stories. Replaces `ingredientUsdaSearch.yaml`, whose
+# "Search USDA" option is gone: a source's foods now flow into the same list as the database's, with no button
+# (owner ruling 2026-10-02).
+#
+# Assumes an authenticated session and the app pointed at the PR's deployed sandbox, like `create.yaml`.
+#
+# WHAT THIS FLOW ASSERTS, which only a device can:
+#
+#   1. The USDA group arrives BY ITSELF. Nothing is pressed between typing and the group showing, and the old
+#      option is not on screen.
+#   2. ⛔ It APPENDS: the cook's own food, listed before it arrived, is still listed after.
+#   3. A remote pick lands on the line as ONE command: the adopt, then the line's write. The trailing add row admits
+#      the root; Change food on that line picks a second remote food the same way.
+#   4. The recipe publishes with the remote foods on it (Publish rejects a line whose binding does not resolve).
+#
+# ⚠️ An upstream that is really down, or rate-limiting this stage, fails this flow at the labelled waits. That is the
+# honest result for a tier that proves the deployed system. The list's states when a source cannot answer are the
+# component tier's (`entryCombobox.test.ts`, `RecipeIngredientsFields.rowEditor.native.test.tsx`) and the web
+# Playwright `ingredientSearchDegraded.spec.ts`.
+#
+# It spends two remote picks from the signer's source budget, and leaves one published recipe, which the next flow's
+# reset deletes.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Remote Foods'
+
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
+# The Ingredients section, on the same page: with no lines yet, the trailing field is its first control.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+
+# The append word, chosen at provision (`e2e-seed provision`, `ensureRemoteProbeWords`) by asking the REAL search as the
+# signer: it showed at least three USDA foods. Provision also authored the signer's own food `<word> <run key>`
+# (`E2E_REMOTE_APPEND_FOOD`), so "Your foods" has something to keep. The field holds the bare word and the food carries the
+# run key after it, so the field's own value never matches the food's row.
+# ⛔ Not a literal. The service hides a USDA hit whose root the catalog already carries (ADR-0055 point 4), so a literal
+# word goes stale as the catalog grows ('Flou' showed no USDA group, 'butter' two foods and then none, on pr-91 on
+# 2026-10-18). A stage that has outgrown every candidate fails provision, naming the words, instead of this flow.
+- inputText: '${E2E_REMOTE_APPEND_WORD}'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+
+# ⛔ No press: the source's group arrives on its own. Maestro's text match ignores case, so `FROM USDA` matches. It is
+# scrolled to rather than waited for: on a stage whose catalog seed matches the words, the catalog group above it
+# starts the source's group below the fold.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'From USDA'
+      label: 'USDA answered the progressive search for the append word on this stage'
+- assertNotVisible: 'Search USDA for .*'
+# It appended: the cook's own food is still listed.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '${E2E_REMOTE_APPEND_FOOD}, your food'
+          DIRECTION: UP
+
+# One remote pick. Its name ends in its source (`hitName`), which no database option's does.
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+- extendedWaitUntil:
+      visible:
+          text: 'Edit .*'
+      timeout: 40000
+      label: 'the remote pick adopted its food and the add row admitted the root'
+
+# Change food on that line, to a second remote food. The field opens on the food's name with the caret at its end, so
+# the name is erased first; a branded name can run past 70 characters.
+# The change word, chosen at provision like the append word, with one more condition: the FIRST USDA food names it, because
+# this flow taps index 0 and then asserts the row is named for the word.
+# iOS: after a pick the keyboard may still be on its way down (or up again, when the keyboard's first-use card was
+# dismissed), and the page shifts by the keyboard's height as it moves. A tap on the row's menu lands on the position the
+# row had when it was read, so the menu did not open and "Change food" was never on screen (2 of 3 runs, 2026-10-18).
+# Closing the keyboard first, as `edit.yaml` does, makes the layout still before the tap.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for .*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Actions for .*'
+- tapOn: 'Change food'
+- eraseText: 120
+- inputText: '${E2E_REMOTE_CHANGE_WORD}'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'From USDA'
+      label: 'USDA answered the progressive search for the change word on this stage'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+# The pick closed the list and left Change food. The row's open control is named for the line's food, so it names
+# the change word only once the second remote pick has moved the line (before it, it names the first pick's food).
+- extendedWaitUntil:
+      visible:
+          text: 'Edit .*${E2E_REMOTE_CHANGE_WORD}.*'
+      timeout: 40000
+      label: 'the second remote pick moved the line to its root'
+- assertNotVisible: '.*, from USDA'
+
+# Finish the recipe, so the remote foods are proven usable.
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: common/closeEditorKeyboard.yaml
+# Jump to Steps first. A scroll alone can stop with `Add step` under the sticky Sections bar, which iOS still calls
+# visible, and the tap then opens the Sections sheet instead (CI run 39333403320, iOS shard 4, preparationGroups).
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Whisk and rest.'
+# The soft keyboard is up and the action bar has UNPINNED with it, so the bar is below this screen (build spec §7.1,
+# "Keyboard open (phones)"). The first heading closes the keyboard and pins the bar again.
+- runFlow: common/closeEditorKeyboard.yaml
+- tapOn:
+      text: 'Publish'
+      # Publishing or saving moves the screen for seconds, and Maestro waits for it to stop
+      # before the next command. The notice below lasts 6 s, so the tap must not outwait it
+      # (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+# Audit 2026-10-19, A1.14: 'Recipe published.' shows only once the server accepted the write and
+# lasts about 6 s, so it is the FIRST wait after the tap. Then the editor must be gone,
+# then the title proves the detail.
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Remote Foods.*'
+      timeout: 40000

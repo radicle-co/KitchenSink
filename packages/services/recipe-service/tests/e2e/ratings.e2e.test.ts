@@ -12,20 +12,21 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
+import { recipeDb } from '../support/roleDb.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const roleDb = recipeDb();
 
 const RATER = '01JRATEE2E0000CALLER00000A';
 const OTHER_OWNER = '01JRATEE2E00000OWNER00000B';
 
-describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', () => {
+describe('rating write surface (e2e, assembled app)', () => {
     let booted: BootedRecipeApp;
     let pool: pg.Pool;
 
     beforeAll(async () => {
-        booted = await bootRecipeApp({ devAuthUserId: RATER });
-        pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
+        booted = await bootRecipeApp({ databaseUrl: roleDb.appUrl, devAuthUserId: RATER });
+        pool = new pg.Pool({ connectionString: roleDb.appUrl, max: 3 });
     });
 
     afterAll(async () => {
@@ -40,6 +41,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', ()
              VALUES ($1, $2, $3, 2, 5, 10, 15) RETURNING id`,
             [ownerId, title, visibility],
         );
+
         return rows[0]!.id;
     }
 

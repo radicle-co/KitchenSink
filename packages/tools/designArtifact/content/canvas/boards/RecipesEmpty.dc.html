@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipes, empty</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <!-- PROPOSAL (owner comment on the canvas, 2026-10-17): on web, the profile sits at the top right of the screen,
+             as on mobile, and the sidebar no longer has a profile row. The product still draws it in the sidebar from
+             840 px, where LargeTitleHeader hides its avatar; this rule shows that avatar instead. -->
+        <style>
+            .col-start-3.row-start-1.justify-self-end.nav\:hidden {
+                display: block;
+                align-self: flex-start;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .sb {
+                        display: none;
+                    }
+                    .tb {
+                        display: flex;
+                    }
+                    .pad {
+                        padding: 24px 16px calc(64px + 104px);
+                    }
+                    .wide-only {
+                        display: none;
+                    }
+                    .below-nav {
+                        display: block;
+                    }
+                    .page {
+                        max-width: 90rem;
+                        margin: 0 auto;
+                        display: flex;
+                        width: 100%;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    .rgrid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                        gap: 16px;
+                    }
+                    .cgrid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 16px;
+                    }
+                    @media (min-width: 600px) {
+                        .pad {
+                            padding-inline: 24px;
+                        }
+                        .rgrid {
+                            gap: 24px;
+                        }
+                        .cgrid {
+                            grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+                            gap: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .sb {
+                            display: flex;
+                        }
+                        .tb {
+                            display: none;
+                        }
+                        .pad {
+                            padding: 24px 32px 32px;
+                        }
+                        .wide-only {
+                            display: contents;
+                        }
+                        .below-nav {
+                            display: none;
+                        }
+                    }
+
+                    .fig {
+                        margin: 0;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .cap {
+                        margin: 0;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .mini {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        padding: 16px;
+                        border: 1px solid var(--line-divider);
+                        border-radius: 12px;
+                        background: var(--canvas);
+                    }
+                    .d-menu-anchor {
+                        position: relative;
+                        display: inline-flex;
+                    }
+                    .d-menu {
+                        position: absolute;
+                        top: calc(100% + 4px);
+                        right: 0;
+                        z-index: 50;
+                        min-width: 12rem;
+                        padding: 4px;
+                        border-radius: var(--radius-lg);
+                        background: var(--paper-overlay);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .d-menu-item {
+                        display: flex;
+                        min-height: 44px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 12px;
+                        border-radius: var(--radius-md);
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                        white-space: nowrap;
+                    }
+                    .d-check {
+                        display: inline-flex;
+                        width: 16px;
+                        height: 16px;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .skel {
+                        background: var(--surface-muted);
+                        border-radius: 6px;
+                    }
+                </style></helmet
+            >
+            <div style="display: flex; min-height: 100vh">
+                <div
+                    class="sb"
+                    style="
+                        position: sticky;
+                        top: 0;
+                        height: 100vh;
+                        width: 256px;
+                        flex: none;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        border-inline-end: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                        box-sizing: border-box;
+                    "
+                >
+                    <div style="display: flex; height: 64px; flex: none; align-items: center; padding: 0 24px">
+                        <span
+                            style="
+                                font-family: var(--font-display);
+                                font-size: 20px;
+                                line-height: 1.4;
+                                font-weight: 700;
+                                color: var(--ink);
+                            "
+                            >Commise</span
+                        >
+                    </div>
+                    <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px">
+                        <a
+                            href="#home"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v62}}"></x-import
+                            ><span>Home</span></a
+                        ><a
+                            href="#recipes"
+                            aria-current="page"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                background: color-mix(in srgb, var(--action) 10%, transparent);
+                                color: var(--ink);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                    background: var(--here-bar);
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="bookOpen"
+                                size="{{v63}}"
+                            ></x-import
+                            ><span>Recipes</span></a
+                        ><a
+                            href="#discover"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                position: relative;
+                                color: var(--ink-muted);
+                            "
+                            ><span
+                                aria-hidden="true"
+                                style="
+                                    position: absolute;
+                                    top: 8px;
+                                    bottom: 8px;
+                                    inset-inline-start: 0;
+                                    width: 3px;
+                                    border-radius: 0 9999px 9999px 0;
+                                "
+                            ></span
+                            ><x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="compass"
+                                size="{{v64}}"
+                            ></x-import
+                            ><span>Discover</span></a
+                        >
+                    </nav>
+                    <div style="margin-top: auto">
+                        <button
+                            type="button"
+                            aria-expanded="true"
+                            style="
+                                display: flex;
+                                min-height: 44px;
+                                align-items: center;
+                                gap: 12px;
+                                border-radius: 12px;
+                                padding: 0 12px;
+                                font-size: 14px;
+                                line-height: 1.2;
+                                font-weight: 600;
+                                margin: 0 12px 12px;
+                                width: calc(100% - 24px);
+                                border: 0;
+                                background: transparent;
+                                color: var(--ink-muted);
+                                font-family: inherit;
+                                cursor: pointer;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Icon"
+                                name="chevronsLeft"
+                                size="{{v68}}"
+                            ></x-import
+                            ><span>Collapse</span>
+                        </button>
+                    </div>
+                </div>
+                <main class="pad" style="min-width: 0; flex: 1; box-sizing: border-box">
+                    <section aria-label="Recipes" class="page">
+                        <x-import
+                            component-from-global-scope="Commise.LargeTitleHeader"
+                            heading-id="recipes-title"
+                            title="Recipes"
+                            action="{{v23}}"
+                            segments="{{v24}}"
+                        ></x-import>
+                        <section
+                            style="
+                                margin: 0 auto;
+                                display: flex;
+                                width: 100%;
+                                max-width: 28rem;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 12px;
+                                padding: 32px 0;
+                                text-align: center;
+                            "
+                        >
+                            <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                Your recipe box is empty
+                            </h2>
+                            <p style="margin: 0; font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                Add a recipe you love, or paste an ingredient list and we’ll set it up.
+                            </p>
+                            <div style="display: flex; gap: 12px">
+                                <x-import
+                                    component-from-global-scope="Commise.Button"
+                                    icon="pencilLine"
+                                    size="lg"
+                                    width="fill"
+                                    >Add your first recipe</x-import
+                                ><x-import
+                                    component-from-global-scope="Commise.Button"
+                                    variant="secondary"
+                                    icon="clipboardPaste"
+                                    size="lg"
+                                    width="fill"
+                                    >Paste ingredients</x-import
+                                >
+                            </div>
+                        </section>
+                    </section>
+                </main>
+                <nav
+                    class="tb"
+                    aria-label="Tabs"
+                    style="
+                        position: fixed;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 50;
+                        isolation: isolate;
+                        height: 64px;
+                        justify-content: space-around;
+                        padding: 0 8px;
+                        box-sizing: border-box;
+                    "
+                >
+                    <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import
+                    ><a
+                        href="#home"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="house" size="{{v65}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500">Home</span></a
+                    ><a
+                        href="#recipes"
+                        aria-current="page"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                                background: var(--here-bar);
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="bookOpen" size="{{v66}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500; font-weight: 600"
+                            >Recipes</span
+                        ></a
+                    ><a
+                        href="#discover"
+                        style="
+                            position: relative;
+                            display: flex;
+                            min-height: 56px;
+                            min-width: 96px;
+                            flex: 1;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 4px;
+                            border-radius: 12px;
+                            color: var(--ink-muted);
+                        "
+                        ><span
+                            aria-hidden="true"
+                            style="
+                                position: absolute;
+                                top: 0;
+                                width: 32px;
+                                height: 3px;
+                                border-radius: 0 0 9999px 9999px;
+                            "
+                        ></span
+                        ><x-import component-from-global-scope="Commise.Icon" name="compass" size="{{v67}}"></x-import
+                        ><span style="font-size: 12px; line-height: 1.4; font-weight: 500">Discover</span></a
+                    >
+                </nav>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise, noop=function(){};
+             return { zero:0, yes:true, no:false, noop:noop, lmLabels:{loadMore:'Load more',loadingMore:'Loading more recipes',retry:'Try again',failed:'We couldn’t load more recipes.'},
+              v0: false,
+              v1: 16,
+              v2: false,
+              v3: 16,
+              v4: 16,
+              v5: false,
+              v6: 16,
+              v7: 16,
+              v8: false,
+              v9: 16,
+              v10: 16,
+              v11: false,
+              v12: 16,
+              v13: false,
+              v14: 16,
+              v15: 16,
+              v16: false,
+              v17: 16,
+              v18: false,
+              v19: 16,
+              v20: 16,
+              v21: false,
+              v22: 16,
+              v23: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
+              v24: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"mine",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
+              v25: noop,
+              v26: true,
+              v27: noop,
+              v28: 2,
+              v29: false,
+              v30: noop,
+              v31: 3,
+              v32: false,
+              v33: noop,
+              v34: 1,
+              v35: false,
+              v36: noop,
+              v37: 1,
+              v38: false,
+              v39: noop,
+              v40: 1,
+              v41: false,
+              v42: noop,
+              v43: 1,
+              v44: false,
+              v45: noop,
+              v46: 1,
+              v47: false,
+              v48: noop,
+              v49: 1,
+              v50: false,
+              v51: noop,
+              v52: 1,
+              v53: false,
+              v54: noop,
+              v55: 1,
+              v56: false,
+              v57: noop,
+              v58: noop,
+              v59: [{"id":"list","label":"List view","icon":"list"},{"id":"grid","label":"Grid view","icon":"layoutGrid"}],
+              v60: noop,
+              v61: noop,
+              v62: 24,
+              v63: 24,
+              v64: 24,
+              v65: 24,
+              v66: 24,
+              v67: 24,
+              v68: 24
+             }; } }
+        </script>
+    </body>
+</html>

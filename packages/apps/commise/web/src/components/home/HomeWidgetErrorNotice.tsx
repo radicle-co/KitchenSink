@@ -4,8 +4,8 @@
  * @module home/HomeWidgetErrorNotice — what a FAILED Home widget shows in place of its body (web).
  *
  * A pure render component (`props → JSX`, no props, no state, no effects) used as the `fallback` of BOTH
- * per-widget error boundaries on this surface: the host's ({@link import('./HomeWidgetSurface').HomeWidgetSurface})
- * and the recipe slot's inner one ({@link import('./RecipeWidgetSlot').RecipeWidgetSlot}). The one-to-one
+ * per-widget error boundaries on this surface: the host's (`HomeWidgetSurface`)
+ * and the recipe slot's inner one (`RecipeWidgetSlot`). The one-to-one
  * counterpart of mobile's `HomeWidgetErrorNotice` — same copy, same contract (a localized explanation,
  * ANNOUNCED, with no recovery affordance), projected into web's markup and utility classes.
  *
@@ -26,10 +26,9 @@
  * for a feature that has not shipped, so a notice there would announce the loss of something the viewer was
  * never promised. That arm keeps `fallback={null}` (the throw is still reported) and is pinned by a test.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
-
-import { webMessages } from '@/i18n/messages';
 
 /**
  * The stand-in for a Home widget whose body failed to render.
@@ -37,7 +36,7 @@ import { webMessages } from '@/i18n/messages';
  * @returns A localized, POLITELY announced one-line notice.
  */
 export function HomeWidgetErrorNotice(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     // A LIVE REGION, but a POLITE one — `role="status"`, not `role="alert"`.
     //
@@ -59,8 +58,8 @@ export function HomeWidgetErrorNotice(): JSX.Element {
     // Mobile's `HomeWidgetErrorNotice` makes the IDENTICAL call (`role="status"` + an Android polite live
     // region), so the two platforms cannot disagree about how loudly a broken widget speaks.
     return (
-        <p role="status" className="text-body-sm text-slate">
-            {home.surface.widgetError}
+        <p role="status" className="text-body-sm text-ink-muted">
+            {home.widgetError}
         </p>
     );
 }

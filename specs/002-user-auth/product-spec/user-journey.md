@@ -112,7 +112,7 @@ sequenceDiagram
 
 ## Persona 3: Support/Admin Operator (Jordan) — Journey C: Suspension, Reactivation, and Impersonation Controls
 
-**Scenario**: Jordan suspends a user, validates enforced denial behavior, runs scoped impersonation diagnostics, and later reactivates the user.
+**Scenario**: Jordan suspends a user, validates enforced denial behavior, and later reactivates the user. _The impersonation step was withdrawn on 2026-10-15 (owner ruling "Delete the impersonation then"); an impersonated Clerk `act` session is now refused on web and mobile._
 
 ```mermaid
 sequenceDiagram
@@ -131,13 +131,6 @@ sequenceDiagram
     USER->>AUTHZ: Call protected API with token
     AUTHZ-->>USER: 403 Forbidden (suspended)
     Note right: FR-042, FR-043
-
-    Note over OPS, AUTHZ: P2 — Impersonation
-    OPS->>API: Start impersonation for diagnostics
-    API-->>AUTHZ: Emit impersonation flag + operator identity
-    Note right: FR-035, FR-036
-    AUTHZ-->>OPS: Restricted session (no destructive security actions)
-    Note right: FR-037
 
     Note over OPS, A0: P2 — Reactivation
     OPS->>API: Reactivate user

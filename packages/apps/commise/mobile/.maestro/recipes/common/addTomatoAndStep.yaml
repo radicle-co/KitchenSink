@@ -1,0 +1,52 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: from the editor with a title set, add one ingredient declared as written ("Tomato", no food service
+# needed) and one step, the least a recipe needs to publish but its cuisine. Called with
+# `runFlow: common/addTomatoAndStep.yaml`; it ends with the keyboard closed and the action bar reachable.
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Tomato'
+- runFlow:
+      file: pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- scrollUntilVisible:
+      element: 'Edit Tomato'
+      direction: UP
+      timeout: 30000
+# Close the keyboard first: after the pick iOS can call `Add step` visible while the keyboard covers it, so the shared step
+# skips its scroll and the tap lands on the keyboard (CI run 39313803199, iOS shards 3 and 4, create and preparationGroups).
+- runFlow: closeEditorKeyboard.yaml
+# Jump to Steps first. A scroll alone can stop with `Add step` under the sticky Sections bar, which iOS still calls
+# visible, and the tap then opens the Sections sheet instead (CI run 39333403320, iOS shard 4, preparationGroups).
+- runFlow:
+      file: jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- runFlow:
+      file: scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add step'
+# Into the new step's own field before typing, as `create.yaml` does. Add step moves focus there by itself
+# (`addStepFocus.yaml` proves that), but on a slow runner the text arrived first and went into the ingredient field
+# (CI run 39165813897, iOS shard 5, cuisineField: "Simmer.a" in the add field, and Publish off screen).
+- tapOn: 'Step 1'
+- inputText: 'Simmer.'
+# The step field keeps the soft keyboard up over the action bar on both platforms; a tap on the section heading closes it
+# (`common/typeTitle.yaml` says why a heading, and why not Return or `hideKeyboard`).
+# Audit 2026-10-19, A1.8: the step text must land in the step, not in the ingredient field above it. The step field is
+# below the Steps heading and the ingredient field is in the section above it, so the text below the heading proves
+# where it went, with no wait (a timed wait for an option that should not appear is what
+# `maestroNoTimingCrutches.test.ts` rule (d) refuses).
+- assertVisible:
+      text: 'Simmer\.'
+      below: 'Steps'
+- tapOn: 'Steps'

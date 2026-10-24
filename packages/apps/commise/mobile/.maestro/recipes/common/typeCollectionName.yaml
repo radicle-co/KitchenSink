@@ -1,0 +1,10 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: type `NAME` into the new-collection sheet's Name field and read it back. Called with
+# `runFlow: { file: common/typeCollectionName.yaml, env: { NAME: '…' } }`; the caller then presses Enter or taps Create.
+# The typing and the exact read-back live in `typeIntoField.yaml`, which says why each step is there.
+- runFlow:
+      file: typeIntoField.yaml
+      env:
+          FIELD: 'Name'
+          TEXT: ${NAME}

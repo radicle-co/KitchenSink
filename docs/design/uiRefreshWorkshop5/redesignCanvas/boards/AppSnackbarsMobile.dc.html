@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>App, snackbars (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: captions are dashed-edge notes at 13 (spec, Patterns). */
+            .cap {
+                margin: 0 16px !important;
+                padding: 10px 12px !important;
+                border: 1px dashed var(--line-control);
+                border-radius: 12px;
+                font: 500 13px/1.35 var(--font-body) !important;
+                color: var(--ink-muted);
+            }
+            .wm {
+                font-family: var(--font-display);
+                font-weight: 600;
+                font-size: 17px;
+                line-height: 1.3;
+                letter-spacing: -0.012em;
+                color: var(--ink);
+            }
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 17px;
+            }
+            .sr-only {
+                font-size: 13px !important;
+            }
+            /* Sidebar: the active item is --surface-muted with a steel icon, no bar (spec, Patterns). */
+            a[aria-current='page'] {
+                background: var(--surface-muted) !important;
+                color: var(--ink) !important;
+            }
+            a[aria-current='page'] > span[aria-hidden='true'] {
+                display: none !important;
+            }
+            a[aria-current='page'] svg {
+                color: var(--action-text);
+            }
+            body {
+                font-size: 15px;
+            }
+            [class~='r-14yzgew'] {
+                font-size: 15px !important;
+            } /* rating star glyphs */
+            script {
+                display: none;
+            }
+            /* No-photo cover (spec, Surfaces): a sky-to-coral gradient, a photo icon in a paper disc and "Waiting for its
+               photo". Never a letter tile. Reworks the component output with CSS only. */
+            [class*='bg-cover-'][aria-hidden='true'],
+            [aria-hidden='true'][style*='aspect-ratio'],
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) {
+                background: linear-gradient(135deg, var(--cover-sky), var(--cover-coral)) !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child {
+                position: relative;
+                display: block;
+                width: 48px;
+                height: 48px;
+                flex: none;
+                border-radius: 50%;
+                background: var(--paper);
+                font-size: 13px !important;
+                line-height: 48px !important;
+                color: transparent;
+                text-indent: 100%;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child::before,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child::before,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child::before {
+                content: '';
+                position: absolute;
+                inset: 12px;
+                background: var(--ink-muted);
+                -webkit-mask: var(--photo-icon) center / contain no-repeat;
+                mask: var(--photo-icon) center / contain no-repeat;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:nth-child(2),
+            [aria-hidden='true'][style*='aspect-ratio'] > div:nth-child(2),
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:nth-child(2) {
+                display: none !important;
+            }
+            [class*='bg-cover-'][aria-hidden='true']::after,
+            [aria-hidden='true'][style*='aspect-ratio']::after,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px'])::after {
+                content: 'Waiting for its photo';
+                font-size: 13px;
+                line-height: 1.35;
+                color: var(--ink-muted);
+                text-align: center;
+            }
+            [aria-hidden='true'][style*='aspect-ratio: 1 / 1']::after {
+                display: none;
+            }
+            @container cover (max-height: 6rem) {
+                [class*='bg-cover-'][aria-hidden='true']::after {
+                    display: none;
+                }
+            }
+            :root {
+                --photo-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Ccircle cx='9' cy='10' r='1.5'/%3E%3Cpath d='M21 16l-5-5-8 8'/%3E%3C/svg%3E");
+            }
+            [style*='font-variant-numeric: tabular-nums'] {
+                font-size: 15px !important;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    width: 390px;
+                    padding: 16px 0 8px;
+                    background: var(--canvas);
+                    color: var(--ink);
+                    font-family: var(--font-body);
+                "
+            >
+                <figure style="margin: 0 0 28px">
+                    <p class="cap" style="margin: 0 16px 8px">
+                        Where it sits: 16 pt above the tab bar. It stays 6 seconds, and does not time out while a screen
+                        reader runs.
+                    </p>
+                    <div
+                        style="
+                            width: 390px;
+                            height: 640px;
+                            position: relative;
+                            display: flex;
+                            flex-direction: column;
+                            background: var(--canvas);
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.GradientSurface"
+                            gradient="hero"
+                            style="{{fill}}"
+                            ><div
+                                style="
+                                    height: 542px;
+                                    position: relative;
+                                    display: flex;
+                                    flex-direction: column;
+                                    overflow: hidden;
+                                "
+                            >
+                                <div
+                                    style="
+                                        flex: 1;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                        padding: 8px 16px 0;
+                                        min-height: 0;
+                                        overflow: hidden;
+                                    "
+                                >
+                                    <div style="display: flex; flex-direction: column; gap: 16px">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                                            heading-id="recipes-title"
+                                            title="Recipes"
+                                            action="{{action}}"
+                                            segments="{{segments}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.SearchField"
+                                            id="recipes-search"
+                                            label="Search your recipes"
+                                            label-visibility="hidden"
+                                            clear-label="Clear search"
+                                            placeholder="Search your recipes"
+                                            value=""
+                                            on-change-text="{{noop}}"
+                                        ></x-import>
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ChipRow"
+                                        mode="filter"
+                                        label="Quick filters"
+                                        overflow="scroll"
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="All"
+                                            selected="{{yes}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Under 30 min"
+                                            count="{{k1}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="American"
+                                            count="{{k2}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="French"
+                                            count="{{k3}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Italian"
+                                            count="{{k4}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Japanese"
+                                            count="{{k5}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Mediterranean"
+                                            count="{{k6}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Mexican"
+                                            count="{{k7}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Thai"
+                                            count="{{k8}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Vegan"
+                                            count="{{k9}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.Chip"
+                                            kind="filter"
+                                            label="Vegetarian"
+                                            count="{{k10}}"
+                                            selected="{{no}}"
+                                            on-press="{{noop}}"
+                                        ></x-import
+                                    ></x-import>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: row;
+                                            flex-wrap: wrap;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            column-gap: 12px;
+                                            row-gap: 8px;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                font: 600 15px/1.2 var(--font-body);
+                                                color: var(--ink);
+                                                font-variant-numeric: tabular-nums lining-nums;
+                                            "
+                                        >
+                                            9 recipes
+                                        </div>
+                                        <div style="display: flex; flex-direction: row; align-items: center; gap: 8px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.Button"
+                                                variant="ghost"
+                                                size="sm"
+                                                icon="chevronDown"
+                                                icon-placement="end"
+                                                accessibility-label="Sort: Recently edited"
+                                                on-press="{{noop}}"
+                                                >Recently edited</x-import
+                                            >
+                                            <div style="width: 112px">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.SegmentedControl"
+                                                    form="view"
+                                                    label="View"
+                                                    label-visibility="hidden"
+                                                    value="list"
+                                                    segments="{{views}}"
+                                                    on-change="{{noop}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px">
+                                        <div style="display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeCard"
+                                                variant="row"
+                                                heading-level="{{n2}}"
+                                                recipe="{{c0.recipe}}"
+                                                nutrition="{{c0.cal}}"
+                                                on-select="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeCard"
+                                                variant="row"
+                                                heading-level="{{n2}}"
+                                                recipe="{{c1.recipe}}"
+                                                nutrition="{{c1.cal}}"
+                                                on-select="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeCard"
+                                                variant="row"
+                                                heading-level="{{n2}}"
+                                                recipe="{{c2.recipe}}"
+                                                nutrition="{{c2.cal}}"
+                                                on-select="{{noop}}"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.CreateFab"
+                                    label="New recipe"
+                                    icon="plus"
+                                    on-press="{{noop}}"
+                                ></x-import>
+                            </div>
+                            <x-import
+                                component-from-global-scope="Commise.Native.HomeTabBar"
+                                chrome="{{chrome}}"
+                                live-capabilities="{{none}}"
+                                active-id="recipes"
+                                on-press="{{noop}}"
+                                bottom-inset="{{n34}}"
+                                compact="{{no}}"
+                                left-inset="{{n0}}"
+                                right-inset="{{n0}}"
+                            ></x-import>
+                        </x-import>
+                        <div
+                            role="status"
+                            style="
+                                position: absolute;
+                                left: 16px;
+                                right: 16px;
+                                bottom: 114px;
+                                display: flex;
+                                justify-content: center;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.UndoSnackbar"
+                                message="Recipe published."
+                                on-pause="{{noop}}"
+                                on-resume="{{noop}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                </figure>
+                <figure style="margin: 0 0 28px">
+                    <p class="cap" style="margin: 0 16px 8px">
+                        All five, one at a time: a new snackbar replaces the one on screen, and the one it replaces
+                        commits (an Undo window ends).
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 0 16px">
+                        <span style="font: 500 13px/1.4 var(--font-body); color: var(--ink-muted)"
+                            >After the editor publishes a recipe (first publish or a later one)</span
+                        ><x-import
+                            component-from-global-scope="Commise.Native.UndoSnackbar"
+                            message="Recipe published."
+                            on-pause="{{noop}}"
+                            on-resume="{{noop}}"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 0 16px">
+                        <span style="font: 500 13px/1.4 var(--font-body); color: var(--ink-muted)"
+                            >After Save changes in the editor</span
+                        ><x-import
+                            component-from-global-scope="Commise.Native.UndoSnackbar"
+                            message="Changes saved."
+                            on-pause="{{noop}}"
+                            on-resume="{{noop}}"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 0 16px">
+                        <span style="font: 500 13px/1.4 var(--font-body); color: var(--ink-muted)"
+                            >After Save a copy of a recipe</span
+                        ><x-import
+                            component-from-global-scope="Commise.Native.UndoSnackbar"
+                            message="Saved a copy to My recipes."
+                            action="{{act2}}"
+                            on-pause="{{noop}}"
+                            on-resume="{{noop}}"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 0 16px">
+                        <span style="font: 500 13px/1.4 var(--font-body); color: var(--ink-muted)"
+                            >After restoring a version</span
+                        ><x-import
+                            component-from-global-scope="Commise.Native.UndoSnackbar"
+                            message="Restored version 3."
+                            action="{{act3}}"
+                            on-pause="{{noop}}"
+                            on-resume="{{noop}}"
+                        ></x-import>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 0 16px">
+                        <span style="font: 500 13px/1.4 var(--font-body); color: var(--ink-muted)"
+                            >After removing a recipe from a collection</span
+                        ><x-import
+                            component-from-global-scope="Commise.Native.UndoSnackbar"
+                            message="Removed Pasta from Weeknights."
+                            action="{{act4}}"
+                            on-pause="{{noop}}"
+                            on-resume="{{noop}}"
+                        ></x-import>
+                    </div>
+                </figure></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1325}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement, N=window.Commise.Native; const R=[["Weeknight Chicken Cacciatore", "Italian", 55, 4, 420, "medium", 4.6, 23, "public", "published", false, 48, 500], ["Brown Butter Chocolate Chip Cookies", "American", 40, 24, 210, "easy", 4.9, 112, "public", "published", false, 168, 900], ["Miso-Glazed Salmon with Sesame Greens", "Japanese", 25, 2, 480, "easy", 4.4, 9, "private", "published", false, 3, 400], ["Slow-Roasted Pork Shoulder", "American", 390, 8, null, "hard", null, 0, "private", "draft", false, 120, 120], ["Roasted Tomato Basil Soup", "Mediterranean", 50, 6, 180, "easy", 4.2, 15, "private", "published", false, 96, 600], ["Pad Thai with Shrimp", "Thai", 35, 3, 560, "medium", 4.7, 41, "public", "published", false, 336, 700], ["Overnight Sourdough Boule", "French", 870, 10, 150, "hard", 4.8, 63, "private", "published", true, 24, 800], ["Lemon Ricotta Pancakes", "American", 25, 4, 340, "easy", 4.5, 22, "public", "published", false, 504, 900], ["Smoky Black Bean Chili", "Mexican", 75, 6, 310, "easy", 4.3, 18, "private", "published", false, 144, 500]]; const K=[null, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1];
+            const ago=(hrs)=>new Date(Date.now()-hrs*36e5).toISOString();
+            const out={unreadableTitle:"Some work on this device couldn’t be opened",unreadableBody:"We can’t show it or send it, and it can’t be recovered. Recipes saved to your account are safe. Check My recipes for your latest changes.",offlineTwo:{"kind": "offline", "title": "You’re offline", "body": "2 changes are saved on this device and will sync when you’re back online."},offlineNone:{"kind": "offline", "title": "You’re offline", "body": "Anything you change is saved on this device and syncs when you’re back online."},syncingTwo:{"kind": "syncing", "title": "Back online", "body": "Syncing 2 changes…"},hidden:{"kind": "hidden"},act2:{label:"Edit",onAction:()=>{}},act3:{label:"Undo",onAction:()=>{}},act4:{label:"Undo",onAction:()=>{}},no:false,yes:true,n0:0,n2:2,n34:34,none:[],noop:()=>{},fill:{flex:1},
+            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            action:{kind:'avatar',avatar:h(N.Avatar,{status:'ready',initials:'SR',label:'Profile, Sam Rivera',onPress:()=>{}})},
+            segments:h(N.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:'mine',segments:[{id:'mine',label:'My recipes',href:'#recipes'},{id:'collections',label:'Collections',href:'#collections'}],onSelect:()=>{}}),
+            views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}]};
+            K.forEach((c,j)=>{out['k'+j]=c});
+            R.forEach(([title,cuisine,mins,servings,cal,level,rating,count,visibility,status,pro,u,c],i)=>{const r={id:'rcp_'+i,title,totalTimeMinutes:mins,servings,difficulty:level,ratingCount:count,usesPremiumCapability:pro,createdAt:ago(c),updatedAt:ago(u),cuisine,tags:[],currentVersion:1,visibility,status}; if(rating)r.averageRating=rating; out['c'+i]={recipe:r,cal:cal?h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal'):null};});
+            return out; } }
+        </script>
+    </body>
+</html>

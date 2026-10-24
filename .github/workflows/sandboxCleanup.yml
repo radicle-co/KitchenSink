@@ -1,0 +1,155 @@
+name: Sandbox Cleanup
+
+# On PR close (merged or not), delete THAT PR's sandbox (ADR-0005, ADR-0060) — event-driven, and the only automatic
+# reclamation the owner allows (2026-10-12: "PR close or merge deletes that PR's sandbox").
+#
+# ⚠️  DELIBERATE — MOVED, not copied, from `sandbox-deploy.yml`'s `cleanup` job, which the owner disabled along with
+#     that workflow (its crons fired from the stale `main`); disabling it had also stopped this. The job is
+#     unchanged except for the `sync` that now follows the teardown.
+#
+# It runs `.github/scripts/teardownSandboxPr.sh` for exactly `pr-{N}` — the ONE teardown script every reclamation
+# path runs — and NEVER touches the shared tier: not the identity service, not the ALB, not the database instance.
+# Releasing the shared tier is Sandbox Down's decision (`sandboxDown.yml`), made only for the last live preview.
+on:
+    pull_request:
+        types: [closed]
+
+permissions:
+    contents: read
+
+concurrency:
+    # ⛔ ITS OWN GROUP, not the button's. GitHub keeps at most one PENDING run per group and cancels it when another is
+    # queued, `cancel-in-progress: false` notwithstanding — so a cleanup waiting behind a Sandbox Up would be cancelled,
+    # grey and silent, by the next press for the same PR, and the PR's infrastructure would leak. Sharing no group, a
+    # close that lands mid-start can make the start or the teardown fail; either fails RED, which someone sees.
+    # `cancel-in-progress: false` still keeps a teardown from being cut off halfway (ADR-0001's takeover window).
+    group: sandbox-cleanup-${{ github.event.pull_request.number }}
+    cancel-in-progress: false
+
+jobs:
+    # ── Cleanup: on PR close, tear down THIS PR's ephemeral resources (ADR-0005) ──
+    # Deletes everything whose Environment tag this PR owns OR named `pr-{N}` / `pr-{N}-…` — the PR's feature
+    # stacks (tagged via the App-level Environment tag), plus log groups + ECR repos the stacks don't
+    # own, plus the preview's PUBLIC ADDRESS (the `pr-{N}.sandbox.<domain>` Route 53 record and the
+    # Vercel project-domain binding — ADR-0001 "Update (2026-07-28)"; a CNAME left pointing at Vercel
+    # after the domain is released is a subdomain-takeover vector). There is deliberately NO denylist:
+    # persistent global infra is tagged with its TIER (`sandbox`/`production`) and named kitchensink-*, so it can never match a
+    # pr-{N} tag or prefix — that precision IS the safety. The match is delimiter-aware (pr-{N} exactly
+    # or pr-{N}-…) so pr-1 != pr-15/pr-100, and the DNS half is stricter still (the record's first label
+    # must be EXACTLY pr-{N}, so the apex, the *.sandbox wildcard and the shared identity.sandbox.… host
+    # can never be targets). Static job name (no ${{ }}) so the open-PR skipped state shows a clean title.
+    cleanup:
+        name: Destroy sandbox preview
+        runs-on: ubuntu-latest
+        if: github.event.action == 'closed'
+        # A teardown waits on stack deletes; the ceiling is the role's longest session, which it must not outlive.
+        timeout-minutes: 180
+        permissions:
+            contents: read
+            id-token: write # awsAuth: the non-prod role, the only tier that holds teardownGrants
+
+        # ── THE `Sandbox` BINDING — read this once; the other jobs here just point back at it ──────────
+        #
+        # ⛔ THIS JOB IS DELIBERATELY **NOT** BOUND to the `Sandbox` Environment, and neither is
+        # `sandboxReapClosed.yml`'s `reap-abandoned`. Both are RECLAMATION jobs: they delete per-PR infrastructure. An Environment
+        # binding is a place a run can be made to WAIT, and the failure modes are not symmetric — a stalled
+        # deploy is loud and costs nothing, while a stalled cleanup silently leaks AWS spend, which is the
+        # exact failure this script exists to prevent. So reclamation is never gated, and the guard is code,
+        # not convention: `__tests__/reclamationNeverGated.test.ts` fails if either job gains an
+        # `environment:` key. The deploying jobs (`previewDomain.yml`, `sandbox-identity-deploy.yml`) ARE bound,
+        # because stalling them is merely visible.
+        #
+        # ⚠️ BE HONEST ABOUT WHAT THOSE BINDINGS DO AND DO NOT BUY. CI signs in through `awsAuth` (ADR-0063), and the
+        # non-prod role trusts ANY job of this repository precisely because jobs like this one bind no environment —
+        # so a `Sandbox` binding narrows no credential. It makes the deploy target explicit and gives sandbox deploys
+        # their own deployment history. The binding that IS a boundary is `Production`: the prod role trusts only a
+        # job bound to it, on `main`.
+        #
+        # ⛔ `Sandbox` MUST ALSO KEEP ZERO PROTECTION RULES. Not laxity, a constraint: the bound jobs run
+        # unattended on every non-closed `pull_request` event, so a required reviewer or branch policy would
+        # stall every preview. Approval gating belongs on `Production` (see prod-deploy.yml), which is bound
+        # to exactly one job and has no unattended trigger.
+
+        env:
+            PR: pr-${{ github.event.pull_request.number }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            # The preview-domain step runs `npx tsx …/teardownPreviewDomain.ts`; the rest of the script
+            # is aws-cli only.
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Sign in to AWS
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ vars.DEFAULT_AWS_REGION }}
+                  session-minutes: '180'
+            # ⚠️ DELIBERATE — this step MUST NOT be able to abort the job. See the analyzer in
+            # packages/tools/repoGuards/__tests__/sandboxReclamationReachability.test.ts.
+            #
+            # The hosted zone is an input to ONE part of teardown (the preview DNS record). The stacks, ECR
+            # repos and log groups — all of the billable compute — need no zone at all. When this step
+            # ended in `exit 1`, a lookup failure skipped the teardown step entirely and leaked 9 merged
+            # PRs' worth of running Fargate tasks behind a red check nobody read, and the daily reaper
+            # failed all 11 times it ever ran. So an unresolvable zone is reported here and handed to the
+            # script as an EMPTY value: teardownSandboxPr.sh already treats that as an `::error::` +
+            # non-zero exit (section 0) while still reclaiming everything that does not depend on it.
+            # `--optional` is what keeps absence from aborting; never re-add an `exit` to this step.
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
+                  # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
+                  # the export — and that two-line value is what GitHub rejected with `Invalid format 'None'`,
+                  # failing this step. The helper collapses it to exactly one line.
+                  # See .github/scripts/cfnExport.sh.
+                  ZONE=$(bash .github/scripts/cfnExport.sh --optional 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
+                  if [ -z "$ZONE" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be removed; the rest of the teardown still runs and the job will fail"
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
+            # All teardown logic lives in one script so the on-close cleanup, Sandbox Down and the reaper
+            # cannot drift. It is scoped hard to pr-{N} (name, Environment tag, or exact DNS label), so
+            # the shared global/identity/data infra can never match.
+            # `!cancelled()` is the SECOND protection, independent of the analyzer's ordering rule: GitHub
+            # skips every remaining step once any step fails, so without this a predecessor that fails
+            # WITHOUT an explicit `exit` — a command failing under `set -e`, or the malformed
+            # `$GITHUB_OUTPUT` write that caused this incident — silently skips reclamation again. The
+            # teardown now runs on its own merits and reports its own outcome. `!cancelled()` rather than
+            # `always()` on purpose: a cancelled run must not start deleting infrastructure.
+            - name: Tear down ${{ env.PR }} sandbox resources
+              if: ${{ !cancelled() }}
+              env:
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  # Reclaims this PR's LEGACY `sandbox-preview/pr-{N}` GitHub Environment (teardown §0b).
+                  # NOT `github.token`: `administration` is not a grantable `permissions:` key, so the
+                  # workflow token structurally cannot delete an environment — which is why `c86f3e09`
+                  # stopped CREATING per-PR environments and moved every preview onto the one shared
+                  # `sandbox-preview`. So this is a DRAINING backlog, not an ongoing stream: only the
+                  # legacy names that predate that commit are left, and §0b's ledger says which. If the
+                  # secret is ever unset (rotation, or a run without secret access) the step WARNS and
+                  # skips rather than failing the close, because it reclaims metadata, not spend.
+                  GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
+              run: |
+                  chmod +x .github/scripts/teardownSandboxPr.sh
+                  .github/scripts/teardownSandboxPr.sh "$PR" "$REGION"
+
+            # ⛔ THEN THE SCHEDULED JOBS FOLLOW (ADR-0060). This PR's rules went with its stacks; `sync` re-decides the
+            # SHARED tier's — the webhooks' queue check and sweepers run only while at least one PR is up, so a close
+            # that took down the last preview must switch them off. `!cancelled()` so a teardown that reported
+            # errors still leaves the rules matching what is actually running.
+            - name: Re-decide the shared tier's scheduled jobs
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/sandboxScheduler.sh sync "$REGION"

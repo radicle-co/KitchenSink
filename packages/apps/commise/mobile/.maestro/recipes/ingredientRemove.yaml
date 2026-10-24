@@ -1,0 +1,82 @@
+appId: ${APP_ID}
+---
+# Plan 002 US6 on a device: removing an ingredient removes ONLY that row. Mobile mirror of the web Playwright
+# `ingredientRemove.spec.ts`.
+#
+# The rows are lines declared "as written" from the trailing field, which this job can produce without a food service.
+# A declared row offers Find a food and Remove, so Remove is an item of the row's `⋮` menu (§3a,
+# `ingredientRowPolicy.ts`). What only this flow proves: on a real device the right row goes and the other keeps its
+# name.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Remove Rows'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+
+# Two declared lines, through "as written" (`create.yaml`'s prelude).
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Alpha'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Alpha.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Alpha.* as written.*'
+      timeout: 30000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Beta'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Beta.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Beta.* as written.*'
+      timeout: 30000
+
+# Remove the FIRST row only, from its `⋮` menu.
+# The line lands above the add field the cook is at: one page, so it is UP.
+# The pick leaves the add field focused and parked just under the sticky header, so the row it added sits ABOVE it,
+# under the header, where iOS still calls it visible and a tap opens the header's menu (full local iOS run,
+# 2026-10-19). Closing the keyboard puts the page back at the top, and the row then arrives from below, clear of it.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Actions for Maestro Alpha'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Actions for Maestro Alpha'
+- tapOn: 'Remove ingredient'
+- assertNotVisible: 'Actions for Maestro Alpha'
+- assertVisible: 'Actions for Maestro Beta'
+# The row's name is its own node on Android and part of the "Edit <name>" label on iOS.
+- assertNotVisible:
+      text: '(Edit )?Maestro Alpha'
+- assertVisible:
+      text: '(Edit )?Maestro Beta'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label and is always on screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'

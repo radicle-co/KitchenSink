@@ -1,0 +1,29 @@
+/**
+ * Whether a collection's visibility change can be undone (blueprint Part C, slice 5; plan 2026-10-14-009 D14). Undo is
+ * a COMPENSATING `setVisibility`, so it is offered only when the reverse change would be accepted: restoring "private"
+ * needs the paid features (`granted`); restoring "public" never does. An Undo the server then refused would be a
+ * control that lies.
+ */
+import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { describe, expect, it } from 'vitest';
+
+import { canUndoVisibilityChange } from '../visibilityUndo.js';
+
+const { PRIVATE, PUBLIC } = RecipeVisibility;
+
+describe('canUndoVisibilityChange', () => {
+    it.each(['granted', 'upsell', 'hidden', 'loading'] as const)(
+        'can undo public → private under %s, because the way back (public) is always allowed',
+        (state) => {
+            expect(canUndoVisibilityChange({ from: PUBLIC, state })).toBe(true);
+        },
+    );
+
+    it('can undo private → public only under granted', () => {
+        expect(canUndoVisibilityChange({ from: PRIVATE, state: 'granted' })).toBe(true);
+
+        for (const state of ['upsell', 'hidden', 'loading'] as const) {
+            expect(canUndoVisibilityChange({ from: PRIVATE, state }), state).toBe(false);
+        }
+    });
+});

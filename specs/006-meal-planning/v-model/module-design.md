@@ -1,1399 +1,845 @@
 # Module Design: Meal Planning
 
 **Feature Branch**: `006-meal-planning`
-**Created**: 2026-05-09
+**Created**: 2026-05-09 | **Regenerated**: 2026-08-02
 **Status**: Draft
-**Source**: `specs/006-meal-planning/v-model/architecture-design.md`
+**Source**: [`v-model/architecture-design.md`](./architecture-design.md)
 
 ## Overview
 
-Twenty-two architecture modules (ARCH-001 through ARCH-022) are decomposed into twenty-two low-level module designs (MOD-001 through MOD-022), one per ARCH. Controllers are stateless request-dispatch modules; services contain the core algorithmic logic with explicit state transitions where applicable; repositories encapsulate SQL generation; adapters wrap external HTTP calls; guards enforce authorization predicates; and the quality-compliance module is a build-time-only utility. Every MOD is specified at a level of detail where writing the source code is a direct translation exercise.
+Twenty-five architecture modules decompose into twenty-five module designs, `MOD-001`–`MOD-025`, one per ARCH. The
+detail is concentrated where the design decisions are: the **pure domain** modules (`MOD-002`, `MOD-004`, `MOD-006`,
+`MOD-005`), the **Gateway** (`MOD-015`), and **idempotency** (`MOD-016`). CRUD controllers and repositories are
+mechanical and are specified at the level needed to write them, not padded.
+
+> **Regeneration note.** The May design had 22 modules rooted at `src/meal-planning/{controllers,services,repositories,
+guards}/` — an **organize-by-generic-type** layout that `CODING_STANDARDS §3` forbids ("Organize by feature domain,
+> not by generic type"). Every path below is rooted in a real workspace and grouped by domain. Nine modules are gone
+> (cache, USDA adapter, five AI/waste modules, premium guard, Clerk adapter); errors are `*Error` with `is*` guards, not
+> `*Exception`; dates on contracts are ISO strings, never `Date`.
 
 ## ID Schema
 
-- **Module Design**: `MOD-NNN` — sequential identifier (3-digit zero-padded)
-- **Parent Architecture Modules**: Comma-separated `ARCH-NNN` list (authoritative for traceability)
-- **Target Source File(s)**: Comma-separated file paths relative to repository root
-- Example: `MOD-003` with Parent Architecture Modules `ARCH-003` — one-to-one mapping
-- Example: `MOD-021 [CROSS-CUTTING]` — inherits cross-cutting tag from parent ARCH
-
-## Module Designs
+- **Module Design**: `MOD-NNN` — sequential, 3-digit.
+- **Parent Architecture Modules**: comma-separated `ARCH-NNN` (authoritative for traceability).
+- **Target Source File(s)**: paths relative to the repository root.
+- Purity is stated per module. An impure function carries `@sideEffect` in its JSDoc (`CODING_STANDARDS §2`).
 
 ---
 
-### Module: MOD-001 (MealPlanController)
+## Shared domain — `packages/shared/meal-plan-core` (all pure, zero I/O)
 
-**Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/meal-planning/controllers/meal-plan.controller.ts`
+### MOD-001 (MealPlanIds)
 
-#### Algorithmic / Logic View
+**Parent**: ARCH-001 · **Target**: `packages/shared/meal-plan-core/src/ids.ts` · **Purity**: pure (constructors throw)
 
 ```pseudocode
-// NestJS REST controller — pure HTTP dispatch, no business logic
+mealPlanIdSchema         = z.string().uuid().brand<'MealPlanId'>()
+mealPlanEntryIdSchema    = z.string().uuid().brand<'MealPlanEntryId'>()
+mealPlanTemplateIdSchema = z.string().uuid().brand<'MealPlanTemplateId'>()
 
-FUNCTION createMealPlan(body: CreateMealPlanDTO, authContext: AuthContext) -> MealPlanDTO:
-    // @Post('/meal-plans')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
-    userId = authContext.userId
-    result = AWAIT mealPlanService.createPlan(body, userId)
-    RETURN result  // HTTP 201
-
-FUNCTION getMealPlan(planId: string, authContext: AuthContext) -> MealPlanDTO:
-    // @Get('/meal-plans/:id')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
-    userId = authContext.userId
-    result = AWAIT mealPlanService.getPlan(planId, userId)
-    IF result IS NULL:
-        THROW NotFoundException("Plan not found")
-    RETURN result  // HTTP 200
-
-FUNCTION updateMealPlan(planId: string, body: UpdateMealPlanDTO, authContext: AuthContext) -> MealPlanDTO:
-    // @Patch('/meal-plans/:id')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
-    userId = authContext.userId
-    result = AWAIT mealPlanService.updatePlan(planId, body, userId)
-    RETURN result  // HTTP 200
-
-FUNCTION deleteMealPlan(planId: string, authContext: AuthContext) -> void:
-    // @Delete('/meal-plans/:id')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
-    userId = authContext.userId
-    AWAIT mealPlanService.deletePlan(planId, userId)
-    RETURN  // HTTP 204
+FUNCTION mealPlanId(raw: string) -> MealPlanId:      RETURN mealPlanIdSchema.parse(raw)   // throws ZodError
+FUNCTION isMealPlanId(v: unknown) -> v is MealPlanId: RETURN mealPlanIdSchema.safeParse(v).success
+// …same shape for entry and template ids
 ```
 
-#### State Machine View
+Extends the shipped `@kitchensink/recipe-core/ids` pattern so a `RecipeId` cannot be passed where a `MealPlanId` is
+expected. `RecipeId` is **imported** from recipe-core, never redeclared — one authoritative representation.
 
-N/A — Stateless request dispatcher; all state lives in MealPlanService and MealPlanRepository.
-
-#### Internal Data Structures
-
-| Name        | Type          | Size/Constraints | Initialization | Description                       |
-| ----------- | ------------- | ---------------- | -------------- | --------------------------------- |
-| authContext | AuthContext   | object           | Injected guard | Contains userId and tier from JWT |
-| planId      | string (UUID) | 36 chars         | Route param    | Identifies the target meal plan   |
-
-#### Error Handling & Return Codes
-
-| Error Condition                     | Error Code / Exception      | Architecture Contract                      | Recovery                  |
-| ----------------------------------- | --------------------------- | ------------------------------------------ | ------------------------- |
-| Plan not found for userId           | NotFoundException (404)     | ARCH-001 Interface View: NotFoundError     | Return 404 JSON to client |
-| Invalid DTO fields                  | ValidationPipe (400)        | ARCH-001 Interface View: ValidationError   | Return 400 with errors[]  |
-| Missing/invalid Clerk session token | UnauthorizedException (401) | ARCH-001 Interface View: UnauthorizedError | Return 401 JSON           |
+**Errors**: `ZodError` at the boundary only. **State**: none.
 
 ---
 
-### Module: MOD-002 (MealPlanService)
+### MOD-002 (DateRange)
 
-**Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/meal-planning/services/meal-plan.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-002 · **Target**: `packages/shared/meal-plan-core/src/dateRange.ts` · **Purity**: pure
 
 ```pseudocode
-FUNCTION createPlan(dto: CreateMealPlanDTO, userId: string) -> MealPlan:
-    // Validate date range
-    startDate = parseISO(dto.startDate)
-    endDate   = parseISO(dto.endDate)
-    IF endDate <= startDate:
-        THROW InvalidDateRangeException("endDate must be after startDate")
-    dayCount = differenceInDays(endDate, startDate)
-    IF dayCount > 365:
-        THROW InvalidDateRangeException("Plan may not exceed 365 days")
+CONSTANT MAX_SPAN_DAYS = 90
 
-    // Validate slot configuration
-    FOR EACH slot IN dto.slots:
-        IF slot.dayOffset < 0 OR slot.dayOffset >= dayCount:
-            THROW InvalidSlotException("dayOffset out of range")
-        IF slot.mealType NOT IN [BREAKFAST, LUNCH, DINNER, SNACK]:
-            THROW InvalidSlotException("Unknown mealType")
+// Value Object: cannot exist inverted or over-long. Downstream code NEVER re-checks.
+FUNCTION dateRange(startDate: IsoDate, endDate: IsoDate) -> DateRange:
+    IF NOT isIsoCalendarDate(startDate) OR NOT isIsoCalendarDate(endDate):
+        THROW InvalidDateRangeError('NOT_A_CALENDAR_DATE')
+    IF endDate < startDate:                       // lexicographic compare is valid for YYYY-MM-DD
+        THROW InvalidDateRangeError('END_BEFORE_START')
+    IF dayCount(startDate, endDate) > MAX_SPAN_DAYS:
+        THROW InvalidDateRangeError('SPAN_TOO_LONG')
+    RETURN frozen { startDate, endDate }
 
-    // Persist
-    plan = AWAIT mealPlanRepository.insert({ userId, ...dto })
-    RETURN plan
+FUNCTION dayCount(range) -> number:
+    // differenceInCalendarDays (date-fns) + 1 — CALENDAR days, so a DST transition
+    // does not add or remove a column. Never (end - start) / 86_400_000.
+    RETURN differenceInCalendarDays(parseIso(range.endDate), parseIso(range.startDate)) + 1
 
-FUNCTION getPlan(planId: string, userId: string) -> MealPlan | null:
-    plan = AWAIT mealPlanRepository.findByIdAndUser(planId, userId)
-    RETURN plan  // null if not found (controller throws 404)
+FUNCTION contains(range, date: IsoDate) -> boolean:
+    RETURN date >= range.startDate AND date <= range.endDate
 
-FUNCTION updatePlan(planId: string, dto: UpdateMealPlanDTO, userId: string) -> MealPlan:
-    existing = AWAIT mealPlanRepository.findByIdAndUser(planId, userId)
-    IF existing IS NULL:
-        THROW PlanNotFoundException(planId)
-    IF dto.endDate IS NOT NULL:
-        newEnd = parseISO(dto.endDate)
-        IF newEnd <= existing.startDate:
-            THROW InvalidDateRangeException("endDate must be after existing startDate")
-    updated = AWAIT mealPlanRepository.update(planId, dto)
-    RETURN updated
-
-FUNCTION deletePlan(planId: string, userId: string) -> void:
-    existing = AWAIT mealPlanRepository.findByIdAndUser(planId, userId)
-    IF existing IS NULL:
-        THROW PlanNotFoundException(planId)
-    AWAIT mealPlanRepository.delete(planId)
+FUNCTION eachDate(range) -> IsoDate[]:            // ordered, inclusive
+FUNCTION groupIntoWeeks(range, locale) -> Week[]:
+    // startOfWeek(date, { locale }) — honours the locale's first day of week (FR-037).
+    // MUST NOT hard-code Monday or Sunday.
 ```
 
-#### State Machine View
+**Internal data**
 
-```mermaid
-stateDiagram-v2
-    [*] --> Draft : createPlan()
-    Draft --> Active : (implicit — no explicit activation; plan is usable immediately)
-    Active --> Active : updatePlan()
-    Active --> Deleted : deletePlan()
-    Deleted --> [*]
-```
+| Name            | Type      | Constraints                 | Description                         |
+| --------------- | --------- | --------------------------- | ----------------------------------- |
+| `startDate`     | `IsoDate` | `YYYY-MM-DD`, immutable     | Inclusive first calendar day        |
+| `endDate`       | `IsoDate` | `YYYY-MM-DD`, ≥ `startDate` | Inclusive last calendar day         |
+| `MAX_SPAN_DAYS` | number    | 90                          | Mirrors the DB `CHECK` (REQ-CN-005) |
 
-#### Internal Data Structures
+**Errors**: `InvalidDateRangeError` + `isInvalidDateRangeError`, carrying a discriminated `reason`.
 
-| Name      | Type       | Size/Constraints     | Initialization | Description                   |
-| --------- | ---------- | -------------------- | -------------- | ----------------------------- |
-| startDate | Date       | ISO8601              | From DTO       | Parsed plan start date        |
-| endDate   | Date       | ISO8601, > startDate | From DTO       | Parsed plan end date          |
-| dayCount  | number     | 1–365                | Computed       | Number of days in plan range  |
-| slot      | SlotConfig | object               | From DTO array | dayOffset + mealType per slot |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception    | Architecture Contract                     | Recovery                |
-| --------------------------- | ------------------------- | ----------------------------------------- | ----------------------- |
-| endDate ≤ startDate         | InvalidDateRangeException | ARCH-002 Interface View: InvalidDateRange | Propagate to controller |
-| Plan exceeds 365 days       | InvalidDateRangeException | ARCH-002 Interface View: InvalidDateRange | Propagate to controller |
-| Plan not found for userId   | PlanNotFoundException     | ARCH-002 Interface View: PlanNotFound     | Propagate to controller |
-| Invalid slot dayOffset/type | InvalidSlotException      | ARCH-002 Interface View: ValidationError  | Propagate to controller |
+**Test obligations**: boundary cases 1 day, 90 days, 91 days, end = start, end < start by one day; a range crossing a
+DST transition in a southern- and northern-hemisphere zone; a range crossing a year boundary; a leap day.
 
 ---
 
-### Module: MOD-003 (MealPlanRepository)
+### MOD-003 (MealSlot)
 
-**Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `src/meal-planning/repositories/meal-plan.repository.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-003 · **Target**: `packages/shared/meal-plan-core/src/mealSlot.ts` · **Purity**: pure
 
 ```pseudocode
-FUNCTION insert(data: NewMealPlan) -> MealPlan:
-    // Drizzle ORM insert with returning
-    rows = AWAIT db.insert(mealPlansTable).values({
-        id: generateUUID(),
-        userId: data.userId,
-        name: data.name,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        createdAt: NOW()
-    }).returning()
-    plan = rows[0]
+TYPE MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+CONSTANT MEAL_SLOT_ORDER: readonly MealSlot[] = ['breakfast','lunch','dinner','snack']  // display order
 
-    // Insert slots in bulk
-    IF data.slots.length > 0:
-        slotRows = data.slots.map(s => ({
-            id: generateUUID(),
-            planId: plan.id,
-            dayOffset: s.dayOffset,
-            mealType: s.mealType
-        }))
-        AWAIT db.insert(mealSlotsTable).values(slotRows)
-
-    RETURN plan
-
-FUNCTION findByIdAndUser(planId: string, userId: string) -> MealPlan | null:
-    // Row-level security: always filter by userId
-    rows = AWAIT db.select().from(mealPlansTable)
-        .where(AND(eq(mealPlansTable.id, planId), eq(mealPlansTable.userId, userId)))
-        .limit(1)
-    RETURN rows[0] ?? null
-
-FUNCTION update(planId: string, dto: UpdateMealPlanDTO) -> MealPlan:
-    rows = AWAIT db.update(mealPlansTable)
-        .set({ ...dto, updatedAt: NOW() })
-        .where(eq(mealPlansTable.id, planId))
-        .returning()
-    RETURN rows[0]
-
-FUNCTION delete(planId: string) -> void:
-    // Cascade deletes meal_slots via FK constraint
-    AWAIT db.delete(mealPlansTable).where(eq(mealPlansTable.id, planId))
+FUNCTION isMealSlot(v: unknown) -> v is MealSlot
+FUNCTION sortSlots(slots) -> MealSlot[]                      // by MEAL_SLOT_ORDER, never alphabetical
+FUNCTION planUsesSlot(plan, slot) -> boolean
+FUNCTION parseSlotSet(raw: string[]) -> MealSlot[]:
+    IF raw.length == 0                THROW EmptySlotSetError()
+    IF hasDuplicates(raw)             THROW DuplicateSlotError()
+    IF any(NOT isMealSlot)            THROW UnknownSlotError()
+    RETURN sortSlots(raw)
 ```
 
-#### State Machine View
+Ordering lives here once. A UI that sorted slots alphabetically would render `breakfast, dinner, lunch, snack` — the
+kind of quiet wrongness a shared constant prevents.
 
-N/A — Stateless; each method is an independent database operation.
-
-#### Internal Data Structures
-
-| Name           | Type          | Size/Constraints | Initialization | Description                         |
-| -------------- | ------------- | ---------------- | -------------- | ----------------------------------- |
-| mealPlansTable | DrizzleTable  | schema-defined   | Module import  | Drizzle schema for meal_plans table |
-| mealSlotsTable | DrizzleTable  | schema-defined   | Module import  | Drizzle schema for meal_slots table |
-| db             | DrizzleClient | singleton        | DI injection   | Postgres connection pool            |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception    | Architecture Contract                  | Recovery                      |
-| --------------------------- | ------------------------- | -------------------------------------- | ----------------------------- |
-| DB connection failure       | DatabaseException         | ARCH-003 Interface View: DatabaseError | Propagate; NestJS 500 handler |
-| Unique constraint violation | UniqueConstraintException | ARCH-003 Interface View: ConflictError | Propagate to service          |
-| FK constraint violation     | ForeignKeyException       | ARCH-003 Interface View: DatabaseError | Propagate to service          |
+**Errors**: `EmptySlotSetError`, `DuplicateSlotError`, `UnknownSlotError`, each with an `is*` guard.
 
 ---
 
-### Module: MOD-004 (RecipeAssignmentController)
+### MOD-004 (aggregatePlanNutrition) — the core algorithm
 
-**Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `src/meal-planning/controllers/recipe-assignment.controller.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-004 · **Target**: `packages/shared/meal-plan-core/src/nutritionRollup.ts` · **Purity**: **pure — no
+I/O, no clock, no randomness**
 
 ```pseudocode
-// @Controller('/meal-plans/:planId/slots/:slotId')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
+// Consumes RecipeNutrition from @kitchensink/recipe-core. Does NOT recompute macros —
+// recipe-core owns that computation, including unit conversion and per-line partiality.
 
-FUNCTION assignRecipe(planId: string, slotId: string, body: AssignRecipeDTO, authContext: AuthContext) -> RecipeAssignmentDTO:
-    // @Post('/recipe')
-    userId = authContext.userId
-    result = AWAIT recipeAssignmentService.assignRecipe(slotId, body.recipeId, userId)
-    RETURN result  // HTTP 201
+TYPE Macros    = { calories, proteinG, carbsG, fatG }            // all non-negative
+TYPE DayTotal  = { date: IsoDate, totals?: Macros, isComplete: boolean }
+TYPE PlanTotal = { totals?: Macros, isComplete: boolean }
 
-FUNCTION removeAssignment(planId: string, slotId: string, authContext: AuthContext) -> void:
-    // @Delete('/recipe')
-    userId = authContext.userId
-    AWAIT recipeAssignmentService.removeAssignment(slotId, userId)
-    RETURN  // HTTP 204
+FUNCTION aggregatePlanNutrition(
+    range: DateRange,
+    entries: readonly MealPlanEntry[],
+    nutritionByRecipeId: ReadonlyMap<RecipeId, RecipeNutrition | null>,
+) -> { perDay: DayTotal[], planTotal: PlanTotal }:
 
-FUNCTION getSlotAssignments(planId: string, authContext: AuthContext) -> RecipeAssignmentDTO[]:
-    // @Get('/')  (on /meal-plans/:planId/slots)
-    userId = authContext.userId
-    result = AWAIT recipeAssignmentService.getAssignmentsForPlan(planId, userId)
-    RETURN result  // HTTP 200
+    perDay = []
+    FOR EACH date IN eachDate(range):                       // EVERY day, including empty ones
+        dayEntries = entries WHERE entry.date == date
+
+        acc = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+        complete = true
+        contributed = false                                 // did ANY entry actually add nutrition?
+
+        FOR EACH entry IN dayEntries:
+            n = nutritionByRecipeId.get(entry.recipeId)
+            IF n IS undefined OR n IS null:
+                // undefined = gateway never answered for this id; null = unreadable (orphaned).
+                // Both contribute NOTHING and destroy completeness.
+                complete = false
+                CONTINUE
+            acc.calories += n.calories * entry.servings
+            acc.proteinG += n.proteinG * entry.servings
+            acc.carbsG   += n.carbsG   * entry.servings
+            acc.fatG     += n.fatG     * entry.servings
+            contributed = true
+            IF NOT n.isComplete:
+                complete = false          // recipe-level partiality propagates upward
+
+        // CORRECTED 2026-08-05 (T011/T012). The earlier pseudocode special-cased only the EMPTY day, so a
+        // day whose entries were ALL orphaned fell through and reported `totals: {0,0,0,0}` — the exact
+        // false zero HAZ-033 calls "a factual lie about the plan", and a direct contradiction of both
+        // UTS-004-B4 and this module's own invariant (`totals === undefined` iff the day has no
+        // CONTRIBUTING entry). Gating on `contributed` satisfies all three and removes the special case:
+        // an empty day and an all-orphaned day both report no totals, and differ only in `isComplete`.
+        perDay.push({ date, totals: contributed ? acc : undefined, isComplete: complete })
+
+    contributing = perDay WHERE totals IS DEFINED
+    planTotal = contributing IS EMPTY
+        ? { totals: undefined, isComplete: all(perDay, d => d.isComplete) }
+        : { totals: sumMacros(contributing.totals), isComplete: all(perDay, d => d.isComplete) }
+
+    RETURN { perDay, planTotal }
 ```
 
-#### State Machine View
+**Invariants (property-test these, per `ENGINEERING_EXCELLENCE` QSE §4)**
 
-N/A — Stateless request dispatcher.
+| Invariant                                                                 | Why it matters                                       |
+| ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Summation is order-independent and associative                            | Entry ordering must never change a total             |
+| `isComplete` is monotonically destroyed — never restored by a later entry | One unaccounted line makes the whole day an estimate |
+| `perDay.length == dayCount(range)` always                                 | Empty days are represented, not omitted              |
+| `totals === undefined` ⟺ the day has no contributing entry                | Distinguishes "nothing planned" from "zero calories" |
+| Doubling every `servings` doubles every macro exactly                     | Servings is a pure multiplier (FR-030)               |
+| Output depends only on inputs                                             | No clock, no I/O — the reason no cache is needed     |
 
-#### Internal Data Structures
+**State machine**: none. **Errors**: none — the function is total. A missing or unreadable recipe is a _value_ handled
+by the fold, not an exception.
 
-| Name        | Type          | Size/Constraints | Initialization | Description                 |
-| ----------- | ------------- | ---------------- | -------------- | --------------------------- |
-| planId      | string (UUID) | 36 chars         | Route param    | Parent meal plan identifier |
-| slotId      | string (UUID) | 36 chars         | Route param    | Target meal slot identifier |
-| authContext | AuthContext   | object           | Injected guard | userId and tier from JWT    |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Slot not found              | NotFoundException (404)     | ARCH-004 Interface View: NotFoundError     | Return 404 to client |
-| Recipe not accessible       | ForbiddenException (403)    | ARCH-004 Interface View: ForbiddenError    | Return 403 to client |
-| Invalid Clerk session token | UnauthorizedException (401) | ARCH-004 Interface View: UnauthorizedError | Return 401           |
+**Test obligations**: 0 entries; 1 entry; all entries orphaned; mixed complete/partial; servings at 1 and 99; a 90-day
+plan at full density; `undefined` vs `null` map entries; float accumulation over 360 entries.
 
 ---
 
-### Module: MOD-005 (RecipeAssignmentService)
+### MOD-005 (mealPlanAccessPolicy)
 
-**Parent Architecture Modules**: ARCH-005
-**Target Source File(s)**: `src/meal-planning/services/recipe-assignment.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-005 · **Target**: `packages/shared/meal-plan-core/src/mealPlanAccessPolicy.ts` · **Purity**: pure
 
 ```pseudocode
-FUNCTION assignRecipe(slotId: string, recipeId: string, userId: string) -> RecipeAssignment:
-    // Verify slot belongs to a plan owned by userId
-    slot = AWAIT recipeAssignmentRepository.findSlotByIdAndUser(slotId, userId)
-    IF slot IS NULL:
-        THROW SlotNotFoundException(slotId)
+// SECURITY-RELEVANT: every predicate FAILS CLOSED. An absent viewer id can never satisfy ownership.
+// Single authoritative representation, called identically by service, web and mobile — the D7 lesson
+// from recipeAccessPolicy, where web and mobile implemented two different clone gates.
 
-    // Verify recipe exists and is accessible to userId
-    recipe = AWAIT recipeApiAdapter.fetchRecipe(recipeId, userId)
-    IF recipe IS NULL:
-        THROW RecipeNotFoundException(recipeId)
+FUNCTION isOwner(resource: { ownerId }, viewer: Viewer) -> boolean:
+    RETURN viewer.id IS DEFINED AND viewer.id === resource.ownerId
 
-    // Upsert assignment (one recipe per slot)
-    assignment = AWAIT recipeAssignmentRepository.upsertAssignment(slotId, recipeId)
-
-    // Invalidate nutritional cache for the parent plan
-    AWAIT nutritionalSummaryCache.invalidate(slot.planId)
-
-    RETURN assignment
-
-FUNCTION removeAssignment(slotId: string, userId: string) -> void:
-    slot = AWAIT recipeAssignmentRepository.findSlotByIdAndUser(slotId, userId)
-    IF slot IS NULL:
-        THROW SlotNotFoundException(slotId)
-    AWAIT recipeAssignmentRepository.deleteAssignment(slotId)
-    AWAIT nutritionalSummaryCache.invalidate(slot.planId)
-
-FUNCTION getAssignmentsForPlan(planId: string, userId: string) -> RecipeAssignment[]:
-    // Verify plan ownership
-    plan = AWAIT mealPlanRepository.findByIdAndUser(planId, userId)
-    IF plan IS NULL:
-        THROW PlanNotFoundException(planId)
-    assignments = AWAIT recipeAssignmentRepository.findByPlanId(planId)
-    RETURN assignments
-
-FUNCTION bulkAssign(slots: MealSlot[], recipes: RecipeDTO[]) -> RecipeAssignment[]:
-    // Used by AutoGenerateService — slots and recipes are pre-validated
-    // Zip slots with ranked recipes (round-robin if fewer recipes than slots)
-    pairs = slots.map((slot, i) => ({ slotId: slot.id, recipeId: recipes[i % recipes.length].id }))
-    assignments = AWAIT recipeAssignmentRepository.bulkInsert(pairs)
-    RETURN assignments
+FUNCTION canViewPlan(plan, viewer)   -> boolean:  RETURN isOwner(plan, viewer)
+FUNCTION canModifyPlan(plan, viewer) -> boolean:  RETURN isOwner(plan, viewer)
+FUNCTION canApplyTemplate(t, viewer) -> boolean:  RETURN isOwner(t, viewer)
 ```
 
-#### State Machine View
+The client half of the gate; the service is the enforcement boundary. They must agree, or the UI lies about what an
+action will do.
 
-N/A — Stateless; state is persisted in the repository.
-
-#### Internal Data Structures
-
-| Name   | Type             | Size/Constraints | Initialization | Description                           |
-| ------ | ---------------- | ---------------- | -------------- | ------------------------------------- |
-| slot   | MealSlot         | object           | DB fetch       | Slot record with planId for cache key |
-| recipe | RecipeDTO        | object           | API fetch      | Validated recipe from Recipe API      |
-| pairs  | AssignmentPair[] | array            | Computed       | slotId+recipeId pairs for bulk insert |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception     | Architecture Contract                      | Recovery                  |
-| --------------------------- | -------------------------- | ------------------------------------------ | ------------------------- |
-| Slot not found for userId   | SlotNotFoundException      | ARCH-005 Interface View: NotFoundError     | Propagate to controller   |
-| Recipe not found/accessible | RecipeNotFoundException    | ARCH-005 Interface View: NotFoundError     | Propagate to controller   |
-| Cache invalidation failure  | CacheException (non-fatal) | ARCH-005 Interface View: (logged, ignored) | Log warning; continue     |
-| Bulk insert partial failure | DatabaseException          | ARCH-005 Interface View: DatabaseError     | Full transaction rollback |
+**Test obligations**: absent viewer id; empty-string viewer id; transposed ids; owner match.
 
 ---
 
-### Module: MOD-006 (RecipeAssignmentRepository)
+### MOD-006 (templateProjection)
 
-**Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `src/meal-planning/repositories/recipe-assignment.repository.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-006 · **Target**: `packages/shared/meal-plan-core/src/templateProjection.ts` · **Purity**: pure
 
 ```pseudocode
-FUNCTION findSlotByIdAndUser(slotId: string, userId: string) -> MealSlot | null:
-    // Join meal_slots → meal_plans to enforce ownership
-    rows = AWAIT db.select().from(mealSlotsTable)
-        .innerJoin(mealPlansTable, eq(mealSlotsTable.planId, mealPlansTable.id))
-        .where(AND(eq(mealSlotsTable.id, slotId), eq(mealPlansTable.userId, userId)))
-        .limit(1)
-    RETURN rows[0]?.meal_slots ?? null
+FUNCTION toTemplate(plan, entries) -> TemplateDraft:
+    // Relative offsets, NOT dates — this is what makes a template re-appliable.
+    RETURN {
+        spanDays: dayCount(plan.range),
+        mealSlots: plan.mealSlots,
+        entries: entries.map(e => ({
+            dayOffset: signedDayOffset(plan.range, e.date),   // via the DateRange value object
+            mealSlot: e.mealSlot, recipeId: e.recipeId, servings: e.servings,
+        })),
+    }
 
-FUNCTION upsertAssignment(slotId: string, recipeId: string) -> RecipeAssignment:
-    rows = AWAIT db.insert(recipeAssignmentsTable)
-        .values({ slotId, recipeId, assignedAt: NOW() })
-        .onConflictDoUpdate({ target: recipeAssignmentsTable.slotId, set: { recipeId, assignedAt: NOW() } })
-        .returning()
-    RETURN rows[0]
+FUNCTION applyTemplate(template, startDate, readability: ReadonlyMap<RecipeId, boolean>)
+        -> { range, entries, skipped: { unreadableRecipe, outOfRange, slotNotSelected, occupied } }:
+    range = dateRange(startDate, addCalendarDays(startDate, template.spanDays - 1))
+    // CORRECTED 2026-08-05 (T016). This carried only TWO skip reasons; it predates REQ-CN-010 (a cell holds
+    // at most one entry) and REQ-CN-013 (an entry's slot must be one its plan selected). Both are now
+    // enforced by the database, so an unskipped entry of either kind fails the WHOLE apply transaction —
+    // the user gets nothing instead of a partial plan with a reported skip.
+    //
+    // Precedence resolves the target OUTSIDE-IN — does the day exist, does that slot exist on it, is the
+    // cell free — with readability first as the only reason a user can act on:
+    //     unreadableRecipe -> outOfRange -> slotNotSelected -> occupied
+    // Exactly one count per entry. A cell is claimed only by an entry actually PLACED, so a skipped entry
+    // never blocks a readable duplicate behind it.
+    entries = []; unreadableRecipe = 0; outOfRange = 0; slotNotSelected = 0; occupied = 0
 
-FUNCTION deleteAssignment(slotId: string) -> void:
-    AWAIT db.delete(recipeAssignmentsTable).where(eq(recipeAssignmentsTable.slotId, slotId))
+    FOR EACH te IN template.entries:
+        IF readability.get(te.recipeId) !== true:      // absent or false ⇒ skip (FAIL CLOSED)
+            unreadableRecipe += 1; CONTINUE
+        date = addCalendarDays(startDate, te.dayOffset)
+        IF NOT contains(range, date):
+            outOfRange += 1; CONTINUE
+        entries.push({ date, mealSlot: te.mealSlot, recipeId: te.recipeId, servings: te.servings })
 
-FUNCTION findByPlanId(planId: string) -> RecipeAssignment[]:
-    rows = AWAIT db.select().from(recipeAssignmentsTable)
-        .innerJoin(mealSlotsTable, eq(recipeAssignmentsTable.slotId, mealSlotsTable.id))
-        .where(eq(mealSlotsTable.planId, planId))
-    RETURN rows.map(r => r.recipe_assignments)
-
-FUNCTION bulkInsert(pairs: AssignmentPair[]) -> RecipeAssignment[]:
-    // Wrapped in a database transaction
-    rows = AWAIT db.transaction(async (tx) => {
-        inserted = AWAIT tx.insert(recipeAssignmentsTable)
-            .values(pairs.map(p => ({ slotId: p.slotId, recipeId: p.recipeId, assignedAt: NOW() })))
-            .returning()
-        RETURN inserted
-    })
-    RETURN rows
+    RETURN { range, entries, skipped: { unreadableRecipe, outOfRange, slotNotSelected, occupied } }
 ```
 
-#### State Machine View
+The **skip counts are part of the return value**, not a log line — they are shown to the user (FR-028). Ordering of the
+two checks is deliberate: readability is checked first so an unreadable recipe outside the range is reported once, by
+its more actionable reason.
 
-N/A — Stateless; each method is an independent database operation.
-
-#### Internal Data Structures
-
-| Name                   | Type         | Size/Constraints | Initialization | Description                           |
-| ---------------------- | ------------ | ---------------- | -------------- | ------------------------------------- |
-| recipeAssignmentsTable | DrizzleTable | schema-defined   | Module import  | Drizzle schema for recipe_assignments |
-| mealSlotsTable         | DrizzleTable | schema-defined   | Module import  | Drizzle schema for meal_slots         |
-| mealPlansTable         | DrizzleTable | schema-defined   | Module import  | Drizzle schema for meal_plans         |
-
-#### Error Handling & Return Codes
-
-| Error Condition       | Error Code / Exception | Architecture Contract                  | Recovery                      |
-| --------------------- | ---------------------- | -------------------------------------- | ----------------------------- |
-| DB connection failure | DatabaseException      | ARCH-006 Interface View: DatabaseError | Propagate; NestJS 500 handler |
-| Transaction rollback  | TransactionException   | ARCH-006 Interface View: DatabaseError | Propagate to service          |
+**Test obligations**: round-trip `toTemplate ∘ applyTemplate` preserves relative positions (property test); offset 0;
+offset = span − 1; offset ≥ span (out of range); all recipes unreadable; empty template; DST-crossing target range.
 
 ---
 
-### Module: MOD-007 (NutritionalSummaryController)
+### MOD-007 (groceryProjection)
 
-**Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `src/meal-planning/controllers/nutritional-summary.controller.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-007 · **Target**: `packages/shared/meal-plan-core/src/groceryProjection.ts` · **Purity**: pure
 
 ```pseudocode
-// @Controller('/meal-plans/:planId/nutrition')  // AuthMiddleware (global Bearer auth) — req.user populated, no per-route guard
-
-FUNCTION getDailySummary(planId: string, authContext: AuthContext) -> NutritionalSummaryDTO:
-    // @Get('/daily')
-    userId = authContext.userId
-    result = AWAIT nutritionalSummaryService.getDailySummary(planId, userId)
-    RETURN result  // HTTP 200
-
-FUNCTION getWeeklySummary(planId: string, authContext: AuthContext) -> NutritionalSummaryDTO:
-    // @Get('/weekly')
-    userId = authContext.userId
-    result = AWAIT nutritionalSummaryService.getWeeklySummary(planId, userId)
-    RETURN result  // HTTP 200
+FUNCTION toGroceryProjection(plan, entries, orphanedIds: ReadonlySet<MealPlanEntryId>) -> GroceryProjectionV1:
+    RETURN {
+        version: 'v1',
+        planId: plan.id,
+        dateRange: { start: plan.range.startDate, end: plan.range.endDate },   // WIRE keys stay start/end
+        entries: entries
+            .filter(e => NOT orphanedIds.has(e.id))          // an unreadable recipe cannot be shopped for
+            .map(e => ({ recipeId: e.recipeId, date: e.date, mealSlot: e.mealSlot, servings: e.servings })),
+    }
 ```
 
-#### State Machine View
-
-N/A — Stateless request dispatcher.
-
-#### Internal Data Structures
-
-| Name        | Type          | Size/Constraints | Initialization | Description                 |
-| ----------- | ------------- | ---------------- | -------------- | --------------------------- |
-| planId      | string (UUID) | 36 chars         | Route param    | Target meal plan identifier |
-| authContext | AuthContext   | object           | Injected guard | userId and tier from JWT    |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception            | Architecture Contract                      | Recovery             |
-| --------------------------- | --------------------------------- | ------------------------------------------ | -------------------- |
-| Plan not found              | NotFoundException (404)           | ARCH-007 Interface View: NotFoundError     | Return 404 to client |
-| USDA service unavailable    | ServiceUnavailableException (503) | ARCH-007 Interface View: ServiceError      | Return 503           |
-| Invalid Clerk session token | UnauthorizedException (401)       | ARCH-007 Interface View: UnauthorizedError | Return 401           |
+**No ingredients, no quantities, no units, no dedup** — 007 owns those rules. Versioned additively: a new optional field
+never breaks a consumer.
 
 ---
 
-### Module: MOD-008 (NutritionalSummaryService)
+### MOD-008 (mealPlanDatabaseName)
 
-**Parent Architecture Modules**: ARCH-008
-**Target Source File(s)**: `src/meal-planning/services/nutritional-summary.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-008 · **Target**: `packages/shared/meal-plan-core/src/mealPlanDatabaseName.ts` · **Purity**: pure
 
 ```pseudocode
-FUNCTION getDailySummary(planId: string, userId: string) -> NutritionalSummaryDTO:
-    RETURN AWAIT computeSummary(planId, userId, granularity="daily")
-
-FUNCTION getWeeklySummary(planId: string, userId: string) -> NutritionalSummaryDTO:
-    RETURN AWAIT computeSummary(planId, userId, granularity="weekly")
-
-FUNCTION computeSummary(planId: string, userId: string, granularity: "daily"|"weekly") -> NutritionalSummaryDTO:
-    // Check cache first
-    cacheKey = `nutrition:${planId}:${granularity}`
-    cached = AWAIT nutritionalSummaryCache.get(cacheKey)
-    IF cached IS NOT NULL:
-        RETURN cached
-
-    // Verify plan ownership
-    plan = AWAIT mealPlanRepository.findByIdAndUser(planId, userId)
-    IF plan IS NULL:
-        THROW PlanNotFoundException(planId)
-
-    // Fetch all recipe assignments for the plan
-    assignments = AWAIT recipeAssignmentRepository.findByPlanId(planId)
-
-    // Collect all ingredient IDs across all assigned recipes
-    allIngredientIds = []
-    FOR EACH assignment IN assignments:
-        recipe = AWAIT recipeApiAdapter.fetchRecipe(assignment.recipeId, userId)
-        allIngredientIds.push(...recipe.ingredients.map(i => i.id))
-
-    // Batch-fetch nutrient data in parallel
-    uniqueIngredientIds = deduplicate(allIngredientIds)
-    nutrientData = AWAIT usdaFoodDataAdapter.batchFetchNutrients(uniqueIngredientIds)
-
-    // Aggregate by granularity
-    IF granularity == "daily":
-        summary = aggregateByDay(assignments, nutrientData)
-    ELSE:
-        summary = aggregateByWeek(assignments, nutrientData)
-
-    // Cache result with 1-hour TTL
-    AWAIT nutritionalSummaryCache.set(cacheKey, summary, ttl=3600)
-    RETURN summary
-
-FUNCTION aggregateByDay(assignments: RecipeAssignment[], nutrients: NutrientDataDTO[]) -> DailySummary[]:
-    // Group assignments by dayOffset; sum calories, protein, carbs, fat per day
-    dayMap = new Map<number, NutrientTotals>()
-    FOR EACH assignment IN assignments:
-        day = assignment.slot.dayOffset
-        totals = dayMap.get(day) ?? { calories: 0, protein: 0, carbs: 0, fat: 0 }
-        ingredientNutrients = nutrients.filter(n => assignment.recipe.ingredients.includes(n.id))
-        FOR EACH n IN ingredientNutrients:
-            totals.calories += n.calories
-            totals.protein  += n.protein
-            totals.carbs    += n.carbs
-            totals.fat      += n.fat
-        dayMap.set(day, totals)
-    RETURN Array.from(dayMap.entries()).map(([day, totals]) => ({ day, ...totals }))
-
-FUNCTION aggregateByWeek(assignments: RecipeAssignment[], nutrients: NutrientDataDTO[]) -> WeeklySummary:
-    dailySummaries = aggregateByDay(assignments, nutrients)
-    weeklyTotals = dailySummaries.reduce((acc, d) => ({
-        calories: acc.calories + d.calories,
-        protein:  acc.protein  + d.protein,
-        carbs:    acc.carbs    + d.carbs,
-        fat:      acc.fat      + d.fat
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0 })
-    RETURN { weeklyTotals, dailyBreakdown: dailySummaries }
+CONSTANT BASE_DATABASE_NAME = 'kitchensink_meal_plans'
+FUNCTION mealPlanDatabaseName(stage, baseStage) -> string:
+    RETURN stage === baseStage ? BASE_DATABASE_NAME : `${BASE_DATABASE_NAME}_${sanitize(stage)}`
 ```
 
-#### State Machine View
-
-N/A — Stateless; cache is managed by NutritionalSummaryCache (MOD-009).
-
-#### Internal Data Structures
-
-| Name                | Type                        | Size/Constraints     | Initialization | Description                           |
-| ------------------- | --------------------------- | -------------------- | -------------- | ------------------------------------- |
-| cacheKey            | string                      | `nutrition:{id}:{g}` | Computed       | Redis key for cached summary          |
-| allIngredientIds    | string[]                    | unbounded            | Computed       | All ingredient IDs across assignments |
-| uniqueIngredientIds | string[]                    | deduplicated         | Computed       | Deduped IDs for USDA batch fetch      |
-| dayMap              | Map<number, NutrientTotals> | 1–365 entries        | Computed       | Per-day nutrient accumulator          |
-
-#### Error Handling & Return Codes
-
-| Error Condition           | Error Code / Exception      | Architecture Contract                      | Recovery                    |
-| ------------------------- | --------------------------- | ------------------------------------------ | --------------------------- |
-| Plan not found for userId | PlanNotFoundException       | ARCH-008 Interface View: NotFoundError     | Propagate to controller     |
-| USDA adapter circuit open | ServiceUnavailableException | ARCH-008 Interface View: ServiceError      | Propagate 503 to controller |
-| Recipe API unavailable    | ServiceUnavailableException | ARCH-008 Interface View: ServiceError      | Propagate 503 to controller |
-| Cache read/write failure  | CacheException (non-fatal)  | ARCH-008 Interface View: (logged, ignored) | Bypass cache; compute live  |
+**This module MUST have no imports and MUST NOT be re-exported from the barrel.** Imported as
+`@kitchensink/meal-plan-core/database-name`. This is the exact constraint documented on `recipeDatabaseName.ts`, whose
+violation (defect #119) pointed the recipe API and its workers at two different databases in a live preview — with three
+destructive scheduled workers on the wrong one. A cross-stack parity test is part of this module's contract.
 
 ---
 
-### Module: MOD-009 (NutritionalSummaryCache)
+## Service — `packages/services/meal-plan-service`
 
-**Parent Architecture Modules**: ARCH-009
-**Target Source File(s)**: `src/meal-planning/cache/nutritional-summary.cache.ts`
+### MOD-009 (MealPlansController)
 
-#### Algorithmic / Logic View
+**Parent**: ARCH-009 · **Target**: `src/plans/meal-plans.controller.ts` · **Purity**: impure (`@sideEffect`: HTTP)
 
 ```pseudocode
-FUNCTION get(key: string) -> NutritionalSummaryDTO | null:
-    raw = AWAIT redisClient.get(key)
-    IF raw IS NULL:
-        RETURN null
-    RETURN JSON.parse(raw) as NutritionalSummaryDTO
+@Controller('v1/meal-plans')
+// AuthMiddleware is global (all routes but /health); req.principal carries the app-user ULID. No per-route
+// guard. CORRECTED 2026-08-07 (T024): this said `req.user`, which collides with Express/passport
+// typings — every shipped service uses `req.principal` with @OwnerId() / @CurrentPrincipal().
 
-FUNCTION set(key: string, value: NutritionalSummaryDTO, ttl: number) -> void:
-    serialized = JSON.stringify(value)
-    AWAIT redisClient.set(key, serialized, "EX", ttl)
+@Post()    create(@Body raw, @CurrentPrincipal p)          -> 201 MealPlanDetail
+    dto = createMealPlanSchema.parse(raw)            // parse, don't validate
+    RETURN plansService.create(dto, p.userId)
 
-FUNCTION invalidate(planId: string) -> void:
-    // Invalidate both daily and weekly keys for the plan
-    dailyKey  = `nutrition:${planId}:daily`
-    weeklyKey = `nutrition:${planId}:weekly`
-    AWAIT redisClient.del(dailyKey, weeklyKey)
+@Get()     list(@Query raw, @CurrentPrincipal p)           -> 200 { items, nextCursor? }
+    q = listQuerySchema.parse(raw)                   // cursor + limit (≤100, default 20) — KEYSET
+    RETURN plansService.list(p.userId, q)
+
+@Get(':id')    get(id, p)      -> 200 MealPlanDetail  // plan + entries + nutrition, ONE round trip
+@Patch(':id')  update(id, raw, p) -> 200 MealPlanDetail
+@Delete(':id') remove(id, p)   -> 204                 // cascades to entries; repeat succeeds
 ```
 
-#### State Machine View
+**Errors**
 
-```mermaid
-stateDiagram-v2
-    [*] --> Empty : key not in Redis
-    Empty --> Populated : set(key, value, ttl)
-    Populated --> Empty : invalidate(planId) or TTL expiry
-    Populated --> Populated : get(key) [cache hit]
-    Empty --> Empty : get(key) [cache miss]
-```
-
-#### Internal Data Structures
-
-| Name        | Type        | Size/Constraints | Initialization  | Description                       |
-| ----------- | ----------- | ---------------- | --------------- | --------------------------------- |
-| redisClient | RedisClient | singleton        | DI injection    | ioredis client connected to Redis |
-| ttl         | number      | 3600 (seconds)   | Caller-provided | Cache entry time-to-live          |
-
-#### Error Handling & Return Codes
-
-| Error Condition          | Error Code / Exception | Architecture Contract               | Recovery                          |
-| ------------------------ | ---------------------- | ----------------------------------- | --------------------------------- |
-| Redis connection failure | CacheException         | ARCH-009 Interface View: CacheError | Log error; caller bypasses cache  |
-| JSON parse error         | ParseException         | ARCH-009 Interface View: CacheError | Return null (treat as cache miss) |
+| Condition                    | Error                        | HTTP | Note                                         |
+| ---------------------------- | ---------------------------- | ---- | -------------------------------------------- |
+| Body/query fails Zod         | `ZodError` → filter          | 422  | Field-bound `details[]`                      |
+| Plan absent **or not owned** | `MealPlanNotFoundError`      | 404  | **Identical response for both** (REQ-CN-002) |
+| Invalid range/slots          | `InvalidDateRangeError` etc. | 422  |                                              |
+| No/invalid token             | middleware                   | 401  |                                              |
 
 ---
 
-### Module: MOD-010 (AISuggestionController)
+### MOD-010 (MealPlansService)
 
-**Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `src/meal-planning/controllers/ai-suggestion.controller.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-010 · **Target**: `src/plans/meal-plans.service.ts` · **Purity**: impure (`@sideEffect`: DB)
 
 ```pseudocode
-// @Controller('/meal-plans/:planId/suggestions')
-// @UseGuards(PremiumTierGuard)  // AuthMiddleware (global) already authenticated; req.user populated
+FUNCTION create(dto, userId):
+    range = dateRange(dto.startDate, dto.endDate)     // MOD-002 throws on invalid
+    slots = parseSlotSet(dto.mealSlots)               // MOD-003 throws on invalid
+    RETURN repo.insert({ ownerId: userId, name: dto.name, range, slots })
 
-FUNCTION getSuggestions(planId: string, body: SuggestionRequestDTO, authContext: AuthContext) -> SuggestionListDTO:
-    // @Post('/')
-    // PremiumTierGuard has already verified tier === 'premium'
-    userId = authContext.userId
-    result = AWAIT aiSuggestionService.getSuggestions(body.preferences, userId)
-    RETURN result  // HTTP 200
+FUNCTION getDetail(planId, userId):
+    plan = repo.findOwned(planId, userId)             // owner predicate IN the query
+    IF plan IS NULL THROW MealPlanNotFoundError(planId)
+    entries = entriesRepo.listForPlan(planId)
+    summary = nutritionService.summarize(plan, entries)     // MOD-014
+    RETURN compose(plan, entries, summary)
+
+FUNCTION update(planId, dto, userId):
+    plan = findOwned…
+    IF dto narrows the range AND entries fall outside:
+        THROW EntriesOutsideNewRangeError({ affectedCount })   // 409 — never silently orphan the user's work
 ```
 
-#### State Machine View
-
-N/A — Stateless request dispatcher.
-
-#### Internal Data Structures
-
-| Name        | Type          | Size/Constraints | Initialization | Description                 |
-| ----------- | ------------- | ---------------- | -------------- | --------------------------- |
-| planId      | string (UUID) | 36 chars         | Route param    | Target meal plan identifier |
-| authContext | AuthContext   | object           | Injected guard | userId and tier from JWT    |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Non-premium tier            | ForbiddenException (403)    | ARCH-010 Interface View: ForbiddenError    | Return 403 to client |
-| AI provider unavailable     | ServiceUnavailableException | ARCH-010 Interface View: ServiceError      | Return 503 to client |
-| Invalid Clerk session token | UnauthorizedException (401) | ARCH-010 Interface View: UnauthorizedError | Return 401 to client |
+**State machine**: none. A plan has no lifecycle states — the `is_locked` state machine of the May design is deleted
+(C-006-007).
 
 ---
 
-### Module: MOD-011 (AISuggestionService)
+### MOD-011 (MealPlansRepository)
 
-**Parent Architecture Modules**: ARCH-011
-**Target Source File(s)**: `src/meal-planning/services/ai-suggestion.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-011 · **Target**: `src/plans/dal/meal-plans.repository.ts` · **Purity**: impure (`@sideEffect`: SQL)
 
 ```pseudocode
-FUNCTION getSuggestions(preferences: DietaryPreferences, userId: string) -> SuggestionListDTO:
-    // Fetch user's available recipe collection
-    recipes = AWAIT recipeApiAdapter.fetchUserRecipes(userId)
-    IF recipes.length == 0:
-        RETURN { suggestions: [] }
+FUNCTION findOwned(planId, ownerId):
+    // Owner predicate is part of the WHERE clause, never a post-filter — a post-filter
+    // leaks existence through timing and is one refactor away from being dropped.
+    SELECT * FROM meal_plans WHERE id = $1 AND owner_id = $2
 
-    // Build structured prompt
-    prompt = buildPrompt(preferences, recipes)
-
-    // Invoke AI provider
-    aiResponse = AWAIT aiProviderAdapter.invoke(prompt)
-
-    // Parse and rank suggestions
-    suggestions = parseAIResponse(aiResponse)
-    ranked = rankSuggestions(suggestions, preferences)
-
-    RETURN { suggestions: ranked }
-
-FUNCTION buildPrompt(preferences: DietaryPreferences, recipes: RecipeDTO[]) -> PromptDTO:
-    recipeList = recipes.map(r => `${r.name}: ${r.tags.join(", ")}`).join("\n")
-    promptText = `
-        User dietary preferences: ${JSON.stringify(preferences)}
-        Available recipes:
-        ${recipeList}
-        Suggest the top 5 recipes that best match the preferences.
-        Return JSON array: [{ recipeId, recipeName, score, reason }]
-    `
-    RETURN { text: promptText, maxTokens: 1000, temperature: 0.3 }
-
-FUNCTION parseAIResponse(response: AIResponseDTO) -> SuggestionItem[]:
-    raw = response.content
-    parsed = JSON.parse(raw)  // May throw ParseException
-    IF NOT Array.isArray(parsed):
-        THROW ParseException("AI response is not an array")
-    RETURN parsed.map(item => ({
-        recipeId: item.recipeId,
-        recipeName: item.recipeName,
-        score: clamp(item.score, 0, 1),
-        reason: item.reason
-    }))
-
-FUNCTION rankSuggestions(suggestions: SuggestionItem[], preferences: DietaryPreferences) -> SuggestionItem[]:
-    // Sort descending by score; secondary sort by preference tag overlap
-    RETURN suggestions.sort((a, b) => b.score - a.score).slice(0, 5)
+FUNCTION listOwned(ownerId, cursor?, limit):
+    // KEYSET pagination on (created_at DESC, id DESC), backed by meal_plans_owner_created_idx.
+    // Offset paging drifts under concurrent inserts and degrades on deep pages.
+    SELECT * FROM meal_plans
+     WHERE owner_id = $1 AND ($2 IS NULL OR (created_at, id) < ($2.createdAt, $2.id))
+     ORDER BY created_at DESC, id DESC LIMIT $3 + 1
 ```
-
-#### State Machine View
-
-N/A — Stateless; each invocation is independent.
-
-#### Internal Data Structures
-
-| Name        | Type             | Size/Constraints | Initialization | Description                             |
-| ----------- | ---------------- | ---------------- | -------------- | --------------------------------------- |
-| recipes     | RecipeDTO[]      | 0–1000           | API fetch      | User's available recipe collection      |
-| prompt      | PromptDTO        | object           | Computed       | Structured AI prompt with text + params |
-| aiResponse  | AIResponseDTO    | object           | AI call        | Raw AI provider response                |
-| suggestions | SuggestionItem[] | 0–5              | Parsed         | Ranked suggestion list                  |
-
-#### Error Handling & Return Codes
-
-| Error Condition           | Error Code / Exception      | Architecture Contract                 | Recovery                 |
-| ------------------------- | --------------------------- | ------------------------------------- | ------------------------ |
-| AI provider HTTP error    | ServiceUnavailableException | ARCH-011 Interface View: ServiceError | Propagate to controller  |
-| AI response parse failure | ParseException              | ARCH-011 Interface View: ParseError   | Return empty suggestions |
-| Recipe API unavailable    | ServiceUnavailableException | ARCH-011 Interface View: ServiceError | Propagate to controller  |
 
 ---
 
-### Module: MOD-012 (AutoGenerateController)
+### MOD-012 (Entries: controller + service + repository)
 
-**Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `src/meal-planning/controllers/auto-generate.controller.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-012 · **Target**: `src/entries/meal-plan-entries.{controller,service}.ts`,
+`src/entries/dal/meal-plan-entries.repository.ts` · **Purity**: impure
 
 ```pseudocode
-// @Controller('/meal-plans/auto-generate')
-// @UseGuards(PremiumTierGuard)  // AuthMiddleware (global) already authenticated; req.user populated
+FUNCTION assign(planId, dto, userId, idempotencyKey):
+    prior = idempotency.lookup(userId, 'POST /entries', idempotencyKey)
+    IF prior EXISTS: RETURN prior                       // replay, do not re-execute (FR-032)
 
-FUNCTION autoGenerate(body: AutoGenerateRequestDTO, authContext: AuthContext) -> MealPlanDTO:
-    // @Post('/')
-    // PremiumTierGuard has already verified tier === 'premium'
-    userId = authContext.userId
-    result = AWAIT autoGenerateService.autoGenerate(body.preferences, body.dateRange, userId)
-    RETURN result  // HTTP 201
+    plan = plansRepo.findOwned(planId, userId)
+    IF plan IS NULL THROW MealPlanNotFoundError(planId)
+    IF NOT contains(plan.range, dto.date)   THROW DateOutsidePlanRangeError(dto.date, plan.range)
+    IF NOT planUsesSlot(plan, dto.mealSlot) THROW SlotNotInPlanError(dto.mealSlot)
+    IF dto.servings < 1 OR > 99             THROW InvalidServingsError(dto.servings)
+    IF dto.note AND length > 500            THROW NoteTooLongError()
+
+    readable = recipeGateway.isReadable(dto.recipeId, principal)
+    SWITCH readable:
+        CASE 'readable':      break
+        CASE 'not-readable':  THROW RecipeNotReadableError(dto.recipeId)   // 404-shaped: discloses nothing
+        CASE 'unavailable':   THROW RecipeCheckUnavailableError()          // 503 — FAIL CLOSED, never assume readable
+
+    TRANSACTION:
+        entry = repo.insert({ planId, ...dto })
+        idempotency.store(userId, 'POST /entries', idempotencyKey, entry)   // SAME transaction
+    RETURN entry
+
+FUNCTION move(entryId, target, userId):   // re-runs the cell validation above; no duplicate row created
+FUNCTION remove(entryId, userId):         // idempotent — removing an absent entry returns success-shaped
 ```
 
-#### State Machine View
+Note there is **no duplicate-assignment conflict check**: FR-023 explicitly permits the same recipe in multiple cells
+and repeats within a cell, so there is no natural key. That is exactly why an idempotency ledger is required rather than
+a unique constraint.
 
-N/A — Stateless request dispatcher.
-
-#### Internal Data Structures
-
-| Name        | Type                   | Size/Constraints | Initialization | Description              |
-| ----------- | ---------------------- | ---------------- | -------------- | ------------------------ |
-| authContext | AuthContext            | object           | Injected guard | userId and tier from JWT |
-| body        | AutoGenerateRequestDTO | object           | Request body   | preferences + dateRange  |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Non-premium tier            | ForbiddenException (403)    | ARCH-012 Interface View: ForbiddenError    | Return 403 to client |
-| AI provider unavailable     | ServiceUnavailableException | ARCH-012 Interface View: ServiceError      | Return 503 to client |
-| Invalid Clerk session token | UnauthorizedException (401) | ARCH-012 Interface View: UnauthorizedError | Return 401 to client |
+**Errors**: `MealPlanNotFoundError` (404) · `DateOutsidePlanRangeError`, `SlotNotInPlanError`, `InvalidServingsError`,
+`NoteTooLongError` (422) · `RecipeNotReadableError` (404) · `RecipeCheckUnavailableError` (503).
 
 ---
 
-### Module: MOD-013 (AutoGenerateService)
+### MOD-013 (Templates: controller + service + repository)
 
-**Parent Architecture Modules**: ARCH-013
-**Target Source File(s)**: `src/meal-planning/services/auto-generate.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-013 · **Target**: `src/templates/*` · **Purity**: impure
 
 ```pseudocode
-FUNCTION autoGenerate(preferences: DietaryPreferences, dateRange: DateRange, userId: string) -> MealPlanDTO:
-    // Step 1: Create a draft meal plan with empty slots
-    startDate = parseISO(dateRange.startDate)
-    endDate   = parseISO(dateRange.endDate)
-    dayCount  = differenceInDays(endDate, startDate)
+FUNCTION saveAsTemplate(planId, name, userId):
+    plan = plansRepo.findOwned(planId, userId) OR THROW MealPlanNotFoundError
+    draft = toTemplate(plan, entriesRepo.listForPlan(planId))       // MOD-006, pure
+    TRANSACTION: insert template + template_entries
+    RETURN template
 
-    // Generate default slots: BREAKFAST, LUNCH, DINNER for each day
-    slots = []
-    FOR day IN 0..dayCount-1:
-        FOR mealType IN [BREAKFAST, LUNCH, DINNER]:
-            slots.push({ dayOffset: day, mealType })
-
-    plan = AWAIT mealPlanService.createPlan({
-        name: `Auto-generated plan ${formatDate(startDate)}`,
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        slots
-    }, userId)
-
-    // Step 2: Get AI suggestions
-    suggestions = AWAIT aiSuggestionService.getSuggestions(preferences, userId)
-    rankedRecipes = suggestions.suggestions.map(s => ({ id: s.recipeId }))
-
-    // Step 3: Bulk assign recipes to slots
-    planSlots = plan.slots
-    assignments = AWAIT recipeAssignmentService.bulkAssign(planSlots, rankedRecipes)
-
-    // Step 4: Return draft plan with assignments
-    draftPlan = { ...plan, slots: planSlots.map((s, i) => ({ ...s, assignment: assignments[i] })) }
-    RETURN draftPlan
+FUNCTION apply(templateId, startDate, name, userId, idempotencyKey):
+    prior = idempotency.lookup(...) ; IF prior RETURN prior
+    template = repo.findOwned(templateId, userId) OR THROW TemplateNotFoundError
+    outcome = recipeGateway.batchReadable(distinct(template.recipeIds), principal)
+    // gateway unavailable ⇒ every id unknown ⇒ every entry skipped ⇒ an empty plan and an
+    // honest skip report, rather than a plan silently missing meals for an unstated reason.
+    result = applyTemplate(template, startDate, outcome.byRecipeId)  // MOD-006, pure
+    TRANSACTION:
+        plan = plansRepo.insert(...)
+        entriesRepo.bulkInsert(result.entries)
+        idempotency.store(...)
+    RETURN { plan: MealPlanSummary(plan),           // SUMMARY — never MealPlanDetail. See below.
+             skipped: result.skipped,
+             recipeAvailability: outcome.availability }   // REQ-024 — see below.
 ```
 
-#### State Machine View
+**Return shape — `plan` is a `MealPlanSummary`, never a `MealPlanDetail`.** `MealPlanDetail` requires `nutrition`, and
+this value is **stored in the idempotency ledger and replayed for 24 hours** (REQ-015). Nutrition is derived at read
+time and MUST NOT be persisted (REQ-CN-004, and STS-003-A6 is the standing guard) — so a replay of a detail-shaped
+response would serve a nutrition rollup snapshotted at first-apply, which goes stale on the very next recipe edit with
+no invalidation path. That is precisely the second-source-of-truth failure REQ-CN-004 exists to prevent, smuggled in
+through the replay path where nobody would look for it. A caller that wants nutrition issues `GET /meal-plans/{id}`,
+which computes it fresh.
 
-```mermaid
-stateDiagram-v2
-    [*] --> CreatingPlan : autoGenerate() called
-    CreatingPlan --> FetchingSuggestions : plan created
-    FetchingSuggestions --> AssigningRecipes : suggestions received
-    AssigningRecipes --> Done : bulk assignment committed
-    AssigningRecipes --> RolledBack : transaction failure
-    RolledBack --> [*]
-    Done --> [*]
-```
+**`recipeAvailability` (REQ-024).** The gateway's verdict is three-state (`available | degraded | unavailable`) and
+the apply MUST pass it through, because the four skip counts cannot express "we could not check": both a confirmed
+unreadable recipe and an unanswered one land in `unreadableRecipe`, so an outage is indistinguishable from mass recipe
+deletion — and the two call for opposite user actions (retry versus rebuild the template). This field is what lets the
+client tell them apart. Note it is part of the value written to the ledger, so a replay reports the availability **as
+of the original apply**, which is correct: a replay is a re-read of that decision, not a fresh one.
 
-#### Internal Data Structures
+**Errors**: `TemplateNotFoundError` (404) · `InvalidDateRangeError` (422).
 
-| Name          | Type         | Size/Constraints | Initialization | Description                         |
-| ------------- | ------------ | ---------------- | -------------- | ----------------------------------- |
-| slots         | SlotConfig[] | dayCount × 3     | Computed       | Default 3-meal-per-day slot configs |
-| rankedRecipes | RecipeRef[]  | 0–5              | From AI        | Recipe IDs from AI suggestions      |
-| planSlots     | MealSlot[]   | dayCount × 3     | From DB        | Persisted slot records with IDs     |
-
-#### Error Handling & Return Codes
-
-| Error Condition         | Error Code / Exception | Architecture Contract                  | Recovery                    |
-| ----------------------- | ---------------------- | -------------------------------------- | --------------------------- |
-| Plan creation failure   | DatabaseException      | ARCH-013 Interface View: DatabaseError | Propagate to controller     |
-| AI suggestions empty    | (handled gracefully)   | ARCH-013 Interface View: (empty plan)  | Return plan with no recipes |
-| Bulk assignment failure | DatabaseException      | ARCH-013 Interface View: DatabaseError | Full transaction rollback   |
+> **Corrected 2026-08-07 (defect review).** The pseudocode used to end `RETURN { plan, skipped: result.skipped }` with
+> no shape stated for `plan` and no availability at all. That silence is what let `contracts/openapi.yaml` declare
+> `AppliedTemplate.plan` as a **`MealPlanDetail`** — a shape this operation cannot honestly return, for the
+> ledger-replay reason above. The shipped service already does the right thing (`toPlanSummary` in
+> `packages/services/meal-plan-service/src/templates/meal-plan-templates.service.ts`, returning
+> `MealPlanSummaryResource`), so the document and the contract were the drift, not the code. **The contract fix is not
+> made here** — `openapi.yaml` is owned by the main implementation thread and is reported to it.
 
 ---
 
-### Module: MOD-014 (WasteOptimizerController)
+### MOD-014 (PlanNutritionService)
 
-**Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/meal-planning/controllers/waste-optimizer.controller.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-014 · **Target**: `src/nutrition/plan-nutrition.service.ts` · **Purity**: impure orchestration around a
+pure core
 
 ```pseudocode
-// @Controller('/meal-plans/:planId/optimize')
-// @UseGuards(PremiumTierGuard)  // AuthMiddleware (global) already authenticated; req.user populated
-
-FUNCTION optimize(planId: string, authContext: AuthContext) -> OptimizationSuggestionsDTO:
-    // @Post('/')
-    // PremiumTierGuard has already verified tier === 'premium'
-    userId = authContext.userId
-    result = AWAIT wasteOptimizerService.optimize(planId, userId)
-    RETURN result  // HTTP 200
+FUNCTION summarize(plan, entries):
+    ids = distinct(entries.map(e => e.recipeId))
+    IF ids IS EMPTY:
+        RETURN aggregatePlanNutrition(plan.range, [], emptyMap())     // still returns every day
+    result = recipeGateway.batchNutrition(ids, principal)             // ONE logical call; gateway chunks
+    RETURN aggregatePlanNutrition(plan.range, entries, result.byRecipeId)
 ```
 
-#### State Machine View
+**This module contains no arithmetic.** Every macro operation lives in MOD-004. That separation is what makes the maths
+exhaustively testable without a network and is why the May `NutritionCalculator` interface — which mixed a
+`triggerOnEntryAdd(entry): void` side effect into a "calculator" — is deleted.
 
-N/A — Stateless request dispatcher.
-
-#### Internal Data Structures
-
-| Name        | Type          | Size/Constraints | Initialization | Description                 |
-| ----------- | ------------- | ---------------- | -------------- | --------------------------- |
-| planId      | string (UUID) | 36 chars         | Route param    | Target meal plan identifier |
-| authContext | AuthContext   | object           | Injected guard | userId and tier from JWT    |
-
-#### Error Handling & Return Codes
-
-| Error Condition             | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| --------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Non-premium tier            | ForbiddenException (403)    | ARCH-014 Interface View: ForbiddenError    | Return 403 to client |
-| Plan not found              | NotFoundException (404)     | ARCH-014 Interface View: NotFoundError     | Return 404 to client |
-| Invalid Clerk session token | UnauthorizedException (401) | ARCH-014 Interface View: UnauthorizedError | Return 401 to client |
+**Errors**: none. Gateway unavailability is a value; the summary comes back with `isComplete: false`.
 
 ---
 
-### Module: MOD-015 (WasteOptimizerService)
+### MOD-015 (RecipeGateway) — the availability boundary
 
-**Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `src/meal-planning/services/waste-optimizer.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-015 · **Target**: `src/recipes/recipe.gateway.ts` · **Purity**: impure (`@sideEffect`: HTTP)
 
 ```pseudocode
-FUNCTION optimize(planId: string, userId: string) -> OptimizationSuggestionsDTO:
-    // Verify plan ownership
-    plan = AWAIT mealPlanRepository.findByIdAndUser(planId, userId)
-    IF plan IS NULL:
-        THROW PlanNotFoundException(planId)
+CONSTANT BATCH_LIMIT = 500
+    // CORRECTED 2026-08-07 (T033). 100 CONTRADICTED REQ-010, which requires a whole plan read to issue
+    // EXACTLY ONE batch request. A maximal 90-day x 4-slot plan references up to 360 distinct recipes, so
+    // a limit of 100 forces four calls for an ordinary plan. REQ-IF-008 fixed the provider at 500
+    // PRECISELY because 500 > 360 — chunking is therefore a guard against pathological input, never the
+    // normal path. Changing this number without re-reading REQ-010 will silently reintroduce the N-call
+    // read that the batch endpoint exists to eliminate.
+CONSTANT TIMEOUT_MS  = 2_000
+CONSTANT FAILURE_LOG_INTERVAL_MS = 60_000
 
-    // Fetch all assignments with recipe details
-    assignments = AWAIT recipeAssignmentRepository.findByPlanId(planId)
-    recipeDetails = AWAIT Promise.all(
-        assignments.map(a => recipeApiAdapter.fetchRecipe(a.recipeId, userId))
-    )
+// Modelled on the shipped FoodCatalogGateway. A TOTAL FUNCTION: it never throws.
+FUNCTION batchNutrition(recipeIds, principal) -> { byRecipeId, availability }:
+    chunks = chunk(distinct(recipeIds), BATCH_LIMIT)
+    byRecipeId = new Map(); anyFailed = false; anySucceeded = false
 
-    // Fetch ingredient nutrient data for overlap analysis
-    allIngredientIds = deduplicate(recipeDetails.flatMap(r => r.ingredients.map(i => i.id)))
-    ingredientData = AWAIT usdaFoodDataAdapter.batchFetchNutrients(allIngredientIds)
-
-    // Build ingredient overlap graph
-    // Nodes = recipes; edges = shared ingredients (weighted by count)
-    graph = buildOverlapGraph(recipeDetails)
-
-    // Rank swap suggestions: pairs with low overlap score are candidates for swapping
-    swaps = rankSwaps(graph, recipeDetails)
-
-    RETURN { swaps }
-
-FUNCTION buildOverlapGraph(recipes: RecipeDTO[]) -> OverlapGraph:
-    graph = new Map<string, Map<string, number>>()  // recipeId → { recipeId → sharedIngredientCount }
-    FOR i IN 0..recipes.length-1:
-        FOR j IN i+1..recipes.length-1:
-            sharedCount = countSharedIngredients(recipes[i], recipes[j])
-            graph.get(recipes[i].id)?.set(recipes[j].id, sharedCount)
-            graph.get(recipes[j].id)?.set(recipes[i].id, sharedCount)
-    RETURN graph
-
-FUNCTION countSharedIngredients(a: RecipeDTO, b: RecipeDTO) -> number:
-    setA = new Set(a.ingredients.map(i => i.id))
-    RETURN b.ingredients.filter(i => setA.has(i.id)).length
-
-FUNCTION rankSwaps(graph: OverlapGraph, recipes: RecipeDTO[]) -> SwapSuggestion[]:
-    // Recipes with zero or low ingredient overlap with others are swap candidates
-    scores = recipes.map(r => {
-        totalOverlap = sum(graph.get(r.id)?.values() ?? [])
-        RETURN { recipeId: r.id, recipeName: r.name, overlapScore: totalOverlap }
-    })
-    // Sort ascending by overlapScore (least shared = most wasteful = best swap candidate)
-    sorted = scores.sort((a, b) => a.overlapScore - b.overlapScore)
-    RETURN sorted.slice(0, 5).map(s => ({
-        currentRecipeId: s.recipeId,
-        currentRecipeName: s.recipeName,
-        reason: `Low ingredient overlap (score: ${s.overlapScore})`
-    }))
-```
-
-#### State Machine View
-
-N/A — Stateless; all computation is request-scoped in-memory.
-
-#### Internal Data Structures
-
-| Name             | Type                             | Size/Constraints | Initialization | Description                          |
-| ---------------- | -------------------------------- | ---------------- | -------------- | ------------------------------------ |
-| graph            | Map<string, Map<string, number>> | O(n²) edges      | Computed       | Ingredient overlap adjacency matrix  |
-| allIngredientIds | string[]                         | deduplicated     | Computed       | All unique ingredient IDs in plan    |
-| scores           | OverlapScore[]                   | = recipe count   | Computed       | Per-recipe overlap score for ranking |
-
-#### Error Handling & Return Codes
-
-| Error Condition           | Error Code / Exception      | Architecture Contract                  | Recovery                    |
-| ------------------------- | --------------------------- | -------------------------------------- | --------------------------- |
-| Plan not found for userId | PlanNotFoundException       | ARCH-015 Interface View: NotFoundError | Propagate to controller     |
-| USDA adapter circuit open | ServiceUnavailableException | ARCH-015 Interface View: ServiceError  | Propagate 503 to controller |
-| Recipe API unavailable    | ServiceUnavailableException | ARCH-015 Interface View: ServiceError  | Propagate 503 to controller |
-
----
-
-### Module: MOD-016 (RecipeApiAdapter)
-
-**Parent Architecture Modules**: ARCH-016
-**Target Source File(s)**: `src/meal-planning/adapters/recipe-api.adapter.ts`
-
-#### Algorithmic / Logic View
-
-```pseudocode
-FUNCTION fetchRecipe(recipeId: string, userId: string) -> RecipeDTO | null:
-    url = `${RECIPE_API_BASE_URL}/recipes/${recipeId}`
-    headers = { Authorization: `Bearer ${getServiceToken()}`, "X-User-Id": userId }
-    response = AWAIT httpClient.get(url, { headers, timeout: 5000 })
-    IF response.status == 404:
-        RETURN null
-    IF response.status != 200:
-        THROW ServiceUnavailableException(`Recipe API error: ${response.status}`)
-    RETURN response.data as RecipeDTO
-
-FUNCTION fetchUserRecipes(userId: string) -> RecipeDTO[]:
-    url = `${RECIPE_API_BASE_URL}/recipes?userId=${userId}`
-    headers = { Authorization: `Bearer ${getServiceToken()}` }
-    response = AWAIT httpClient.get(url, { headers, timeout: 5000 })
-    IF response.status != 200:
-        THROW ServiceUnavailableException(`Recipe API error: ${response.status}`)
-    RETURN response.data as RecipeDTO[]
-```
-
-#### State Machine View
-
-N/A — Stateless HTTP adapter; no internal state.
-
-#### Internal Data Structures
-
-| Name                | Type          | Size/Constraints | Initialization | Description                       |
-| ------------------- | ------------- | ---------------- | -------------- | --------------------------------- |
-| RECIPE_API_BASE_URL | string        | URL              | Config/env     | Base URL for the Recipe API (001) |
-| httpClient          | AxiosInstance | singleton        | DI injection   | Configured Axios HTTP client      |
-
-#### Error Handling & Return Codes
-
-| Error Condition              | Error Code / Exception      | Architecture Contract                  | Recovery             |
-| ---------------------------- | --------------------------- | -------------------------------------- | -------------------- |
-| HTTP 404 from Recipe API     | (returns null)              | ARCH-016 Interface View: NotFoundError | Caller handles null  |
-| HTTP 4xx/5xx from Recipe API | ServiceUnavailableException | ARCH-016 Interface View: ServiceError  | Propagate to service |
-| Network timeout              | ServiceUnavailableException | ARCH-016 Interface View: ServiceError  | Propagate to service |
-
----
-
-### Module: MOD-017 (UsdaFoodDataAdapter)
-
-**Parent Architecture Modules**: ARCH-017
-**Target Source File(s)**: `src/meal-planning/adapters/usda-food-data.adapter.ts`
-
-#### Algorithmic / Logic View
-
-```pseudocode
-// Circuit breaker state: CLOSED (normal), OPEN (failing), HALF-OPEN (testing)
-
-FUNCTION batchFetchNutrients(ingredientIds: string[]) -> NutrientDataDTO[]:
-    IF circuitBreaker.state == OPEN:
-        THROW ServiceUnavailableException("USDA circuit breaker open")
-
-    // Batch into chunks of 50 (USDA API limit)
-    chunks = chunkArray(ingredientIds, 50)
-    results = []
     FOR EACH chunk IN chunks:
         TRY:
-            url = `${USDA_API_BASE_URL}/foods/list`
-            body = { fdcIds: chunk, format: "abridged", nutrients: [203, 204, 205, 208] }
-            response = AWAIT httpClient.post(url, body, { timeout: 10000 })
-            IF response.status != 200:
-                THROW ServiceUnavailableException(`USDA API error: ${response.status}`)
-            results.push(...mapUsdaResponse(response.data))
-            circuitBreaker.recordSuccess()
-        CATCH error:
-            circuitBreaker.recordFailure()
-            IF circuitBreaker.failureCount >= 5:
-                circuitBreaker.open(resetTimeout=60000)
-            THROW error
-    RETURN results
+            // Real AbortSignal at the transport. NOT Promise.race — a race leaves the
+            // underlying request pending, leaking one socket per timeout.
+            res = AWAIT client.post('/api/v1/recipes/nutrition-batch',
+                                    { json: { recipeIds: chunk }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+            parsed = batchNutritionSchema.safeParse(res)
+            IF NOT parsed.success: anyFailed = true; logThrottled('malformed'); CONTINUE
+            FOR EACH (id, state) IN parsed.data.nutrition: byRecipeId.set(id, state)
+            // A requested id ABSENT from the map is unreadable -> orphan (FR-033). Read it with a
+            // hasOwn guard, never a bare index: a Record index reaches the prototype chain, so an id
+            // of 'toString' returns a FUNCTION rather than undefined.
+            anySucceeded = true
+        CATCH (timeout | 5xx | network | auth):
+            anyFailed = true; logThrottled(errorKind)          // ≤ 1 log per interval; rest at debug
 
-FUNCTION mapUsdaResponse(raw: UsdaApiResponse[]) -> NutrientDataDTO[]:
-    RETURN raw.map(item => ({
-        ingredientId: item.fdcId.toString(),
-        calories: extractNutrient(item, nutrientId=208),
-        protein:  extractNutrient(item, nutrientId=203),
-        carbs:    extractNutrient(item, nutrientId=205),
-        fat:      extractNutrient(item, nutrientId=204)
-    }))
+    availability = anyFailed ? (anySucceeded ? 'degraded' : 'unavailable') : 'available'
+    RETURN { byRecipeId, availability }
 
-FUNCTION extractNutrient(item: UsdaApiResponse, nutrientId: number) -> number:
-    nutrient = item.foodNutrients.find(n => n.nutrientId == nutrientId)
-    RETURN nutrient?.value ?? 0
+FUNCTION isReadable(recipeId, principal) -> 'readable' | 'not-readable' | 'unavailable'
+FUNCTION batchReadable(recipeIds, principal) -> ReadonlyMap<RecipeId, boolean>
 ```
 
-#### State Machine View
+**Why each property is load-bearing**
 
-```mermaid
-stateDiagram-v2
-    [*] --> Closed : initial state
-    Closed --> Closed : batchFetchNutrients() success
-    Closed --> Open : failureCount >= 5
-    Open --> HalfOpen : resetTimeout (60s) elapsed
-    HalfOpen --> Closed : batchFetchNutrients() success
-    HalfOpen --> Open : batchFetchNutrients() failure
-```
+| Property                 | Failure it prevents                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Never throws             | A recipe-service blip would otherwise 500 the whole planner, losing the user's own data with it.       |
+| Real `AbortSignal`       | `Promise.race` resolves the wrapper but leaks the request — one hung socket per call under an outage.  |
+| Three-state availability | `degraded` (some chunks answered) is a real state; a boolean would round it to "fine" or "broken".     |
+| Boundary normalization   | A malformed payload is dropped here rather than leaking an unvalidated shape into the fold.            |
+| Throttled logging        | A per-plan-read failure path multiplies an outage into a log flood — cost, and signal buried in noise. |
+| Gateway-owned chunking   | Callers pass all ids; no caller can forget to chunk and blow the batch limit.                          |
 
-#### Internal Data Structures
-
-| Name           | Type           | Size/Constraints | Initialization | Description                                  |
-| -------------- | -------------- | ---------------- | -------------- | -------------------------------------------- |
-| circuitBreaker | CircuitBreaker | object           | Module init    | Tracks failure count and state               |
-| failureCount   | number         | 0–∞              | 0              | Consecutive failure counter                  |
-| resetTimeout   | number         | 60000 ms         | Constant       | Time before circuit transitions to HALF-OPEN |
-| CHUNK_SIZE     | number         | 50               | Constant       | Max ingredient IDs per USDA API request      |
-
-#### Error Handling & Return Codes
-
-| Error Condition      | Error Code / Exception      | Architecture Contract                     | Recovery                  |
-| -------------------- | --------------------------- | ----------------------------------------- | ------------------------- |
-| Circuit breaker OPEN | ServiceUnavailableException | ARCH-017 Interface View: CircuitOpenError | Propagate to service      |
-| USDA API HTTP error  | ServiceUnavailableException | ARCH-017 Interface View: ServiceError     | Record failure; propagate |
-| Network timeout      | ServiceUnavailableException | ARCH-017 Interface View: ServiceError     | Record failure; propagate |
+**Test obligations**: timeout; 5xx; network error; malformed body; partial batch (chunk 1 ok, chunk 2 fails → `degraded`);
+empty id list; > `BATCH_LIMIT` ids; `null` nutrition entries; auth failure. Each asserts the returned **value**, never
+that a mock was called.
 
 ---
 
-### Module: MOD-018 (ClerkAuthService)
+### MOD-016 (IdempotencyStore)
 
-**Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/meal-planning/auth/clerk-auth.service.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-016 · **Target**: `src/common/idempotency.store.ts` · **Purity**: impure (`@sideEffect`: DB)
 
 ```pseudocode
-// NestJS middleware (AuthMiddleware), backed by ClerkAuthService — NOT a guard
+FUNCTION lookup(ownerId, endpoint, key) -> StoredResponse | null:
+    IF key IS ABSENT: RETURN null
+    SELECT response_body FROM meal_plan_idempotency_keys
+     WHERE owner_id = $1 AND endpoint = $2 AND idempotency_key = $3
 
-FUNCTION use(request, response, next) -> void:
-    authHeader = request.headers["authorization"]
-    IF authHeader IS NULL OR NOT authHeader.startsWith("Bearer "):
-        THROW UnauthorizedException("Missing Bearer token")
-
-    token = authHeader.slice(7)
-
-    // Networkless verification of the Clerk session token:
-    // verifyToken (@clerk/backend) using the public CLERK_JWT_KEY — no JWKS round trip,
-    // no client secret, no audience. Authorized parties enforced via CLERK_AUTHORIZED_PARTIES.
-    TRY:
-        claims = AWAIT clerkAuthService.verifySessionToken(token, {
-            jwtKey: CLERK_JWT_KEY,
-            authorizedParties: CLERK_AUTHORIZED_PARTIES
-        })  // -> VerifiedClerkClaims
-    CATCH TokenExpiredError:
-        THROW UnauthorizedException("Token expired")
-    CATCH TokenInvalidError:        // bad signature / unauthorized azp
-        THROW UnauthorizedException("Invalid token")
-
-    // Extract claims; subscription tier/scopes come from the signed token's public_metadata
-    clerkId = claims.sub
-    tier    = claims.public_metadata?.tier ?? "free"
-
-    // Read-through-create the app user (Clerk sub -> app ULID) and populate req.user
-    userId  = AWAIT usersService.resolveOrCreateFromClaims(claims)
-
-    // Attach AuthContext to request
-    request.authContext = { userId, tier }
-    request.user = { id: userId, clerkId, tier }
-    next()
+FUNCTION store(ownerId, endpoint, key, response):
+    // MUST run inside the caller's transaction. If it committed separately, a crash between
+    // the two could record a key for an entry that was never created — and the retry would
+    // return a success for work that never happened.
+    INSERT ... ON CONFLICT DO NOTHING
 ```
 
-#### State Machine View
+Scoped by `owner_id` so one user's key can never replay another's response.
 
-N/A — Stateless; each request is independently verified.
+**Retention — 24 hours, pruned opportunistically (PRF-006-17).** Every `store` also runs a **bounded** prune inside the
+same transaction:
 
-#### Internal Data Structures
+```sql
+DELETE FROM meal_plan_idempotency_keys
+ WHERE ctid IN (
+   SELECT ctid FROM meal_plan_idempotency_keys
+    WHERE owner_id = $1 AND created_at < now() - INTERVAL '24 hours'
+    LIMIT 50
+ );
+```
 
-| Name                     | Type             | Size/Constraints | Initialization | Description                                                    |
-| ------------------------ | ---------------- | ---------------- | -------------- | -------------------------------------------------------------- |
-| clerkAuthService         | ClerkAuthService | singleton        | DI injection   | Networkless `verifyToken` (@clerk/backend) wrapper             |
-| CLERK_JWT_KEY            | string           | PEM public key   | Config/env     | Public JWT key for networkless verification (non-secret)       |
-| CLERK_AUTHORIZED_PARTIES | string           | comma-separated  | Config/env     | Allowed `azp` values enforced during verification (non-secret) |
-| authContext              | AuthContext      | object           | Computed       | { userId: string, tier: string }                               |
+Why this shape rather than a scheduled job:
 
-#### Error Handling & Return Codes
+- **No infrastructure.** `pg_cron` is not enabled on this platform, and every other scheduled task here is an
+  EventBridge rule driving a Lambda or ECS task — which REQ-NF-009 forbids for this feature. Opportunistic pruning needs
+  neither.
+- **Self-limiting.** The table only accumulates while it is being written to, which is precisely when the prune runs.
+  An idle service has nothing to prune.
+- **Bounded.** `LIMIT 50` caps the work added to any one request, so a long-idle owner with a large backlog cannot turn
+  a single assignment into a slow query. The backlog drains over the following writes.
+- **Owner-scoped**, so one user's backlog never taxes another's request.
+- **24 hours** is the conventional window for request idempotency: long enough to cover an offline mobile client
+  retrying on reconnect, short enough that stored response bodies are not held indefinitely.
 
-| Error Condition              | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| ---------------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| Missing Authorization header | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
-| Expired JWT                  | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
-| Invalid token signature      | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
-| Unauthorized party (`azp`)   | UnauthorizedException (401) | ARCH-018 Interface View: UnauthorizedError | Return 401 to client |
+**Interaction with MOD-018 (erasure)**: account erasure deletes a user's keys immediately regardless of age, so
+retention never keeps data alive past an erasure request (REQ-020).
+
+**Test obligations**: first call stores; identical replay returns the stored body without a second insert; a different
+owner with the same key is unaffected; concurrent identical requests produce exactly one entry; an **expired** key does
+not replay; the prune is **bounded** and **owner-scoped**. The transactional-coupling case (HAZ-030) and the pruning
+behaviour are asserted at the integration tier, where a real transaction and a real clock exist.
 
 ---
 
-### Module: MOD-019 (AiProviderAdapter)
+### MOD-017 (ApiExceptionFilter + error classes)
 
-**Parent Architecture Modules**: ARCH-019
-**Target Source File(s)**: `src/meal-planning/adapters/ai-provider.adapter.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-017 · **Target**: `src/common/apiException.filter.ts`, `src/common/errors/*.ts` · **Purity**: pure
+error constructors; impure filter
 
 ```pseudocode
-FUNCTION invoke(prompt: PromptDTO) -> AIResponseDTO:
-    url = `${AI_PROVIDER_BASE_URL}/completions`
-    headers = {
-        Authorization: `Bearer ${AI_PROVIDER_API_KEY}`,
-        "Content-Type": "application/json"
+// EVERY domain error follows CODING_STANDARDS §6:
+export class MealPlanNotFoundError extends Error {
+    readonly planId: string
+    constructor(planId) {
+        super(`Meal plan not found: ${planId}`)
+        this.name = 'MealPlanNotFoundError'
+        this.planId = planId
+        Object.setPrototypeOf(this, MealPlanNotFoundError.prototype)   // instanceof across module boundaries
     }
-    body = {
-        model: AI_MODEL_ID,
-        messages: [{ role: "user", content: prompt.text }],
-        max_tokens: prompt.maxTokens ?? 1000,
-        temperature: prompt.temperature ?? 0.3
-    }
-    response = AWAIT httpClient.post(url, body, { headers, timeout: 30000 })
-    IF response.status != 200:
-        THROW ServiceUnavailableException(`AI provider error: ${response.status}`)
+}
+export function isMealPlanNotFoundError(e: unknown): e is MealPlanNotFoundError { ... }
 
-    // Extract content from provider response format
-    content = response.data.choices[0]?.message?.content
-    IF content IS NULL:
-        THROW ParseException("AI provider returned empty content")
-
-    RETURN { content } as AIResponseDTO
+// ONE envelope for the whole service:
+FUNCTION catch(error) -> { code, message, details? } + status
 ```
 
-#### State Machine View
+| Error                         | code                        | HTTP |
+| ----------------------------- | --------------------------- | ---- |
+| `MealPlanNotFoundError`       | `MEAL_PLAN_NOT_FOUND`       | 404  |
+| `TemplateNotFoundError`       | `TEMPLATE_NOT_FOUND`        | 404  |
+| `RecipeNotReadableError`      | `MEAL_PLAN_NOT_FOUND`†      | 404  |
+| `InvalidDateRangeError`       | `INVALID_DATE_RANGE`        | 422  |
+| `SlotNotInPlanError`          | `SLOT_NOT_IN_PLAN`          | 422  |
+| `DateOutsidePlanRangeError`   | `DATE_OUTSIDE_PLAN_RANGE`   | 422  |
+| `InvalidServingsError`        | `INVALID_SERVINGS`          | 422  |
+| `EntriesOutsideNewRangeError` | `ENTRIES_OUTSIDE_NEW_RANGE` | 409  |
+| `RecipeCheckUnavailableError` | `DEPENDENCY_UNAVAILABLE`    | 503  |
 
-N/A — Stateless HTTP adapter; no internal state.
-
-#### Internal Data Structures
-
-| Name                 | Type          | Size/Constraints | Initialization | Description                         |
-| -------------------- | ------------- | ---------------- | -------------- | ----------------------------------- |
-| AI_PROVIDER_BASE_URL | string        | URL              | Config/env     | AI provider API base URL (from 005) |
-| AI_PROVIDER_API_KEY  | string        | secret           | Config/env     | API key for AI provider             |
-| AI_MODEL_ID          | string        | model identifier | Config/env     | Specific model to invoke            |
-| httpClient           | AxiosInstance | singleton        | DI injection   | Configured Axios HTTP client        |
-
-#### Error Handling & Return Codes
-
-| Error Condition           | Error Code / Exception      | Architecture Contract                 | Recovery             |
-| ------------------------- | --------------------------- | ------------------------------------- | -------------------- |
-| AI provider HTTP error    | ServiceUnavailableException | ARCH-019 Interface View: ServiceError | Propagate to service |
-| Empty content in response | ParseException              | ARCH-019 Interface View: ParseError   | Propagate to service |
-| Network timeout (30s)     | ServiceUnavailableException | ARCH-019 Interface View: ServiceError | Propagate to service |
+† Deliberate: an unreadable recipe returns the same code and shape as an absent one, so the response discloses nothing
+about whether the recipe exists (REQ-CN-002). A distinct `RECIPE_NOT_READABLE` code would be the disclosure.
 
 ---
 
-### Module: MOD-020 (MealPlanPublicApiAdapter)
+### MOD-018 (AccountErasureParticipant)
 
-**Parent Architecture Modules**: ARCH-020
-**Target Source File(s)**: `src/meal-planning/adapters/meal-plan-public-api.adapter.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-018 · **Target**: `src/erasure/account-erasure.service.ts` · **Purity**: impure
 
 ```pseudocode
-// Outbound adapter — serializes MealPlan domain objects for downstream consumers
-
-FUNCTION serializeMealPlan(plan: MealPlan, version: "v1" | "v2" = "v1") -> MealPlanPublicDTO:
-    IF version == "v1":
-        RETURN serializeV1(plan)
-    ELSE IF version == "v2":
-        RETURN serializeV2(plan)
-    ELSE:
-        THROW UnsupportedVersionException(`Unknown version: ${version}`)
-
-FUNCTION serializeV1(plan: MealPlan) -> MealPlanPublicDTOv1:
-    RETURN {
-        id: plan.id,
-        name: plan.name,
-        startDate: plan.startDate.toISOString(),
-        endDate: plan.endDate.toISOString(),
-        slots: plan.slots.map(s => ({
-            id: s.id,
-            dayOffset: s.dayOffset,
-            mealType: s.mealType,
-            recipeId: s.assignment?.recipeId ?? null
-        })),
-        createdAt: plan.createdAt.toISOString()
-    }
-
-FUNCTION serializeV2(plan: MealPlan) -> MealPlanPublicDTOv2:
-    // v2 adds nutritional summary stub for downstream consumers (007, 009)
-    v1 = serializeV1(plan)
-    RETURN { ...v1, nutritionSummaryUrl: `/meal-plans/${plan.id}/nutrition/weekly` }
+FUNCTION eraseForUser(userId):
+    TRANSACTION:
+        DELETE FROM meal_plan_template_entries WHERE template_id IN (SELECT id FROM meal_plan_templates WHERE owner_id=$1)
+        DELETE FROM meal_plan_templates       WHERE owner_id = $1
+        DELETE FROM meal_plan_entries         WHERE meal_plan_id IN (SELECT id FROM meal_plans WHERE owner_id=$1)
+        DELETE FROM meal_plans                WHERE owner_id = $1
+        DELETE FROM meal_plan_idempotency_keys WHERE owner_id = $1
+    // Idempotent: re-running after a partial failure completes without error.
 ```
 
-#### State Machine View
-
-N/A — Stateless serialization adapter.
-
-#### Internal Data Structures
-
-| Name    | Type   | Size/Constraints | Initialization  | Description                          |
-| ------- | ------ | ---------------- | --------------- | ------------------------------------ |
-| version | string | "v1" or "v2"     | Caller-provided | Serialization version for downstream |
-
-#### Error Handling & Return Codes
-
-| Error Condition        | Error Code / Exception      | Architecture Contract                    | Recovery            |
-| ---------------------- | --------------------------- | ---------------------------------------- | ------------------- |
-| Unknown version string | UnsupportedVersionException | ARCH-020 Interface View: VersionError    | Propagate to caller |
-| Null plan input        | ValidationException         | ARCH-020 Interface View: ValidationError | Propagate to caller |
+Joins the mechanism 001 C-007 established. **No second erasure path** — a second one is a second thing to forget.
 
 ---
 
-### Module: MOD-021 (PremiumTierGuard)
+## Client — `packages/apps/commise/features/meal-plan`
 
-**Parent Architecture Modules**: ARCH-021
-**Target Source File(s)**: `src/meal-planning/guards/premium-tier.guard.ts`
+### MOD-019 (useMealPlanBoard)
 
-#### Algorithmic / Logic View
+**Parent**: ARCH-019 · **Target**: `src/hooks/useMealPlanBoard.ts` · **Purity**: impure hook over pure selectors
 
 ```pseudocode
-// NestJS CanActivate guard — runs AFTER AuthMiddleware (authContext already set)
-
-FUNCTION canActivate(context: ExecutionContext) -> boolean:
-    request = context.switchToHttp().getRequest()
-    authContext = request.authContext
-    IF authContext IS NULL:
-        THROW UnauthorizedException("AuthContext missing — AuthMiddleware must run first")
-
-    tier = authContext.tier
-    IF tier != "premium":
-        THROW ForbiddenException("Premium subscription required")
-
-    RETURN true
+FUNCTION useMealPlanBoard(planId) -> {
+    board: BoardViewModel, status, assign, move, remove, setServings, setNote,
+}:
+    query = useMealPlanQuery(planId)                    // TanStack
+    assign = useMutation({ mutationFn, onMutate: optimistic, onError: rollback, retry: false })
+    // retry:false is deliberate — the Idempotency-Key makes a USER-driven retry safe;
+    // an automatic client retry would race the optimistic update.
+    board  = selectBoard(query.data)                    // PURE selector, unit-testable without React
+    RETURN { board, ... }
 ```
 
-#### State Machine View
-
-N/A — Stateless predicate; no internal state.
-
-#### Internal Data Structures
-
-| Name        | Type        | Size/Constraints | Initialization | Description                          |
-| ----------- | ----------- | ---------------- | -------------- | ------------------------------------ | ------------------------------------ |
-| authContext | AuthContext | object           | From request   | Set by AuthMiddleware; contains tier |
-| tier        | string      | "free"           | "premium"      | From JWT claim                       | Subscription tier extracted by guard |
-
-#### Error Handling & Return Codes
-
-| Error Condition     | Error Code / Exception      | Architecture Contract                      | Recovery             |
-| ------------------- | --------------------------- | ------------------------------------------ | -------------------- |
-| AuthContext not set | UnauthorizedException (401) | ARCH-021 Interface View: UnauthorizedError | Return 401 to client |
-| tier != "premium"   | ForbiddenException (403)    | ARCH-021 Interface View: ForbiddenError    | Return 403 to client |
+The single command surface both platforms drive. Tests assert the resulting board state, never the gesture.
 
 ---
 
-### Module: MOD-022 (QualityComplianceModule) [CROSS-CUTTING]
+### MOD-020 (Board render components)
 
-**Parent Architecture Modules**: ARCH-022
-**Target Source File(s)**: `tsconfig.json`, `.eslintrc.js`, `src/meal-planning/**/*.ts`
-
-#### Algorithmic / Logic View
+**Parent**: ARCH-020 · **Target**: `src/board/{DayColumn,SlotCell,EntryCard,NutritionSummary}.tsx` · **Purity**: pure
+`props → JSX`
 
 ```pseudocode
-// Build-time and lint-time enforcement only — no runtime behavior
+TYPE EntryViewState =
+    | { kind: 'assigned', entry, recipeTitle, caloriesPerServing? }
+    | { kind: 'orphaned', entry }
+    | { kind: 'pending',  optimisticEntry }
 
-// tsconfig.json strict-mode settings:
-ENFORCE strict: true
-ENFORCE noImplicitAny: true
-ENFORCE strictNullChecks: true
-ENFORCE noUncheckedIndexedAccess: true
-
-// ESLint JSDoc rules (eslint-plugin-jsdoc):
-ENFORCE jsdoc/require-jsdoc ON exported functions, classes, interfaces
-ENFORCE jsdoc/require-param ON all function parameters
-ENFORCE jsdoc/require-returns ON non-void functions
-
-// Accessibility lint rules:
-ENFORCE jsx-a11y/aria-label ON interactive elements (if any React components exist)
-ENFORCE color-state rules: no color-only state indicators (must include text/icon)
-
-// CI gate:
-IF tsc --noEmit exits non-zero:
-    FAIL build
-IF eslint exits non-zero:
-    FAIL build
+FUNCTION SlotCell({ state }):
+    SWITCH state.kind:                       // exhaustive — a new kind fails typecheck, not review
+        CASE 'assigned': RETURN <AssignedEntryCard …/>
+        CASE 'orphaned': RETURN <OrphanedEntryCard …/>     // "Recipe unavailable" + icon (NFR-004)
+        CASE 'pending':  RETURN <PendingEntryCard …/>
 ```
 
-#### State Machine View
+**No boolean flag props** (`CODING_STANDARDS §11`): the parent composes by union member. `EntryCard` never takes
+`isOrphaned`. Every string comes from MOD-023.
 
-N/A — Stateless build-time utility; no runtime state.
-
-#### Internal Data Structures
-
-| Name          | Type        | Size/Constraints | Initialization | Description                         |
-| ------------- | ----------- | ---------------- | -------------- | ----------------------------------- |
-| tsconfig.json | JSON config | file             | Static         | TypeScript compiler options         |
-| .eslintrc.js  | JS config   | file             | Static         | ESLint rules including jsdoc + a11y |
-
-#### Error Handling & Return Codes
-
-| Error Condition       | Error Code / Exception | Architecture Contract            | Recovery                        |
-| --------------------- | ---------------------- | -------------------------------- | ------------------------------- |
-| TypeScript type error | tsc compile error      | ARCH-022: Build-time enforcement | Developer must fix before merge |
-| ESLint rule violation | eslint error           | ARCH-022: Lint-time enforcement  | Developer must fix before merge |
+**Plans list (`src/plans/{PlanList,PlanListItem}.tsx`) — added 2026-08-07 for REQ-025 / FR-022a.** Same discipline: a
+`PlanListViewState` discriminated union (`loading | empty | populated | loading-more | failed`) over which the surface
+switches exhaustively, driven by `mealPlansInfiniteQuery` from MOD-025. It lives here rather than becoming a
+twenty-sixth ARCH/MOD pair because it is a render surface over an existing query — no new architectural element —
+which keeps the ARCH↔MOD mapping one-to-one. `failed` is a distinct member on purpose: rendering a load failure as
+`empty` asserts "you have no plans", which is a lie the user will act on. Its `(both)` column and its five states are
+in the `STP-010-A` matrix. The **switcher** is the same component surfaced from an open plan (MOD-021 owns the
+platform affordance: a popover on web, a sheet on native), not a second implementation.
 
 ---
 
-## ARCH↔MOD Traceability Matrix
+### MOD-021 (Platform interaction layer)
 
-| ARCH ID  | ARCH Name                    | MOD ID  | MOD Name                     |
-| -------- | ---------------------------- | ------- | ---------------------------- |
-| ARCH-001 | MealPlanController           | MOD-001 | MealPlanController           |
-| ARCH-002 | MealPlanService              | MOD-002 | MealPlanService              |
-| ARCH-003 | MealPlanRepository           | MOD-003 | MealPlanRepository           |
-| ARCH-004 | RecipeAssignmentController   | MOD-004 | RecipeAssignmentController   |
-| ARCH-005 | RecipeAssignmentService      | MOD-005 | RecipeAssignmentService      |
-| ARCH-006 | RecipeAssignmentRepository   | MOD-006 | RecipeAssignmentRepository   |
-| ARCH-007 | NutritionalSummaryController | MOD-007 | NutritionalSummaryController |
-| ARCH-008 | NutritionalSummaryService    | MOD-008 | NutritionalSummaryService    |
-| ARCH-009 | NutritionalSummaryCache      | MOD-009 | NutritionalSummaryCache      |
-| ARCH-010 | AISuggestionController       | MOD-010 | AISuggestionController       |
-| ARCH-011 | AISuggestionService          | MOD-011 | AISuggestionService          |
-| ARCH-012 | AutoGenerateController       | MOD-012 | AutoGenerateController       |
-| ARCH-013 | AutoGenerateService          | MOD-013 | AutoGenerateService          |
-| ARCH-014 | WasteOptimizerController     | MOD-014 | WasteOptimizerController     |
-| ARCH-015 | WasteOptimizerService        | MOD-015 | WasteOptimizerService        |
-| ARCH-016 | RecipeApiAdapter             | MOD-016 | RecipeApiAdapter             |
-| ARCH-017 | UsdaFoodDataAdapter          | MOD-017 | UsdaFoodDataAdapter          |
-| ARCH-018 | ClerkAuthService             | MOD-018 | ClerkAuthService             |
-| ARCH-019 | AiProviderAdapter            | MOD-019 | AiProviderAdapter            |
-| ARCH-020 | MealPlanPublicApiAdapter     | MOD-020 | MealPlanPublicApiAdapter     |
-| ARCH-021 | PremiumTierGuard             | MOD-021 | PremiumTierGuard             |
-| ARCH-022 | QualityComplianceModule      | MOD-022 | QualityComplianceModule      |
+**Parent**: ARCH-021 · **Target**: `src/board/MealPlanBoard.tsx`, `src/board/MealPlanBoard.native.tsx` · **Purity**:
+impure (interaction)
 
-**Coverage**: 22 ARCH modules → 22 MOD modules (100% coverage, 1:1 mapping)
+Web wires `@dnd-kit` `PointerSensor` **and** `KeyboardSensor` with live-region announcements; mobile wires
+tap-to-assign and long-press. Both export the **same public API** and call MOD-019. `@dnd-kit` is imported only from the
+`.tsx` file — never from shared code, so Metro never resolves it on native.
+
+**Refs**: the only permitted ref in this feature is `@dnd-kit`'s sensor attachment to a DOM node — a genuinely external,
+non-declarative system (`CLAUDE.md`: refs are near-forbidden).
+
+---
+
+### MOD-022 (MealPlanHomeWidget)
+
+**Parent**: ARCH-022 · **Target**: `src/widget/MealPlanHomeWidget.tsx` + `.native.tsx`; **modifies**
+`packages/apps/commise/features/core/src/roadmapWidgets.ts` and both apps' skeleton maps
+
+```pseudocode
+DESCRIPTOR = { kind: 'live', id: 'meal-plan',
+               capability: ROADMAP_CAPABILITIES.mealPlanning,
+               defaultWeight: 1200,                                  // preserve the mockup's position
+               load: () => import('@commise/features-meal-plan/widget/web') }   // /mobile on native
+
+// Retirement, in the SAME change (FR-035):
+//   1. remove { id: 'meal-plan', … } from ROADMAP_WIDGET_SPECS
+//   2. remove 'meal-plan' from the RoadmapWidgetId union
+//   3. delete each app's meal-plan skeleton
+// Because RoadmapWidgetId feeds a TOTAL Record<RoadmapWidgetId, HomeWidgetLoader>,
+// a partial retirement fails `typecheck` rather than review.
+```
+
+States: today's entries · empty state + CTA · error boundary. Absent (not skeletal) when the capability is off.
+
+---
+
+### MOD-023 (messages)
+
+**Parent**: ARCH-023 · **Target**: `src/messages.ts` · **Purity**: pure data
+
+`LocalizedMessages<MealPlanMessages>` with the required `en` entry, resolved via `resolveMessages` from `@commise/i18n`.
+Every planner, widget, validation and error string lives here (FR-038). A lint rule rejects user-visible literals
+elsewhere in the package.
+
+**Error copy is keyed by wire `code`, and the wire `message` is never rendered (FR-038a, REQ-023) — added 2026-08-07.**
+`MealPlanMessages` carries an `errors` map **total over `MealPlanErrorCode`** plus an `errors.unknown` fallback, and
+the selection is a pure `messageForErrorCode(code)`. Two properties follow, and both are load-bearing:
+
+1. **Totality** — a code added to the service's table with no key here fails `typecheck`, not review, so a new failure
+   mode cannot ship with no copy. Verified by `UTS-023-A3`.
+2. **The fallback is localized copy, never `error.message`.** Falling back to the envelope's `message` is the exact
+   defect FR-038a forbids: it is operator-facing English, it is not ours, and — being a member expression rather than
+   a string literal — the FR-038 literal audit (`noUserVisibleLiterals.test.ts`) cannot see it. That is why REQ-023 is
+   its own requirement with its own check (`STS-008-A7`) rather than a clause on REQ-019.
+
+---
+
+### MOD-024 (QualityComplianceModule) `[CROSS-CUTTING]`
+
+**Parent**: ARCH-024 · **Target**: tooling configs · **Purity**: n/a — build/lint time only
+
+Enforces strict TS, JSDoc + pattern-named module headers, `eslint-plugin-check-file` naming per regime, jsx-a11y, the
+`§7.1` test matrix in CI, and a dependency check asserting REQ-NF-009 (no cache/queue/worker/object-store dependency
+enters `package.json`). No runtime artifact.
+
+---
+
+### MOD-025 (MealPlanClient)
+
+**Parent**: ARCH-025 · **Target**: `packages/clients/meal-plan-service/src/{client,queries,hooks,errors}.ts`
+
+`ky`-based typed client with TanStack query/mutation definitions, typed error mapping from the shared envelope, a
+`testing/` fixture surface (`make*` factories accepting `Partial<T>`), and `__integration__/` contract tests against the
+real service. Shared by web and mobile — API clients do not fork per platform (`§14.2`).
+
+---
+
+## ARCH ↔ MOD Traceability
+
+| ARCH     | MOD     | ARCH     | MOD     | ARCH     | MOD     |
+| -------- | ------- | -------- | ------- | -------- | ------- |
+| ARCH-001 | MOD-001 | ARCH-010 | MOD-010 | ARCH-019 | MOD-019 |
+| ARCH-002 | MOD-002 | ARCH-011 | MOD-011 | ARCH-020 | MOD-020 |
+| ARCH-003 | MOD-003 | ARCH-012 | MOD-012 | ARCH-021 | MOD-021 |
+| ARCH-004 | MOD-004 | ARCH-013 | MOD-013 | ARCH-022 | MOD-022 |
+| ARCH-005 | MOD-005 | ARCH-014 | MOD-014 | ARCH-023 | MOD-023 |
+| ARCH-006 | MOD-006 | ARCH-015 | MOD-015 | ARCH-024 | MOD-024 |
+| ARCH-007 | MOD-007 | ARCH-016 | MOD-016 | ARCH-025 | MOD-025 |
+| ARCH-008 | MOD-008 | ARCH-017 | MOD-017 |          |         |
+| ARCH-009 | MOD-009 | ARCH-018 | MOD-018 |          |         |
+
+**Coverage**: 25 / 25 ARCH modules (100%), one-to-one. **Derived modules**: 0.
+
+## Purity Summary
+
+| Classification                      | Modules                                                           |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| **Pure** (no I/O, clock, or random) | MOD-001..008, MOD-020, MOD-023, plus `selectBoard` inside MOD-019 |
+| Impure, `@sideEffect` documented    | MOD-009..019, MOD-021, MOD-022, MOD-025                           |
+| Build-time only                     | MOD-024                                                           |
+
+Ten of twenty-five modules — including **all** the business rules and the entire nutrition computation — are pure and
+testable with no network, no database and no React. That is the property the May design gave away by putting
+`triggerOnEntryAdd(entry): void` on a calculator.

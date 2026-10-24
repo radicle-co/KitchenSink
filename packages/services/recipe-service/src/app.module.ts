@@ -13,13 +13,14 @@ import { IngredientsModule } from './ingredients/ingredients.module.js';
 import { VersionsModule } from './versions/versions.module.js';
 import { PhotosModule } from './photos/photos.module.js';
 import { CollectionsModule } from './collections/collections.module.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { SearchModule } from './search/search.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AuthMiddleware } from './auth/auth.middleware.js';
-import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
+import { ApiExceptionFilter } from './common/filters/apiException.filter.js';
 import { throttlerModuleOptions } from './common/throttle/throttle.config.js';
-import { UserThrottlerGuard } from './common/throttle/user-throttler.guard.js';
-import { ErasureLockGuard } from './account/erasure-lock.guard.js';
+import { UserThrottlerGuard } from './common/throttle/userThrottler.guard.js';
+import { ErasureLockGuard } from './account/erasureLock.guard.js';
 
 /**
  * Root application module. Wires the config, per-domain feature modules, the global Drizzle provider,
@@ -43,6 +44,7 @@ import { ErasureLockGuard } from './account/erasure-lock.guard.js';
         VersionsModule,
         PhotosModule,
         CollectionsModule,
+        AnalyticsModule,
         SearchModule,
         AccountModule,
     ],
@@ -69,19 +71,27 @@ export class AppModule implements NestModule {
     public configure(consumer: MiddlewareConsumer): void {
         consumer
             .apply(AuthMiddleware)
-            // The internal service-principal erasure route (CR-002 / U4a) authenticates with a signed
-            // machine token, NOT a Clerk user session token — the Clerk middleware would 401 it before its
-            // own `ServiceErasureGuard` runs. Exclude it so the guard is its (fail-closed) enforcement
-            // point. This is the ONLY route not covered by the Clerk middleware besides the health probes.
+            // The internal service-principal routes (CR-002 / U4a, U18) authenticate with a signed machine
+            // token, NOT a Clerk user session token — the Clerk middleware would 401 them before their own
+            // `ServiceErasureGuard` runs. Exclude them so that guard is their (fail-closed) enforcement
+            // point. These are the ONLY routes not covered by the Clerk middleware besides the health probes.
             //
             // BOTH spellings must be listed, because `ServiceErasureController` answers on both: the
             // canonical `/api/{version}/` path AND the deprecated bare-`v1` alias it shipped on. Excluding
             // only one would fail-closed 401 the caller that used the other — and the callers here are the
             // identity deletion-worker / reconciliation Lambdas, which deploy independently of this service
             // and may still be dialing either path. See ADR-0011.
+            //
+            // ⛔ EVERY route that controller serves, not just the first one written. U18 added
+            // `food-references` beside `erasure` under the same guard and this list was not widened, so the
+            // worker's orphan arm — called BETWEEN food's tombstone and its completing erasure — 401'd on a
+            // token the guard would have accepted. `app.module.test.ts` now pins the exclusions as an exact
+            // SET, so a third route on this controller fails that test instead of failing in a stage.
             .exclude(
                 { path: 'api/v1/internal/account/erasure', method: RequestMethod.POST },
                 { path: 'v1/internal/account/erasure', method: RequestMethod.POST },
+                { path: 'api/v1/internal/account/food-references', method: RequestMethod.POST },
+                { path: 'v1/internal/account/food-references', method: RequestMethod.POST },
             )
             .forRoutes('*');
     }

@@ -12,9 +12,8 @@
  */
 import type { JSX } from 'react';
 
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-
-import { webMessages } from '@/i18n/messages';
 
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
 
@@ -24,18 +23,18 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
  * @returns The nutrition panel's shape with no data in it.
  */
 export function NutritionWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(webMessages);
+    const home = useMessages(homeMessages);
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles.nutrition}>
             <div aria-hidden="true" className="flex items-center gap-5">
                 {/* The 64px ring: an unfilled track, since a filled arc would assert a real percentage. */}
-                <div className="size-16 shrink-0 rounded-full border-4 border-pearl" />
+                <div className="size-16 shrink-0 rounded-full border-4 border-surface-muted" />
                 <div className="flex flex-1 flex-col gap-2">
                     {/* "CALORIES" overline, the figure, and the "of N cal" caption — as blocks, not values. */}
-                    <div className="h-3 w-20 rounded bg-pearl" />
-                    <div className="h-7 w-28 rounded bg-pearl" />
-                    <div className="h-3 w-24 rounded bg-pearl" />
+                    <div className="h-3 w-20 rounded bg-surface-muted" />
+                    <div className="h-7 w-28 rounded bg-surface-muted" />
+                    <div className="h-3 w-24 rounded bg-surface-muted" />
                 </div>
             </div>
         </PlaceholderWidgetCard>

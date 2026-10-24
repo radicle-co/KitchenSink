@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collections, 1194 px (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                </style></helmet
+            >
+            <!-- BREAKPOINT BOARD, 1194 px: the window less the gutter is the content width (wide), so the grid has 4 columns
+                 (libraryGridColumnsOf). The frame keeps the screen's own 16 pt padding at every width, as the code does. -->
+            <div
+                style="
+                    position: relative;
+                    width: 1194px;
+                    height: 834px;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    --bottom-chrome: 64px;
+                    transform: translateZ(0);
+                "
+            >
+                <div style="position: relative; flex: 1; min-height: 0; overflow: hidden">
+                    <div
+                        style="
+                            box-sizing: border-box;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            padding: 8px 16px 0;
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="recipes-title"
+                            title="Recipes"
+                            action="{{v6}}"
+                            segments="{{v7}}"
+                        ></x-import>
+                        <x-import
+                            component-from-global-scope="Commise.Native.SearchField"
+                            id="collections-search"
+                            label="Search your collections"
+                            label-visibility="hidden"
+                            clear-label="Clear search"
+                            placeholder="Search your collections"
+                            value=""
+                            on-change-text="{{v8}}"
+                        ></x-import>
+                        <p
+                            style="
+                                margin: 0;
+                                font-size: 14px;
+                                line-height: 1.4;
+                                font-weight: 400;
+                                font-weight: 600;
+                                color: var(--ink);
+                                font-variant-numeric: tabular-nums lining-nums;
+                            "
+                        >
+                            6 collections
+                        </p>
+                        <ul
+                            aria-label="6 collections"
+                            style="
+                                margin: 0;
+                                padding: 0;
+                                display: grid;
+                                grid-template-columns: repeat(4, minmax(0, 1fr));
+                                row-gap: 16px;
+                                align-items: stretch;
+                            "
+                        >
+                            <li style="list-style: none; box-sizing: border-box; padding: 0 8px">
+                                <article
+                                    aria-label="Weeknight dinners, 12 recipes, Private"
+                                    style="
+                                        position: relative;
+                                        display: flex;
+                                        height: 100%;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div style="overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="col_01weeknight"
+                                            title="Weeknight dinners"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px">
+                                        <h2
+                                            style="
+                                                margin: 0;
+                                                font-size: 16px;
+                                                line-height: 1.3;
+                                                font-weight: 600;
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a href="#col_01weeknight">Weeknight dinners</a>
+                                        </h2>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                font-size: 14px;
+                                                line-height: 1.4;
+                                                font-weight: 400;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span>12 recipes</span><span aria-hidden="true">·</span
+                                            ><span style="display: inline-flex; align-items: center; gap: 4px"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="lock"
+                                                    size="{{v0}}"
+                                                ></x-import
+                                                >Private</span
+                                            >
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li style="list-style: none; box-sizing: border-box; padding: 0 8px">
+                                <article
+                                    aria-label="Holiday baking, 9 recipes, Public"
+                                    style="
+                                        position: relative;
+                                        display: flex;
+                                        height: 100%;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div style="overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="col_01holidaybake"
+                                            title="Holiday baking"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px">
+                                        <h2
+                                            style="
+                                                margin: 0;
+                                                font-size: 16px;
+                                                line-height: 1.3;
+                                                font-weight: 600;
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a href="#col_01holidaybake">Holiday baking</a>
+                                        </h2>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                font-size: 14px;
+                                                line-height: 1.4;
+                                                font-weight: 400;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span>9 recipes</span><span aria-hidden="true">·</span
+                                            ><span style="display: inline-flex; align-items: center; gap: 4px"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="globe"
+                                                    size="{{v1}}"
+                                                ></x-import
+                                                >Public</span
+                                            >
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li style="list-style: none; box-sizing: border-box; padding: 0 8px">
+                                <article
+                                    aria-label="Cookouts and grilling, 7 recipes, Private"
+                                    style="
+                                        position: relative;
+                                        display: flex;
+                                        height: 100%;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div style="overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="col_01cookouts"
+                                            title="Cookouts and grilling"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px">
+                                        <h2
+                                            style="
+                                                margin: 0;
+                                                font-size: 16px;
+                                                line-height: 1.3;
+                                                font-weight: 600;
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a href="#col_01cookouts">Cookouts and grilling</a>
+                                        </h2>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                font-size: 14px;
+                                                line-height: 1.4;
+                                                font-weight: 400;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span>7 recipes</span><span aria-hidden="true">·</span
+                                            ><span style="display: inline-flex; align-items: center; gap: 4px"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="lock"
+                                                    size="{{v2}}"
+                                                ></x-import
+                                                >Private</span
+                                            >
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li style="list-style: none; box-sizing: border-box; padding: 0 8px">
+                                <article
+                                    aria-label="Soups for a cold night, 5 recipes, Public"
+                                    style="
+                                        position: relative;
+                                        display: flex;
+                                        height: 100%;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div style="overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="col_01soups"
+                                            title="Soups for a cold night"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px">
+                                        <h2
+                                            style="
+                                                margin: 0;
+                                                font-size: 16px;
+                                                line-height: 1.3;
+                                                font-weight: 600;
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a href="#col_01soups">Soups for a cold night</a>
+                                        </h2>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                font-size: 14px;
+                                                line-height: 1.4;
+                                                font-weight: 400;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span>5 recipes</span><span aria-hidden="true">·</span
+                                            ><span style="display: inline-flex; align-items: center; gap: 4px"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="globe"
+                                                    size="{{v3}}"
+                                                ></x-import
+                                                >Public</span
+                                            >
+                                        </p>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font-size: 12px;
+                                                line-height: 1.4;
+                                                font-weight: 500;
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            Copied from @maria_cooks
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li style="list-style: none; box-sizing: border-box; padding: 0 8px">
+                                <article
+                                    aria-label="Meal prep Sundays, 14 recipes, Private"
+                                    style="
+                                        position: relative;
+                                        display: flex;
+                                        height: 100%;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div style="overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="col_01mealprep"
+                                            title="Meal prep Sundays"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px">
+                                        <h2
+                                            style="
+                                                margin: 0;
+                                                font-size: 16px;
+                                                line-height: 1.3;
+                                                font-weight: 600;
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a href="#col_01mealprep">Meal prep Sundays</a>
+                                        </h2>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                font-size: 14px;
+                                                line-height: 1.4;
+                                                font-weight: 400;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span>14 recipes</span><span aria-hidden="true">·</span
+                                            ><span style="display: inline-flex; align-items: center; gap: 4px"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="lock"
+                                                    size="{{v4}}"
+                                                ></x-import
+                                                >Private</span
+                                            >
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li style="list-style: none; box-sizing: border-box; padding: 0 8px">
+                                <article
+                                    aria-label="Breakfast for guests, 1 recipe, Public"
+                                    style="
+                                        position: relative;
+                                        display: flex;
+                                        height: 100%;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                    "
+                                >
+                                    <div style="overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="col_01brunch"
+                                            title="Breakfast for guests"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px">
+                                        <h2
+                                            style="
+                                                margin: 0;
+                                                font-size: 16px;
+                                                line-height: 1.3;
+                                                font-weight: 600;
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a href="#col_01brunch">Breakfast for guests</a>
+                                        </h2>
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                font-size: 14px;
+                                                line-height: 1.4;
+                                                font-weight: 400;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span>1 recipe</span><span aria-hidden="true">·</span
+                                            ><span style="display: inline-flex; align-items: center; gap: 4px"
+                                                ><x-import
+                                                    component-from-global-scope="Commise.Native.Icon"
+                                                    name="globe"
+                                                    size="{{v5}}"
+                                                ></x-import
+                                                >Public</span
+                                            >
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                        </ul>
+                    </div>
+                    <div style="position: absolute; inset: 0; pointer-events: none; transform: translateZ(0)">
+                        <div style="pointer-events: auto">
+                            <x-import
+                                component-from-global-scope="Commise.Native.CreateFab"
+                                label="New collection"
+                                icon="plus"
+                                on-press="{{v9}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                </div>
+                <x-import
+                    component-from-global-scope="Commise.Native.HomeTabBar"
+                    chrome="{{chrome}}"
+                    live-capabilities="{{none}}"
+                    active-id="recipes"
+                    on-press="{{v9}}"
+                    bottom-inset="{{v13}}"
+                    compact="{{no}}"
+                    left-inset="{{zero}}"
+                    right-inset="{{zero}}"
+                ></x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1194,"height":834}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){};
+             return {
+              v0: 16,
+              v1: 16,
+              v2: 16,
+              v3: 16,
+              v4: 16,
+              v5: 16,
+              v6: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
+              v7: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"collections",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
+              v8: noop,
+              v9: noop,
+              v10: 24,
+              v11: 24,
+              v12: 24, v13:20, chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
+             }; } }
+        </script>
+    </body>
+</html>

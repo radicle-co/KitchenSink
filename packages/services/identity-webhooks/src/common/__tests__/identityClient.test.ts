@@ -68,7 +68,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 beforeEach(() => {
-    process.env.IDP_SECRET_KEY = 'sk_test_fake_key_for_testing';
+    process.env['IDP_SECRET_KEY'] = 'sk_test_fake_key_for_testing';
 });
 
 describe('identity backend client', () => {
@@ -112,6 +112,110 @@ describe('identity backend client', () => {
 
             expect(lastGetUserId).toBe('user_abc123');
             expect(user).toMatchObject({ id: 'user_abc123' });
+        });
+    });
+
+    /**
+     * The sign-up role writer (plan 2026-10-14-009 D10): `default` is WRITTEN at sign-up (owner ruling 2026-10-13),
+     * but only where nothing is written — a pool user created by `poolAdmin` arrives with its roles already set.
+     */
+    describe('ensureDefaultRole', () => {
+        const withMetadata = (publicMetadata: Record<string, unknown>): void => {
+            server.use(
+                http.get(`${IDP_API_BASE}/users/:userId`, ({ params }) => {
+                    lastGetUserId = params.userId as string;
+
+                    return HttpResponse.json({ ...mockUserBase, id: lastGetUserId, public_metadata: publicMetadata });
+                }),
+            );
+        };
+
+        let metadataPatches: { readonly userId: string; readonly body: Record<string, unknown> }[] = [];
+
+        beforeEach(() => {
+            metadataPatches = [];
+            server.use(
+                http.patch(`${IDP_API_BASE}/users/:userId/metadata`, async ({ params, request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    metadataPatches.push({ userId: params.userId as string, body });
+
+                    return HttpResponse.json({ ...mockUserBase, id: params.userId, public_metadata: body });
+                }),
+            );
+        });
+
+        it('merges exactly { roles: ["default"] } into a user with no roles key, reading the user fresh', async () => {
+            withMetadata({ testPrincipal: true });
+            const { ensureDefaultRole } = await import('../identityClient.js');
+
+            await expect(ensureDefaultRole('user_new')).resolves.toBe('written');
+
+            expect(lastGetUserId).toBe('user_new');
+            expect(metadataPatches).toStrictEqual([
+                { userId: 'user_new', body: { public_metadata: { roles: ['default'] } } },
+            ]);
+        });
+
+        it.each([
+            ['a premium pool user', { roles: ['premium'], testPrincipal: true }],
+            ['an explicitly empty list', { roles: [] }],
+            ['a malformed value an admin wrote', { roles: 'vip' }],
+        ])('never overwrites %s', async (_label, publicMetadata) => {
+            withMetadata(publicMetadata);
+            const { ensureDefaultRole } = await import('../identityClient.js');
+
+            await expect(ensureDefaultRole('user_has_roles')).resolves.toBe('present');
+
+            expect(metadataPatches).toStrictEqual([]);
+        });
+
+        /** A user deleted before the delivery: converge, or svix retries a delivery that can never succeed. */
+        it('answers absent, and writes nothing, for a user Clerk no longer holds (404)', async () => {
+            server.use(
+                http.get(`${IDP_API_BASE}/users/:userId`, () =>
+                    HttpResponse.json({ errors: [{ code: 'resource_not_found', message: 'gone' }] }, { status: 404 }),
+                ),
+            );
+            const { ensureDefaultRole } = await import('../identityClient.js');
+
+            await expect(ensureDefaultRole('user_gone')).resolves.toBe('absent');
+            expect(metadataPatches).toStrictEqual([]);
+        });
+
+        it('answers absent when the user is deleted between the read and the write (404 on the merge)', async () => {
+            withMetadata({});
+            server.use(
+                http.patch(`${IDP_API_BASE}/users/:userId/metadata`, () =>
+                    HttpResponse.json({ errors: [{ code: 'resource_not_found', message: 'gone' }] }, { status: 404 }),
+                ),
+            );
+            const { ensureDefaultRole } = await import('../identityClient.js');
+
+            await expect(ensureDefaultRole('user_gone_mid')).resolves.toBe('absent');
+        });
+
+        it('throws when Clerk cannot be read, and writes nothing', async () => {
+            server.use(
+                http.get(`${IDP_API_BASE}/users/:userId`, () =>
+                    HttpResponse.json({ errors: [{ code: 'internal', message: 'down' }] }, { status: 503 }),
+                ),
+            );
+            const { ensureDefaultRole } = await import('../identityClient.js');
+
+            await expect(ensureDefaultRole('user_new')).rejects.toThrow();
+            expect(metadataPatches).toStrictEqual([]);
+        });
+
+        it('throws when the metadata write fails', async () => {
+            withMetadata({});
+            server.use(
+                http.patch(`${IDP_API_BASE}/users/:userId/metadata`, () =>
+                    HttpResponse.json({ errors: [{ code: 'internal', message: 'down' }] }, { status: 500 }),
+                ),
+            );
+            const { ensureDefaultRole } = await import('../identityClient.js');
+
+            await expect(ensureDefaultRole('user_new')).rejects.toThrow();
         });
     });
 

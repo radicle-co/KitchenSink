@@ -6,8 +6,8 @@ describe('getDictionary', () => {
     it('returns the en dictionary', () => {
         const dict = getDictionary('en');
 
-        expect(dict.home.welcome).toBe('Welcome to Commise');
-        expect(dict.home.nav.profile).toBe('Profile');
+        expect(dict.home.title).toBe('Commise');
+        expect(dict.home.chrome.pageTitles.profile).toBe('Profile');
     });
 
     it('falls back to en for an unshipped locale', () => {

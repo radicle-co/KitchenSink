@@ -28,18 +28,18 @@
 
 Represents a registered Commise user. Canonical identity across all Commise systems.
 
-| Column                        | Type          | Constraints                 | Description                                                                                                           |
-| ----------------------------- | ------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `id`                          | `TEXT`        | `PRIMARY KEY`               | App-generated ULID (e.g., `01ARZ3NDEKTSV4RRFFQ69G5FAV`). Canonical user identifier across all systems. Never changes. |
-| `identity_id`                 | `TEXT`        | `UNIQUE NOT NULL`           | IdP `user.id` (e.g., `user_abc123`). Secondary key. Used only for IdP Backend API calls.                          |
-| `email`                       | `CITEXT`      | `UNIQUE NOT NULL`           | Synced from IdP during registration via `user.created` webhook. Case-insensitive (requires `citext` extension).     |
-| `name`                        | `TEXT`        | `NULL`                      | Display name. Nullable — derived from signup data (email local part or social provider `name` claim).                 |
-| `picture`                     | `TEXT`        | `NULL`                      | Optional avatar URL.                                                                                                  |
-| `status`                      | `user_status` | `NOT NULL DEFAULT 'active'` | Enum: `'active'` \| `'suspended'`. Suspended users denied by authorizer (FR-041, FR-042).                             |
-| `created_at`                  | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`    | Creation timestamp (ISO 8601 in app layer).                                                                           |
-| `updated_at`                  | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`    | Last update timestamp (trigger-managed).                                                                              |
-| `deleted_at`                  | `TIMESTAMPTZ` | `NULL`                      | Soft-delete marker. Set on account deletion before cascade. Null for active users.                                    |
-| `external_id_synced_at`       | `TIMESTAMPTZ` | `NULL`                      | Timestamp when the IdP external ID was last synced. Used by reconciliation job.                                     |
+| Column                  | Type          | Constraints                 | Description                                                                                                           |
+| ----------------------- | ------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `id`                    | `TEXT`        | `PRIMARY KEY`               | App-generated ULID (e.g., `01ARZ3NDEKTSV4RRFFQ69G5FAV`). Canonical user identifier across all systems. Never changes. |
+| `identity_id`           | `TEXT`        | `UNIQUE NOT NULL`           | IdP `user.id` (e.g., `user_abc123`). Secondary key. Used only for IdP Backend API calls.                              |
+| `email`                 | `CITEXT`      | `UNIQUE NOT NULL`           | Synced from IdP during registration via `user.created` webhook. Case-insensitive (requires `citext` extension).       |
+| `name`                  | `TEXT`        | `NULL`                      | Display name. Nullable — derived from signup data (email local part or social provider `name` claim).                 |
+| `picture`               | `TEXT`        | `NULL`                      | Optional avatar URL.                                                                                                  |
+| `status`                | `user_status` | `NOT NULL DEFAULT 'active'` | Enum: `'active'` \| `'suspended'`. Suspended users denied by authorizer (FR-041, FR-042).                             |
+| `created_at`            | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`    | Creation timestamp (ISO 8601 in app layer).                                                                           |
+| `updated_at`            | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`    | Last update timestamp (trigger-managed).                                                                              |
+| `deleted_at`            | `TIMESTAMPTZ` | `NULL`                      | Soft-delete marker. Set on account deletion before cascade. Null for active users.                                    |
+| `external_id_synced_at` | `TIMESTAMPTZ` | `NULL`                      | Timestamp when the IdP external ID was last synced. Used by reconciliation job.                                       |
 
 > **Historical note** _(superseded)_: The original design used `sub VARCHAR(255) COLLATE "C" PRIMARY KEY` storing the `sub` claim directly as the PK. The current design uses an app-generated ULID as `id TEXT PRIMARY KEY`, with the IdP's `user.id` stored as `identity_id TEXT UNIQUE NOT NULL`.
 
@@ -61,13 +61,13 @@ Represents a registered Commise user. Canonical identity across all Commise syst
 
 Account-scoped lifecycle + subscription anchor (subscription feature owns tier transitions).
 
-| Column              | Type          | Constraints                                              | Description                                                                                          |
-| ------------------- | ------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `id`                | `UUID`        | `PRIMARY KEY`, `DEFAULT gen_random_uuid()`               | Account identifier.                                                                                  |
-| `user_id`           | `TEXT`        | `UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE` | 1:1 FK to User (`UNIQUE` enforces one account per user).                                             |
+| Column              | Type          | Constraints                                              | Description                                                                                        |
+| ------------------- | ------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `id`                | `UUID`        | `PRIMARY KEY`, `DEFAULT gen_random_uuid()`               | Account identifier.                                                                                |
+| `user_id`           | `TEXT`        | `UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE` | 1:1 FK to User (`UNIQUE` enforces one account per user).                                           |
 | `subscription_tier` | `TEXT`        | `NOT NULL DEFAULT 'free'`                                | Enum: `'free'` \| `'premium'`; managed by subscription feature (Commise FR-040/FR-041 dependency). |
-| `created_at`        | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`                                 | Creation timestamp.                                                                                  |
-| `updated_at`        | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`                                 | Last update timestamp.                                                                               |
+| `created_at`        | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`                                 | Creation timestamp.                                                                                |
+| `updated_at`        | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()`                                 | Last update timestamp.                                                                             |
 
 **Indexes**:
 
@@ -125,11 +125,11 @@ Idempotency table for processed IdP webhook deliveries. Prevents duplicate proce
 
 Represents secure client session state.
 
-| Field          | Type     | Description                                                                                                                  |
-| -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `accessToken`  | `string` | JWT bearer token for API calls.                                                                                              |
-| `sessionToken` | `string` | Session token used for silent renewal.                                                                                       |
-| `expiresAt`    | `string` | ISO 8601 access token expiry timestamp.                                                                                      |
+| Field          | Type     | Description                                                                                                              |
+| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `accessToken`  | `string` | JWT bearer token for API calls.                                                                                          |
+| `sessionToken` | `string` | Session token used for silent renewal.                                                                                   |
+| `expiresAt`    | `string` | ISO 8601 access token expiry timestamp.                                                                                  |
 | `userId`       | `string` | App-generated ULID — the canonical Commise user identifier, extracted from the `https://commise.io/userId` custom claim. |
 
 > **Historical note** _(superseded)_: The original design used `sub` (subject claim) as the sole identity field in AuthSession, and `refreshToken` for silent renewal. The current design uses `userId` (ULID) as the identity field and `sessionToken` for renewal.
@@ -253,15 +253,15 @@ Nightly reconciliation
 
 ## Mapping to requirements
 
-| Entity / Field                                      | Requirement coverage                                       | Notes                                                                                                   |
-| --------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Entity / Field                                      | Requirement coverage                                       | Notes                                                                                                 |
+| --------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `users.id` (ULID PK)                                | REQ-013, REQ-015, FR-013, FR-015                           | App-generated ULID is the canonical identifier; surfaced via `https://commise.io/userId` custom claim |
-| `users.identity_id` (secondary key)                    | REQ-013, FR-013                                            | IdP `user.id`; used for IdP Backend API calls and reconciliation                                    |
-| Atomic create: `users + accounts + profiles`        | REQ-014, FR-014                                            | Signup bootstrap path via `user.created` webhook                                                        |
-| `users.status`                                      | REQ-041, REQ-042, FR-041, FR-042                           | Suspension state enforced in authorizer                                                                 |
-| Cascading delete from `users`                       | REQ-025, FR-025                                            | Removes owned records on account deletion                                                               |
-| Reconciliation repair writes                        | REQ-017, FR-017                                            | Backfills missing records from IdP; keyed by `identity_id`                                               |
-| `webhook_events.svix_id`                            | FR-013, FR-016                                             | Idempotency for IdP webhook retries                                                                     |
+| `users.identity_id` (secondary key)                 | REQ-013, FR-013                                            | IdP `user.id`; used for IdP Backend API calls and reconciliation                                      |
+| Atomic create: `users + accounts + profiles`        | REQ-014, FR-014                                            | Signup bootstrap path via `user.created` webhook                                                      |
+| `users.status`                                      | REQ-041, REQ-042, FR-041, FR-042                           | Suspension state enforced in authorizer                                                               |
+| Cascading delete from `users`                       | REQ-025, FR-025                                            | Removes owned records on account deletion                                                             |
+| Reconciliation repair writes                        | REQ-017, FR-017                                            | Backfills missing records from IdP; keyed by `identity_id`                                            |
+| `webhook_events.svix_id`                            | FR-013, FR-016                                             | Idempotency for IdP webhook retries                                                                   |
 | Token/user identity contract (`AuthSession.userId`) | REQ-006, REQ-007, REQ-008, REQ-040, FR-006..FR-008, FR-040 | Consumed by web/mobile clients and APIs; ULID extracted from `https://commise.io/userId` custom claim |
 
 ---

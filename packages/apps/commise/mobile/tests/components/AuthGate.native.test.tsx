@@ -15,28 +15,55 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 
+import { authBlockMessages } from '@commise/features-account';
+
 import { AuthGate } from '../../src/components/AuthGate.js';
+import { boundaryMessages } from '@commise/features-core/boundary';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
 
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: vi.fn() }));
 // The signed-out surfaces are covered by their own suites; stub them so this suite asserts the ROUTING.
+/** What a provider hook handed back for the finish step (plan 012): a stand-in, compared by identity. */
+const PENDING = { signUp: { id: 'sua_1' }, fields: [{ name: 'username' }] };
+
+type NeedsFields = (pending: typeof PENDING) => void;
+
 vi.mock('../../src/screens/login', () => ({
-    LoginScreen: ({ onSignUp }: { onSignUp: () => void }) => (
+    LoginScreen: ({ onSignUp, onNeedsFields }: { onSignUp: () => void; onNeedsFields: NeedsFields }) => (
         <>
             <div>stub-login</div>
             <button type="button" onClick={onSignUp}>
                 stub-go-to-signup
             </button>
+            <button type="button" onClick={() => onNeedsFields(PENDING)}>
+                stub-login-social-needs-fields
+            </button>
         </>
     ),
 }));
 vi.mock('../../src/screens/signup', () => ({
-    SignUpScreen: ({ onBack }: { onBack: () => void }) => (
+    SignUpScreen: ({ onBack, onNeedsFields }: { onBack: () => void; onNeedsFields: NeedsFields }) => (
         <>
             <div>stub-signup</div>
             <button type="button" onClick={onBack}>
                 stub-back-to-login
+            </button>
+            <button type="button" onClick={() => onNeedsFields(PENDING)}>
+                stub-signup-social-needs-fields
+            </button>
+        </>
+    ),
+}));
+vi.mock('../../src/screens/CompleteSignUpScreen', () => ({
+    CompleteSignUpScreen: (props: { signUp: unknown; fields: unknown; onStartOver: () => void }) => (
+        <>
+            <div>
+                stub-complete-signup{' '}
+                {props.signUp === PENDING.signUp && props.fields === PENDING.fields ? 'same' : 'other'}
+            </div>
+            <button type="button" onClick={props.onStartOver}>
+                stub-start-over
             </button>
         </>
     ),
@@ -104,20 +131,80 @@ describe('AuthGate', () => {
         expect(screen.getByText('stub-login')).toBeTruthy();
     });
 
-    it('shows the shared block reason for a blocked session', () => {
-        useAuthMock.mockReturnValue(
-            authState({ status: 'blocked', reason: { title: 'Account suspended', body: 'Contact support.' } }),
-        );
+    it.each(['stub-login-social-needs-fields', 'stub-signup-social-needs-fields'])(
+        'shows the finish step with exactly the sign-up and fields the provider handed back (%s), and nothing else',
+        (trigger) => {
+            useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+            render(
+                <AuthGate>
+                    <Text>app</Text>
+                </AuthGate>,
+            );
 
+            if (trigger.startsWith('stub-signup')) {
+                fireEvent.click(screen.getByText('stub-go-to-signup'));
+            }
+
+            fireEvent.click(screen.getByText(trigger));
+
+            expect(screen.getByText('stub-complete-signup same')).toBeTruthy();
+            expect(screen.queryByText('stub-login')).toBeNull();
+            expect(screen.queryByText('stub-signup')).toBeNull();
+        },
+    );
+
+    it('returns from the finish step to the SIGN-IN form when the cook starts over', () => {
+        useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
         render(
             <AuthGate>
                 <Text>app</Text>
             </AuthGate>,
         );
 
-        expect(screen.getByText('Account suspended')).toBeTruthy();
-        expect(screen.getByText('Contact support.')).toBeTruthy();
+        fireEvent.click(screen.getByText('stub-go-to-signup'));
+        fireEvent.click(screen.getByText('stub-signup-social-needs-fields'));
+        fireEvent.click(screen.getByText('stub-start-over'));
+
+        expect(screen.getByText('stub-login')).toBeTruthy();
     });
+
+    it('⛔ opens on the sign-in form again after a sign-out — never on a finish step left over from the last session', () => {
+        useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+        // A fresh element per render: React skips re-rendering an element it was handed before.
+        const tree = () => (
+            <AuthGate>
+                <Text>app</Text>
+            </AuthGate>
+        );
+        const { rerender } = render(tree());
+
+        fireEvent.click(screen.getByText('stub-login-social-needs-fields'));
+        useAuthMock.mockReturnValue(authState({ status: 'authenticated' }));
+        rerender(tree());
+        expect(screen.getByText('app')).toBeTruthy();
+
+        useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
+        rerender(tree());
+
+        expect(screen.getByText('stub-login')).toBeTruthy();
+        expect(screen.queryByText(/stub-complete-signup/u)).toBeNull();
+    });
+
+    it.each(['account_suspended', 'impersonation_blocked'] as const)(
+        'shows the shared, localized %s copy for a blocked session',
+        (code) => {
+            useAuthMock.mockReturnValue(authState({ status: 'blocked', reason: { code } }));
+
+            render(
+                <AuthGate>
+                    <Text>app</Text>
+                </AuthGate>,
+            );
+
+            expect(screen.getByText(authBlockMessages.en[code].title)).toBeTruthy();
+            expect(screen.getByText(authBlockMessages.en[code].body)).toBeTruthy();
+        },
+    );
 
     it('localizes the failure heading and passes the provider diagnostic through', () => {
         useAuthMock.mockReturnValue(authState({ status: 'error', error: new Error('token endpoint down') }));
@@ -128,8 +215,8 @@ describe('AuthGate', () => {
             </AuthGate>,
         );
 
-        // The heading is APP copy → dictionary. A regression to a hardcoded literal fails here.
-        expect(screen.getByText(mobileMessages.en.common.somethingWentWrong)).toBeTruthy();
+        // The heading is the shared crash-fallback title. A regression to a hardcoded literal fails here.
+        expect(screen.getByText(boundaryMessages.en.errorTitle)).toBeTruthy();
         expect(screen.getByText('token endpoint down')).toBeTruthy();
     });
 

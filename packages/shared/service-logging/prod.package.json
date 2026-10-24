@@ -1,0 +1,26 @@
+{
+    "name": "@kitchensink/service-logging",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./logAttributes": {
+            "types": "./dist/logAttributes.d.ts",
+            "default": "./dist/logAttributes.js"
+        }
+    },
+    "dependencies": {
+        "@kitchensink/observability-scrubbers": "*",
+        "@nestjs/common": "^11.0.0",
+        "@sentry/nestjs": "^10.57.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

@@ -1,6 +1,6 @@
 /**
- * Headless-hook seam — a small, generic debounce over a changing value. Backs the ingredient typeahead's
- * REQ-057 debounce window (`useIngredientResolver`), but is deliberately value-agnostic (not
+ * Headless-hook seam — a small, generic debounce over a changing value. Backs the ingredient searches'
+ * REQ-057 debounce window (`useIngredientEntry`, `useIngredientFilterSearch`), but is deliberately value-agnostic (not
  * ingredient-specific) so any other orchestration hook needing the same "settle after N ms of no change"
  * behavior can reuse it instead of re-deriving its own timer.
  *

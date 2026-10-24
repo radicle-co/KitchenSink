@@ -79,12 +79,12 @@ Documentation edits can make the artifact chain honest and internally consistent
 
 ## Feature-Specific Hot Spots
 
-| Feature                    | Blocking V-Model closure work                                                                                                      |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Feature                  | Blocking V-Model closure work                                                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `001-commise-recipe-app` | Resolve GR-002 API prefix and GR-007 shared-core handoff before implementation; then ingest real execution results.                |
-| `010-subscriptions`        | Synchronize REQ-026..REQ-031 through architecture/module/hazard/unit/integration/system traceability and regenerate release audit. |
-| `012-creator-profiles`     | Close release-audit missing mappings and untested scenarios; complete formal spec/product-spec FR crosswalk during revalidation.   |
-| `013-cooking-school`       | Implement tasks, close missing traceability cells, ingest execution results, and regenerate blocked release audit.                 |
+| `010-subscriptions`      | Synchronize REQ-026..REQ-031 through architecture/module/hazard/unit/integration/system traceability and regenerate release audit. |
+| `012-creator-profiles`   | Close release-audit missing mappings and untested scenarios; complete formal spec/product-spec FR crosswalk during revalidation.   |
+| `013-cooking-school`     | Implement tasks, close missing traceability cells, ingest execution results, and regenerate blocked release audit.                 |
 
 ---
 

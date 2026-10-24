@@ -4,7 +4,7 @@
  * Thin wrapper over the shared {@link bootServiceApp} template (`@kitchensink/service-test-harness`,
  * promoted from identity in T6 / CP-9) that supplies the recipe `AppModule` loader and the env its
  * `apiConfigSchema` + `DatabaseModule` require, against the Docker Postgres + LocalStack S3 harness
- * (migrated + seeded ONCE per run by `tests/global-setup.ts` — DB-isolation strategy 2 of the contract
+ * (migrated + seeded ONCE per run by `tests/globalSetup.ts` — DB-isolation strategy 2 of the contract
  * documented on {@link bootServiceApp}). Phase-3 e2e specs import {@link bootRecipeApp} to drive real
  * endpoints on the ephemeral-port app it hands back.
  *
@@ -22,16 +22,16 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { SEED_ERASURE_QUEUE_URL } from '../global-setup.js';
-
-/** The harness Postgres connection string the booted app is configured against. */
-const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-
-/** Whether a test database is configured — e2e specs use this to `describe.skipIf(!hasDatabaseUrl)`. */
-export const hasDatabaseUrl = Boolean(DATABASE_URL);
+import { SEED_ERASURE_QUEUE_URL, SEED_PARSE_QUEUE_URL, SEED_VERIFICATION_QUEUE_URL } from '../support/localHarness.js';
+import { RECIPE_APP_ENV_DEFAULTS } from '../support/recipeAppEnv.js';
 
 /** Options for {@link bootRecipeApp}. */
 export interface BootRecipeAppOptions {
+    /**
+     * The SERVICE-role connection the app is booted against, `recipeDb().appUrl`. Required, so each suite names the
+     * connection its app reads and no default picks one for it.
+     */
+    readonly databaseUrl: string;
     /**
      * When set, injects a fixed dev-bypass Principal (`RECIPE_DEV_AUTH_USER_ID`) so protected routes
      * authenticate as this owner ULID without a Clerk bearer token. Ignored in production (never set
@@ -48,22 +48,17 @@ export type BootedRecipeApp = BootedServiceApp;
  *
  * @param options - Optional dev-auth bypass configuration.
  * @returns The booted app's base URL, Nest handle, and `close()`.
- * @throws If `DATABASE_URL` / `TEST_DATABASE_URL` is unset (the app's `DatabaseModule` needs it) — guard
- *   suites with `describe.skipIf(!hasDatabaseUrl)`.
+ * @throws {NonDisposableAdminServerError} when no admin server is configured.
  * @sideEffect Mutates `process.env`, opens a Postgres pool, and starts an HTTP listener.
  */
-export async function bootRecipeApp(options: BootRecipeAppOptions = {}): Promise<BootedRecipeApp> {
-    if (!hasDatabaseUrl) {
-        throw new Error('bootRecipeApp requires DATABASE_URL (or TEST_DATABASE_URL). Is the test harness up?');
-    }
-
+export async function bootRecipeApp(options: BootRecipeAppOptions): Promise<BootedRecipeApp> {
     const forcedEnv: Record<string, string> = {
         // The recipe environment enum is development/staging/production (vitest sets 'test'), and
         // 'development' also keeps the dev-auth bypass usable.
         NODE_ENV: 'development',
-        // Forced (not defaulted): re-homes a caller-supplied `TEST_DATABASE_URL` onto the `DATABASE_URL`
-        // key the app's config schema actually reads. `hasDatabaseUrl` above guarantees this is defined.
-        DATABASE_URL: DATABASE_URL as string,
+        // Forced (not defaulted): the app's config schema reads `DATABASE_URL`, and what it gets is the
+        // SERVICE role's connection the CALLER named — the privileges the deployed service runs with.
+        DATABASE_URL: options.databaseUrl,
     };
 
     if (options.devAuthUserId !== undefined) {
@@ -74,21 +69,15 @@ export async function bootRecipeApp(options: BootRecipeAppOptions = {}): Promise
         loadAppModule: () => import('../../src/app.module.js'),
         forcedEnv,
         envDefaults: {
-            CLERK_JWT_KEY: 'e2e-harness-placeholder-key',
-            CLERK_AUTHORIZED_PARTIES: 'http://localhost:3000',
-            S3_ENDPOINT: 'http://localhost:4566',
-            S3_FORCE_PATH_STYLE: 'true',
-            S3_BUCKET_PHOTOS: 'commise-photos',
-            S3_BUCKET_VERSIONS: 'commise-versions',
-            CLOUDFRONT_URL: 'http://localhost:4566/commise-photos',
-            SQS_ENDPOINT: 'http://localhost:4566',
+            ...RECIPE_APP_ENV_DEFAULTS,
             // The queue the global setup actually provisions — one definition, so the booted app and the
             // specs draining the queue can never address different queues.
             ACCOUNT_ERASURE_QUEUE_URL: SEED_ERASURE_QUEUE_URL,
-            // REQUIRED since issue #120 — the app refuses to boot without a food origin, deliberately (the old
-            // in-code `http://localhost:3002` default is what silently pointed the deployed service at itself).
-            // Nothing listens here, which is what makes the F2 specs below a real absent-dependency proof.
-            FOOD_SERVICE_URL: 'http://localhost:3002',
+            // The verification gate's queue (plan U11 / ADR-0024). REQUIRED like the food origin (`recipeAppEnv.ts`) and
+            // for the same reason: `ingredientVerificationConfigSchema` refuses to boot without it, because
+            // U11 shipped the gate's consumer with nothing producing a message and every check stayed green.
+            INGREDIENT_VERIFICATION_QUEUE_URL: SEED_VERIFICATION_QUEUE_URL,
+            RECIPE_PARSE_QUEUE_URL: SEED_PARSE_QUEUE_URL,
         },
     });
 }

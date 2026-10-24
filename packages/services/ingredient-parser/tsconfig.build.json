@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // `infra/smoke` is IN the build (via the base `include`) and `infra/bin` + `infra/lib` are not: the
+    // deploy smoke runs under plain `node` after prod-deploy's `npm prune --omit=dev` — it used to run
+    // under `npx tsx`, which nothing declares as a runtime dependency — and the CDK app is compiled by
+    // `infra/tsconfig.json` into `infra/dist` instead. `tsc` still follows the smoke's own import of
+    // `infra/lib/assetInspection.ts`, so that one file is emitted twice, under both roots, on purpose.
+    "exclude": [
+        "node_modules",
+        "dist",
+        "infra/bin",
+        "infra/lib",
+        "infra/__tests__",
+        "build",
+        "src/**/__tests__/**",
+        "tests/**"
+    ]
+}

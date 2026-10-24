@@ -13,18 +13,25 @@
  * Every branch is pinned, and the two mutation-critical asymmetries (unseeable → 404-not-403, own → 403)
  * have dedicated tests: flip either and a test flips with it.
  */
+import { HttpException } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RatingsService } from '../ratings.service.js';
+import type { ActingPrincipal } from '../../auth/principal.js';
 import type { RatingsDal } from '../dal/ratings.dal.js';
-import type { RecipesDal, RecipeAggregate } from '../../recipes/dal/recipes.dal.js';
-import type { RecipesService } from '../../recipes/recipes.service.js';
-import type { RecipeResponse } from '../../recipes/dto/recipe-response.dto.js';
+import type { RecipeAggregate } from '../../recipes/dal/recipes.dal.js';
+import { fakeRecipesDal } from '../../recipes/__fixtures__/recipesDal.fixture.js';
+import { makeRecipesService } from '../../recipes/__fixtures__/recipesService.fixture.js';
+import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { makeRecipeRow } from '../../__fixtures__/index.js';
 
-const RATER = '01JRATER00000000000000000A';
+const RATER_ID = '01JRATER00000000000000000A';
+/** A REAL rater on an enforcing stage — the production case (ADR-0040). */
+const RATER: ActingPrincipal = { userId: RATER_ID, principalKind: 'real', containment: 'enforce' };
+/** The caller's opaque bearer, forwarded so the re-read detail's nutrition resolves. */
+const CALLER = { kind: 'caller-token' } as never;
 const OWNER = '01JOWNER00000000000000000B';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 
@@ -44,30 +51,79 @@ function aggregate(overrides: Partial<{ ownerId: string; visibility: string; sta
 
 interface Harness {
     service: RatingsService;
-    recipesDal: { findById: ReturnType<typeof vi.fn> };
+    /** The row-only read the access check makes. */
+    findRowById: ReturnType<typeof vi.fn>;
+    /** The full aggregate read — must never serve the access check. */
+    findById: ReturnType<typeof vi.fn>;
     ratingsDal: { upsert: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
     recipesService: { getById: ReturnType<typeof vi.fn> };
     detail: RecipeResponse;
 }
 
+/**
+ * ⛔ REWRITTEN. The ratings service holds no `RecipesDal` of its own and does not re-implement the 404
+ * visibility boundary: it asks `RecipesService.findReadableRecipe`, so this harness builds
+ * a REAL `RecipesService` over a fake row read — the visibility cases below exercise the real rule rather than
+ * a copy of it in a test double — and stubs only `getById`, the detail re-read the PUT returns.
+ */
 function makeHarness(found: RecipeAggregate | undefined): Harness {
     const detail = { id: RECIPE_ID, ratingCount: 1, averageRating: 4 } as unknown as RecipeResponse;
-    const recipesDal = { findById: vi.fn().mockResolvedValue(found) };
+    const findRowById = vi.fn().mockResolvedValue(found?.recipe);
+    const findById = vi.fn();
     const ratingsDal = { upsert: vi.fn().mockResolvedValue(undefined), delete: vi.fn().mockResolvedValue(true) };
-    const recipesService = { getById: vi.fn().mockResolvedValue(detail) };
-    const service = new RatingsService(
-        ratingsDal as unknown as RatingsDal,
-        recipesDal as unknown as RecipesDal,
-        recipesService as unknown as RecipesService,
-    );
+    const realRecipes = makeRecipesService({ dal: fakeRecipesDal({ findRowById, findById }) });
+    const getById = vi.spyOn(realRecipes, 'getById').mockResolvedValue(detail);
+    const service = new RatingsService(ratingsDal as unknown as RatingsDal, realRecipes);
 
-    return { service, recipesDal, ratingsDal, recipesService, detail };
+    return { service, findRowById, findById, ratingsDal, recipesService: { getById }, detail };
 }
 
 /** Assert a thrown value is the expected domain error code. */
 async function expectDomainError(promise: Promise<unknown>, code: RecipeErrorCode): Promise<void> {
     await expect(promise).rejects.toSatisfy((err: unknown) => isRecipeDomainError(err) && err.code === code);
 }
+
+describe('RatingsService.setRating — ADR-0040 test-principal containment', () => {
+    it('⛔ refuses a contained test principal’s rating with 403 TEST_PRINCIPAL_CONTAINED and writes nothing', async () => {
+        const h = makeHarness(aggregate());
+
+        const error = await h.service
+            .setRating({ ...RATER, principalKind: 'test' }, RECIPE_ID, { stars: 5 }, CALLER)
+            .then(
+                () => undefined,
+                (thrown: unknown) => thrown,
+            );
+
+        expect(error instanceof HttpException && error.getStatus()).toBe(403);
+        expect(error instanceof HttpException && (error.getResponse() as { code: string }).code).toBe(
+            'TEST_PRINCIPAL_CONTAINED',
+        );
+        // Refused BEFORE any read: the refusal is about the principal, so it cannot confirm a recipe exists.
+        expect(h.findRowById).not.toHaveBeenCalled();
+        expect(h.ratingsDal.upsert).not.toHaveBeenCalled();
+    });
+
+    it('lets a test principal rate where containment is off (sandbox and pr-{N})', async () => {
+        const h = makeHarness(aggregate());
+
+        await h.service.setRating(
+            { ...RATER, principalKind: 'test', containment: 'off' },
+            RECIPE_ID,
+            { stars: 5 },
+            CALLER,
+        );
+
+        expect(h.ratingsDal.upsert).toHaveBeenCalledOnce();
+    });
+
+    it('lets a contained test principal REMOVE a rating — deleting one only reduces what reached real data', async () => {
+        const h = makeHarness(aggregate());
+
+        await h.service.deleteRating({ ...RATER, principalKind: 'test' }, RECIPE_ID);
+
+        expect(h.ratingsDal.delete).toHaveBeenCalledWith(RECIPE_ID, RATER_ID);
+    });
+});
 
 describe('RatingsService.setRating', () => {
     let h: Harness;
@@ -77,27 +133,38 @@ describe('RatingsService.setRating', () => {
     });
 
     it('rates a visible recipe owned by someone else, then returns the trigger-refreshed detail', async () => {
-        const result = await h.service.setRating(RATER, RECIPE_ID, { stars: 4 });
+        const result = await h.service.setRating(RATER, RECIPE_ID, { stars: 4 }, CALLER);
 
-        expect(h.ratingsDal.upsert).toHaveBeenCalledWith({ recipeId: RECIPE_ID, userId: RATER, stars: 4 });
+        expect(h.ratingsDal.upsert).toHaveBeenCalledWith({ recipeId: RECIPE_ID, userId: RATER_ID, stars: 4 });
         // The rater comes from the token arg, never the body — the DAL is called with the verified RATER.
-        expect(h.recipesService.getById).toHaveBeenCalledWith(RATER, RECIPE_ID);
+        // ⛔ And the caller's bearer reaches the re-read, whose detail body IS the response (REWRITTEN: the
+        // two-argument call answers with cache-only nutrition).
+        // The rating has already COMMITTED, so the re-read answers on the short post-commit food budget.
+        expect(h.recipesService.getById).toHaveBeenCalledWith({
+            viewerId: RATER_ID,
+            id: RECIPE_ID,
+            caller: CALLER,
+            budget: 'postCommit',
+        });
+        // The access check read ONE row; the aggregate was never loaded to authorize.
+        expect(h.findRowById).toHaveBeenCalledWith(RECIPE_ID);
+        expect(h.findById).not.toHaveBeenCalled();
         expect(result).toBe(h.detail);
     });
 
     it('re-rating upserts (never a second row) and re-reads the aggregate', async () => {
-        await h.service.setRating(RATER, RECIPE_ID, { stars: 2 });
-        await h.service.setRating(RATER, RECIPE_ID, { stars: 5 });
+        await h.service.setRating(RATER, RECIPE_ID, { stars: 2 }, CALLER);
+        await h.service.setRating(RATER, RECIPE_ID, { stars: 5 }, CALLER);
 
-        expect(h.ratingsDal.upsert).toHaveBeenNthCalledWith(1, { recipeId: RECIPE_ID, userId: RATER, stars: 2 });
-        expect(h.ratingsDal.upsert).toHaveBeenNthCalledWith(2, { recipeId: RECIPE_ID, userId: RATER, stars: 5 });
+        expect(h.ratingsDal.upsert).toHaveBeenNthCalledWith(1, { recipeId: RECIPE_ID, userId: RATER_ID, stars: 2 });
+        expect(h.ratingsDal.upsert).toHaveBeenNthCalledWith(2, { recipeId: RECIPE_ID, userId: RATER_ID, stars: 5 });
     });
 
     it('404s (RECIPE_NOT_FOUND) for a missing/tombstoned recipe, and never writes a rating', async () => {
         const missing = makeHarness(undefined);
 
         await expectDomainError(
-            missing.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            missing.service.setRating(RATER, RECIPE_ID, { stars: 3 }, CALLER),
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(missing.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -110,7 +177,7 @@ describe('RatingsService.setRating', () => {
         const privateNotMine = makeHarness(aggregate({ ownerId: OWNER, visibility: 'private' }));
 
         await expectDomainError(
-            privateNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            privateNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }, CALLER),
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(privateNotMine.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -123,7 +190,7 @@ describe('RatingsService.setRating', () => {
         const publicDraftNotMine = makeHarness(aggregate({ ownerId: OWNER, visibility: 'public', status: 'draft' }));
 
         await expectDomainError(
-            publicDraftNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }),
+            publicDraftNotMine.service.setRating(RATER, RECIPE_ID, { stars: 3 }, CALLER),
             RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(publicDraftNotMine.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -132,10 +199,10 @@ describe('RatingsService.setRating', () => {
     it('403s (CANNOT_RATE_OWN_RECIPE) when the caller owns the recipe, and never writes a rating', async () => {
         // A recipe the caller can see AND owns: existence is already known to the owner, so an explicit
         // 403 leaks nothing. Dropping this check (letting an owner rate) makes this test fail.
-        const own = makeHarness(aggregate({ ownerId: RATER, visibility: 'public' }));
+        const own = makeHarness(aggregate({ ownerId: RATER_ID, visibility: 'public' }));
 
         await expectDomainError(
-            own.service.setRating(RATER, RECIPE_ID, { stars: 5 }),
+            own.service.setRating(RATER, RECIPE_ID, { stars: 5 }, CALLER),
             RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
         );
         expect(own.ratingsDal.upsert).not.toHaveBeenCalled();
@@ -144,10 +211,10 @@ describe('RatingsService.setRating', () => {
     it("403s (CANNOT_RATE_OWN_RECIPE) even for the caller's OWN PRIVATE recipe (own-check precedes nothing hides it)", async () => {
         // Owner + private: viewable (owner sees own private), so the own-check — not the visibility check —
         // decides. Confirms the precedence: for a recipe the caller CAN see, ownership is the deciding rule.
-        const ownPrivate = makeHarness(aggregate({ ownerId: RATER, visibility: 'private' }));
+        const ownPrivate = makeHarness(aggregate({ ownerId: RATER_ID, visibility: 'private' }));
 
         await expectDomainError(
-            ownPrivate.service.setRating(RATER, RECIPE_ID, { stars: 5 }),
+            ownPrivate.service.setRating(RATER, RECIPE_ID, { stars: 5 }, CALLER),
             RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
         );
     });
@@ -158,7 +225,7 @@ describe('RatingsService.deleteRating', () => {
         const h = makeHarness(aggregate());
 
         await expect(h.service.deleteRating(RATER, RECIPE_ID)).resolves.toBeUndefined();
-        expect(h.ratingsDal.delete).toHaveBeenCalledWith(RECIPE_ID, RATER);
+        expect(h.ratingsDal.delete).toHaveBeenCalledWith(RECIPE_ID, RATER_ID);
     });
 
     it('is a clean 204 no-op when the caller had no rating (delete reports false)', async () => {
@@ -188,9 +255,9 @@ describe('RatingsService.deleteRating', () => {
     it('does NOT 403 when the caller owns the recipe — DELETE carries no own-recipe rejection (contract)', async () => {
         // The DELETE contract lists 204/401/404 only. An owner can never have a rating on their own recipe
         // (PUT blocks it), so deleting is a clean no-op 204 — no CANNOT_RATE_OWN_RECIPE here.
-        const own = makeHarness(aggregate({ ownerId: RATER, visibility: 'public' }));
+        const own = makeHarness(aggregate({ ownerId: RATER_ID, visibility: 'public' }));
 
         await expect(own.service.deleteRating(RATER, RECIPE_ID)).resolves.toBeUndefined();
-        expect(own.ratingsDal.delete).toHaveBeenCalledWith(RECIPE_ID, RATER);
+        expect(own.ratingsDal.delete).toHaveBeenCalledWith(RECIPE_ID, RATER_ID);
     });
 });

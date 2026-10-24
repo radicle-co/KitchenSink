@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Data sources, loading and problems (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        font-family: var(--font-body);
+                        color: var(--ink);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .cap {
+                        margin: 0;
+                        font: 600 14px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <main style="width: 1280px; padding: 32px 40px 40px">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px 32px; align-items: stretch">
+                    <div style="display: flex; flex-direction: column; gap: 8px">
+                        <p class="cap">
+                            Loading: three placeholders about as tall as a card, so the page does not jump when the list
+                            lands.
+                        </p>
+                        <div
+                            style="
+                                flex: 1;
+                                border: 1px solid var(--line-divider);
+                                border-radius: var(--radius-md);
+                                background: var(--canvas);
+                                padding: 24px 24px 32px;
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 16px; max-width: 640px">
+                                <x-import
+                                    component-from-global-scope="Commise.LargeTitleHeader"
+                                    heading-id="ds-h1"
+                                    title="Data sources"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: column; gap: 8px">
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                        The nutrition figures in this app come from these public food databases.
+                                    </p>
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                        When no database lists a food exactly, we use the figures for a similar or more
+                                        general food.
+                                    </p>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px">
+                                    <p
+                                        role="status"
+                                        style="margin: 0; font-size: 12px; line-height: 1.4; color: var(--ink-muted)"
+                                    >
+                                        Loading data sources…
+                                    </p>
+                                    <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 12px">
+                                        <div
+                                            style="height: 160px; border-radius: 16px; background: var(--surface-muted)"
+                                        ></div>
+                                        <div
+                                            style="height: 160px; border-radius: 16px; background: var(--surface-muted)"
+                                        ></div>
+                                        <div
+                                            style="height: 160px; border-radius: 16px; background: var(--surface-muted)"
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px">
+                        <p class="cap">Load failed: the alert and Try again are one block.</p>
+                        <div
+                            style="
+                                flex: 1;
+                                border: 1px solid var(--line-divider);
+                                border-radius: var(--radius-md);
+                                background: var(--canvas);
+                                padding: 24px 24px 32px;
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 16px; max-width: 640px">
+                                <x-import
+                                    component-from-global-scope="Commise.LargeTitleHeader"
+                                    heading-id="ds-h2"
+                                    title="Data sources"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: column; gap: 8px">
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                        The nutrition figures in this app come from these public food databases.
+                                    </p>
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                        When no database lists a food exactly, we use the figures for a similar or more
+                                        general food.
+                                    </p>
+                                </div>
+                                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px">
+                                    <p
+                                        role="alert"
+                                        style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)"
+                                    >
+                                        We couldn’t load the data sources.
+                                    </p>
+                                    <x-import
+                                        component-from-global-scope="Commise.Button"
+                                        variant="secondary"
+                                        icon="refreshCw"
+                                        on-press="{{noop}}"
+                                        >Try again</x-import
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px">
+                        <p class="cap">
+                            Empty: only when no stored value cites a source. A deployed stage cannot reach it.
+                        </p>
+                        <div
+                            style="
+                                flex: 1;
+                                border: 1px solid var(--line-divider);
+                                border-radius: var(--radius-md);
+                                background: var(--canvas);
+                                padding: 24px 24px 32px;
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 16px; max-width: 640px">
+                                <x-import
+                                    component-from-global-scope="Commise.LargeTitleHeader"
+                                    heading-id="ds-h3"
+                                    title="Data sources"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: column; gap: 8px">
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                        The nutrition figures in this app come from these public food databases.
+                                    </p>
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                        When no database lists a food exactly, we use the figures for a similar or more
+                                        general food.
+                                    </p>
+                                </div>
+                                <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                    No data sources to show yet.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px">
+                        <p class="cap">
+                            Offline: this replaces the loading state. There is no retry, because the read resumes by
+                            itself.
+                        </p>
+                        <div
+                            style="
+                                flex: 1;
+                                border: 1px solid var(--line-divider);
+                                border-radius: var(--radius-md);
+                                background: var(--canvas);
+                                padding: 24px 24px 32px;
+                            "
+                        >
+                            <div style="display: flex; flex-direction: column; gap: 16px; max-width: 640px">
+                                <x-import
+                                    component-from-global-scope="Commise.LargeTitleHeader"
+                                    heading-id="ds-h4"
+                                    title="Data sources"
+                                    back="{{back}}"
+                                ></x-import>
+                                <div style="display: flex; flex-direction: column; gap: 8px">
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink)">
+                                        The nutrition figures in this app come from these public food databases.
+                                    </p>
+                                    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-muted)">
+                                        When no database lists a food exactly, we use the figures for a similar or more
+                                        general food.
+                                    </p>
+                                </div>
+                                <x-import
+                                    component-from-global-scope="Commise.OfflineReadSlot"
+                                    message="Waiting for a connection. This loads on its own."
+                                ></x-import>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+            class Component extends DCLogic { renderVals(){ return { noop: function(){}, back: { label: 'Back to Profile', parent: 'Profile', onPress: function(){}, href: '#' } }; } }
+        </script>
+    </body>
+</html>

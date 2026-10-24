@@ -1,0 +1,56 @@
+{
+    "rules": [
+        {
+            "rulePriority": 1,
+            "description": "Expire untagged images after 1 day",
+            "selection": {
+                "tagStatus": "untagged",
+                "countType": "sinceImagePushed",
+                "countUnit": "days",
+                "countNumber": 1
+            },
+            "action": {
+                "type": "expire"
+            }
+        },
+        {
+            "rulePriority": 2,
+            "description": "Keep the newest 50 sandbox-* preview images",
+            "selection": {
+                "tagStatus": "tagged",
+                "tagPrefixList": ["sandbox-"],
+                "countType": "imageCountMoreThan",
+                "countNumber": 50
+            },
+            "action": {
+                "type": "expire"
+            }
+        },
+        {
+            "rulePriority": 3,
+            "description": "Keep the newest 50 pr-* preview images",
+            "selection": {
+                "tagStatus": "tagged",
+                "tagPrefixList": ["pr-"],
+                "countType": "imageCountMoreThan",
+                "countNumber": 50
+            },
+            "action": {
+                "type": "expire"
+            }
+        },
+        {
+            "rulePriority": 4,
+            "description": "Keep the newest 50 ck-* content images (immutable; only this rule removes them)",
+            "selection": {
+                "tagStatus": "tagged",
+                "tagPrefixList": ["ck-"],
+                "countType": "imageCountMoreThan",
+                "countNumber": 50
+            },
+            "action": {
+                "type": "expire"
+            }
+        }
+    ]
+}

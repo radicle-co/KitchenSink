@@ -1,0 +1,3009 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Home, loading, proposal (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <!-- PROPOSAL (owner comment on the canvas, 2026-10-17): on web, the profile sits at the top right of the screen,
+             as on mobile, and the sidebar no longer has a profile row. The product still draws it in the sidebar from
+             840 px, where LargeTitleHeader hides its avatar; this rule shows that avatar instead. -->
+        <style>
+            .col-start-3.row-start-1.justify-self-end.nav\:hidden {
+                display: block;
+                align-self: flex-start;
+            }
+        </style>
+        <style>
+            body .ks-shell {
+                min-height: 0;
+            }
+            body .ks-side {
+                height: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    .ks-stretch::after {
+                        content: '';
+                        position: absolute;
+                        inset: 0;
+                    }
+                    .ks-sg {
+                        display: grid;
+                        grid-row: span 6;
+                        grid-template-rows: subgrid;
+                        grid-template-columns: minmax(0, 1fr);
+                    }
+                    ul.ks-rail {
+                        display: flex;
+                        gap: 16px;
+                        list-style: none;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    ul.ks-rail > li {
+                        width: clamp(240px, 78%, 256px);
+                        flex: none;
+                        scroll-snap-align: start;
+                        display: grid;
+                        grid-template-columns: minmax(0, 1fr);
+                        grid-template-rows: repeat(6, auto);
+                    }
+                    ul.ks-rail > li > article {
+                        grid-row: span 6;
+                    }
+                    .ks-track {
+                        overflow-x: auto;
+                        scroll-snap-type: x mandatory;
+                        scroll-padding-inline: 16px;
+                        padding-bottom: 8px;
+                    }
+                    .ks-round {
+                        display: none;
+                        width: 36px;
+                        height: 36px;
+                        flex: none;
+                        align-items: center;
+                        justify-content: center;
+                        border: 0;
+                        border-radius: 9999px;
+                        background: transparent;
+                        color: var(--ink);
+                        cursor: pointer;
+                    }
+                    .ks-round[aria-disabled='true'] {
+                        opacity: 0.4;
+                    }
+                    .ks-cardc {
+                        container: card/inline-size;
+                    }
+                    .ks-xs {
+                        display: none !important;
+                    }
+                    @container card (min-width:208px) {
+                        .ks-xs {
+                            display: inline-flex !important;
+                        }
+                    }
+                    .ks-week {
+                        gap: 2px;
+                        margin-inline: -4px !important;
+                    }
+                    .ks-day-s {
+                        display: none;
+                    }</style
+                ><style>
+                    .ks-shell {
+                        display: flex;
+                        min-height: 100vh;
+                    }
+                    .ks-side {
+                        display: none;
+                        position: sticky;
+                        top: 0;
+                        height: 100vh;
+                        width: 256px;
+                        flex: none;
+                        flex-direction: column;
+                        overflow-y: auto;
+                        border-inline-end: 1px solid var(--line-divider);
+                        background: color-mix(in srgb, var(--paper) 70%, transparent);
+                    }
+                    .ks-main {
+                        container: main/inline-size;
+                        flex: 1;
+                        min-width: 0;
+                        padding: 24px 16px 168px;
+                    }
+                    @media (min-width: 600px) {
+                        .ks-main {
+                            padding-inline: 24px;
+                        }
+                    }
+                    @media (min-width: 840px) {
+                        .ks-side {
+                            display: flex;
+                        }
+                        .ks-tabs,
+                        .ks-fab {
+                            display: none !important;
+                        }
+                        .ks-main {
+                            padding: 24px 32px 32px;
+                        }
+                        .ks-round {
+                            display: inline-flex;
+                        }
+                    }
+                    .ks-fab {
+                        position: fixed;
+                        bottom: 80px;
+                        inset-inline-end: 16px;
+                    }
+                    @media (min-width: 600px) {
+                        .ks-fab {
+                            inset-inline-end: 24px;
+                        }
+                    }
+                    .ks-home-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        gap: 12px;
+                        list-style: none;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .ks-home-grid.ks-v-grid {
+                        display: none;
+                    }
+                    .ks-split-panel {
+                        display: none;
+                    }
+                    .ks-split-sheet {
+                        display: flex;
+                    }
+                    .ks-soon {
+                        display: grid;
+                        gap: 16px;
+                    }
+                    .ks-soon > * {
+                        min-width: 0;
+                    }
+                    @container main (min-width:600px) {
+                        .ks-home-grid {
+                            grid-template-columns: repeat(4, minmax(0, 1fr));
+                            gap: 16px;
+                        }
+                        .ks-week {
+                            gap: 8px;
+                            margin-inline: 0 !important;
+                        }
+                        .ks-day-n {
+                            display: none;
+                        }
+                        .ks-day-s {
+                            display: inline;
+                        }
+                    }
+                    @container main (min-width:960px) {
+                        .ks-home-grid {
+                            gap: 24px;
+                        }
+                        .ks-home-grid.ks-v-grid {
+                            display: grid;
+                        }
+                        .ks-home-grid.ks-v-compact {
+                            display: none;
+                        }
+                        .ks-soon {
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                            gap: 24px;
+                        }
+                        .ks-soon > .s1 {
+                            grid-column: span 1;
+                        }
+                        .ks-soon > .s2 {
+                            grid-column: span 2;
+                        }
+                        .ks-soon > .s3 {
+                            grid-column: span 3;
+                        }
+                        .ks-split-panel {
+                            display: flex;
+                        }
+                        .ks-split-sheet {
+                            display: none;
+                        }
+                    }
+                </style></helmet
+            >
+            <div style="background: var(--canvas)">
+                <x-import component-from-global-scope="Commise.GradientSurface" gradient="hero"
+                    ><div class="ks-shell">
+                        <div class="ks-side" data-collapsed="false">
+                            <div style="display: flex; height: 64px; flex: none; align-items: center; padding: 0 24px">
+                                <span style="font: 700 20px/1.4 var(--font-display); color: var(--ink)">Commise</span>
+                            </div>
+                            <nav
+                                aria-label="Main"
+                                style="display: flex; flex-direction: column; gap: 4px; padding: 0 12px"
+                            >
+                                <a
+                                    href="/en"
+                                    aria-current="page"
+                                    style="
+                                        display: flex;
+                                        min-height: 44px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border-radius: 12px;
+                                        padding: 0 12px;
+                                        font: 600 14px/1.2 var(--font-body);
+                                        text-decoration: none;
+                                        position: relative;
+                                        background: color-mix(in srgb, var(--action) 10%, transparent);
+                                        color: var(--ink);
+                                    "
+                                    ><span
+                                        aria-hidden="true"
+                                        style="
+                                            position: absolute;
+                                            top: 8px;
+                                            bottom: 8px;
+                                            inset-inline-start: 0;
+                                            width: 3px;
+                                            border-radius: 0 9999px 9999px 0;
+                                            background: var(--here-bar);
+                                        "
+                                    ></span
+                                    ><x-import
+                                        component-from-global-scope="Commise.Icon"
+                                        name="house"
+                                        size="{{n24}}"
+                                    ></x-import
+                                    ><span>Home</span></a
+                                ><a
+                                    href="/en/recipes"
+                                    style="
+                                        display: flex;
+                                        min-height: 44px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border-radius: 12px;
+                                        padding: 0 12px;
+                                        font: 600 14px/1.2 var(--font-body);
+                                        text-decoration: none;
+                                        position: relative;
+                                        color: var(--ink-muted);
+                                    "
+                                    ><span
+                                        aria-hidden="true"
+                                        style="
+                                            position: absolute;
+                                            top: 8px;
+                                            bottom: 8px;
+                                            inset-inline-start: 0;
+                                            width: 3px;
+                                            border-radius: 0 9999px 9999px 0;
+                                            background: transparent;
+                                        "
+                                    ></span
+                                    ><x-import
+                                        component-from-global-scope="Commise.Icon"
+                                        name="bookOpen"
+                                        size="{{n24}}"
+                                    ></x-import
+                                    ><span>Recipes</span></a
+                                ><a
+                                    href="/en/discover"
+                                    style="
+                                        display: flex;
+                                        min-height: 44px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border-radius: 12px;
+                                        padding: 0 12px;
+                                        font: 600 14px/1.2 var(--font-body);
+                                        text-decoration: none;
+                                        position: relative;
+                                        color: var(--ink-muted);
+                                    "
+                                    ><span
+                                        aria-hidden="true"
+                                        style="
+                                            position: absolute;
+                                            top: 8px;
+                                            bottom: 8px;
+                                            inset-inline-start: 0;
+                                            width: 3px;
+                                            border-radius: 0 9999px 9999px 0;
+                                            background: transparent;
+                                        "
+                                    ></span
+                                    ><x-import
+                                        component-from-global-scope="Commise.Icon"
+                                        name="compass"
+                                        size="{{n24}}"
+                                    ></x-import
+                                    ><span>Discover</span></a
+                                >
+                            </nav>
+                            <div style="margin-top: auto">
+                                <button
+                                    type="button"
+                                    aria-expanded="true"
+                                    style="
+                                        display: flex;
+                                        min-height: 44px;
+                                        align-items: center;
+                                        gap: 12px;
+                                        border-radius: 12px;
+                                        padding: 0 12px;
+                                        font: 600 14px/1.2 var(--font-body);
+                                        text-decoration: none;
+                                        position: relative;
+                                        width: calc(100% - 24px);
+                                        margin: 0 12px 12px;
+                                        border: 0;
+                                        background: transparent;
+                                        color: var(--ink-muted);
+                                        cursor: pointer;
+                                        text-align: start;
+                                    "
+                                >
+                                    <x-import
+                                        component-from-global-scope="Commise.Icon"
+                                        name="chevronsLeft"
+                                        size="{{n24}}"
+                                    ></x-import
+                                    ><span>Collapse</span>
+                                </button>
+                            </div>
+                        </div>
+                        <main class="ks-main">
+                            <div
+                                style="display: flex; width: 100%; max-width: 1440px; flex-direction: column; gap: 24px"
+                            >
+                                <x-import
+                                    component-from-global-scope="Commise.LargeTitleHeader"
+                                    heading-id="home-title"
+                                    title="Good morning, Eliza Ramirez"
+                                    subtitle="Friday, October 16, 2026"
+                                    action="{{action}}"
+                                ></x-import>
+                                <section
+                                    role="region"
+                                    aria-label="Home"
+                                    style="display: flex; flex-direction: column; gap: 24px"
+                                >
+                                    <section
+                                        aria-label="Recent recipes"
+                                        style="display: flex; flex-direction: column; gap: 16px"
+                                    >
+                                        <div
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                justify-content: space-between;
+                                                gap: 12px;
+                                            "
+                                        >
+                                            <h2
+                                                style="
+                                                    margin: 0;
+                                                    font: 600 18px/1.25 var(--font-body);
+                                                    color: var(--ink);
+                                                "
+                                            >
+                                                Recent recipes
+                                            </h2>
+                                            <a
+                                                href="#"
+                                                aria-label="See all recipes"
+                                                style="
+                                                    display: inline-flex;
+                                                    min-height: 44px;
+                                                    flex: none;
+                                                    align-items: center;
+                                                    border-radius: 9999px;
+                                                    padding: 0 12px;
+                                                    font: 600 14px/1.2 var(--font-body);
+                                                    color: var(--action-text);
+                                                    text-decoration: none;
+                                                "
+                                                >See all</a
+                                            >
+                                        </div>
+                                        <div
+                                            role="status"
+                                            aria-label="Loading recipes"
+                                            style="display: flex; flex-direction: column; gap: 16px"
+                                        >
+                                            <p
+                                                style="
+                                                    margin: 0;
+                                                    font: 400 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Loading recipes
+                                            </p>
+                                            <div aria-hidden="true" class="ks-home-grid ks-v-grid">
+                                                <div
+                                                    class="ks-sg"
+                                                    style="
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        gap: 0;
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            aspect-ratio: 4/3;
+                                                            width: 100%;
+                                                            border-radius: 12px 12px 0 0;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></div>
+                                                    <div style="padding: 12px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 75%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 8px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 66.667%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 16px">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 33.333%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="ks-sg"
+                                                    style="
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        gap: 0;
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            aspect-ratio: 4/3;
+                                                            width: 100%;
+                                                            border-radius: 12px 12px 0 0;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></div>
+                                                    <div style="padding: 12px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 75%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 8px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 66.667%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 16px">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 33.333%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="ks-sg"
+                                                    style="
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        gap: 0;
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            aspect-ratio: 4/3;
+                                                            width: 100%;
+                                                            border-radius: 12px 12px 0 0;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></div>
+                                                    <div style="padding: 12px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 75%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 8px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 66.667%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 16px">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 33.333%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="ks-sg"
+                                                    style="
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        gap: 0;
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            aspect-ratio: 4/3;
+                                                            width: 100%;
+                                                            border-radius: 12px 12px 0 0;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></div>
+                                                    <div style="padding: 12px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 75%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 8px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 16px;
+                                                                width: 66.667%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 0">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 50%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                    <div style="padding: 4px 16px 16px">
+                                                        <div
+                                                            style="
+                                                                height: 12px;
+                                                                width: 33.333%;
+                                                                background: var(--surface-muted);
+                                                                border-radius: 6px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                    <section
+                                        aria-labelledby="soon-h"
+                                        style="display: flex; flex-direction: column; gap: 16px"
+                                    >
+                                        <div style="display: flex; flex-direction: column; gap: 4px">
+                                            <h2
+                                                id="soon-h"
+                                                style="
+                                                    margin: 0;
+                                                    font: 600 18px/1.25 var(--font-body);
+                                                    color: var(--ink);
+                                                "
+                                            >
+                                                Coming soon
+                                            </h2>
+                                            <p
+                                                style="
+                                                    margin: 0;
+                                                    max-width: 62ch;
+                                                    font: 400 16px/1.5 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Meal plans, a grocery list and daily nutrition are on the way.
+                                            </p>
+                                        </div>
+                                        <div class="ks-soon">
+                                            <div class="s1">
+                                                <section
+                                                    aria-label="Today’s nutrition"
+                                                    style="
+                                                        display: flex;
+                                                        height: 100%;
+                                                        flex-direction: column;
+                                                        gap: 16px;
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        padding: 16px;
+                                                        box-shadow: var(--shadow-sm);
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            display: flex;
+                                                            align-items: center;
+                                                            justify-content: space-between;
+                                                            gap: 12px;
+                                                        "
+                                                    >
+                                                        <h3
+                                                            style="
+                                                                margin: 0;
+                                                                min-width: 0;
+                                                                font: 600 16px/1.3 var(--font-body);
+                                                                color: var(--ink);
+                                                            "
+                                                        >
+                                                            Today’s nutrition
+                                                        </h3>
+                                                        <span
+                                                            style="
+                                                                flex: none;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 2px 8px;
+                                                                font: 500 12px/1.4 var(--font-body);
+                                                                color: var(--ink-muted);
+                                                            "
+                                                            >Soon</span
+                                                        >
+                                                    </div>
+                                                    <div
+                                                        aria-hidden="true"
+                                                        style="display: flex; align-items: center; gap: 20px"
+                                                    >
+                                                        <div
+                                                            style="
+                                                                width: 64px;
+                                                                height: 64px;
+                                                                flex: none;
+                                                                border-radius: 9999px;
+                                                                border: 4px solid var(--surface-muted);
+                                                            "
+                                                        ></div>
+                                                        <div
+                                                            style="
+                                                                display: flex;
+                                                                flex: 1;
+                                                                flex-direction: column;
+                                                                gap: 8px;
+                                                            "
+                                                        >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    height: 12px;
+                                                                    width: 80px;
+                                                                    border-radius: 4px;
+                                                                "
+                                                            ></div>
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    height: 28px;
+                                                                    width: 112px;
+                                                                    border-radius: 4px;
+                                                                "
+                                                            ></div>
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    height: 12px;
+                                                                    width: 96px;
+                                                                    border-radius: 4px;
+                                                                "
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </section>
+                                            </div>
+                                            <div class="s2">
+                                                <section
+                                                    aria-label="Resume cooking"
+                                                    style="
+                                                        display: flex;
+                                                        height: 100%;
+                                                        flex-direction: column;
+                                                        gap: 16px;
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        padding: 16px;
+                                                        box-shadow: var(--shadow-sm);
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            display: flex;
+                                                            align-items: center;
+                                                            justify-content: space-between;
+                                                            gap: 12px;
+                                                        "
+                                                    >
+                                                        <h3
+                                                            style="
+                                                                margin: 0;
+                                                                min-width: 0;
+                                                                font: 600 16px/1.3 var(--font-body);
+                                                                color: var(--ink);
+                                                            "
+                                                        >
+                                                            Resume cooking
+                                                        </h3>
+                                                        <span
+                                                            style="
+                                                                flex: none;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 2px 8px;
+                                                                font: 500 12px/1.4 var(--font-body);
+                                                                color: var(--ink-muted);
+                                                            "
+                                                            >Soon</span
+                                                        >
+                                                    </div>
+                                                    <div
+                                                        aria-hidden="true"
+                                                        style="display: flex; align-items: center; gap: 16px"
+                                                    >
+                                                        <div
+                                                            style="
+                                                                background: var(--surface-muted);
+                                                                width: 64px;
+                                                                height: 64px;
+                                                                flex: none;
+                                                                border-radius: 28px;
+                                                            "
+                                                        ></div>
+                                                        <div
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex: 1;
+                                                                flex-direction: column;
+                                                                gap: 8px;
+                                                            "
+                                                        >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    height: 16px;
+                                                                    width: 75%;
+                                                                    border-radius: 4px;
+                                                                "
+                                                            ></div>
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    height: 4px;
+                                                                    width: 100%;
+                                                                    border-radius: 9999px;
+                                                                "
+                                                            ></div>
+                                                        </div>
+                                                        <div
+                                                            style="
+                                                                background: var(--surface-muted);
+                                                                height: 36px;
+                                                                width: 96px;
+                                                                flex: none;
+                                                                border-radius: 9999px;
+                                                            "
+                                                        ></div>
+                                                    </div>
+                                                </section>
+                                            </div>
+                                            <div class="s3">
+                                                <section
+                                                    aria-label="This week’s meals"
+                                                    style="
+                                                        display: flex;
+                                                        height: 100%;
+                                                        flex-direction: column;
+                                                        gap: 16px;
+                                                        border-radius: 12px;
+                                                        border: 1px solid var(--line-divider);
+                                                        background: var(--paper);
+                                                        padding: 16px;
+                                                        box-shadow: var(--shadow-sm);
+                                                    "
+                                                >
+                                                    <div
+                                                        style="
+                                                            display: flex;
+                                                            align-items: center;
+                                                            justify-content: space-between;
+                                                            gap: 12px;
+                                                        "
+                                                    >
+                                                        <h3
+                                                            style="
+                                                                margin: 0;
+                                                                min-width: 0;
+                                                                font: 600 16px/1.3 var(--font-body);
+                                                                color: var(--ink);
+                                                            "
+                                                        >
+                                                            This week’s meals
+                                                        </h3>
+                                                        <span
+                                                            style="
+                                                                flex: none;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 2px 8px;
+                                                                font: 500 12px/1.4 var(--font-body);
+                                                                color: var(--ink-muted);
+                                                            "
+                                                            >Soon</span
+                                                        >
+                                                    </div>
+                                                    <ul
+                                                        class="ks-week"
+                                                        style="
+                                                            list-style: none;
+                                                            margin: 0;
+                                                            padding: 0;
+                                                            display: grid;
+                                                            grid-template-columns: repeat(7, minmax(0, 1fr));
+                                                        "
+                                                    >
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >M</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Mon</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Monday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >T</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Tue</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Tuesday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >W</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Wed</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Wednesday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >T</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Thu</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Thursday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >F</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Fri</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Friday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >S</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Sat</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Saturday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                        <li
+                                                            style="
+                                                                display: flex;
+                                                                min-width: 0;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                gap: 8px;
+                                                                border-radius: 6px;
+                                                                border: 1px solid var(--line-divider);
+                                                                padding: 8px 2px;
+                                                            "
+                                                        >
+                                                            <span
+                                                                aria-hidden="true"
+                                                                class="ks-day-n"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >S</span
+                                                            ><span
+                                                                aria-hidden="true"
+                                                                class="ks-day-s"
+                                                                style="
+                                                                    font: 500 12px/1.4 var(--font-body);
+                                                                    color: var(--ink-muted);
+                                                                "
+                                                                >Sun</span
+                                                            ><span
+                                                                style="
+                                                                    position: absolute;
+                                                                    width: 1px;
+                                                                    height: 1px;
+                                                                    overflow: hidden;
+                                                                    clip: rect(0 0 0 0);
+                                                                "
+                                                                >Sunday</span
+                                                            >
+                                                            <div
+                                                                style="
+                                                                    background: var(--surface-muted);
+                                                                    aspect-ratio: 1;
+                                                                    width: 100%;
+                                                                    max-width: 48px;
+                                                                    border-radius: 6px;
+                                                                "
+                                                            ></div>
+                                                        </li>
+                                                    </ul>
+                                                </section>
+                                            </div>
+                                        </div>
+                                    </section>
+                                </section>
+                            </div>
+                        </main>
+                        <nav
+                            class="ks-tabs"
+                            data-tab-bar=""
+                            aria-label="Tabs"
+                            style="
+                                position: fixed;
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                z-index: 50;
+                                isolation: isolate;
+                                display: flex;
+                                height: 64px;
+                                justify-content: space-around;
+                                padding: 0 8px;
+                            "
+                        >
+                            <x-import component-from-global-scope="Commise.ChromeSurface" edge="top"></x-import
+                            ><a
+                                href="/en"
+                                aria-current="page"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 56px;
+                                    min-width: 96px;
+                                    flex: 1;
+                                    flex-direction: column;
+                                    align-items: center;
+                                    justify-content: center;
+                                    gap: 4px;
+                                    border-radius: 12px;
+                                    text-decoration: none;
+                                    color: var(--ink);
+                                "
+                                ><span
+                                    aria-hidden="true"
+                                    style="
+                                        position: absolute;
+                                        top: 0;
+                                        width: 32px;
+                                        height: 3px;
+                                        border-radius: 0 0 9999px 9999px;
+                                        background: var(--here-bar);
+                                    "
+                                ></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="house"
+                                    size="{{n24}}"
+                                ></x-import
+                                ><span style="font: 500 12px/1.4 var(--font-body); font-weight: 600">Home</span></a
+                            ><a
+                                href="/en/recipes"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 56px;
+                                    min-width: 96px;
+                                    flex: 1;
+                                    flex-direction: column;
+                                    align-items: center;
+                                    justify-content: center;
+                                    gap: 4px;
+                                    border-radius: 12px;
+                                    text-decoration: none;
+                                    color: var(--ink-muted);
+                                "
+                                ><span
+                                    aria-hidden="true"
+                                    style="
+                                        position: absolute;
+                                        top: 0;
+                                        width: 32px;
+                                        height: 3px;
+                                        border-radius: 0 0 9999px 9999px;
+                                        background: transparent;
+                                    "
+                                ></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="bookOpen"
+                                    size="{{n24}}"
+                                ></x-import
+                                ><span style="font: 500 12px/1.4 var(--font-body)">Recipes</span></a
+                            ><a
+                                href="/en/discover"
+                                style="
+                                    position: relative;
+                                    display: flex;
+                                    min-height: 56px;
+                                    min-width: 96px;
+                                    flex: 1;
+                                    flex-direction: column;
+                                    align-items: center;
+                                    justify-content: center;
+                                    gap: 4px;
+                                    border-radius: 12px;
+                                    text-decoration: none;
+                                    color: var(--ink-muted);
+                                "
+                                ><span
+                                    aria-hidden="true"
+                                    style="
+                                        position: absolute;
+                                        top: 0;
+                                        width: 32px;
+                                        height: 3px;
+                                        border-radius: 0 0 9999px 9999px;
+                                        background: transparent;
+                                    "
+                                ></span
+                                ><x-import
+                                    component-from-global-scope="Commise.Icon"
+                                    name="compass"
+                                    size="{{n24}}"
+                                ></x-import
+                                ><span style="font: 500 12px/1.4 var(--font-body)">Discover</span></a
+                            >
+                        </nav>
+                    </div></x-import
+                ><button
+                    type="button"
+                    class="ks-fab"
+                    style="
+                        z-index: 40;
+                        display: inline-flex;
+                        height: 56px;
+                        align-items: center;
+                        gap: 8px;
+                        border: 0;
+                        border-radius: 9999px;
+                        background: var(--action);
+                        padding: 0 24px 0 16px;
+                        font: 600 14px/1.2 var(--font-body);
+                        color: var(--on-action);
+                        box-shadow: var(--shadow-lg);
+                        cursor: pointer;
+                    "
+                >
+                    <x-import component-from-global-scope="Commise.Icon" name="plus" size="{{n24}}"></x-import
+                    ><span>New recipe</span>
+                </button>
+            </div>
+            <div
+                style="
+                    border-top: 1px solid var(--line-divider);
+                    background: var(--canvas);
+                    padding: 24px 32px 32px 288px;
+                "
+            >
+                <p style="margin: 0; font: 500 12px/1.4 var(--font-body); color: var(--ink-muted); margin-bottom: 16px">
+                    A moment later: the recipes have arrived and each card’s calories are still loading. Web grid cards
+                    only. The mobile compact card shows no calories.
+                </p>
+                <div
+                    style="
+                        container: main/inline-size;
+                        max-width: 960px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                    "
+                >
+                    <section aria-label="Recent recipes" style="display: flex; flex-direction: column; gap: 16px">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+                            <h2 style="margin: 0; font: 600 18px/1.25 var(--font-body); color: var(--ink)">
+                                Recent recipes
+                            </h2>
+                            <a
+                                href="#"
+                                aria-label="See all recipes"
+                                style="
+                                    display: inline-flex;
+                                    min-height: 44px;
+                                    flex: none;
+                                    align-items: center;
+                                    border-radius: 9999px;
+                                    padding: 0 12px;
+                                    font: 600 14px/1.2 var(--font-body);
+                                    color: var(--action-text);
+                                    text-decoration: none;
+                                "
+                                >See all</a
+                            >
+                        </div>
+                        <ul class="ks-home-grid ks-v-grid">
+                            <li class="ks-sg">
+                                <article
+                                    aria-label="Lemon ricotta pancakes"
+                                    class="ks-sg ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                        gap: 0;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-pancakes"
+                                            title="Lemon ricotta pancakes"
+                                            cuisine="American"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            aria-label="35 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >35 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px 16px 0">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Lemon ricotta pancakes</a
+                                            >
+                                        </h3>
+                                    </div>
+                                    <div class="ks-cardc" style="padding: 8px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                height: 24px;
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.DifficultyBadge"
+                                                    level="easy"
+                                                    >Easy</x-import
+                                                ></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    role="img"
+                                                    aria-label="Rated 4.6 out of 5, 28 ratings"
+                                                    style="display: inline-flex; align-items: center; gap: 2px"
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class=""
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            font: 400 14px/1.4 var(--font-body);
+                                                            color: var(--ink);
+                                                            margin-inline-start: 4px;
+                                                            font-variant-numeric: tabular-nums lining-nums;
+                                                        "
+                                                        >4.6 (28)</span
+                                                    ></span
+                                                ></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                height: 1.4em;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                >American</span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        align-items: center;
+                                                        position: relative;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            position: absolute;
+                                                            width: 1px;
+                                                            height: 1px;
+                                                            margin: -1px;
+                                                            padding: 0;
+                                                            overflow: hidden;
+                                                            clip: rect(0, 0, 0, 0);
+                                                            white-space: nowrap;
+                                                            border: 0;
+                                                        "
+                                                        >Loading calories</span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: inline-block;
+                                                            height: 16px;
+                                                            width: 56px;
+                                                            border-radius: 4px;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></span></span></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span>Serves
+                                                4</span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            breakfast · brunch · +1
+                                        </p>
+                                    </div>
+                                    <div style="padding: 4px 16px 16px">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            Edited 2 hours ago
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li class="ks-sg">
+                                <article
+                                    aria-label="Weeknight pad thai"
+                                    class="ks-sg ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                        gap: 0;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-padthai"
+                                            title="Weeknight pad thai"
+                                            cuisine="Thai"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                top: 8px;
+                                                max-width: 50%;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="lock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span
+                                                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                                                >Private</span
+                                            ></span
+                                        ><span
+                                            aria-label="30 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >30 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px 16px 0">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Weeknight pad thai</a
+                                            >
+                                        </h3>
+                                    </div>
+                                    <div class="ks-cardc" style="padding: 8px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                height: 24px;
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.DifficultyBadge"
+                                                    level="medium"
+                                                    >Medium</x-import
+                                                ></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    role="img"
+                                                    aria-label="Rated 4.4 out of 5, 12 ratings"
+                                                    style="display: inline-flex; align-items: center; gap: 2px"
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class=""
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--ink-muted)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{no}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            font: 400 14px/1.4 var(--font-body);
+                                                            color: var(--ink);
+                                                            margin-inline-start: 4px;
+                                                            font-variant-numeric: tabular-nums lining-nums;
+                                                        "
+                                                        >4.4 (12)</span
+                                                    ></span
+                                                ></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                height: 1.4em;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                >Thai</span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        align-items: center;
+                                                        position: relative;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            position: absolute;
+                                                            width: 1px;
+                                                            height: 1px;
+                                                            margin: -1px;
+                                                            padding: 0;
+                                                            overflow: hidden;
+                                                            clip: rect(0, 0, 0, 0);
+                                                            white-space: nowrap;
+                                                            border: 0;
+                                                        "
+                                                        >Loading calories</span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: inline-block;
+                                                            height: 16px;
+                                                            width: 56px;
+                                                            border-radius: 4px;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></span></span></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span>Serves
+                                                4</span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            noodles · weeknight
+                                        </p>
+                                    </div>
+                                    <div style="padding: 4px 16px 16px">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            Created yesterday
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li class="ks-sg">
+                                <article
+                                    aria-label="Roast tomato soup"
+                                    class="ks-sg ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                        gap: 0;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-tomato"
+                                            title="Roast tomato soup"
+                                            cuisine="Italian"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                top: 8px;
+                                                max-width: 50%;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="pencilLine"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span
+                                                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                                                >Draft</span
+                                            ></span
+                                        ><span
+                                            aria-label="70 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >1 h 10 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px 16px 0">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Roast tomato soup</a
+                                            >
+                                        </h3>
+                                    </div>
+                                    <div class="ks-cardc" style="padding: 8px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                height: 24px;
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.DifficultyBadge"
+                                                    level="easy"
+                                                    >Easy</x-import
+                                                ></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    style="
+                                                        font: 400 14px/1.4 var(--font-body);
+                                                        color: var(--ink-muted);
+                                                        white-space: nowrap;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                    "
+                                                    >No ratings yet</span
+                                                ></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                height: 1.4em;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                >Italian</span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        align-items: center;
+                                                        position: relative;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            position: absolute;
+                                                            width: 1px;
+                                                            height: 1px;
+                                                            margin: -1px;
+                                                            padding: 0;
+                                                            overflow: hidden;
+                                                            clip: rect(0, 0, 0, 0);
+                                                            white-space: nowrap;
+                                                            border: 0;
+                                                        "
+                                                        >Loading calories</span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: inline-block;
+                                                            height: 16px;
+                                                            width: 56px;
+                                                            border-radius: 4px;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></span></span></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span>Serves
+                                                6</span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            soup · vegan
+                                        </p>
+                                    </div>
+                                    <div style="padding: 4px 16px 16px">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            v2 · Edited 3 days ago
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                            <li class="ks-sg">
+                                <article
+                                    aria-label="Sunday rosemary focaccia"
+                                    class="ks-sg ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                        gap: 0;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-focaccia"
+                                            title="Sunday rosemary focaccia"
+                                            cuisine="Italian"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            aria-label="Premium recipe"
+                                            style="position: absolute; inset-inline-end: 8px; top: 8px"
+                                            ><x-import component-from-global-scope="Commise.StatusBadge" status="pro"
+                                                >PRO</x-import
+                                            ></span
+                                        ><span
+                                            aria-label="195 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >3 h 15 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px 16px 0">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Sunday rosemary focaccia</a
+                                            >
+                                        </h3>
+                                    </div>
+                                    <div class="ks-cardc" style="padding: 8px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                height: 24px;
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><x-import
+                                                    component-from-global-scope="Commise.DifficultyBadge"
+                                                    level="hard"
+                                                    >Hard</x-import
+                                                ></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    role="img"
+                                                    aria-label="Rated 4.9 out of 5, 7 ratings"
+                                                    style="display: inline-flex; align-items: center; gap: 2px"
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class=""
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        class="ks-xs"
+                                                        style="display: inline-flex; color: var(--rating)"
+                                                        ><x-import
+                                                            component-from-global-scope="Commise.Icon"
+                                                            name="star"
+                                                            size="{{n16}}"
+                                                            filled="{{yes}}"
+                                                        ></x-import></span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            font: 400 14px/1.4 var(--font-body);
+                                                            color: var(--ink);
+                                                            margin-inline-start: 4px;
+                                                            font-variant-numeric: tabular-nums lining-nums;
+                                                        "
+                                                        >4.9 (7)</span
+                                                    ></span
+                                                ></span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-content: flex-start;
+                                                align-items: center;
+                                                column-gap: 4px;
+                                                overflow: hidden;
+                                                font: 400 14px/1.4 var(--font-body);
+                                                height: 1.4em;
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                >Italian</span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span
+                                                ><span
+                                                    style="
+                                                        display: inline-flex;
+                                                        align-items: center;
+                                                        position: relative;
+                                                    "
+                                                    ><span
+                                                        style="
+                                                            position: absolute;
+                                                            width: 1px;
+                                                            height: 1px;
+                                                            margin: -1px;
+                                                            padding: 0;
+                                                            overflow: hidden;
+                                                            clip: rect(0, 0, 0, 0);
+                                                            white-space: nowrap;
+                                                            border: 0;
+                                                        "
+                                                        >Loading calories</span
+                                                    ><span
+                                                        aria-hidden="true"
+                                                        style="
+                                                            display: inline-block;
+                                                            height: 16px;
+                                                            width: 56px;
+                                                            border-radius: 4px;
+                                                            background: var(--surface-muted);
+                                                        "
+                                                    ></span></span></span
+                                            ><span
+                                                style="
+                                                    display: inline-flex;
+                                                    min-width: 0;
+                                                    max-width: 100%;
+                                                    align-items: center;
+                                                    gap: 4px;
+                                                    white-space: nowrap;
+                                                "
+                                                ><span aria-hidden="true" style="color: var(--ink-muted)">·</span>Serves
+                                                8</span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="padding: 4px 16px 0">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            bread · baking · +1
+                                        </p>
+                                    </div>
+                                    <div style="padding: 4px 16px 16px">
+                                        <p
+                                            style="
+                                                margin: 0;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                            "
+                                        >
+                                            Edited last week
+                                        </p>
+                                    </div>
+                                </article>
+                            </li>
+                        </ul>
+                        <ul class="ks-home-grid ks-v-compact">
+                            <li>
+                                <article
+                                    aria-label="Lemon ricotta pancakes"
+                                    class="ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        display: flex;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-pancakes"
+                                            title="Lemon ricotta pancakes"
+                                            cuisine="American"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            aria-label="35 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >35 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Lemon ricotta pancakes</a
+                                            >
+                                        </h3>
+                                    </div>
+                                </article>
+                            </li>
+                            <li>
+                                <article
+                                    aria-label="Weeknight pad thai"
+                                    class="ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        display: flex;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-padthai"
+                                            title="Weeknight pad thai"
+                                            cuisine="Thai"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                top: 8px;
+                                                max-width: 50%;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="lock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span
+                                                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                                                >Private</span
+                                            ></span
+                                        ><span
+                                            aria-label="30 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >30 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Weeknight pad thai</a
+                                            >
+                                        </h3>
+                                    </div>
+                                </article>
+                            </li>
+                            <li>
+                                <article
+                                    aria-label="Roast tomato soup"
+                                    class="ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        display: flex;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-tomato"
+                                            title="Roast tomato soup"
+                                            cuisine="Italian"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                top: 8px;
+                                                max-width: 50%;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="pencilLine"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span
+                                                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                                                >Draft</span
+                                            ></span
+                                        ><span
+                                            aria-label="70 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >1 h 10 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Roast tomato soup</a
+                                            >
+                                        </h3>
+                                    </div>
+                                </article>
+                            </li>
+                            <li>
+                                <article
+                                    aria-label="Sunday rosemary focaccia"
+                                    class="ks-card"
+                                    style="
+                                        position: relative;
+                                        height: 100%;
+                                        display: flex;
+                                        flex-direction: column;
+                                        border-radius: 12px;
+                                        border: 1px solid var(--line-divider);
+                                        background: var(--paper);
+                                        box-shadow: var(--shadow-sm);
+                                        text-align: start;
+                                    "
+                                >
+                                    <div style="position: relative; overflow: hidden; border-radius: 12px 12px 0 0">
+                                        <x-import
+                                            component-from-global-scope="Commise.RecipeCover"
+                                            recipe-id="r-focaccia"
+                                            title="Sunday rosemary focaccia"
+                                            cuisine="Italian"
+                                            aspect="4:3"
+                                            overline="{{no}}"
+                                        ></x-import
+                                        ><span
+                                            aria-label="Premium recipe"
+                                            style="position: absolute; inset-inline-end: 8px; top: 8px"
+                                            ><x-import component-from-global-scope="Commise.StatusBadge" status="pro"
+                                                >PRO</x-import
+                                            ></span
+                                        ><span
+                                            aria-label="195 minutes total time"
+                                            style="
+                                                position: absolute;
+                                                inset-inline-start: 8px;
+                                                bottom: 8px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 4px;
+                                                min-height: 24px;
+                                                border-radius: 6px;
+                                                background: var(--photo-chip);
+                                                padding: 2px 8px;
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                            "
+                                            ><x-import
+                                                component-from-global-scope="Commise.Icon"
+                                                name="clock"
+                                                size="{{n16}}"
+                                            ></x-import
+                                            ><span style="font-variant-numeric: tabular-nums lining-nums"
+                                                >3 h 15 min</span
+                                            ></span
+                                        >
+                                    </div>
+                                    <div style="padding: 12px">
+                                        <h3
+                                            style="
+                                                margin: 0;
+                                                font: 600 16px/1.3 var(--font-body);
+                                                color: var(--ink);
+                                                display: -webkit-box;
+                                                -webkit-line-clamp: 2;
+                                                -webkit-box-orient: vertical;
+                                                overflow: hidden;
+                                            "
+                                        >
+                                            <a
+                                                class="ks-stretch"
+                                                href="#"
+                                                style="color: inherit; text-decoration: none; outline: none"
+                                                >Sunday rosemary focaccia</a
+                                            >
+                                        </h3>
+                                    </div>
+                                </article>
+                            </li>
+                        </ul>
+                    </section>
+                </div>
+            </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1447}}'>
+            class Component extends DCLogic { renderVals(){ const h=React.createElement; return {no:false,yes:true,n16:16,n20:20,n24:24,noop:()=>{},
+            action:{kind:'avatar',avatar:h(window.Commise.Avatar,{status:'ready',initials:'ER',label:'Profile, Eliza Ramirez',onPress:()=>{}})}}; } }
+        </script>
+    </body>
+</html>

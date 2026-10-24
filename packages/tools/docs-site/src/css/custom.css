@@ -1,0 +1,26 @@
+/**
+ * Minimal theme overrides. The Docusaurus classic theme is the design; this file exists only because
+ * `presets.classic.theme.customCss` requires a target, and to carry the one visual affordance the
+ * site genuinely needs: making the "declares, not deploys" caveat impossible to skim past.
+ */
+
+:root {
+    --ifm-color-primary: #2b6b4f;
+    --ifm-color-primary-dark: #266044;
+    --ifm-color-primary-darker: #235a40;
+    --ifm-color-primary-darkest: #1d4a35;
+    --ifm-color-primary-light: #30765a;
+    --ifm-color-primary-lighter: #337c5e;
+    --ifm-color-primary-lightest: #398c6a;
+    --ifm-code-font-size: 95%;
+}
+
+[data-theme='dark'] {
+    --ifm-color-primary: #6ec49c;
+    --ifm-color-primary-dark: #59bb8f;
+    --ifm-color-primary-darker: #4fb688;
+    --ifm-color-primary-darkest: #3d9c72;
+    --ifm-color-primary-light: #83cda9;
+    --ifm-color-primary-lighter: #8dd2b0;
+    --ifm-color-primary-lightest: #aadec5;
+}

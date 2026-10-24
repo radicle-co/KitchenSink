@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+---
+# The description's 256-character limit, on a phone (owner 2026-10-13). Mobile mirror of the web Playwright test in
+# `recipeEditorSession.spec.ts`.
+#
+# A description past 256 characters blocks Publish and a draft still saves, so the field says so as soon as the limit is
+# passed: the counter reads 257/256 and the limit is stated under the field. Nothing is cut. Leaving by × keeps nothing the
+# next flow can meet: a draft with no title never reaches the server.
+- runFlow: ../auth/signin.yaml
+
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+
+- tapOn: 'Description'
+- inputText: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+# The counter sits under the focused field, which is behind the soft keyboard while it is up. The section heading closes
+# the keyboard (`common/typeTitle.yaml` says why a heading), so the counter and the limit are read on screen.
+- tapOn: 'About the recipe'
+- extendedWaitUntil:
+      visible: '257/256'
+      timeout: 20000
+- assertVisible: 'Shorten the description to 256 characters or fewer to publish\. Your draft still saves\.'
+
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      visible: 'New recipe'
+      timeout: 20000

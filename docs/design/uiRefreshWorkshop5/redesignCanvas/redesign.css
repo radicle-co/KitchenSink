@@ -1,0 +1,245 @@
+/* Commise redesign overrides (workshop 5, round 9). Loaded AFTER ds/commise/bundle.css and after each board's own
+   <style>, on the redesign canvas only. Design artifact, not app code.
+   1. The web component theme (bundle.css --color-*, --text-*, --radius-*, --shadow-*) follows tokens.css.
+   2. The type ramp is 13 / 15 / 17 plus one 28 title; weights 400 to 600.
+   3. Inline board type is mapped onto the ramp by attribute selectors (boards write inline "font: W Spx/LH var(...)").
+   Native (Commise.Native.*) components read a JS theme and are NOT reached by this file: see redesignSpec.md, "Native layer". */
+
+:root,
+:host,
+[data-theme='light'] {
+    --color-canvas: var(--canvas);
+    --color-paper: var(--paper);
+    --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
+    --color-line-control: var(--line-control);
+    --color-line-divider: var(--line-divider);
+    --color-action: var(--action);
+    --color-action-text: var(--action-text);
+    --color-selected-fill: var(--selected-fill);
+    --color-selected-edge: var(--selected-edge);
+    --color-here-bar: var(--here-bar);
+    --color-focus-ring: var(--focus-ring);
+    --color-rating: var(--rating);
+    --color-attention: var(--attention);
+    --color-attention-tint: var(--attention-tint);
+    --color-danger: var(--danger);
+    --color-danger-text: var(--danger-text);
+    --color-paper-raised: var(--paper-raised);
+    --color-paper-overlay: var(--paper-overlay);
+    --color-surface-muted: var(--surface-muted);
+    --color-inverse: var(--inverse);
+    --color-inverse-ink: var(--inverse-ink);
+    --color-inverse-action: var(--inverse-action);
+    --color-photo-chip: var(--photo-chip);
+    --color-scrim: var(--scrim);
+    --color-on-action: var(--on-action);
+    --color-action-pressed: var(--action-pressed);
+    --color-bar: var(--bar);
+    --color-pro-fill: var(--pro-fill);
+    --color-pro-ink: var(--pro-ink);
+    --color-cover-seafoam: var(--cover-seafoam);
+    --color-cover-coral: var(--cover-coral);
+    --color-cover-sky: var(--cover-sky);
+    --color-cover-premium: var(--cover-premium);
+    --color-cover-success: var(--cover-success);
+    --color-cover-warning: var(--cover-warning);
+    --color-seafoam: #325c7f;
+    --color-seafoam-light: #96bcde;
+    --color-coral: #f7e9d7;
+    --color-sky: #ddeefc;
+    --color-sand: #eff3f6;
+    --color-ocean-dark: #264a68;
+    --color-charcoal: #171b20;
+    --color-slate: #5c646e;
+    --color-mist: #dfe3e8;
+    --color-pearl: #e9edf2;
+    --color-pewter: #80878f;
+    --color-honey: #171b20;
+    --color-premium: #5c646e;
+    --color-background: var(--canvas);
+    --color-foreground: var(--ink);
+    --color-card: var(--paper);
+    --color-primary: var(--action);
+    --color-secondary: var(--surface-muted);
+    --color-muted: var(--surface-muted);
+    --color-accent: var(--selected-fill);
+    --color-destructive: var(--danger);
+    --color-border: var(--line-divider);
+    --color-ring: var(--focus-ring);
+    --color-difficulty-easy-fill: var(--surface-muted);
+    --color-difficulty-easy-ink: var(--ink);
+    --color-difficulty-medium-fill: var(--surface-muted);
+    --color-difficulty-medium-ink: var(--ink);
+    --color-difficulty-hard-fill: var(--surface-muted);
+    --color-difficulty-hard-ink: var(--ink);
+    --font-display: 'Manrope', Inter, system-ui, sans-serif;
+    --font-body: Inter, system-ui, sans-serif;
+    --font-weight-bold: 600;
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1.125rem;
+    --radius-xl: 1.5rem;
+    --radius-2xl: 1rem;
+    --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+    --shadow-md: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+    --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+    --shadow-xl: 0 12px 30px rgba(10, 20, 30, 0.18);
+    --shadow-glow: 0 0 0 3px rgba(50, 92, 127, 0.25);
+    --text-overline: 0.8125rem;
+    --text-overline--font-weight: 600;
+    --text-overline--letter-spacing: 0.06em;
+    --text-overline--line-height: 1.35;
+    --text-caption: 0.8125rem;
+    --text-caption--font-weight: 500;
+    --text-caption--line-height: 1.35;
+    --text-meta: 0.9375rem;
+    --text-meta--line-height: 1.4;
+    --text-label: 0.9375rem;
+    --text-label--font-weight: 600;
+    --text-label--line-height: 1.25;
+    --text-body-sm: 0.9375rem;
+    --text-body: 1.0625rem;
+    --text-body-md: 1.0625rem;
+    --text-body-lg: 1.0625rem;
+    --text-body--line-height: 1.45;
+    --text-reading-body: 1.0625rem;
+    --text-reading-body--line-height: 1.5;
+    --text-card-title: 0.9375rem;
+    --text-card-title--font-weight: 600;
+    --text-card-title--line-height: 1.3;
+    --text-section-title: 1.0625rem;
+    --text-section-title--font-weight: 600;
+    --text-section-title--line-height: 1.3;
+    --text-bar-title: 1.0625rem;
+    --text-bar-title--font-weight: 600;
+    --text-heading-sm: 1.0625rem;
+    --text-heading-md: 1.0625rem;
+    --text-heading-lg: 1.0625rem;
+    --text-figure-stat: 1.0625rem;
+    --text-figure-stat--font-weight: 600;
+    --text-xl: 1.0625rem;
+    --text-display-md: 1.75rem;
+    --text-display-lg: 1.75rem;
+    --text-display-xl: 1.75rem;
+    --text-large-title: 1.75rem;
+    --text-large-title--font-weight: 600;
+    --text-large-title--line-height: 1.15;
+}
+:root[data-theme='dark'],
+[data-theme='dark'] {
+    --color-canvas: var(--canvas);
+    --color-paper: var(--paper);
+    --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
+    --color-line-control: var(--line-control);
+    --color-line-divider: var(--line-divider);
+    --color-action: var(--action);
+    --color-action-text: var(--action-text);
+    --color-selected-fill: var(--selected-fill);
+    --color-selected-edge: var(--selected-edge);
+    --color-here-bar: var(--here-bar);
+    --color-focus-ring: var(--focus-ring);
+    --color-rating: var(--rating);
+    --color-attention: var(--attention);
+    --color-attention-tint: var(--attention-tint);
+    --color-danger: var(--danger);
+    --color-danger-text: var(--danger-text);
+    --color-paper-raised: var(--paper-raised);
+    --color-paper-overlay: var(--paper-overlay);
+    --color-surface-muted: var(--surface-muted);
+    --color-inverse: var(--inverse);
+    --color-inverse-ink: var(--inverse-ink);
+    --color-inverse-action: var(--inverse-action);
+    --color-photo-chip: var(--photo-chip);
+    --color-scrim: var(--scrim);
+    --color-on-action: var(--on-action);
+    --color-action-pressed: var(--action-pressed);
+    --color-bar: var(--bar);
+    --color-pro-fill: var(--pro-fill);
+    --color-pro-ink: var(--pro-ink);
+    --color-cover-seafoam: var(--cover-seafoam);
+    --color-cover-coral: var(--cover-coral);
+    --color-cover-sky: var(--cover-sky);
+    --color-cover-premium: var(--cover-premium);
+    --color-cover-success: var(--cover-success);
+    --color-cover-warning: var(--cover-warning);
+    --color-difficulty-easy-fill: var(--surface-muted);
+    --color-difficulty-easy-ink: var(--ink);
+    --color-difficulty-medium-fill: var(--surface-muted);
+    --color-difficulty-medium-ink: var(--ink);
+    --color-difficulty-hard-fill: var(--surface-muted);
+    --color-difficulty-hard-ink: var(--ink);
+}
+
+/* ---------- Type ramp for inline board styles ---------- */
+[style*=' 11px/'],
+[style*=' 12px/'],
+[style*=' 13px/'],
+[style*='font-size: 11px'],
+[style*='font-size: 12px'],
+[style*='font-size: 13px'] {
+    font-size: 13px !important;
+}
+[style*=' 14px/'],
+[style*=' 15px/'],
+[style*='font-size: 14px'],
+[style*='font-size: 15px'] {
+    font-size: 15px !important;
+}
+[style*=' 16px/'],
+[style*=' 17px/'],
+[style*=' 18px/'],
+[style*=' 20px/'],
+[style*=' 22px/'],
+[style*='font-size: 16px'],
+[style*='font-size: 17px'],
+[style*='font-size: 18px'],
+[style*='font-size: 20px'],
+[style*='font-size: 22px'] {
+    font-size: 17px !important;
+}
+[style*=' 18px/1.6'] {
+    line-height: 1.5 !important;
+}
+/* Display: the one page title is 28; every other display use (dialog, sheet, card titles) drops to 17. */
+[style*='font: 700 28px'],
+[style*='font: 700 40px'],
+[style*='font-size: 28px'] {
+    font-size: 28px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.02em;
+}
+[style*='font: 600 24px'],
+[style*='font: 700 20px'],
+[style*='font: 600 18px'][style*='--font-display'],
+[style*='font-size: 24px'] {
+    font-size: 17px !important;
+    font-weight: 600 !important;
+}
+[style*='font: 700'],
+[style*='font-weight: 700'] {
+    font-weight: 600 !important;
+}
+.font-bold {
+    font-weight: 600;
+}
+
+/* ---------- Steel is an accent, never a large fill ---------- */
+/* The hero gradient is flat (tokens.css). A filled action keeps steel only on buttons, the FAB, the selected segment,
+   checked boxes and the current step number; large selected areas use --selected-fill, never --action. */
+
+/* ---------- EVALUATE fixes (2026-10-23) ---------- */
+/* Web Button: radius 12, not a pill (spec "Sheets and dialogs" and the round 9 buttons). Size classes come from
+   buttonSurfaceClass in bundle.js; this matches them by their radius class. */
+[class*='rounded-[calc(var(--spacing)*6.5)]'],
+[class*='rounded-[calc(var(--spacing)*5.5)]'],
+[class*='rounded-[calc(var(--spacing)*4.5)]'] {
+    border-radius: 12px !important;
+}
+/* The web sidebar fills the board height, whatever the viewport. */
+.ks-side,
+.sb {
+    height: auto !important;
+    align-self: stretch;
+}

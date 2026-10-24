@@ -18,7 +18,6 @@ import {
     type PaginatedResponse,
     type Recipe,
     type RecipeIngredientView,
-    type RecipeNutrition,
     type RecipeSearchResult,
     type RecipeStepView,
 } from '@kitchensink/recipe-core';
@@ -40,7 +39,7 @@ export function makeIngredientView(overrides: Partial<RecipeIngredientView> = {}
     return {
         ingredientId: 'ing_1',
         name: 'Olive oil',
-        quantity: 2,
+        quantity: { kind: 'exact', value: 2 },
         unit: 'tbsp',
         isUserEntered: false,
         ...overrides,
@@ -57,23 +56,6 @@ export function makeStepView(overrides: Partial<RecipeStepView> = {}): RecipeSte
     return {
         stepNumber: 1,
         instruction: 'Combine the ingredients.',
-        ...overrides,
-    };
-}
-
-/**
- * Build a {@link RecipeNutrition} with sensible defaults, overridable per field.
- *
- * @param overrides - Fields to override on the default nutrition.
- * @returns A complete `RecipeNutrition`.
- */
-export function makeNutrition(overrides: Partial<RecipeNutrition> = {}): RecipeNutrition {
-    return {
-        calories: 520,
-        proteinG: 32,
-        carbsG: 18,
-        fatG: 34,
-        isComplete: true,
         ...overrides,
     };
 }
@@ -168,7 +150,25 @@ export function makeSearchResponse(
         page: 1,
         pageSize: 20,
         hasMore: false,
-        facets: {},
+        // All four dimensions: the contract requires them (an empty dimension is `[]`, never absent).
+        facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
         ...overrides,
+    };
+}
+
+/**
+ * The whole-library read's cached shape (`recipeQueries(client).library`): one chunk holding `recipes`. For a test that
+ * seeds a settled library into the query cache.
+ *
+ * @param recipes - The library.
+ * @returns The infinite-query data of one chunk.
+ */
+export function makeLibraryData(recipes: readonly Recipe[]): {
+    readonly pages: readonly { data: Recipe[]; total: number; hasMore: boolean; nextFirstPage: number }[];
+    readonly pageParams: readonly number[];
+} {
+    return {
+        pages: [{ data: [...recipes], total: recipes.length, hasMore: false, nextFirstPage: 2 }],
+        pageParams: [1],
     };
 }

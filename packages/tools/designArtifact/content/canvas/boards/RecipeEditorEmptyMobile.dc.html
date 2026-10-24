@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, new and empty (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <script>
+            (function () {
+                const d = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+                Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+                    configurable: true,
+                    get() {
+                        const s = this.style.height;
+                        this.style.height = '0px';
+                        const v = d.get.call(this);
+                        this.style.height = s;
+                        const cs = getComputedStyle(this);
+                        return v - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+                    },
+                });
+            })();
+        </script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    [role='radiogroup'] > div,
+                    [role='group'] > div {
+                        max-width: 100%;
+                    }
+                    body {
+                        margin: 0;
+                    }
+                    /* A phone shows a scroll indicator only while it scrolls, so the frame and the text areas show no
+                       scrollbar. A classic scrollbar would also take width from the 390 px screen and cover its right edge. */
+                    * {
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <x-import
+                component-from-global-scope="Commise.Native.ScrollFrame"
+                sections="{{scrollSections}}"
+                activation-offset="{{scrollOffset}}"
+                ><div style="width: 390px; background: var(--canvas); color: var(--ink); font-family: var(--font-body)">
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--canvas);
+                            width: 390px;
+                            padding-top: 47px;
+                            position: relative;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorHeader"
+                            title="New recipe"
+                            close-label="Close editor"
+                            on-close="{{p143}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.SectionIndex"
+                            label="Recipe sections"
+                            sheet-title="Sections"
+                            sheet-close-label="Close sections"
+                            items="{{p145}}"
+                            current-id="details"
+                            bar-name="Sections. Current: Details."
+                            on-jump="{{p146}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 24px;
+                                padding: 16px 16px 28px;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="details"
+                                title="Details"
+                                current="{{p147}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 32px">
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                About the recipe
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="title"
+                                                label="Title"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.TextArea"
+                                                id="title"
+                                                value=""
+                                                min-rows="{{p0}}"
+                                                max-rows="{{p1}}"
+                                                label="Title"
+                                                on-change-text="{{p2}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="description"
+                                                label="Description"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.TextArea"
+                                                id="description"
+                                                value=""
+                                                min-rows="{{p3}}"
+                                                label="Description"
+                                                on-change-text="{{p4}}"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Time and servings
+                                            </div>
+                                        </div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Stepper"
+                                            id="servings"
+                                            label="Servings"
+                                            value="{{p5}}"
+                                            min="{{p6}}"
+                                            on-change="{{p7}}"
+                                            announce="{{p8}}"
+                                            decrease-label="Fewer servings"
+                                            increase-label="More servings"
+                                        ></x-import>
+                                        <div style="display: flex; flex-direction: row; min-width: 0; gap: 16px">
+                                            <div style="display: flex; flex-direction: column; min-width: 0; flex: 1">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.DurationField"
+                                                    label="Prep time"
+                                                    hours-label="Prep time hours"
+                                                    minutes-label="Prep time minutes"
+                                                    hours-unit="h"
+                                                    minutes-unit="min"
+                                                    value="{{p9}}"
+                                                    on-change="{{p10}}"
+                                                ></x-import>
+                                            </div>
+                                            <div style="display: flex; flex-direction: column; min-width: 0; flex: 1">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.DurationField"
+                                                    label="Cook time"
+                                                    hours-label="Cook time hours"
+                                                    minutes-label="Cook time minutes"
+                                                    hours-unit="h"
+                                                    minutes-unit="min"
+                                                    value="{{p11}}"
+                                                    on-change="{{p12}}"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Kind of dish
+                                            </div>
+                                        </div>
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Combobox"
+                                            id="cuisine"
+                                            label="Cuisine"
+                                            list-label="Cuisines"
+                                            hint="Choose one, or type your own. You need one to publish."
+                                            value=""
+                                            on-value-change="{{p13}}"
+                                            groups="{{p14}}"
+                                            typed-text="isValue"
+                                            list-max-rows="{{p15}}"
+                                            clear="{{p16}}"
+                                        ></x-import>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Meal type
+                                            </div>
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.ChipRow"
+                                                mode="choice"
+                                                clearable="{{p17}}"
+                                                label="Meal type"
+                                                overflow="wrap"
+                                                options="{{p18}}"
+                                                value=""
+                                                on-change="{{p19}}"
+                                            ></x-import>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 4px">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Difficulty
+                                            </div>
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.ChipRow"
+                                                mode="choice"
+                                                clearable="{{p20}}"
+                                                label="Difficulty"
+                                                overflow="wrap"
+                                                options="{{p21}}"
+                                                value=""
+                                                on-change="{{p22}}"
+                                            ></x-import>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 14px/1.4 var(--font-body);
+                                                    color: var(--ink-muted);
+                                                "
+                                            >
+                                                Diet and tags
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 8px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="dietary"
+                                                label="Dietary flags"
+                                                hint="Type and press Enter"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.ChipRow"
+                                                mode="input"
+                                                label="Dietary flags"
+                                                overflow="wrap"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="dietary"
+                                                value=""
+                                                label="Dietary flags"
+                                                hint="Type and press Enter"
+                                                enter-key-hint="done"
+                                                on-change-text="{{p24}}"
+                                            ></x-import>
+                                            <div
+                                                style="
+                                                    display: flex;
+                                                    flex-direction: row;
+                                                    min-width: 0;
+                                                    align-self: flex-start;
+                                                "
+                                            >
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.Button"
+                                                    variant="ghost"
+                                                    icon="plus"
+                                                    on-press="{{p25}}"
+                                                    >Add a dietary flag</x-import
+                                                >
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 8px">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.FieldLabel"
+                                                for-id="tags"
+                                                label="Tags"
+                                                hint="Type and press Enter"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.ChipRow"
+                                                mode="input"
+                                                label="Tags"
+                                                overflow="wrap"
+                                            ></x-import
+                                            ><x-import
+                                                component-from-global-scope="Commise.Native.Input"
+                                                id="tags"
+                                                value=""
+                                                label="Tags"
+                                                hint="Type and press Enter"
+                                                enter-key-hint="done"
+                                                on-change-text="{{p29}}"
+                                            ></x-import>
+                                            <div
+                                                style="
+                                                    display: flex;
+                                                    flex-direction: row;
+                                                    min-width: 0;
+                                                    align-self: flex-start;
+                                                "
+                                            >
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.Button"
+                                                    variant="ghost"
+                                                    icon="plus"
+                                                    on-press="{{p30}}"
+                                                    >Add a tag</x-import
+                                                >
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="ingredients"
+                                title="Ingredients"
+                                current="{{p148}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                    <div style="font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                        No ingredients yet. Add your first ingredient.
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.Combobox"
+                                        id="newline"
+                                        label="Add an ingredient"
+                                        hint="Type the amount first, then pick the food. For example: 2 tbsp olive oil."
+                                        value=""
+                                        on-value-change="{{p103}}"
+                                        groups="{{p104}}"
+                                        placeholder=""
+                                        leading-icon="{{p105}}"
+                                        clear="{{p106}}"
+                                    ></x-import>
+                                    <div
+                                        style="display: flex; flex-direction: row; min-width: 0; align-self: flex-start"
+                                    >
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="clipboardPaste"
+                                            on-press="{{p107}}"
+                                            >Paste a list</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        style="display: flex; flex-direction: row; min-width: 0; align-self: flex-start"
+                                    >
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            icon="plus"
+                                            on-press="{{p107}}"
+                                            >Add a group</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            font-family: var(--font-body);
+                                            font: 500 14px/1.4 var(--font-body);
+                                            color: var(--ink);
+                                            background: var(--surface-muted);
+                                            border-radius: 12px;
+                                            padding: 8px 12px;
+                                            align-self: flex-start;
+                                        "
+                                    >
+                                        Nutrition appears as you match ingredients.
+                                    </div>
+                                </div></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="steps"
+                                title="Steps"
+                                current="{{p150}}"
+                                action="{{p151}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                    <div style="font: 400 16px/1.5 var(--font-body); color: var(--ink-muted)">
+                                        No steps yet.
+                                    </div>
+                                    <div
+                                        style="display: flex; flex-direction: row; min-width: 0; align-self: flex-start"
+                                    >
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="plus"
+                                            on-press="{{p139}}"
+                                            >Add step</x-import
+                                        >
+                                    </div>
+                                </div></x-import
+                            ><x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="photos"
+                                title="Photos & publish"
+                                current="{{p152}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 24px">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.PublishLine"
+                                        line="{{publishLine}}"
+                                        on-jump="{{p141}}"
+                                    ></x-import>
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 12px">
+                                        <div role="heading">
+                                            <div
+                                                style="
+                                                    font-family: var(--font-body);
+                                                    font: 600 16px/1.3 var(--font-body);
+                                                    color: var(--ink);
+                                                "
+                                            >
+                                                Photos
+                                            </div>
+                                        </div>
+                                        <div style="width: 100%">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.RecipeCover"
+                                                recipe-id="r-lemon-chicken"
+                                                title=""
+                                                aspect="4:3"
+                                            ></x-import>
+                                        </div>
+                                        <div
+                                            style="
+                                                font-family: var(--font-body);
+                                                font: 400 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            No photo? This cover is used instead. Add one any time.
+                                        </div>
+                                        <div
+                                            style="
+                                                font-family: var(--font-body);
+                                                font: 500 12px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            JPEG, PNG, or WebP · max 5 MB
+                                        </div>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-direction: row;
+                                                min-width: 0;
+                                                align-self: flex-start;
+                                            "
+                                        >
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.Button"
+                                                variant="secondary"
+                                                icon="imagePlus"
+                                                on-press="{{p142}}"
+                                                >Add photos</x-import
+                                            >
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; min-width: 0; gap: 8px">
+                                        <div
+                                            style="
+                                                font-family: var(--font-body);
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink-muted);
+                                            "
+                                        >
+                                            Who can see it
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; min-width: 0; gap: 8px">
+                                            <div
+                                                role="radio"
+                                                aria-checked="true"
+                                                style="
+                                                    min-height: 56px;
+                                                    display: flex;
+                                                    flex-direction: row;
+                                                    align-items: center;
+                                                    gap: 12px;
+                                                    border: 1px solid var(--selected-edge);
+                                                    border-radius: 12px;
+                                                    padding: 8px 16px;
+                                                    background: var(--selected-fill);
+                                                "
+                                            >
+                                                <div
+                                                    style="display: flex; flex-direction: column; min-width: 0; flex: 1"
+                                                >
+                                                    <div
+                                                        style="
+                                                            font-family: var(--font-body);
+                                                            font: 600 16px/1.3 var(--font-body);
+                                                            color: var(--ink);
+                                                        "
+                                                    >
+                                                        Public
+                                                    </div>
+                                                    <div
+                                                        style="
+                                                            font-family: var(--font-body);
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Anyone can find it in Discover
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                role="radio"
+                                                aria-checked="false"
+                                                style="
+                                                    min-height: 56px;
+                                                    display: flex;
+                                                    flex-direction: row;
+                                                    align-items: center;
+                                                    gap: 12px;
+                                                    border: 1px solid var(--line-control);
+                                                    border-radius: 12px;
+                                                    padding: 8px 16px;
+                                                    background: var(--paper);
+                                                "
+                                            >
+                                                <div
+                                                    style="display: flex; flex-direction: column; min-width: 0; flex: 1"
+                                                >
+                                                    <div
+                                                        style="
+                                                            font-family: var(--font-body);
+                                                            font: 600 16px/1.3 var(--font-body);
+                                                            color: var(--ink);
+                                                        "
+                                                    >
+                                                        Private
+                                                    </div>
+                                                    <div
+                                                        style="
+                                                            font-family: var(--font-body);
+                                                            font: 500 12px/1.4 var(--font-body);
+                                                            color: var(--ink-muted);
+                                                        "
+                                                    >
+                                                        Only you can see it
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorActionBar"
+                            label="Recipe actions"
+                            preview-label="Preview"
+                            on-preview="{{p153}}"
+                            primary-label="Publish"
+                            on-primary="{{p154}}"
+                            primary-disabled="{{p155}}"
+                            busy="{{p156}}"
+                        ></x-import>
+                    </div></div></x-import
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2952}}'>
+            class Component extends DCLogic { renderVals(){ const __sv={scrollSections:['details','ingredients','steps','photos'],scrollOffset:96}; const h=React.createElement,C=window.Commise.Native,noop=()=>{}; return {...__sv,publishLine:{"kind": "fix", "text": "Fix 4 things to publish", "section": "details"},yes:true,p0:1,p1:3,p2:noop,p3:4,p4:noop,p5:1,p6:1,p7:noop,p8:n=>'Serves '+n,p9:0,p10:noop,p11:0,p12:noop,p13:noop,p14:[],p15:5,p16:{"label":"Clear cuisine","icon":h(C.Icon,{name:'x',size:20,tone:'inkMuted'})},p17:true,p18:[{"value":"breakfast","label":"Breakfast"},{"value":"brunch","label":"Brunch"},{"value":"lunch","label":"Lunch"},{"value":"dinner","label":"Dinner"},{"value":"snack","label":"Snack"},{"value":"dessert","label":"Dessert"},{"value":"drink","label":"Drink"}],p19:noop,p20:true,p21:[{"value":"easy","label":"Easy"},{"value":"medium","label":"Medium"},{"value":"hard","label":"Hard"}],p22:noop,p23:noop,p24:noop,p25:noop,p26:noop,p27:noop,p28:noop,p29:noop,p30:noop,p31:{"line":{"key":"k1"},"index":0,"number":1,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Chicken thighs","triggerFood":"Chicken thighs","amountText":"8","prepText":"bone-in, skin-on","openLabel":"Edit 8 Chicken thighs","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Chicken thighs","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p32:{},p33:{"form":{}},p34:x=>x,p35:()=>null,p36:null,p37:null,p38:72,p39:{"line":{"key":"k2"},"index":1,"number":2,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"All-purpose flour","triggerFood":"All-purpose flour","amountText":"0.25 cup","openLabel":"Edit 0.25 cup All-purpose flour","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for All-purpose flour","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p40:{},p41:{"form":{}},p42:x=>x,p43:()=>null,p44:null,p45:null,p46:72,p47:{"line":{"key":"k3"},"index":2,"number":3,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Olive oil","triggerFood":"Olive oil","amountText":"2 tbsp","openLabel":"Edit 2 tbsp Olive oil","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Olive oil","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p48:{},p49:{"form":{}},p50:x=>x,p51:()=>null,p52:null,p53:null,p54:72,p55:{"line":{"key":"k4"},"index":3,"number":4,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Unsalted butter","triggerFood":"Unsalted butter","amountText":"3 tbsp","openLabel":"Edit 3 tbsp Unsalted butter","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Unsalted butter","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p56:{},p57:{"form":{}},p58:x=>x,p59:()=>null,p60:null,p61:null,p62:72,p63:{"line":{"key":"k5"},"index":4,"number":5,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Garlic","triggerFood":"Garlic","amountText":"3 clove","prepText":"minced","openLabel":"Edit 3 clove Garlic","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Garlic","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p64:{},p65:{"form":{}},p66:x=>x,p67:()=>null,p68:null,p69:null,p70:72,p71:{"line":{"key":"k6"},"index":5,"number":6,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Chicken broth","triggerFood":"Chicken broth","amountText":"0.5 cup","openLabel":"Edit 0.5 cup Chicken broth","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Chicken broth","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p72:{},p73:{"form":{}},p74:x=>x,p75:()=>null,p76:null,p77:null,p78:72,p79:{"line":{"key":"k7"},"index":6,"number":7,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Lemon","triggerFood":"Lemon","amountText":"1","prepText":"zested and juiced","openLabel":"Edit 1 Lemon","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Lemon","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p80:{},p81:{"form":{}},p82:x=>x,p83:()=>null,p84:null,p85:null,p86:72,p87:{"line":{"key":"k8"},"index":7,"number":8,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Capers","triggerFood":"Capers","amountText":"2 tbsp","prepText":"drained","openLabel":"Edit 2 tbsp Capers","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Capers","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p88:{},p89:{"form":{}},p90:x=>x,p91:()=>null,p92:null,p93:null,p94:72,p95:{"line":{"key":"k9"},"index":8,"number":9,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Fresh parsley","triggerFood":"Fresh parsley","amountText":"2 tbsp","prepText":"chopped","openLabel":"Edit 2 tbsp Fresh parsley","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Fresh parsley","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p96:{},p97:{"form":{}},p98:x=>x,p99:()=>null,p100:null,p101:null,p102:72,p103:noop,p104:[],p105:h(C.Icon,{name:'plus',size:16,tone:'inkMuted'}),p106:{"label":"Clear","icon":h(C.Icon,{name:'x',size:20,tone:'inkMuted'})},p107:noop,p108:noop,p109:[{"id":"moveDown","label":"Move down","onSelect":noop}],p110:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p111:4,p112:noop,p113:720,p114:noop,p115:noop,p116:[{"id":"moveUp","label":"Move up","onSelect":noop},{"id":"moveDown","label":"Move down","onSelect":noop}],p117:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p118:4,p119:noop,p120:180,p121:noop,p122:noop,p123:[{"id":"moveUp","label":"Move up","onSelect":noop},{"id":"moveDown","label":"Move down","onSelect":noop}],p124:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p125:4,p126:noop,p127:600,p128:noop,p129:noop,p130:[{"id":"moveUp","label":"Move up","onSelect":noop},{"id":"moveDown","label":"Move down","onSelect":noop}],p131:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p132:4,p133:noop,p134:noop,p135:[{"id":"moveUp","label":"Move up","onSelect":noop}],p136:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p137:2,p138:noop,p139:noop,p140:{"kind":"ready","text":"Ready to publish."},p141:noop,p142:noop,p143:noop,p144:{"triggerLabel":"More editor actions","closeLabel":"Keep editing","discardLabel":"Discard draft","onDiscard":noop},p145:[{"id": "details", "label": "Details", "tone": "muted", "reason": "Not started"}, {"id": "ingredients", "label": "Ingredients", "tone": "muted", "reason": "Not started"}, {"id": "steps", "label": "Steps", "tone": "muted", "reason": "Not started"}, {"id": "photos", "label": "Photos & publish", "shortLabel": "Photos", "tone": "muted", "reason": "Optional"}],p146:noop,p147:true,p148:false,p149:h(C.Button,{variant:'ghost',size:'sm',icon:'clipboardPaste',onPress:noop},'Paste a list'),p150:false,p151:h(C.Button,{variant:'ghost',size:'sm',icon:'listPlus',onPress:noop},'Paste steps'),p152:false,p153:noop,p154:noop,p155:false,p156:false}; } }
+        </script>
+    </body>
+</html>

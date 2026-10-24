@@ -21,68 +21,61 @@
  * reorders, so the lowest-sort-order cover rule is untouched), and Replace at the photo cap refuses with
  * actionable copy instead of destroying the original for a swap that cannot land.
  *
- * `useRecipePhotos` / `useDeleteRecipePhoto` (network/query hooks) and `useRecipePhotoUpload` (the
- * presign→PUT→confirm orchestration) are replaced with lightweight doubles — this container's own
- * responsibility is the DOM wiring around them, not re-proving their internals (covered where they're
- * defined). The real `useRecipePhotoUploadQueue` is used un-mocked so the queued→uploading→ok lifecycle the
- * cleanup effect reacts to is authentic, not asserted-via-mock.
+ * The generated client's hooks (`useRecipePhotos`, `useDeleteRecipePhoto`, `useReorderRecipePhotos` and the presign /
+ * confirm mutations) are doubled at `@kitchensink/recipe-service-client/hooks` — the package boundary, never another
+ * workspace's internal path. The REAL `useRecipePhotoUpload` and `useRecipePhotoUploadQueue` run on top, so the
+ * queued→uploading→ok/failed lifecycle the cleanup effect reacts to is authentic, not asserted-via-mock.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useCallback, useState } from 'react';
 
-const { photosQueryMock, deletePhotoMock, reorderPhotoMock, uploadState } = vi.hoisted(() => ({
-    photosQueryMock: vi.fn(),
-    deletePhotoMock: vi.fn(),
-    reorderPhotoMock: vi.fn(),
-    // Per-test knobs for the fake `useRecipePhotoUpload` below: `stuck` flips `uploading: true` and never
-    // resolves (a file still mid-flight when the container unmounts / while a swap must stay uncommitted);
-    // `fail` settles the upload with an error message (the queue then marks that file `failed`).
-    uploadState: { stuck: false, fail: false },
-}));
+const {
+    photosQueryMock,
+    deletePhotoMock,
+    reorderPhotoMock,
+    uploadState,
+    createUploadUrlMutation,
+    confirmUploadMutation,
+} = vi.hoisted(() => {
+    // Per-test knobs for the doubled presign mutation: `stuck` never settles (a file still mid-flight when the
+    // container unmounts / while a swap must stay uncommitted); `fail` rejects it (the REAL upload hook turns
+    // that into a `failed` verdict, so the queue marks the file `failed`).
+    const state = { stuck: false, fail: false };
 
-/** The localized upload error the fake uploader settles with when `uploadState.fail` is set. */
-const UPLOAD_FAILED_MESSAGE = 'We couldn’t upload your photo. Please try again.';
+    return {
+        photosQueryMock: vi.fn(),
+        deletePhotoMock: vi.fn(),
+        reorderPhotoMock: vi.fn(),
+        uploadState: state,
+        createUploadUrlMutation: {
+            mutateAsync: async (): Promise<{ uploadUrl: string; key: string }> => {
+                if (state.stuck) {
+                    return new Promise<{ uploadUrl: string; key: string }>(() => undefined);
+                }
+
+                if (state.fail) {
+                    throw new Error('presign refused');
+                }
+
+                return { uploadUrl: 'https://s3.example/put', key: 'k1' };
+            },
+        },
+        confirmUploadMutation: { mutateAsync: async (): Promise<undefined> => undefined },
+    };
+});
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipePhotos: photosQueryMock,
     useDeleteRecipePhoto: deletePhotoMock,
     useReorderRecipePhotos: reorderPhotoMock,
+    // The REAL `useRecipePhotoUpload` runs on these two mutations (presign, confirm), so the queue is driven by an
+    // authentic upload lifecycle. Stable objects, as TanStack's `useMutation` result is stable across renders.
+    useCreatePhotoUploadUrl: () => createUploadUrlMutation,
+    useConfirmPhotoUpload: () => confirmUploadMutation,
 }));
-
-vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@commise/features-recipes/hooks')>();
-
-    return {
-        ...actual,
-        // A minimal but REAL (stateful) stand-in for the single-flight upload hook, so the real
-        // `useRecipePhotoUploadQueue` composed on top of it drives an authentic queued→uploading→ok/stuck
-        // lifecycle instead of a hand-asserted mock sequence.
-        useRecipePhotoUpload: () => {
-            const [state, setState] = useState<{ uploading: boolean; errorMessage: string | undefined }>({
-                uploading: false,
-                errorMessage: undefined,
-            });
-
-            const upload = useCallback(async () => {
-                setState({ uploading: true, errorMessage: undefined });
-
-                if (uploadState.stuck) {
-                    return; // never resolves — the item stays 'uploading' (pending) forever
-                }
-
-                await Promise.resolve();
-                setState({
-                    uploading: false,
-                    errorMessage: uploadState.fail ? UPLOAD_FAILED_MESSAGE : undefined,
-                });
-            }, []);
-
-            return { ...state, upload };
-        },
-    };
-});
 
 const { RecipePhotoUploaderContainer } = await import('../RecipePhotoUploaderContainer.js');
 
@@ -100,6 +93,8 @@ beforeEach(() => {
     (URL as unknown as { createObjectURL: typeof createObjectURL }).createObjectURL = createObjectURL;
     (URL as unknown as { revokeObjectURL: typeof revokeObjectURL }).revokeObjectURL = revokeObjectURL;
 
+    // The real upload hook PUTs the file to the presigned URL between presign and confirm.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }));
     uploadState.stuck = false;
     uploadState.fail = false;
     photosQueryMock.mockReset().mockReturnValue({ data: [] });
@@ -115,8 +110,19 @@ const threeConfirmedPhotos = [
 
 afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
 });
+
+/** A photo tile's menu button: the cover's name says so (2026-10-17). */
+const tileName = (index: number): string =>
+    index === 1 ? 'Actions for photo 1, the cover' : `Actions for photo ${index}`;
+
+/** Open a photo tile's ⋯ menu and choose an item (2026-10-17: every photo action lives in that menu). */
+async function chooseFromTile(user: ReturnType<typeof userEvent.setup>, trigger: string, item: string): Promise<void> {
+    await user.click(screen.getByRole('button', { name: trigger }));
+    await user.click(await screen.findByRole('menuitem', { name: item }));
+}
 
 describe('RecipePhotoUploaderContainer (web) — the add control (inputRef)', () => {
     it('renders the hidden, multi-select file input as the labeled add control', () => {
@@ -158,6 +164,77 @@ describe('RecipePhotoUploaderContainer (web) — the add control (inputRef)', ()
         expect(createObjectURL).toHaveBeenCalledTimes(2);
         expect(await screen.findByRole('img', { name: 'Photo a.png' })).toBeTruthy();
         expect(screen.getByRole('img', { name: 'Photo b.png' })).toBeTruthy();
+    });
+});
+
+/**
+ * ⛔ A PICK LARGER THAN THE REMAINING SLOTS IS REFUSED WHOLE, AND NOTHING IT MINTED OUTLIVES THE REFUSAL.
+ *
+ * `<input multiple>` cannot bound how many files a cook chooses, and the add control is hidden only AT the cap,
+ * so one pick can carry more than fits. The queue used to keep what fit and drop the rest silently; the preview
+ * URLs minted for the dropped files were never tracked, so nothing ever revoked them. The queue now refuses the
+ * batch whole and says how many would fit, and this container must release every URL it minted for it.
+ */
+describe('RecipePhotoUploaderContainer (web) — a pick past the photo cap', () => {
+    const photosHeld = (count: number) =>
+        Array.from({ length: count }, (_unused, index) => ({
+            id: `ph_${index + 1}`,
+            url: `https://cdn.example/${index + 1}.jpg`,
+            order: index + 1,
+            recipeId: 'rec_1',
+            createdAt: '',
+        }));
+
+    it('queues NONE of the pick, revokes every URL it minted, and says how many would fit', async () => {
+        uploadState.stuck = true;
+        photosQueryMock.mockReturnValue({ data: photosHeld(8) });
+        const user = userEvent.setup();
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        const input = screen.getByLabelText('Add photo') as HTMLInputElement;
+        await user.upload(input, [makeFile('a.png'), makeFile('b.png'), makeFile('c.png')]);
+
+        expect(screen.getByRole('alert')).toHaveTextContent(
+            'That’s more photos than this recipe can hold — you can add 2 more.',
+        );
+        expect(screen.queryByRole('img', { name: /^Photo [abc]\.png$/ })).toBeNull();
+
+        const minted = createObjectURL.mock.results.map((result) => result.value as string);
+
+        expect(minted).toHaveLength(3);
+        expect(revokeObjectURL.mock.calls.map(([url]) => url as string).sort()).toEqual([...minted].sort());
+        expect(input.value).toBe('');
+    });
+
+    it('clears the refusal once a pick that fits is accepted', async () => {
+        uploadState.stuck = true;
+        photosQueryMock.mockReturnValue({ data: photosHeld(9) });
+        const user = userEvent.setup();
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        const input = screen.getByLabelText('Add photo') as HTMLInputElement;
+        await user.upload(input, [makeFile('a.png'), makeFile('b.png')]);
+        expect(screen.getByRole('alert')).toHaveTextContent('you can add 1 more.');
+
+        await user.upload(input, makeFile('c.png'));
+
+        expect(await screen.findByRole('img', { name: 'Photo c.png' })).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('clears the refusal when a photo is removed, which is the room it asked for', async () => {
+        const deleteMutate = vi.fn();
+        deletePhotoMock.mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined });
+        photosQueryMock.mockReturnValue({ data: photosHeld(9) });
+        const user = userEvent.setup();
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        await user.upload(screen.getByLabelText('Add photo'), [makeFile('a.png'), makeFile('b.png')]);
+        expect(screen.getByRole('alert')).toBeTruthy();
+
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
+
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });
 
@@ -213,9 +290,9 @@ describe('RecipePhotoUploaderContainer (web) — delete', () => {
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
     });
 });
 
@@ -228,9 +305,12 @@ describe('RecipePhotoUploaderContainer (web) — set cover (U6)', () => {
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
         // ph_1 is the current cover (index 0, checked); choosing ph_3 must move it to the front.
-        await user.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
+        await chooseFromTile(user, 'Actions for photo 3', 'Set as cover');
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] });
+        expect(mutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
     });
 });
 
@@ -253,7 +333,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: `Replace photo ${photoIndex}` }));
+        await chooseFromTile(user, tileName(photoIndex), 'Replace');
 
         return { deleteMutate, reorderMutate, clickSpy, user };
     }
@@ -307,11 +387,11 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new.png'));
 
         await waitFor(() => expect(deleteMutate).toHaveBeenCalledTimes(1));
-        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' });
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' }, expect.any(Object));
         // Cover semantics are untouched by a replace: the cover is still resolved as the lowest-sort-order
         // photo, so replacing one never reorders (and never silently reassigns the cover).
         expect(reorderMutate).not.toHaveBeenCalled();
-        expect(screen.getByRole('radio', { name: 'Set photo 1 as cover' })).toBeChecked();
+        expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeInTheDocument();
     });
 
     it('replaces the COVER photo without reordering — the cover stays the lowest-sort-order photo', async () => {
@@ -320,8 +400,45 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new-cover.png'));
 
         await waitFor(() => expect(deleteMutate).toHaveBeenCalledTimes(1));
-        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
         expect(reorderMutate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a replacement the queue turns away after the picker opened — revokes its preview, says why, deletes nothing', async () => {
+        // The Replace press checks for a free slot, but the pick lands on a LATER render: if the confirmed photos
+        // refetch fills the last slot while the dialog is open, the queue refuses the replacement. That refusal must
+        // release the preview URL minted for it and tell the cook, exactly as a refused Add pick does.
+        const deleteMutate = vi.fn();
+        deletePhotoMock.mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined });
+        const photos = (count: number) =>
+            Array.from({ length: count }, (_unused, index) => ({
+                id: `ph_${index + 1}`,
+                url: `https://cdn.example/${index + 1}.jpg`,
+                order: index + 1,
+                recipeId: 'rec_1',
+                createdAt: '',
+            }));
+        photosQueryMock.mockReturnValue({ data: photos(9) });
+        vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+        const user = userEvent.setup();
+        const { rerender } = render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        await chooseFromTile(user, 'Actions for photo 3', 'Replace');
+        expect(screen.queryByRole('alert')).toBeNull();
+
+        photosQueryMock.mockReturnValue({ data: photos(10) });
+        rerender(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('late.png'));
+
+        expect(screen.getByRole('alert')).toHaveTextContent(
+            'Remove a photo first — replacing needs room for the new one.',
+        );
+
+        const minted = createObjectURL.mock.results.map((result) => result.value as string);
+
+        expect(minted).toHaveLength(1);
+        expect(revokeObjectURL).toHaveBeenCalledWith(minted[0]);
+        expect(deleteMutate).not.toHaveBeenCalled();
     });
 
     it('refuses to replace at the photo cap (a lossless swap needs a free slot) and deletes nothing', async () => {
@@ -340,7 +457,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+        await chooseFromTile(user, 'Actions for photo 3', 'Replace');
 
         expect(screen.getByRole('alert')).toHaveTextContent(
             'Remove a photo first — replacing needs room for the new one.',
@@ -350,9 +467,9 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
 
         // Following the advice retires it: the message must not keep claiming there is no room once the user
         // has made some.
-        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+        await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
-        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' }, expect.any(Object));
         expect(screen.queryByRole('alert')).toBeNull();
     });
 });

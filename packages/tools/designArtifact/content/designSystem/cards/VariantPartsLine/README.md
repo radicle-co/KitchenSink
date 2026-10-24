@@ -1,0 +1,3 @@
+A line that shows a food variant's parts with a middle dot between them, such as "flat half · select · braised". Parts keep their wire order, and a visually hidden comma after each dot makes a screen reader hear a list. Tone `secondary` sits under a food's name; `primary` is a row in the details dialog. A measurement token such as 1/8-inch never splits at its hyphen, each part is marked lang="en", and nothing is truncated. It is phrasing content, so it fits inside a button, an option or a sentence.
+
+On native it is one Text; a measurement token's hyphen is non-breaking, the screen reader hears the parts joined with commas, and parts are not marked English.

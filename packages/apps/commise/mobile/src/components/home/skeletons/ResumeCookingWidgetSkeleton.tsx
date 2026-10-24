@@ -6,12 +6,12 @@
  * button: a real control here would either do nothing or need a destination that does not exist, and a
  * placeholder must not offer an action it cannot honour. Feature 009 replaces it with a live widget.
  */
+import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { mobileMessages } from '../../../i18n/messages.js';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
 /**
@@ -20,21 +20,26 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
  * @returns The resume-cooking strip's shape with no session data in it.
  */
 export function ResumeCookingWidgetSkeleton(): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+    const home = useMessages(homeMessages);
+    const { colors } = useTheme();
+    const shape = { backgroundColor: colors.surfaceMuted };
 
     return (
-        <PlaceholderWidgetCard title={home.roadmap.titles['resume-cooking']} comingSoonLabel={home.roadmap.comingSoon}>
-            <View style={styles.row}>
+        <PlaceholderWidgetCard title={home.roadmap.titles['resume-cooking']} soonLabel={home.roadmap.soon}>
+            {/* Pure shape (the "Continue" affordance included — it is drawn, never offered), so the whole row
+                is hidden from assistive tech. `aria-hidden` is the spelling react-native-web can project; RN
+                reverse-maps it onto both platform props on device. See the shell's JSDoc. */}
+            <View aria-hidden style={styles.row}>
                 {/* The recipe thumbnail. */}
-                <View style={styles.thumb} />
+                <View style={[styles.thumb, shape]} />
                 <View style={styles.middle}>
                     {/* The in-progress recipe's title, then its progress bar (an empty track — any fill would
                         assert a real progress figure). */}
-                    <View style={styles.titleBar} />
-                    <View style={styles.progressTrack} />
+                    <View style={[styles.titleBar, shape]} />
+                    <View style={[styles.progressTrack, shape]} />
                 </View>
                 {/* The "Continue" action, as a shape. */}
-                <View style={styles.action} />
+                <View style={[styles.action, shape]} />
             </View>
         </PlaceholderWidgetCard>
     );
@@ -42,9 +47,9 @@ export function ResumeCookingWidgetSkeleton(): JSX.Element {
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    thumb: { width: 64, height: 64, borderRadius: 12, backgroundColor: palette.pearl },
+    thumb: { width: 64, height: 64, borderRadius: 12 },
     middle: { flex: 1, gap: 8 },
-    titleBar: { height: 16, width: '75%', borderRadius: 4, backgroundColor: palette.pearl },
-    progressTrack: { height: 4, width: '100%', borderRadius: 999, backgroundColor: palette.pearl },
-    action: { height: 36, width: 96, borderRadius: 999, backgroundColor: palette.pearl },
+    titleBar: { height: 16, width: '75%', borderRadius: 4 },
+    progressTrack: { height: 4, width: '100%', borderRadius: 999 },
+    action: { height: 36, width: 96, borderRadius: 999 },
 });

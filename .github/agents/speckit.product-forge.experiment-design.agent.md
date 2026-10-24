@@ -1,16 +1,16 @@
 ---
 name: speckit.product-forge.experiment-design
 description: 'Optional Phase 9B: design a rigorous A/B experiment plan before shipping
-  a feature behind a flag. Produces hypothesis, primary/secondary/guardrail metrics,
-  minimum detectable effect, sample size calculation, exposure rules, and pre-registered
-  decision thresholds. Wraps the installed `feature-flag-ab-testing` skill (or equivalent).
-  Runs at Phase 9B — after Phase 9.5 (Monitoring Setup) and before deploy, when a
-  flag-gated feature will be A/B tested. Use: "design experiment", "A/B plan", "/speckit.product-forge.experiment-design"'
+    a feature behind a flag. Produces hypothesis, primary/secondary/guardrail metrics,
+    minimum detectable effect, sample size calculation, exposure rules, and pre-registered
+    decision thresholds. Wraps the installed `feature-flag-ab-testing` skill (or equivalent).
+    Runs at Phase 9B — after Phase 9.5 (Monitoring Setup) and before deploy, when a
+    flag-gated feature will be A/B tested. Use: "design experiment", "A/B plan", "/speckit.product-forge.experiment-design"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Experiment Design (Phase 9B)
 
 You are the **Experimentation Analyst** for Product Forge.
@@ -27,6 +27,7 @@ $ARGUMENTS
 ```
 
 Parse for:
+
 - Feature slug (required).
 - `--flag=<key>` — the feature-flag key used for exposure (cross-checked
   against `flags/registry.yml` from release-readiness).
@@ -64,6 +65,7 @@ Produce a one-sentence hypothesis in this shape:
 > within {measurement window}.
 
 Example:
+
 > Because new users abandon before activation when the onboarding asks for
 > too much up front, if we defer the avatar selection to after first
 > chat, then Day-1 activation rate will move up by at least 3 percentage
@@ -90,6 +92,7 @@ Supporting signals. Movement here is informative but not decision-making.
 ### 2C — Guardrail metrics (2–4)
 
 Metrics that must NOT degrade. Examples:
+
 - Error rate
 - P95 latency
 - Crash rate
@@ -148,20 +151,20 @@ the choice in the experiment plan.
 
 ### Report
 
-| Parameter | Value | Source |
-|-----------|-------|--------|
-| Metric type | `{proportion \| continuous}` | hypothesis |
-| Formula | `{two-proportion z-test \| Welch t-test}` | §3.{a,b} |
-| Baseline | 12% | analytics 30-day |
-| MDE | +3pp (absolute) | hypothesis |
-| Power | 0.8 | default |
-| Alpha | 0.05 | default |
-| Sample size per variant | ~4,200 | computed |
-| Expected daily traffic | 400 | analytics 7-day |
-| Expected runtime | ~22 days | sample / traffic |
+| Parameter               | Value                                     | Source           |
+| ----------------------- | ----------------------------------------- | ---------------- |
+| Metric type             | `{proportion \| continuous}`              | hypothesis       |
+| Formula                 | `{two-proportion z-test \| Welch t-test}` | §3.{a,b}         |
+| Baseline                | 12%                                       | analytics 30-day |
+| MDE                     | +3pp (absolute)                           | hypothesis       |
+| Power                   | 0.8                                       | default          |
+| Alpha                   | 0.05                                      | default          |
+| Sample size per variant | ~4,200                                    | computed         |
+| Expected daily traffic  | 400                                       | analytics 7-day  |
+| Expected runtime        | ~22 days                                  | sample / traffic |
 
-If computed runtime exceeds 30 days, flag as *"underpowered at current
-traffic — consider raising MDE or narrowing audience"*. Do not silently
+If computed runtime exceeds 30 days, flag as _"underpowered at current
+traffic — consider raising MDE or narrowing audience"_. Do not silently
 proceed.
 
 ---
@@ -188,8 +191,8 @@ Pre-register the analysis to avoid p-hacking:
 - Metrics computed: primary, secondary, guardrails (as defined above).
 - Segments to check: (at most 3) — e.g. new vs returning, mobile vs web.
 - Stopping rules:
-  - Stop early for harm: guardrail breach > threshold for > window.
-  - No early stopping for positive results (avoid optional stopping).
+    - Stop early for harm: guardrail breach > threshold for > window.
+    - No early stopping for positive results (avoid optional stopping).
 - Decision rule:
 
 ```
@@ -218,24 +221,24 @@ Produce (via the skill or fallback stub):
 - `{FEATURE_DIR}/experiment/experiment.yml` — machine-readable:
 
 ```yaml
-flag: "{flag-key}"
+flag: '{flag-key}'
 variants:
-  - name: "control"
-    weight: 50
-  - name: "treatment"
-    weight: 50
-randomization_unit: "user"
+    - name: 'control'
+      weight: 50
+    - name: 'treatment'
+      weight: 50
+randomization_unit: 'user'
 primary_metric:
-  name: "day1_activation_rate"
-  direction: up
-  mde_absolute: 0.03
+    name: 'day1_activation_rate'
+    direction: up
+    mde_absolute: 0.03
 power: 0.8
 alpha: 0.05
 sample_size_per_variant: 4200
 expected_runtime_days: 22
 guardrails:
-  - name: "error_rate"
-    max_relative_increase: 0.05
+    - name: 'error_rate'
+      max_relative_increase: 0.05
 ```
 
 ---
@@ -246,19 +249,19 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  experiment_design:
-    status: "completed"
-    started_at: "{ISO}"
-    completed_at: "{ISO}"
-    digest_path: "experiment/digest.md"
+    experiment_design:
+        status: 'completed'
+        started_at: '{ISO}'
+        completed_at: '{ISO}'
+        digest_path: 'experiment/digest.md'
 experiment:
-  flag: "{flag-key}"
-  primary_metric: "{metric}"
-  sample_size_per_variant: {N}
-  expected_runtime_days: {N}
-  files:
-    design: "experiment/experiment-design.md"
-    spec:   "experiment/experiment.yml"
+    flag: '{flag-key}'
+    primary_metric: '{metric}'
+    sample_size_per_variant: { N }
+    expected_runtime_days: { N }
+    files:
+        design: 'experiment/experiment-design.md'
+        spec: 'experiment/experiment.yml'
 ```
 
 Write `experiment/digest.md` per the digest template.

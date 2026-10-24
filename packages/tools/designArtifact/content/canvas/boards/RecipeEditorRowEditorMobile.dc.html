@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, edit an ingredient (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <script>
+            (function () {
+                const d = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+                Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+                    configurable: true,
+                    get() {
+                        const s = this.style.height;
+                        this.style.height = '0px';
+                        const v = d.get.call(this);
+                        this.style.height = s;
+                        const cs = getComputedStyle(this);
+                        return v - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+                    },
+                });
+            })();
+        </script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    [role='radiogroup'] > div,
+                    [role='group'] > div {
+                        max-width: 100%;
+                    }
+                    body {
+                        margin: 0;
+                        min-height: 1000px;
+                    }
+                    /* A phone shows a scroll indicator only while it scrolls, so the frame and the text areas show no
+                       scrollbar. A classic scrollbar would also take width from the 390 px screen and cover its right edge. */
+                    * {
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                </style></helmet
+            >
+            <x-import
+                component-from-global-scope="Commise.Native.ScrollFrame"
+                sections="{{scrollSections}}"
+                activation-offset="{{scrollOffset}}"
+                ><div style="width: 390px; background: var(--canvas); color: var(--ink); font-family: var(--font-body)">
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 0;
+                            background: var(--canvas);
+                            width: 390px;
+                            padding-top: 47px;
+                            position: relative;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorHeader"
+                            title="Edit recipe"
+                            status="Saved"
+                            close-label="Close editor"
+                            on-close="{{p143}}"
+                            menu="{{p144}}"
+                        ></x-import
+                        ><x-import
+                            component-from-global-scope="Commise.Native.SectionIndex"
+                            label="Recipe sections"
+                            sheet-title="Sections"
+                            sheet-close-label="Close sections"
+                            items="{{p145}}"
+                            current-id="ingredients"
+                            bar-name="Sections. Current: Ingredients. 4 of 4 done."
+                            bar-suffix=" · 4 of 4 done"
+                            on-jump="{{p146}}"
+                        ></x-import>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                min-width: 0;
+                                gap: 24px;
+                                padding: 16px 16px 28px;
+                            "
+                        >
+                            <x-import
+                                component-from-global-scope="Commise.Native.EditorSection"
+                                id="ingredients"
+                                title="Ingredients"
+                                current="{{p148}}"
+                                action="{{p149}}"
+                                ><div style="display: flex; flex-direction: column; min-width: 0; gap: 16px">
+                                    <div role="list">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.IngredientRow"
+                                            row="{{r_chicken}}"
+                                            m="{{formM}}"
+                                            entry-copy="{{entryCopy}}"
+                                            speak="{{speak}}"
+                                            panel="{{panelNone}}"
+                                            inline-editor="{{nothing}}"
+                                            expanded="{{nothing}}"
+                                            amount-column="{{amountColumn}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.IngredientRow"
+                                            row="{{r_garlic}}"
+                                            m="{{formM}}"
+                                            entry-copy="{{entryCopy}}"
+                                            speak="{{speak}}"
+                                            panel="{{panelNone}}"
+                                            inline-editor="{{nothing}}"
+                                            expanded="{{nothing}}"
+                                            amount-column="{{amountColumn}}"
+                                        ></x-import
+                                        ><x-import
+                                            component-from-global-scope="Commise.Native.IngredientRow"
+                                            row="{{r_butter}}"
+                                            m="{{formM}}"
+                                            entry-copy="{{entryCopy}}"
+                                            speak="{{speak}}"
+                                            panel="{{panelNone}}"
+                                            inline-editor="{{nothing}}"
+                                            expanded="{{nothing}}"
+                                            amount-column="{{amountColumn}}"
+                                        ></x-import>
+                                    </div>
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.Combobox"
+                                        id="newline"
+                                        label="Add an ingredient"
+                                        hint="Type the amount first, then pick the food. For example: 2 tbsp olive oil."
+                                        value=""
+                                        on-value-change="{{p103}}"
+                                        groups="{{p104}}"
+                                        placeholder=""
+                                        leading-icon="{{p105}}"
+                                        clear="{{p106}}"
+                                    ></x-import>
+                                    <div
+                                        style="display: flex; flex-direction: row; min-width: 0; align-self: flex-start"
+                                    >
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="ghost"
+                                            icon="plus"
+                                            on-press="{{p107}}"
+                                            >Add a group</x-import
+                                        >
+                                    </div>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            flex-direction: column;
+                                            gap: 4px;
+                                            background: var(--surface-muted);
+                                            border-radius: 12px;
+                                            padding: 12px 16px;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                font: 600 14px/1.4 var(--font-body);
+                                                color: var(--ink);
+                                                font-variant-numeric: tabular-nums;
+                                            "
+                                        >
+                                            19 cal per serving · 2 of 3 counted
+                                        </div>
+                                        <div style="font: 500 12px/1.4 var(--font-body); color: var(--ink-muted)">
+                                            Estimated from the lower amount of each stated range
+                                        </div>
+                                    </div>
+                                </div></x-import
+                            >
+                        </div>
+                        <x-import
+                            component-from-global-scope="Commise.Native.EditorActionBar"
+                            label="Recipe actions"
+                            preview-label="Preview"
+                            on-preview="{{p153}}"
+                            primary-label="Publish"
+                            on-primary="{{p154}}"
+                            primary-disabled="{{p155}}"
+                            busy="{{p156}}"
+                        ></x-import>
+                    </div>
+                    <x-import
+                        component-from-global-scope="Commise.Native.Sheet"
+                        open="{{yes}}"
+                        on-open-change="{{noop}}"
+                        title="Garlic"
+                        close-label="Close Garlic"
+                        size="content"
+                        footer="{{edFooter}}"
+                        >{{edNative}}</x-import
+                    >
+                </div></x-import
+            ></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+                        class Component extends DCLogic { renderVals(){ const __sv={scrollSections:['details','ingredients','steps','photos'],scrollOffset:96}; const h=React.createElement,C=window.Commise.Native,noop=()=>{};
+            const edFor=(native)=>{
+              const E={"amount": "Amount", "to": "to", "high": "Amount, up to", "unit": "Unit", "units": "Units", "prep": "Preparation", "change": "Change", "removeRange": "Remove range", "addRange": "Add a range", "details": "Food details", "done": "Done"}, le={"food": "Garlic · 149 cal per 100 g", "ids": {"amount": "recipe-ingredient-v1.1-amount", "amountHigh": "recipe-ingredient-v1.1-amountHigh", "unit": "recipe-ingredient-v1.1-unit", "prep": "recipe-ingredient-v1.1-prep"}, "amountLow": "3", "amountHigh": "4", "unit": "clove", "unitSuggestions": ["clove"], "prep": "minced"}, rows=[{"label": "Calories", "value": "149"}, {"label": "Protein", "value": "6.4 g"}, {"label": "Carbs", "value": "33.1 g"}, {"label": "Fat", "value": "0.5 g"}], basis="Per 100 g";
+              const body16={font:'400 16px/1.5 var(--font-body)',color:'var(--ink)',margin:0};
+              const fld=(id,value,label)=>native?h(C.TextInput,{nativeID:id,accessibilityLabel:label,inputMode:'decimal',value,onChangeText:noop,style:{width:64,minHeight:48,borderWidth:1,borderStyle:'solid',borderRadius:12,paddingLeft:16,paddingRight:16,paddingTop:12,paddingBottom:12,fontSize:16,lineHeight:'24px',color:'var(--ink)',backgroundColor:'var(--paper)',borderColor:'var(--line-control)'}}):h('div',{style:{width:64}},h(C.Input,{id,value,onChangeText:noop,inputMode:'decimal',autoComplete:'off'}));
+              const foodLine=h('div',{style:{display:'flex',flexWrap:'wrap',alignItems:'center',gap:8}},h('p',{style:{...body16,flex:'1 1 0',minWidth:0,overflowWrap:'anywhere'}},le.food),h(C.Button,{variant:'ghost',onPress:noop},E.change));
+              const amount=h('div',{style:{display:'flex',flexDirection:'column',gap:4}},h(C.FieldLabel,{forId:le.ids.amount,label:E.amount}),h('div',{style:{display:'flex',alignItems:'center',gap:8}},fld(le.ids.amount,le.amountLow,E.amount),h('span',{'aria-hidden':'true',style:{...body16,color:'var(--ink-muted)'}},E.to),fld(le.ids.amountHigh,le.amountHigh,E.high)));
+              const unit=h('div',{style:{width:native?112:128}},h(C.Combobox,{id:le.ids.unit,label:E.unit,listLabel:E.units,value:le.unit,onValueChange:noop,groups:[{key:'units',options:le.unitSuggestions.map(u=>({key:u,label:u}))}],onSelect:noop,countAnnouncement:'',focusRequested:!native,listRequested:!native,onFocusRequestHandled:noop}));
+              const prep=h('div',{style:{display:'flex',flexDirection:'column',gap:4,minWidth:160,flex:'1 1 160px'}},h(C.FieldLabel,{forId:le.ids.prep,label:E.prep}),h(C.Input,{id:le.ids.prep,value:le.prep,onChangeText:noop,label:E.prep}));
+              const fields=h('div',{style:{display:'flex',flexWrap:'wrap',alignItems:'flex-end',columnGap:12,rowGap:16}},amount,unit,prep);
+              const range=h('div',{style:{display:'flex',flexWrap:'wrap'}},h(C.Button,{variant:'ghost',onPress:noop},E.removeRange));
+              const cap=(t)=>h('span',{style:{font:'400 12px/1.4 var(--font-body)',color:'var(--ink-muted)'}},t);
+              const fig=h('div',{style:{display:'flex',flexDirection:'column',gap:native?8:4,font:'400 14px/1.5 var(--font-body)',color:'var(--ink)'}},cap(basis),native?h('div',{style:{display:'flex',flexDirection:'column',gap:4}},rows.map(r=>h('div',{key:r.label,style:{display:'flex',flexWrap:'wrap',columnGap:16}},cap(r.label),h('span',null,r.value)))):h('dl',{style:{margin:'4px 0 0',display:'grid',gridTemplateColumns:'auto auto',justifyContent:'start',columnGap:16,rowGap:2}},rows.map(r=>[h('dt',{key:r.label+'t',style:{color:'var(--ink-muted)'}},r.label),h('dd',{key:r.label+'d',style:{margin:0,fontWeight:500}},r.value)])));
+              const disclosure=h('button',{type:'button','aria-expanded':true,style:{border:0,background:'transparent',cursor:'pointer',minHeight:native?48:44,padding:native?0:'0 12px',borderRadius:9999,font:(native?'600 14px/1.4':'500 16px/1.5')+' var(--font-body)',color:'var(--action-text)'}},E.details);
+              const details=h('div',{style:{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:native?12:8}},disclosure,fig);
+              return h('div',{style:{display:'flex',flexDirection:'column',gap:native?12:16}},foodLine,fields,range,details);
+            };
+            return {...__sv,nothing:null,panelNone:()=>null,yes:true,speak:x=>x,amountColumn:72,formM:{ingredientEntryClear:"Clear text"},entryCopy:{"form": {"basicsHeading": "Basics", "titleLabel": "Title", "titlePlaceholder": "e.g. Weeknight Pasta", "descriptionLabel": "Description", "charCounterTemplate": "{count}/{max}", "cuisineLabel": "Cuisine", "cuisineListLabel": "Cuisine suggestions", "cuisineClear": "Clear cuisine", "cuisineHint": "Choose one, or type your own. You need one to publish.", "cuisineSuggestionCount": {"one": "{count} cuisine", "other": "{count} cuisines"}, "cuisineNoMatch": "No cuisines match “{text}”. You can use it as your own.", "cuisineNotListedHeading": "Not listed?", "cuisineUseOwn": "Use “{text}”", "cuisineUseOwnName": "Use “{text}” as the cuisine", "difficultyLabel": "Difficulty", "difficultyEasy": "Easy", "difficultyMedium": "Medium", "difficultyHard": "Hard", "difficultyNotStated": "Not stated", "mealTypeLabel": "Meal type", "mealTypeOptions": {"breakfast": "Breakfast", "brunch": "Brunch", "lunch": "Lunch", "dinner": "Dinner", "snack": "Snack", "dessert": "Dessert", "drink": "Drink"}, "mealTypeNotStated": "No meal type", "tagsLabel": "Tags", "tagsHint": "Type and press Enter", "removeChipLabel": "Remove {value}", "addTagLabel": "Add a tag", "addDietaryFlagLabel": "Add a dietary flag", "dietaryFlagsLabel": "Dietary flags", "servingsLabel": "Servings", "servingsDecrease": "Fewer servings", "servingsIncrease": "More servings", "servingsAnnounce": "Serves {count}", "prepTimeLabel": "Prep time", "cookTimeLabel": "Cook time", "durationHoursLabel": "{field}, hours", "durationMinutesLabel": "{field}, minutes", "totalTimeValue": "Total {duration}", "groups": {"about": "About the recipe", "timeAndServings": "Time and servings", "kindOfDish": "Kind of dish", "dietAndTags": "Diet and tags"}, "premiumBadge": "Premium", "pasteStepsClose": "Close paste steps", "totalTimeLabel": "Total time", "durationMinutes": "{minutes} min", "ingredientsHeading": "Ingredients", "ingredientNameLabel": "Ingredient {number} name", "ingredientUnitSubjectiveNote": "Cook’s measure", "ingredientUnitUnknownNote": "Unrecognized unit", "ingredientStatusPanelCloseLabel": "Close details for {food}", "ingredientNoFoodNote": "No food chosen — this line won’t be saved. Remove it and add it from the search above.", "noIngredients": "No ingredients yet. Add your first ingredient.", "pasteRefusalLineTooLong": "Line {line} is longer than {max} characters. Shorten it and try again.", "pasteRefusalTooManyLines": "That’s more than {max} lines. Paste them in smaller batches.", "rowStateReading": "Reading…", "rowStateLookupFailed": "Couldn’t look up", "rowStateWaitingForConnection": "Reads when you’re back online", "rowStateQueued": "Waiting to be read", "rowStateRetrying": "Reading again…", "rowStateDelayed": "Waiting to try again", "rowStateStalled": "Taking longer than usual", "rowStateRetryable": "Couldn’t read this line", "rowStateJoinsInOrder": "Read. Joins in paste order.", "statusActionAddAsWritten": "Add as written", "statusActionAddAsWrittenLabel": "Add as written: {line}", "pasteProgressCount": {"one": "Added {done} of {count} line", "other": "Added {done} of {count} lines"}, "pasteProgressNeedsYou": {"one": "{count} line needs you", "other": "{count} lines need you"}, "pasteProgressOffline": "Paused until you’re back online", "pasteProgressStalled": "Taking longer than usual", "pasteProgressStalledHint": "You can keep waiting, or add the lines as written.", "pasteProgressReading": "Reading line {line}", "pasteProgressRetrying": "Reading line {line} again", "pasteProgressDelayed": "Waiting to try line {line} again", "pasteProgressQueued": "Waiting to read line {line}", "pasteProgressLookingUp": "Looking up line {line}", "pasteRetryAllLabel": {"one": "Try again for {count} line", "other": "Try again for {count} lines"}, "pasteRetryFailed": "Couldn’t try again. Check your connection and try again, or add the lines as written.", "pasteAddRestAsWritten": "Add the rest as written", "pasteAddRestAsWrittenLabel": {"one": "Add the rest as written: {count} line", "other": "Add the rest as written: {count} lines"}, "pasteProgressStarted": {"one": "Reading {count} pasted line.", "other": "Reading {count} pasted lines."}, "pasteProgressResumed": "Reading again.", "pasteReadingListLabel": "Lines not added yet", "rowStateChooseMatch": "Choose a match", "rowStateNoMatch": "No match found", "rowStateFoodRemoved": "Food no longer listed", "rowStateLookingUp": "Looking it up…", "rowOpenLabel": "Edit {item}", "rowEdit": "Edit", "rowAttentionLabel": "{state}: {food}", "rowAmountInvalid": "Check the amount", "rowDone": "Done", "rowEditorClose": "Close {food}", "rowAmountLabel": "Amount", "rowAmountTo": "to", "rowAmountHighLabel": "Amount, up to", "rowAddRange": "Add a range", "rowRemoveRange": "Remove range", "rowUnitLabel": "Unit", "rowUnitListLabel": "Units", "rowPrepLabel": "Preparation", "rowChange": "Change", "rowFoodDetails": "Food details", "rowFoodCalories": "{food} · {cal} cal per 100 g", "rowFoodDetailsClose": "Close food details for {food}", "rowMoveToGroup": "Move to group…", "rowMoveUp": "Move up", "rowMoveDown": "Move down", "moveToGroupTitle": "Move to group", "moveToGroupClose": "Close move to group", "moveToGroupNone": "No group", "groupAdd": "Add a group", "groupNameLabel": "Group name", "groupNameSave": "Save", "groupNameCancel": "Cancel", "groupActionsLabel": "Actions for {group}", "groupActionsClose": "Close actions for {group}", "groupRename": "Rename group", "groupAddIngredient": "Add ingredient to this group", "groupRemove": "Remove group (keep its ingredients)", "pasteListClose": "Close paste a list", "nutritionCounted": "{cal} cal per serving · {counted} of {total} counted", "nutritionEmpty": "Nutrition appears as you match ingredients.", "nutritionRangeDerivedLow": "Estimated from the lower amount of each stated range", "nutritionRangeDerivedHigh": "Estimated from the upper amount of each stated range", "statusResolved": "Resolved", "statusNeedsReview": "Needs review", "statusPendingVerification": "Checking…", "statusResolvedUnavailable": "Ingredient details unavailable", "statusFoodUnreachable": "Not loaded", "statusFreeform": "Your own wording", "ingredientSuggestionsLabel": "Food suggestions for ingredient {number}", "ingredientNameEditableHint": "Type to search foods, then choose one.", "ingredientSuggestionCountOne": "1 food found", "ingredientSuggestionCountOther": "{count} foods found", "ingredientNoSuggestions": "Nothing in your foods or the food catalog matches “{query}”. Keep typing, or find its nutrition by name.", "ingredientDatabaseUnavailable": "Your foods and the food catalog are unavailable right now.", "ingredientSuggestionsCreateHeading": "None of these?", "createOwnFoodOptionName": "Create my own food, opens a form", "ingredientSuggestionsMoreHeading": "Not listed?", "ingredientEntryFindByName": "Find nutrition for “{query}”", "ingredientEntryUseAsWritten": "Use “{query}” as written, without nutrition", "ingredientEntryFindByNameFailed": "We couldn’t add “{query}”. Try again, or use it as written.", "ingredientAddedNeedsChoice": "Added {name}. It could be more than one food. Use its “Choose a match” line to choose one.", "ingredientSuggestionsAuthoredHeading": "Your foods", "ingredientSuggestionsCatalogHeading": "Food catalog", "ingredientCatalogUnavailable": "The food catalog is unavailable right now, so only your foods were searched.", "ingredientAuthoredUnavailable": "Your foods are unavailable right now, so only the food catalog was searched.", "ingredientEntryAddingByName": "Finding nutrition", "ingredientEntryAddingFromCatalog": "Adding from the food catalog", "ingredientEntryAddingFromSource": "Adding from {source}", "ingredientRemotePickFailed": "We couldn’t add {name} from {source}. Try again, or choose another food.", "ingredientRemotePickGone": "{name} isn’t available any more. Choose another food.", "ingredientEntryPending": "“{text}” isn’t in the recipe yet. Choose a food for it, or clear the box.", "ingredientEntryPendingChange": "“{text}” isn’t in the recipe yet. Choose a food for it, or press Cancel to keep {food}.", "ingredientEntryCancel": "Cancel", "ingredientEntryCancelLabel": "Cancel, keep {food}", "changeFoodFailed": "The change didn’t save. This ingredient still uses {food}.", "ingredientEntryClear": "Clear text", "statusActionChangeFood": "Change food", "statusActionFindFood": "Find a food for this", "statusActionRemove": "Remove ingredient", "ingredientActionsMenuLabel": "Actions for {food}", "ingredientActionsMenuLabelWithDetails": "Actions for {food}, {parts}", "ingredientActionsMenuCloseLabel": "Close actions for {food}", "ingredientActionsMenuCloseLabelWithDetails": "Close actions for {food}, {parts}", "ingredientStatusPanelCloseLabelWithDetails": "Close details for {food}, {parts}", "createCustomFoodIconLabel": "Create my own food", "statusAuthoredAndLinked": "Saved to your foods, and this ingredient now uses it.", "statusAuthoredDuplicateLinked": "You already had a food with that name — this ingredient now uses it.", "statusAuthorFailed": "We couldn’t save that food. Your figures are still here — try again in a moment.", "errorPromptEntryMode": "Fix the name above if it’s not quite right — or, if you know the name is correct, use “{createLabel}”.", "statusExplainFoodRemovedUnnamed": "This food was removed from our food database, and its name went with it. Your amount is unchanged. Use “{changeFoodLabel}” to pick another.", "nutritionNoneAvailable": "No nutritional data available", "nutritionWorking": "We’re still looking this food up — figures will appear once it’s matched.", "nutritionBasis": "Per 100 g", "nutritionCaloriesLabel": "Calories", "nutritionProteinLabel": "Protein", "nutritionCarbsLabel": "Carbs", "nutritionFatLabel": "Fat", "nutritionGramsTemplate": "{value} g", "nutritionFieldUnpublished": "— means this figure isn’t published for this food.", "nutritionUserStatedNote": "These are the figures you entered for this line.", "nutritionNoFiguresResolved": "This food is matched, but no nutrition figures are published for it.", "nutritionLoading": "Loading nutrition…", "nutritionLoadFailed": "We couldn’t load the nutrition just now. Try again.", "statusActionRetry": "Try again", "statusActionRetryLookupLabel": "Try again for {food}", "statusLookupRetrying": "Looking this up again…", "statusResolvedConfirmation": "{food} is matched. Its nutrition now counts.", "statusLookupSettled": "{food}: {status}", "nutritionNoneUnavailable": "This is matched to someone else’s private food, so its details aren’t shown. Your recipe is fine as it is.", "statusExplainUnresolved": "We found more than one food this could be, and we need you to say which.", "statusActionNoneOfThese": "Search for another food", "candidatesLabel": "Which “{name}” did you mean?", "candidatesLoading": "Loading options…", "candidatesLoadFailed": "We couldn’t load options for that ingredient.", "candidatesEmpty": "No options to choose from.", "candidatePickFailed": "We couldn’t resolve that ingredient.", "statusExplainAmbiguous": "Two or more foods match closely and their nutrition differs, so we’d rather you chose.", "statusExplainNeedsReview": "This is matched to a food, but what you wrote and what we matched don’t quite agree.", "statusExplainNotFound": "We searched the food database and there’s no match for this.", "statusExplainFailed": "We couldn’t reach the food database. Nothing is wrong with your ingredient — try again in a moment.", "statusExplainFoodRemoved": "Whoever added this food has since removed it. Your amount and name are unchanged.", "statusExplainFoodUnreachable": "We couldn’t load this ingredient’s name and nutrition just now. It’s still linked to its food, and saving keeps that link.", "stepsHeading": "Instructions", "stepInstructionLabel": "Step {number} instruction", "stepTimerHoursLabel": "Step {number} timer, hours", "stepTimerMinutesLabel": "Step {number} timer, minutes", "timerHoursUnit": "h", "timerMinutesUnit": "min", "addStep": "Add step", "removeStep": "Remove step {number}", "noSteps": "No steps yet. Add your first step.", "visibilityLabel": "Private recipe", "errors": {"titleRequired": "A title is required.", "titleTooLong": "Shorten the title to 120 characters or fewer.", "titleTooLongToSave": "Shorten the title to 200 characters or fewer to save it.", "descriptionTooLong": "Shorten the description to 256 characters or fewer.", "cuisineRequired": "Choose a cuisine, or type your own.", "cuisineTooLong": "Shorten the cuisine to {max} characters or fewer.", "ingredientsPendingText": "An ingredient you typed isn’t in the recipe yet. Choose a food for it, or delete what you typed.", "ingredientsEmpty": "Add at least one ingredient.", "ingredientsUnresolved": "Every ingredient needs an item picked from the list.", "ingredientsQuantityInvalid": "Check the quantities: an amount must be greater than zero, and a maximum must be above it. Leave both blank if the recipe states no amount.", "stepsRequired": "Add at least one instruction step.", "servingsPositive": "Servings must be greater than zero.", "timesNonNegative": "Times cannot be negative."}}, "search": {"tooShort": "Keep typing — {minimum} characters or more. Anything shorter matches half the pantry."}, "pickerSearch": {"searching": "Searching ingredients", "failed": "We couldn’t search ingredients. Edit your search to try again."}, "remote": {"groupHeading": "From {source}", "hitName": "{name}, from {source}", "sourceUnnamed": "another food database", "stillSearching": "Still searching other food databases", "moreOne": "1 more food from {source}", "moreOther": "{count} more foods from {source}", "noMore": "No more foods found.", "incomplete": "The search didn’t finish, so this list isn’t complete. Edit your search to try again.", "sourceBusy": "We couldn’t search {source} just now. Try again later.", "sourceUnavailable": "We didn’t hear back from {source}. Edit your search to try again.", "sourceLimited": "You’ve reached your limit for food lookups until {time}, so we didn’t search {sources}.", "busy": "Lookups from {source} aren’t available right now. Try again later.", "sourceLimitReached": "You’ve reached your limit for food lookups. You can try again at {time}."}, "details": {"actionAdd": "Add details", "actionEdit": "Edit details", "close": "Close details", "dismiss": "Close", "intro": "Nutrition uses the one you pick.", "caloriesBasis": "Calories per 100 g", "searchLabelOther": "Search {count} options", "searchClear": "Clear search", "searchCountOne": "1 of {count} options", "searchCountOther": "{shown} of {count} options", "noMatches": "Nothing matches “{query}”. Clear the search to see all {count}.", "currentLine": "Current: {parts}", "currentRetired": "Current: {parts}. It’s no longer listed, so if you change it, you can’t pick it again.", "tagCurrent": "Current", "caloriesAbsent": "no figure", "caloriesAbsentSpoken": "no calorie figure", "optionName": "{parts}, {calories}", "optionNameInGroup": "{parts}, {calories}, {group}", "optionNameCurrent": "{parts}, Current, {calories}", "optionNameCurrentInGroup": "{parts}, Current, {calories}, {group}", "remove": "Remove details", "loading": "Loading details…", "loadFailed": "We couldn’t load the details. Your ingredient hasn’t changed.", "retry": "Try again", "noVariants": "There are no details to pick for {food} right now. Your ingredient hasn’t changed.", "noneLeft": "There are no other details for {food} now. Your recipe keeps these numbers. If you remove the details, you can’t add them back.", "statusAdded": "Details added: {parts}.", "statusChanged": "Details changed: {parts}.", "statusRemoved": "Details removed.", "checkLabelWithDetails": "{quantity} {food}, {parts}", "suggestionWithDetails": "{food}, {parts}", "ownFoodName": "{name}, your food", "matchedWithDetails": "Matched: {food}, {parts}. Nutrition is counted now.", "saveRejected": "The details didn’t save, so this ingredient is unchanged."}, "readOffline": "Waiting for a connection. This loads on its own."},
+            r_chicken:{"line": {"key": "v1.0"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "Chicken thighs", "triggerFood": "Chicken thighs", "amountText": "8", "prepText": "bone-in, skin-on", "openLabel": "Edit 8 Chicken thighs", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Chicken thighs", "actionsTrigger": "Actions for Chicken thighs", "actionsClose": "Close actions for Chicken thighs"}, "actions": [{"id": "edit", "label": "Edit", "onSelect": noop}, {"id": "foodDetails", "label": "Food details", "onSelect": noop}, {"id": "changeFood", "label": "Change food", "onSelect": noop}, {"id": "moveDown", "label": "Move down", "onSelect": noop}], "destructiveAction": {"id": "remove", "label": "Remove ingredient", "onSelect": noop}, "openFocus": {"requested": false, "onHandled": noop}, "actionsFocus": {"requested": false, "onHandled": noop}, "onOpen": noop, "onBeginEntry": noop, "onFocusLeft": noop, "onLeaveEntry": noop, "onRemove": noop},
+            r_garlic:{"line": {"key": "v1.1"}, "index": 1, "number": 2, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "Garlic", "triggerFood": "Garlic", "amountText": "3–4 clove", "prepText": "minced", "openLabel": "Edit 3–4 clove Garlic", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Garlic", "actionsTrigger": "Actions for Garlic", "actionsClose": "Close actions for Garlic"}, "actions": [{"id": "edit", "label": "Edit", "onSelect": noop}, {"id": "foodDetails", "label": "Food details", "onSelect": noop}, {"id": "changeFood", "label": "Change food", "onSelect": noop}, {"id": "moveUp", "label": "Move up", "onSelect": noop}, {"id": "moveDown", "label": "Move down", "onSelect": noop}], "destructiveAction": {"id": "remove", "label": "Remove ingredient", "onSelect": noop}, "openFocus": {"requested": false, "onHandled": noop}, "actionsFocus": {"requested": false, "onHandled": noop}, "onOpen": noop, "onBeginEntry": noop, "onFocusLeft": noop, "onLeaveEntry": noop, "onRemove": noop},
+            r_butter:{"line": {"key": "v1.2"}, "index": 2, "number": 3, "presentation": {"tone": "neutral"}, "body": {"kind": "nutrition"}, "standIn": false, "displayName": "Unsalted butter", "triggerFood": "Unsalted butter", "amountText": "3 tbsp", "openLabel": "Edit 3 tbsp Unsalted butter", "secondLine": {"kind": "none"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for Unsalted butter", "actionsTrigger": "Actions for Unsalted butter", "actionsClose": "Close actions for Unsalted butter"}, "actions": [{"id": "edit", "label": "Edit", "onSelect": noop}, {"id": "foodDetails", "label": "Food details", "onSelect": noop}, {"id": "changeFood", "label": "Change food", "onSelect": noop}, {"id": "moveUp", "label": "Move up", "onSelect": noop}], "destructiveAction": {"id": "remove", "label": "Remove ingredient", "onSelect": noop}, "openFocus": {"requested": false, "onHandled": noop}, "actionsFocus": {"requested": false, "onHandled": noop}, "onOpen": noop, "onBeginEntry": noop, "onFocusLeft": noop, "onLeaveEntry": noop, "onRemove": noop},
+            edFooter:h(C.Button,{icon:'check',width:'fill',onPress:noop},"Done"),edNative:edFor(true),
+            p0:1,p1:3,p2:noop,p3:4,p4:noop,p5:4,p6:1,p7:noop,p8:n=>'Serves '+n,p9:900,p10:noop,p11:1500,p12:noop,p13:noop,p14:[],p15:5,p16:{"label":"Clear cuisine","icon":h(C.Icon,{name:'x',size:20,tone:'inkMuted'})},p17:true,p18:[{"value":"breakfast","label":"Breakfast"},{"value":"brunch","label":"Brunch"},{"value":"lunch","label":"Lunch"},{"value":"dinner","label":"Dinner"},{"value":"snack","label":"Snack"},{"value":"dessert","label":"Dessert"},{"value":"drink","label":"Drink"}],p19:noop,p20:true,p21:[{"value":"easy","label":"Easy"},{"value":"medium","label":"Medium"},{"value":"hard","label":"Hard"}],p22:noop,p23:noop,p24:noop,p25:noop,p26:noop,p27:noop,p28:noop,p29:noop,p30:noop,p31:{"line":{"key":"k1"},"index":0,"number":1,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Chicken thighs","triggerFood":"Chicken thighs","amountText":"8","prepText":"bone-in, skin-on","openLabel":"Edit 8 Chicken thighs","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Chicken thighs","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p32:{},p33:{"form":{}},p34:x=>x,p35:()=>null,p36:null,p37:null,p38:72,p39:{"line":{"key":"k2"},"index":1,"number":2,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"All-purpose flour","triggerFood":"All-purpose flour","amountText":"0.25 cup","openLabel":"Edit 0.25 cup All-purpose flour","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for All-purpose flour","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p40:{},p41:{"form":{}},p42:x=>x,p43:()=>null,p44:null,p45:null,p46:72,p47:{"line":{"key":"k3"},"index":2,"number":3,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Olive oil","triggerFood":"Olive oil","amountText":"2 tbsp","openLabel":"Edit 2 tbsp Olive oil","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Olive oil","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p48:{},p49:{"form":{}},p50:x=>x,p51:()=>null,p52:null,p53:null,p54:72,p55:{"line":{"key":"k4"},"index":3,"number":4,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Unsalted butter","triggerFood":"Unsalted butter","amountText":"3 tbsp","openLabel":"Edit 3 tbsp Unsalted butter","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Unsalted butter","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p56:{},p57:{"form":{}},p58:x=>x,p59:()=>null,p60:null,p61:null,p62:72,p63:{"line":{"key":"k5"},"index":4,"number":5,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Garlic","triggerFood":"Garlic","amountText":"3 clove","prepText":"minced","openLabel":"Edit 3 clove Garlic","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Garlic","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p64:{},p65:{"form":{}},p66:x=>x,p67:()=>null,p68:null,p69:null,p70:72,p71:{"line":{"key":"k6"},"index":5,"number":6,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Chicken broth","triggerFood":"Chicken broth","amountText":"0.5 cup","openLabel":"Edit 0.5 cup Chicken broth","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Chicken broth","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p72:{},p73:{"form":{}},p74:x=>x,p75:()=>null,p76:null,p77:null,p78:72,p79:{"line":{"key":"k7"},"index":6,"number":7,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Lemon","triggerFood":"Lemon","amountText":"1","prepText":"zested and juiced","openLabel":"Edit 1 Lemon","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Lemon","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p80:{},p81:{"form":{}},p82:x=>x,p83:()=>null,p84:null,p85:null,p86:72,p87:{"line":{"key":"k8"},"index":7,"number":8,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Capers","triggerFood":"Capers","amountText":"2 tbsp","prepText":"drained","openLabel":"Edit 2 tbsp Capers","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Capers","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p88:{},p89:{"form":{}},p90:x=>x,p91:()=>null,p92:null,p93:null,p94:72,p95:{"line":{"key":"k9"},"index":8,"number":9,"presentation":{"tone":"neutral"},"body":{"kind":"none"},"standIn":false,"displayName":"Fresh parsley","triggerFood":"Fresh parsley","amountText":"2 tbsp","prepText":"chopped","openLabel":"Edit 2 tbsp Fresh parsley","secondLine":{"kind":"none"},"inEntry":false,"busy":false,"labels":{"panelClose":"Close","actionsTrigger":"Actions for Fresh parsley","actionsClose":"Close actions"},"actions":[{"id":"e","label":"Edit amount","icon":"pencilLine","onSelect":noop},{"id":"c","label":"Change food","icon":"search","onSelect":noop}],"destructiveAction":{"id":"rm","label":"Remove ingredient","icon":"trash","onSelect":noop},"openFocus":{"requested":false,"onHandled":noop},"actionsFocus":{"requested":false,"onHandled":noop},"onOpen":noop,"onBeginEntry":noop,"onFocusLeft":noop,"onLeaveEntry":noop,"onRemove":noop},p96:{},p97:{"form":{}},p98:x=>x,p99:()=>null,p100:null,p101:null,p102:72,p103:noop,p104:[],p105:h(C.Icon,{name:'plus',size:16,tone:'inkMuted'}),p106:{"label":"Clear","icon":h(C.Icon,{name:'x',size:20,tone:'inkMuted'})},p107:noop,p108:noop,p109:[{"id":"moveDown","label":"Move down","onSelect":noop}],p110:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p111:4,p112:noop,p113:720,p114:noop,p115:noop,p116:[{"id":"moveUp","label":"Move up","onSelect":noop},{"id":"moveDown","label":"Move down","onSelect":noop}],p117:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p118:4,p119:noop,p120:180,p121:noop,p122:noop,p123:[{"id":"moveUp","label":"Move up","onSelect":noop},{"id":"moveDown","label":"Move down","onSelect":noop}],p124:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p125:4,p126:noop,p127:600,p128:noop,p129:noop,p130:[{"id":"moveUp","label":"Move up","onSelect":noop},{"id":"moveDown","label":"Move down","onSelect":noop}],p131:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p132:4,p133:noop,p134:noop,p135:[{"id":"moveUp","label":"Move up","onSelect":noop}],p136:{"id":"remove","label":"Remove step","icon":"trash","onSelect":noop},p137:2,p138:noop,p139:noop,p140:{"kind":"ready","text":"Ready to publish."},p141:noop,p142:noop,p143:noop,p144:{"triggerLabel":"More editor actions","closeLabel":"Keep editing","discardLabel":"Discard draft","onDiscard":noop},p145:[{"id":"details","label":"Details","tone":"complete","spokenStatus":"Complete"},{"id":"ingredients","label":"Ingredients","tone":"complete","spokenStatus":"Complete"},{"id":"steps","label":"Steps","tone":"complete","spokenStatus":"Complete"},{"id":"photos","label":"Photos & publish","shortLabel":"Photos","tone":"complete","reason":"Ready to publish"}],p146:noop,p147:true,p148:false,p149:h(C.Button,{variant:'ghost',size:'sm',icon:'clipboardPaste',onPress:noop},'Paste a list'),p150:false,p151:h(C.Button,{variant:'ghost',size:'sm',icon:'listPlus',onPress:noop},'Paste steps'),p152:false,p153:noop,p154:noop,p155:false,p156:false}; } }
+        </script>
+    </body>
+</html>

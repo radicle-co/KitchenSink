@@ -1,2 +1,7 @@
 # Ensure shell scripts always use LF line endings.
 *.sh text eol=lf
+
+# The curated food seed's committed data is pinned and digested byte for byte (sourcePins.json, the seed
+# manifest). A checkout's line-ending conversion would change those bytes, so git must never touch them.
+packages/services/food-service/src/foods/seed/data/** -text
+*.zip binary

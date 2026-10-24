@@ -1,0 +1,129 @@
+# The make-public confirm, on a device (plan 2026-10-14-009 Q5; UX SPECIFY 2026-10-15). A downgraded owner — paid
+# features hidden, or the upsell — cannot simply make a private recipe private again, so Make public asks first, on the
+# recipe page's ⋯ menu and in the editor's "Who can see it". The mobile twin of the Q5 block in
+# `web/tests/e2e/paidFeatureGate.spec.ts`.
+#
+# ⛔ ITS WORLD IS ENSURED BY CI: it signs in as the pool's DOWNGRADED OWNER (`roles/roledowngraded`), a cook who owns a
+# PRIVATE recipe and a PRIVATE collection while holding no entitled role. The recipe service refuses to make anything
+# private for such a cook, so that world is written while the lane is premium and the lane downgraded after. The world
+# lives in the per-PR recipe database, which every Sandbox Down drops, so since 2026-10-18 the `downgraded-owner-world`
+# job of `deployedE2eTiers.yml` rebuilds it (`e2e-seed`'s `ensureDowngradedWorld.ts`) before this flow starts, and
+# `needs:` makes that job finish first. For a local or owner run, `npm run ensure-downgraded --workspace=packages/tools/e2e-seed`
+# does the same; the older by-hand steps in `poolAdmin.ts` work only for a lane never settled. The names are the fixed
+# `DOWNGRADED_OWNER_WORLD`, delivered through the manifest.
+#
+# READ-ONLY by construction (the `roles` tier's rule, `POOL_TIERS`): every confirm is answered Keep private, so the world
+# stays private for every later run and no restore is owed. The Make public leg is pinned by the component suites and the
+# web spec — confirming it HERE would destroy the fixture for good, since this cook cannot go private again.
+#
+# Two surfaces, one confirm: the recipe page's ⋯ and the editor's "Who can see it" (recipes), then a collection's ⋯.
+#
+# The confirm's body differs by reason (hidden: "won't be able to", upsell: "you'll need Premium"), and the stage's gate
+# is the owner's, so the body is matched by the sentence both share. ⚠️ The editor's radios are named by ALL their texts,
+# the cost note included (`visibility.yaml` says why), so the Public radio is matched by its leading words.
+appId: ${APP_ID}
+# The device is cleared after the run, pass or fail, so the next flow signs in as the shard's signer (`signinHome.yaml`
+# skips the form when any session is persisted).
+onFlowComplete:
+    - runFlow: ../auth/launchCleared.yaml
+    - runFlow: ../auth/signOutIfSignedIn.yaml
+---
+- runFlow: ../auth/launchCleared.yaml
+# iOS keeps the Keychain session across the clear (the sub-flow says why), so the signer is signed out first.
+- runFlow: ../auth/signOutIfSignedIn.yaml
+- runFlow:
+      file: ../auth/signin.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_ROLE_DOWNGRADED_EMAIL}
+# Audit 2026-10-19, A1.15: 'Recipes' is the tab label, drawn on every screen, so it proved nothing. 'My recipes' is the
+# list's own segment and is drawn only on the list.
+- assertVisible: 'My recipes'
+
+# ── The recipe page's ⋯ Make public ──────────────────────────────────────────────────────────────────────────────────
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_DOWNGRADED_RECIPE}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '${E2E_DOWNGRADED_RECIPE}'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'More actions for .*'
+- tapOn: 'Make public'
+- assertVisible: 'Make this recipe public?'
+- assertVisible: 'Anyone can see a public recipe and save a copy\..*'
+# Two verbs and nothing that sells.
+- assertVisible: 'Keep private'
+- assertNotVisible: 'See Premium'
+- tapOn: 'Keep private'
+- assertNotVisible: 'Make this recipe public?'
+- assertVisible: '^Private$'
+
+# ── The editor's "Who can see it" ────────────────────────────────────────────────────────────────────────────────────
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 10000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Public, Anyone can find it in Discover.*'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn: 'Public, Anyone can find it in Discover.*'
+- assertVisible: 'Make this recipe public?'
+- tapOn: 'Keep private'
+- assertNotVisible: 'Make this recipe public?'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Private, Only you can see it'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                below: 'Public, Anyone can find it in Discover.*'
+- tapOn: 'Close editor'
+
+# ── A collection's ⋯ Make public (plan 2026-10-14-009 T1) ─────────────────────────────────────────────────────────────
+# The same confirm, in the collection's own words. Back out of the recipe, then open the cook's one private collection.
+# Closing the editor lands on the recipe page, where the Collections segment is not. The detail's Back is named for where
+# it goes ("Back to My recipes"), so it is unique: the system navigation bar publishes a node named exactly `Back`.
+- extendedWaitUntil:
+      visible: 'Back to My recipes'
+      timeout: 20000
+- tapOn: 'Back to My recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: '${E2E_DOWNGRADED_COLLECTION}(, .*)?'
+      timeout: 40000
+- tapOn: '${E2E_DOWNGRADED_COLLECTION}(, .*)?'
+- extendedWaitUntil:
+      visible: 'More actions for ${E2E_DOWNGRADED_COLLECTION}'
+      timeout: 40000
+- assertVisible: 'Private'
+- tapOn: 'More actions for ${E2E_DOWNGRADED_COLLECTION}'
+- tapOn: 'Make public'
+- assertVisible: 'Make this collection public?'
+- assertVisible: 'Anyone can see a public collection and save a copy\..*'
+- assertVisible: 'Keep private'
+- assertNotVisible: 'See Premium'
+- tapOn: 'Keep private'
+- assertNotVisible: 'Make this collection public?'
+# Nothing was sent: it is still private, and no "now public" snackbar stands.
+- assertNotVisible: 'Collection is now public\.'
+- assertVisible: 'Private'

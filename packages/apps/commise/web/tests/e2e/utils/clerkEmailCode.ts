@@ -1,9 +1,14 @@
-import { expect, test, type Page } from '@playwright/test';
+import { describeClerkRefusal } from '@kitchensink/e2e-fixtures';
+import { expect, test, type Page, type Response } from '@playwright/test';
 
-/**
- * Which Clerk attempt resource is being verified. Clerk sends the email code with a `prepare_*` POST
- * against the in-flight attempt, and the two flows differ in BOTH the collection and the suffix — these
- * are the calls observed live against the sandbox dev instance (clerk-js 5.127.1, api 2025-11-10):
+import { type ClerkAttempt, clerkFapiStep, isTerminalRefusal } from './clerkFapiStep';
+import { clerkPrimarySubmit } from './clerkForm';
+
+/*
+ * Which Clerk attempt resource is being verified (`ClerkAttempt`, from `clerkFapiStep.ts`). Clerk sends the
+ * email code with a `prepare_*` POST against the in-flight attempt, and the two flows differ in BOTH the
+ * collection and the suffix — these are the calls observed live against the sandbox dev instance (clerk-js
+ * 5.127.1, api 2025-11-10):
  *
  *   sign-in: POST /v1/client/sign_ins/sia_…/prepare_second_factor   (the code is the SECOND factor,
  *            sent after `attempt_first_factor` clears the password)
@@ -12,7 +17,6 @@ import { expect, test, type Page } from '@playwright/test';
  * Hence the matcher keys on the shared `prepare_` prefix rather than either full name: it must not care
  * which factor slot Clerk routes the email code through.
  */
-type ClerkAttempt = 'sign_ins' | 'sign_ups';
 
 /** The fixed code every `+clerk_test` address accepts on a Clerk development instance. */
 const CLERK_TEST_CODE = '424242';
@@ -30,6 +34,8 @@ const ANSWER_TIMEOUT_MS = 10_000;
 interface SubmitEmailCodeOptions {
     /** The attempt collection this flow verifies against — selects the `prepare_*` URL to wait for. */
     readonly attempt: ClerkAttempt;
+    /** The address being verified — named in a refusal, so a red run says whose verification Clerk refused. */
+    readonly identity: string;
     /** The click that makes Clerk SEND the code. Invoked AFTER the response waiter is armed. */
     readonly triggerSend: () => Promise<void>;
     /**
@@ -67,8 +73,82 @@ interface SubmitEmailCodeOptions {
  * @sideEffect Drives the page: clicks, fills the OTP field, and waits on network responses.
  */
 export async function submitClerkEmailCode(page: Page, options: SubmitEmailCodeOptions): Promise<void> {
-    const { attempt, triggerSend, expectStep } = options;
+    const { attempt, identity, triggerSend, expectStep } = options;
     const preparePattern = new RegExp(`/v1/client/${attempt}/[^/]+/prepare_`);
+
+    /**
+     * ⛔ THE EMAIL-CODE BUDGET IS SHARED AND ITS SCOPE IS UNKNOWN, so a refused send or check fails the spec HERE.
+     * Clerk's verification counter refused the deployed k6 pool's email-code steps (`too_many_requests`), and a
+     * CI run once pushed twelve through — its window and scope are unmeasured, possibly instance-wide. Without
+     * this, a throttled `prepare_*` presented as a heading timeout, and the recovery below then clicked Resend —
+     * a SECOND verification spent against the limit that had just refused the first.
+     */
+    let refused: Promise<string> | undefined;
+
+    const watchRefusals = (response: Response): void => {
+        const step = clerkFapiStep(response.url(), attempt);
+
+        if (refused !== undefined || step === null || !isTerminalRefusal(step, response.status())) {
+            return;
+        }
+
+        refused = response
+            .json()
+            .catch(() => ({}))
+            .then((body: unknown) =>
+                describeClerkRefusal({
+                    step,
+                    identity,
+                    status: response.status(),
+                    retryAfter: response.headers()['retry-after'] ?? null,
+                    codes: codesOf(body),
+                }),
+            );
+    };
+
+    const throwIfRefused = async (): Promise<void> => {
+        if (refused !== undefined) {
+            throw new Error(await refused);
+        }
+    };
+
+    page.on('response', watchRefusals);
+
+    try {
+        await driveEmailCode(page, { attempt, triggerSend, expectStep, preparePattern, throwIfRefused });
+        await throwIfRefused();
+    } finally {
+        page.off('response', watchRefusals);
+    }
+}
+
+/** The error codes a Clerk error body carries, and nothing else from it. Pure. */
+function codesOf(body: unknown): readonly string[] {
+    const errors = typeof body === 'object' && body !== null ? (body as { errors?: unknown }).errors : undefined;
+
+    return Array.isArray(errors)
+        ? errors.map((entry: unknown) =>
+              typeof entry === 'object' && entry !== null && typeof (entry as { code?: unknown }).code === 'string'
+                  ? (entry as { code: string }).code
+                  : 'unknown',
+          )
+        : [];
+}
+
+/**
+ * The choreography itself — see {@link submitClerkEmailCode}. `throwIfRefused` is consulted before every wait
+ * whose timeout would otherwise hide a refusal, and before the recovery re-send.
+ *
+ * @sideEffect Drives the page.
+ */
+async function driveEmailCode(
+    page: Page,
+    options: Omit<SubmitEmailCodeOptions, 'identity'> & {
+        readonly preparePattern: RegExp;
+        readonly throwIfRefused: () => Promise<void>;
+    },
+): Promise<void> {
+    const { attempt, triggerSend, expectStep, preparePattern, throwIfRefused } = options;
 
     /**
      * A promise that settles when Clerk's send lands — `undefined` if it never did. MUST be created
@@ -85,9 +165,20 @@ export async function submitClerkEmailCode(page: Page, options: SubmitEmailCodeO
     const codeSent = armSendWaiter();
 
     await triggerSend();
-    await expectStep();
 
-    if ((await codeSent) === undefined) {
+    try {
+        await expectStep();
+    } catch (error) {
+        // A refused send is the likelier explanation for a step that never appeared; say that instead.
+        await throwIfRefused();
+        throw error;
+    }
+
+    const sent = await codeSent;
+
+    await throwIfRefused();
+
+    if (sent === undefined) {
         report(
             `Clerk's ${attempt} prepare_* response was never observed (pattern ${preparePattern.source}). ` +
                 'The send barrier did NOT hold, so this flow is relying on the recovery path — treat a green ' +
@@ -104,7 +195,7 @@ export async function submitClerkEmailCode(page: Page, options: SubmitEmailCodeO
      * already navigated away and the button is detached.
      */
     const submitIfPresent = async (): Promise<void> => {
-        const verifyContinue = page.getByRole('button', { name: 'Continue' });
+        const verifyContinue = clerkPrimarySubmit(page);
 
         if (await verifyContinue.isVisible().catch(() => false)) {
             await verifyContinue.click().catch(() => undefined);
@@ -128,6 +219,9 @@ export async function submitClerkEmailCode(page: Page, options: SubmitEmailCodeO
             .then(() => 'advanced' as const)
             .catch(() => 'unknown' as const),
     ]);
+
+    // A refused check or send must not reach the recovery: re-sending spends another verification.
+    await throwIfRefused();
 
     if (answered === 'not-prepared') {
         report(

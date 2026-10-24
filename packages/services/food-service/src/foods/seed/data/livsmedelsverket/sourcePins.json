@@ -1,0 +1,10 @@
+{
+    "upstreams": {
+        "table": {
+            "upstream": "LivsmedelsDB_202610020056.xlsx",
+            "upstreamSha256": "db2343441d12ff9283fd35949adb4f004886f37833445c4aeae4e6e207322943"
+        }
+    },
+    "extract": "livsmedelsverketExtract20260701.jsonl",
+    "extractSha256": "2ce61c5190f1917969ffed824417a98f82de0ee4408cbf8229de82bc1818597c"
+}

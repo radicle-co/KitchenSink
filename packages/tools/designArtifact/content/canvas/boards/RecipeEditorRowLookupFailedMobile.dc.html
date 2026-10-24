@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, couldn't look up (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                        scrollbar-width: none;
+                    }
+                    *::-webkit-scrollbar {
+                        display: none;
+                    }
+                    h1,
+                    h2,
+                    p,
+                    ul,
+                    dl,
+                    dd {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .page {
+                        width: 390px;
+                        padding: 16px 0 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                    }
+                    .cap {
+                        padding: 0 16px 8px;
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .rowpad {
+                        position: relative;
+                        padding: 0 16px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0 0 -8px;
+                        background: var(--scrim);
+                        pointer-events: none;
+                    }
+                    .sheet {
+                        margin-top: 8px;
+                        border-radius: 20px 20px 0 0;
+                        background: var(--paper-overlay);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .sh {
+                        display: flex;
+                        align-items: flex-start;
+                        padding: 4px 4px 0 16px;
+                    }
+                    .sm {
+                        min-width: 0;
+                        flex: 1;
+                        padding-top: 12px;
+                    }
+                    .st2 {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        font: 600 17px/1.2 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .sc {
+                        display: flex;
+                        min-width: 48px;
+                        min-height: 48px;
+                        align-items: center;
+                        justify-content: center;
+                        border: 0;
+                        background: transparent;
+                        font: 400 24px/24px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .sb2 {
+                        padding: 8px 16px 16px;
+                    }
+                    .nmi {
+                        display: flex;
+                        min-height: 48px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .nsep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .dngc {
+                        color: var(--danger-text);
+                    }
+                    .cb {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 8px;
+                    }
+                    .tx {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .grp {
+                        width: 100%;
+                    }
+                    .ol {
+                        width: 100%;
+                    }
+                    .gh {
+                        padding: 8px 12px 0;
+                        font: 600 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .op {
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        width: 100%;
+                        min-height: 48px;
+                        border: 0;
+                        border-radius: 12px;
+                        background: transparent;
+                        padding: 8px 12px;
+                        text-align: left;
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .os {
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .dng {
+                        color: var(--danger-text);
+                    }
+                    .nb {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .fl {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .fr {
+                        display: flex;
+                        flex-wrap: wrap;
+                        column-gap: 16px;
+                    }
+                    .fk {
+                        font: 400 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .fv {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                </style></helmet
+            >
+            <main class="page">
+                <section>
+                    <p class="cap">Couldn’t look up. The attention line opens this panel.</p>
+                    <div class="rowpad" id="stage0">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r0}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                        <div class="scrim"></div>
+                    </div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="garlic">
+                        <div class="sh">
+                            <div class="sm"><h2 class="st2">garlic</h2></div>
+                            <button type="button" class="sc" aria-label="Close details for garlic">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="sb2">
+                            <div class="cb">
+                                <p class="tx">
+                                    We couldn’t reach the food database. Nothing is wrong with your ingredient — try
+                                    again in a moment.
+                                </p>
+                                <x-import
+                                    component-from-global-scope="Commise.Native.Button"
+                                    variant="secondary"
+                                    icon="refreshCw"
+                                    accessibility-label="Try again for garlic"
+                                    >Try again</x-import
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <p class="cap">Try again pressed. The panel closes and the row says it is looking it up.</p>
+                    <div class="rowpad" id="stage1">
+                        <div role="list">
+                            <x-import
+                                component-from-global-scope="Commise.Native.IngredientRow"
+                                row="{{r1}}"
+                                m="{{mm}}"
+                                entry-copy="{{entry}}"
+                                speak="{{speak}}"
+                                panel="{{panel}}"
+                                inline-editor="{{nothing}}"
+                                expanded="{{nothing}}"
+                                amount-column="{{col}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                </section></main
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":488}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; const fx=(r)=>({...r,actions:r.actions.map(a=>({...a,onSelect:noop})),destructiveAction:r.destructiveAction&&{...r.destructiveAction,onSelect:noop},openFocus:{requested:false,onHandled:noop},actionsFocus:{requested:false,onHandled:noop},shortlist:()=>({}),onRemove:noop,onRetryLookup:noop,onOpen:noop,onBeginEntry:noop,onLeaveEntry:noop,onFocusLeft:noop,edit:{},lineEditor:{},entryField:{}}); return {entry:{form:{}},panel:()=>null,nothing:null,mm:{},speak:x=>x,col:72,r0:fx({"line": {"key": "k1"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "lookupFailed"}, "standIn": false, "displayName": "garlic", "triggerFood": "garlic", "amountText": "3 cloves", "openLabel": "Edit 3 cloves garlic", "secondLine": {"kind": "attention", "text": "Couldn’t look up", "label": "Couldn’t look up: garlic", "opens": "panel"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for garlic", "actionsTrigger": "Actions for garlic", "actionsClose": "Close actions for garlic"}, "actions": [{"id": "edit", "label": "Edit"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}}),r1:fx({"line": {"key": "k1"}, "index": 0, "number": 1, "presentation": {"tone": "neutral"}, "body": {"kind": "lookupFailed"}, "standIn": false, "displayName": "garlic", "triggerFood": "garlic", "amountText": "3 cloves", "openLabel": "Edit 3 cloves garlic", "secondLine": {"kind": "working", "text": "Looking it up…"}, "inEntry": false, "busy": false, "labels": {"panelClose": "Close details for garlic", "actionsTrigger": "Actions for garlic", "actionsClose": "Close actions for garlic"}, "actions": [{"id": "edit", "label": "Edit"}], "destructiveAction": {"id": "remove", "label": "Remove ingredient"}})}; } }
+        </script>
+    </body>
+</html>

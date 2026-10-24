@@ -1,0 +1,67 @@
+<!-- @dsCard height=300 -->
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <style>
+            body {
+                margin: 0;
+                background: var(--canvas);
+            }
+            svg {
+                display: block;
+            }
+            .act {
+                fill: var(--action);
+            }
+            .deep {
+                fill: var(--inverse);
+            }
+            .warm {
+                fill: var(--brand-coral);
+            }
+            .cool {
+                fill: var(--brand-sky);
+            }
+            .tint {
+                fill: var(--selected-fill);
+            }
+            .dot {
+                fill: var(--canvas);
+            }
+            .n {
+                font:
+                    700 96px/0.95 'Playfair Display',
+                    Georgia,
+                    serif;
+                fill: var(--ink);
+            }
+            .t {
+                font:
+                    400 14px Inter,
+                    sans-serif;
+                fill: var(--ink-muted);
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="960" height="300" viewBox="0 0 960 300">
+            <!-- blocks: action 288x192 radius-xl, inverse 160x128 radius-lg, coral 128x128 radius-lg, sky 96x96 radius-md, selected-fill 128x96 radius-lg
+ arrangement: one tall action slab with satellites bleeding off the right edge
+ pattern: discs on the radius scale, because the brand is soft with large radii; a 4px dot grid cut from the slab
+ steps and radii: space-4, 6, 7; radius-md, lg, xl -->
+            <rect class="act" x="496" y="24" width="288" height="192" rx="28" />
+            <rect class="deep" x="800" y="24" width="160" height="128" rx="20" />
+            <rect class="warm" x="640" y="232" width="128" height="68" rx="20" />
+            <rect class="cool" x="784" y="168" width="96" height="96" rx="12" />
+            <rect class="tint" x="496" y="232" width="128" height="68" rx="20" />
+            <circle class="dot" cx="560" cy="88" r="24" />
+            <circle class="dot" cx="624" cy="88" r="24" />
+            <circle class="dot" cx="688" cy="88" r="24" />
+            <circle class="dot" cx="560" cy="152" r="24" />
+            <circle class="dot" cx="624" cy="152" r="24" />
+            <text class="n" x="32" y="232">Commise</text>
+            <text class="t" x="32" y="262">A warm, calm kitchen interface.</text>
+        </svg>
+    </body>
+</html>

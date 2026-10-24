@@ -14,6 +14,14 @@ I18nManager.allowRTL(true);
  * Detect the device locale and provide it to the tree via the shared {@link SharedLocaleProvider}, so
  * components resolve copy with `useMessages`. `useLocales` re-renders when the OS locale changes (Android;
  * iOS's list is fixed for the process). Wrap the app root in this.
+ *
+ * ⚠️ Twenty-three lines, one `useMemo`, renders only `children` — it reads like a render leaf and is not. It
+ * is ORCHESTRATION because it is the ONE place the device's locale list becomes the app's locale: every
+ * string in the app is resolved against the value decided here, and a second reader of `useLocales` would be
+ * a second answer to the same question.
+ *
+ * @pattern Adapter over the device's locale list — projects `expo-localization`'s tags onto the shared
+ *     provider's single-locale contract through the pure `resolveDeviceLocale`.
  */
 export function LocaleProvider({ children }: { readonly children: ReactNode }) {
     const deviceLocales = useLocales();

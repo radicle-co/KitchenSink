@@ -137,7 +137,9 @@ Instrument queue health, per-source rolling-window utilization, resolution laten
 
 0. **US-0 — Authenticated & authorized access**
    As any caller of the food data service, I must present a valid Clerk token (user session or service M2M) to reach any endpoint; unauthenticated/expired/wrong-party requests are rejected (`401`) before any work, insufficient scope is `403`, and dynamic queue demotion (no quota, no `429`) keeps one account from exhausting a shared per-source budget — a food is demoted to the back of `fetch_queue` only once **all** of its current requesters exceed 50 pending items, and is re-promoted as soon as any requester drops below 50, while near a per-source rolling-window ceiling a flooding account's **new** enqueues are shed with `503` (never `429`) to preserve headroom. No anonymous access; no unauthenticated path drives external source spend.
-   **FRs**: FR-035–FR-053 (SC-010, SC-011, SC-012)
+
+    _Scope note (2026-10-02):_ the near-ceiling shed was retired with FR-043b (owner, 2026-09-15): add-by-name and batch are never refused, so they answer no `429`. Live search and `PATCH` resolve answer `429 REQUESTER_LIMIT_REACHED` for the caller's own per-minute and hourly limits (plan 002 R42, controls C2 and C3). One account can still fill the shared per-source window through batch add-by-name, because demotion reorders the drain and refuses nothing (sec-aud-1, 2026-10-02); how to bound that on the drain side is an open owner decision.
+    **FRs**: FR-035–FR-053 (SC-010, SC-011, SC-012)
 
 1. **US-1 — Golden-record read by `id` (resolved hit)**
    As a recipe author, I can request an already-`RESOLVED` food by its `id` and receive its complete golden-record nutrition quickly (`200`), get `202` while it is `PENDING`/`UNRESOLVED`, and `404` (with the lifecycle `status` still retrievable) when it is `NOT_FOUND`/`FAILED` — so recipe workflows stay responsive and a held `id` always means something.

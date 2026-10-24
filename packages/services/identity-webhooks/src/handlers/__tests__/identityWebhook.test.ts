@@ -2,7 +2,9 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-l
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { handleSyncPublish } = vi.hoisted(() => ({ handleSyncPublish: vi.fn() }));
-vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', () => ({
+vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', async (importOriginal) => ({
+    // The REAL `publishOwedByline` — the publish-then-settle step is the behaviour under test, not a seam.
+    ...(await importOriginal<typeof import('@kitchensink/identity-service/users/handle-sync-publisher')>()),
     createSnsHandleSyncPublisher: vi.fn(),
     // No HANDLE_SYNC_TOPIC_ARN in tests → the handler uses the no-op; its publish is the spy we assert.
     noopHandleSyncPublisher: { publish: handleSyncPublish },
@@ -10,9 +12,13 @@ vi.mock('@kitchensink/identity-service/users/handle-sync-publisher', () => ({
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 vi.mock('../../common/svix.js', () => ({ verifyWebhook: vi.fn() }));
-vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn() }));
+vi.mock('../../common/identityClient.js', () => ({ setExternalId: vi.fn(), ensureDefaultRole: vi.fn() }));
 vi.mock('../../common/provisioning.js', () => ({ buildProvisionDeps: vi.fn(() => ({})) }));
-vi.mock('@kitchensink/identity-utils', () => ({ provisionCompleteUser: vi.fn() }));
+vi.mock('@kitchensink/identity-utils', async (importOriginal) => ({
+    // The lifecycle predicate is the real one, so these tests prove the handler reads the shared rule.
+    ...(await importOriginal<typeof import('@kitchensink/identity-utils')>()),
+    provisionCompleteUser: vi.fn(),
+}));
 
 vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
@@ -20,7 +26,10 @@ vi.mock('@kitchensink/identity-db', () => ({
             upsertByIdentityId: vi.fn(),
             findByIdentityId: vi.fn(),
             updateProfile: vi.fn(),
-            syncNameAndPicture: vi.fn().mockResolvedValue({ displayNameChanged: false }),
+            syncProviderFields: vi.fn().mockResolvedValue({}),
+            // U9: a rename records a handle-sync debt, so the publish path settles it. A fake DAO without
+            // this method makes every rename case throw — which is the claim landing, not a test problem.
+            settleHandleSync: vi.fn().mockResolvedValue(undefined),
         };
     }),
     recordOnce: vi.fn().mockResolvedValue(undefined),
@@ -49,9 +58,9 @@ import { UserDAO, recordOnce, hasProcessedWebhookEvent } from '@kitchensink/iden
 
 import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
-import { setExternalId } from '../../common/identityClient.js';
+import { ensureDefaultRole, setExternalId } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { captureProvisioningFailure } from '../../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
@@ -63,6 +72,7 @@ const mockVerifyWebhook = vi.mocked(verifyWebhook);
 const mockRecordOnce = vi.mocked(recordOnce);
 const mockHasProcessed = vi.mocked(hasProcessedWebhookEvent);
 const mockSetExternalId = vi.mocked(setExternalId);
+const mockEnsureDefaultRole = vi.mocked(ensureDefaultRole);
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
@@ -81,6 +91,7 @@ const userCreatedPayload = {
         email_addresses: [{ id: 'email_1', email_address: 'test@example.com' }],
         first_name: 'John',
         last_name: 'Doe',
+        username: 'johndoe',
         image_url: 'https://example.com/avatar.png',
     },
     object: 'event' as const,
@@ -93,10 +104,14 @@ const userUpdatedPayload = {
         email_addresses: [{ id: 'email_1', email_address: 'updated@example.com' }],
         first_name: 'Jane',
         last_name: 'Doe',
+        username: 'janedoe',
         image_url: 'https://example.com/new-avatar.png',
     },
     object: 'event' as const,
 };
+
+/** The stamp a DAO write returned — far from "now", so a process clock cannot match it by accident. */
+const STAMPED = new Date('2026-01-02T03:04:05.678Z');
 
 const userDeletedPayload = {
     type: 'user.deleted' as const,
@@ -104,40 +119,43 @@ const userDeletedPayload = {
     object: 'event' as const,
 };
 
-/** Builds a `user.updated` payload for `user_abc123` carrying the given first/last name. */
-const makeUserUpdatedPayload = (firstName: string, lastName: string) => ({
+/** Builds a `user.updated` payload for `user_abc123` carrying the given first/last name and username. */
+const makeUserUpdatedPayload = (firstName: string, lastName: string, username: string | null = 'johndoe') => ({
     type: 'user.updated' as const,
     data: {
         id: 'user_abc123',
         email_addresses: [{ id: 'email_1', email_address: 'test@example.com' }],
         first_name: firstName,
         last_name: lastName,
+        username,
         image_url: 'https://example.com/avatar.png',
     },
     object: 'event' as const,
 });
 
 /**
- * A stateful `UserDAO` double whose `syncNameAndPicture` mirrors the REAL DAO's gate-on-`users`-mirror
- * behavior (S-I3, corrected): the gate compares the incoming Clerk name/picture against `users.name`/
- * `picture` (the Clerk MIRROR, tracked here as `mirror`) — NOT `profiles.displayName`/`avatarUrl` (the
- * EFFECTIVE, possibly self-service-overridden display, tracked here as `profile`). A field is written
- * to `profile` ONLY when that specific field's incoming value differs from `mirror`, so a self-service
- * override on a field Clerk did NOT touch this event survives. This lets handler-level tests drive the
- * exact A->B->A, self-service-preservation, and genuine-Clerk-change sequences and assert the
- * handler's publish-gating wiring reacts correctly, without needing a real database.
+ * A stateful `UserDAO` double whose `syncProviderFields` mirrors the REAL DAO (S-I3; plan 2026-10-15-010 D5): the name
+ * and picture are gated on the `users` MIRROR (`mirror`), never on the EFFECTIVE, possibly self-service-overridden
+ * profile (`profile`); the username is compared to the profile directly (Clerk is its only authority). It returns the
+ * byline SNAPSHOT — the PROFILE's display name and username after the write — only when either half changed, stamped
+ * with a strictly increasing clock as `profileClock` would. Lets handler-level tests drive A->B->A, self-service
+ * preservation and username-only changes without a database; `tests/e2e/bylineSnapshot.e2e.test.ts` (identity) proves
+ * the real DAO against one.
  */
 const makeStatefulUserDao = (initial: {
     mirrorName: string;
     mirrorPicture: string | null;
     profileDisplayName?: string;
     profileAvatarUrl?: string | null;
+    profileUsername?: string | null;
 }) => {
     let mirror = { name: initial.mirrorName, picture: initial.mirrorPicture };
     let profile = {
         displayName: initial.profileDisplayName ?? initial.mirrorName,
         avatarUrl: initial.profileAvatarUrl !== undefined ? initial.profileAvatarUrl : initial.mirrorPicture,
+        username: initial.profileUsername !== undefined ? initial.profileUsername : 'johndoe',
     };
+    let clock = Date.parse('2026-10-15T00:00:00.000Z');
     const existing = {
         id: 'usr_ulid',
         identityId: 'user_abc123',
@@ -150,22 +168,38 @@ const makeStatefulUserDao = (initial: {
         upsertByIdentityId: vi.fn(),
         updateProfile: vi.fn(),
         findByIdentityId: vi.fn().mockResolvedValue(existing),
-        syncNameAndPicture: vi.fn(
-            async (_userId: string, data: { name: string; picture: string | null; now: Date }) => {
+        // U9: a byline write records a handle-sync debt and the publish path settles it.
+        settleHandleSync: vi.fn().mockResolvedValue(undefined),
+        syncProviderFields: vi.fn(
+            async (
+                _userId: string,
+                data: { name: string; picture: string | null; username?: string | null; now: Date },
+            ) => {
                 const nameChanged = data.name !== mirror.name;
                 const pictureChanged = data.picture !== mirror.picture;
+                const usernameChanged = data.username !== undefined && data.username !== profile.username;
 
-                if (!nameChanged && !pictureChanged) {
-                    return { displayNameChanged: false };
+                if (!nameChanged && !pictureChanged && !usernameChanged) {
+                    return {};
                 }
 
                 mirror = { name: data.name, picture: data.picture };
                 profile = {
                     displayName: nameChanged ? data.name : profile.displayName,
                     avatarUrl: pictureChanged ? data.picture : profile.avatarUrl,
+                    username: usernameChanged ? (data.username ?? null) : profile.username,
                 };
+                clock += 1;
 
-                return { displayNameChanged: nameChanged };
+                return nameChanged || usernameChanged
+                    ? {
+                          byline: {
+                              displayName: profile.displayName,
+                              username: profile.username,
+                              stampedAt: new Date(clock),
+                          },
+                      }
+                    : {};
             },
         ),
         getStoredDisplayName: () => profile.displayName,
@@ -215,12 +249,14 @@ beforeEach(() => {
     mockRecordOnce.mockResolvedValue(undefined);
     mockSetExternalId.mockResolvedValue(undefined as never);
     mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'usr_ulid' } } as never);
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
-    process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
+    process.env['DB_HOST'] = 'db.internal';
+    process.env['DB_PORT'] = '5432';
+    process.env['DB_NAME'] = 'kitchensink_identity';
+    process.env['DELETION_QUEUE_URL'] = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
+    process.env['IDP_WEBHOOK_SECRET'] = 'whsec_test';
     // The real webhook Lambda's env always carries at least one Clerk backend secret (IDP_SECRET_KEY
     // via clerkBackendEnv, AUTH_SECRET_ARN via commonEnv) — the schema's either-or refine reflects that.
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('identity-webhook handler', () => {
@@ -267,12 +303,50 @@ describe('identity-webhook handler', () => {
                 name: 'John Doe',
                 displayName: 'John Doe',
                 avatarUrl: 'https://example.com/avatar.png',
+                username: 'johndoe',
             }),
-            { onEmailCollision: 'signal-incomplete', emailIsReal: true },
+            { onEmailCollision: 'signal-incomplete', owesCreatedByline: true, emailIsReal: true },
         );
         // External id backfill runs AFTER the complete local unit, and stamps the sync marker on success.
         expect(mockSetExternalId).toHaveBeenCalledWith('user_abc123', 'usr_ulid');
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ externalIdSyncedAt: expect.any(Date) }));
+    });
+
+    // ⛔ THE COST GUARD, AT ONE REAL CALL SITE. `emitMetric` publishes
+    // `Dimensions: [['service','metric',...Object.keys(dimensions)]]`, so every key passed becomes a CloudWatch
+    // dimension and every distinct VALUE becomes a separately billed custom metric (~$0.30/mo, 15-month
+    // retention). `{ identityId: data.id }` therefore bought one metric PER USER — ~$3,000/mo at 10k users —
+    // holding a single datapoint each. This asserts BOTH halves of the fix on the same invocation: the metric
+    // carries no per-user dimension, AND the identifier is still emitted, as a structured log attribute (where
+    // `@kitchensink/observability-scrubbers` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
+    // `packages/tools/repoGuards/__tests__/emfIdentifierDimensionRepoGate.test.ts` is the repo-wide version of the same rule.
+    it('user.created -> counts the event with NO per-user dimension, and keeps the id on the log line', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }), makeContext());
+
+        // The counter still fires, and still under exactly one dimension set — the emitter's own
+        // `service`/`metric` literals, which is what the `kitchensink-*` alarms select (W4).
+        expect(vi.mocked(emitMetric)).toHaveBeenCalledWith('UserCreatedWebhook', 1);
+
+        const dimensionArguments = vi
+            .mocked(emitMetric)
+            .mock.calls.filter(([name]) => name === 'UserCreatedWebhook')
+            .map(([, , dimensions]) => dimensions);
+
+        expect(dimensionArguments).toEqual([undefined]);
+
+        // …and nothing was lost: the id is still there, on the structured log line.
+        expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+            'identity-webhook: user.created processed',
+            expect.objectContaining({ identityId: 'user_abc123', userId: 'usr_ulid' }),
+        );
     });
 
     it('user.created with an email owned by another active identity -> skips (no 502), still 200', async () => {
@@ -332,7 +406,10 @@ describe('identity-webhook handler', () => {
                 picture: 'https://example.com/avatar.png',
             }),
             updateProfile: vi.fn(),
-            syncNameAndPicture: vi.fn().mockResolvedValue({ displayNameChanged: true }),
+            syncProviderFields: vi.fn().mockResolvedValue({
+                byline: { displayName: 'Jane Doe', username: 'janedoe', stampedAt: STAMPED },
+            }),
+            settleHandleSync: vi.fn().mockResolvedValue(undefined),
         };
         vi.mocked(UserDAO).mockImplementation(function () {
             return daoInstance;
@@ -351,16 +428,68 @@ describe('identity-webhook handler', () => {
         expect(whereUser).toHaveBeenCalledWith(expect.anything());
         // S-I3: name/picture sync goes through the coherent DAO method (one transaction, both tables),
         // not a raw `db.update(profiles)` gated on the stale `users.name` baseline.
-        expect(daoInstance.syncNameAndPicture).toHaveBeenCalledWith(
+        expect(daoInstance.syncProviderFields).toHaveBeenCalledWith(
             'usr_ulid',
-            expect.objectContaining({ name: 'Jane Doe', picture: 'https://example.com/new-avatar.png' }),
+            expect.objectContaining({
+                name: 'Jane Doe',
+                picture: 'https://example.com/new-avatar.png',
+                username: 'janedoe',
+            }),
         );
-        // W8-a.2: the DAO reported a real displayName change, so the webhook publishes a handle-sync
-        // rename carrying the app-user ULID (not the Clerk id) + the new name.
-        expect(handleSyncPublish).toHaveBeenCalledWith(
-            expect.objectContaining({ userId: 'usr_ulid', displayName: 'Jane Doe' }),
-        );
+        // The DAO returned a byline snapshot, so the webhook publishes it — the app-user ULID (not the Clerk id),
+        // both halves, and the stamp the DAO's statement returned (never a process clock) — then settles THAT debt.
+        expect(handleSyncPublish).toHaveBeenCalledWith({
+            userId: 'usr_ulid',
+            displayName: 'Jane Doe',
+            username: 'janedoe',
+            sourceTimestamp: STAMPED.toISOString(),
+        });
+        expect(daoInstance.settleHandleSync).toHaveBeenCalledWith('usr_ulid', STAMPED, null);
     });
+
+    /**
+     * ⛔ R10: NO PROVIDER SYNC REPOPULATES A CLOSED OR ERASED ROW. Self-service erasure commits `status='erased'` while
+     * the Clerk delete still waits on the queue, so Clerk can send a `user.updated` after the scrub; the later
+     * `user.deleted` echo does not re-scrub an erased row. Provisioning already refuses these rows; the webhook must too.
+     */
+    it.each(['tombstoned', 'erased'])(
+        '⛔ user.updated for a %s row writes nothing and publishes nothing',
+        async (status) => {
+            const { db, setUser } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userUpdatedPayload as never);
+
+            const daoInstance = {
+                upsertByIdentityId: vi.fn(),
+                findByIdentityId: vi.fn().mockResolvedValue({
+                    id: 'usr_ulid',
+                    identityId: 'user_abc123',
+                    email: 'usr_ulid@erased.invalid',
+                    name: null,
+                    picture: null,
+                    status,
+                }),
+                updateProfile: vi.fn(),
+                syncProviderFields: vi.fn().mockResolvedValue({
+                    byline: { displayName: 'Jane Doe', username: 'janedoe', stampedAt: STAMPED },
+                }),
+                settleHandleSync: vi.fn().mockResolvedValue(undefined),
+            };
+            vi.mocked(UserDAO).mockImplementation(function () {
+                return daoInstance;
+            });
+
+            const result = await handler(
+                makeEvent(JSON.stringify(userUpdatedPayload), { 'svix-id': 'msg_closed' }),
+                makeContext(),
+            );
+
+            expect(result.statusCode).toBe(200);
+            expect(setUser).not.toHaveBeenCalled();
+            expect(daoInstance.syncProviderFields).not.toHaveBeenCalled();
+            expect(handleSyncPublish).not.toHaveBeenCalled();
+        },
+    );
 
     it('user.updated A -> B -> A: the revert is NOT silently dropped — both transitions write + publish', async () => {
         const { db } = buildMockDb();
@@ -497,6 +626,145 @@ describe('identity-webhook handler', () => {
         expect(handleSyncPublish).not.toHaveBeenCalled();
     });
 
+    it('user.created -> publishes the byline the provisioning CREATED, then settles that debt', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+            createdByline: { displayName: 'John Doe', username: 'johndoe', stampedAt: STAMPED },
+        } as never);
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_created' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(handleSyncPublish).toHaveBeenCalledWith({
+            userId: 'usr_ulid',
+            displayName: 'John Doe',
+            username: 'johndoe',
+            sourceTimestamp: STAMPED.toISOString(),
+        });
+    });
+
+    // The profile row can hold a name the consumer refuses: the webhook joins first + last name, each bounded only
+    // alone, and a cook whose provider sent no name is stored with ''. Either used to settle `publish_failed`.
+    it.each([
+        ['past the bound', 'x'.repeat(150), 'x'.repeat(100)],
+        ['blank', '', 'johndoe'],
+    ])(
+        '⛔ user.created with a stored name %s -> publishes a name the consumer accepts',
+        async (_label, stored, sent) => {
+            const { db } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+            mockProvisionCompleteUser.mockResolvedValue({
+                kind: 'complete',
+                user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+                createdByline: { displayName: stored, username: 'johndoe', stampedAt: STAMPED },
+            } as never);
+
+            const result = await handler(
+                makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_created_norm' }),
+                makeContext(),
+            );
+
+            expect(result.statusCode).toBe(200);
+            expect(handleSyncPublish).toHaveBeenCalledWith(expect.objectContaining({ displayName: sent }));
+        },
+    );
+
+    it('user.created -> publishes NOTHING when the profile already existed (the read-through got there first)', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_created_2' }), makeContext());
+
+        expect(handleSyncPublish).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a USERNAME-ONLY Clerk change publishes the cook’s OWN display name beside the new username', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        // The cook overrode their display name in Profile; Clerk's name is unchanged, only the username moves.
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'John Doe',
+            mirrorPicture: 'https://example.com/avatar.png',
+            profileDisplayName: 'Chef John',
+            profileUsername: 'johndoe',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        const payload = makeUserUpdatedPayload('John', 'Doe', 'john_cooks');
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        const result = await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_username' }), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        // A delta that carried only the username would be correct here and lost under a later name-only delta; the
+        // snapshot carries both, and the name is the PROFILE's — Clerk's "John Doe" never overwrites "Chef John".
+        expect(handleSyncPublish).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'usr_ulid', displayName: 'Chef John', username: 'john_cooks' }),
+        );
+        expect(daoInstance.getStoredDisplayName()).toBe('Chef John');
+    });
+
+    it('user.updated WITHOUT a username key leaves the username alone — absence is not “none”', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'John Doe',
+            mirrorPicture: 'https://example.com/avatar.png',
+            profileUsername: 'johndoe',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        const { username: _omitted, ...data } = makeUserUpdatedPayload('John', 'Doe').data;
+        const payload = { ...makeUserUpdatedPayload('John', 'Doe'), data };
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_no_username' }), makeContext());
+
+        expect(daoInstance.syncProviderFields).toHaveBeenCalledWith(
+            'usr_ulid',
+            expect.objectContaining({ username: undefined }),
+        );
+        expect(handleSyncPublish).not.toHaveBeenCalled();
+    });
+
+    it('user.updated -> a failed publish leaves the debt with its failure code and still answers 200', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+
+        const daoInstance = makeStatefulUserDao({
+            mirrorName: 'Old Name',
+            mirrorPicture: 'https://example.com/avatar.png',
+        });
+        vi.mocked(UserDAO).mockImplementation(function () {
+            return daoInstance;
+        });
+        handleSyncPublish.mockRejectedValueOnce(new Error('sns down'));
+        const payload = makeUserUpdatedPayload('New', 'Name');
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        const result = await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_fail' }), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        expect(daoInstance.settleHandleSync).toHaveBeenCalledWith('usr_ulid', expect.any(Date), 'publish_failed');
+    });
+
     it('user.deleted -> enqueues SQS deletion message', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
@@ -521,7 +789,7 @@ describe('identity-webhook handler', () => {
         // not `userId`, or every webhook-driven deletion silently no-ops once the worker consumes
         // the queue (U1 / A1 deletion-payload alignment).
         expect(SendMessageCommand).toHaveBeenCalledWith({
-            QueueUrl: process.env.DELETION_QUEUE_URL,
+            QueueUrl: process.env['DELETION_QUEUE_URL'],
             MessageBody: JSON.stringify({ identityId: 'user_abc123' }),
         });
     });
@@ -590,7 +858,14 @@ describe('identity-webhook handler', () => {
         expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_ok', 'user_abc123', 'user.created');
     });
 
-    it('invalid signature -> returns 401', async () => {
+    it('invalid signature -> 401 without processing, so a stale secret is recoverable', async () => {
+        // A signature failure is the ONE rejection that must stay retryable. It briefly returned 200 on the
+        // reasoning that a wrong signing secret "every retry reproduces" — but a wrong secret is a TRANSIENT,
+        // operator-fixable condition, and svix's multi-hour retry window is what rescues it. A 200 says
+        // "delivered" and discards every queued real Clerk event permanently behind a green check (the recorded
+        // dropped-`user.created` incident). It also tells a forger their forgery was accepted, on an endpoint
+        // whose signature is the only trust boundary. The ERROR log + per-reason metric are asserted in
+        // `common/__tests__/handlerPipeline.test.ts`, which owns that path.
         mockVerifyWebhook.mockImplementation(() => {
             throw new Error('Invalid signature');
         });
@@ -598,33 +873,48 @@ describe('identity-webhook handler', () => {
         const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
 
         expect(result.statusCode).toBe(401);
+        expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'signature' });
+        // Still never processed, and still never recorded — rejecting is not the same as accepting.
+        expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('unreadable shape behind a VALID signature -> 200, because no redelivery can ever parse it', async () => {
+        // The other half of the pair, asserted HERE too so the two statuses cannot silently converge onto one
+        // value: a shape failure is permanent (the same bytes reparse identically), so acknowledging takes it
+        // off svix's schedule. Reds if `shape` is ever mapped to a non-2xx.
+        mockVerifyWebhook.mockReturnValue({ type: 'user.created', data: {} } as never);
+
+        const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'shape' });
         expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 
     it('missing IDP_WEBHOOK_SECRET -> fails fast on the typed config, not a 401', async () => {
         // S-I5: an env misconfig is a cold-start failure now, distinct from a genuine bad-signature
         // 401 — it must propagate (reject), not be swallowed into the signature-verification branch.
-        delete process.env.IDP_WEBHOOK_SECRET;
+        delete process.env['IDP_WEBHOOK_SECRET'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
     it('missing DELETION_QUEUE_URL -> fails fast on the typed config before verifying the signature', async () => {
-        delete process.env.DELETION_QUEUE_URL;
+        delete process.env['DELETION_QUEUE_URL'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
     it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN -> fails fast on the typed config', async () => {
-        delete process.env.AUTH_SECRET_ARN;
+        delete process.env['AUTH_SECRET_ARN'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
-    it('reads IDP_WEBHOOK_SECRET and DB_SECRET_ARN from the typed config (not requireEnv)', async () => {
+    it('reads IDP_WEBHOOK_SECRET from the typed config and asks getDb for the handle with no credential', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
         mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
@@ -632,6 +922,86 @@ describe('identity-webhook handler', () => {
         await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_config' }), makeContext());
 
         expect(mockVerifyWebhook).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'whsec_test');
-        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
+        expect(mockGetDb).toHaveBeenCalledWith();
+    });
+});
+
+/**
+ * The sign-up role writer (plan 2026-10-14-009 D10, owner ruling 2026-10-13): `default` is WRITTEN at sign-up. It
+ * runs for every `user.created` — whatever happened to the local row — because the role belongs to the Clerk user,
+ * and a failure fails the delivery so svix retries it (every step before it is idempotent).
+ */
+describe('identity-webhook handler — the default role', () => {
+    beforeEach(() => {
+        mockEnsureDefaultRole.mockReset();
+        mockEnsureDefaultRole.mockResolvedValue('written');
+        mockRecordOnce.mockClear();
+        mockHasProcessed.mockResolvedValue(false);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+        mockSetExternalId.mockResolvedValue(undefined);
+    });
+
+    it('user.created gives the Clerk user its default role', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+
+        const result = await handler(
+            makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role' }),
+            makeContext(),
+        );
+
+        expect(result.statusCode).toBe(200);
+        expect(mockEnsureDefaultRole).toHaveBeenCalledExactlyOnceWith('user_abc123');
+    });
+
+    it('⛔ a failed role write fails the delivery and is NOT recorded, so svix retries it', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockEnsureDefaultRole.mockRejectedValue(new Error('Clerk 503'));
+
+        await expect(
+            handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role_fail' }), makeContext()),
+        ).rejects.toThrow('Clerk 503');
+        expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('still writes the role when the email belongs to another identity (the local row is skipped)', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({ kind: 'incomplete', reason: 'email-collision' } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role_collide' }), makeContext());
+
+        expect(mockEnsureDefaultRole).toHaveBeenCalledExactlyOnceWith('user_abc123');
+    });
+
+    it('a duplicate delivery writes nothing', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockHasProcessed.mockResolvedValue(true);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_role_dup' }), makeContext());
+
+        expect(mockEnsureDefaultRole).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['user.updated', userUpdatedPayload],
+        ['user.deleted', userDeletedPayload],
+    ])('%s never writes a role', async (_type, payload) => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(payload as never);
+
+        await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_role_other' }), makeContext());
+
+        expect(mockEnsureDefaultRole).not.toHaveBeenCalled();
     });
 });

@@ -1,0 +1,163 @@
+appId: ${APP_ID}
+---
+# The ambiguity-review story on a device, in both of its doors (mobile). Mirror of the web Playwright
+# `ambiguityReview.spec.ts` for the batched review, and of `ingredientShortlistRow.spec.ts` for row 7 on a saved line
+# (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 7). Merged from the former `ingredientShortlist.yaml`
+# (audit 2026-10-19, plan 013 C3): both flows needed the same fixture and ended in the same remote pick. What only this
+# flow proves on a device: the badge and the entry render from a real detail, a TAP opens the review and the editor
+# row's sheet, the shortlist answers, and a pick re-points ONE line, on each door.
+#
+# THE FIXTURE is `deriveAmbiguityProbe` (`packages/tools/e2e-seed/src/fixtureManifest.ts`): the signer's private
+# recipe "Ambiguity Probe" with TWO lines (1 cup, 2 tbsp) named for `${E2E_AMBIGUITY_WORD}`, each bound to the signer's
+# own food of that name while its source line names another food ("1 cup chicken stock", "2 tbsp cocoa powder"). The
+# verification worker calls such a line AMBIGUOUS. The runner makes it in this flow's own reset (`reset --mode
+# ambiguity`), which waits for the worker's verdict and FAILS THE RESET, not this flow, if the verdict never comes.
+#
+# THE WORD is chosen per run, never a literal (owner ruling 2026-10-18): each leg below picks a USDA food, a pick adopts
+# its hit into the stage's catalog, and the search then hides that hit, so a fixed word runs out of USDA foods (the old
+# `apple sauce` did). `e2e-seed provision` asks the live search for a word that shows at least two USDA foods, one per
+# leg, from a list no other flow or platform uses (`remoteProbeWords.ts`, role `ambiguity`), and fails by name when none
+# does. The reset reads that word from the session state.
+#
+# ⚠️ Each pick is a real write: it re-points THAT line alone through the rebind command (owner ruling 2026-10-02, "Fix
+# one line at a time"; `docs/design/rowEditorBlueprint.md` decision 7), which makes a new version of the recipe and leaves
+# that line no longer AMBIGUOUS. The recipe is therefore spent by the flow, and the next flow's reset deletes it. The two
+# legs use the two lines: the review takes one, the editor's row takes the other. The flow leaves the editor with ×, never
+# its Discard.
+- runFlow: ../auth/signin.yaml
+
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_AMBIGUITY_PROBE}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '${E2E_RECIPE_AMBIGUITY_PROBE}'
+
+# LEG 1, the detail's batched review. The badge and the entry render from the detail's own resolutionStatus, and the
+# entry counts LINES: two ambiguous lines read "2 ingredients …" (audit 2026-10-19, C3: this is the "before" the count
+# check after the pick compares against).
+# The badge is matched on Android only. The native row names itself (`IngredientCheckRow.native.tsx`) and carries its
+# badges as the accessibility HINT, which a screen reader speaks after the name. iOS gives Maestro no node for that hint,
+# so there the scroll ran past every row (CI run 39376194588, iOS shard 1). On iOS the entry's count sentence below is the
+# proof that the detail read the ambiguity.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - scrollUntilVisible:
+                element: '.*Choose a match.*'
+                direction: DOWN
+                timeout: 20000
+# The entry sits at the BOTTOM of the detail, below the rating, so the scroll is DOWN. Its sentence is part of the
+# button's NAME (WCAG 1.3.1/2.5.3): Android exposes the Pressable's label, iOS merges the children, so the pattern is the
+# sentence then anything then the badge text, and matches both.
+# Centred, not merely scrolled to: the page ends with the entry's card under the tab bar, which still counts it visible,
+# and a tap there can hit the bar (local Android run, 2026-10-19). The detail's bottom padding leaves room to centre it.
+- scrollUntilVisible:
+      element: '2 ingredients could match more than one food\. Review them to sharpen the nutrition\..*'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
+- tapOn: '.*Review ingredient matches'
+
+# One row per ambiguous line, named by its amount and its words ("1 cup <word>"); its shortlist is the food
+# search's for the line's words. The rows open BELOW the entry, which ends the page, so they arrive by scrolling down.
+- scrollUntilVisible:
+      element:
+          text: '.+ ${E2E_AMBIGUITY_WORD}.*'
+          below: '.*Review ingredient matches'
+      direction: DOWN
+      timeout: 30000
+      label: 'the owner’s recipe carries two AMBIGUOUS "${E2E_AMBIGUITY_WORD}" lines, and their review rows are open'
+
+# The source's foods flow into the row with no press (plan 002 S7.8, ADR-0055 point 9). Scrolled to, not waited for:
+# the group can arrive below the rows already on screen, where a wait cannot see it, and the scroll keeps polling while
+# the source answers (CI run 39376194588, Android shard 7).
+- scrollUntilVisible:
+      element:
+          text: 'From USDA'
+      direction: DOWN
+      timeout: 40000
+      centerElement: true
+      label: 'USDA answered the progressive search for "${E2E_AMBIGUITY_WORD}" on this stage'
+# One pick, of a remote food: the review adopts it and re-points THAT line to the root (ADR-0055 point 10). The surface
+# says it saved.
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+# The sentence is drawn after the review rows (`AmbiguityReview.native.tsx`), so the row still open above it can push it
+# below the screen, where Android reports nothing (CI run 39400327458, Android shard 7: the pick took, the count read
+# "1 ingredient", and the sentence was below a long USDA list). The scroll keeps polling while the save lands.
+- scrollUntilVisible:
+      element: 'Saved — future recipes will use this match.'
+      direction: DOWN
+      timeout: 30000
+      centerElement: true
+# audit 2026-10-19, C3: the pick fixed ONE line and left the other under review. The entry counted two before the pick
+# and counts one after, so this text is ABSENT before and PRESENT after, and the saved sentence alone could not say it.
+# The entry is ABOVE the open rows and the saved sentence, so after a pick in a row the scroll back to it is UP.
+- scrollUntilVisible:
+      element: '1 ingredient could match more than one food\. Review it to sharpen the nutrition\..*'
+      direction: UP
+      timeout: 30000
+
+# LEG 2, row 7 on a saved line, in the editor. The attention line names the one line still ambiguous.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+
+# The attention line, named for the line (UI overhaul slice 8, build spec §7.5.1). The panel never opens by itself.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Choose a match: ${E2E_AMBIGUITY_WORD}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- assertNotVisible: 'Search for another food'
+- tapOn:
+      text: '.*Choose a match: ${E2E_AMBIGUITY_WORD}.*'
+      index: 0
+
+# Row 7's own explanation, and the shortlist the food search finds for the line's words.
+- extendedWaitUntil:
+      visible:
+          text: 'Which “${E2E_AMBIGUITY_WORD}” did you mean\?'
+      timeout: 30000
+      label: 'the recipe still carries one AMBIGUOUS "${E2E_AMBIGUITY_WORD}" line, and its shortlist answered'
+- assertVisible: 'Two or more foods match closely and their nutrition differs, so we’d rather you chose\.'
+- assertVisible: 'Search for another food'
+
+# The source's foods flow into the same shortlist with no press (plan 002 S7.8, ADR-0055 point 9).
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+      label: 'USDA answered the progressive search for "${E2E_AMBIGUITY_WORD}" on this stage'
+# One pick, of a remote food: the panel adopts it and rebinds THAT line to the root (ADR-0055 point 10). The sheet
+# closes once the food is on the line.
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+- extendedWaitUntil:
+      notVisible: 'Search for another food'
+      timeout: 30000
+
+# Leave with ×. The pick was the write; nothing else was typed, so × has nothing more to save. ⛔ NOT the header's
+# Discard: it would delete the recipe. audit 2026-10-19, F3: the old wait for 'Edit recipe' was met by the editor's own
+# header title, so it could not fail. 'Close editor' exists only while the editor is open.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000

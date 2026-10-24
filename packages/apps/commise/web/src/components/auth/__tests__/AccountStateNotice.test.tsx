@@ -6,16 +6,15 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import type { AuthBlockMessage } from '@commise/features-account';
+import type { AuthBlockCopy } from '@commise/features-account';
 
 import { AccountStateNotice } from '../AccountStateNotice';
 
 afterEach(cleanup);
 
-const message: AuthBlockMessage = {
+const message: AuthBlockCopy = {
     title: 'Account suspended',
     body: 'Your account is suspended. Contact support to restore access.',
-    code: 'account_suspended',
 };
 
 describe('AccountStateNotice (U3)', () => {

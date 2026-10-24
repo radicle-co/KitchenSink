@@ -50,8 +50,20 @@ export interface RecipeCardModel {
     readonly createdAt: string;
     /** Author-stated cuisine (CR-002). ABSENT → the card renders no cuisine chip. */
     readonly cuisine?: string;
-    /** Lead calories per serving (W8-a.1). ABSENT → the card renders no calorie line. */
-    readonly leadCaloriesPerServing?: number;
+    /*
+     * ⛔ THERE IS DELIBERATELY NO CALORIE FIELD HERE (deferred calorie lookup).
+     *
+     * A per-serving figure is no longer part of the recipe payload at all — the wire `Recipe` carries none
+     * (ADR-0021's "Follow-up owed" removed the last `leadCaloriesPerServing`); it is looked up separately
+     * and lands AFTER the card renders. Carrying it as an optional card field made the three real
+     * conditions —
+     * pending, known, unaccounted — collapse into two (`number | undefined`), so a lookup still in flight was
+     * indistinguishable from a recipe that genuinely has no figure, and a card had no way to choose between a
+     * skeleton, a number, and nothing.
+     *
+     * The states live in `../nutrition/model.ts`; the card takes whatever the nutrition layer decided as an
+     * opaque `nutrition` SLOT (see `RecipeCard`), which keeps the card pure and ignorant of loading.
+     */
     /** Free-text tags (CR-002). Empty → the card renders no tag row. */
     readonly tags: readonly string[];
     /** Current version number (CR-002). The version badge renders only past v1. */
@@ -87,37 +99,21 @@ export const toRecipeCardModel = (recipe: Recipe): RecipeCardModel => ({
     createdAt: recipe.createdAt,
     updatedAt: recipe.updatedAt,
     ...(recipe.cuisine !== undefined ? { cuisine: recipe.cuisine } : {}),
-    ...(recipe.leadCaloriesPerServing !== undefined ? { leadCaloriesPerServing: recipe.leadCaloriesPerServing } : {}),
     tags: recipe.tags,
     currentVersion: recipe.currentVersion,
     visibility: recipe.visibility,
     status: recipe.status,
 });
 
-/**
- * Semantic color tone for the difficulty pill. Maps to the `success`/`warning`/`error` design tokens; the
- * platform card leaf turns a tone into its Tailwind class (web) or palette color (native).
- */
-export type DifficultyTone = 'success' | 'warning' | 'error';
-
-const DIFFICULTY_TONE: Record<RecipeDifficulty, DifficultyTone> = {
-    [RecipeDifficulty.EASY]: 'success',
-    [RecipeDifficulty.MEDIUM]: 'warning',
-    [RecipeDifficulty.HARD]: 'error',
-};
-
-/**
- * The pill tone for a stated difficulty (Easy → success, Medium → warning, Hard → error) — the mockup's pill
- * colors. Total over the enum, so there is no "unknown difficulty" fallback: an ABSENT difficulty is handled
- * by the card rendering no pill at all, never by calling this with a substituted value. Pure.
- *
- * @param difficulty - A stated difficulty.
- * @returns Its semantic tone.
- */
-export const difficultyTone = (difficulty: RecipeDifficulty): DifficultyTone => DIFFICULTY_TONE[difficulty];
-
 /** The number of stars in the rating display. */
 export const STAR_COUNT = 5;
+
+/**
+ * How many card placeholders a loading recipe GRID paints — enough to fill the first rows across every
+ * breakpoint. Platform-neutral by necessity: the web and native grid skeletons must reserve the same number
+ * of rows, and this used to be a web-only constant while native hand-rolled its own count per surface.
+ */
+export const RECIPE_CARD_SKELETON_COUNT = 6;
 
 /**
  * Round a 1–5 average to whole filled stars for the card display (the mockup shows whole stars only), as a
@@ -145,9 +141,14 @@ export const formatAverageRating = (averageRating: number, locale: Locale): stri
     new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(averageRating);
 
 /**
- * Format lead calories per serving to a whole-number, locale-grouped string (e.g. `"1,020"`) via
- * {@link Intl.NumberFormat} — never string concatenation. The card wraps it in the localized `{calories} cal`
- * template. Only ever called for a recipe that HAS calories; an absent value renders no line. Pure.
+ * Format calories per serving to a whole-number, locale-grouped string (e.g. `"1,020"`) via
+ * {@link Intl.NumberFormat} — never string concatenation. The caller wraps it in the localized
+ * `{calories} cal` template.
+ *
+ * Only ever called for a reading that HAS a figure — `../nutrition/model.ts`'s `toCalorieChipModel` calls it
+ * for the `known` member only, and every failure path lands in `unaccounted`, which carries no number. A
+ * figure of `0` is therefore a MEASURED zero and formats like any other value; it is the STATE, never the
+ * value, that says "we have no figure". Pure.
  *
  * @param calories - The lead calories per serving.
  * @param locale - The active BCP-47 locale.

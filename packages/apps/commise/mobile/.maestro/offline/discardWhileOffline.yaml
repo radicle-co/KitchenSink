@@ -1,0 +1,77 @@
+# Discard while offline leaves nothing behind (plan 2026-10-13-004: the stuck "Syncing 1" after Discard).
+#
+# A recipe titled offline has its create queued in the outbox on the device. Discarding it must take the queued create
+# out with it, so that when the phone is back online nothing is sent, the notice has nothing to count, and the recipe
+# was never made on the server.
+#
+# ⚠️ WHAT THIS TIER CANNOT SHOW. Maestro cannot hold a request on the wire, so the rows of the Discard table where the
+# create is `sending` or `parked` are proved by the native component tier (`RecipeEditorScreen.native.test.tsx`) and by
+# the integration tiers over the real outbox (`editorDiscard.integration.test.tsx`, `offlineWritePath`). This flow
+# proves the queued row on a real device, and that a real reconnection sends nothing.
+#
+# ⛔ `setAirplaneMode` IS ANDROID-ONLY (as `offlineSave.yaml` records), so this flow is Android-bound by the platform.
+#
+# ⚠️ Maestro is MANUAL-ONLY here (owner ruling 2026-09-05) and targets a deployed sandbox. A skipped run claims nothing
+# — never report one as a pass.
+appId: ${APP_ID}
+name: discard while offline leaves nothing syncing and nothing created
+# Audit 2026-10-19, A1.4: a run killed while offline would leave the device offline for the next flow. This always runs.
+onFlowComplete:
+    - setAirplaneMode: disabled
+tags:
+    - offline
+    # Android only: iOS simulators have no airplane mode (guarded by maestroPlatformExclusions.test.ts).
+    - android
+---
+- runFlow: ../auth/launchCleared.yaml
+- runFlow: ../auth/signin.yaml
+
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 40000
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+
+# ── go offline, then give the recipe a title ──────────────────────────────────
+- setAirplaneMode: enabled
+- runFlow:
+      file: ../recipes/common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro discard while offline'
+
+# A section change is a checkpoint: the create is queued in the outbox, not sent.
+- tapOn:
+      text: 'Sections\. Current: Details\..*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: 'Steps'
+- extendedWaitUntil:
+      notVisible: 'Close sections'
+      timeout: 20000
+- extendedWaitUntil:
+      visible: 'Add step'
+      timeout: 20000
+
+# ── Discard it ────────────────────────────────────────────────────────────────
+# Offline the create waits in the outbox and cannot go on the wire, so the header settles on the device's own words.
+- runFlow:
+      file: ../recipes/common/discardDraft.yaml
+      env:
+          SETTLED: 'Saved on this device'
+
+# ── come back online: nothing is left to send ─────────────────────────────────
+- setAirplaneMode: disabled
+
+# ⛔ NO NOTICE REMAINS. The queued create left with the Discard, so there is no "change" to count once the phone is online.
+- extendedWaitUntil:
+      notVisible:
+          text: '.*(not synced|[0-9]+ changes? (is|are) saved|Syncing [0-9]+ change).*'
+      timeout: 30000
+
+# The recipe was never made: it is not in My recipes.
+- assertVisible: 'My recipes'
+- assertNotVisible:
+      text: 'Maestro discard while offline.*'

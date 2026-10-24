@@ -18,19 +18,23 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Days in a week. */
 export const DAYS_PER_WEEK = 7;
 
+/** How long a weekday name is: `narrow` ("M"), `short` ("Mon") or `long` ("Monday"), as `Intl` names them. */
+export type WeekdayWidth = 'narrow' | 'short' | 'long';
+
 /**
- * The seven short weekday labels, Monday-first, formatted for `locale`.
+ * The seven weekday labels, Monday-first, formatted for `locale` at `width`.
  *
  * Monday-first matches the mockup's meal-plan strip (MON → SUN). It is deliberately NOT derived from the
  * locale's own first-day-of-week: the mockup's layout is fixed, and this function's contract is "the labels
  * for the strip as designed". Revisit if the strip itself becomes locale-ordered.
  *
  * @param locale - A BCP-47 language tag.
- * @returns Seven short weekday names starting at Monday. Falls back to the runtime default locale if `locale`
+ * @param width - The name length. Defaults to `short`.
+ * @returns Seven weekday names starting at Monday. Falls back to the runtime default locale if `locale`
  * is not a tag `Intl` accepts, rather than throwing — a label set must never break the Home render. Pure.
  */
-export function weekdayLabels(locale: string): readonly string[] {
-    const format = createWeekdayFormatter(locale);
+export function weekdayLabels(locale: string, width: WeekdayWidth = 'short'): readonly string[] {
+    const format = createWeekdayFormatter(locale, width);
 
     return Array.from({ length: DAYS_PER_WEEK }, (_unused, index) =>
         format.format(new Date(MONDAY_ANCHOR_UTC_MS + index * DAY_MS)),
@@ -41,10 +45,11 @@ export function weekdayLabels(locale: string): readonly string[] {
  * Build the weekday formatter, degrading to the runtime default locale on an unusable tag.
  *
  * @param locale - A BCP-47 language tag.
- * @returns A formatter emitting a short weekday name in UTC.
+ * @param width - The name length.
+ * @returns A formatter emitting a weekday name of that length in UTC.
  */
-function createWeekdayFormatter(locale: string): Intl.DateTimeFormat {
-    const options: Intl.DateTimeFormatOptions = { weekday: 'short', timeZone: 'UTC' };
+function createWeekdayFormatter(locale: string, width: WeekdayWidth): Intl.DateTimeFormat {
+    const options: Intl.DateTimeFormatOptions = { weekday: width, timeZone: 'UTC' };
 
     try {
         return new Intl.DateTimeFormat(locale, options);

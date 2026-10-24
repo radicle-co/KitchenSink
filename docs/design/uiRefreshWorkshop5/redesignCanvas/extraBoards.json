@@ -1,0 +1,50 @@
+{
+    "CollectionDetailScrolledMobile": {
+        "after": "CollectionDetailMobile",
+        "w": 390,
+        "h": 844,
+        "title": "Collection detail, scrolled (mobile)"
+    },
+    "CollectionDetailScrolled834Mobile": {
+        "after": "CollectionDetail834Mobile",
+        "w": 834,
+        "h": 1194,
+        "title": "Collection detail, scrolled, 834 px (mobile)"
+    },
+    "RecipeVersionsScrolledMobile": {
+        "after": "RecipeVersionsMobile",
+        "w": 390,
+        "h": 844,
+        "title": "Version history, scrolled (mobile)"
+    },
+    "RecipeVersionsScrolled834Mobile": {
+        "after": "RecipeVersions834Mobile",
+        "w": 834,
+        "h": 1194,
+        "title": "Version history, scrolled, 834 px (mobile)"
+    },
+    "LegalSourcesScrolledMobile": {
+        "after": "LegalSourcesMobile",
+        "w": 390,
+        "h": 844,
+        "title": "Data sources, scrolled (mobile)"
+    },
+    "LegalSourcesScrolled834Mobile": {
+        "after": "LegalSources834Mobile",
+        "w": 834,
+        "h": 1194,
+        "title": "Data sources, scrolled, 834 px (mobile)"
+    },
+    "ProfileScrolledMobile": {
+        "after": "ProfileMobile",
+        "w": 390,
+        "h": 844,
+        "title": "Profile, scrolled (mobile)"
+    },
+    "ProfileScrolled834Mobile": {
+        "after": "Profile834Mobile",
+        "w": 834,
+        "h": 1194,
+        "title": "Profile, scrolled, 834 px (mobile)"
+    }
+}

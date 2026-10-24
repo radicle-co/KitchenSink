@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Collections, loading (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                </style></helmet
+            >
+            <div
+                style="
+                    position: relative;
+                    width: 390px;
+                    height: 844px;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    background: var(--canvas);
+                    --bottom-chrome: 64px;
+                    transform: translateZ(0);
+                "
+            >
+                <div style="position: relative; flex: 1; min-height: 0; overflow: hidden">
+                    <div
+                        style="
+                            box-sizing: border-box;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            padding: 8px 16px 0;
+                            overflow: hidden;
+                        "
+                    >
+                        <x-import
+                            component-from-global-scope="Commise.Native.LargeTitleHeader"
+                            heading-id="recipes-title"
+                            title="Recipes"
+                            action="{{v6}}"
+                            segments="{{v7}}"
+                        ></x-import>
+                        <div aria-label="Loading collections…" style="padding-bottom: 20px">
+                            <div
+                                aria-hidden="true"
+                                style="
+                                    height: 76px;
+                                    border-radius: 20px;
+                                    margin-bottom: 12px;
+                                    background: var(--surface-muted);
+                                "
+                            ></div>
+                            <div
+                                aria-hidden="true"
+                                style="
+                                    height: 76px;
+                                    border-radius: 20px;
+                                    margin-bottom: 12px;
+                                    background: var(--surface-muted);
+                                "
+                            ></div>
+                            <div
+                                aria-hidden="true"
+                                style="
+                                    height: 76px;
+                                    border-radius: 20px;
+                                    margin-bottom: 12px;
+                                    background: var(--surface-muted);
+                                "
+                            ></div>
+                            <div
+                                aria-hidden="true"
+                                style="
+                                    height: 76px;
+                                    border-radius: 20px;
+                                    margin-bottom: 12px;
+                                    background: var(--surface-muted);
+                                "
+                            ></div>
+                        </div>
+                    </div>
+                    <div style="position: absolute; inset: 0; pointer-events: none; transform: translateZ(0)">
+                        <div style="pointer-events: auto">
+                            <x-import
+                                component-from-global-scope="Commise.Native.CreateFab"
+                                label="New collection"
+                                icon="plus"
+                                on-press="{{v9}}"
+                            ></x-import>
+                        </div>
+                    </div>
+                </div>
+                <x-import
+                    component-from-global-scope="Commise.Native.HomeTabBar"
+                    chrome="{{chrome}}"
+                    live-capabilities="{{none}}"
+                    active-id="recipes"
+                    on-press="{{v9}}"
+                    bottom-inset="{{v13}}"
+                    compact="{{no}}"
+                    left-inset="{{zero}}"
+                    right-inset="{{zero}}"
+                ></x-import></div
+        ></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){};
+             return {
+              v0: 16,
+              v1: 16,
+              v2: 16,
+              v3: 16,
+              v4: 16,
+              v5: 16,
+              v6: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
+              v7: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"collections",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
+              v8: noop,
+              v9: noop,
+              v10: 24,
+              v11: 24,
+              v12: 24, v13:34, chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
+             }; } }
+        </script>
+    </body>
+</html>

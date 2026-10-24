@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, photos uploading (mobile)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/1.5 var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    h3,
+                    p,
+                    ul {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                        margin-bottom: 8px;
+                    }
+                    .h3 {
+                        font: 600 14px/1.2 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .body {
+                        font: 400 14px/1.5 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 12px/1.4 var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 500 14px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .cluster {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 16px 0 24px;
+                    }
+                    .fig {
+                        padding: 0 16px;
+                    }
+                    .cap {
+                        padding: 0;
+                    }
+                    .pm-grid {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: flex-start;
+                        gap: 10px;
+                    }
+                    .pm-tile {
+                        position: relative;
+                        width: 31%;
+                    }
+                    .pm-img {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: 12px;
+                    }
+                    .pm-q {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .pm-fill {
+                        position: absolute;
+                        inset: 0;
+                    }
+                    .pm-menu {
+                        position: absolute;
+                        top: 2px;
+                        right: 2px;
+                    }
+                    .pm-cover {
+                        position: absolute;
+                        bottom: 6px;
+                        left: 6px;
+                        border-radius: 999px;
+                        background: var(--action);
+                        padding: 2px 8px;
+                        font: 600 11px/1.4 var(--font-body);
+                        color: var(--on-action);
+                    }
+                    .pm-removing {
+                        position: absolute;
+                        left: 6px;
+                        right: 6px;
+                        bottom: 6px;
+                        border-radius: 999px;
+                        background: var(--photo-chip);
+                        padding: 2px 0;
+                        text-align: center;
+                        font: 500 11px/1.4 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-status {
+                        position: absolute;
+                        top: 6px;
+                        left: 6px;
+                        border-radius: 999px;
+                        padding: 2px 8px;
+                        font: 500 11px/1.4 var(--font-body);
+                        background: var(--photo-chip);
+                        color: var(--ink);
+                    }
+                    .pm-status.bad {
+                        background: var(--danger);
+                        color: var(--on-action);
+                    }
+                    .pm-retry {
+                        position: absolute;
+                        left: 6px;
+                        right: 6px;
+                        bottom: 6px;
+                    }
+                    .pm-err {
+                        margin-top: 4px;
+                        padding: 0 2px;
+                        font: 500 11px/1.4 var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .pm-mi {
+                        display: flex;
+                        min-height: 48px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-mi.danger {
+                        color: var(--danger-text);
+                    }
+                    .pm-sep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        min-height: 600px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .under {
+                        position: absolute;
+                        inset: 0;
+                        padding: 16px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .src {
+                        display: flex;
+                        min-height: 56px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/1.5 var(--font-body);
+                        color: var(--ink);
+                    }
+                    .msgs {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .msg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .msg:first-child {
+                        padding-top: 0;
+                        border-top: 0;
+                    }
+                </style></helmet
+            >
+            <div class="page">
+                <section class="fig" aria-label="Photos: cover, upload queue and one photo being removed">
+                    <p class="cap">Photos: cover, upload queue and one photo being removed</p>
+                    <div class="cluster">
+                        <h3 class="h3">Photos</h3>
+                        <p class="body">Uploading photo</p>
+                        <ul class="pm-grid">
+                            <li class="pm-tile">
+                                <div class="pm-img">
+                                    <div class="pm-fill">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="r-lemon-chicken"
+                                            title="Lemon chicken"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                </div>
+                                <span class="pm-cover">Cover</span>
+                                <div class="pm-menu">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ActionMenu"
+                                        appearance="disc"
+                                        trigger-label="Actions for photo 1, the cover"
+                                        title="Photo 1"
+                                        close-label="Close actions for photo 1"
+                                        items="{{jItemsCover}}"
+                                        destructive-item="{{jRemove}}"
+                                    ></x-import>
+                                </div>
+                            </li>
+                            <li class="pm-tile">
+                                <div class="pm-img">
+                                    <div class="pm-fill">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="r-tomato-soup"
+                                            title="Tomato soup"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                </div>
+                                <div class="pm-menu">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ActionMenu"
+                                        appearance="disc"
+                                        trigger-label="Actions for photo 2"
+                                        title="Photo 2"
+                                        close-label="Close actions for photo 2"
+                                        items="{{jItems}}"
+                                        destructive-item="{{jRemove}}"
+                                    ></x-import>
+                                </div>
+                            </li>
+                            <li class="pm-tile">
+                                <div class="pm-img">
+                                    <div class="pm-fill">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="r-pad-thai"
+                                            title="Pad thai"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                </div>
+                                <div class="pm-menu">
+                                    <x-import
+                                        component-from-global-scope="Commise.Native.ActionMenu"
+                                        appearance="disc"
+                                        trigger-label="Actions for photo 3"
+                                        title="Photo 3"
+                                        close-label="Close actions for photo 3"
+                                        items="{{jItems}}"
+                                        destructive-item="{{jRemove}}"
+                                        unavailable="{{yes}}"
+                                    ></x-import>
+                                </div>
+                                <span role="status" class="pm-removing">Removing…</span>
+                            </li>
+                            <li style="width: 31%">
+                                <div class="pm-q">
+                                    <div class="pm-fill">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="r-banana-bread"
+                                            title="Banana bread"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <span role="status" class="pm-status">Queued</span>
+                                    <div class="pm-menu">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.ActionMenu"
+                                            appearance="disc"
+                                            trigger-label="Actions for IMG_2041.jpg"
+                                            title="IMG_2041.jpg"
+                                            close-label="Close actions for IMG_2041.jpg"
+                                            items="{{jNone}}"
+                                            destructive-item="{{jRemove}}"
+                                        ></x-import>
+                                    </div>
+                                </div>
+                            </li>
+                            <li style="width: 31%">
+                                <div class="pm-q">
+                                    <div class="pm-fill">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.RecipeCover"
+                                            recipe-id="r-green-curry"
+                                            title="Green curry"
+                                            aspect="1:1"
+                                        ></x-import>
+                                    </div>
+                                    <span role="status" class="pm-status">Uploading…</span>
+                                </div>
+                            </li>
+                            <li style="width: 31%">
+                                <div class="pm-q">
+                                    <span role="alert" class="pm-status bad">Upload failed</span>
+                                    <div class="pm-menu">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.ActionMenu"
+                                            appearance="disc"
+                                            trigger-label="Actions for IMG_2043.jpg"
+                                            title="IMG_2043.jpg"
+                                            close-label="Close actions for IMG_2043.jpg"
+                                            items="{{jNone}}"
+                                            destructive-item="{{jRemove}}"
+                                        ></x-import>
+                                    </div>
+                                    <div class="pm-retry">
+                                        <x-import
+                                            component-from-global-scope="Commise.Native.Button"
+                                            variant="secondary"
+                                            icon="refreshCw"
+                                            size="md"
+                                            width="fill"
+                                            >Retry</x-import
+                                        >
+                                    </div>
+                                </div>
+                                <p class="pm-err">We couldn’t upload that photo. Please try again.</p>
+                            </li>
+                        </ul>
+                        <p class="hint">JPEG, PNG, or WebP · max 5 MB</p>
+                        <div style="display: flex; align-self: flex-start">
+                            <x-import
+                                component-from-global-scope="Commise.Native.Button"
+                                variant="secondary"
+                                icon="imagePlus"
+                                >Add photos</x-import
+                            >
+                        </div>
+                    </div>
+                </section>
+                <section class="fig" style="padding: 0" aria-label="Photo 2 menu">
+                    <p class="cap" style="padding: 0 16px">Photo 2: the ⋯ button opens this sheet</p>
+                    <div class="stage">
+                        <div class="under">
+                            <div class="cluster">
+                                <ul class="pm-grid">
+                                    <li class="pm-tile">
+                                        <div class="pm-img">
+                                            <div class="pm-fill">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.RecipeCover"
+                                                    recipe-id="r-lemon-chicken"
+                                                    title="Lemon chicken"
+                                                    aspect="1:1"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <span class="pm-cover">Cover</span>
+                                        <div class="pm-menu">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.ActionMenu"
+                                                appearance="disc"
+                                                trigger-label="Actions for photo 1, the cover"
+                                                title="Photo 1"
+                                                close-label="Close actions for photo 1"
+                                                items="{{jItemsCover}}"
+                                                destructive-item="{{jRemove}}"
+                                            ></x-import>
+                                        </div>
+                                    </li>
+                                    <li class="pm-tile">
+                                        <div class="pm-img">
+                                            <div class="pm-fill">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.RecipeCover"
+                                                    recipe-id="r-tomato-soup"
+                                                    title="Tomato soup"
+                                                    aspect="1:1"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <div class="pm-menu">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.ActionMenu"
+                                                appearance="disc"
+                                                trigger-label="Actions for photo 2"
+                                                title="Photo 2"
+                                                close-label="Close actions for photo 2"
+                                                items="{{jItems}}"
+                                                destructive-item="{{jRemove}}"
+                                            ></x-import>
+                                        </div>
+                                    </li>
+                                    <li class="pm-tile">
+                                        <div class="pm-img">
+                                            <div class="pm-fill">
+                                                <x-import
+                                                    component-from-global-scope="Commise.Native.RecipeCover"
+                                                    recipe-id="r-pad-thai"
+                                                    title="Pad thai"
+                                                    aspect="1:1"
+                                                ></x-import>
+                                            </div>
+                                        </div>
+                                        <div class="pm-menu">
+                                            <x-import
+                                                component-from-global-scope="Commise.Native.ActionMenu"
+                                                appearance="disc"
+                                                trigger-label="Actions for photo 3"
+                                                title="Photo 3"
+                                                close-label="Close actions for photo 3"
+                                                items="{{jItems}}"
+                                                destructive-item="{{jRemove}}"
+                                                unavailable="{{yes}}"
+                                            ></x-import>
+                                        </div>
+                                        <span role="status" class="pm-removing">Removing…</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="scrim"></div>
+                        <div class="sh">
+                            <x-import
+                                component-from-global-scope="Commise.Native.BottomSheetPanel"
+                                title="Photo 2"
+                                close-label="Close actions for photo 2"
+                                size="content"
+                                focus-signal="{{one}}"
+                                reduce-motion="{{yes}}"
+                                on-close="{{noop}}"
+                                ><div role="menu" aria-label="Photo 2">
+                                    <div role="menuitem" class="pm-mi" aria-disabled="false">Set as cover</div>
+                                    <div role="menuitem" class="pm-mi" aria-disabled="false">Move earlier</div>
+                                    <div role="menuitem" class="pm-mi" aria-disabled="false">Move later</div>
+                                    <div role="menuitem" class="pm-mi" aria-disabled="false">Replace</div>
+                                    <div role="separator" class="pm-sep"></div>
+                                    <div role="menuitem" class="pm-mi danger">Remove</div>
+                                </div></x-import
+                            >
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1151}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,yes:true,one:1,jItems:[{id:'setCover',label:"Set as cover",onSelect:noop},{id:'moveEarlier',label:"Move earlier",onSelect:noop},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jItemsCover:[{id:'setCover',label:"Set as cover",onSelect:noop,disabled:true},{id:'moveEarlier',label:"Move earlier",onSelect:noop,disabled:true},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jNone:[],jRemove:{id:'remove',label:"Remove",onSelect:noop},}; } }
+        </script>
+    </body>
+</html>

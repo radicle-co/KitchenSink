@@ -14,8 +14,10 @@ import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService, MAX_COLLECTIONS_PER_OWNER } from '../collections.service.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
-import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
+import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
+import { makeCollectionsActor } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
 
 type DalMock = {
     [K in keyof CollectionsDal]: ReturnType<typeof vi.fn>;
@@ -39,6 +41,8 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
+        sourceOwnerUsernames: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // Not exercised outside `cloneCollection`/`pullFromSource` here — runs `fn` against a stub tx.
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
@@ -47,15 +51,28 @@ function makeDal(): DalMock {
 
 /** Not exercised outside `cloneCollection` here — a stub resolving to `undefined` is sufficient. */
 function makeAuthorHandlesDal(): { [K in keyof AuthorHandlesDal]: ReturnType<typeof vi.fn> } {
-    return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() };
+    return { findByline: vi.fn().mockResolvedValue(undefined) };
 }
 
-function makeService(dal: DalMock): CollectionsService {
+/** U3: the save-capture collaborator — `capture` is sync-void fire-and-forget, so one mock suffices. */
+function makeAnalytics(): { capture: ReturnType<typeof vi.fn> } {
+    return { capture: vi.fn() };
+}
+
+function makeService(
+    dal: DalMock,
+    analytics: { capture: ReturnType<typeof vi.fn> } = makeAnalytics(),
+): CollectionsService {
     return new CollectionsService(
         dal as unknown as CollectionsDal,
         makeAuthorHandlesDal() as unknown as AuthorHandlesDal,
+        analytics as unknown as AnalyticsService,
+        PHOTOS_CDN,
     );
 }
+
+/** The photo CDN base the service resolves cover keys against. */
+const PHOTOS_CDN = 'https://cdn.test/';
 
 const OWNER = 'owner-1';
 
@@ -66,7 +83,7 @@ describe('CollectionsService.createCollection', () => {
         dal.createIfUnderCap.mockResolvedValue(row);
         const service = makeService(dal);
 
-        const result = await service.createCollection(OWNER, { name: 'Weeknight Dinners' });
+        const result = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Weeknight Dinners' });
 
         expect(dal.createIfUnderCap).toHaveBeenCalledWith(
             {
@@ -94,7 +111,7 @@ describe('CollectionsService.createCollection', () => {
         dal.createIfUnderCap.mockResolvedValue(makeCollectionRow({ description: 'Fast meals', visibility: 'public' }));
         const service = makeService(dal);
 
-        const result = await service.createCollection(OWNER, {
+        const result = await service.createCollection(makeCollectionsActor(OWNER), {
             name: 'Weeknight Dinners',
             description: 'Fast meals',
             visibility: 'public',
@@ -119,7 +136,7 @@ describe('CollectionsService.createCollection — delegates the 50-collection-pe
         dal.createIfUnderCap.mockResolvedValue(row);
         const service = makeService(dal);
 
-        const result = await service.createCollection(OWNER, { name: 'Fiftieth' });
+        const result = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Fiftieth' });
 
         expect(dal.createIfUnderCap).toHaveBeenCalledTimes(1);
         expect(result.id).toBe(row.id);
@@ -130,7 +147,7 @@ describe('CollectionsService.createCollection — delegates the 50-collection-pe
         dal.createIfUnderCap.mockRejectedValue(collectionLimitReachedError(OWNER, MAX_COLLECTIONS_PER_OWNER));
         const service = makeService(dal);
 
-        await expect(service.createCollection(OWNER, { name: 'Fifty-first' })).rejects.toSatisfy(
+        await expect(service.createCollection(makeCollectionsActor(OWNER), { name: 'Fifty-first' })).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.COLLECTION_LIMIT_REACHED,
         );
     });
@@ -140,7 +157,7 @@ describe('CollectionsService.createCollection — delegates the 50-collection-pe
         dal.createIfUnderCap.mockResolvedValue(makeCollectionRow());
         const service = makeService(dal);
 
-        await service.createCollection(OWNER, { name: 'X' });
+        await service.createCollection(makeCollectionsActor(OWNER), { name: 'X' });
 
         expect(dal.createIfUnderCap).toHaveBeenCalledWith(expect.objectContaining({ ownerId: OWNER }), 50);
         expect(dal.createIfUnderCap).toHaveBeenCalledTimes(1);
@@ -173,6 +190,50 @@ describe('CollectionsService.listCollections', () => {
 
         expect(dal.listByOwner).toHaveBeenCalledWith(OWNER, 2, 4);
         expect(result.hasMore).toBe(false);
+    });
+});
+
+describe('CollectionsService.listCollections — member summary (W-11)', () => {
+    it('carries each collection recipeCount and up to four resolved cover URLs', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({
+            rows: [makeCollectionRow({ id: 'a' }), makeCollectionRow({ id: 'b' })],
+            total: 2,
+        });
+        dal.memberSummaries.mockResolvedValue(
+            new Map([['a', { recipeCount: 7, coverKeys: ['photos/1.jpg', 'photos/2.jpg'] }]]),
+        );
+
+        const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(dal.memberSummaries).toHaveBeenCalledWith(['a', 'b'], OWNER);
+        expect(result.data[0]).toMatchObject({
+            id: 'a',
+            recipeCount: 7,
+            coverPhotoUrls: ['https://cdn.test/photos/1.jpg', 'https://cdn.test/photos/2.jpg'],
+        });
+    });
+
+    it('answers an empty collection as zero recipes and no covers, never as absent', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({ rows: [makeCollectionRow({ id: 'b' })], total: 1 });
+        dal.memberSummaries.mockResolvedValue(new Map());
+
+        const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(result.data[0]).toMatchObject({ recipeCount: 0, coverPhotoUrls: [] });
+    });
+
+    it('never emits more than four covers even if the DAL over-delivers', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({ rows: [makeCollectionRow({ id: 'a' })], total: 1 });
+        dal.memberSummaries.mockResolvedValue(
+            new Map([['a', { recipeCount: 9, coverKeys: ['1', '2', '3', '4', '5'] }]]),
+        );
+
+        const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(result.data[0]?.coverPhotoUrls).toHaveLength(4);
     });
 });
 
@@ -286,10 +347,10 @@ describe('CollectionsService.addRecipe', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1' }));
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
         const service = makeService(dal);
 
-        const result = await service.addRecipe(OWNER, 'c1', 'r1');
+        const result = await service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'r1');
 
         expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
         expect(result).toEqual({
@@ -306,7 +367,7 @@ describe('CollectionsService.addRecipe', () => {
         dal.findActiveRecipe.mockResolvedValue(undefined);
         const service = makeService(dal);
 
-        await expect(service.addRecipe(OWNER, 'c1', 'gone')).rejects.toSatisfy(
+        await expect(service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'gone')).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(dal.addRecipe).not.toHaveBeenCalled();
@@ -324,7 +385,7 @@ describe('CollectionsService.addRecipe', () => {
         );
         const service = makeService(dal);
 
-        await expect(service.addRecipe(OWNER, 'c1', 'r1')).rejects.toSatisfy(
+        await expect(service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'r1')).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.RECIPE_NOT_FOUND,
         );
         expect(dal.addRecipe).not.toHaveBeenCalled();
@@ -336,10 +397,10 @@ describe('CollectionsService.addRecipe', () => {
         dal.findActiveRecipe.mockResolvedValue(
             makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'public' }),
         );
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
         const service = makeService(dal);
 
-        await service.addRecipe(OWNER, 'c1', 'r1');
+        await service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'r1');
 
         expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
     });
@@ -348,12 +409,60 @@ describe('CollectionsService.addRecipe', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: OWNER, visibility: 'private' }));
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
         const service = makeService(dal);
 
-        await service.addRecipe(OWNER, 'c1', 'r1');
+        await service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'r1');
 
         expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
+    });
+
+    // ── U3: save capture — a NEW membership is a save event; an idempotent replay is NOT ──────────
+    // 015's recognition credit reads save_count, and R11 promises the count stays reconcilable against
+    // recipe_collections. Capturing on replay would let one user mint unbounded credit by re-adding the
+    // same recipe — the count would diverge from the membership table permanently.
+
+    it('captures ONE recipe_saved event when the membership is NEW (U3)', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
+        const analytics = makeAnalytics();
+        const service = makeService(dal, analytics);
+
+        await service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'r1');
+
+        expect(analytics.capture).toHaveBeenCalledTimes(1);
+        expect(analytics.capture).toHaveBeenCalledWith({
+            type: 'recipe_saved',
+            actor: makeCollectionsActor(OWNER),
+            recipeId: 'r1',
+        });
+    });
+
+    it('captures NOTHING on an idempotent replay of an existing membership', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: false });
+        const analytics = makeAnalytics();
+        const service = makeService(dal, analytics);
+
+        await service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'r1');
+
+        expect(analytics.capture).not.toHaveBeenCalled();
+    });
+
+    it('captures NOTHING when the add is refused — no membership, no save', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(undefined);
+        const analytics = makeAnalytics();
+        const service = makeService(dal, analytics);
+
+        await expect(service.addRecipe(makeCollectionsActor(OWNER), 'c1', 'gone')).rejects.toThrow();
+
+        expect(analytics.capture).not.toHaveBeenCalled();
     });
 });
 
@@ -382,9 +491,39 @@ describe('CollectionsService.updateCollection', () => {
         dal.update.mockResolvedValue(makeCollectionRow({ ownerId: OWNER, name: 'Renamed' }));
         const service = makeService(dal);
 
-        const result = await service.updateCollection(OWNER, 'c1', { name: 'Renamed' });
+        const result = await service.updateCollection(makeCollectionsActor(OWNER), 'c1', { name: 'Renamed' });
 
         expect(dal.update).toHaveBeenCalledWith('c1', { name: 'Renamed' });
         expect(result.name).toBe('Renamed');
+    });
+});
+
+describe('source owner usernames (plan 2026-10-15-010 D7)', () => {
+    it('answers each clone’s source owner username in a list, from ONE batched lookup', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({
+            rows: [
+                makeCollectionRow({ id: 'c-clone', sourceCollectionId: 'src-1', sourceOwnerDisplayName: 'Clara' }),
+                makeCollectionRow({ id: 'c-own' }),
+            ],
+            total: 2,
+        });
+        dal.sourceOwnerUsernames.mockResolvedValue(new Map([['src-1', 'clara']]));
+
+        const page = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(dal.sourceOwnerUsernames).toHaveBeenCalledTimes(1);
+        expect(dal.sourceOwnerUsernames).toHaveBeenCalledWith(['src-1']);
+        expect(page.data.find((item) => item.id === 'c-clone')?.sourceOwnerUsername).toBe('clara');
+        expect(page.data.find((item) => item.id === 'c-own')).not.toHaveProperty('sourceOwnerUsername');
+    });
+
+    it('asks nothing when no listed collection is a clone', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({ rows: [makeCollectionRow({ id: 'c-own' })], total: 1 });
+
+        await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(dal.sourceOwnerUsernames).not.toHaveBeenCalled();
     });
 });

@@ -7,13 +7,20 @@
  * would restore focus nowhere (see `PullUpdatesDialog`'s module doc). Covers: closed (nothing rendered),
  * open (accessible dialog named by the title), dismiss/upgrade both fire `onDismiss`, Escape closes AND
  * fires `onDismiss` AND returns focus to the sibling opener, and focus is trapped while open.
+ *
+ * `useOncePerSessionNudge`'s own lifecycle, which is where "at most once per session" actually lives, is pinned
+ * once for both apps in `@commise/features-core`'s `home/__tests__/useOncePerSessionNudge.test.tsx`;
+ * `HomeWidgetSurface.test` drives the seam end-to-end through a gated widget. The mobile mirror is
+ * `mobile/tests/components/home/SubscriptionNudge.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
-import { SubscriptionNudge } from '../SubscriptionNudge.js';
+import { buttonSurfaceClass } from '@commise/ui/button';
+
+import { SubscriptionNudge } from '../SubscriptionNudge';
 
 afterEach(cleanup);
 
@@ -122,5 +129,21 @@ describe('SubscriptionNudge (web) — Radix a11y machinery (B6/CR-003)', () => {
             await user.tab();
             expect(document.activeElement).not.toBe(outside);
         }
+    });
+});
+
+describe('SubscriptionNudge — the design-system Button (UI overhaul slice 2)', () => {
+    const tokensOf = (className: string): string[] => className.split(/\s+/u);
+
+    it('upgrades through a primary chevronRight Button and dismisses through a secondary clock one, as mobile does', () => {
+        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+
+        const upgrade = screen.getByRole('button', { name: 'See plans' });
+        const dismiss = screen.getByRole('button', { name: 'Maybe later' });
+
+        expect(tokensOf(upgrade.className)).toEqual(expect.arrayContaining(tokensOf(buttonSurfaceClass('primary'))));
+        expect(upgrade.querySelector('svg.lucide-chevron-right')).not.toBeNull();
+        expect(tokensOf(dismiss.className)).toEqual(expect.arrayContaining(tokensOf(buttonSurfaceClass('secondary'))));
+        expect(dismiss.querySelector('svg.lucide-clock')).not.toBeNull();
     });
 });

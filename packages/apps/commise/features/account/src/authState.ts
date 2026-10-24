@@ -2,34 +2,31 @@
  * Cross-platform account-state derivation for the security-relevant blocked states
  * (account suspended, admin impersonation). Both the web and mobile apps derive their
  * gate from this single pure function so the two platforms cannot drift on WHICH sessions
- * are blocked or WHAT the user is told. Presentation stays platform-specific; the state
- * model and the user-facing copy live here.
+ * are blocked. Presentation stays platform-specific; the state model lives here and the user-facing
+ * copy beside it in `authBlockMessages`.
+ *
+ * The two blocked-state ERROR classes live in `authState.errors.ts` — this module's subject is the state
+ * derivation, and §1 keeps an error taxonomy in its own file.
  */
 
 export type AuthState =
     | { status: 'loading' }
     | { status: 'unauthenticated' }
     | { status: 'authenticated'; userId: string }
-    | { status: 'blocked'; reason: AuthBlockMessage }
+    | { status: 'blocked'; reason: AuthBlockReason }
     | { status: 'error'; error: Error };
 
-export interface AuthBlockMessage {
-    title: string;
-    body: string;
+/**
+ * Why a session is blocked. Carries the CODE only: the words a blocked viewer reads are localized copy, so they live in
+ * `authBlockMessages` (keyed by this code), never inside a pure state derivation.
+ */
+export interface AuthBlockReason {
     code: 'account_suspended' | 'impersonation_blocked';
 }
 
-export const SUSPENDED_BLOCK: AuthBlockMessage = {
-    title: 'Account suspended',
-    body: 'Your account has been suspended. Please contact support.',
-    code: 'account_suspended',
-};
+export const SUSPENDED_BLOCK: AuthBlockReason = { code: 'account_suspended' };
 
-export const IMPERSONATION_BLOCK: AuthBlockMessage = {
-    title: 'Impersonation blocked',
-    body: 'Impersonated sessions cannot access Commise.',
-    code: 'impersonation_blocked',
-};
+export const IMPERSONATION_BLOCK: AuthBlockReason = { code: 'impersonation_blocked' };
 
 export interface DeriveAuthStateInput {
     isLoaded: boolean;
@@ -68,32 +65,4 @@ export function deriveAuthState(input: DeriveAuthStateInput): AuthState {
     }
 
     return { status: 'authenticated', userId };
-}
-
-export class AccountSuspendedError extends Error {
-    readonly code = 'account_suspended' as const;
-
-    constructor(message = 'Account suspended') {
-        super(message);
-        this.name = 'AccountSuspendedError';
-        Object.setPrototypeOf(this, AccountSuspendedError.prototype);
-    }
-}
-
-export class ImpersonationBlockedError extends Error {
-    readonly code = 'impersonation_blocked' as const;
-
-    constructor(message = 'Impersonation blocked') {
-        super(message);
-        this.name = 'ImpersonationBlockedError';
-        Object.setPrototypeOf(this, ImpersonationBlockedError.prototype);
-    }
-}
-
-export function isAccountSuspendedError(error: unknown): error is AccountSuspendedError {
-    return error instanceof AccountSuspendedError;
-}
-
-export function isImpersonationBlockedError(error: unknown): error is ImpersonationBlockedError {
-    return error instanceof ImpersonationBlockedError;
 }

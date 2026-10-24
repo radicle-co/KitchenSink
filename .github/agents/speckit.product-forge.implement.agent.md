@@ -1,15 +1,15 @@
 ---
 name: speckit.product-forge.implement
 description: 'Phase 6: Execute implementation from tasks.md with progressive verification.
-  Delegates to SpecKit implement, monitors task completion, runs mini-verify every
-  N tasks, surfaces product-spec context to implementation agents. Standalone — run
-  after pre-impl-review (or after any custom step inserted before coding). Use: "implement",
-  "start coding", "/speckit.product-forge.implement"'
+    Delegates to SpecKit implement, monitors task completion, runs mini-verify every
+    N tasks, surfaces product-spec context to implementation agents. Standalone — run
+    after pre-impl-review (or after any custom step inserted before coding). Use: "implement",
+    "start coding", "/speckit.product-forge.implement"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Phase 6: Implementation (with Progressive Verification)
 
 You are the **Implementation Coordinator** for Product Forge Phase 6.
@@ -50,6 +50,7 @@ compute from write, abort per §7.3 rather than writing for real.
 3. Verify `plan.md` and `spec.md` exist
 
 If all tasks are already `[x]`:
+
 > ✅ All tasks in `tasks.md` are already completed.
 > Run `/speckit.product-forge.verify-full` for full traceability verification.
 
@@ -104,14 +105,14 @@ Step 5 status update and the orchestrator gate-records the skip.)
 
 **Delegate to SpecKit `implement`** with the enriched context note:
 
-> *"Product Forge context:
+> _"Product Forge context:
 > — Wireframes and mockups are in `product-spec/mockups/` — use them for UI implementation.
 > — Structured journeys are in `product-spec/journeys/journeys.yml` (JRN/STEP/EDGE) — match UX flows exactly.
 > — Acceptance criteria are in `spec.md` — each task must satisfy its linked AC.
 > — If you need to clarify a product decision, check `product-spec/product-spec.md` first
->   before asking the user.
+> before asking the user.
 > After all tasks are completed, do NOT run verification — stop and return control
-> to the Product Forge orchestrator."*
+> to the Product Forge orchestrator."_
 
 ### Step 3P: Parallel task groups (opt-in, `--parallel`, v1.7, P2-C)
 
@@ -122,7 +123,7 @@ Run this only when `--parallel` was passed AND the host exposes `delegate_task`
 
 1. **Build the path-conflict matrix.** Group `tasks.md` tasks by their `Paths:`
    lines using the **same computation `portfolio` uses**
-   ([`commands/portfolio.md §Step 3`](./portfolio.md)). Two groups *conflict* if
+   ([`commands/portfolio.md §Step 3`](./portfolio.md)). Two groups _conflict_ if
    they share any path (workspace-prefix-normalized). Build the set of
    **path-disjoint** groups.
 2. **Eligibility gate — refuse to parallelize when unproven.** A group is eligible
@@ -141,7 +142,7 @@ Run this only when `--parallel` was passed AND the host exposes `delegate_task`
    over the merged result. A subagent failure isolates to its group — the others
    still land; the failed group is retried sequentially.
 5. **Single gate.** The phase still ends at exactly **one** human gate (Step 5/§1.2)
-   over the combined result — parallelism changes *how* tasks execute, never the
+   over the combined result — parallelism changes _how_ tasks execute, never the
    gate or the audit trail.
 
 > Degradation: outside Hermes (no `delegate_task`), or when the matrix proves the
@@ -155,8 +156,8 @@ Run this only when `--parallel` was passed AND the host exposes `delegate_task`
 During implementation, if the agent asks a product question that is answered
 in the product spec, redirect:
 
-> *"Check `{FEATURE_DIR}/product-spec/product-spec.md § {section}` —
-> this decision was made in the product spec."*
+> _"Check `{FEATURE_DIR}/product-spec/product-spec.md § {section}` —
+> this decision was made in the product spec."_
 
 If a blocker arises that requires changing the plan or tasks, surface it to the user
 before proceeding. Do not silently deviate from `tasks.md`.
@@ -206,6 +207,7 @@ curl -fsSL "https://pypi.org/pypi/<pkg>/json" | \
 ```
 
 Decision rules (default thresholds — overridable via `security.dependency_vetting` config):
+
 - **does-not-exist on the registry → BLOCK** (treat as hallucinated/slopsquat; do not add — surface as CRITICAL drift via the checkpoint's CRITICAL path below).
 - **on the project `denylist` → BLOCK.** **on the `allowlist` → PASS** (skip heuristics; trusted).
 - **brand-new (< `min_age_days`, default 30) OR low-popularity (< `min_downloads`, default 1000) → WARN** — require an explicit user confirmation through a structured prompt before the dep stays; record the confirmation.
@@ -215,16 +217,16 @@ Log **every** added dep (verdict + evidence) to `dependency-log.md` and append a
 ```yaml
 # traceability.yml (appended under a top-level dependencies: block)
 dependencies:
-  - pkg: "<pkg>"
-    version: "<ver>"
-    ecosystem: npm            # npm | pip
-    added_by_task: "<task-id>"
-    registry_exists: true
-    age_days: 412
-    downloads_last_month: 84210
-    list: none                # allowlist | denylist | none
-    verdict: pass             # pass | warn | block
-    confirmed_by_user: false  # true when a WARN dep was explicitly accepted
+    - pkg: '<pkg>'
+      version: '<ver>'
+      ecosystem: npm # npm | pip
+      added_by_task: '<task-id>'
+      registry_exists: true
+      age_days: 412
+      downloads_last_month: 84210
+      list: none # allowlist | denylist | none
+      verdict: pass # pass | warn | block
+      confirmed_by_user: false # true when a WARN dep was explicitly accepted
 ```
 
 **Checkpoint output** — append to `{FEATURE_DIR}/implementation-log.md`:
@@ -232,12 +234,12 @@ dependencies:
 ```markdown
 ## Checkpoint #{N} — After task {task-range}
 
-| Check | Status | Notes |
-|-------|:------:|-------|
-| Task-Code correspondence | {✅/⚠️/❌} | {details} |
-| Spec AC alignment | {✅/⚠️/❌} | {which AC checked} |
-| Unplanned changes | {✅ None / ⚠️ {N} files} | {file list} |
-| Plan alignment | {✅/⚠️/❌} | {details} |
+| Check                             |                          Status                          | Notes               |
+| --------------------------------- | :------------------------------------------------------: | ------------------- |
+| Task-Code correspondence          |                        {✅/⚠️/❌}                        | {details}           |
+| Spec AC alignment                 |                        {✅/⚠️/❌}                        | {which AC checked}  |
+| Unplanned changes                 |                 {✅ None / ⚠️ {N} files}                 | {file list}         |
+| Plan alignment                    |                        {✅/⚠️/❌}                        | {details}           |
 | Dependency / supply-chain (W5-C2) | {✅ None added / ✅ N vetted / ⚠️ N warn / ❌ N blocked} | {pkg@ver → verdict} |
 
 **Verdict:** {CLEAN — continue / WARNING — review needed / CRITICAL — pause required}
@@ -271,6 +273,7 @@ If CLEAN: continue silently (just append to implementation-log.md).
 After SpecKit implement returns, verify all tasks in `tasks.md` are `[x]`.
 
 If incomplete tasks remain:
+
 > ⚠️ {N} tasks still pending. Resume implementation? Or mark as skipped with a reason?
 
 If all `[x]`:
@@ -302,25 +305,25 @@ Update `.forge-status.yml`:
 
 ```yaml
 phases:
-  implement:
-    status: completed
-    red_gate:                     # v1.6, Theme D — Step 2.5 Red-gate outcome
-      status: confirmed_failing   # confirmed_failing | skipped
-      tests: [TC-*]               # the test-first tasks the gate covered
-      skip_reason: null           # set to the recorded reason when status: skipped
+    implement:
+        status: completed
+        red_gate: # v1.6, Theme D — Step 2.5 Red-gate outcome
+            status: confirmed_failing # confirmed_failing | skipped
+            tests: [TC-*] # the test-first tasks the gate covered
+            skip_reason: null # set to the recorded reason when status: skipped
 implement:
-  tasks_completed: {N}
-  tasks_total: {N}
-  progressive_checkpoints: {N}
-  progressive_warnings: {N}
-  progressive_critical: {N}
-  dependencies:                 # v1.6, W5-C2 — install-time supply-chain vetting
-    added: {N}                  # new deps introduced this phase
-    vetted: {N}                 # passed registry-exists + heuristics
-    warned: {N}                 # brand-new / low-popularity (user-confirmed)
-    blocked: {N}                # non-existent / denylisted — NOT added
-    log_path: "{FEATURE_DIR}/dependency-log.md"
-last_updated: "{ISO timestamp}"
+    tasks_completed: { N }
+    tasks_total: { N }
+    progressive_checkpoints: { N }
+    progressive_warnings: { N }
+    progressive_critical: { N }
+    dependencies: # v1.6, W5-C2 — install-time supply-chain vetting
+        added: { N } # new deps introduced this phase
+        vetted: { N } # passed registry-exists + heuristics
+        warned: { N } # brand-new / low-popularity (user-confirmed)
+        blocked: { N } # non-existent / denylisted — NOT added
+        log_path: '{FEATURE_DIR}/dependency-log.md'
+last_updated: '{ISO timestamp}'
 ```
 
 ---
@@ -332,6 +335,7 @@ Before handoff, write `{FEATURE_DIR}/implement/digest.md` using the template at
 its path on `.forge-status.yml` under `phases.implement.digest_path`.
 
 The digest must include:
+
 - **Key decisions** — deviations from `plan.md`, shortcuts taken, intentional TODOs left for follow-up.
 - **Artifacts produced** — implementation log, `dependency-log.md` (W5-C2 install-time dep vetting — every added dep with verdict + evidence), new/modified source files grouped by module.
 - **Open risks** — areas not covered by progressive verify, untested paths, known-tricky code.

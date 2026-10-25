@@ -38,8 +38,6 @@ import {
     type DatabaseService,
 } from '@kitchensink/db-schema-guard';
 
-import { LEGACY_RECREATE_TOKEN_PREFIX } from '../../src/db-bootstrap/disposition.js';
-
 import { domainParameterName } from './DomainStack.js';
 import { addMediaDelivery } from './mediaDelivery.js';
 import type { NetworkStack } from './NetworkStack.js';
@@ -72,18 +70,6 @@ const LAMBDA_ASSET_CANDIDATES = ((): { readonly dir: string; readonly present: b
 
     return { dir: found ?? candidates[0]!, present: found !== undefined };
 })();
-
-/**
- * ⚠️⚠️ The stages the ONE-SHOT legacy recreate is ARMED on (`docs/plans/2026-09-11-database-role-split.md`,
- * owner rulings 1, 2 and 8). While a stage is listed, a deploy may DROP a base database still owned by its
- * pre-role-split owner and recreate it owned by `<svc>_owner`; one already owned by `<svc>_owner` is left alone.
- *
- * ⛔ The DISARM commit — mandatory, the second prod deploy — DELETES this list, the arming property and flag, and the
- * recreate path itself (see `__tests__/roleSplitLegacyRecreateArmed.test.ts`, which restates the list and deletes
- * with it). A literal list rather than anything derived from the stage, so arming a stage is a reviewed line, never a
- * consequence.
- */
-const LEGACY_RECREATE_ARMED_STAGES: readonly string[] = ['sandbox', 'prod'];
 
 /** The construct-ID prefix of each database's bootstrap custom resource. */
 const SERVICE_RESOURCE_PREFIX: Readonly<Record<DatabaseService, string>> = {
@@ -439,8 +425,7 @@ export class DataStack extends Stack {
                   ),
             // ⚠️ 600 s — BELOW the provider framework's own 900 s. With the two equal, a long pass outlives the
             // framework, whose failure lets Lambda's async retry start a SECOND pass beside the live one (the
-            // advisory lock serializes them, but the timeout should not manufacture the race). The armed pass drops,
-            // recreates and re-owns in seconds; idempotent runs take less.
+            // advisory lock serializes them, but the timeout should not manufacture the race). A pass takes seconds.
             timeout: Duration.seconds(600),
             memorySize: 256,
             description: `Bootstrap the database role model (${stageTag})`,
@@ -453,11 +438,6 @@ export class DataStack extends Stack {
                 DB_PORT: this.database.dbInstanceEndpointPort,
                 STAGE: stageTag,
                 SENTRY_DSN: platformSentryDsn,
-                // ⚠️ The function's half of the ONE-SHOT arming: the handler arms only when this AND the event's
-                // `legacyRecreate` both name the stage, so a hand-crafted invoke cannot arm an unarmed deploy.
-                ...(LEGACY_RECREATE_ARMED_STAGES.includes(stageTag)
-                    ? { LEGACY_RECREATE_ARMED: `${LEGACY_RECREATE_TOKEN_PREFIX}:${stageTag}` }
-                    : {}),
             },
         });
         this.dbCredentialsSecret.grantRead(bootstrapFn);
@@ -469,7 +449,6 @@ export class DataStack extends Stack {
         // IAM-auth setting applied first. The logical IDs are distinct from `FoodDbBootstrap`/`RecipeDbBootstrap`,
         // whose resources a deploy deletes and whose handler answers that delete as a no-op.
         const isProdStage = stageTag === 'prod';
-        const armed = LEGACY_RECREATE_ARMED_STAGES.includes(stageTag);
         let previous: CustomResource | undefined;
 
         for (const [service, database] of [
@@ -488,9 +467,6 @@ export class DataStack extends Stack {
                     roleModelDigest: roleModelDigest(service, database, isProdStage),
                     // …and so must a changed HANDLER (the stub → bundle transition, or new pass logic).
                     codeSource: BOOTSTRAP_BUNDLE_DIGEST,
-                    // ⚠️ The ONE-SHOT legacy recreate, armed per stage (see LEGACY_RECREATE_ARMED_STAGES). Absent
-                    // everywhere once the disarm commit empties that list.
-                    ...(armed ? { legacyRecreate: `${LEGACY_RECREATE_TOKEN_PREFIX}:${stageTag}` } : {}),
                 },
             });
 

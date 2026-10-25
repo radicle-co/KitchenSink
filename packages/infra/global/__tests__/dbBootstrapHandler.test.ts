@@ -18,55 +18,23 @@ describe('parseBootstrapRequest', () => {
             roles: DATABASE_ROLES.food,
             database: 'kitchensink_food',
             isProd: false,
-            armed: false,
+        });
+        expect(
+            parseBootstrapRequest({ service: 'identity', database: 'kitchensink_identity' }, { STAGE: 'prod' }),
+        ).toMatchObject({
+            isProd: true,
         });
     });
 
-    it('is armed only when the event token AND the deployed function’s own flag both name its STAGE', () => {
-        const token = 'role-split-2026-09:prod';
-
-        expect(
-            parseBootstrapRequest(
-                { service: 'identity', database: 'kitchensink_identity', legacyRecreate: token },
-                { STAGE: 'prod', LEGACY_RECREATE_ARMED: token },
-            ),
-        ).toMatchObject({ armed: true, isProd: true });
-
-        expect(() =>
-            parseBootstrapRequest(
-                { service: 'identity', database: 'kitchensink_identity', legacyRecreate: 'role-split-2026-09:sandbox' },
-                { STAGE: 'prod', LEGACY_RECREATE_ARMED: token },
-            ),
-        ).toThrow(/legacy recreate/u);
-    });
-
-    it('⛔ refuses an ARMED event when the deployed function is not armed — a direct invoke cannot arm it', () => {
-        // The token is a public string; `lambda:Invoke` in this shared account is not the authority. The function's
-        // own environment — set only by a DataStack deploy of an armed stage — is.
+    it('⛔ refuses an event that still asks for the legacy recreate, which the disarm commit removed', () => {
+        // ADR-0039's one-shot recreate is gone. An event naming it is a forged invoke or a mis-wired stack, and is
+        // surfaced rather than quietly run as an ordinary pass.
         expect(() =>
             parseBootstrapRequest(
                 { service: 'food', database: 'kitchensink_food', legacyRecreate: 'role-split-2026-09:sandbox' },
-                { STAGE: 'sandbox' },
+                env,
             ),
-        ).toThrow(/not armed/u);
-    });
-
-    it('an armed function receiving an unarmed event runs an ordinary, unarmed pass', () => {
-        expect(
-            parseBootstrapRequest(
-                { service: 'food', database: 'kitchensink_food' },
-                { STAGE: 'sandbox', LEGACY_RECREATE_ARMED: 'role-split-2026-09:sandbox' },
-            ),
-        ).toMatchObject({ armed: false });
-    });
-
-    it('throws on a malformed function flag', () => {
-        expect(() =>
-            parseBootstrapRequest(
-                { service: 'food', database: 'kitchensink_food' },
-                { STAGE: 'sandbox', LEGACY_RECREATE_ARMED: 'role-split-2026-09:prod' },
-            ),
-        ).toThrow(/legacy recreate/u);
+        ).toThrow(/legacy recreate was removed/u);
     });
 
     it.each([

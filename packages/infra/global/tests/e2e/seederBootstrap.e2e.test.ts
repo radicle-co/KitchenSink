@@ -150,7 +150,6 @@ describe('the bootstrap pass with a seeder role, against real PostgreSQL', () =>
         database,
         master: MASTER,
         isProd: false,
-        armed: false,
         lockOutEdges: 'inherit-or-set',
     });
 

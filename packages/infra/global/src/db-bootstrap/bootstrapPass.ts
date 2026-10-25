@@ -4,20 +4,18 @@
  * The order is the safety property (`docs/plans/2026-09-11-database-role-split.md`, "Bootstrap pass"):
  *
  * 1. **Census** — logged, before anything changes, so a failed deploy's logs say what the catalog looked like.
- * 2. **Converge** — take the master out of every login role (an interrupted recreate can leave it in the app role),
- *    proven by a re-read.
+ * 2. **Converge** — take the master out of every login role, proven by a re-read.
  * 3. **Role model** — `applyRoleModel`, which grants `rds_iam` only after re-reading that the master cannot reach it.
  * 4. **Disposition** — read the database's owner from `pg_database`; measure emptiness only while the master owns it;
- *    `decideDisposition` answers create / ready / adopt / recreate / refuse. A refusal throws here, before any
- *    destructive statement.
- * 5. **Act** — create owned by the owner; adopt; or the one-shot legacy recreate followed by create.
- * 6. **Role model again** — re-grants `rds_iam` to the app role the recreate took it from.
- * 7. **Database ACL** — as the owner (`SET ROLE`), from the maintenance database: PUBLIC closed, CONNECT for every
+ *    `decideDisposition` answers create / ready / adopt / refuse. A refusal throws here, before the database is
+ *    touched. ADR-0039's one-shot legacy recreate ran on sandbox and prod and was deleted, so no answer drops one.
+ * 5. **Act** — create owned by the owner, or adopt.
+ * 6. **Database ACL** — as the owner (`SET ROLE`), from the maintenance database: PUBLIC closed, CONNECT for every
  *    login role, TEMPORARY for the seeder. Database-level only — schema grants are the migrator's, inside the database.
- * 8. **Postconditions** — the owner, not draining, PUBLIC without CONNECT, and each login role's rights
+ * 7. **Postconditions** — the owner, not draining, PUBLIC without CONNECT, and each login role's rights
  *    (`roles/loginRights.ts` in `@kitchensink/db-schema-guard`, the policy the migration runner applies to the database
  *    it migrates); all read from `postgres`, never by connecting in (prod's master cannot).
- * 9. **Master login probe** — a FRESH password login while this session is still held. If it fails, this session
+ * 8. **Master login probe** — a FRESH password login while this session is still held. If it fails, this session
  *    takes back what the pass granted the master, probes again, and fails the deploy either way.
  *
  * ⛔ Every role list here is derived from the registry (`loginRoles`, `databaseRoleNames`), never typed out: a login
@@ -49,7 +47,6 @@ import { decideDisposition, type DatabaseDisposition, type DatabaseRow } from '.
 import { BootstrapRefusedError } from './bootstrapRefusedError.js';
 import { MasterLoginProbeError } from './masterLoginProbeError.js';
 import { MasterUnreachableError, isCredentialRefusal } from './masterUnreachableError.js';
-import { recreateLegacyDatabase, type RecreateReport } from './legacyRecreate.js';
 import { releaseMasterFrom, revokeMembership } from './masterMembership.js';
 import { reportPerPrDatabases } from './perPrInventory.js';
 
@@ -79,8 +76,6 @@ export interface BootstrapPassInput {
     readonly database: string;
     readonly master: string;
     readonly isProd: boolean;
-    /** Whether the one-shot legacy recreate is armed for this stage (`legacyRecreateArmed`). */
-    readonly armed: boolean;
     /**
      * Which `pg_auth_members` rows count as membership for every lock-out question. Production never sets it, so it
      * is `every-row`; only a vanilla-PostgreSQL stand-in master passes `inherit-or-set` (see `edgeConfersMembership`).
@@ -93,7 +88,6 @@ export interface BootstrapPassReport {
     readonly service: DatabaseService;
     readonly database: string;
     readonly disposition: DatabaseDisposition['kind'];
-    readonly recreate?: RecreateReport;
 }
 
 /** Bases that have per-PR children (ADR-0006), whose census rides along. */
@@ -324,14 +318,14 @@ async function probeOrRollBack(ports: BootstrapPorts, input: BootstrapPassInput,
  * Run one database's bootstrap, holding the reserved `roleCatalog` advisory lock for its whole length.
  *
  * @param ports - The held master session, a factory for fresh master connections, and a logger.
- * @param input - The database, its roles, the stage kind, and whether the recreate is armed.
+ * @param input - The database, its roles and the stage kind.
  * @returns What the pass did.
  * @throws {BootstrapRefusedError} when the database or catalog is in a state it will not change.
  * @throws {MasterLoginProbeError} when a fresh master login fails after a step that grants memberships.
  * @throws {SessionLockTimeoutError} when another pass holds the lock past `ROLE_CATALOG_LOCK_TIMEOUT_MS`, which
  *   states why the wait is bounded and against which budget.
- * @sideEffect Takes and releases the role-catalog lock; creates/alters roles and memberships; creates, re-owns or
- *   (armed) drops databases.
+ * @sideEffect Takes and releases the role-catalog lock; creates/alters roles and memberships; creates or re-owns
+ *   databases.
  */
 export async function runBootstrapPass(ports: BootstrapPorts, input: BootstrapPassInput): Promise<BootstrapPassReport> {
     return withSessionAdvisoryLock(
@@ -366,7 +360,7 @@ async function runLockedPass(ports: BootstrapPorts, input: BootstrapPassInput): 
     }
 
     await applyRoleModel(session, { roles, context });
-    // ⛔ BEFORE anything destructive: if the role model just put the master on a path to rds_iam that the catalog
+    // ⛔ BEFORE the database is touched: if the role model just put the master on a path to rds_iam that the catalog
     // reading missed, the deploy fails here, with every database intact.
     await probeOrRollBack(ports, input, 'after the role model');
 
@@ -375,9 +369,7 @@ async function runLockedPass(ports: BootstrapPorts, input: BootstrapPassInput): 
         row !== undefined && row.owner === master && !row.draining ? await isEmpty(ports, database) : undefined;
     const disposition = decideDisposition({ ...input, row, empty });
 
-    log({ message: 'database disposition', service: input.service, database, armed: input.armed, disposition });
-
-    let recreate: RecreateReport | undefined;
+    log({ message: 'database disposition', service: input.service, database, disposition });
 
     switch (disposition.kind) {
         case 'refuse':
@@ -386,15 +378,6 @@ async function runLockedPass(ports: BootstrapPorts, input: BootstrapPassInput): 
             break;
         case 'adopt':
             await session.query(`ALTER DATABASE ${quote(database)} OWNER TO ${quote(roles.owner)}`);
-            break;
-        case 'recreate':
-            recreate = await recreateLegacyDatabase(session, {
-                ...input,
-                lockOutEdges,
-                legacyOwner: disposition.legacyOwner,
-            });
-            log({ message: 'legacy recreate', ...recreate });
-            await session.query(`CREATE DATABASE ${quote(database)} OWNER ${quote(roles.owner)}`);
             break;
         case 'create':
             await session.query(`CREATE DATABASE ${quote(database)} OWNER ${quote(roles.owner)}`);
@@ -407,12 +390,8 @@ async function runLockedPass(ports: BootstrapPorts, input: BootstrapPassInput): 
         }
     }
 
-    await applyRoleModel(session, { roles, context });
-    await probeOrRollBack(ports, input, 'after re-granting the login roles');
     await applyDatabaseAcl(session, input);
     await assertDatabasePostconditions(session, input);
 
-    return recreate === undefined
-        ? { service: input.service, database, disposition: disposition.kind }
-        : { service: input.service, database, disposition: disposition.kind, recreate };
+    return { service: input.service, database, disposition: disposition.kind };
 }

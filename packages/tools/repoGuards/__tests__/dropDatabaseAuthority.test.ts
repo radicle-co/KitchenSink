@@ -1,19 +1,17 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: **exactly two production files may issue `DROP DATABASE`** — the per-PR reaper, and the role
- * split's one-shot legacy recreate.
+ * Repo-wide guard: **exactly one production file may issue `DROP DATABASE`** — the per-PR reaper.
  *
  * ## Why
  *
  * A `DROP DATABASE` is the one statement in this repository that destroys data with no way back (ADR-0002: no
  * automatic snapshot). The role split (ADR-0039) deleted the per-service migration runners' `action: 'drop'` doors
  * so that the reaper — non-prod only, scope-checked twice, and able to drop only because the master INHERITs each
- * owner outside prod — is the ONLY thing that drops a per-PR database. The legacy recreate is the other, armed per
- * stage by a token the disarm commit removes. A third file acquiring the statement is a new destructive door, and it
- * must be argued in review, not discovered in an incident.
+ * owner outside prod — is the ONLY thing that drops a per-PR database. The role split's one-shot legacy recreate was
+ * the second door until it ran on sandbox and prod and the disarm commit deleted it. A second file acquiring the
+ * statement is a new destructive door, and it must be argued in review, not discovered in an incident.
  *
- * Asserted by EXACT EQUALITY, so the list also cannot keep an entry for a door that no longer exists — which is how
- * the disarm commit's deletion of the recreate will be forced to update this file.
+ * Asserted by EXACT EQUALITY, so the list also cannot keep an entry for a door that no longer exists.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -24,8 +22,6 @@ import { withoutComments } from './sourceComments.js';
 const DROP_AUTHORITY: readonly string[] = [
     // The per-PR reaper (ADR-0031): non-prod only, per-PR names only.
     'packages/infra/global/src/db-reaper/handler.ts',
-    // ⚠️ The role split's ONE-SHOT legacy recreate (ADR-0039): armed per stage, removed by the disarm commit.
-    'packages/infra/global/src/db-bootstrap/legacyRecreate.ts',
 ];
 
 /** The keywords, in any case — SQL does not care, so neither may the guard. */
@@ -58,7 +54,7 @@ describe('who may DROP DATABASE', () => {
         expect(issuesDropDatabase('an interrupted DROP DATABASE left it invalid')).toBe(false);
     });
 
-    it('is exactly the reaper and the armed legacy recreate — across TypeScript, JavaScript, shell and SQL', () => {
+    it('is exactly the reaper — across TypeScript, JavaScript, shell and SQL', () => {
         const droppers = productionScripts().filter((path) =>
             issuesDropDatabase(withoutComments(path, readSource(path))),
         );

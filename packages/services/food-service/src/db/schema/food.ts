@@ -110,6 +110,14 @@ export const food = pgTable(
         // — when a food has none (GR-019). A single `text` rather than `text[]` because the vector below
         // is a STORED generated column and `array_to_string` is STABLE, not IMMUTABLE.
         aliases: text('aliases'),
+        /**
+         * The bare nouns this seed root is the curated default for (migration 0027, ADR-0070 §4), in seed order; an
+         * empty array, never NULL, for every other row. Not a synonym: catalog-name identity never reads it.
+         */
+        defaultTerms: text('default_terms')
+            .array()
+            .notNull()
+            .default(sql`'{}'::text[]`),
         status: foodStatusEnum('status').notNull().default('PENDING'),
         /**
          * The root's item (0018, KTD-6): the unit its source rows, portions, provenance and categories attach
@@ -183,7 +191,7 @@ export const food = pgTable(
         //
         // ⚠️ **`0008_food_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows the
         // columns and so a reader sees them here. The expressions are asserted against the TypeScript
-        // reference, value by value, by `tests/rankingTerms.integration.test.ts` — which is the guard that
+        // reference, value by value, by `tests/e2e/rankingTerms.e2e.test.ts` — which is the guard that
         // actually catches drift between the two implementations, in either direction.
         rankFolded: text('rank_folded').generatedAlwaysAs(
             sql`btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' ')`,
@@ -205,6 +213,13 @@ export const food = pgTable(
         rankAliasKeys: text('rank_alias_keys')
             .array()
             .generatedAlwaysAs(sql`rank_alias_keys_of(aliases)`),
+        /**
+         * The default keys (migration 0027, ADR-0070 §4): `rankingKeyOf` of each default term, computed by the
+         * immutable `rank_default_keys_of()`. The `default` rung compares the query key with these.
+         */
+        rankDefaultKeys: text('rank_default_keys')
+            .array()
+            .generatedAlwaysAs(sql`rank_default_keys_of(default_terms)`),
     },
     (table) => [
         // 0013's dedup split (KTD-H): catalog-unique where unowned, per-author where owned — so two

@@ -113,7 +113,10 @@ describe('the barcode crosswalk reads catalog rows only — LOCAL e2e', () => {
     it("returns a catalog food by its barcode to any caller, at the crosswalk's score", async () => {
         const id = await foodWithBarcode({ name: 'cereal bar', userId: null, barcode: CATALOG_BARCODE });
 
-        expect((await strangerSearch(CATALOG_BARCODE)).results).toStrictEqual([{ id, name: 'cereal bar', score: 1 }]);
+        expect((await strangerSearch(CATALOG_BARCODE)).results).toStrictEqual([
+            // Rewritten (code-quality review W2): a crosswalk hit says it matched an identifier.
+            { id, name: 'cereal bar', score: 1, matchedBy: 'identifier' },
+        ]);
     });
 
     // The authored row is written first, so it is the first row the index holds for the barcode.
@@ -121,6 +124,9 @@ describe('the barcode crosswalk reads catalog rows only — LOCAL e2e', () => {
         await foodWithBarcode({ name: 'grandma spice mix', userId: AUTHOR_ULID, barcode: CATALOG_BARCODE });
         const id = await foodWithBarcode({ name: 'cereal bar', userId: null, barcode: CATALOG_BARCODE });
 
-        expect((await strangerSearch(CATALOG_BARCODE)).results).toStrictEqual([{ id, name: 'cereal bar', score: 1 }]);
+        expect((await strangerSearch(CATALOG_BARCODE)).results).toStrictEqual([
+            // Rewritten (code-quality review W2): a crosswalk hit says it matched an identifier.
+            { id, name: 'cereal bar', score: 1, matchedBy: 'identifier' },
+        ]);
     });
 });

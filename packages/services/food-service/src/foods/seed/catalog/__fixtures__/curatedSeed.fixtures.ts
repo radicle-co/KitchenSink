@@ -52,6 +52,7 @@ export function makeItemRoot(overrides: Partial<ItemRoot> = {}): ItemRoot {
         seedKey: 'fdc:100',
         name: 'beef brisket',
         synonyms: ['brisket'],
+        defaultFor: [],
         item: 'fdc:100',
         variants: [
             makeVariant({
@@ -106,6 +107,7 @@ export function makeSourcelessRoot(overrides: Partial<SourcelessRoot> = {}): Sou
         seedKey: 'curated:absinthe',
         name: 'absinthe',
         synonyms: [],
+        defaultFor: [],
         item: null,
         variants: [],
         nutrition: null,

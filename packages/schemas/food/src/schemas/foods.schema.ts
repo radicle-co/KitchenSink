@@ -496,7 +496,7 @@ export type CandidatesResponse = z.infer<typeof candidatesResponseSchema>;
  * `@kitchensink/recipe-core`, because this file is copied into a package that may import only zod;
  * `foods.schema.test.ts` fails if the two lists diverge.
  */
-export const rankTierSchema = z.enum(['base', 'covered', 'head', 'tokenSet', 'synonym', 'exact']);
+export const rankTierSchema = z.enum(['base', 'covered', 'head', 'tokenSet', 'default', 'synonym', 'exact']);
 
 export type RankTierView = z.infer<typeof rankTierSchema>;
 
@@ -510,8 +510,18 @@ export const searchResultViewSchema = z.object({
     /**
      * The rung the hit was ranked on (ADR-0070): the ONE authority for it, so a consumer records this value rather
      * than classifying the name again. Absent on a crosswalk hit, which matched an identifier, not a name.
+     *
+     * ⚠️ Tolerant on purpose: the ladder grows (ADR-0070 §4 added `default`), and a client built against an older
+     * ladder parses this response strictly. A rung it does not know reads as ABSENT, so the hit survives and the client
+     * treats it as unranked, rather than failing the whole response or dropping a progressive frame. Food still builds
+     * the value from the typed `RankTier`, so it never sends one outside {@link rankTierSchema}.
      */
-    rung: rankTierSchema.optional(),
+    rung: rankTierSchema.optional().catch(undefined),
+    /**
+     * What the hit matched: its `name` (ranked, so it carries a rung) or an `identifier` (a barcode or source-key
+     * crosswalk hit at score `1`, which carries none). Food sets it on every hit; tolerant for the reason `rung` is.
+     */
+    matchedBy: z.enum(['name', 'identifier']).optional().catch(undefined),
     /**
      * Per-100g macros, present only when the caller asked (`withNutrition=true`) AND the food has a
      * qualifying stored row — absent is "unknown", never zero (plan U4b: recipe-service's verification
@@ -551,13 +561,22 @@ export type SearchResponse = z.infer<typeof searchResponseSchema>;
  * no `visibility` (every hit is a catalog root), no macros (the opt-in enrichment is the per-caller `/search`'s). An
  * unknown key is stripped rather than passed on, so a client cannot learn "private" from a catalog body.
  */
-export const catalogSearchResultViewSchema = searchResultViewSchema.pick({
-    id: true,
-    name: true,
-    score: true,
-    rung: true,
-    variant: true,
-});
+export const catalogSearchResultViewSchema = searchResultViewSchema
+    .pick({
+        id: true,
+        name: true,
+        score: true,
+        variant: true,
+    })
+    .extend({
+        /**
+         * `true` exactly when the hit was ranked on the `default` rung: the curated default for the bare noun typed
+         * (ADR-0070 §4), which the picker lists first with a label and never preselects. Absent on every other hit.
+         * ⚠️ The rung itself is NOT published here: this body is client-read, edge-shared and embedded in progressive
+         * frames, and a closed rung enum would fail every client built before the ladder next grows.
+         */
+        isDefault: z.boolean().optional(),
+    });
 
 export type CatalogSearchResultView = z.infer<typeof catalogSearchResultViewSchema>;
 

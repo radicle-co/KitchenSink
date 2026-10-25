@@ -107,6 +107,28 @@ const CORRUPTIONS: readonly Corruption[] = [
             ]),
     },
     {
+        name: "the order of a root's default terms (ADR-0070 §4)",
+        tables: ['food'],
+        apply: async (client, ids) =>
+            client.query("UPDATE food SET default_terms = '{brisket cut,beef}' WHERE id = $1", [
+                idOf(ids.roots, 'fdc:100'),
+            ]),
+    },
+    {
+        name: 'a default term on a root that has none',
+        tables: ['food'],
+        apply: async (client, ids) =>
+            client.query("UPDATE food SET default_terms = '{absinthe}' WHERE id = $1", [
+                idOf(ids.roots, 'curated:absinthe'),
+            ]),
+    },
+    {
+        name: "a root's default terms removed",
+        tables: ['food'],
+        apply: async (client, ids) =>
+            client.query("UPDATE food SET default_terms = '{}' WHERE id = $1", [idOf(ids.roots, 'fdc:100')]),
+    },
+    {
         name: "a root's status",
         tables: ['food'],
         apply: async (client, ids) =>

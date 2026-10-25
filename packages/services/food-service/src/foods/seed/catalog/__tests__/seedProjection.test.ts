@@ -28,6 +28,7 @@ describe('projectSeed — roots, variants and items', () => {
         seedKey: 'fdc:100',
         name: 'beef brisket',
         synonyms: ['brisket', 'beef breast'],
+        defaultFor: ['brisket cut', 'beef chest'],
         item: 'fdc:100',
         variants: [makeVariant({ item: 'fdc:101', parts: [makePart({ text: 'flat' })] })],
         origin: 'curated',
@@ -64,11 +65,12 @@ describe('projectSeed — roots, variants and items', () => {
     );
     const { content } = projectSeed(image);
 
-    it('names a root by its seed key, with its own item’s numbers cited as that item', () => {
+    it('names a root by its seed key, with its default terms in seed order and its own item’s numbers', () => {
         expect(content.roots.get('fdc:100')).toEqual({
             seedKey: 'fdc:100',
             name: 'beef brisket',
             synonyms: ['brisket', 'beef breast'],
+            defaultFor: ['brisket cut', 'beef chest'],
             item: 'fdc:100',
             nutrition: {
                 citation: {

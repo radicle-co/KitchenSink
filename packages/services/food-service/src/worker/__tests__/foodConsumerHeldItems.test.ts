@@ -74,6 +74,8 @@ function foodRow(overrides: Partial<FoodRow> = {}): FoodRow {
         rankTokens: null,
         rankHead: null,
         rankAliasKeys: [],
+        defaultTerms: [],
+        rankDefaultKeys: [],
         ...overrides,
     };
 }

@@ -45,6 +45,9 @@ const MILK = 'fdc:746772';
 const MILK_VARIANT = 'fdc:171268';
 const OTHER_MILK_VARIANT = 'fdc:173441';
 
+/** The root the owner ruled the default for `milk` (ADR-0070 §4). */
+const WHOLE_MILK = 'fdc:746782';
+
 /** What a corruption must produce: `verify` naming a table, or the schema refusing the change with a code. */
 type Outcome = { readonly fails: string } | { readonly refused: string };
 
@@ -103,6 +106,11 @@ const COLUMN_CELLS: Readonly<Record<string, Cell>> = {
     'food.aliases': {
         name: "a root's synonyms",
         sql: [`UPDATE food SET aliases = aliases || '; corrupt' WHERE id = ${root(MILK)}`],
+        outcome: { fails: 'food' },
+    },
+    'food.default_terms': {
+        name: "a root's default terms (ADR-0070 §4)",
+        sql: [`UPDATE food SET default_terms = '{}' WHERE id = ${root(WHOLE_MILK)}`],
         outcome: { fails: 'food' },
     },
     'food.status': {

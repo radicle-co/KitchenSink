@@ -29,7 +29,7 @@
  * ladder is **additive**: a structural tier dominates any base-metric difference, and INSIDE a tier the base
  * metric — penalty and all — still decides.
  *
- * ## The five tiers, worst first
+ * ## The tiers, worst first
  *
  * | tier       | holds when                                                | what it buys                                    |
  * | ---------- | --------------------------------------------------------- | ----------------------------------------------- |
@@ -37,10 +37,15 @@
  * | `covered`  | every query token appears as a whole word in the name      | multi-word conjunction; the attractors land here |
  * | `head`     | the name's head term is the query's head term              | `milk` → `whole milk` over `milk crackers`       |
  * | `tokenSet` | the name and the query are the same set of tokens          | word-order inversion (`red wine vinegar`)        |
+ * | `default`  | the query IS one of the root's curated default terms       | `milk` → `whole milk` over `1% milk` (ADR-0070)  |
  * | `synonym`  | the query IS one of the root's curated synonyms            | `granulated sugar` → `sugar` (ADR-0070)          |
  * | `exact`    | the folded name IS the folded query                        | the name that is the token wins outright         |
  *
  * The head rule is one English head-noun rule for a name and a query alike, `rankingHeadOf` (`./rankingTerms.ts`).
+ *
+ * ⚠️ A `default` is NOT a synonym. A synonym is the food itself, and food's catalog-name identity binds a synonym with
+ * no cook involved; a default term only lists its root first for a bare noun (`milk` → whole milk), and the UI labels it
+ * and never selects it. It ranks below `synonym` so a root that IS the phrase, by name or synonym, still wins.
  *
  * ## The score is the SORT KEY, and it stays inside `[0, 1)`
  *
@@ -57,8 +62,10 @@
  * published wire contract, which documents `1` as the crosswalk value.
  */
 
+import type { CatalogNameTerms, RankingTerms } from './rankingTerms.js';
+
 /** The tiers, worst first — so a tier's ordinal IS its index. */
-export const RANK_TIERS = ['base', 'covered', 'head', 'tokenSet', 'synonym', 'exact'] as const;
+export const RANK_TIERS = ['base', 'covered', 'head', 'tokenSet', 'default', 'synonym', 'exact'] as const;
 
 /** One rung of the ladder. */
 export type RankTier = (typeof RANK_TIERS)[number];
@@ -111,18 +118,6 @@ export function rankTierOrdinal(tier: RankTier): number {
     return RANK_TIERS.indexOf(tier);
 }
 
-/** The shape both {@link classifyRankTier} operands take — see `rankingTerms.ts`. */
-interface Terms {
-    readonly folded: string;
-    readonly tokens: readonly string[];
-    readonly head: string | undefined;
-}
-
-/** A catalog root's operand: its name's terms plus its synonym keys (`describeCatalogName`). */
-interface CatalogTerms extends Terms {
-    readonly synonymKeys: readonly string[];
-}
-
 /** Whether two token lists denote the same SET (multiplicity ignored). Pure. */
 function sameTokenSet(a: readonly string[], b: readonly string[]): boolean {
     const left = new Set(a);
@@ -138,11 +133,11 @@ function sameTokenSet(a: readonly string[], b: readonly string[]): boolean {
  * `base` rather than being promoted by a vacuous comparison — `''` equals `''` and `[].every()` is `true`,
  * so both are guarded explicitly.
  *
- * @param name - The candidate's terms (`describeRankingName`).
+ * @param name - The candidate root's terms (`describeCatalogName`).
  * @param query - The query's terms (`describeRankingQuery`).
  * @returns The rung. Pure.
  */
-export function classifyRankTier(name: CatalogTerms, query: Terms): RankTier {
+export function classifyRankTier(name: CatalogNameTerms, query: RankingTerms): RankTier {
     if (query.tokens.length === 0 || name.tokens.length === 0) {
         return 'base';
     }
@@ -151,8 +146,12 @@ export function classifyRankTier(name: CatalogTerms, query: Terms): RankTier {
         return 'exact';
     }
 
-    if (name.synonymKeys.includes(query.tokens.join(' '))) {
+    if (name.synonymKeys.includes(query.key)) {
         return 'synonym';
+    }
+
+    if (name.defaultKeys.includes(query.key)) {
+        return 'default';
     }
 
     if (sameTokenSet(name.tokens, query.tokens)) {

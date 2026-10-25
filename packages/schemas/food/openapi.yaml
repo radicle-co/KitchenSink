@@ -1906,8 +1906,14 @@ components:
             - covered
             - head
             - tokenSet
+            - default
             - synonym
             - exact
+        matchedBy:
+          type: string
+          enum:
+            - name
+            - identifier
         caloriesPer100g:
           type: number
         proteinGPer100g:
@@ -1946,18 +1952,11 @@ components:
           type: string
         score:
           type: number
-        rung:
-          type: string
-          enum:
-            - base
-            - covered
-            - head
-            - tokenSet
-            - synonym
-            - exact
         variant:
           allOf:
             - $ref: "#/components/schemas/VariantView"
+        isDefault:
+          type: boolean
       required:
         - id
         - name

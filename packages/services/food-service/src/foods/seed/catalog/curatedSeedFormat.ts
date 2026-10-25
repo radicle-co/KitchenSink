@@ -165,10 +165,19 @@ const manufacturerLabelSchema = z
 
 const rootNutritionSchema = z.discriminatedUnion('source', [sourceItemSchema, manufacturerLabelSchema]);
 
+/**
+ * The bare nouns a root is the curated default for (ADR-0070 §4): `milk` lists whole milk first. Absent means none, so
+ * a line need not state it. NOT a synonym: a synonym is the food itself, and catalog-name identity binds it with no cook
+ * involved. The rules that span roots (a term no other name, synonym or default already keys) live in `seedImage.ts`,
+ * which sees every root.
+ */
+const defaultForSchema = z.array(z.string().min(1)).default([]);
+
 const itemRootSchema = z.strictObject({
     seedKey: seedKeySchema,
     name: rootNameSchema,
     synonyms: z.array(z.string().min(1)),
+    defaultFor: defaultForSchema,
     item: fdcKeySchema,
     variants: z.array(variantSchema),
 });
@@ -177,6 +186,7 @@ const sourcelessRootSchema = z.strictObject({
     seedKey: curatedKeySchema,
     name: rootNameSchema,
     synonyms: z.array(z.string().min(1)),
+    defaultFor: defaultForSchema,
     item: z.null(),
     variants: z.array(variantSchema).max(0),
     nutrition: rootNutritionSchema.nullable(),

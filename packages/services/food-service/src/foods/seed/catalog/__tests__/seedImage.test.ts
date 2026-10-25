@@ -266,6 +266,79 @@ describe('composeSeedImage — roots', () => {
     });
 });
 
+describe('composeSeedImage — default terms (ADR-0070 §4)', () => {
+    /** The inputs with the flour root's, and optionally the brisket root's, default terms replaced. */
+    function withDefaults(flour: readonly string[], brisket: readonly string[] = []): SeedInputs {
+        return inputs({
+            roots: [
+                makeItemRoot({ defaultFor: [...brisket] }),
+                CHICKEN_ROOT,
+                makeItemRoot({ ...FLOUR_ROOT, defaultFor: [...flour] }),
+                ADOBO,
+            ],
+        });
+    }
+
+    it('carries each curated root’s default terms onto its image root, in order; a baseline root holds none', () => {
+        const image = composeSeedImage(withDefaults(['flour', 'plain flour']));
+
+        expect(image.roots.get('fdc:789890')?.defaultFor).toEqual(['flour', 'plain flour']);
+        expect(image.roots.get('fdc:100')?.defaultFor).toEqual([]);
+        expect(image.roots.get('fdc:170379')?.defaultFor).toEqual([]);
+    });
+
+    it.each<[string, SeedInputs, SeedRule, string]>([
+        ['a term that is another root’s name', withDefaults(['Beef Brisket']), 'defaultTermIsAName', 'fdc:789890'],
+        [
+            'a term that is its own root’s name',
+            withDefaults(['All-Purpose Flours']),
+            'defaultTermIsAName',
+            'fdc:789890',
+        ],
+        [
+            'a term that is an untouched baseline root’s name',
+            withDefaults(['broccoli, raw']),
+            'defaultTermIsAName',
+            'fdc:789890',
+        ],
+        ['a term that is another root’s synonym', withDefaults(['briskets']), 'defaultTermIsASynonym', 'fdc:789890'],
+        ['a term that is its own root’s synonym', withDefaults(['White Flour']), 'defaultTermIsASynonym', 'fdc:789890'],
+        [
+            'a term two roots both default to, once folded',
+            withDefaults(['flour'], ['Flours']),
+            'defaultTermRepeated',
+            'fdc:789890',
+        ],
+        [
+            'a term one root lists twice, once folded',
+            withDefaults(['flour', 'FLOUR']),
+            'defaultTermRepeated',
+            'fdc:789890',
+        ],
+        [
+            'a term with no letter or digit, which no query can key',
+            withDefaults(['---']),
+            'defaultTermEmpty',
+            'fdc:789890',
+        ],
+    ])('refuses %s', (_label, seedInputs, rule, where) => {
+        expect(causesOf(seedInputs)).toEqual([{ rule, where }]);
+    });
+
+    it('reports every colliding term, not only the first', () => {
+        expect(causesOf(withDefaults(['beef brisket', 'white flour', '---']))).toEqual([
+            { rule: 'defaultTermIsAName', where: 'fdc:789890' },
+            { rule: 'defaultTermIsASynonym', where: 'fdc:789890' },
+            { rule: 'defaultTermEmpty', where: 'fdc:789890' },
+        ]);
+    });
+
+    it('accepts a term no name, synonym or other default keys, even when a name CONTAINS it', () => {
+        // `flour` is inside `all-purpose flour` and is the head of several names; it is still no name's whole key.
+        expect(() => composeSeedImage(withDefaults(['flour'], ['beef']))).not.toThrow();
+    });
+});
+
 describe('composeSeedImage — items and their sources (R9, R48)', () => {
     const image = composeSeedImage(inputs());
 

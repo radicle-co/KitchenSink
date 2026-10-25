@@ -316,7 +316,8 @@ export class FoodSearchDao {
      * captures this very statement). Second, the score is NORMALIZED into `[0, 1)` on purpose:
      * `FoodsService.search` unshifts a barcode / external-key crosswalk hit at score exactly `1`, and
      * recipe-service's `FoodCatalogGateway` re-sorts the page by score — an un-normalized tiered score would
-     * reach 9 and silently demote an exact identifier match below a lexical one.
+     * reach 13 (`TIER_GAP` × the top rung's ordinal + `BASE_METRIC_MAX`, with seven rungs) and silently demote an
+     * exact identifier match below a lexical one.
      *
      * @param query - The trimmed user query.
      * @param scope - Whose rows the statement may return ({@link scopePredicate}).
@@ -335,7 +336,10 @@ export class FoodSearchDao {
                        ts_rank(aliases_search_vector, plainto_tsquery('english', ${query})),
                        similarity(name, ${query})
                    )`;
-        const score = catalogTieredSortKey(query, baseMetric);
+        // The query's ranking terms, computed ONCE: the sort key, the published rung and head-term retrieval all read
+        // these, so they cannot disagree about the query.
+        const terms = describeRankingQuery(query);
+        const score = catalogTieredSortKey(terms, baseMetric);
 
         // ⛔ HEAD-TERM RETRIEVAL. U6 widened retrieval with a head-term branch and put it on the recipe-LOCAL
         // table (`IngredientsDal.search`); its plan entry names two files, both in recipe-service. The
@@ -353,12 +357,12 @@ export class FoodSearchDao {
         //
         // ⚠️ It widens the CANDIDATE set only. The tier ladder still decides the order, so a head-term hit
         // that is a poor match lands on a low rung rather than jumping the queue.
-        const head = describeRankingQuery(query).head;
+        const { head } = terms;
         const headTerm = head === undefined ? sql`` : sql` OR rank_tokens @> ARRAY[${head}]::text[]`;
 
         return sql`
             SELECT food.id, food.name, food.aliases, food.user_id, food.visibility, ${score} AS score,
-                   ${catalogRankTierOrdinal(query)} AS rung_ordinal
+                   ${catalogRankTierOrdinal(terms)} AS rung_ordinal
             FROM food
             WHERE status = 'RESOLVED'
               -- ADR-0050 §4: a retired root has been forwarded, and search never lists it (curated U8 S3).
@@ -392,7 +396,9 @@ export class FoodSearchDao {
             name: string | null;
             aliases: string | null;
             score: number;
-            rung_ordinal: number;
+            // A driver's type parsers decide whether an integer arrives as a number or a string; read it through
+            // `Number` either way.
+            rung_ordinal: number | string;
             visibility: string;
             user_id: string | null;
         }>(statement);

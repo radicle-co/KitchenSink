@@ -553,7 +553,7 @@ describe('buildVerificationRequests — what the SOURCE printed travels with the
 describe('band consultation — earned autonomy at the producer (plan U4b, KTD-A)', () => {
     const KEY = bandKeyText({
         rung: 'head',
-        marginBand: '0.15+',
+        marginBand: 'ge-0.9-rung',
         queryShape: 'single-token',
         rankerVersion: 'ladder-v2-comma-head',
     });
@@ -630,7 +630,7 @@ describe("pending re-drives — the withholding lines' stored messages (plan U4c
     it('⛔ a band-EXCUSED line emits none — it is not pending, it settled instantly', () => {
         const KEY = bandKeyText({
             rung: 'head',
-            marginBand: '0.15+',
+            marginBand: 'ge-0.9-rung',
             queryShape: 'single-token',
             rankerVersion: 'ladder-v2-comma-head',
         });

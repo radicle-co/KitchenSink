@@ -28,9 +28,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    describeCatalogName,
     describeRankingQuery,
     describeRankingName,
     foldForRanking,
+    rankingKeyOf,
     rankingTokens,
     singularizeRankingText,
     singularizeRankingToken,
@@ -226,19 +228,26 @@ describe('describeRankingQuery — a typed phrase takes the SAME head rule as a 
         expect(describeRankingQuery('all purpose flour, bleached').head).toBe('flour');
     });
 
-    it('⛔ agrees with the name rule on every phrase, so a name and its own text always meet at the head rung', () => {
-        // Rewritten: this test once pinned the opposite (an asymmetry between the two sides). One rule now.
+    // Rewritten (code-quality review M6): the name and the query are now ONE constructor, so "the query agrees with the
+    // name rule" became a tautology. What can still drift is the comparison KEY: the rung reads `terms.key`, and the
+    // SQL mirrors read `rankingKeyOf`, so the two must be one spelling. The inputs are the e2e suite's synonym sets.
+    it('⛔ carries the comparison key rankingKeyOf computes, for every phrase', () => {
         for (const phrase of [
-            'Carob flour',
-            'milk crackers',
-            'Flour, wheat',
-            'Tamales (Navajo)',
-            'walnuts in syrup',
-            'Cinnamon buns, frosted',
-            ', frosted',
+            'granulated sugar',
+            'white sugar',
+            'Chicken Eggs',
+            'large eggs',
+            'bacalao',
+            'baccalà',
+            'salted cod',
+            'half-and-half',
+            'half & half',
             '   ',
+            '---',
+            'Peaches',
         ]) {
-            expect(describeRankingQuery(phrase).head).toBe(describeRankingName(phrase).head);
+            expect(describeRankingQuery(phrase).key).toBe(rankingKeyOf(phrase));
+            expect(describeRankingName(phrase).key).toBe(rankingKeyOf(phrase));
         }
     });
 
@@ -252,6 +261,26 @@ describe('describeRankingQuery — a typed phrase takes the SAME head rule as a 
             folded: 'brown sugars',
             tokens: ['brown', 'sugar'],
             head: 'sugar',
+            key: 'brown sugar',
         });
+    });
+});
+
+describe("describeCatalogName — a root's default terms (ADR-0070 §4)", () => {
+    it('keys each default term as rankingKeyOf does, in order, empty keys dropped', () => {
+        expect(
+            describeCatalogName('whole milk', ['vitamin D milk'], ['Milk', '  ', 'Whole  Milks']).defaultKeys,
+        ).toEqual(['milk', 'whole milk']);
+    });
+
+    it('keeps default keys apart from synonym keys: a default is not a synonym', () => {
+        const terms = describeCatalogName('whole milk', ['vitamin D milk'], ['milk']);
+
+        expect(terms.synonymKeys).toEqual(['vitamin d milk']);
+        expect(terms.defaultKeys).toEqual(['milk']);
+    });
+
+    it('holds no default keys for a root with no default terms', () => {
+        expect(describeCatalogName('1% milk', [], []).defaultKeys).toEqual([]);
     });
 });

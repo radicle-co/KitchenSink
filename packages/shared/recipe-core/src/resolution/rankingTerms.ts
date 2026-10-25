@@ -150,6 +150,8 @@ export interface RankingTerms {
     readonly tokens: readonly string[];
     /** The head term, or `undefined` when the text holds nothing alphanumeric. */
     readonly head: string | undefined;
+    /** {@link rankingKeyOf}: what the `synonym` and `default` rungs compare against a root's keys. */
+    readonly key: string;
 }
 
 /**
@@ -206,13 +208,26 @@ export function rankingHeadOf(text: string): string | undefined {
 }
 
 /**
+ * Parse a name or a typed phrase into its ranking terms: the ONE constructor behind {@link describeRankingName} and
+ * {@link describeRankingQuery}, so the two sides cannot derive a term differently.
+ *
+ * @param text - A catalog name or a typed query.
+ * @returns Its ranking terms. Pure.
+ */
+function describeRankingText(text: string): RankingTerms {
+    const tokens = rankingTokens(text);
+
+    return { folded: foldForRanking(text), tokens, head: rankingHeadOf(text), key: tokens.join(' ') };
+}
+
+/**
  * Parse a CATALOG NAME into its ranking terms. The head is {@link rankingHeadOf}'s, the same as a query's.
  *
  * @param name - The catalog display name.
  * @returns Its ranking terms. Pure.
  */
 export function describeRankingName(name: string): RankingTerms {
-    return { folded: foldForRanking(name), tokens: rankingTokens(name), head: rankingHeadOf(name) };
+    return describeRankingText(name);
 }
 
 /**
@@ -227,27 +242,42 @@ export function rankingKeyOf(text: string): string {
     return rankingTokens(text).join(' ');
 }
 
-/** A catalog root's ranking terms: its name's terms, plus the keys of its curated synonyms. */
+/** A catalog root's ranking terms: its name's terms, plus the keys of its curated synonyms and default terms. */
 export interface CatalogNameTerms extends RankingTerms {
     /** {@link rankingKeyOf} of each synonym, empty keys removed. What the `synonym` rung compares. */
     readonly synonymKeys: readonly string[];
+    /** {@link rankingKeyOf} of each default term, empty keys removed. What the `default` rung compares. */
+    readonly defaultKeys: readonly string[];
 }
 
 /**
- * Parse a catalog ROOT — its name and its synonyms — into the terms the ladder classifies.
+ * The non-empty {@link rankingKeyOf} keys of a list of phrases, in order. Pure.
  *
- * The synonyms are REQUIRED, not defaulted: a caller that forgets them would rank every root as if it had none, and
- * the `synonym` rung would silently never hold.
+ * @param phrases - Synonyms or default terms.
+ * @returns Their keys, empty keys removed.
+ */
+function keysOf(phrases: readonly string[]): readonly string[] {
+    return phrases.map(rankingKeyOf).filter((key) => key.length > 0);
+}
+
+/**
+ * Parse a catalog ROOT — its name, its synonyms and its default terms — into the terms the ladder classifies.
+ *
+ * The synonyms and default terms are REQUIRED, not defaulted: a caller that forgets either would rank every root as if
+ * it had none, and that rung would silently never hold. ⚠️ The SQL mirrors are `rank_alias_keys_of()` (migration 0026)
+ * and `rank_default_keys_of()` (migration 0027).
  *
  * @param name - The root's display name.
  * @param synonyms - The root's curated synonyms (food's `aliases`, split on its delimiter).
+ * @param defaultTerms - The bare nouns this root is the curated default for (food's `default_terms`, ADR-0070 §4).
  * @returns The terms. Pure.
  */
-export function describeCatalogName(name: string, synonyms: readonly string[]): CatalogNameTerms {
-    return {
-        ...describeRankingName(name),
-        synonymKeys: synonyms.map(rankingKeyOf).filter((key) => key.length > 0),
-    };
+export function describeCatalogName(
+    name: string,
+    synonyms: readonly string[],
+    defaultTerms: readonly string[],
+): CatalogNameTerms {
+    return { ...describeRankingName(name), synonymKeys: keysOf(synonyms), defaultKeys: keysOf(defaultTerms) };
 }
 
 /**
@@ -261,5 +291,5 @@ export function describeCatalogName(name: string, synonyms: readonly string[]): 
  * @returns Its ranking terms. Pure.
  */
 export function describeRankingQuery(query: string): RankingTerms {
-    return { folded: foldForRanking(query), tokens: rankingTokens(query), head: rankingHeadOf(query) };
+    return describeRankingText(query);
 }

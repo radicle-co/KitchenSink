@@ -11,9 +11,7 @@ import userEvent from '@testing-library/user-event';
 import type { ImportCandidate } from '../importLine.js';
 import { ImportLineOptionsPane } from '../ImportLineOptionsPane.js';
 import { ImportLineOptionsSheet } from '../ImportLineOptionsSheet.js';
-import { importMessages } from '../messages.js';
 
-const f = importMessages.en.flagged;
 const LINE = '1 1/4 cups milk';
 const MILK: readonly ImportCandidate[] = [
     { id: 'f-whole', name: 'Whole milk', isDefault: true },
@@ -69,7 +67,7 @@ describe('ImportLineOptionsSheet (web)', () => {
         const user = userEvent.setup();
         const { onOpenChange } = renderSheet();
 
-        await user.click(screen.getByRole('button', { name: f.sheetClose }));
+        await user.click(screen.getByRole('button', { name: `Close options for ${LINE}` }));
 
         expect(onOpenChange).toHaveBeenCalledWith(false);
     });

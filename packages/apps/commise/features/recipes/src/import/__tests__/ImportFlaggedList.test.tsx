@@ -85,12 +85,17 @@ describe('ImportFlaggedList (web)', () => {
         expect(onSearch).toHaveBeenCalledWith('milk');
     });
 
-    it('gives Search a 44 px target', () => {
+    it('gives Search a 44 px target at every pointer: the 36 px small button with its hit overlay', () => {
         renderList();
 
-        expect(screen.getByRole('button', { name: 'Search for a food for 1 1/4 cups milk' }).className).toContain(
-            'min-h-11',
-        );
+        // `sm` is the one size whose hit area stays 44 px under a fine pointer (`@commise/ui` `surfaceClass.ts`): a
+        // transparent `::before` 4 px above and below its 36 px box. `md` drops its floor to 0 for a mouse.
+        const classes = screen
+            .getByRole('button', { name: 'Search for a food for 1 1/4 cups milk' })
+            .className.split(' ');
+
+        expect(classes).toEqual(expect.arrayContaining(['min-h-9', 'before:-inset-y-1']));
+        expect(classes.some((token) => token.includes('min-h-0'))).toBe(false);
     });
 
     it('a row with no suggestion offers Search alone', () => {

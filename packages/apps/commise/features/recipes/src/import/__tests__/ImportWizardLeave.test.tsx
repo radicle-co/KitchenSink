@@ -65,6 +65,17 @@ describe('ImportWizardLeave (web)', () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
+    it('its close control says that closing keeps reviewing, and does', async () => {
+        const user = userEvent.setup();
+        const { onKeepReviewing, onConfirm } = renderLeave();
+
+        await user.click(screen.getByRole('button', { name: l.close }));
+
+        expect(l.close.startsWith('Close')).toBe(true);
+        expect(onKeepReviewing).toHaveBeenCalledTimes(1);
+        expect(onConfirm).not.toHaveBeenCalled();
+    });
+
     it('closing the dialog any other way keeps reviewing', async () => {
         const user = userEvent.setup();
         const { onKeepReviewing, onConfirm } = renderLeave();

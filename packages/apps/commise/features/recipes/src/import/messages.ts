@@ -137,7 +137,7 @@ export interface ImportMessages {
         readonly resume: string;
         readonly keep: string;
         readonly confirm: string;
-        /** The sheet's close control. It keeps reviewing too. */
+        /** The sheet's close control (house form "Close {thing}"). Closing keeps reviewing, and the name says so. */
         readonly close: string;
     };
     readonly summary: {
@@ -184,7 +184,7 @@ export interface ImportMessages {
         readonly searchName: string;
         /** Contains `{count}`. */
         readonly footer: string;
-        /** The options sheet's close control. */
+        /** The options sheet's close control (house form "Close {thing}"; contains `{line}`). */
         readonly sheetClose: string;
     };
 }
@@ -281,7 +281,7 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             resume: 'They wait under “To review” in My recipes, and you can pick up at recipe {next}.',
             keep: 'Keep reviewing',
             confirm: 'Save and leave',
-            close: 'Close',
+            close: 'Close and keep reviewing',
         },
         summary: {
             title: 'Your library is in',
@@ -316,7 +316,7 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             search: 'Search',
             searchName: 'Search for a food for {line}',
             footer: 'Each line also has a mark in its recipe. “{count} to check” stays at the top of My recipes until you are done.',
-            sheetClose: 'Close',
+            sheetClose: 'Close options for {line}',
         },
     },
 };

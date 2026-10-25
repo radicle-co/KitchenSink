@@ -53,6 +53,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                                 )}
                                 <Button
                                     variant="ghost"
+                                    size="sm"
                                     icon="search"
                                     accessibilityLabel={fillTemplate(f.searchName, { line: line.text })}
                                     onPress={() => onSearch(line.key)}

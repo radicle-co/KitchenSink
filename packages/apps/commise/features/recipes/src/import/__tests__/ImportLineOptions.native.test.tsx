@@ -53,6 +53,8 @@ describe('ImportLineOptions (native)', () => {
             `Keep “${LINE}” as written${m.keepHint}`,
         ]);
         expect(within(group).queryByRole('radio', { checked: true })).toBeNull();
+        // The native rows are Pressables; the web leaf's Radix rows would be <button>s with the same text.
+        expect(radios.some((radio) => radio.tagName === 'BUTTON')).toBe(false);
     });
 
     it('checks the picked food', () => {

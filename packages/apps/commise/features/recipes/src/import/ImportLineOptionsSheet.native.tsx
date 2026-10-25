@@ -9,6 +9,7 @@ import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { fillTemplate } from '../format/fillTemplate.js';
 import { ImportLineOptions } from './ImportLineOptions.js';
 import { importMessages } from './messages.js';
 import type { ImportLineOptionsSheetProps } from './props.js';
@@ -18,7 +19,13 @@ export const ImportLineOptionsSheet: FC<ImportLineOptionsSheetProps> = ({ open, 
     const { flagged: f } = useMessages(importMessages);
 
     return (
-        <Sheet open={open} onOpenChange={onOpenChange} title={title} closeLabel={f.sheetClose} size="content">
+        <Sheet
+            open={open}
+            onOpenChange={onOpenChange}
+            title={title}
+            closeLabel={fillTemplate(f.sheetClose, { line: options.lineText })}
+            size="content"
+        >
             <View style={styles.column}>
                 <ImportLineOptions {...options} />
             </View>

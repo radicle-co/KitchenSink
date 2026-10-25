@@ -83,6 +83,7 @@
         "./chip": "./src/chip/index.ts",
         "./segmented-control": "./src/segmentedControl/index.ts",
         "./radio-list": "./src/radioList/index.ts",
+        "./progress-bar": "./src/progressBar/index.ts",
         "./search-field": "./src/searchField/index.ts",
         "./section-switch": "./src/sectionSwitch/index.ts",
         "./section-index": "./src/sectionIndex/index.ts",

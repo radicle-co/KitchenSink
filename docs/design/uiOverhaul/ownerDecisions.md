@@ -5,6 +5,13 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 
 ## Decided by the owner
 
+- **Browser storage ruling overturned (owner, 2026-10-25).** The ruling of 2026-09-17 that the browser keeps no
+  durable app data, and that persistence to disk is mobile-only, is overturned. D7, D18 and the recent-search entry
+  below began as narrow exceptions to it. They now stand as decisions of their own, and storing other app data in the
+  browser is open to a later decision.
+- **Web offline start (owner, 2026-10-25).** Web gets the same offline start as mobile (`specs/019-offline-mode`). When
+  it ships, the web editor draft and unsent saves move from `sessionStorage` to durable browser storage, which ends
+  D7's tab lifetime.
 - **D1, create and edit.** Create and edit use one scrolling editor page. The page has a section index and autosave.
   (Guided progress for a first recipe was part of this decision and was dropped on 2026-10-13, below.) A published recipe saves to the device until the cook presses "Save changes".
   The four-step wizard is retired.
@@ -22,8 +29,8 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 - **D5, navigation breakpoint.** The sidebar replaces the tab bar at 840 px and wider.
 - **D6, iPad.** The iPad keeps the bottom tab bar in both orientations (owner directive of 2026-07-18).
 - **D7, web editor draft.** On web, the editor draft (ids and form values only) is kept in `sessionStorage`. It
-  survives a reload in the same tab. Closing the tab ends it. This is a narrow exception to the owner's ruling
-  of 2026-09-17 that the browser keeps no durable app data. It covers the editor draft and the editor's unsent saves
+  survives a reload in the same tab. Closing the tab ends it. It began as a narrow exception to the ruling
+  of 2026-09-17, which is now overturned (above). It covers the editor draft and the editor's unsent saves
   (the outbox journal, ids and form values only), and nothing else (owner, 2026-10-09). Signing out clears both.
 - **D9, draft versions.** Saves of a never-published draft overwrite it in place and create no version. Versions
   start at the first publish. This needs a new ADR that amends ADR-0034, written with slice 7.
@@ -52,8 +59,8 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 - **D17, theme choice.** The app follows the device or browser appearance setting. There is no in-app theme switch
   for now.
 - **D18, cook marks on web.** The recipe page keeps the ticked ingredients and the current step in `sessionStorage`,
-  as recipe and line ids only. They survive a reload in the same tab. Closing the tab or signing out clears them. This
-  is a narrow exception to the ruling of 2026-09-17, after D7.
+  as recipe and line ids only. They survive a reload in the same tab. Closing the tab or signing out clears them. It
+  began as a narrow exception to the ruling of 2026-09-17, after D7. That ruling is now overturned (above).
 - **D19, user settings.** A user's app preferences are stored on the server, in a new identity `settings` table with
   its own wire contract, so they follow the user across devices (owner, 2026-10-10). The web "/" search-shortcut switch
   is the first setting. No preference is kept in browser storage. The recent-search exception of 2026-10-17 (below) is not a preference: it is a
@@ -70,8 +77,8 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   already use). They end with the session: our one sign-out command, account close and account erase remove them (and on
   web so does any other end of the session the app sees, as for D7 and D18). One user never sees another user's entries on
   the same device, and signed-out use keeps nothing on the device. The earlier unscoped list is not read again. On web they
-  stay in `localStorage`, not `sessionStorage`; this is a narrow exception to the ruling of 2026-09-17 that the browser
-  keeps no durable app data, alongside D7 and D18, and it covers the search history only (owner, 2026-10-17). Where it
+  stay in `localStorage`, not `sessionStorage`; this began as a narrow exception to the ruling of 2026-09-17, which is now
+  overturned (above), alongside D7 and D18, and it covers the search history only (owner, 2026-10-17). Where it
   lives in code: `recentSearchesKeyFor` and `endDeviceSession` in `@commise/features-recipes`.
 
 ## Adopted from the joint recommendations

@@ -478,6 +478,20 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 ## Active Spec Kit features
 
+**019 Offline Mode** — plan: [`specs/019-offline-mode/plan.md`](specs/019-offline-mode/plan.md)
+
+Turns offline mode on in full, and ADR-0069's three conditions are its exit gate. Three rules that are easy to get wrong:
+
+- **The offline start is a `held` auth state, not Clerk's experimental resource cache.** It admits the last signed-in
+  cook to local data while Clerk loads normally. It never mints a token from cache, and only `authenticated` can send.
+- **Drain at the moment the session becomes verified.** A record parked with a `401` before Clerk could mint a token
+  had no further trigger, which is the likely cause of ADR-0069's stuck reconnect.
+- **Web gets the full offline start too (owner, 2026-10-25).** A service-worker shell that caches no signed-in HTML,
+  the outbox and drafts in IndexedDB, and one tab draining at a time through Web Locks, so two tabs never send a change
+  twice.
+
+---
+
 **017 ReciMe Parity** — plan: [`specs/017-recime-parity/plan.md`](specs/017-recime-parity/plan.md)
 
 A **delta spec**: 47 FRs that merge into eight owner specs (001, 004, 005, 006, 007, 008, 010, 014) rather than

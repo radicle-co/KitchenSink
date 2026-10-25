@@ -4,7 +4,8 @@
  * Built for the web editor's work in `sessionStorage` (owner ruling D7, ADR-0057): its draft, and the outbox journal of
  * its pending writes, which must live exactly as long as the draft (a journal that died with a reload while its draft
  * survived let the editor send a create twice). Both survive a reload in the same tab and end when the tab closes. ⛔
- * D7 is a narrow exception to the owner's ruling of 2026-09-17 that the browser keeps no durable app data: ids and form
+ * D7 began as a narrow exception to the owner's ruling of 2026-09-17 that the browser keeps no durable app data. That
+ * ruling was overturned on 2026-10-25 (`docs/design/uiOverhaul/ownerDecisions.md`). D7 itself stands: ids and form
  * values only, and the editor is the outbox's only writer.
  *
  * ⛔ STORAGE IS RESOLVED ON EVERY CALL, AND EVERY THROW BECOMES A REJECTION. Web Storage is synchronous and throws: a

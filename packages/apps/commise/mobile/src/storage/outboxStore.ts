@@ -5,9 +5,10 @@
  * TanStack, no React Native — so the app supplies the adapter rather than the domain importing a platform.
  * That is also what keeps the domain's tests runnable with nothing but node.
  *
- * ⛔ PERSISTENCE IS MOBILE-ONLY (owner ruling). Web takes the volatile in-memory store, so no recipe body is
- * left at rest in a browser profile — IndexedDB is readable by any script on the origin, and a key held in
- * that same origin defends against nothing.
+ * Persistence to disk began as mobile-only, under the owner ruling of 2026-09-17, which was overturned on 2026-10-25
+ * (`docs/design/uiOverhaul/ownerDecisions.md`). Web still uses the tab's `sessionStorage` (D7). Its security fact
+ * stands for any later web store: IndexedDB is readable by any script on the origin, and a key held in that same
+ * origin defends against nothing.
  *
  * ⚠️ AsyncStorage, mirroring `recentSearchStore.ts` next door: already a declared dependency, already in
  * production use, no new native module and no dev-client rebuild. SQLite would be the choice only if the

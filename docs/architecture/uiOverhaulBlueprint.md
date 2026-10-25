@@ -229,8 +229,9 @@ outbox already has unit tests.
 2. **A snapshot opt-out for draft-to-draft writes.** It is the opt-out ADR-0034 deleted. HALT, unless the owner
    amends ADR-0034 (Q2).
 3. **Storing published device changes in the outbox.** The outbox drains; these must not.
-4. **Persisting the web draft to IndexedDB.** The owner's 2026-09-17 ruling keeps durable app data out of the browser;
-   D7 relaxes it for the editor's draft and unsent saves in `sessionStorage` only.
+4. **Persisting the web draft to IndexedDB.** Rejected under the owner's 2026-09-17 ruling, which kept durable app data
+   out of the browser. That ruling was overturned on 2026-10-25 (`docs/design/uiOverhaul/ownerDecisions.md`), so
+   IndexedDB is open to a later decision. D7 keeps the draft and unsent saves in `sessionStorage` until one is made.
 
 **Risk.**
 

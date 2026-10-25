@@ -1,5 +1,18 @@
 /**
- * THE CASCADE REGISTRY — the ordered chain `IngredientsService` is wired with (plan U10 / R11, R12, R19).
+ * THE CASCADE REGISTRIES — the ordered chains production runs (plan U10 / R11, R12, R19; ADR-0071).
+ *
+ * ## ⛔ TWO CHAINS, because binding and proposing are different acts (ADR-0071)
+ *
+ *  - {@link createBindingRegistry} = `[curated, memo]` — what `POST /api/v1/ingredients/by-name` runs. That path
+ *    BINDS, so only SETTLED evidence may answer: a person's ruling or a gate-agreed memo. The lexical tier left it
+ *    after a production paste bound "milk" to milk crackers: a top hit has zero authority (KTD-A), and the withhold
+ *    that made it safe was read off a binding row SHARED by every cook. A phrase neither tier knows falls through to
+ *    food's own add-by-name, as it always has.
+ *  - {@link createProposalRegistry} = `[curated, memo, lexical]` — what the paste-job matcher runs. It never binds:
+ *    it stores a PROPOSAL that the cook confirms and the gate reviews, so a ranked guess is a fine thing to offer.
+ *
+ * Both are held to the precedence ladder below by the same guard (`resolutionRegistry.test.ts`, parametrized over
+ * both). The binding chain is a prefix of the proposal chain, so their order cannot disagree.
  *
  * DESIGN PATTERN: **Registry over the Chain of Responsibility's ordered Strategies.** ⛔ THE ORDER IS THE
  * CONFIGURATION — it is a PRECEDENCE, not an implementation detail — which is why it lives as one explicit,
@@ -105,9 +118,10 @@
  * one or two cross-service searches under a 600ms budget — the order is cheaper on a hit and marginally
  * dearer on a full miss.
  *
- * ## ⛔ THE CASCADE'S REACH IS THE WRITE PATH, AND ONLY THE WRITE PATH — unchanged by any of the above
+ * ## ⛔ THE CASCADE'S REACH IS THE WRITE PATH AND THE PASTE MATCHER, AND NOTHING ELSE
  *
- * `resolveThroughCascade` has exactly one caller: `IngredientsService.addByName`. The cascade is deliberately
+ * The binding chain has exactly one caller, `IngredientsService.addByName`; the proposal chain has one,
+ * `MatchProposalService`. The cascade is deliberately
  * NOT wired into `GET /api/v1/ingredients/search`. R13 is explicit that only the lexical tier runs synchronously on the
  * search-ahead, and `/search` is the filter's read of bound foods. Reordering the tiers changes nothing about that; do
  * not treat "the memo tier is cheap now" as a licence to add the cascade to a read path.
@@ -119,8 +133,24 @@ import { createMemoTier } from './memoTier.js';
 import type { ResolutionMappingsDal } from './resolutionMappings.dal.js';
 import type { ResolutionTier } from './resolutionCascade.js';
 
+/** DI token for the proposal chain, which `IngredientsModule` provides and the paste matcher consumes. */
+export const PROPOSAL_TIERS = 'RESOLUTION_PROPOSAL_TIERS';
+
 /**
- * Build the cascade in precedence order.
+ * Build the BINDING chain: settled evidence only, in precedence order (ADR-0071).
+ *
+ * ⛔ No `catalog-ranking` tier may join it: this chain's answer is bound for the cook with no review in between.
+ * `resolutionRegistry.test.ts` asserts that, and the precedence, against the array returned here.
+ *
+ * @param mappings - The knowledge-base repository the curated and memo tiers read through.
+ * @returns The tiers, in precedence order. Pure — each tier is constructed, none is consulted.
+ */
+export function createBindingRegistry(mappings: ResolutionMappingsDal): readonly ResolutionTier[] {
+    return [createCuratedTier(mappings), createMemoTier(mappings)];
+}
+
+/**
+ * Build the PROPOSAL chain: the binding chain, then the lexical shortlist (ADR-0071).
  *
  * ⛔ The order in the returned array is the whole point of this module — read the file docstring before
  * changing it, and note that `__tests__/resolutionRegistry.test.ts` checks it against the evidence-class
@@ -131,10 +161,10 @@ import type { ResolutionTier } from './resolutionCascade.js';
  * @param lexicalObserver - Where the lexical tier reports name hits that arrived with no rung.
  * @returns The tiers, in precedence order. Pure — each tier is constructed, none is consulted.
  */
-export function createResolutionRegistry(
+export function createProposalRegistry(
     mappings: ResolutionMappingsDal,
     catalog: FoodCatalogGateway,
     lexicalObserver: LexicalTierObserver,
 ): readonly ResolutionTier[] {
-    return [createCuratedTier(mappings), createMemoTier(mappings), createLexicalTier(catalog, lexicalObserver)];
+    return [...createBindingRegistry(mappings), createLexicalTier(catalog, lexicalObserver)];
 }

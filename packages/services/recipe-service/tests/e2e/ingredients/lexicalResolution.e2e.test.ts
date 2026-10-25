@@ -5,8 +5,8 @@
  * gateway. This is the tier that plan U4's Files list calls the "cascade integration test", and it exists
  * because four of the tier's load-bearing claims are STRUCTURALLY invisible to a mock:
  *
- *  1. **Consultation order.** `['curated', 'lexical', 'memo']` is R11's PRECEDENCE, not an implementation
- *     detail. A mocked tier array asserts the array; only the real registry running against a real mapping
+ *  1. **Consultation order.** `['curated', 'memo', 'lexical']` is the PRECEDENCE (`resolutionRegistry.ts`), not
+ *     an implementation detail. A mocked tier array asserts the array; only the real registry running against a real mapping
  *     row proves that a curated hit stops the chain before the catalog is ever searched — the "the call that
  *     does NOT happen" assertion `curatedResolution.integration.test.ts` established.
  *  2. **The KTD-C shortlist round-trips through JSONB.** The verification producer re-parses the stored
@@ -23,6 +23,12 @@
  * The food service is stubbed at its client boundary — the one dependency 001 does not own — but the
  * GATEWAY above it is real, so the availability discipline (`ok` / `disabled` / degraded) under test is the
  * production one rather than a fixture's idea of it.
+ *
+ * ⚠️ ADR-0071: production's by-name path no longer runs the lexical tier (it binds, and a ranked top hit has zero
+ * authority); the paste matcher's PROPOSAL chain does. This suite still drives `IngredientsService` with the proposal
+ * chain injected, because what it proves (the tier against a real knowledge base, the event's JSONB round trip, the
+ * read route admitting nothing) is about the tier and the event store, not about which chain production wires. The
+ * hand-listed `[curated, lexical, memo]` it carried was the pre-reorder order; it now uses the real registry.
  *
  * ⚠️ REWRITTEN (plan 002): a cascade hit is bound only after food's `refs/resolve` answer about the food (R51),
  * so the stub's golden record answers `resolveRefs` where it answered `getStatus`, and the read case asserts
@@ -47,9 +53,7 @@ import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import { CURATOR_MAPPING_SCOPE } from '../../../src/ingredients/domain/mappingScopePolicy.js';
 import { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
-import { createCuratedTier } from '../../../src/ingredients/resolution/curatedTier.js';
-import { createLexicalTier } from '../../../src/ingredients/resolution/lexicalTier.js';
-import { createMemoTier } from '../../../src/ingredients/resolution/memoTier.js';
+import { createProposalRegistry } from '../../../src/ingredients/resolution/resolutionRegistry.js';
 import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import { MappingPromotionAudit } from '../../../src/ingredients/resolution/mappingPromotionAudit.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
@@ -128,11 +132,7 @@ describe('U4 — the lexical tier inside the real cascade', () => {
             clients,
             catalog,
             new FoodRefsGateway(clients),
-            [
-                createCuratedTier(mappings),
-                createLexicalTier(catalog, { onUnrankedHits: () => undefined }),
-                createMemoTier(mappings),
-            ],
+            createProposalRegistry(mappings, catalog, { onUnrankedHits: () => undefined }),
             resolutions,
             makeFakeResolutionBandsDal(),
         );

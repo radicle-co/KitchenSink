@@ -51,7 +51,7 @@ import {
     MEMO_SIMILARITY_FLOOR,
     ResolutionMappingsDal,
 } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
-import { createResolutionRegistry } from '../../../src/ingredients/resolution/resolutionRegistry.js';
+import { createProposalRegistry } from '../../../src/ingredients/resolution/resolutionRegistry.js';
 import {
     CALLER_TOKEN as CALLER,
     foodClientsOf,
@@ -112,8 +112,10 @@ describe('cascade precedence against a real knowledge base', () => {
             { search: catalogSearch } as unknown as FoodCatalogGateway,
             new FoodRefsGateway(clients),
             // ⛔ THE REAL REGISTRY, not a hand-listed pair. A suite that re-lists the tiers proves its own
-            // list, not production's — the drift `natEgressConsumers.test.ts` exists to stop.
-            createResolutionRegistry(mappings, { search: catalogSearch } as unknown as FoodCatalogGateway, {
+            // list, not production's — the drift `natEgressConsumers.test.ts` exists to stop. ADR-0071: it is the
+            // PROPOSAL chain, the one that still holds the lexical tier this suite ranks the memo against. By-name
+            // runs the binding chain, its prefix, so the precedence proved here is the same precedence there.
+            createProposalRegistry(mappings, { search: catalogSearch } as unknown as FoodCatalogGateway, {
                 onUnrankedHits: () => undefined,
             }),
             makeFakeIngredientResolutionsDal(),

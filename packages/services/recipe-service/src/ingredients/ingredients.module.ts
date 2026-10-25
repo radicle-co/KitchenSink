@@ -63,7 +63,7 @@ import { FoodLookupsDal } from './dal/foodLookups.dal.js';
 import { FoodRefsGateway } from './foodRefs.gateway.js';
 import { IngredientNutritionReader } from './ingredientNutrition.reader.js';
 import { LineIdentityReader } from './lineIdentity.reader.js';
-import { createResolutionRegistry } from './resolution/resolutionRegistry.js';
+import { createBindingRegistry, createProposalRegistry, PROPOSAL_TIERS } from './resolution/resolutionRegistry.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
 import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
 import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
@@ -210,6 +210,13 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
         },
         ResolutionMappingsService,
         {
+            // ADR-0071: the paste matcher's NON-binding chain, ending in the lexical shortlist.
+            provide: PROPOSAL_TIERS,
+            inject: [ResolutionMappingsDal, FoodCatalogGateway],
+            useFactory: (mappings: ResolutionMappingsDal, catalog: FoodCatalogGateway) =>
+                createProposalRegistry(mappings, catalog, unrankedHitsReporter()),
+        },
+        {
             provide: IngredientsService,
             inject: [
                 FoodLookupsDal,
@@ -234,7 +241,8 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
                     clients,
                     catalog,
                     refs,
-                    createResolutionRegistry(mappings, catalog, unrankedHitsReporter()),
+                    // ADR-0071: by-name BINDS, so it runs the settled-evidence chain only.
+                    createBindingRegistry(mappings),
                     resolutions,
                     bands,
                 ),
@@ -251,6 +259,7 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
         ResolutionMappingsService,
         IngredientResolutionsDal,
         ResolutionBandsDal,
+        PROPOSAL_TIERS,
     ],
 })
 export class IngredientsModule {}

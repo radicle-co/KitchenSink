@@ -2476,7 +2476,7 @@ jobs:
             # bare `path:` below correct).
             - name: Restore the web production build
               if: steps.secrets.outcome == 'success'
-              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   name: web-next-build-${{ inputs.stage }}
                   path: packages/apps/commise/web/.next
@@ -2721,14 +2721,14 @@ jobs:
             # `merge-reports` expects. Absent blobs are tolerated: on a fork PR the shards skip their run
             # entirely (no secrets), and this job must not invent a red for that designed skip.
             - name: Download shard blob reports (deployed tier)
-              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: e2e-web-blob-*
                   path: packages/apps/commise/web/blob-report
                   merge-multiple: true
               continue-on-error: true
             - name: Download shard blob reports (stubbed tier)
-              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: integration-web-blob-${{ inputs.stage }}-*
                   path: packages/apps/commise/web/blob-report
@@ -2736,7 +2736,7 @@ jobs:
               continue-on-error: true
             # ⛔ The stubbed tier is the ONLY producer of these — both specs that make them stub the API.
             - name: Download shard visual + fidelity output (stubbed tier)
-              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: integration-web-visual-${{ inputs.stage }}-*
                   path: packages/apps/commise/web

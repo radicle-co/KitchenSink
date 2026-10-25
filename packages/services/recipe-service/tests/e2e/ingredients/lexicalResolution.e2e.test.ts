@@ -94,15 +94,28 @@ function principal(userId: string, scopes: string[] = []): Principal {
     };
 }
 
-/** One food-service search row, in the wire spelling the gateway narrows. */
-function searchRow(id: string, name: string, score: number, visibility?: 'private' | 'promoted') {
+/**
+ * One food-service search row, in the wire spelling the gateway narrows.
+ *
+ * ⚠️ A NAME hit carries the rung food ranked it on (ADR-0070), and the gateway passes it through untouched, so a row
+ * built here names one. It sent none before, while the first case below expected `rung: 'head'`: that case was red
+ * at its base, because a row with no rung is a crosswalk hit (score 1) or an unknown rung, never `head`. `rung:
+ * undefined` builds such a row on purpose.
+ */
+function searchRow(
+    id: string,
+    name: string,
+    score: number,
+    options: { readonly rung?: 'head' | 'base' | undefined; readonly visibility?: 'private' } = { rung: 'head' },
+) {
     return {
         id,
         name,
         score,
+        ...(options.rung === undefined ? {} : { rung: options.rung }),
         caloriesPer100g: 364,
         proteinGPer100g: 10.3,
-        ...(visibility === undefined ? {} : { visibility }),
+        ...(options.visibility === undefined ? {} : { visibility: options.visibility }),
     };
 }
 
@@ -234,6 +247,29 @@ describe('U4 — the lexical tier inside the real cascade', () => {
         ]);
     });
 
+    it('⛔ a CROSSWALK top hit (score 1, no rung) still persists its shortlist and margin, with no rung', async () => {
+        // An identifier match carries no rung. The event used to be keyed on the rung, so this line's evidence fell to
+        // `unattributed`; it is keyed on the shortlist now, and only the rung is absent.
+        foodClient.search.mockResolvedValue({
+            results: [
+                searchRow(TOP_FOOD, 'Flour, wheat, all-purpose', 1, { rung: undefined }),
+                searchRow(RUNNER_FOOD, 'Carob flour', 0.62),
+            ],
+        });
+        goldenRecord(TOP_FOOD, 'Flour, wheat, all-purpose');
+
+        const admitted = await addByName('crosswalk flour');
+        const event = await provenanceOf(admitted.id);
+
+        expect(admitted.foodId).toBe(TOP_FOOD);
+        expect(event).toMatchObject({ tier: 'lexical', rung: null, rankerVersion: RANKER_VERSION });
+        expect(event?.margin).toBeCloseTo(0.38, 5);
+        expect(event?.shortlist).toEqual([
+            { foodId: TOP_FOOD, score: 1, energyKcalPer100g: 364, proteinGPer100g: 10.3 },
+            { foodId: RUNNER_FOOD, score: 0.62, energyKcalPer100g: 364, proteinGPer100g: 10.3 },
+        ]);
+    });
+
     it('⛔ a CURATED mapping stops the chain — the catalog is never searched (R11 precedence)', async () => {
         await corrections.recordCorrection({
             principal: principal(CURATOR, [CURATOR_MAPPING_SCOPE]),
@@ -282,7 +318,7 @@ describe('U4 — the lexical tier inside the real cascade', () => {
     it('R20 — a hit that is the CALLER’s own private food flags the resolution author-augmented', async () => {
         foodClient.search.mockResolvedValue({
             results: [
-                searchRow(PRIVATE_FOOD, 'Gran’s pie filling', 0.95, 'private'),
+                searchRow(PRIVATE_FOOD, 'Gran’s pie filling', 0.95, { rung: 'head', visibility: 'private' }),
                 searchRow(TOP_FOOD, 'Pie filling, canned', 0.4),
             ],
         });

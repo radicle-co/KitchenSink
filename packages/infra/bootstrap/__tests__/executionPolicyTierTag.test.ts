@@ -329,17 +329,18 @@ describe.each(stageQualifiers)('executionPolicy(%s) — an EC2 instance profile 
               'kitchensink-network-sandbox-VpcpublicSubnet1NatInstanc-AbC123',
               'kitchensink-food-service-pr-91-TaskRole-x',
           ];
-    const toEc2 = { 'iam:PassedToService': 'ec2.amazonaws.com' };
+    const ec2Service = 'ec2.amazonaws.com';
+    const toEc2 = { 'iam:PassedToService': ec2Service };
 
     it('grants it in ONE statement, to ec2.amazonaws.com only, with no tag condition', () => {
         const grants = allows(qualifier).filter(
             (statement) =>
                 statement.Action.includes('iam:PassRole') &&
-                conditionValues(statement, 'iam:PassedToService').includes('ec2.amazonaws.com'),
+                conditionValues(statement, 'iam:PassedToService').some((service) => service === ec2Service),
         );
 
         expect(grants.map((statement) => statement.Sid)).toEqual([EC2_PASS_ROLE_SID]);
-        expect(conditionValues(grants[0] as Statement, 'iam:PassedToService')).toEqual(['ec2.amazonaws.com']);
+        expect(conditionValues(grants[0] as Statement, 'iam:PassedToService')).toEqual([ec2Service]);
         expect(JSON.stringify(grants[0]?.Condition ?? {})).not.toContain('ResourceTag');
     });
 

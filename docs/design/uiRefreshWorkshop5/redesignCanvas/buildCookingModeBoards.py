@@ -70,19 +70,27 @@ return {{}};
 """
 
 
+screen_tag_check = r'<div\s+class="screen[^"]*"\s+data-theme="light"\s+data-screen="'
+
+
 def main() -> None:
     source = MOCKUP.read_text()
     style = re.search(r"<style>(.*?)</style>", source, re.S).group(1)
     # The mockup's body rule pads and greys its gallery page; a board is the screen alone.
-    style = re.sub(r"body \{[^}]*\}", "body { font-family: Inter, system-ui, sans-serif; }", style, count=1)
-    fonts = "\n".join(re.findall(r'<link href="https://fonts\.googleapis\.com[^>]*>', source))
+    style = re.sub(r"body\s*\{[^}]*\}", "body { font-family: Inter, system-ui, sans-serif; }", style, count=1)
+    fonts = "\n".join(
+        re.sub(r"\s+", " ", tag) for tag in re.findall(r"<link\s[^>]*fonts\.googleapis\.com[^>]*>", source)
+    )
+    if not re.search(screen_tag_check, source):
+        raise SystemExit("No light screens found in the mockup; nothing was changed.")
     extra_path = HERE / "extraBoards.json"
     extra = {k: v for k, v in json.loads(extra_path.read_text()).items() if not k.startswith("CookingMode")}
     for old in (HERE / "boards").glob("CookingMode*.dc.html"):
         old.unlink()
 
     seen = set()
-    for match in re.finditer(r'<div class="screen[^"]*" data-theme="light" data-screen="([a-zA-Z0-9]+)"[^>]*>', source):
+    screen_tag = r'<div\s+class="screen[^"]*"\s+data-theme="light"\s+data-screen="([a-zA-Z0-9]+)"[^>]*>'
+    for match in re.finditer(screen_tag, source):
         screen = match.group(1)
         size = next(key for key in SIZES if screen.startswith(key))
         state = screen[len(size):]
@@ -91,8 +99,8 @@ def main() -> None:
         seen.add(screen)
         suffix, size_label, row = SIZES[size]
         name = f"CookingMode{state}{suffix}"
-        html = screen_html(source, match.start()).replace(' data-theme="light"', "", 1)
-        dims = re.search(r"width:(\d+)px;height:(\d+)px", match.group(0))
+        html = re.sub(r'\s+data-theme="light"', "", screen_html(source, match.start()), count=1)
+        dims = re.search(r"width:\s*(\d+)px;\s*height:\s*(\d+)px", match.group(0))
         width, height = int(dims.group(1)), int(dims.group(2))
         words = re.sub(r"(?<!^)([A-Z])", r" \1", state).lower()
         title = f"Cooking mode, {words} ({size_label})"

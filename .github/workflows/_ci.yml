@@ -106,7 +106,7 @@ jobs:
             version: ${{ steps.publish.outputs.version }}
             changed: ${{ steps.changes.outputs.infra }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   # The version is derived from commits since the last `infra-shared-v*` tag; a shallow clone
                   # sees no tags and would derive a first release on every run.
@@ -269,7 +269,7 @@ jobs:
         # Seeds the `actions/cache` entry every job below restores. `_ci-heavy.yml` keeps its own copy of
         # this job: a reusable workflow cannot `needs:` a job in another workflow.
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -352,7 +352,7 @@ jobs:
             food_origin: ${{ steps.target.outputs.food_origin }}
             web_origin: ${{ steps.target.outputs.web_origin }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -541,7 +541,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -590,7 +590,7 @@ jobs:
         env:
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -703,7 +703,7 @@ jobs:
         env:
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -784,7 +784,7 @@ jobs:
         timeout-minutes: 10
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -810,7 +810,7 @@ jobs:
         env:
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -895,7 +895,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -985,7 +985,7 @@ jobs:
         env:
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   # Full history for the guards only: several read `origin/main`, which a depth-1 checkout lacks.
                   fetch-depth: ${{ matrix.group == 'guards' && '0' || '1' }}
@@ -1113,7 +1113,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1195,7 +1195,7 @@ jobs:
         outputs:
             branch: ${{ steps.verdict.outputs.branch }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   # ⚠️ Every checkout in this workflow sets it. `actions/checkout` otherwise leaves the
                   # workflow token in `.git/config`, where anything that later uploads the workspace carries
@@ -1336,7 +1336,7 @@ jobs:
             contents: read
             actions: read # `gh run list`: find the Sandbox Identity Deploy run of this head commit
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Wait for the identity deploy of the head commit
@@ -1496,7 +1496,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1550,7 +1550,7 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   # The base commit must be present to read its seed; see `Detect shared-infra changes` for why this
                   # is a local three-dot diff and not `dorny/paths-filter`.
@@ -1616,7 +1616,7 @@ jobs:
         # integration specs exist — so `--if-present` had stopped being a placeholder and become a hazard:
         # its only remaining effect was to make a script RENAME fail silently green. Dropped.
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1671,7 +1671,7 @@ jobs:
         env:
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1763,7 +1763,7 @@ jobs:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1956,7 +1956,7 @@ jobs:
         env:
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -2070,7 +2070,7 @@ jobs:
                     - '@kitchensink/identity-webhooks'
                     - '@commise/web'
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -2230,7 +2230,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install, build-ui]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -2391,7 +2391,7 @@ jobs:
             # Do NOT delete this, do NOT raise `workers` above 1, and do NOT let two shards share a key.
             COMMISE_E2E_SHARD: ${{ matrix.shard }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -2643,7 +2643,7 @@ jobs:
             # line, not the lines above it, which is why the block comment alone left this flagged.
             id-token: write # the secretless Argos OIDC exchange — see the note above
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             # ⛔ THE REPORT MUST SAY WHAT IT REPORTS ON. A merged Playwright report is read days later, out of
@@ -2863,7 +2863,7 @@ jobs:
             flows_discovery: ${{ steps.changes.outputs.flows_discovery }}
             flows_recipes: ${{ steps.changes.outputs.flows_recipes }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   # The filter runs ONLY on `pull_request`, where the action asks the GitHub API for the file
                   # list rather than taking its `getChangedFilesFromGit` fallback — so no git credential is
@@ -3017,7 +3017,7 @@ jobs:
             ]
         if: ${{ always() }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Decide the verdict

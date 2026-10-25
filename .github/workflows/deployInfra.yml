@@ -125,7 +125,7 @@ jobs:
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   # ⚠️ Full history, for this package's GUARDS rather than its build: several of them read
                   # `origin/main` (is this workflow already registered on the default branch? what does this
@@ -186,7 +186,7 @@ jobs:
         if: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' identity ')) }}
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -222,7 +222,7 @@ jobs:
         if: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' food-service ')) }}
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -259,7 +259,7 @@ jobs:
         if: ${{ inputs.deploy && (inputs.deploy-packages == 'all' || contains(format(' {0} ', inputs.deploy-packages), ' recipe-service ')) }}
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -294,7 +294,7 @@ jobs:
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         needs: [global]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -339,7 +339,7 @@ jobs:
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         needs: [global]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -388,7 +388,7 @@ jobs:
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         needs: [global]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -442,7 +442,7 @@ jobs:
         needs: [identity-schema, image-identity]
         if: ${{ !cancelled() && needs.identity-schema.result == 'success' && needs.image-identity.result != 'failure' && needs.image-identity.result != 'cancelled' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -558,7 +558,7 @@ jobs:
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         needs: [identity]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -607,7 +607,7 @@ jobs:
         needs: [food-schema, remote-search, image-food-service]
         if: ${{ !cancelled() && needs.food-schema.result == 'success' && needs.remote-search.result != 'failure' && needs.image-food-service.result != 'failure' && needs.image-food-service.result != 'cancelled' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -747,7 +747,7 @@ jobs:
         needs: [recipe-schema, image-recipe-service]
         if: ${{ !cancelled() && needs.recipe-schema.result == 'success' && needs.image-recipe-service.result != 'failure' && needs.image-recipe-service.result != 'cancelled' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -825,7 +825,7 @@ jobs:
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         needs: [global, ingredient-parser, recipe-schema]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -881,7 +881,7 @@ jobs:
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -938,7 +938,7 @@ jobs:
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -1023,7 +1023,7 @@ jobs:
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         needs: [global]
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -1061,7 +1061,7 @@ jobs:
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` asserts both directions.
         environment: ${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -1113,7 +1113,7 @@ jobs:
             && needs.food-service.result == 'success' && needs.recipe-service.result == 'success'
             && needs.recipe-workers.result == 'success' }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS

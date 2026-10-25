@@ -312,6 +312,18 @@ const accounts: readonly ColumnAccount[] = [
         why: "Server-incremented by the U6 parse claim, once per delivery that reaches the database, and the claim STOPS at the stack's CLAIM_ATTEMPT_ALLOWANCE by marking the line failed_retryable; a retry or an edit resets it to 0. No wire field sets it.",
     },
 
+    // ── paste-job match proposals (ADR-0071, 0057) ───────────────────────────────────────────────
+    {
+        table: 'recipe_parse_job_matches',
+        column: 'line_index',
+        why: 'Copied from the parse-job line it matches (the composite FK holds it to an existing line); no wire field sets it.',
+    },
+    {
+        table: 'recipe_parse_job_matches',
+        column: 'food_index',
+        why: "The position of a food in the worker's stored proposal, bounded by that proposal's foods; no wire field sets it.",
+    },
+
     // ── band authority (plan U3, 0036) ────────────────────────────────────────────────────────────
     {
         table: 'resolution_band_authority',

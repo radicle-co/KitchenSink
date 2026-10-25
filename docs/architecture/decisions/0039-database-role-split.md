@@ -79,9 +79,8 @@ master holds none. PostgreSQL's own `is_member_of_role` does.
    session advisory lock (shared with the reaper) for its whole length. Its pass: census; take the master out of the
    login roles, proven by a re-read; apply the role model, granting `rds_iam` only after a re-read shows the master
    cannot reach it; a fresh master login — BEFORE anything destructive — whose failure revokes `rds_iam` from the
-   login roles on the still-authenticated session; decide the database's disposition; create, adopt or (armed)
-   recreate; the role model and the login probe again; the database ACL reset as the owner; and postconditions read
-   from `pg_database`.
+   login roles on the still-authenticated session; decide the database's disposition; create, adopt or refuse; the
+   database ACL reset as the owner; and postconditions read from `pg_database`.
 9. **The runner applies as the owner.** `applyMigrations` requires the database's roles and table policy, `SET ROLE`s
    to the owner after taking its advisory lock, applies the privilege statements before and after, audits object
    ownership and that the service role holds data access and nothing more, and `RESET ROLE`s before unlocking. The
@@ -90,15 +89,13 @@ master holds none. PostgreSQL's own `is_member_of_role` does.
 10. **The reaper is the only thing that drops a per-PR database.** The runners' `action: 'drop'` doors are deleted.
 11. **Every `rds-db:connect` grant goes through `IDatabaseInstance.grantConnect` with a registry name** — never a
     hand-built ARN (the hand-built one denied every recipe worker, #121).
-12. **The recreate is one-shot.** It is armed per stage by a literal list in `DataStack`, which sets BOTH the custom
-    resources' token and the function's own environment flag; the handler arms only when the two agree with its
-    `STAGE`, so a hand-crafted invoke cannot arm an unarmed deploy. It drops only a database owned by a role it can name as the
-    legacy owner (the master for identity, `<svc>_app` for food and recipe); an empty master-owned database is
-    adopted instead; a database already owned by `<svc>_owner` is left alone, so it cannot repeat. For food and
-    recipe the master must briefly INHERIT the legacy app role, so `rds_iam` is revoked from it first — including
-    grants made by another grantor — and the pass refuses before the master joins if any path to `rds_iam` remains.
-    The disarm commit DELETES the recreate path with the list, so no event — forged or re-sent by a rollback — can
-    reach it; an unarmed stage whose database is still legacy then fails its deploy.
+12. **The recreate was one-shot, and it is gone.** A literal list in `DataStack` armed it per stage, through both
+    the custom resources' token and the function's own environment flag. It dropped only a database owned by a role
+    it could name as the legacy owner (the master for identity, `<svc>_app` for food and recipe) and recreated it
+    owned by `<svc>_owner`. It ran on sandbox on 2026-10-04 and on prod on 2026-10-25, and the disarm commit then
+    deleted the list, the token, the flag and the recreate path. No event, forged or re-sent by a rollback, can reach
+    it: the handler refuses an event that still names it, and a stage whose database is still legacy-owned fails its
+    deploy by name. An empty master-owned database is still adopted, which destroys nothing.
 
 ### Rejected alternatives
 
@@ -136,7 +133,7 @@ master holds none. PostgreSQL's own `is_member_of_role` does.
 - Prod's master cannot connect into the service databases at all (SET-only, and PUBLIC holds no CONNECT). There is
   no in-database operator executor in prod.
 - Recreating the databases destroyed their data, with no snapshot — including identity's erasure tombstones. That
-  door was taken once, by ruling, and the disarm commit closes it.
+  door was taken once on each stage, by ruling, and the disarm commit closed it.
 - The `DatabaseSecretArn` export remains until a later release: the previous service stacks import it, and
   CloudFormation refuses to delete an export in use.
 
@@ -146,10 +143,9 @@ master holds none. PostgreSQL's own `is_member_of_role` does.
 - `dbUserGrantRegister` — which stack logs in as which role, by exact equality; no owner grant; no one-argument grant
   (which defaults to the master); no hand-built ARN.
 - `masterSecretConsumers` — the master secret's readers are exactly the bootstrap and the reaper.
-- `dropDatabaseAuthority` — exactly the reaper and the armed recreate issue `DROP DATABASE`, in any language.
+- `dropDatabaseAuthority` — only the reaper issues `DROP DATABASE`, in any language.
 - `lockOutReading` — the relaxed lock-out reading appears only in its definition and the test harness.
 - `integrationSubjectRole` — a service integration suite connects its subject as the service role: no tier file
   names a connection variable or a superuser credential, and the master-bearing surface has an exact consumer set.
-- `roleSplitLegacyRecreateArmed` — names the stages the recreate is armed on, in its own title.
-- `tests/dbBootstrap.integration.test.ts` — the pass, run by a NOSUPERUSER stand-in master against real PostgreSQL,
-  including every refusal and a failure injected between the master joining the app role and the `DROP`.
+- `packages/infra/global/tests/e2e/dbBootstrap.e2e.test.ts` — the pass, run by a NOSUPERUSER stand-in master against
+  real PostgreSQL (LOCAL e2e), including every refusal and a failed master login right after the role model.

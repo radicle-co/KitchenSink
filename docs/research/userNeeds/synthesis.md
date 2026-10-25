@@ -1,6 +1,6 @@
 # Synthesis: the needs across cooking, finding recipes, grocery lists and meal planning
 
-Desk research, 2026-10-20, with a second round on 2026-10-21. It sums up 102 records in `cooking.md` (CK, 29),
+Desk research, 2026-10-20, with a second round on 2026-10-21 and a third on 2026-10-25 (cooking with a device, CK-030 to CK-036). It sums up 109 records in `cooking.md` (CK, 36),
 `findingRecipes.md` (FR, 24), `groceryLists.md` (GL, 20) and `mealPlanning.md` (MP, 29). Read `README.md` for the evidence codes and the record
 format. This file adds no new evidence. Every claim points to records, and the evidence is in those records.
 

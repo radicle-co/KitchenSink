@@ -1,0 +1,2242 @@
+<!doctype html>
+<!-- Cooking mode workshop, round 1, designer A: "Now and next". Design mockup, not production code. -->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Cooking mode, round 1, designer A: Now and next</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* Commise redesign tokens (workshop 5, round 9): steel on a cool base, dusk dark mode. Same variable names as
+   ds/commise/tokens.css; only values change. Design artifact for the redesign canvas, not app code. */
+
+            @font-face {
+                font-family: 'Inter';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_400Regular.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter_400Regular';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_400Regular.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter';
+                font-weight: 500;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_500Medium.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter_500Medium';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_500Medium.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter';
+                font-weight: 600;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_600SemiBold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter_600SemiBold';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_600SemiBold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter';
+                font-weight: 700;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_700Bold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Inter_700Bold';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/Inter_700Bold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Playfair Display';
+                font-weight: 600;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/PlayfairDisplay_600SemiBold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'PlayfairDisplay_600SemiBold';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/PlayfairDisplay_600SemiBold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'Playfair Display';
+                font-weight: 700;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/PlayfairDisplay_700Bold.ttf') format('truetype');
+            }
+            @font-face {
+                font-family: 'PlayfairDisplay_700Bold';
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                src: url('fonts/PlayfairDisplay_700Bold.ttf') format('truetype');
+            }
+            :root,
+            [data-theme='light'] {
+                --canvas: #eff3f6;
+                --paper: #fcfdff;
+                --ink: #171b20;
+                --ink-muted: #5c646e;
+                --line-control: #80878f;
+                --line-divider: #dfe3e8;
+                --action: #325c7f;
+                --action-text: #325c7f;
+                --selected-fill: #e4eef7;
+                --selected-edge: #325c7f;
+                --here-bar: #325c7f;
+                --focus-ring: #325c7f;
+                --rating: #171b20;
+                --attention: #8c5a00;
+                --attention-tint: rgba(245, 176, 65, 0.2);
+                --danger: #c05238;
+                --danger-text: #b1442b;
+                --paper-raised: #ffffff;
+                --paper-overlay: #ffffff;
+                --surface-muted: #e9edf2;
+                --inverse: #171b20;
+                --inverse-ink: #ffffff;
+                --inverse-action: #96bcde;
+                --photo-chip: rgba(252, 253, 255, 0.94);
+                --scrim: rgba(10, 16, 24, 0.42);
+                --on-action: #ffffff;
+                --action-pressed: #264a68;
+                --bar: rgba(252, 253, 255, 0.92);
+                --pro-fill: #e9edf2;
+                --pro-ink: #171b20;
+                --brand-seafoam: #325c7f;
+                --brand-seafoam-light: #96bcde;
+                --brand-ocean-dark: #264a68;
+                --brand-coral: #f7e9d7;
+                --brand-sky: #ddeefc;
+                --brand-sand: #eff3f6;
+                --brand-charcoal: #171b20;
+                --brand-success: #4caf7c;
+                --brand-warning: #f5b041;
+                --brand-warning-dark: #8c5a00;
+                --brand-error: #c05238;
+                --brand-error-dark: #b1442b;
+                --brand-premium: #5c646e;
+                --brand-honey: #171b20;
+                --cover-seafoam: #e1edfa;
+                --cover-coral: #f7e9d7;
+                --cover-sky: #ddeefc;
+                --cover-premium: #f5e9df;
+                --cover-success: #e4edf2;
+                --cover-warning: #f7e9d7;
+                --space-0: 0px;
+                --space-1: 4px;
+                --space-2: 8px;
+                --space-3: 12px;
+                --space-4: 16px;
+                --space-5: 24px;
+                --space-6: 32px;
+                --space-7: 48px;
+                --space-8: 64px;
+                --space-9: 96px;
+                --radius-sm: 8px;
+                --radius-md: 12px;
+                --radius-lg: 18px;
+                --radius-xl: 24px;
+                --radius-full: 9999px;
+                --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+                --shadow-md: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+                --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+                --shadow-xl: 0 12px 30px rgba(10, 20, 30, 0.18);
+                --shadow-glow: 0 0 0 3px rgba(50, 92, 127, 0.25);
+                --font-display: 'Manrope', Inter, system-ui, sans-serif;
+                --font-body: Inter, system-ui, sans-serif;
+                --font-mono: 'JetBrains Mono', monospace;
+                --background-image-hero: linear-gradient(180deg, #eff3f6 0%, #eff3f6 100%);
+            }
+            [data-theme='dark'] {
+                --canvas: #0e161e;
+                --paper: #172029;
+                --ink: #ebeff2;
+                --ink-muted: #a3acb6;
+                --line-control: #7d8792;
+                --line-divider: #262f38;
+                --action: #96bcde;
+                --action-text: #96bcde;
+                --selected-fill: #1f3548;
+                --selected-edge: #96bcde;
+                --here-bar: #96bcde;
+                --focus-ring: #96bcde;
+                --rating: #ebeff2;
+                --attention: #efba64;
+                --attention-tint: rgba(245, 176, 65, 0.2);
+                --danger: #c05238;
+                --danger-text: #ec8e76;
+                --paper-raised: #212b36;
+                --paper-overlay: #26313d;
+                --surface-muted: #212b36;
+                --inverse: #ebeff2;
+                --inverse-ink: #171b20;
+                --inverse-action: #325c7f;
+                --photo-chip: rgba(23, 32, 41, 0.86);
+                --scrim: rgba(0, 0, 0, 0.66);
+                --on-action: #0e161e;
+                --action-pressed: #b4cfe8;
+                --bar: rgba(23, 32, 41, 0.94);
+                --pro-fill: #212b36;
+                --pro-ink: #ebeff2;
+                --cover-seafoam: #202b37;
+                --cover-coral: #342817;
+                --cover-sky: #1c2c38;
+                --cover-premium: #32281f;
+                --cover-success: #232b30;
+                --cover-warning: #342817;
+                --background-image-hero: linear-gradient(180deg, #0e161e 0%, #0e161e 100%);
+            }
+
+            body {
+                margin: 0;
+                padding: 32px;
+                background: #8a9099;
+                font-family: Inter, system-ui, sans-serif;
+            }
+            .board {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 40px;
+                align-items: flex-start;
+            }
+            figure {
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            figcaption {
+                font:
+                    600 13px/1.3 Inter,
+                    sans-serif;
+                color: #fff;
+                max-width: 390px;
+            }
+            [data-screen] {
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                background: var(--canvas);
+                color: var(--ink);
+                font:
+                    400 17px/1.4 Inter,
+                    system-ui,
+                    sans-serif;
+                letter-spacing: -0.011em;
+                border-radius: 40px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+                --muted: #474e57;
+                --steelText: #264a68;
+            }
+            [data-screen][data-theme='dark'] {
+                --muted: #b4bcc5;
+                --steelText: #96bcde;
+            }
+            [data-screen].wide {
+                border-radius: 18px;
+            }
+            p,
+            h1,
+            h2,
+            h3,
+            ol,
+            ul {
+                margin: 0;
+                padding: 0;
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            .ic {
+                width: 22px;
+                height: 22px;
+                flex: none;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .ic.sm {
+                width: 18px;
+                height: 18px;
+            }
+            .t13 {
+                font-size: 13px;
+                line-height: 1.35;
+            }
+            .muted {
+                color: var(--muted);
+            }
+            .w600 {
+                font-weight: 600;
+            }
+            .tnum {
+                font-variant-numeric: tabular-nums;
+            }
+            .status {
+                height: 47px;
+                flex: none;
+            }
+            .home {
+                height: 34px;
+                flex: none;
+            }
+            /* Top bar: exit, where you are, ingredients. */
+            .bar {
+                flex: none;
+                display: grid;
+                grid-template-columns: 56px 1fr auto;
+                align-items: center;
+                gap: 8px;
+                height: 60px;
+                padding: 0 12px 0 4px;
+            }
+            .iconBtn {
+                width: 56px;
+                height: 56px;
+                display: grid;
+                place-items: center;
+            }
+            .iconBtn > span {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--surface-muted);
+            }
+            .where .s {
+                font-weight: 600;
+            }
+            .ticks {
+                display: flex;
+                gap: 3px;
+                margin-top: 4px;
+            }
+            .ticks i {
+                flex: 1;
+                height: 4px;
+                border-radius: 2px;
+                background: var(--line-divider);
+            }
+            .ticks i.done {
+                background: var(--steelText);
+            }
+            .ticks i.cur {
+                background: var(--action);
+            }
+            .ingBtn {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 48px;
+                padding: 0 14px 0 12px;
+                border-radius: 24px;
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--line-control);
+                font-weight: 600;
+            }
+            .ingBtn .ic {
+                color: var(--action-text);
+            }
+            .scroll {
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+                padding: 2px 16px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            /* NOW: the step in progress. One goal, its actions as lines, each with its amount. */
+            .now {
+                background: var(--paper);
+                border-radius: 22px;
+                box-shadow: var(--shadow-md);
+                padding: 14px 16px 6px;
+            }
+            .kicker {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .kicker .pill {
+                letter-spacing: 0;
+                text-transform: none;
+                font-weight: 600;
+                padding: 2px 8px;
+                border-radius: 8px;
+                background: var(--selected-fill);
+                color: var(--steelText);
+            }
+            .goal {
+                font-size: 17px;
+                font-weight: 600;
+                margin-top: 6px;
+            }
+            .acts {
+                list-style: none;
+                margin-top: 4px;
+            }
+            .acts li {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                padding: 8px 0;
+            }
+            .acts li + li {
+                border-top: 1px solid var(--line-divider);
+            }
+            .acts .tick {
+                width: 32px;
+                height: 32px;
+                flex: none;
+                border-radius: 50%;
+                box-shadow: inset 0 0 0 2px var(--line-control);
+                display: grid;
+                place-items: center;
+                margin-top: 3px;
+            }
+            .acts li.done .tick {
+                background: var(--action);
+                box-shadow: none;
+                color: var(--on-action);
+            }
+            .acts li.done .tick .ic {
+                width: 18px;
+                height: 18px;
+                stroke-width: 2.6;
+            }
+            .read {
+                font-size: 30px;
+                line-height: 1.22;
+                letter-spacing: -0.02em;
+            }
+            .read b {
+                font-weight: 600;
+            }
+            .acts li.done .read {
+                color: var(--muted);
+            }
+            .acts li.done .read b {
+                font-weight: 400;
+            }
+            .acts li.cur .read {
+                font-weight: 400;
+            }
+            .timerOffer {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 64px;
+                margin: 6px 0 8px;
+                padding: 0 18px 0 14px;
+                border-radius: 18px;
+                box-shadow: inset 0 0 0 1.5px var(--line-control);
+                font-weight: 600;
+            }
+            .timerOffer .ic {
+                color: var(--action-text);
+                width: 26px;
+                height: 26px;
+            }
+            /* NEXT: always in view, quieter, so the cook never holds it in memory. */
+            .next {
+                border-radius: 22px;
+                padding: 14px 16px;
+                box-shadow: inset 0 0 0 1.5px var(--line-divider);
+                background: transparent;
+            }
+            .next .goal {
+                margin-top: 4px;
+            }
+            .next .line {
+                margin-top: 4px;
+            }
+            .needs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 10px;
+            }
+            .needs span {
+                font-size: 13px;
+                padding: 4px 10px;
+                border-radius: 10px;
+                background: var(--surface-muted);
+            }
+            .ahead {
+                border-radius: 22px;
+                padding: 14px 16px;
+                background: var(--attention-tint);
+            }
+            .ahead .kicker {
+                color: var(--ink);
+            }
+            .ahead .kicker .ic {
+                color: var(--attention);
+            }
+            /* WHILE YOU WAIT */
+            .wait {
+                background: var(--paper);
+                border-radius: 22px;
+                box-shadow: var(--shadow-md);
+                padding: 16px;
+            }
+            .count {
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+                margin-top: 6px;
+            }
+            .cue {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                margin-top: 8px;
+                padding: 10px 12px;
+                border-radius: 14px;
+                background: var(--selected-fill);
+            }
+            .cue .ic {
+                color: var(--steelText);
+            }
+            .task {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-height: 64px;
+                padding: 8px 8px 8px 14px;
+                border-radius: 18px;
+                background: var(--paper);
+                box-shadow:
+                    var(--shadow-sm),
+                    inset 0 0 0 1px var(--line-divider);
+            }
+            .task .grow {
+                flex: 1;
+                min-width: 0;
+            }
+            .task .go {
+                min-height: 48px;
+                padding: 0 14px;
+                border-radius: 14px;
+                background: var(--surface-muted);
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .rest {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                padding: 6px 4px;
+            }
+            .rest .ic {
+                color: var(--muted);
+            }
+            /* DOCK: running timers survive every screen. */
+            .dock {
+                flex: none;
+                margin: 10px 16px 0;
+                background: var(--paper);
+                border-radius: 20px;
+                box-shadow:
+                    var(--shadow-lg),
+                    inset 0 0 0 1px var(--line-divider);
+            }
+            .trow {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-height: 64px;
+                padding: 6px 8px 6px 14px;
+            }
+            .trow + .trow {
+                border-top: 1px solid var(--line-divider);
+            }
+            .trow .ring {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--selected-fill);
+                color: var(--steelText);
+                flex: none;
+            }
+            .trow .grow {
+                flex: 1;
+                min-width: 0;
+            }
+            .trow .act {
+                min-width: 56px;
+                min-height: 52px;
+                padding: 0 12px;
+                border-radius: 14px;
+                background: var(--surface-muted);
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+            }
+            .trow.over {
+                background: var(--attention-tint);
+                border-radius: 20px;
+            }
+            .trow.over .ring {
+                background: var(--paper);
+                color: var(--attention);
+            }
+            .trow.over .act {
+                background: var(--action);
+                color: var(--on-action);
+            }
+            /* Controls: no swipe. Done moves on; Back is smaller. */
+            .ctl {
+                flex: none;
+                display: grid;
+                grid-template-columns: 72px 1fr;
+                gap: 10px;
+                padding: 10px 16px 0;
+            }
+            .btnBack {
+                min-height: 72px;
+                border-radius: 20px;
+                display: grid;
+                place-items: center;
+                box-shadow: inset 0 0 0 1.5px var(--line-control);
+                background: var(--paper);
+            }
+            .btnDone {
+                min-height: 72px;
+                border-radius: 20px;
+                background: var(--action);
+                color: var(--on-action);
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            /* Ingredients sheet */
+            .scrim {
+                position: absolute;
+                inset: 0;
+                background: var(--scrim);
+                z-index: 5;
+            }
+            .sheet {
+                position: absolute;
+                z-index: 6;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: 150px;
+                background: var(--paper-overlay);
+                border-radius: 24px 24px 0 0;
+                box-shadow: var(--shadow-xl);
+                display: flex;
+                flex-direction: column;
+            }
+            .grab {
+                width: 40px;
+                height: 5px;
+                border-radius: 3px;
+                background: var(--line-control);
+                opacity: 0.6;
+                margin: 10px auto 4px;
+            }
+            .sheetHead {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 12px 8px 20px;
+            }
+            .doneBtn {
+                min-height: 48px;
+                padding: 0 18px;
+                border-radius: 24px;
+                background: var(--surface-muted);
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+            }
+            .grp {
+                padding: 14px 20px 4px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .ing {
+                list-style: none;
+            }
+            .ing li {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 56px;
+                padding: 4px 20px;
+                position: relative;
+            }
+            .ing li + li::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 62px;
+                right: 0;
+                height: 1px;
+                background: var(--line-divider);
+            }
+            .box {
+                width: 28px;
+                height: 28px;
+                flex: none;
+                border-radius: 8px;
+                box-shadow: inset 0 0 0 2px var(--line-control);
+                display: grid;
+                place-items: center;
+            }
+            .box.on {
+                background: var(--action);
+                box-shadow: none;
+                color: var(--on-action);
+            }
+            .box.on .ic {
+                width: 18px;
+                height: 18px;
+                stroke-width: 2.6;
+            }
+            .nextLine {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 52px;
+                padding: 6px 14px;
+                border-radius: 16px;
+                box-shadow: inset 0 0 0 1.5px var(--line-divider);
+            }
+            .then {
+                opacity: 1;
+                border-style: dashed;
+            }
+            .sheet .ingWrap {
+                flex: 1;
+                overflow: hidden;
+                -webkit-mask-image: linear-gradient(#000 85%, transparent);
+                mask-image: linear-gradient(#000 85%, transparent);
+            }
+            .ing li.used .nm {
+                text-decoration: line-through;
+                color: var(--muted);
+            }
+            .ing .q {
+                font-weight: 600;
+            }
+            .ing .tag {
+                margin-left: auto;
+                font-size: 13px;
+                color: var(--muted);
+            }
+            .scale {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 4px;
+                padding: 4px;
+                margin: 0 16px;
+                border-radius: 16px;
+                background: var(--surface-muted);
+            }
+            .scale a {
+                min-height: 48px;
+                border-radius: 12px;
+                display: grid;
+                place-items: center;
+                font-weight: 600;
+                color: var(--muted);
+            }
+            .scale a.on {
+                background: var(--paper);
+                color: var(--ink);
+                box-shadow:
+                    var(--shadow-sm),
+                    inset 0 0 0 1.5px var(--selected-edge);
+            }
+            /* Lock-screen alarm (AlarmKit on iOS 26; full-screen alarm path on Android) */
+            .lock {
+                background: #0b0f14;
+                color: #f2f4f7;
+            }
+            .lock .lt {
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .lock .big {
+                font-size: 30px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+            }
+            .lock .stopBig {
+                min-height: 72px;
+                border-radius: 36px;
+                background: #f2f4f7;
+                color: #0b0f14;
+                font-weight: 600;
+                display: grid;
+                place-items: center;
+            }
+            .lock .snooze {
+                min-height: 64px;
+                border-radius: 32px;
+                background: rgba(255, 255, 255, 0.14);
+                font-weight: 600;
+                display: grid;
+                place-items: center;
+            }
+            /* Wide: three columns */
+            .cols {
+                flex: 1;
+                min-height: 0;
+                display: grid;
+            }
+            .colL {
+                background: var(--paper);
+                border-right: 1px solid var(--line-divider);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+            .colR {
+                border-left: 1px solid var(--line-divider);
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                overflow: hidden;
+            }
+            .colM {
+                display: flex;
+                flex-direction: column;
+                padding: 16px 20px 0;
+                gap: 12px;
+                min-width: 0;
+            }
+            .colHead {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 16px 6px 20px;
+            }
+            .doneList {
+                list-style: none;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .doneList li {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                font-size: 13px;
+                color: var(--muted);
+            }
+            .doneList li .ic {
+                width: 16px;
+                height: 16px;
+                color: var(--steelText);
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+                <symbol id="chevL" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6" /></symbol>
+                <symbol id="chevR" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6" /></symbol>
+                <symbol id="chevD" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6" /></symbol>
+                <symbol id="list" viewBox="0 0 24 24">
+                    <path d="M9 6.5h11M9 12h11M9 17.5h11" />
+                    <circle cx="4.5" cy="6.5" r="1.2" fill="currentColor" />
+                    <circle cx="4.5" cy="12" r="1.2" fill="currentColor" />
+                    <circle cx="4.5" cy="17.5" r="1.2" fill="currentColor" />
+                </symbol>
+                <symbol id="timer" viewBox="0 0 24 24">
+                    <circle cx="12" cy="13.5" r="7" />
+                    <path d="M12 13.5V10M10 3.5h4" />
+                </symbol>
+                <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" /></symbol>
+                <symbol id="bell" viewBox="0 0 24 24">
+                    <path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5z" />
+                    <path d="M10 20.5h4" />
+                </symbol>
+                <symbol id="check" viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></symbol>
+                <symbol id="flame" viewBox="0 0 24 24">
+                    <path
+                        d="M12 3.5c3 3.5 5.5 6 5.5 9.5a5.5 5.5 0 0 1-11 0c0-2 1-3.5 2.5-5 0 2 1 3 2 3 0-3-1-5 1-7.5z"
+                    />
+                </symbol>
+                <symbol id="coffee" viewBox="0 0 24 24">
+                    <path
+                        d="M5 9.5h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4zM16 11h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5v3M11.5 3.5v3"
+                    />
+                </symbol>
+                <symbol id="plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" /></symbol>
+                <symbol id="arrowDown" viewBox="0 0 24 24"><path d="M12 5v14M6.5 13.5 12 19l5.5-5.5" /></symbol>
+                <symbol id="fast" viewBox="0 0 24 24"><path d="M4 7l6 5-6 5zM12 7l6 5-6 5z" /></symbol>
+            </defs>
+        </svg>
+        <main class="board">
+            <figure>
+                <figcaption>1. Step in progress, Next always in view (light)</figcaption>
+                <section
+                    data-screen="phoneNowLight"
+                    style="width: 390px; height: 844px"
+                    aria-label="1. Step in progress, Next always in view (light)"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 2 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 2 of 8">
+                                <i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i><i class=""></i
+                                ><i class=""></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="now" aria-label="Now: step 2, Butter the chicken">
+                            <p class="kicker">Now</p>
+                            <h2 class="goal">Butter the chicken</h2>
+                            <ol class="acts">
+                                <li class="done">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="true"
+                                        aria-label="Done: Mash 3 tbsp butter, the zest of 1 lemon and 1 tsp salt."
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg
+                                    ></a>
+                                    <p class="read">
+                                        Mash <b>3 tbsp</b> butter, the zest of <b>1</b> lemon and <b>1 tsp</b> salt.
+                                    </p>
+                                </li>
+                                <li class="cur">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Strip 3 sprigs thyme into the butter."
+                                    ></a>
+                                    <p class="read">Strip <b>3 sprigs</b> thyme into the butter.</p>
+                                </li>
+                                <li class="">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Push it under the breast skin."
+                                    ></a>
+                                    <p class="read">Push it under the breast skin.</p>
+                                </li>
+                            </ol>
+                        </section>
+                        <section class="next" aria-label="Next: step 3, Fill the tin">
+                            <p class="kicker">Next <span class="pill">Step 3</span></p>
+                            <h3 class="goal">Fill the tin</h3>
+                            <p class="line">Toss the vegetables in oil, sit the chicken on top.</p>
+                            <div class="needs">
+                                <span>Potatoes, carrots, onions</span><span>2 tbsp oil</span><span>Roasting tin</span>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>1. Step in progress (dark)</figcaption>
+                <section
+                    data-screen="phoneNowDark"
+                    data-theme="dark"
+                    style="width: 390px; height: 844px"
+                    aria-label="1. Step in progress (dark)"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 2 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 2 of 8">
+                                <i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i><i class=""></i
+                                ><i class=""></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="now" aria-label="Now: step 2, Butter the chicken">
+                            <p class="kicker">Now</p>
+                            <h2 class="goal">Butter the chicken</h2>
+                            <ol class="acts">
+                                <li class="done">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="true"
+                                        aria-label="Done: Mash 3 tbsp butter, the zest of 1 lemon and 1 tsp salt."
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg
+                                    ></a>
+                                    <p class="read">
+                                        Mash <b>3 tbsp</b> butter, the zest of <b>1</b> lemon and <b>1 tsp</b> salt.
+                                    </p>
+                                </li>
+                                <li class="cur">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Strip 3 sprigs thyme into the butter."
+                                    ></a>
+                                    <p class="read">Strip <b>3 sprigs</b> thyme into the butter.</p>
+                                </li>
+                                <li class="">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Push it under the breast skin."
+                                    ></a>
+                                    <p class="read">Push it under the breast skin.</p>
+                                </li>
+                            </ol>
+                        </section>
+                        <section class="next" aria-label="Next: step 3, Fill the tin">
+                            <p class="kicker">Next <span class="pill">Step 3</span></p>
+                            <h3 class="goal">Fill the tin</h3>
+                            <p class="line">Toss the vegetables in oil, sit the chicken on top.</p>
+                            <div class="needs">
+                                <span>Potatoes, carrots, onions</span><span>2 tbsp oil</span><span>Roasting tin</span>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>2. Next coming: a fast stretch warned one step early</figcaption>
+                <section
+                    data-screen="phoneAhead"
+                    style="width: 390px; height: 844px"
+                    aria-label="2. Next coming: a fast stretch warned one step early"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 6 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 6 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i
+                                ><i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="now" aria-label="Now: step 6, Start the gravy">
+                            <p class="kicker">Now</p>
+                            <h2 class="goal">Start the gravy</h2>
+                            <ol class="acts">
+                                <li class="cur">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Whisk 1 tbsp flour into 300 ml stock in a small pan."
+                                    ></a>
+                                    <p class="read">
+                                        Whisk <b>1 tbsp</b> flour into <b>300 ml</b> stock in a small pan.
+                                    </p>
+                                </li>
+                                <li class="">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Leave it off the heat."
+                                    ></a>
+                                    <p class="read">Leave it off the heat.</p>
+                                </li>
+                            </ol>
+                        </section>
+                        <section class="ahead" aria-label="Coming up fast">
+                            <p class="kicker">
+                                <svg class="ic sm" aria-hidden="true"><use href="#fast" /></svg>Next 2 steps go fast
+                            </p>
+                            <p class="line" style="margin-top: 6px">
+                                Three things happen at once in step 7. Have these out before you tap Done.
+                            </p>
+                            <div class="needs">
+                                <span>Board and foil</span><span>Pan of water on to boil</span
+                                ><span>300 g beans, trimmed</span><span>Gravy pan</span>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="dock" aria-label="Running timers">
+                        <div class="trow" role="timer">
+                            <span class="ring"
+                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                            ></span>
+                            <div class="grow">
+                                <p class="read tnum" style="font-size: 30px; line-height: 1.1">0:06:30</p>
+                                <p class="t13">Roast · step 4</p>
+                            </div>
+                            <a class="act" href="#" aria-label="Pause Roast · step 4"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                            ></a>
+                        </div>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>3. A wait: while the chicken roasts</figcaption>
+                <section
+                    data-screen="phoneWait"
+                    style="width: 390px; height: 844px"
+                    aria-label="3. A wait: while the chicken roasts"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 4 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 4 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="cur"></i
+                                ><i class=""></i><i class=""></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="wait" aria-label="Waiting: the chicken roasts">
+                            <p class="kicker">While the chicken roasts</p>
+                            <div class="count">
+                                <p class="read tnum w600">1:12:40</p>
+                                <p class="muted">left</p>
+                            </div>
+                            <div class="cue">
+                                <svg class="ic sm" aria-hidden="true"><use href="#flame" /></svg>
+                                <p>At <b class="tnum">1:10:00</b>, turn the oven down to 190°C. You will be told.</p>
+                            </div>
+                        </section>
+                        <p class="kicker" style="padding: 4px 4px 0">While you wait · if you like</p>
+                        <a class="task" href="#"
+                            ><div class="grow">
+                                <p class="w600">Trim the beans</p>
+                                <p class="t13 muted">From step 5 · about 5 min</p>
+                            </div>
+                            <span class="go"
+                                >Do it now<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span></a
+                        ><a class="task" href="#"
+                            ><div class="grow">
+                                <p class="w600">Start the gravy</p>
+                                <p class="t13 muted">From step 6 · about 5 min</p>
+                            </div>
+                            <span class="go"
+                                >Do it now<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span
+                        ></a>
+                        <div class="rest">
+                            <svg class="ic" aria-hidden="true"><use href="#coffee" /></svg>
+                            <p class="muted">After that, nothing needs you for about an hour.</p>
+                        </div>
+                    </div>
+                    <div class="dock" aria-label="Running timers">
+                        <div class="trow" role="timer">
+                            <span class="ring"
+                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                            ></span>
+                            <div class="grow">
+                                <p class="read tnum" style="font-size: 30px; line-height: 1.1">1:12:40</p>
+                                <p class="t13">Roast · step 4</p>
+                            </div>
+                            <a class="act" href="#" aria-label="Pause Roast · step 4"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                            ></a>
+                        </div>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Next: trim the beans<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>3. A wait (dark)</figcaption>
+                <section
+                    data-screen="phoneWaitDark"
+                    data-theme="dark"
+                    style="width: 390px; height: 844px"
+                    aria-label="3. A wait (dark)"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 4 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 4 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="cur"></i
+                                ><i class=""></i><i class=""></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="wait" aria-label="Waiting: the chicken roasts">
+                            <p class="kicker">While the chicken roasts</p>
+                            <div class="count">
+                                <p class="read tnum w600">1:12:40</p>
+                                <p class="muted">left</p>
+                            </div>
+                            <div class="cue">
+                                <svg class="ic sm" aria-hidden="true"><use href="#flame" /></svg>
+                                <p>At <b class="tnum">1:10:00</b>, turn the oven down to 190°C. You will be told.</p>
+                            </div>
+                        </section>
+                        <p class="kicker" style="padding: 4px 4px 0">While you wait · if you like</p>
+                        <a class="task" href="#"
+                            ><div class="grow">
+                                <p class="w600">Trim the beans</p>
+                                <p class="t13 muted">From step 5 · about 5 min</p>
+                            </div>
+                            <span class="go"
+                                >Do it now<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span></a
+                        ><a class="task" href="#"
+                            ><div class="grow">
+                                <p class="w600">Start the gravy</p>
+                                <p class="t13 muted">From step 6 · about 5 min</p>
+                            </div>
+                            <span class="go"
+                                >Do it now<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span
+                        ></a>
+                        <div class="rest">
+                            <svg class="ic" aria-hidden="true"><use href="#coffee" /></svg>
+                            <p class="muted">After that, nothing needs you for about an hour.</p>
+                        </div>
+                    </div>
+                    <div class="dock" aria-label="Running timers">
+                        <div class="trow" role="timer">
+                            <span class="ring"
+                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                            ></span>
+                            <div class="grow">
+                                <p class="read tnum" style="font-size: 30px; line-height: 1.1">1:12:40</p>
+                                <p class="t13">Roast · step 4</p>
+                            </div>
+                            <a class="act" href="#" aria-label="Pause Roast · step 4"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                            ></a>
+                        </div>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Next: trim the beans<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>4. Two timers at once</figcaption>
+                <section
+                    data-screen="phoneTwoTimers"
+                    style="width: 390px; height: 844px"
+                    aria-label="4. Two timers at once"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 7 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 7 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i
+                                ><i class="done"></i><i class="done"></i><i class="cur"></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="now" aria-label="Now: step 7, Rest and finish">
+                            <p class="kicker">Now</p>
+                            <h2 class="goal">Rest and finish</h2>
+                            <ol class="acts">
+                                <li class="done">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="true"
+                                        aria-label="Done: Rest the chicken under foil, 15 min."
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg
+                                    ></a>
+                                    <p class="read">Rest the chicken under foil, <b>15 min</b>.</p>
+                                </li>
+                                <li class="cur">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Boil 300 g beans, 4 min."
+                                    ></a>
+                                    <p class="read">Boil <b>300 g</b> beans, <b>4 min</b>.</p>
+                                </li>
+                                <li class="">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Pour the tin juices into the gravy. Simmer."
+                                    ></a>
+                                    <p class="read">Pour the tin juices into the gravy. Simmer.</p>
+                                </li>
+                            </ol>
+                        </section>
+                        <div class="nextLine" aria-label="Next: step 8, carve and serve">
+                            <p class="kicker">Next</p>
+                            <p class="w600" style="flex: 1">Carve and serve</p>
+                            <span class="t13 muted">Step 8</span>
+                        </div>
+                    </div>
+                    <div class="dock" aria-label="Running timers">
+                        <div class="trow" role="timer">
+                            <span class="ring"
+                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                            ></span>
+                            <div class="grow">
+                                <p class="read tnum" style="font-size: 30px; line-height: 1.1">0:14:10</p>
+                                <p class="t13">Rest the chicken · step 7</p>
+                            </div>
+                            <a class="act" href="#" aria-label="Pause Rest the chicken · step 7"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                            ></a>
+                        </div>
+                        <div class="trow" role="timer">
+                            <span class="ring"
+                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                            ></span>
+                            <div class="grow">
+                                <p class="read tnum" style="font-size: 30px; line-height: 1.1">0:03:20</p>
+                                <p class="t13">Beans · step 7</p>
+                            </div>
+                            <a class="act" href="#" aria-label="Pause Beans · step 7"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                            ></a>
+                        </div>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Done, carve and serve<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>5a. Finished timer, phone locked and on silent</figcaption>
+                <section
+                    data-screen="phoneAlarmLocked"
+                    class="lock"
+                    style="width: 390px; height: 844px"
+                    aria-label="5a. Finished timer, phone locked and on silent"
+                >
+                    <div class="status"></div>
+                    <div class="lt" style="flex: 1; justify-content: space-between; padding-bottom: 12px">
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 60px">
+                            <p class="t13" style="opacity: 0.75">Commise · Timer</p>
+                            <p class="big">Roast is done</p>
+                            <p>Step 4 · Lemon and thyme roast chicken</p>
+                            <p class="tnum" style="opacity: 0.75">Ringing for 0:42 · repeats until you stop it</p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 12px">
+                            <a class="snooze" href="#">+5 min</a><a class="stopBig" href="#">Stop</a>
+                        </div>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>5b. Back in the app: the finished timer is now the thing to do</figcaption>
+                <section
+                    data-screen="phoneAlarmInApp"
+                    style="width: 390px; height: 844px"
+                    aria-label="5b. Back in the app: the finished timer is now the thing to do"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 4 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 4 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="cur"></i
+                                ><i class=""></i><i class=""></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section
+                            class="now"
+                            style="
+                                box-shadow:
+                                    var(--shadow-md),
+                                    inset 0 0 0 2px var(--attention);
+                            "
+                            aria-label="Now: the roast is done"
+                        >
+                            <p class="kicker">
+                                <svg class="ic sm" aria-hidden="true"><use href="#bell" /></svg>Timer done
+                            </p>
+                            <h2 class="goal">Take the chicken out</h2>
+                            <ol class="acts">
+                                <li class="cur">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: take the chicken out"
+                                    ></a>
+                                    <p class="read">Lift the tin out of the oven and turn the oven off.</p>
+                                </li>
+                            </ol>
+                        </section>
+                        <section class="next" aria-label="Next: step 7, Rest and finish">
+                            <p class="kicker">Next <span class="pill">Step 7</span></p>
+                            <h3 class="goal">Rest and finish</h3>
+                            <p class="line">Rest the chicken, boil the beans, finish the gravy.</p>
+                            <div class="needs">
+                                <span>Board and foil</span><span>300 g beans</span><span>Gravy pan</span>
+                            </div>
+                            <p class="t13 muted" style="margin-top: 6px">Two timers will run: 15 min and 4 min.</p>
+                        </section>
+                    </div>
+                    <div class="dock" aria-label="Running timers">
+                        <div class="trow over" role="alert">
+                            <span class="ring"
+                                ><svg class="ic" aria-hidden="true"><use href="#bell" /></svg
+                            ></span>
+                            <div class="grow">
+                                <p class="w600">Roast · step 4 is done</p>
+                                <p class="t13 tnum">Over by 0:00:42</p>
+                            </div>
+                            <a class="act" href="#">Stop</a>
+                        </div>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>6. Ingredients from any step</figcaption>
+                <section
+                    data-screen="phoneIngredients"
+                    style="width: 390px; height: 844px"
+                    aria-label="6. Ingredients from any step"
+                >
+                    <div class="status"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 2 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 2 of 8">
+                                <i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i><i class=""></i
+                                ><i class=""></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <a class="ingBtn" href="#" aria-haspopup="dialog"
+                            ><svg class="ic" aria-hidden="true"><use href="#list" /></svg>Ingredients</a
+                        >
+                    </div>
+                    <div class="scroll">
+                        <section class="now" aria-label="Now: step 2, Butter the chicken">
+                            <p class="kicker">Now</p>
+                            <h2 class="goal">Butter the chicken</h2>
+                            <ol class="acts">
+                                <li class="done">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="true"
+                                        aria-label="Done: Mash 3 tbsp butter, the zest of 1 lemon and 1 tsp salt."
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg
+                                    ></a>
+                                    <p class="read">
+                                        Mash <b>3 tbsp</b> butter, the zest of <b>1</b> lemon and <b>1 tsp</b> salt.
+                                    </p>
+                                </li>
+                                <li class="cur">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Strip 3 sprigs thyme into the butter."
+                                    ></a>
+                                    <p class="read">Strip <b>3 sprigs</b> thyme into the butter.</p>
+                                </li>
+                                <li class="">
+                                    <a
+                                        class="tick"
+                                        href="#"
+                                        role="checkbox"
+                                        aria-checked="false"
+                                        aria-label="Done: Push it under the breast skin."
+                                    ></a>
+                                    <p class="read">Push it under the breast skin.</p>
+                                </li>
+                            </ol>
+                        </section>
+                    </div>
+                    <div class="ctl">
+                        <a class="btnBack" href="#" aria-label="Back one step"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                        ><a class="btnDone" href="#"
+                            >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                        ></a>
+                    </div>
+                    <div class="scrim" aria-hidden="true"></div>
+                    <div class="sheet" role="dialog" aria-modal="true" aria-label="Ingredients">
+                        <div class="grab" aria-hidden="true"></div>
+                        <div class="sheetHead">
+                            <h2 class="goal" style="margin: 0">
+                                Ingredients <span class="muted" style="font-weight: 400">· 4 servings</span>
+                            </h2>
+                            <a class="doneBtn" href="#">Done</a>
+                        </div>
+                        <div class="scale" role="radiogroup" aria-label="Servings">
+                            <a href="#">2</a><a href="#" class="on">4</a><a href="#">8</a><a href="#">12</a>
+                        </div>
+                        <div class="ingWrap">
+                            <p class="grp">For this step</p>
+                            <ul class="ing tnum">
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3 tbsp</span> butter</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">1</span> lemon, zest</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">1 tsp</span> salt</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span
+                                    ><span class="nm"><span class="q">3 sprigs</span> thyme</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Coming up</p>
+                            <ul class="ing tnum">
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span
+                                    ><span class="nm"><span class="q">800 g</span> potatoes</span
+                                    ><span class="tag">step 3</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">3</span> carrots</span
+                                    ><span class="tag">step 3</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">2</span> onions</span
+                                    ><span class="tag">step 3</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">2 tbsp</span> oil</span
+                                    ><span class="tag">step 3</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 g</span> beans</span
+                                    ><span class="tag">step 5</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="home"></div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>Tablet 1194, sideways in a stand</figcaption>
+                <section
+                    data-screen="tablet1194"
+                    class="wide"
+                    style="width: 1194px; height: 834px"
+                    aria-label="Tablet 1194, sideways in a stand"
+                >
+                    <div style="height: 24px; flex: none"></div>
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 6 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 6 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i
+                                ><i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <span></span>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 320px 1fr 360px">
+                        <aside class="colL" aria-label="Ingredients">
+                            <div class="colHead">
+                                <h2 class="goal" style="margin: 0">Ingredients</h2>
+                                <span class="t13 muted">4 servings</span>
+                            </div>
+                            <div class="scale" role="radiogroup" aria-label="Servings">
+                                <a href="#">2</a><a href="#" class="on">4</a><a href="#">8</a><a href="#">12</a>
+                            </div>
+                            <p class="grp">For this step</p>
+                            <ul class="ing tnum">
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">1 tbsp</span> flour</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 ml</span> stock</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Coming up</p>
+                            <ul class="ing tnum">
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 g</span> beans</span
+                                    ><span class="tag">step 7</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q"></span> foil</span
+                                    ><span class="tag">step 7</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Used</p>
+                            <ul class="ing tnum">
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3 tbsp</span> butter</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">800 g</span> potatoes</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3</span> carrots</span><span class="tag">In</span>
+                                </li>
+                            </ul>
+                        </aside>
+                        <section class="colM">
+                            <section class="now" aria-label="Now: step 6, Start the gravy">
+                                <p class="kicker">Now</p>
+                                <h2 class="goal">Start the gravy</h2>
+                                <ol class="acts">
+                                    <li class="cur">
+                                        <a
+                                            class="tick"
+                                            href="#"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Done: Whisk 1 tbsp flour into 300 ml stock in a small pan."
+                                        ></a>
+                                        <p class="read">
+                                            Whisk <b>1 tbsp</b> flour into <b>300 ml</b> stock in a small pan.
+                                        </p>
+                                    </li>
+                                    <li class="">
+                                        <a
+                                            class="tick"
+                                            href="#"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Done: Leave it off the heat."
+                                        ></a>
+                                        <p class="read">Leave it off the heat.</p>
+                                    </li>
+                                </ol>
+                            </section>
+                            <section class="next" aria-label="Next: step 7, Rest and finish">
+                                <p class="kicker">Next <span class="pill">Step 7</span></p>
+                                <h3 class="goal">Rest and finish</h3>
+                                <p class="line">Rest the chicken, boil the beans, finish the gravy.</p>
+                                <div class="needs">
+                                    <span>Board and foil</span><span>Pan of water</span><span>300 g beans</span>
+                                </div>
+                                <p class="t13 muted" style="margin-top: 6px">Two timers will run: 15 min and 4 min.</p>
+                            </section>
+                            <div class="nextLine" aria-label="Then: step 8, carve and serve">
+                                <p class="kicker">Then</p>
+                                <p class="w600" style="flex: 1">Carve and serve</p>
+                                <span class="t13 muted">Step 8</span>
+                            </div>
+                            <div style="margin-top: auto">
+                                <div class="ctl">
+                                    <a class="btnBack" href="#" aria-label="Back one step"
+                                        ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                                    ><a class="btnDone" href="#"
+                                        >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                                    ></a>
+                                </div>
+                            </div>
+                            <div style="height: 20px"></div>
+                        </section>
+                        <aside class="colR" aria-label="Timers and waiting">
+                            <p class="kicker">Timers</p>
+                            <div class="dock" aria-label="Running timers">
+                                <div class="trow" role="timer">
+                                    <span class="ring"
+                                        ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                                    ></span>
+                                    <div class="grow">
+                                        <p class="read tnum" style="font-size: 30px; line-height: 1.1">0:41:20</p>
+                                        <p class="t13">Roast · step 4</p>
+                                    </div>
+                                    <a class="act" href="#" aria-label="Pause Roast · step 4"
+                                        ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                                    ></a>
+                                </div>
+                            </div>
+                            <p class="kicker" style="margin-top: 8px">While you wait · if you like</p>
+                            <a class="task" href="#"
+                                ><div class="grow">
+                                    <p class="w600">Put a pan of water on</p>
+                                    <p class="t13 muted">For step 7 · 2 min</p>
+                                </div>
+                                <span class="go"
+                                    >Do it<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span
+                            ></a>
+                            <div class="rest">
+                                <svg class="ic" aria-hidden="true"><use href="#coffee" /></svg>
+                                <p class="muted">Then nothing needs you until the roast is done.</p>
+                            </div>
+                            <p class="kicker" style="margin-top: 8px">Done</p>
+                            <ul class="doneList">
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 1 · Heat the oven
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 2 · Butter the
+                                    chicken
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 3 · Fill the tin
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 4 · Roast
+                                    (running)
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 5 · Trim the
+                                    beans
+                                </li>
+                            </ul>
+                        </aside>
+                    </div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>Web 1280</figcaption>
+                <section data-screen="web1280" class="wide" style="width: 1280px; height: 800px" aria-label="Web 1280">
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 6 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 6 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i
+                                ><i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <span></span>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 320px 1fr 360px">
+                        <aside class="colL" aria-label="Ingredients">
+                            <div class="colHead">
+                                <h2 class="goal" style="margin: 0">Ingredients</h2>
+                                <span class="t13 muted">4 servings</span>
+                            </div>
+                            <div class="scale" role="radiogroup" aria-label="Servings">
+                                <a href="#">2</a><a href="#" class="on">4</a><a href="#">8</a><a href="#">12</a>
+                            </div>
+                            <p class="grp">For this step</p>
+                            <ul class="ing tnum">
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">1 tbsp</span> flour</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 ml</span> stock</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Coming up</p>
+                            <ul class="ing tnum">
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 g</span> beans</span
+                                    ><span class="tag">step 7</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q"></span> foil</span
+                                    ><span class="tag">step 7</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Used</p>
+                            <ul class="ing tnum">
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3 tbsp</span> butter</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">800 g</span> potatoes</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3</span> carrots</span><span class="tag">In</span>
+                                </li>
+                            </ul>
+                        </aside>
+                        <section class="colM">
+                            <section class="now" aria-label="Now: step 6, Start the gravy">
+                                <p class="kicker">Now</p>
+                                <h2 class="goal">Start the gravy</h2>
+                                <ol class="acts">
+                                    <li class="cur">
+                                        <a
+                                            class="tick"
+                                            href="#"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Done: Whisk 1 tbsp flour into 300 ml stock in a small pan."
+                                        ></a>
+                                        <p class="read">
+                                            Whisk <b>1 tbsp</b> flour into <b>300 ml</b> stock in a small pan.
+                                        </p>
+                                    </li>
+                                    <li class="">
+                                        <a
+                                            class="tick"
+                                            href="#"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Done: Leave it off the heat."
+                                        ></a>
+                                        <p class="read">Leave it off the heat.</p>
+                                    </li>
+                                </ol>
+                            </section>
+                            <section class="next" aria-label="Next: step 7, Rest and finish">
+                                <p class="kicker">Next <span class="pill">Step 7</span></p>
+                                <h3 class="goal">Rest and finish</h3>
+                                <p class="line">Rest the chicken, boil the beans, finish the gravy.</p>
+                                <div class="needs">
+                                    <span>Board and foil</span><span>Pan of water</span><span>300 g beans</span>
+                                </div>
+                                <p class="t13 muted" style="margin-top: 6px">Two timers will run: 15 min and 4 min.</p>
+                            </section>
+                            <div class="nextLine" aria-label="Then: step 8, carve and serve">
+                                <p class="kicker">Then</p>
+                                <p class="w600" style="flex: 1">Carve and serve</p>
+                                <span class="t13 muted">Step 8</span>
+                            </div>
+                            <div style="margin-top: auto">
+                                <div class="ctl">
+                                    <a class="btnBack" href="#" aria-label="Back one step"
+                                        ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                                    ><a class="btnDone" href="#"
+                                        >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                                    ></a>
+                                </div>
+                            </div>
+                            <div style="height: 20px"></div>
+                        </section>
+                        <aside class="colR" aria-label="Timers and waiting">
+                            <p class="kicker">Timers</p>
+                            <div class="dock" aria-label="Running timers">
+                                <div class="trow" role="timer">
+                                    <span class="ring"
+                                        ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                                    ></span>
+                                    <div class="grow">
+                                        <p class="read tnum" style="font-size: 30px; line-height: 1.1">0:41:20</p>
+                                        <p class="t13">Roast · step 4</p>
+                                    </div>
+                                    <a class="act" href="#" aria-label="Pause Roast · step 4"
+                                        ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                                    ></a>
+                                </div>
+                            </div>
+                            <p class="kicker" style="margin-top: 8px">While you wait · if you like</p>
+                            <a class="task" href="#"
+                                ><div class="grow">
+                                    <p class="w600">Put a pan of water on</p>
+                                    <p class="t13 muted">For step 7 · 2 min</p>
+                                </div>
+                                <span class="go"
+                                    >Do it<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span
+                            ></a>
+                            <div class="rest">
+                                <svg class="ic" aria-hidden="true"><use href="#coffee" /></svg>
+                                <p class="muted">Then nothing needs you until the roast is done.</p>
+                            </div>
+                            <p class="kicker" style="margin-top: 8px">Done</p>
+                            <ul class="doneList">
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 1 · Heat the oven
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 2 · Butter the
+                                    chicken
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 3 · Fill the tin
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 4 · Roast
+                                    (running)
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 5 · Trim the
+                                    beans
+                                </li>
+                            </ul>
+                        </aside>
+                    </div>
+                </section>
+            </figure>
+            <figure>
+                <figcaption>Web 1280 (dark)</figcaption>
+                <section
+                    data-screen="web1280Dark"
+                    class="wide"
+                    data-theme="dark"
+                    style="width: 1280px; height: 800px"
+                    aria-label="Web 1280 (dark)"
+                >
+                    <div class="bar">
+                        <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                            ><span
+                                ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                        ></a>
+                        <div class="where" aria-live="polite">
+                            <p class="s">Step 6 <span class="muted" style="font-weight: 400">of 8</span></p>
+                            <div class="ticks" role="img" aria-label="Step 6 of 8">
+                                <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i
+                                ><i class="done"></i><i class="cur"></i><i class=""></i><i class=""></i>
+                            </div>
+                        </div>
+                        <span></span>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 320px 1fr 360px">
+                        <aside class="colL" aria-label="Ingredients">
+                            <div class="colHead">
+                                <h2 class="goal" style="margin: 0">Ingredients</h2>
+                                <span class="t13 muted">4 servings</span>
+                            </div>
+                            <div class="scale" role="radiogroup" aria-label="Servings">
+                                <a href="#">2</a><a href="#" class="on">4</a><a href="#">8</a><a href="#">12</a>
+                            </div>
+                            <p class="grp">For this step</p>
+                            <ul class="ing tnum">
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">1 tbsp</span> flour</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 ml</span> stock</span
+                                    ><span class="tag">This step</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Coming up</p>
+                            <ul class="ing tnum">
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q">300 g</span> beans</span
+                                    ><span class="tag">step 7</span>
+                                </li>
+                                <li role="checkbox" aria-checked="false">
+                                    <span class="box"></span><span class="nm"><span class="q"></span> foil</span
+                                    ><span class="tag">step 7</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Used</p>
+                            <ul class="ing tnum">
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3 tbsp</span> butter</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">800 g</span> potatoes</span
+                                    ><span class="tag">In</span>
+                                </li>
+                                <li class="used" role="checkbox" aria-checked="true">
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm"><span class="q">3</span> carrots</span><span class="tag">In</span>
+                                </li>
+                            </ul>
+                        </aside>
+                        <section class="colM">
+                            <section class="now" aria-label="Now: step 6, Start the gravy">
+                                <p class="kicker">Now</p>
+                                <h2 class="goal">Start the gravy</h2>
+                                <ol class="acts">
+                                    <li class="cur">
+                                        <a
+                                            class="tick"
+                                            href="#"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Done: Whisk 1 tbsp flour into 300 ml stock in a small pan."
+                                        ></a>
+                                        <p class="read">
+                                            Whisk <b>1 tbsp</b> flour into <b>300 ml</b> stock in a small pan.
+                                        </p>
+                                    </li>
+                                    <li class="">
+                                        <a
+                                            class="tick"
+                                            href="#"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            aria-label="Done: Leave it off the heat."
+                                        ></a>
+                                        <p class="read">Leave it off the heat.</p>
+                                    </li>
+                                </ol>
+                            </section>
+                            <section class="next" aria-label="Next: step 7, Rest and finish">
+                                <p class="kicker">Next <span class="pill">Step 7</span></p>
+                                <h3 class="goal">Rest and finish</h3>
+                                <p class="line">Rest the chicken, boil the beans, finish the gravy.</p>
+                                <div class="needs">
+                                    <span>Board and foil</span><span>Pan of water</span><span>300 g beans</span>
+                                </div>
+                                <p class="t13 muted" style="margin-top: 6px">Two timers will run: 15 min and 4 min.</p>
+                            </section>
+                            <div class="nextLine" aria-label="Then: step 8, carve and serve">
+                                <p class="kicker">Then</p>
+                                <p class="w600" style="flex: 1">Carve and serve</p>
+                                <span class="t13 muted">Step 8</span>
+                            </div>
+                            <div style="margin-top: auto">
+                                <div class="ctl">
+                                    <a class="btnBack" href="#" aria-label="Back one step"
+                                        ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a
+                                    ><a class="btnDone" href="#"
+                                        >Done, next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                                    ></a>
+                                </div>
+                            </div>
+                            <div style="height: 20px"></div>
+                        </section>
+                        <aside class="colR" aria-label="Timers and waiting">
+                            <p class="kicker">Timers</p>
+                            <div class="dock" aria-label="Running timers">
+                                <div class="trow" role="timer">
+                                    <span class="ring"
+                                        ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                                    ></span>
+                                    <div class="grow">
+                                        <p class="read tnum" style="font-size: 30px; line-height: 1.1">0:41:20</p>
+                                        <p class="t13">Roast · step 4</p>
+                                    </div>
+                                    <a class="act" href="#" aria-label="Pause Roast · step 4"
+                                        ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg
+                                    ></a>
+                                </div>
+                            </div>
+                            <p class="kicker" style="margin-top: 8px">While you wait · if you like</p>
+                            <a class="task" href="#"
+                                ><div class="grow">
+                                    <p class="w600">Put a pan of water on</p>
+                                    <p class="t13 muted">For step 7 · 2 min</p>
+                                </div>
+                                <span class="go"
+                                    >Do it<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></span
+                            ></a>
+                            <div class="rest">
+                                <svg class="ic" aria-hidden="true"><use href="#coffee" /></svg>
+                                <p class="muted">Then nothing needs you until the roast is done.</p>
+                            </div>
+                            <p class="kicker" style="margin-top: 8px">Done</p>
+                            <ul class="doneList">
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 1 · Heat the oven
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 2 · Butter the
+                                    chicken
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 3 · Fill the tin
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 4 · Roast
+                                    (running)
+                                </li>
+                                <li>
+                                    <svg class="ic" aria-hidden="true"><use href="#check" /></svg>Step 5 · Trim the
+                                    beans
+                                </li>
+                            </ul>
+                        </aside>
+                    </div>
+                </section>
+            </figure>
+        </main>
+    </body>
+</html>

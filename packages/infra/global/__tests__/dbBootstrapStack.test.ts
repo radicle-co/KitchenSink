@@ -12,7 +12,7 @@
  * - **`roleModelDigest`** — CloudFormation re-invokes a custom resource only when its properties change, so a changed
  *   statement list must change a property or the new model never reaches a deployed stage.
  * - **600 s** — BELOW the provider framework's own 900 s, so the framework never times out first and lets Lambda's
- *   async retry start a second pass beside a live one; the armed pass drops, recreates and re-owns in seconds.
+ *   async retry start a second pass beside a live one; a pass takes seconds.
  */
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
@@ -70,6 +70,27 @@ describe.each(['sandbox', 'prod'])('the %s database bootstrap', (stage) => {
             Ref: expect.stringMatching(/^DatabaseCredentialsSecret[0-9A-F]{8}$/u),
         });
         expect(fn.Properties.VpcConfig.SubnetIds).toHaveLength(2);
+    });
+
+    it('carries no legacy recreate: no event property and no function flag can arm it', () => {
+        // ADR-0039's one-shot recreate ran on sandbox (2026-10-04) and prod (2026-10-25), and the disarm commit
+        // deleted its path; an event or an environment able to arm it would be a door to `DROP DATABASE`.
+        for (const { resource } of Object.values(resources)) {
+            expect(Object.keys(resource.Properties).sort()).toEqual([
+                'ServiceToken',
+                'codeSource',
+                'database',
+                'roleModelDigest',
+                'service',
+                'stage',
+            ]);
+        }
+
+        const variables = Object.values(template.findResources('AWS::Lambda::Function'))
+            .filter((fn) => String(fn.Properties.Description ?? '').startsWith('Bootstrap the database role model'))
+            .flatMap((fn) => Object.keys(fn.Properties.Environment.Variables as object));
+
+        expect(variables).not.toContain('LEGACY_RECREATE_ARMED');
     });
 
     it('declares the two per-service bootstraps no more', () => {

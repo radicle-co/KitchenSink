@@ -1,0 +1,2284 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Cooking Mode Glance</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* Redesign tokens, copied from redesignCanvas/tokens.css (round 9). Values unchanged. */
+            [data-theme='light'] {
+                --canvas: #eff3f6;
+                --paper: #fcfdff;
+                --ink: #171b20;
+                --ink-muted: #5c646e;
+                --line-control: #80878f;
+                --line-divider: #dfe3e8;
+                --action: #325c7f;
+                --action-text: #325c7f;
+                --selected-fill: #e4eef7;
+                --here-bar: #325c7f;
+                --focus-ring: #325c7f;
+                --attention: #8c5a00;
+                --attention-tint: rgba(245, 176, 65, 0.2);
+                --paper-raised: #ffffff;
+                --paper-overlay: #ffffff;
+                --surface-muted: #e9edf2;
+                --inverse: #171b20;
+                --inverse-ink: #ffffff;
+                --scrim: rgba(10, 16, 24, 0.42);
+                --on-action: #ffffff;
+                --shadow-md: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+                --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+            }
+            [data-theme='dark'] {
+                --canvas: #0e161e;
+                --paper: #172029;
+                --ink: #ebeff2;
+                --ink-muted: #a3acb6;
+                --line-control: #7d8792;
+                --line-divider: #262f38;
+                --action: #96bcde;
+                --action-text: #96bcde;
+                --selected-fill: #1f3548;
+                --here-bar: #96bcde;
+                --focus-ring: #96bcde;
+                --attention: #efba64;
+                --attention-tint: rgba(245, 176, 65, 0.2);
+                --paper-raised: #212b36;
+                --paper-overlay: #26313d;
+                --surface-muted: #212b36;
+                --inverse: #ebeff2;
+                --inverse-ink: #171b20;
+                --scrim: rgba(0, 0, 0, 0.66);
+                --on-action: #0e161e;
+                --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+                --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4);
+            }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: #d9dee3;
+                font-family: Inter, system-ui, sans-serif;
+                color: #171b20;
+                padding: 40px;
+            }
+            .sheetTitle {
+                font:
+                    600 28px/1.15 Manrope,
+                    Inter,
+                    sans-serif;
+                margin-bottom: 8px;
+            }
+            .sheetNote {
+                font-size: 15px;
+                color: #5c646e;
+                max-width: 760px;
+                margin-bottom: 32px;
+                line-height: 1.45;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 40px;
+                align-items: flex-start;
+                margin-bottom: 56px;
+            }
+            figure {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            figcaption {
+                font-size: 13px;
+                color: #5c646e;
+                max-width: 390px;
+                line-height: 1.35;
+            }
+            figcaption b {
+                color: #171b20;
+                font-weight: 600;
+            }
+
+            /* ---- Screen frame ---- */
+            .screen {
+                background: var(--canvas);
+                color: var(--ink);
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                font-family: Inter, system-ui, sans-serif;
+            }
+            .phone {
+                width: 390px;
+                height: 844px;
+                border-radius: 44px;
+                box-shadow:
+                    0 0 0 10px #111,
+                    0 20px 50px rgba(0, 0, 0, 0.25);
+            }
+            .tablet {
+                width: 1194px;
+                height: 834px;
+                border-radius: 28px;
+                box-shadow:
+                    0 0 0 14px #111,
+                    0 20px 50px rgba(0, 0, 0, 0.25);
+            }
+            .web {
+                width: 1280px;
+                height: 800px;
+                border-radius: 10px;
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            }
+            .status {
+                height: 47px;
+                flex: none;
+                display: flex;
+                align-items: flex-end;
+                padding: 0 32px 6px;
+                font-size: 17px;
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .homeBar {
+                position: absolute;
+                bottom: 8px;
+                left: 50%;
+                width: 134px;
+                height: 5px;
+                margin-left: -67px;
+                border-radius: 3px;
+                background: var(--ink);
+                opacity: 0.9;
+            }
+
+            /* Type: three sizes per screen. 40 is the one cooking reading size; 17 and 13 come from the ramp. */
+            .t40 {
+                font-size: 40px;
+                line-height: 1.12;
+                letter-spacing: -0.02em;
+                font-weight: 400;
+            }
+            .t40 b,
+            .t17 b {
+                font-weight: 600;
+            }
+            .t17 {
+                font-size: 17px;
+                line-height: 1.4;
+            }
+            .t13 {
+                font-size: 13px;
+                line-height: 1.35;
+            }
+            .over {
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--ink-muted);
+            }
+            .muted {
+                color: var(--ink-muted);
+            }
+            .num {
+                font-variant-numeric: tabular-nums;
+            }
+            .steelWord {
+                color: var(--action-text);
+                font-weight: 600;
+            }
+
+            /* Top bar */
+            .top {
+                flex: none;
+                height: 60px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0 16px;
+            }
+            .iconBtn {
+                width: 48px;
+                height: 48px;
+                border-radius: 24px;
+                background: var(--surface-muted);
+                display: grid;
+                place-items: center;
+                color: var(--ink);
+                flex: none;
+            }
+            .place {
+                flex: 1;
+                min-width: 0;
+                text-align: center;
+            }
+            .place .t17 {
+                font-weight: 600;
+            }
+            .place .t13 {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                color: var(--ink-muted);
+            }
+            .pillBtn {
+                height: 48px;
+                padding: 0 16px;
+                border-radius: 24px;
+                border: 1px solid var(--line-control);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 17px;
+                font-weight: 500;
+                flex: none;
+            }
+            .pillBtn svg {
+                color: var(--action-text);
+            }
+            .track {
+                flex: none;
+                display: flex;
+                gap: 4px;
+                padding: 0 16px 0;
+            }
+            .track i {
+                flex: 1;
+                height: 4px;
+                border-radius: 2px;
+                background: var(--line-divider);
+            }
+            .track i.done {
+                background: var(--ink-muted);
+            }
+            .track i.now {
+                background: var(--here-bar);
+            }
+
+            /* Far band: what reads from a metre away */
+            .far {
+                flex: none;
+                padding: 22px 20px 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .timeLine {
+                display: flex;
+                align-items: baseline;
+                gap: 12px;
+            }
+            .timeLine .t40 {
+                font-variant-numeric: tabular-nums;
+            }
+            .rule {
+                height: 1px;
+                background: var(--line-divider);
+                margin: 0 20px;
+                flex: none;
+            }
+
+            /* Near band: what reads when the cook steps closer */
+            .near {
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+                padding: 12px 20px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .act {
+                display: flex;
+                align-items: flex-start;
+                gap: 14px;
+                min-height: 52px;
+                padding: 12px 0;
+            }
+            .box {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                border: 1.5px solid var(--line-control);
+                flex: none;
+                display: grid;
+                place-items: center;
+                margin-top: -2px;
+            }
+            .act.done .box {
+                background: var(--ink-muted);
+                border-color: var(--ink-muted);
+                color: var(--canvas);
+            }
+            .act.done .t17 {
+                color: var(--ink-muted);
+                text-decoration: line-through;
+                text-decoration-thickness: 1px;
+            }
+            .act.cur .t17 {
+                font-weight: 600;
+            }
+            .act.cur .box {
+                border-color: var(--here-bar);
+                border-width: 2px;
+            }
+            .then {
+                margin-top: 10px;
+                padding: 14px 0 0;
+                border-top: 1px solid var(--line-divider);
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .then .t17 {
+                color: var(--ink-muted);
+            }
+            .wait {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .sugg {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 56px;
+                border-bottom: 1px solid var(--line-divider);
+            }
+            .sugg:last-child {
+                border-bottom: 0;
+            }
+            .sugg .t17 {
+                flex: 1;
+            }
+            .tag {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--action-text);
+                flex: none;
+            }
+
+            /* Dock and nav */
+            .dock {
+                flex: none;
+                margin: 0 16px 10px;
+                border-radius: 18px;
+                background: var(--paper-raised);
+                box-shadow: var(--shadow-md);
+            }
+            .dockRow {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 8px 8px 16px;
+                min-height: 64px;
+            }
+            .dockRow + .dockRow {
+                border-top: 1px solid var(--line-divider);
+            }
+            .dockRow .lab {
+                flex: 1;
+                min-width: 0;
+            }
+            .dockRow .t17 {
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .smallBtn {
+                height: 48px;
+                min-width: 56px;
+                padding: 0 14px;
+                border-radius: 12px;
+                background: var(--surface-muted);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .nav {
+                flex: none;
+                display: flex;
+                gap: 12px;
+                padding: 0 16px 30px;
+            }
+            .btn {
+                height: 72px;
+                border-radius: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .btnBack {
+                width: 120px;
+                border: 1px solid var(--line-control);
+                color: var(--ink);
+            }
+            .btnNext {
+                flex: 1;
+                background: var(--action);
+                color: var(--on-action);
+            }
+
+            /* Notice (alarms off) */
+            .notice {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                padding: 14px 16px;
+                border-radius: 12px;
+                background: var(--attention-tint);
+                margin: 0 16px;
+                flex: none;
+            }
+            .notice svg {
+                color: var(--attention);
+                flex: none;
+                margin-top: 2px;
+            }
+            .notice .t17 b {
+                font-weight: 600;
+            }
+            .linkBtn {
+                color: var(--action-text);
+                font-weight: 600;
+            }
+
+            /* Alarm takeover: the whole screen turns to the inverse surface. No steel fill (P4). */
+            .alarm {
+                background: var(--inverse);
+                color: var(--inverse-ink);
+            }
+            .alarm .over {
+                color: var(--inverse-ink);
+                opacity: 0.78;
+            }
+            .alarmBody {
+                flex: 1;
+                padding: 36px 24px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+            .ring {
+                width: 64px;
+                height: 64px;
+                border-radius: 32px;
+                border: 2px solid var(--inverse-ink);
+                display: grid;
+                place-items: center;
+            }
+            .alarmNav {
+                flex: none;
+                padding: 0 16px 30px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .stopBtn {
+                height: 112px;
+                border-radius: 24px;
+                background: var(--inverse-ink);
+                color: var(--inverse);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .alarmSecondary {
+                display: flex;
+                gap: 12px;
+            }
+            .ghost {
+                flex: 1;
+                height: 64px;
+                border-radius: 18px;
+                border: 1px solid currentColor;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+
+            /* Sheet */
+            .scrimWrap {
+                position: absolute;
+                inset: 0;
+                background: var(--scrim);
+            }
+            .sheet {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: 330px;
+                background: var(--paper-overlay);
+                border-radius: 24px 24px 0 0;
+                display: flex;
+                flex-direction: column;
+                box-shadow: var(--shadow-lg);
+            }
+            .grab {
+                width: 40px;
+                height: 5px;
+                border-radius: 3px;
+                background: var(--line-divider);
+                margin: 8px auto 0;
+            }
+            .sheetHead {
+                display: flex;
+                align-items: center;
+                padding: 10px 16px 6px 20px;
+            }
+            .sheetHead .t17 {
+                flex: 1;
+                font-weight: 600;
+            }
+            .stepper {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                margin: 4px 20px 8px;
+            }
+            .stepper .lab {
+                flex: 1;
+            }
+            .stepBtn {
+                width: 56px;
+                height: 56px;
+                border-radius: 28px;
+                border: 1px solid var(--line-control);
+                display: grid;
+                place-items: center;
+            }
+            .stepVal {
+                width: 52px;
+                text-align: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .ing {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 56px;
+                padding: 0 20px;
+            }
+            .ing .t17 {
+                flex: 1;
+            }
+            .ing.done .box {
+                background: var(--ink-muted);
+                border-color: var(--ink-muted);
+                color: var(--paper-overlay);
+            }
+            .ing.done .t17 {
+                color: var(--ink-muted);
+                text-decoration: line-through;
+            }
+            .ing.here {
+                background: var(--selected-fill);
+                box-shadow: inset 3px 0 0 var(--here-bar);
+            }
+            .group {
+                padding: 14px 20px 4px;
+            }
+
+            /* Lock screen schematic */
+            .lock {
+                background: linear-gradient(180deg, #2b3440, #11161c);
+                color: #fff;
+            }
+            .lockTime {
+                text-align: center;
+                font-size: 80px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                margin-top: 30px;
+                font-variant-numeric: tabular-nums;
+            }
+            .lockDate {
+                text-align: center;
+                font-size: 17px;
+                opacity: 0.85;
+            }
+            .sysAlert {
+                margin: 26px 12px 0;
+                border-radius: 26px;
+                background: rgba(40, 46, 54, 0.82);
+                padding: 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                outline: 1px dashed rgba(255, 255, 255, 0.35);
+                outline-offset: 4px;
+            }
+            .sysRow {
+                display: flex;
+                gap: 10px;
+            }
+            .sysBtn {
+                flex: 1;
+                height: 56px;
+                border-radius: 28px;
+                background: rgba(255, 255, 255, 0.16);
+                display: grid;
+                place-items: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .sysBtn.stop {
+                background: #fff;
+                color: #11161c;
+            }
+            .live {
+                margin: 16px 12px 0;
+                border-radius: 24px;
+                background: rgba(23, 32, 41, 0.92);
+                padding: 16px 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .liveRow {
+                display: flex;
+                align-items: baseline;
+                justify-content: space-between;
+            }
+            .sysNote {
+                margin: 12px 24px 0;
+                font-size: 13px;
+                opacity: 0.7;
+                line-height: 1.35;
+            }
+
+            /* Wide layouts */
+            .wideTop {
+                flex: none;
+                height: 72px;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 0 24px;
+            }
+            .wideTop .place {
+                text-align: left;
+            }
+            .cols {
+                flex: 1;
+                min-height: 0;
+                display: grid;
+                gap: 0;
+            }
+            .colIng {
+                background: var(--paper);
+                border-right: 1px solid var(--line-divider);
+                overflow: hidden;
+                padding-bottom: 16px;
+            }
+            .colStep {
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+            }
+            .colTimers {
+                border-left: 1px solid var(--line-divider);
+                padding: 20px 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .tCard {
+                border-radius: 18px;
+                background: var(--paper-raised);
+                box-shadow: var(--shadow-md);
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .tCard .tRow {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .tCard .tRow .lab {
+                flex: 1;
+            }
+            .colStep .far {
+                padding: 28px 40px 22px;
+            }
+            .colStep .rule {
+                margin: 0 40px;
+            }
+            .colStep .near {
+                padding: 12px 40px 0;
+            }
+            .colStep .nav {
+                padding: 0 40px 28px;
+            }
+            .colStep .btnBack {
+                width: 180px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1 class="sheetTitle">Glance from across the kitchen</h1>
+        <p class="sheetNote">
+            Designer C, round 1. One screen, read at two distances. The top band holds at most two things at the cooking
+            size (40): the one thing to do, with its amount, and the time left. Everything below it is at 17, for when
+            the cook steps closer. Lemon and thyme roast chicken, 5 steps, for 4.
+        </p>
+
+        <!-- ============ PHONE CORE ============ -->
+        <div class="row">
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneStepNow">
+                    <div class="status">9:41</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite">
+                            <div class="t17">Step 2 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >11
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i></i><i></i><i></i>
+                    </div>
+                    <div class="far">
+                        <div class="over">Now · 2 of 4</div>
+                        <div class="t40">Mash <b>3&nbsp;tbsp butter</b> with the lemon zest</div>
+                        <div class="timeLine">
+                            <span class="t40">6:20</span><span class="t13 muted">Oven to 220°C</span>
+                        </div>
+                    </div>
+                    <div class="rule"></div>
+                    <div class="near">
+                        <div class="act done">
+                            <div class="box">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M5 12l5 5 9-10" />
+                                </svg>
+                            </div>
+                            <div class="t17">Zest <b>1 lemon</b></div>
+                        </div>
+                        <div class="act cur">
+                            <div class="box"></div>
+                            <div class="t17">Mash <b>3 tbsp butter</b> with the zest</div>
+                        </div>
+                        <div class="act">
+                            <div class="box"></div>
+                            <div class="t17">Add <b>3 sprigs’</b> thyme leaves and <b>1 tsp salt</b></div>
+                        </div>
+                        <div class="act">
+                            <div class="box"></div>
+                            <div class="t17">Spread it under the skin of the breast</div>
+                        </div>
+                        <div class="then">
+                            <div class="over">Then · Step 3</div>
+                            <div class="t17">Toss the vegetables in oil, chicken on top</div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            Next step<svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>1 · Step in progress, light.</b> From a metre: the action with its amount, and the oven's time
+                    left. Closer: the step as four short actions in order (CK-034), each amount inline (P1), and what
+                    comes then (CK-033). Ticking is optional; the top line follows the first unticked action. "11" opens
+                    the ingredients.
+                </figcaption>
+            </figure>
+
+            <figure>
+                <div class="screen phone" data-theme="dark" data-screen="phoneStepNowDark">
+                    <div class="status">9:41</div>
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 2 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >11
+                        </div>
+                    </div>
+                    <div class="track"><i class="done"></i><i class="now"></i><i></i><i></i><i></i></div>
+                    <div class="far">
+                        <div class="over">Now · 2 of 4</div>
+                        <div class="t40">Mash <b>3&nbsp;tbsp butter</b> with the lemon zest</div>
+                        <div class="timeLine">
+                            <span class="t40">6:20</span><span class="t13 muted">Oven to 220°C</span>
+                        </div>
+                    </div>
+                    <div class="rule"></div>
+                    <div class="near">
+                        <div class="act done">
+                            <div class="box">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M5 12l5 5 9-10" />
+                                </svg>
+                            </div>
+                            <div class="t17">Zest <b>1 lemon</b></div>
+                        </div>
+                        <div class="act cur">
+                            <div class="box"></div>
+                            <div class="t17">Mash <b>3 tbsp butter</b> with the zest</div>
+                        </div>
+                        <div class="act">
+                            <div class="box"></div>
+                            <div class="t17">Add <b>3 sprigs’</b> thyme leaves and <b>1 tsp salt</b></div>
+                        </div>
+                        <div class="act">
+                            <div class="box"></div>
+                            <div class="t17">Spread it under the skin of the breast</div>
+                        </div>
+                        <div class="then">
+                            <div class="over">Then · Step 3</div>
+                            <div class="t17">Toss the vegetables in oil, chicken on top</div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            Next step<svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>1 · Step in progress, dark.</b> Same layout. Light text on the dusk canvas carries further in a
+                    dim kitchen than a white screen, and does not glare.
+                </figcaption>
+            </figure>
+
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneNextComing">
+                    <div class="status">9:58</div>
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 3 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >11
+                        </div>
+                    </div>
+                    <div class="track"><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div>
+                    <div class="far">
+                        <div class="over">Up next · Step 4</div>
+                        <div class="t40">Roast at 220°C, then lower to 190°C</div>
+                        <div class="timeLine">
+                            <span class="t40">1&nbsp;h&nbsp;30</span><span class="t13 muted">in the oven</span>
+                        </div>
+                    </div>
+                    <div class="rule"></div>
+                    <div class="near">
+                        <div class="act done">
+                            <div class="box">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M5 12l5 5 9-10" />
+                                </svg>
+                            </div>
+                            <div class="t17">
+                                Toss <b>800 g potatoes</b>, <b>3 carrots</b> and <b>2 onions</b> in <b>2 tbsp oil</b>
+                            </div>
+                        </div>
+                        <div class="act done">
+                            <div class="box">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M5 12l5 5 9-10" />
+                                </svg>
+                            </div>
+                            <div class="t17">Chicken on top, lemon halves and <b>1 head garlic</b> inside</div>
+                        </div>
+                        <div class="then">
+                            <div class="over">Step 4 needs</div>
+                            <div class="t17" style="color: var(--ink)">
+                                The oven at 220°C. A timer starts when you go on: 20 min, then 1 h 10 at 190°C.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            Step 4 · Roast<svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>2 · The next step coming.</b> With every action ticked, the top line hands over to step 4,
+                    labelled "Up next", so a glance tells the cook what to get ready (CK-033, CK-021). The step does not
+                    change until the cook taps Next; nothing advances by itself (CK-003). Next names where it goes.
+                </figcaption>
+            </figure>
+        </div>
+
+        <div class="row">
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneWait">
+                    <div class="status">10:13</div>
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 4 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >11
+                        </div>
+                    </div>
+                    <div class="track">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i>
+                    </div>
+                    <div class="far">
+                        <div class="over">Waiting · Roast</div>
+                        <div class="timeLine"><span class="t40">1:02:40</span></div>
+                        <div class="t17">Out at 11:16, when the juices run clear. Oven down to 190°C done.</div>
+                    </div>
+                    <div class="rule"></div>
+                    <div class="near">
+                        <div class="wait">
+                            <div class="over" style="padding-top: 8px">While it roasts · if you like</div>
+                            <div class="sugg">
+                                <div class="t17">A board and foil for resting</div>
+                                <span class="tag">Step 5</span>
+                            </div>
+                            <div class="sugg">
+                                <div class="t17">A spoon for the pan juices</div>
+                                <span class="tag">Step 5</span>
+                            </div>
+                            <div class="sugg">
+                                <div class="t17">Read step 5</div>
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="var(--action-text)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M9 6l6 6-6 6" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dock" role="timer">
+                        <div class="dockRow">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <div class="t17">1:02:40</div>
+                                <div class="t13 muted">Roast · Step 4</div>
+                            </div>
+                            <div class="smallBtn">Pause</div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            Next step<svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>3 · A wait.</b> With nothing to do, the time is the one big thing. Closer: what later steps need,
+                    drawn from the recipe, offered and never scheduled (CK-033, CK-003). Only the prep of later steps is
+                    offered, because it cannot depend on the oven. No chatter (CK-036).
+                </figcaption>
+            </figure>
+
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneTwoTimers">
+                    <div class="status">10:13</div>
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 4 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >11
+                        </div>
+                    </div>
+                    <div class="track">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i>
+                    </div>
+                    <div class="far">
+                        <div class="over">Next to do · in</div>
+                        <div class="timeLine"><span class="t40">8:12</span></div>
+                        <div class="t40">Turn the potatoes</div>
+                    </div>
+                    <div class="rule"></div>
+                    <div class="near">
+                        <div class="wait">
+                            <div class="over" style="padding-top: 8px">While it roasts · if you like</div>
+                            <div class="sugg">
+                                <div class="t17">A board and foil for resting</div>
+                                <span class="tag">Step 5</span>
+                            </div>
+                            <div class="sugg">
+                                <div class="t17">Read step 5</div>
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="var(--action-text)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M9 6l6 6-6 6" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dock" role="timer">
+                        <div class="dockRow">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <div class="t17">1:02:40</div>
+                                <div class="t13 muted">Roast · Step 4</div>
+                            </div>
+                            <div class="smallBtn">Pause</div>
+                        </div>
+                        <div class="dockRow">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <div class="t17">0:08:12</div>
+                                <div class="t13 muted">Turn the potatoes · yours</div>
+                            </div>
+                            <div class="smallBtn">Pause</div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            Next step<svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>4 · Two timers.</b> The top band answers the only question that matters from a metre: what is
+                    next, and when. It shows the soonest timer by what it is for, not by its clock (CK-031). Every timer
+                    stays in the dock, named by its task and step, on every screen.
+                </figcaption>
+            </figure>
+
+            <figure>
+                <div class="screen phone alarm" data-theme="light" data-screen="phoneTimerDone" role="alert">
+                    <div class="status">10:21</div>
+                    <div class="alarmBody">
+                        <div class="ring" aria-hidden="true">
+                            <svg
+                                width="30"
+                                height="30"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M6 16v-5a6 6 0 0112 0v5l2 2H4l2-2zM10 21a2 2 0 004 0" />
+                            </svg>
+                        </div>
+                        <div class="over">Timer done · <span class="num">0:42</span> ago</div>
+                        <div class="t40">Turn the potatoes</div>
+                        <div class="t17" style="opacity: 0.82">
+                            Then back in the oven. The roast keeps going: <span class="num">0:53:46</span> left.
+                        </div>
+                    </div>
+                    <div class="alarmNav">
+                        <div class="stopBtn">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12" rx="2" /></svg
+                            >Stop alarm
+                        </div>
+                        <div class="alarmSecondary">
+                            <div class="ghost">+ 5 min</div>
+                            <div class="ghost">+ 10 min</div>
+                        </div>
+                    </div>
+                    <div class="homeBar" style="background: var(--inverse-ink)"></div>
+                </div>
+                <figcaption>
+                    <b>5a · A finished timer, in the app.</b> The whole screen turns over once, light to dark (or dark
+                    to light), so it is seen from across the room in the corner of the eye. Words, a bell and sound
+                    carry it too, never colour alone (NFR-004). It does not flash. The time counts up until Stop, so a
+                    late cook knows how late.
+                </figcaption>
+            </figure>
+        </div>
+
+        <div class="row">
+            <figure>
+                <div class="screen phone lock" data-screen="phoneTimerDoneLocked">
+                    <div class="status" style="justify-content: center">&nbsp;</div>
+                    <div class="lockTime">10:21</div>
+                    <div class="lockDate">Sunday 25 October</div>
+                    <div class="sysAlert">
+                        <div class="t13" style="opacity: 0.75">COMMISE</div>
+                        <div class="t40" style="font-size: 40px">Turn the potatoes</div>
+                        <div class="sysRow">
+                            <div class="sysBtn stop">Stop</div>
+                            <div class="sysBtn">Open step</div>
+                        </div>
+                    </div>
+                    <div class="live">
+                        <div class="t13" style="opacity: 0.75">Commise · Roast · Step 4</div>
+                        <div class="liveRow">
+                            <span class="t40 num" style="font-size: 40px">53:46</span
+                            ><span class="t17" style="opacity: 0.8">out at 11:16</span>
+                        </div>
+                    </div>
+                    <p class="sysNote">
+                        Schematic, not to scale. The alert is drawn by iOS (AlarmKit, iOS 26): we supply its title and
+                        one extra button. It sounds through silent mode once the cook allows alarms. The countdown below
+                        is our Live Activity.
+                    </p>
+                    <div class="homeBar" style="background: #fff"></div>
+                </div>
+                <figcaption>
+                    <b>5b · A finished timer, phone locked or silent.</b> The cook who walked away hears an alarm, not a
+                    notification (CK-030). The alert's title is the task, the same words as the in-app screen. Android:
+                    the matching alarm path is assumed and not yet checked.
+                </figcaption>
+            </figure>
+
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneAlarmsOff">
+                    <div class="status">10:01</div>
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 4 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >11
+                        </div>
+                    </div>
+                    <div class="track">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i>
+                    </div>
+                    <div class="far">
+                        <div class="over">Waiting · Roast</div>
+                        <div class="timeLine"><span class="t40">1:14:52</span></div>
+                        <div class="t17">Out at 11:16, when the juices run clear.</div>
+                    </div>
+                    <div class="notice">
+                        <svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M6 16v-5a6 6 0 0112 0v5l2 2H4l2-2zM10 21a2 2 0 004 0M3 3l18 18" />
+                        </svg>
+                        <div class="t17">
+                            <b>Alarms are off.</b> If the phone locks or is on silent, this timer will not ring.
+                            <span class="linkBtn">Allow alarms</span>
+                        </div>
+                    </div>
+                    <div class="near" style="padding-top: 20px">
+                        <div class="wait">
+                            <div class="over">While it roasts · if you like</div>
+                            <div class="sugg">
+                                <div class="t17">A board and foil for resting</div>
+                                <span class="tag">Step 5</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dock" role="timer">
+                        <div class="dockRow">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <div class="t17">1:14:52</div>
+                                <div class="t13 muted">Roast · Step 4</div>
+                            </div>
+                            <div class="smallBtn">Pause</div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            Next step<svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>5c · Alarms not allowed.</b> The cook said no to the alarm permission. The timer still runs and
+                    rings while the app is open and the screen is on (cooking mode keeps it on). The notice says what
+                    will not happen, once, while a timer runs. It is never a modal.
+                </figcaption>
+            </figure>
+
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneIngredients">
+                    <div class="status">9:43</div>
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 2 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="pillBtn">11</div>
+                    </div>
+                    <div class="far">
+                        <div class="over">Now · 2 of 4</div>
+                        <div class="t40">Mash <b>3 tbsp butter</b> with the lemon zest</div>
+                    </div>
+                    <div class="scrimWrap"></div>
+                    <div class="sheet" role="dialog" aria-label="Ingredients">
+                        <div class="grab"></div>
+                        <div class="sheetHead">
+                            <div class="t17">Ingredients</div>
+                            <div class="smallBtn" style="font-size: 17px; height: 48px">Done</div>
+                        </div>
+                        <div class="stepper">
+                            <div class="lab">
+                                <div class="t17">Servings</div>
+                                <div class="t13 muted">Steps scale with it</div>
+                            </div>
+                            <div class="stepBtn" aria-label="Fewer servings">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M5 12h14" />
+                                </svg>
+                            </div>
+                            <div class="stepVal">4</div>
+                            <div class="stepBtn" aria-label="More servings">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="group over">Chicken</div>
+                        <div class="ing">
+                            <div class="box"></div>
+                            <div class="t17"><b>1 whole chicken</b> about 1.8 kg</div>
+                        </div>
+                        <div class="ing here done">
+                            <div class="box">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M5 12l5 5 9-10" />
+                                </svg>
+                            </div>
+                            <div class="t17"><b>1 lemon</b> zested</div>
+                            <span class="tag">Step 2</span>
+                        </div>
+                        <div class="ing here">
+                            <div class="box"></div>
+                            <div class="t17"><b>3 tbsp butter</b> softened</div>
+                            <span class="tag">Step 2</span>
+                        </div>
+                        <div class="ing here">
+                            <div class="box"></div>
+                            <div class="t17"><b>6 sprigs thyme</b></div>
+                            <span class="tag">Step 2</span>
+                        </div>
+                        <div class="ing here">
+                            <div class="box"></div>
+                            <div class="t17"><b>1 tsp sea salt</b></div>
+                            <span class="tag">Step 2</span>
+                        </div>
+                        <div class="ing">
+                            <div class="box"></div>
+                            <div class="t17"><b>1 head garlic</b> halved</div>
+                        </div>
+                        <div class="group over">Vegetables</div>
+                        <div class="ing">
+                            <div class="box"></div>
+                            <div class="t17"><b>800 g potatoes</b> quartered</div>
+                        </div>
+                        <div class="ing">
+                            <div class="box"></div>
+                            <div class="t17"><b>3 carrots</b> in chunks</div>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>6 · Ingredients from any step.</b> One tap on "11" opens the list over the step; the step's top
+                    line stays readable above the scrim, so the place is never lost (R1, CK-001, CK-008). The servings
+                    stepper sits at the top of the list, never in a bar (R1). This step's items are marked with the
+                    step, in words.
+                </figcaption>
+            </figure>
+        </div>
+
+        <!-- ============ TABLET 1194 ============ -->
+        <div class="row">
+            <figure>
+                <div class="screen tablet" data-theme="light" data-screen="tablet1194TwoTimers">
+                    <div class="wideTop">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 4 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                    </div>
+                    <div class="track" style="padding: 0 24px">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 300px 1fr 340px; margin-top: 12px">
+                        <div class="colIng">
+                            <div class="stepper" style="margin: 16px 20px 4px">
+                                <div class="lab"><div class="t17">Servings</div></div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M5 12h14" />
+                                    </svg>
+                                </div>
+                                <div class="stepVal">4</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="group over">Chicken</div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>1 chicken</b> 1.8 kg</div>
+                            </div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>3 tbsp butter</b></div>
+                            </div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>1 lemon</b></div>
+                            </div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>6 sprigs thyme</b></div>
+                            </div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>1 head garlic</b></div>
+                            </div>
+                            <div class="group over">Vegetables</div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>800 g potatoes</b></div>
+                            </div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>3 carrots</b></div>
+                            </div>
+                            <div class="ing done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>2 red onions</b></div>
+                            </div>
+                            <div class="ing">
+                                <div class="box"></div>
+                                <div class="t17">Black pepper</div>
+                            </div>
+                        </div>
+                        <div class="colStep">
+                            <div class="far">
+                                <div class="over">Next to do · in</div>
+                                <div class="timeLine"><span class="t40">8:12</span></div>
+                                <div class="t40">Turn the potatoes</div>
+                            </div>
+                            <div class="rule"></div>
+                            <div class="near">
+                                <div class="act done">
+                                    <div class="box">
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="3"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M5 12l5 5 9-10" />
+                                        </svg>
+                                    </div>
+                                    <div class="t17">Roast 20 min at 220°C</div>
+                                </div>
+                                <div class="act done">
+                                    <div class="box">
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="3"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M5 12l5 5 9-10" />
+                                        </svg>
+                                    </div>
+                                    <div class="t17">Lower the oven to 190°C (170°C fan)</div>
+                                </div>
+                                <div class="act cur">
+                                    <div class="box"></div>
+                                    <div class="t17">Roast 1 h 10 more, until the juices run clear</div>
+                                </div>
+                                <div class="wait" style="margin-top: 8px">
+                                    <div class="over" style="padding-top: 8px">While it roasts · if you like</div>
+                                    <div class="sugg">
+                                        <div class="t17">A board and foil for resting</div>
+                                        <span class="tag">Step 5</span>
+                                    </div>
+                                    <div class="sugg">
+                                        <div class="t17">Read step 5: rest 15 min, spoon the juices over</div>
+                                        <span class="tag">Step 5</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="nav">
+                                <div class="btn btnBack">
+                                    <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M15 6l-6 6 6 6" /></svg
+                                    >Back
+                                </div>
+                                <div style="flex: 1"></div>
+                                <div class="btn btnNext" style="flex: none; width: 280px">
+                                    Next step<svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M9 6l6 6-6 6" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="colTimers">
+                            <div class="over">Timers</div>
+                            <div class="tCard" role="timer">
+                                <div class="tRow">
+                                    <div class="lab">
+                                        <div class="t17"><b class="num">0:08:12</b></div>
+                                        <div class="t13 muted">Turn the potatoes · yours</div>
+                                    </div>
+                                    <div class="smallBtn">Pause</div>
+                                </div>
+                            </div>
+                            <div class="tCard" role="timer">
+                                <div class="tRow">
+                                    <div class="lab">
+                                        <div class="t17"><b class="num">1:02:40</b></div>
+                                        <div class="t13 muted">Roast · Step 4 · out at 11:16</div>
+                                    </div>
+                                    <div class="smallBtn">Pause</div>
+                                </div>
+                            </div>
+                            <div
+                                class="smallBtn"
+                                style="
+                                    justify-content: flex-start;
+                                    background: none;
+                                    padding: 0;
+                                    color: var(--action-text);
+                                    font-size: 17px;
+                                "
+                            >
+                                + Add a timer
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <figcaption>
+                    <b>Tablet 1194 × 834, sideways in a stand (CK-032).</b> Its own layout, not a stretched phone: the
+                    list, the step and the timers each get a column. The far band is the same two lines as the phone,
+                    and 40 is physically larger here. Back and Next sit under the step they move, 72 tall for a knuckle.
+                    A finished timer takes the whole screen, as on the phone.
+                </figcaption>
+            </figure>
+        </div>
+
+        <!-- ============ WEB 1280 ============ -->
+        <div class="row">
+            <figure>
+                <div class="screen web" data-theme="light" data-screen="web1280StepNow">
+                    <div class="wideTop">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place">
+                            <div class="t17">Step 2 of 5</div>
+                            <div class="t13">Lemon and thyme roast chicken</div>
+                        </div>
+                        <div class="t13 muted">Space or → for next · ← for back</div>
+                    </div>
+                    <div class="track" style="padding: 0 24px">
+                        <i class="done"></i><i class="now"></i><i></i><i></i><i></i>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 300px 1fr 340px; margin-top: 12px">
+                        <div class="colIng">
+                            <div class="stepper" style="margin: 16px 20px 4px">
+                                <div class="lab"><div class="t17">Servings</div></div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M5 12h14" />
+                                    </svg>
+                                </div>
+                                <div class="stepVal">4</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="group over">Chicken</div>
+                            <div class="ing">
+                                <div class="box"></div>
+                                <div class="t17"><b>1 chicken</b> 1.8 kg</div>
+                            </div>
+                            <div class="ing here done">
+                                <div class="box">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="M5 12l5 5 9-10" />
+                                    </svg>
+                                </div>
+                                <div class="t17"><b>1 lemon</b></div>
+                                <span class="tag">Step 2</span>
+                            </div>
+                            <div class="ing here">
+                                <div class="box"></div>
+                                <div class="t17"><b>3 tbsp butter</b></div>
+                                <span class="tag">Step 2</span>
+                            </div>
+                            <div class="ing here">
+                                <div class="box"></div>
+                                <div class="t17"><b>6 sprigs thyme</b></div>
+                                <span class="tag">Step 2</span>
+                            </div>
+                            <div class="ing here">
+                                <div class="box"></div>
+                                <div class="t17"><b>1 tsp salt</b></div>
+                                <span class="tag">Step 2</span>
+                            </div>
+                            <div class="ing">
+                                <div class="box"></div>
+                                <div class="t17"><b>1 head garlic</b></div>
+                            </div>
+                            <div class="group over">Vegetables</div>
+                            <div class="ing">
+                                <div class="box"></div>
+                                <div class="t17"><b>800 g potatoes</b></div>
+                            </div>
+                            <div class="ing">
+                                <div class="box"></div>
+                                <div class="t17"><b>3 carrots</b></div>
+                            </div>
+                        </div>
+                        <div class="colStep">
+                            <div class="far">
+                                <div class="over">Now · 2 of 4</div>
+                                <div class="t40">Mash <b>3 tbsp butter</b> with the lemon zest</div>
+                                <div class="timeLine">
+                                    <span class="t40">6:20</span><span class="t13 muted">Oven to 220°C</span>
+                                </div>
+                            </div>
+                            <div class="rule"></div>
+                            <div class="near">
+                                <div class="act done">
+                                    <div class="box">
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="3"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M5 12l5 5 9-10" />
+                                        </svg>
+                                    </div>
+                                    <div class="t17">Zest <b>1 lemon</b></div>
+                                </div>
+                                <div class="act cur">
+                                    <div class="box"></div>
+                                    <div class="t17">Mash <b>3 tbsp butter</b> with the zest</div>
+                                </div>
+                                <div class="act">
+                                    <div class="box"></div>
+                                    <div class="t17">Add <b>3 sprigs’</b> thyme leaves and <b>1 tsp salt</b></div>
+                                </div>
+                                <div class="act">
+                                    <div class="box"></div>
+                                    <div class="t17">Spread it under the skin of the breast</div>
+                                </div>
+                                <div class="then">
+                                    <div class="over">Then · Step 3</div>
+                                    <div class="t17">Toss the vegetables in oil, chicken on top</div>
+                                </div>
+                            </div>
+                            <div class="nav">
+                                <div class="btn btnBack">
+                                    <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M15 6l-6 6 6 6" /></svg
+                                    >Back
+                                </div>
+                                <div style="flex: 1"></div>
+                                <div class="btn btnNext" style="flex: none; width: 280px">
+                                    Next step<svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    >
+                                        <path d="M9 6l6 6-6 6" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="colTimers">
+                            <div class="over">Timers</div>
+                            <div class="tCard" role="timer">
+                                <div class="tRow">
+                                    <div class="lab">
+                                        <div class="t17"><b class="num">0:06:20</b></div>
+                                        <div class="t13 muted">Oven to 220°C · Step 1</div>
+                                    </div>
+                                    <div class="smallBtn">Pause</div>
+                                </div>
+                            </div>
+                            <div class="tCard" style="box-shadow: none; background: var(--surface-muted)">
+                                <div class="t13">
+                                    In a browser, a timer rings only while this tab is open. Keep it open, or use the
+                                    app on your phone.
+                                </div>
+                            </div>
+                            <div
+                                class="smallBtn"
+                                style="
+                                    justify-content: flex-start;
+                                    background: none;
+                                    padding: 0;
+                                    color: var(--action-text);
+                                    font-size: 17px;
+                                "
+                            >
+                                + Add a timer
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <figcaption>
+                    <b>Web 1280.</b> The same three columns as the tablet; no app sidebar, because cooking is a focused
+                    task. The browser cannot promise an alarm through a closed tab or a muted machine, so the timer
+                    column says so, plainly (assumption, not researched). The alarm is the same full-window turn-over,
+                    plus the tab title "Done · Turn the potatoes".
+                </figcaption>
+            </figure>
+        </div>
+    </body>
+</html>

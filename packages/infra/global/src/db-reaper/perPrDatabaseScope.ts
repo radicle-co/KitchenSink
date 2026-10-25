@@ -77,15 +77,9 @@ export const PER_PR_DATABASE_BASES: readonly string[] = [...new Set(Object.value
  * the latter four could reach a `DROP` through check 3 either, and they are named anyway because a denylist
  * whose entries are all unreachable teaches the next reader that the list is decorative.
  *
- * ⚠️ "PROTECTED" IS SCOPED TO THIS REAPER, and saying so here matters because one package now contains two
- * statements that look contradictory about the same name. `kitchensink_identity` is listed below as
- * never-droppable, while the role split's one-shot legacy recreate (`db-bootstrap/legacyRecreate.ts`) drops
- * exactly that database on an armed stage — deliberately, under ADR-0039, because re-owning a database does
- * not re-own the objects inside it. Both are correct: this list binds the REAPER, which sweeps per-PR
- * databases and must never reach a shared base, and it is not a claim about what any other actor may do.
- * The authority question is answered in one place for both — `dropDatabaseAuthority.test.ts` pins the exact
- * two production files permitted to issue `DROP DATABASE`, and the recreate's entry there disappears with
- * the mandatory disarm commit.
+ * ⚠️ "PROTECTED" IS SCOPED TO THIS REAPER: this list binds the reaper, which sweeps per-PR databases and must
+ * never reach a shared base. The authority question is answered in one place — `dropDatabaseAuthority.test.ts`
+ * pins the one production file permitted to issue `DROP DATABASE`, which is this reaper's handler.
  */
 export const PROTECTED_DATABASES: readonly string[] = [
     'kitchensink_identity',

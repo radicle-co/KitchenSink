@@ -42,7 +42,7 @@ import {
     tierTagValue,
     type QualifierName,
 } from './qualifiers.js';
-import { resourceTypesOf, tierNameResources } from './tierNames.js';
+import { resourceTypesOf, tierNameResources, tierOwnNamePatterns } from './tierNames.js';
 
 /** The services a created role may be passed to. A superset of any tier; each tier lists its own subset. */
 export const PASS_ROLE_SERVICES: readonly string[] = [
@@ -55,6 +55,9 @@ export const PASS_ROLE_SERVICES: readonly string[] = [
     'scheduler.amazonaws.com',
     'states.amazonaws.com',
 ];
+
+/** The service an EC2 instance profile's role is passed to; granted by name, not by tag (see `IamPassRoleToEc2`). */
+const EC2_PASS_ROLE_SERVICE = 'ec2.amazonaws.com';
 
 /** The AWS-managed policies the stacks attach to roles (the committed manifest holds the same four). */
 export const ATTACHABLE_AWS_POLICIES: readonly string[] = [
@@ -364,7 +367,10 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
     const own = ownTier(qualifier);
     const nonprod = qualifier === QUALIFIERS.nonprod;
     const assetsBucket = `cdk-${qualifier}-assets-${ACCOUNT}-${REGION}`;
-    const passServices = PASS_ROLE_SERVICES.filter((service) => !nonprod || service !== 'edgelambda.amazonaws.com');
+    // EC2 is granted by name in its own statement (`IamPassRoleToEc2`), because its PassRole carries no role tags.
+    const passServices = PASS_ROLE_SERVICES.filter(
+        (service) => service !== EC2_PASS_ROLE_SERVICE && (!nonprod || service !== 'edgelambda.amazonaws.com'),
+    );
     // CloudFront Functions are named by CloudFormation from the CONSTRUCT path, so the stage is inside the name but
     // not at its end (`us-east-1SandboxRouterprodRouterFunction...`). The tier Allow is therefore positive, and the
     // other tier's Deny below is what separates `...Routerpr1...` from `...Routerprod...`.
@@ -906,9 +912,26 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'observe',
             'LogDeliveries',
-            ['logs:*Delivery*', 'logs:DescribeLogGroups'],
+            // `logs:DescribeDeliveries` is named: "Deliveries" holds no "Delivery", so the wildcard misses it.
+            ['logs:*Delivery*', 'logs:DescribeDeliveries', 'logs:DescribeLogGroups'],
             ['*'],
             ['AWS::Logs::Delivery', 'AWS::Logs::DeliveryDestination', 'AWS::Logs::DeliverySource'],
+        ),
+        // ⛔ CloudFormation TAGS a delivery resource as it creates it, and `logs:*Delivery*` does not include
+        // `logs:TagResource`: the first production edge deploy through ksprod failed creating its access-log destination
+        // on exactly that (2026-10-24). Tagging is gated by the tier tag like every other tag write, so it cannot reach
+        // another tier's or another application's delivery.
+        ...ownAllow(
+            'observe',
+            'LogDeliveryTags',
+            ['logs:ListTagsForResource', 'logs:TagResource', 'logs:UntagResource'],
+            [
+                arn('logs', `delivery-destination:${KS}`),
+                arn('logs', `delivery-source:${KS}`),
+                arn('logs', 'delivery:*'),
+            ],
+            [],
+            own,
         ),
         allow(
             'observe',
@@ -1310,6 +1333,19 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
                 [`iam:ResourceTag/${TIER_TAG_KEY}`]: tierTagValue(qualifier),
             },
         }),
+        // ⛔ EC2 evaluates an instance profile's PassRole with NO role tags in its context, so the tag gate above can
+        // never match it: a dry-run `ec2:RunInstances` with the production NAT instance profile was refused while the
+        // role carried the tier tag, the decoded context held only `iam:RoleName`, and this name-scoped grant allowed
+        // it (2026-10-24; the production deploy failed replacing the NAT instance). So EC2 alone is scoped by the
+        // tier's own role names, and passes to nothing else.
+        allow(
+            'iam',
+            'IamPassRoleToEc2',
+            ['iam:PassRole'],
+            tierOwnNamePatterns(nonprod ? 'nonproduction' : 'production').map((name) => iamArn(`role/${name}`)),
+            [],
+            { StringEquals: { 'iam:PassedToService': [EC2_PASS_ROLE_SERVICE] } },
+        ),
         allow(
             'iam',
             'IamServiceLinkedRoles',

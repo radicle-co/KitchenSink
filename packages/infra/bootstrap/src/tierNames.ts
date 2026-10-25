@@ -89,6 +89,36 @@ const PATH_FORMS: Readonly<Record<TierNameForm, Readonly<Record<TierSide, readon
     compact: { production: ['*/prod/*', '*/prod'], nonproduction: ['*/sandbox*', '*/pr-*'] },
 };
 
+/**
+ * Services whose generated names CloudFormation cuts short. IAM caps a role or instance-profile name at 64 characters,
+ * so the stack-name part of `kitchensink-food-service-prod-FoodApiTaskRole…` is cut to `kitchensink-food-service-pr`,
+ * and `-pr-*` then claims a production role for the previews (prod deploy 40147809293). A preview token always carries
+ * its number (ADR-0005), so for these services a name is a preview's only when a digit follows `-pr-`. IAM wildcards
+ * have no character class, hence one pattern per leading digit; a preview name cut the same way loses its number, and
+ * its `kitchensink:tier` tag still keeps it out.
+ */
+const CUT_NAME_SERVICES: ReadonlySet<TierService> = new Set<TierService>(['iam']);
+
+const PREVIEW_NUMBER_LEADS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
+
+/** One pattern per leading digit of a preview number in place of `pr-*`; other patterns unchanged. Pure. */
+const numberedPreview = (patterns: readonly string[]): readonly string[] =>
+    patterns.flatMap((pattern) =>
+        pattern.endsWith('pr-*') ? PREVIEW_NUMBER_LEADS.map((lead) => `${pattern.slice(0, -1)}${lead}*`) : [pattern],
+    );
+
+/**
+ * The anchored name patterns of one tier's OWN IAM roles, without the leading wildcard, for an Allow that is scoped by
+ * name because the service authorizes no tag (`role/kitchensink-*-prod*`). The preview patterns carry a number, as in
+ * {@link CUT_NAME_SERVICES}, so a production role cut to `-pr` does not match. Pure.
+ *
+ * @param side - The tier whose names the patterns match.
+ * @returns The patterns, each starting `kitchensink-`.
+ */
+export function tierOwnNamePatterns(side: TierSide): readonly string[] {
+    return numberedPreview(FLAT_FORMS.anchored[side]).map((pattern) => pattern.replace(/^\*/u, ''));
+}
+
 /** Services whose resource part is a bare name with no type segment (`kitchensink-queue`, `kitchensink-bucket/key`). */
 const BARE_NAME_SERVICES: ReadonlySet<TierService> = new Set<TierService>(['s3', 'sns', 'sqs']);
 
@@ -218,6 +248,13 @@ export function resourceTypesOf(statements: readonly Statement[], skipResourceTa
     );
 }
 
+/** The name patterns one service's type gets: flat, path when it is path-named, numbered previews for a cut name. */
+const patternsFor = (service: TierService, side: TierSide, form: TierNameForm, path: boolean): readonly string[] => {
+    const patterns = [...FLAT_FORMS[form][side], ...(path ? PATH_FORMS[form][side] : [])];
+
+    return CUT_NAME_SERVICES.has(service) ? numberedPreview(patterns) : patterns;
+};
+
 /**
  * The Deny resources that keep one side's names out of reach.
  *
@@ -236,7 +273,7 @@ export function tierNameResources(
         .sort(([left], [right]) => left.localeCompare(right))
         .flatMap(([service, serviceTypes]) =>
             (serviceTypes ?? []).flatMap(({ type, path }) =>
-                [...FLAT_FORMS[form][protectedSide], ...(path ? PATH_FORMS[form][protectedSide] : [])].map(
+                patternsFor(service as TierService, protectedSide, form, path).map(
                     (pattern) => `${prefixOf(service as TierService, type)}${type}${pattern}`,
                 ),
             ),

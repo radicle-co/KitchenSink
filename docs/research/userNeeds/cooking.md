@@ -5,7 +5,7 @@ paper in the kitchen, amounts and units, and swaps. It also covers unclear wordi
 and cleaning up. Problems with finding and choosing a recipe are in `findingRecipes.md`. Problems with planning are in
 `mealPlanning.md`. The format and the evidence codes are in `README.md`.
 
-Research date: 2026-10-20, with a second round on 2026-10-21. Desk research only. Nobody was interviewed or
+Research date: 2026-10-20, with a second round on 2026-10-21 and a third on 2026-10-25. Desk research only. Nobody was interviewed or
 observed for this file.
 
 ## Method and limits
@@ -158,6 +158,57 @@ good.
   study), people who never post online, and men who cook for a family (r/AskMen threads were mostly about who cooks,
   not how it feels).
 
+## Round 3 method and limits (added 2026-10-25)
+
+**Why a third round.** The cooking-mode redesign needed evidence on four things: the device in the kitchen, timers,
+looking ahead to the next step, and what earlier kitchen interfaces tried. The working assumption was that some cooks
+need help to hold the current and next step in mind. Round 3 tested it as a hypothesis, not as a fact to prove.
+
+**What I reached**
+
+- **App Store (US) reviews (`V`).** 10,228 of the most recent reviews of 24 apps, from Apple's public feed. New this
+  round are SideChef, EveryPlate, and MultiTimer. MultiTimer is a general timer app, used only to show how phone timers
+  fail. The other apps were pulled again to get the newest reviews: Paprika, Mela, NYT Cooking, Kitchen Stories,
+  Samsung Food, ReciMe, Tasty, Mealime, Pestle, Home Chef, Blue Apron, HelloFresh, Recipe Keeper, Just the Recipe,
+  Cookidoo, AnyList, Plan to Eat, eMeals, Prepear, Eat This Much and Ollie. I searched them for words about timers, alarms,
+  turning the screen sideways, the next step, voice, Alexa, hands-free use, swipes and accidental touches.
+- **Google Play (US, English) reviews (`V`).** 16,500 of the newest reviews of 11 apps, from the `google-play-scraper`
+  library: Paprika, Mealime, NYT Cooking, ReciMe, Tasty, Cookidoo, HelloFresh, SideChef, Kitchen Stories, Allrecipes
+  and Samsung Food. Samsung Food again returned nothing, so 10 apps gave reviews. Same search words.
+- **Reddit (`V`), through the Arctic Shift archive.** Title searches in r/Cooking for timer, tablet and iPad, and 11
+  threads read in full. Rate limits stopped the other searches. All of Reddit counts as one place, as in round 2.
+- **Studies (`S`), read in full:**
+    - Buykx 2013, a PhD thesis (University of York) with two kitchen studies of 24 cooks each. Its first part was
+      published as Buykx and Petrie 2012.
+    - Hamada et al. 2006, a Japanese paper on cooking software that runs two dishes at once (8 cooks). I translated
+      the Japanese parts myself.
+    - Jaber et al., CHI 2024 (7 and 16 sessions).
+    - Chan et al., "Mango Mango" (12 cooks, arXiv 2310.05853).
+    - Frummet et al., TOIS 2024 (48 cooks).
+    - Kuoppamäki et al. 2023 (10 older adults), and Esteve et al., IWSDS 2026 (6 older adults).
+    - Majil et al. 2022 (20 cooks with a headset).
+- **Expert, theory and vendor writing (`X`):**
+    - Theory: Cowan 2001 (short-term memory), Altmann and Trafton 2002 (memory for goals), Mark et al. 2008
+      (interruptions), and Novick and Ward 2006 (why people do not read manuals, abstract only).
+    - Vendor: Apple's WWDC25 AlarmKit session, Apple's iPhone and Watch guides, and Android 14's behaviour changes.
+    - Press: 9to5Google (2024), TechRadar (2018), TechCrunch (2017) and Apple Newsroom (2018).
+
+**Limits of this round**
+
+- **The memory and interruption studies were not about cooking.** They used word lists, the Tower of Hanoi puzzle and
+  office email. As in round 2, I do not use them as evidence about cooks. They are graded `X` and only suggest why a
+  pattern can work.
+- **The kitchen studies are small** (6 to 24 cooks) and mostly in lab kitchens. Hamada's is not from an archival venue.
+- **No study shows that showing the next step, or showing amounts inside the step, cuts errors.** Buykx found that
+  cooks preferred amounts inside the steps, but errors and time did not change significantly.
+- **Not reached:**
+    - the full text of Cooking Navi (2005), panavi, MimiCook and CounterActive (descriptions only, no user results)
+    - Craik and Bialystok's breakfast task (secondary reports only)
+    - Food Network's shutdown page (blocked, seen only in a search snippet)
+- **Phones held sideways.** I searched about 26,700 reviews for words about turning the screen. Every request was about
+  a tablet. None asked to use a phone sideways.
+- **Keyword counts are not rates.** A review that names a problem shows that it exists, not how common it is.
+
 ---
 
 ## Records
@@ -196,6 +247,19 @@ good.
     - `V` (added 2026-10-21) A reason amounts and prep should sit together: "Recipe writers that phrase the ingredients
       list like “1 onion, diced” are the GOAT" (Reddit r/cookingforbeginners, 2024-09-25,
       https://www.reddit.com/r/cookingforbeginners/comments/1foblo2/_/lovd6s5/)
+    - `S` (added 2026-10-25) In a kitchen study, cooks switched between the step and the ingredient list "on average
+      4.96 times per recipe". With the amounts written into the steps, they rated the recipe clearer and easier to use:
+      "integrating the information reduces the need for the cook to look up and mentally integrate information from
+      different sources." (Buykx, PhD thesis, University of York, 2013, 24 cooks,
+      https://etheses.whiterose.ac.uk/id/eprint/5158/)
+    - Against (added 2026-10-25): in the same study, amounts in the steps did not significantly change the time to
+      cook or the number of errors (0.51 errors per recipe against 0.78 for the normal recipe, not significant). The
+      evidence for this pattern is preference and effort, not fewer mistakes. (Buykx 2013)
+    - `V` (added 2026-10-25) On a phone cook mode with ingredients in a separate view: "Some easy way to refer back to
+      the ingredients and their measurements. Either by screen splitting between ingredient list and instructions when
+      the phone or tablet is rotated or by having a link function where you can press each ingredient in the
+      instructions and see its respective measurements." (Mela, App Store, 5★, 2024-01-30, id 10882636592,
+      https://apps.apple.com/us/app/id1548466041)
 - **How often / how bad:** This is the most common kind of question in both observation studies. Amount and
   ingredient questions together were about 42% of needs in Frummet. People call it frustrating, not ruinous. The real
   harm is a wrong amount, or a "divided" ingredient added all at once.
@@ -252,6 +316,21 @@ good.
     - Against: Screen-lock complaints are rare in low-star reviews: 2 keyword hits in 3,031 reviews of 1 to 3 stars. Dedicated
       recipe apps mostly keep the screen on already, and users praise this in 5-star reviews. The lock problem is perhaps now
       mostly on recipe websites and in general apps, which this review set does not cover.
+    - `V` (added 2026-10-25) "the latest app doesn’t keep my phone from locking as it did before. So now I have to
+      constantly unlock the phone first to read the next steps. Not very convenient when juggling multiple things."
+      (HelloFresh, App Store, 3★, 2026-01-05, id 13600137942, https://apps.apple.com/us/app/id970107419)
+    - `V` (added 2026-10-25) "make sure your screen-saver/sleep setting isn't set too low (like after a minute) or
+      you'll be constantly touching the screen to wake it up. With messy, cooking-hands that can be an issue."
+      (Reddit r/Cooking, 2016-03-03, https://www.reddit.com/r/Cooking/comments/48rrvd/_/d0lz4x3/)
+    - `S` (added 2026-10-25) Gestures in the air fire by accident too: "the system recognized hand gestures
+      accidentally when the participant was actually doing something else, which resulted in unnecessary hassles."
+      (Majil et al., Sensors 2022, 20 cooks with a headset, https://pmc.ncbi.nlm.nih.gov/articles/PMC9655470/)
+    - `X` (added 2026-10-25) Wet fingers confuse touch screens. On an older Pixel, "there are random jumps and pans...
+      when scrolling with a wet finger." (Android Authority, 2024-08-24,
+      https://www.androidauthority.com/google-pixel-9-adaptive-touch-feature-3474994/)
+    - Against (added 2026-10-25): Mealime's hand-wave control, criticised above for crashing, is praised often in
+      2024 and 2025: "you can just hold your hand over your phone to move to the next step" (Mealime, App Store, 5★,
+      2024-07-26, id 11537981047, https://apps.apple.com/us/app/id1079999103)
 - **How often / how bad:** Device use while cooking is common (half to 70% of people). Touching the device with
   dirty hands is a hygiene risk that most people do not see as a problem. Only a third wash their hands after touching
   it.
@@ -324,6 +403,23 @@ good.
       start doing things on the fly." (Reddit r/Cooking, 2025-08-17, https://www.reddit.com/r/Cooking/comments/1msxfk8/_/n992spu/) But
       one beginner was told: "I know seasoned cooks that still struggle with timing." (Reddit r/cookingforbeginners,
       2025-11-21, https://www.reddit.com/r/cookingforbeginners/comments/1p3dw0s/_/nq3zsx0/)
+    - `S` (added 2026-10-25) Software that re-planned the order of two dishes cooked at once let all 8 cooks, novices
+      included, finish both. But when asked whether the suggested order of steps was right, the cooks gave only 3.5 out of 10 on average (2.0
+      for the advanced cooks), against 9 or more for every other question. The authors say the automatic order was
+      often unnatural: heating in several pans at once is logical but hard, especially for novices. (Hamada et al.,
+      HappyCooking, 2nd Digital Content Symposium, 2006, 8 cooks, Japanese, my translation,
+      https://www.cs.is.i.nagoya-u.ac.jp/users/ide/res/paper/J06-symposium-reiko-1.pdf)
+    - `S` (added 2026-10-25) Cooks reorder steps on their own: "I could execute things in my order as well. I did not
+      have to follow the same path, I could figure out my own path." (Chan et al., "Mango Mango", arXiv 2310.05853,
+      12 cooks, P10, https://arxiv.org/html/2310.05853v2)
+    - `V` (added 2026-10-25) "If I need to do one thing, while I am doing another thing, both things should appear at
+      the same level, maybe separated by a line or clearly shown as simultaneous steps, so that I may better prepare."
+      (HelloFresh, App Store, 3★, 2025-12-14, id 13513744051, https://apps.apple.com/us/app/id970107419)
+    - `V` (added 2026-10-25) "being able to pin recipes so I can switch between them whilst prepping and cooking. Helps
+      those of us who are not so great at multitasking." (Paprika, Google Play, 5★, 2026-06-23,
+      https://play.google.com/store/apps/details?id=com.hindsightlabs.paprika.android.v3&reviewId=be54977a-d041-40dc-84aa-638d68e73d28)
+      And: "I wish I could choose to cook two recipes at a time." (SideChef, App Store, 5★, 2014-08-21, id 1050851950,
+      https://apps.apple.com/us/app/id905229928)
 - **How often / how bad:** The single largest kind of in-the-moment need in both observation studies. The common
   results are cold mains, burnt onions, or a late meal.
 - **Workarounds people use:** Several timers, a timer app with one timer per burner, cooking only one new dish at a
@@ -479,6 +575,15 @@ good.
     - `V` "Since the update I can no longer view the full recipe and the steps involved. This helped me to decide whether
       to cook it or not." (Cookidoo, Google Play, 2★, 2025-04-07,
       https://play.google.com/store/apps/details?id=com.vorwerk.cookidoo&reviewId=44529f3f-eb00-4ca8-90b8-5aac5435e961)
+    - `V` (added 2026-10-25) Reading first does not hold up under heat: "Reading the recipe ahead of time is just not
+      enough, especially when the kitchen is heated up." (HelloFresh, App Store, 3★, 2025-12-14, id 13513744051,
+      https://apps.apple.com/us/app/id970107419)
+    - `S` (added 2026-10-25) Cooks did flick through the recipe to plan. In one study, cooks "flicked through the recipe
+      to plan when they would collect ingredients and perform the preparation tasks." (Buykx 2013, 24 cooks,
+      https://etheses.whiterose.ac.uk/id/eprint/5158/)
+    - `X` (added 2026-10-25) Why people skip reading instructions first, from software help: "Few users of computer
+      applications seek help from the documentation." (Novick and Ward, SIGDOC 2006, 25 interviews, abstract only,
+      https://scholarworks.utep.edu/cs_papers/15) This is about software manuals, not recipes.
 - **How often / how bad:** Unknown frequency. Its cost is a delayed meal or a skipped step, such as cold meat or a
   shorter marinade.
 - **Workarounds people use:** Reading the recipe through first, which is expert advice that people often skip.
@@ -508,6 +613,21 @@ good.
       https://apps.apple.com/us/app/id1133637674)
     - `V` "I tried to scroll down to see the ingredients and it sent me to my recipe box." (NYT Cooking, App Store, 3★,
       2026-10-11, id 14655169674, https://apps.apple.com/us/app/id911422904)
+    - `S` (added 2026-10-25) Of 447 questions to a voice helper, 23.0% failed through "Alexa system errors and
+      speech-to-text inaccuracies". (Chan et al., "Mango Mango", arXiv 2310.05853, 12 cooks,
+      https://arxiv.org/html/2310.05853v2)
+    - `X` (added 2026-10-25) Keeping the place is the feature reviewers praise: one Echo Show skill "keeps the recipe
+      exactly where you left it, even after half an hour of screen off time", while another "would reliably close down
+      the recipe and go to the home screen after the Echo Show was idle for a few minutes". (TechRadar, 2018-12-24,
+      https://www.techradar.com/news/making-mince-pies-with-alexa)
+    - `V` (added 2026-10-25) Leaving the app loses the place: "It will take you away from the recipe you're looking at
+      if you close the app or switch to another app." (NYT Cooking, Google Play, 3★, 2025-03-04,
+      https://play.google.com/store/apps/details?id=com.nytimes.cooking&reviewId=1685d1c8-166d-42be-913e-4e2d2c9ceb9e)
+      See CK-031.
+    - `X` (added 2026-10-25) Why a visible cue helps: in memory-for-goals theory, a goal that was interrupted is
+      found again through cues in view, "the priming constraint, which makes predictions about the role of cues in
+      retrieving pending goals." (Altmann and Trafton, Cognitive Science 2002, Tower of Hanoi tasks, not cooking,
+      https://www.interruptions.net/literature/Altmann-CogSci02.pdf)
 - **How often / how bad:** Common in studies. It hurts most for a cook who cannot see the screen.
 - **Workarounds people use:** Memorising steps. Ticking steps off on paper. Not using voice assistants for recipes
   (P15: "I typically do not use Alexa to guide me through the recipe").
@@ -819,6 +939,14 @@ good.
     - `S` Screen readers repeat unneeded text, and recipes with long stories take too long to read. Visual cues are
       inaccessible. (Li et al., ASSETS 2024.) Most of 121 adults with vision loss had medium or high cooking skill, yet
       many still struggled to follow recipes. (Rizzo et al. 2026)
+    - `V` (added 2026-10-25) "This presents a serious inconvenience when the iPad is not sitting directly on a stove
+      burner, or handing immediately in front of the cook's face! We need the ability to zoom into the instructions so
+      they can be viewed at a distance, away from the stove, while the cooking is going on." (HelloFresh, App Store,
+      3★, 2025-12-14, id 13513744051, https://apps.apple.com/us/app/id970107419)
+    - `V` (added 2026-10-25) The trade-off between size and how much fits: "the screen is too tiny to display enough of
+      the recipe at once to be useful if the font is big enough to see when it's sitting on the counter out of reach of
+      splatters" (Reddit r/Cooking, 2026-02-24, about an e-reader,
+      https://www.reddit.com/r/Cooking/comments/1rd24yh/_/o72lccj/) Where the device sits is in CK-032.
 - **How often / how bad:** Few reviews mention it, but for the people affected it blocks use entirely ("I am unable to
   use this app").
 - **Workarounds people use:** Zooming screenshots. Printing in large type. Using a different app. Asking someone.
@@ -951,6 +1079,17 @@ good.
       for stuff." (Reddit r/adhdwomen, 2025-09-25, https://www.reddit.com/r/adhdwomen/comments/1nqjq2l/i_just_realized_why_i_hate_cooking/)
     - `V` (added 2026-10-21) Losing a way of tracking progress is felt as a loss: "you removed the checklist. Why? ... The
       old app made cooking stress-free" (Blue Apron, App Store, 1★, 2025-08-13, id 13013227973, https://apps.apple.com/us/app/id976642810)
+    - `X` (added 2026-10-25) Short-term memory holds about four chunks at a time: "A single, central capacity limit
+      averaging about four chunks is implicated." (Cowan, Behavioral and Brain Sciences 2001,
+      https://memory.psych.missouri.edu/assets/doc/articles/2001/cowan-bbs-2001.pdf) Not measured in kitchens.
+    - `X` (added 2026-10-25) People who are interrupted often keep their speed, at a cost: "people compensate for
+      interruptions by working faster, but this comes at a price: experiencing more stress, higher frustration, time
+      pressure and effort." (Mark, Gudith and Klocke, CHI 2008, 48 people, office email task,
+      https://www.interruptions.net/literature/Mark-CHI08.pdf)
+    - `V` (added 2026-10-25) A missed timer is a common way of forgetting something is cooking. See CK-030.
+    - `V` (added 2026-10-25) Checking ingredients off helps: "we both love checking off the ingredients. I have ADHD and
+      this feature also helps me not forget ingredients." (Paprika, Google Play, 5★, 2026-01-07,
+      https://play.google.com/store/apps/details?id=com.hindsightlabs.paprika.android.v3&reviewId=b6392d59-79fd-4a45-b9e6-ec93055628b5)
 - **How often / how bad:** (Updated 2026-10-21: round two adds many first-hand voices from cooks with ADHD, and from
   cooks without it who forget when interrupted. Frequency is still unknown.) Unknown. There is only one first-hand
   source on attention difficulties. It can be
@@ -1388,6 +1527,314 @@ good.
 - **Open questions:** Which failures are most common, and which can be rescued? Observation of real cooks would show
   this.
 
+### CK-030: The timer goes off and I don't hear it, because the phone is locked or silent, the app is closed, or the sound is too quiet
+
+- **Status:** validated (added 2026-10-25). `V` from four apps (HelloFresh, Pestle, Mela, MultiTimer) and Reddit.
+  `X` platform documents explain the cause. No `S` evidence.
+- **Who:** Anyone who times a step with an app. Most of all cooks who walk away during a wait, cooks with ADHD, and
+  cooks with the phone on silent.
+- **When:** During a wait, after the cook turns away from the device or leaves the room.
+- **Need:** Know for certain, wherever I am, the moment a timed step is over.
+- **Evidence:**
+    - `V` "The timers in app don’t work well. They don’t make sounds." (HelloFresh, App Store, 3★, 2025-03-20, id
+      12444140612, https://apps.apple.com/us/app/id970107419)
+    - `V` "The app is great, except for the timer. It doesn't make any sound when time reaches zero." (HelloFresh,
+      Google Play, 4★, 2025-04-15,
+      https://play.google.com/store/apps/details?id=com.hellofresh.androidapp&reviewId=9769c11d-8f02-4250-95bd-fd45b46ff343)
+    - `V` "Would really like improved timer feature. ... MUCH more robust alarming when it goes off. It is much too
+      subtle now. For timing I still use my OXO." (Pestle, App Store, 5★, 2023-04-19, id 9838957245,
+      https://apps.apple.com/us/app/id1574776971)
+    - `V` "I’d love for the timers to be louder or somehow sync across my devices - if my watch could yell at me
+      (because ADHD and I walk away from things)" (Mela, App Store, 4★, 2024-08-28, id 11662673194,
+      https://apps.apple.com/us/app/id1548466041)
+    - `V` A general timer app shows the platform cause: "Unlike the default IOS clock app, your timers won’t make any
+      sound when they go off in silent mode. They also don’t go off continuously until you notice." And: "in order for
+      it to work, you have to be very alert to it working in the background, and keep checking it over and over, in
+      case you missed an alert." (MultiTimer, App Store, 3★, 2026-05-26, id 14109574657,
+      https://apps.apple.com/us/app/id973421278) Also: "I never hear the alarm going off unless the phone is
+      unlocked." (MultiTimer, App Store, 2★, 2025-12-12, id 13505264848)
+    - `V` "Our family needs a timer that keeps buzzing until the person goes over and turns it off." (Reddit r/Cooking,
+      2024-11-23, https://www.reddit.com/r/Cooking/comments/1gxq3th/) A reply: "My understanding is that most timers
+      ring for about a minute and then auto turn off by themselves." (2024-11-23,
+      https://www.reddit.com/r/Cooking/comments/1gxq3th/_/lyj25et/)
+    - `X` Apple added a framework for this in iOS 26 and names recipe apps: "From countdown timers in your recipe app
+      to wake-up alarms in your travel planning app, the AlarmKit framework in iOS and iPadOS 26 brings timers and
+      alarms to the Lock Screen, Dynamic Island, and more." And: "When it fires, the alert breaks through the silent
+      mode and the current focus." The person must allow it for each app. (Apple, WWDC25 session 230, June 2025,
+      https://developer.apple.com/videos/play/wwdc2025/230/)
+    - `X` On Android 14 and later, the permission to show a full-screen alert is limited to apps "that provide calling
+      and alarms only". (Android Developers, Android 14 behaviour changes,
+      https://developer.android.com/about/versions/14/behavior-changes-14)
+    - `S` A related failure with spoken warnings: an agent's early warning, "soon there will be alarm", was not
+      understood by an older cook, who answered "What did you say?" (Kuoppamäki et al. 2023, Int. J. Social Robotics,
+      10 older adults, https://d-nb.info/1316780384/34)
+    - Against: most reviews that mention an in-app timer praise it (for example Mealime, Paprika and Kitchen Stories,
+      many 5★ reviews). Complaints about a quiet or silent timer are few: a keyword search found 4 in 24,728 reviews of
+      recipe, meal-kit and meal-planning apps (MultiTimer left out).
+- **How often / how bad:** Rare in reviews, but each case can mean burnt food, and food left on the heat is a safety
+  risk (CK-020). The cause is partly the platform. Before iOS 26, an app's timer on an iPhone only posted a normal
+  notification, which silent mode mutes. The phone's own Clock app does not have this limit.
+- **Workarounds people use:** A separate kitchen timer. The phone's Clock app. A smart speaker. A watch. Not leaving
+  the kitchen (CK-020).
+- **Where current products fail:** HelloFresh (silent timers on both platforms). Pestle (too quiet, and double
+  notifications, see CK-003). MultiTimer (silent in silent mode).
+- **Open questions:** How many cooks use an app's timer, the phone's Clock, or a kitchen timer? How far from the
+  kitchen do cooks go during a wait?
+
+### CK-031: The timer gets in the way of the recipe: I can't read on while it runs, it resets or is lost when I move on, or I can't tell which timer is which
+
+- **Status:** validated (added 2026-10-25). `V` from four apps (HelloFresh, Mealime, NYT Cooking, Pestle), plus
+  MultiTimer. One `S` study on how a timer is offered.
+- **Who:** Anyone who times a step, most of all with more than one thing on the heat.
+- **When:** A timer is running and the cook needs to read on, start a second timer, or see what a ringing timer was
+  for.
+- **Need:** Keep each running timer, and what it is for, in view while I read and move through the rest of the
+  recipe.
+- **Evidence:**
+    - `V` "the timers only work until you hit the done button. That essentially means that while you have a timer on,
+      you can't read anything else." (HelloFresh, Google Play, 2★, 2025-04-27,
+      https://play.google.com/store/apps/details?id=com.hellofresh.androidapp&reviewId=ad34e17c-69ec-4e5e-8cab-e8026dd248c1)
+    - `V` "Whilst the timer is being used you can't return to the cooking instructions without the alarm resetting.
+      The timer should sound when zero and continue to count down when you return to the cooking steps." (HelloFresh,
+      Google Play, 4★, 2025-04-15,
+      https://play.google.com/store/apps/details?id=com.hellofresh.androidapp&reviewId=9769c11d-8f02-4250-95bd-fd45b46ff343)
+    - `V` "You lose your timer if you go to the next page." (HelloFresh, Google Play, 1★, 2025-05-06,
+      https://play.google.com/store/apps/details?id=com.hellofresh.androidapp&reviewId=71b8158c-0fc7-465a-87ac-d467b494d786)
+      Mealime has the same failure: "if you move to the next step, the timer is lost" (see CK-003).
+    - `V` Leaving the app to time a step loses the place: "I'll have to switch to the timer app, then come back and
+      search for the recipe again." (NYT Cooking, Google Play, 3★, 2025-03-04,
+      https://play.google.com/store/apps/details?id=com.nytimes.cooking&reviewId=1685d1c8-166d-42be-913e-4e2d2c9ceb9e)
+      And: "I often have to find the recipe again when I switch back to the app after using my phone's timer." (NYT
+      Cooking, Google Play, 3★, 2026-03-31,
+      https://play.google.com/store/apps/details?id=com.nytimes.cooking&reviewId=5d30f48d-b3e3-4938-a160-4ef528f483b1)
+    - `V` "Would be good to have timer counting down in the top of screen (and continuing to count “down” negatively
+      when it goes over)" (Pestle, App Store, 5★, 2023-04-19, id 9838957245, https://apps.apple.com/us/app/id1574776971)
+    - `V` Telling timers apart: "I identify my timers by sound. If I have three in play and two go off at the same time,
+      only one will sound so I don’t realize two finished at the same time" (MultiTimer, App Store, 4★, 2021-11-07, id
+      7997965841, https://apps.apple.com/us/app/id973421278)
+    - `V` Where it works, people say so: "I was trying to juggle all of these steps and timers in my head and now it's
+      all laid out for me." (Mealime, Google Play, 5★, 2023-03-19,
+      https://play.google.com/store/apps/details?id=com.mealime&reviewId=c516596b-e0eb-4198-bff8-d21d4eec3807) "It even
+      has a timer on the step you need to start a timer." (Samsung Food, App Store, 5★, 2023-09-09, id 10351368448,
+      https://apps.apple.com/us/app/id1133637674) "You can also add multiple timers on the same screen!" (Mela, App
+      Store, 4★, 2022-10-25, id 9221594238, https://apps.apple.com/us/app/id1548466041)
+    - `S` A voice agent that offered a timer straight after a timed step ("simmer for 3 minutes" followed by "should I
+      start a timer?") was received well: "users tended to engage more positively when the contextual agent
+      volunteered context-relevant functionality through a follow-up question." (Jaber et al., CHI 2024, 16 sessions,
+      https://discovery.ucl.ac.uk/id/eprint/10189212/7/Brumby_3613904.3642183.pdf)
+    - `X` Naming timers by food became standard on voice devices: Alexa in 2017 ("timers can now be assigned names",
+      TechCrunch, 2017-06-01, https://techcrunch.com/2017/06/01/alexa-adds-support-for-reminders-and-named-timers/), and
+      HomePod in 2018 ("Set a timer for the cake, another one for lasagna", Apple Newsroom, 2018-09-12,
+      https://www.apple.com/newsroom/2018/09/homepod-adds-new-features-and-siri-languages/).
+    - Against: some cooks keep a separate kitchen timer whatever the app does (Pestle above).
+- **How often / how bad:** A minority of timer reviews, but across four apps. The harm is a lost countdown, a lost place
+  in the recipe, or a finished timer the cook cannot place. This adds to CK-003, which records the wish to run parts in
+  parallel.
+- **Workarounds people use:** A kitchen timer. The phone's Clock app, at the cost of the place in the recipe. Naming
+  timers out loud on a smart speaker.
+- **Where current products fail:** HelloFresh (the timer blocks the steps and resets). Mealime (the timer is lost on
+  the next step). NYT Cooking (to use the phone's timer, the cook leaves the app, and the app drops the recipe).
+- **Open questions:** Do cooks want a finished timer to keep counting up? How many timers do cooks run at once? Does a timer
+  need the name of its step, its food, or both?
+
+### CK-032: My tablet sits sideways in a stand, away from the mess, and the app won't turn or fill the screen
+
+- **Status:** validated (added 2026-10-25). `V` from at least eight apps and Reddit.
+- **Who:** Cooks who use a tablet in the kitchen.
+- **When:** Setting up to cook: placing the device where it is safe from splatter and still readable.
+- **Need:** Use the recipe on my device in the position and the place my kitchen allows.
+- **Evidence:**
+    - `V` "When cooking, I use a tablet in a stand. Like most normal people, my tablet is in landscape mode. This app
+      only works in portrait mode." (NYT Cooking, Google Play, 1★, 2024-03-03,
+      https://play.google.com/store/apps/details?id=com.nytimes.cooking&reviewId=e41a4172-5a02-4053-a0f0-274c217eac5f)
+    - `V` "Please add landscape support as a tablet will naturally be propped up in landscape orientation." (NYT
+      Cooking, Google Play, 3★, 2024-01-07,
+      https://play.google.com/store/apps/details?id=com.nytimes.cooking&reviewId=9f6479bf-bec5-44cc-9236-aa86602bd675)
+    - `V` "especially when used on a tablet with a stand that allows only landscape mode (which is very common and
+      useful when cooking)." (NYT Cooking, Google Play, 1★, 2024-02-03,
+      https://play.google.com/store/apps/details?id=com.nytimes.cooking&reviewId=58ea7f48-c388-4f99-bdc5-725b87e8bbb0)
+    - `V` "The new updated app doesn’t flip sideways for my iPad, which is bad when I want to read the cooking
+      instructions from it." (Blue Apron, App Store, 2★, 2025-08-11, id 13005318188,
+      https://apps.apple.com/us/app/id976642810)
+    - `V` "you can’t use Apple’s case to rest your iPad sideways.... again, the app doesn’t rotate" (SideChef, App
+      Store, 2★, 2020-04-09, id 5787364295, https://apps.apple.com/us/app/id905229928)
+    - `V` "It would be great to have this in landscape when I prop my iPad up in the kitchen to follow a recipie." (Eat
+      This Much, App Store, 3★, 2019-05-17, id 4165840994, https://apps.apple.com/us/app/id981637806) The same request
+      comes from Prepear ("the only way I use my iPad when cooking", App Store, 4★, 2022-12-19, id 9414584167), Home
+      Chef (App Store, 2★, 2025-03-27, id 12472006181), HelloFresh (Google Play, 1★, 2025-06-26), Kitchen Stories ("I
+      use this on my tablet and it doesn't rotate anymore", Google Play, 1★, 2023-10-05) and SideChef (Google Play, 4★,
+      2020-07-19).
+    - `V` Distance and splatter set the reading size: "the screen is too tiny to display enough of the recipe at once to
+      be useful if the font is big enough to see when it's sitting on the counter out of reach of splatters, it times
+      out and then goes to sleep and then I have to wake it up potentially with messy hands or while I'm busy not
+      burning things." (Reddit r/Cooking, 2026-02-24, about an e-reader,
+      https://www.reddit.com/r/Cooking/comments/1rd24yh/_/o72lccj/)
+    - `V` "when viewing a recipe on iPad, each step presents its instructions in very small text (as if viewed on the
+      iPhone). This presents a serious inconvenience when the iPad is not sitting directly on a stove burner, or handing
+      immediately in front of the cook's face! ... Otherwise it looks like ants dancing under a cute picture."
+      (HelloFresh, App Store, 3★, 2025-12-14, id 13513744051, https://apps.apple.com/us/app/id970107419)
+    - `V` Where it sits: "Hang from a cabinet pull so it's at eye level and not on the counter taking space or liable to
+      get knocked over into the butter dish." (Reddit r/Cooking, 2016-03-04,
+      https://www.reddit.com/r/Cooking/comments/48rrvd/_/d0mv68m/) "The huge problem I have is lack of counter space to
+      put said iPad to view recipes." (Reddit r/Cooking, 2020-12-06, https://www.reddit.com/r/Cooking/comments/k7u8cr/)
+      Others put it on a shelf, above the microwave, on the fridge, or in a zip bag.
+    - `X` Apple asks people to "Minimize exposing your iPhone to soap, detergent, acids or acidic foods, and any
+      liquids—for example, ... oil". (Apple Support 108039, https://support.apple.com/en-us/108039)
+    - Against: a tablet app that is fixed sideways fails too: "As the app is forced landscape mode, you can't even switch
+      to portrait to try and see all the steps." (Mealime, Google Play, 4★, 2024-02-20,
+      https://play.google.com/store/apps/details?id=com.mealime&reviewId=07233a8a-4d91-4614-9429-5461beaddd17)
+    - Against: no review in about 26,700 asked to use a phone sideways. Phones appear in stands and on counters, but
+      the requests to turn the screen are all about tablets.
+- **How often / how bad:** One of the most repeated tablet complaints in this round, across eight or more apps.
+  Several reviewers say they stopped using the app on the tablet, or used the website instead.
+- **Workarounds people use:** The website instead of the app. A stand that holds the tablet upright. A zip bag or
+  plastic wrap. A wall or cabinet mount. A cheap tablet kept only for the kitchen.
+- **Where current products fail:** NYT Cooking (Android, no sideways view), Blue Apron (2025 update), Prepear,
+  SideChef, Home Chef, HelloFresh, Kitchen Stories (rotation removed), and Mealime (fixed sideways on tablets).
+- **Open questions:** How far from the cook does the device sit? How many cooks use a tablet rather than a phone?
+
+### CK-033: While one thing cooks I want to see what is coming next, so I can get ready, but the screen shows only this step
+
+- **Status:** validated (added 2026-10-25). `S` from Buykx 2013 and Chan et al. `V` from three apps.
+- **Who:** Cooks who follow a recipe step by step. Most of all those who use the waits to prepare the next part.
+- **When:** During a wait, and just before a fast stretch of the recipe.
+- **Need:** Know the next one or two actions and what they need, while I am still doing the current one.
+- **Evidence:**
+    - `S` "I found that cooks do not read or perform the tasks of recipe instructions in sequence." Cooks looked from
+      the current step to future steps 1.29 times per recipe, and "Cooks looked ahead when waiting for a mixture to
+      cook ... 'I’m just looking ahead to see what happens next' (cook 8)". "The most frequent reason for cooks to
+      look-ahead was to find a task to perform in parallel (35 comments)", out of 105 comments. (Buykx, PhD thesis,
+      University of York, 2013, first kitchen study, 24 cooks, https://etheses.whiterose.ac.uk/id/eprint/5158/)
+    - `S` In the second study, cooks looked ahead 3.54 times per recipe with short steps and pictures, against 1.71 with
+      the normal recipe (F(1,45) = 13.8, p < .001). "most look ahead activities were only one or two steps ahead of the
+      current step". (Buykx 2013, second kitchen study, 24 cooks)
+    - `S` With a voice assistant, 9 of 12 cooks "introduced some sequencing errors", but "these mistakes did not
+      impact the final dish’s outcome". The authors say the changes "included multitasking and improvisation". One
+      cook said: "I always used to ask it a few steps before. So when I’m cutting the onion, I would ask what I need to do
+      with a tomato." (Chan et al., "Mango Mango", arXiv 2310.05853, 12 cooks, P10,
+      https://arxiv.org/html/2310.05853v2)
+    - `V` Praise for seeing the next step: "see the previous/next steps (as opposed to only being able to view one step
+      at a time)" (Mela, App Store, 5★, 2023-08-04, id 10220433294, https://apps.apple.com/us/app/id1548466041)
+    - `V` "I usually read ahead to see where I save time prepping or modify prepping order etc." (Mealime, App Store,
+      5★, 2024-03-20, id 11066903714, https://apps.apple.com/us/app/id1079999103)
+    - `V` "Reading the recipe ahead of time is just not enough, especially when the kitchen is heated up." (HelloFresh,
+      App Store, 3★, 2025-12-14, id 13513744051, https://apps.apple.com/us/app/id970107419)
+    - Against: some cooks praise one step at a time: "I like the step by step feature, which breaks down the recipe one
+      step at a time to make it easier to cook." (Pestle, App Store, 5★, 2026-10-13, id 14663995353,
+      https://apps.apple.com/us/app/id1574776971) And: "love that I could start the next step only when I'm ready"
+      (SideChef, App Store, 5★, 2014-08-21, id 1050851950, https://apps.apple.com/us/app/id905229928)
+    - Against: in Buykx's first study, cutting the recipe into shorter steps did not reduce errors. The mean was 1.13
+      errors per recipe with short steps and 0.78 with the normal recipe, and the difference was not significant.
+- **How often / how bad:** Looking ahead happened in most sessions in both of Buykx's studies, one or two steps at a
+  time, and mostly during waits. Cooks used it to find work to do in parallel. A screen that shows one step at a time
+  turns this into extra taps or swipes, and a voice helper turns it into a question. This is close to CK-003 (parallel
+  work), CK-007 (the whole job before starting) and CK-021 (Hwang et al.: "everything was a suprise").
+- **Workarounds people use:** Swiping ahead and back. Reading the whole recipe first, or several times. Asking a voice
+  helper for steps ahead (Chan et al.).
+- **Where current products fail:** Cook modes that show one step at a time hide the next one. Mealime's hand-wave
+  mode moves one step at a time, which "is not convenient when there are steps supposed to be in tandem" (CK-003).
+- **Open questions:** Is one step ahead enough, or do cooks need to see the next long wait? Does seeing ahead help
+  beginners, or does it add to what they must hold in mind?
+
+### CK-034: One step crams several actions and amounts into a paragraph, and I lose track inside it
+
+- **Status:** reported (added 2026-10-25). `V` from one app (HelloFresh) and `X` press. The `S` evidence comes from
+  steps read aloud, not from steps on a screen.
+- **Who:** Cooks following long or dense steps, and anyone using hands-free reading.
+- **When:** Mid-step, after doing the first action of several.
+- **Need:** Take in each action of a step in the order I do it, and know which part I have done.
+- **Evidence:**
+    - `V` "Instructions in each step should appear as a bulleted list, with each instruction as a single bullet on a
+      single line, so that it is clearly visible by the cook and not a jumbled up paragraph with bullets and periods.
+      Each step should allow for reading and advancing one bullet at a time within the step." The same reviewer:
+      "Ingredients should be bolded in every step". And: "If I need to do one thing, while I am doing another thing,
+      both things should appear at the same level, maybe separated by a line or clearly shown as simultaneous steps, so
+      that I may better prepare." (HelloFresh, App Store, 3★, 2025-12-14, id 13513744051,
+      https://apps.apple.com/us/app/id970107419)
+    - `S` "he’s telling me salt and pepper together where I have to measure one, measure the other one where we
+      measure the first one. And I forgot about that." (Chan et al., "Mango Mango", arXiv 2310.05853, P5)
+    - `X` "the steps-within-steps are whizzed through pretty quickly, with no pause between. For this recipe, the voice
+      instructions for “step one” takes around a minute, but covers the entire cooking process of the dried fruit
+      mincemeat mixture, which takes almost an hour." (TechRadar, 2018-12-24, about Alexa,
+      https://www.techradar.com/news/making-mince-pies-with-alexa)
+    - Against: cutting too finely also hurts. Hwang et al. record "Fragmentation", where the garnish came in three
+      separate steps (CK-003). And in Buykx's first study, shorter steps did not reduce errors (CK-033).
+- **How often / how bad:** Unknown. One detailed review, one study quote and one press test.
+- **Workarounds people use:** Rereading the step. Doing the step from memory.
+- **Where current products fail:** HelloFresh (dense paragraphs). Alexa reading a long step without pauses.
+- **Open questions:** What is the right size for a step? One action, or one goal with its actions listed?
+
+### CK-035: The screen in my kitchen stopped showing my recipes, because the company removed the feature
+
+- **Status:** validated (added 2026-10-25). `V` from three places: Google's support forum, Recipe Keeper and Samsung
+  Food, plus Reddit. `X` press reports the removals.
+- **Who:** People who cook from a smart display (Google Nest Hub, Amazon Echo Show) or a recipe app's voice skill.
+- **When:** The next time they cook after a removal or an update.
+- **Need:** Keep cooking the way I have set up my kitchen, year after year.
+- **Evidence:**
+    - `X` Google listed for removal "playing an instructional recipe video, or showing step-by-step recipes" and
+      "Accessing or managing your cookbook, transferring recipes from device to device," on Assistant smart displays.
+      (9to5Google, 2024-01-11, https://9to5google.com/2024/01/11/google-assistant-feature-removal/)
+    - `V` "Absolutely disgusted by this. This is the main feature I use on my hub. I have spent years building up my
+      cookbook with recipes and now it’s gone." (Google Assistant Community, 2024-05-13,
+      https://support.google.com/assistant/thread/266063896) "The cookbook is the only reason I have the nest hub home
+      display in my kitchen." (same thread, 2024-07-01) "Yes the whole reason I bought this thing was for the recipes and
+      cooking hands-free" (same thread, 2024-11-26)
+    - `V` "Google Hub no longer displays recipes and I miss it! ... It’s now an overpriced timer!!!" (Reddit r/Cooking,
+      2025-08-02, https://www.reddit.com/r/Cooking/comments/1mfyrl0/)
+    - `V` "when I went to launch it tonight on my Amazon echo show, because I use it for cooking to see my recipes, I got
+      a message that this skill no longer exists." (Recipe Keeper, App Store, 1★, 2025-07-10, id 12876690484,
+      https://apps.apple.com/us/app/id974683711) Another: "it’s a shouting match with Alexa" (Recipe Keeper, App Store,
+      1★, 2026-07-14, id 14302873932)
+    - `V` "Far and away it’s best feature was it’s Alexa integration" (Samsung Food, App Store, 2★, 2023-07-31, id
+      10205455386, https://apps.apple.com/us/app/id1133637674). That was a shopping-list feature, so it is weaker
+      evidence for cooking.
+    - `X` Food Network Kitchen left the app stores in March 2024 and stopped working after 1 May 2024, according to
+      Food Network's help page as shown in a search snippet. I was not able to open the page.
+    - `X` What these users had valued: TechRadar praised an Echo Show skill that "keeps the recipe exactly where you
+      left it, even after half an hour of screen off time", and faulted another: "Recipedia would reliably close down the recipe
+      and go to the home screen after the Echo Show was idle for a few minutes". (TechRadar, 2018-12-24,
+      https://www.techradar.com/news/making-mince-pies-with-alexa)
+- **How often / how bad:** For the people affected, the device lost its main purpose overnight. The removals are
+  dated and public. How many cooks used these features is not known.
+- **Workarounds people use:** Buying a tablet or an iPad for the kitchen. Moving to another app. Going back to paper.
+- **Where current products fail:** Google (2024 removal), Amazon skills that end, Food Network Kitchen (closed 2024).
+  This is close to FR-010 and FR-019 (losing a recipe collection).
+- **Open questions:** Do cooks now trust smart displays less? Does this change what they expect from a phone or tablet
+  app?
+
+### CK-036: The helper speaks at the wrong moment: tips while my hands are busy, silence during the long waits, warnings I don't catch
+
+- **Status:** validated (added 2026-10-25). `S` from four small studies of voice helpers.
+- **Who:** Cooks using voice or other helpers that speak or prompt on their own. Older adults most of all.
+- **When:** In the middle of a hands-on task, and during waits.
+- **Need:** Get each reminder or tip at a moment that lets me take it in and act on it.
+- **Evidence:**
+    - `S` Unprompted tips were often missed or met with "a highly emphasised “what is it?” or “yes?”". And: "users
+      tended not to act on these suggestions, unless they were seen as critical to the success of the task or included
+      minimal extra effort (e.g. turning down the heat)." Offers tied to the step just given went down better (see
+      CK-031). (Jaber et al., CHI 2024, 7 and 16 sessions,
+      https://discovery.ucl.ac.uk/id/eprint/10189212/7/Brumby_3613904.3642183.pdf)
+    - `S` Older cooks with a helper that gave only instructions found the session "long and slow". The authors write
+      that "'chatty' assistants transform cooking pauses into engaging interactions while instructional-only versions
+      create frustrating dead air, despite identical timing." But one cook said: "I wouldn’t like him to chat more while
+      I’m cooking." (Esteve et al., IWSDS 2026, 6 older adults, https://aclanthology.org/2026.iwsds-1.15.pdf)
+    - `S` Older adults "displayed challenges with confirmation and repetition, questioning and correcting, the lack of
+      conversational responses, and difficulties in hearing and understanding the multi-modal interaction." (Kuoppamäki
+      et al. 2023, 10 older adults, https://d-nb.info/1316780384/34)
+    - `S` Of 447 questions to a voice helper, 23.0% failed through "Alexa system errors and speech-to-text
+      inaccuracies". (Chan et al., "Mango Mango", arXiv 2310.05853, 12 cooks)
+    - Against: `S` a helper that offered knowledge on its own led to "almost double the number of conversational
+      utterances and 1.5 times more knowledge-related user questions compared to the passive policy". The study was
+      run without distractions, so it does not test the cost of an interruption. (Frummet et al., TOIS 2024, 48 cooks,
+      https://epub.uni-regensburg.de/74598/1/3649500.pdf)
+- **How often / how bad:** Every study found the problem, but each had 6 to 16 sessions. The harm ranges from
+  annoyance to a missed warning.
+- **Workarounds people use:** Ignoring the helper. Asking it to stop. Not using voice helpers for recipes (CK-008).
+- **Where current products fail:** Alexa and Alexa-based helpers in these studies.
+- **Open questions:** Does the same timing rule hold for prompts on a screen, which the cook can ignore until they
+  look? No study tested on-screen prompts.
+
 ---
 
 ## Top needs in this area
@@ -1418,3 +1865,16 @@ good.
 11. **Cook for others, and on tired evenings, without the pressure taking over** (CK-024, CK-025, CK-028).
 12. **Protect what makes cooking feel good:** calm, order, a known dish, a finished meal, and someone enjoying it
     (CK-027). Most adults enjoy cooking at least "when they have the time".
+
+**Round 3 additions (2026-10-25).** The third round adds the device, the timers and the next step:
+
+13. **Know for certain when a timed step ends, and keep each timer beside the recipe, named for its task** (CK-030,
+    CK-031). An app's timer that is silent when the phone is locked or muted, or that hides the steps while it runs,
+    is worse than a kitchen timer, and people go back to one.
+14. **See the next one or two actions while doing this one,** most of all during waits, so the wait can be used to
+    get ready (CK-033). Cooks look ahead in most sessions, one or two steps at a time. Some cooks still prefer one step
+    at a time.
+15. **Use the device where the kitchen allows:** a tablet sideways in a stand, out of reach of splatter, readable from
+    there (CK-032, CK-016). No evidence here says cooks turn a phone sideways.
+16. **Get help at a moment the cook can take it in,** and never lose the way of cooking the cook has set up (CK-036,
+    CK-035, CK-034).

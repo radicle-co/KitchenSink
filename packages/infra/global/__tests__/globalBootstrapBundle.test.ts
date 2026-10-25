@@ -124,7 +124,9 @@ function globalDeployWorkflows(): readonly string[] {
  * @returns Whether it exports the key the edge bundle requires.
  */
 function exportsEdgeKey(step: WorkflowStep): boolean {
-    return /CLERK_JWT_KEY/.test(withoutComments(step.run ?? ''));
+    // The export moved into `.github/scripts/exportClerkEdgeKey.sh` (one script for every caller), and a step that
+    // only names the script left this guard finding NO builder at all; an inline export still counts.
+    return /CLERK_JWT_KEY|exportClerkEdgeKey\.sh/.test(withoutComments(step.run ?? ''));
 }
 
 describe('every workflow that deploys the global infra app bundles its handlers first', () => {

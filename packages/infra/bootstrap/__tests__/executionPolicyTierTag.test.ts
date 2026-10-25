@@ -26,7 +26,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildExecutionPolicy } from '../src/executionPolicy.js';
 import { isTagAddPattern, tagKeySupport } from '../src/iamCatalogue.js';
-import type { PolicyDocument, Statement } from '../src/policyDocument.js';
+import { ACCOUNT, REGION, type PolicyDocument, type Statement } from '../src/policyDocument.js';
 import { QUALIFIERS, STACK_TAG_PATTERNS, TIER_TAG_KEY, tierTagValue, type QualifierName } from '../src/qualifiers.js';
 import { allows as evaluates } from './boundaryEval.js';
 import { iamCatalogue } from './iamCatalogueFixture.js';
@@ -37,6 +37,8 @@ const STACK_NAME_TAG = 'aws:cloudformation:stack-name';
 const STACK_NAME_RESOURCE_TAG = `aws:ResourceTag/${STACK_NAME_TAG}`;
 /** The one statement that may read the system tag: EC2 tag edits, see the describe block below. */
 const EC2_STACK_TAG_SID = 'Ec2TagByStack';
+/** The PassRole grant for EC2 instance profiles, scoped by name: see its describe block. */
+const EC2_PASS_ROLE_SID = 'IamPassRoleToEc2';
 
 const allQualifiers = [QUALIFIERS.nonprod, QUALIFIERS.prod, QUALIFIERS.account] as const;
 const stageQualifiers = [QUALIFIERS.nonprod, QUALIFIERS.prod] as const;
@@ -288,14 +290,133 @@ describe.each(stageQualifiers)('executionPolicy(%s) — PassRole is gated by iam
         expect(passRole.length).toBeGreaterThan(0);
     });
 
+    // REWRITTEN (2026-10-24): every PassRole grant EXCEPT the EC2 one is tag-gated. EC2's instance-profile PassRole
+    // carries no role tags at all, so its grant is scoped by name instead (the describe block below).
     it("tests the qualifier's tier with iam:ResourceTag and never aws:ResourceTag", () => {
-        for (const statement of passRole) {
+        for (const statement of passRole.filter((entry) => entry.Sid !== EC2_PASS_ROLE_SID)) {
             const condition = JSON.stringify(statement.Condition ?? {});
 
             expect(condition, statement.Sid).toContain(
                 `"iam:ResourceTag/${TIER_TAG_KEY}":"${tierTagValue(qualifier)}"`,
             );
             expect(condition, statement.Sid).not.toContain('aws:ResourceTag');
+        }
+    });
+});
+
+/**
+ * EC2 evaluates the PassRole of an instance profile's role with NO role tags in its context: a dry-run
+ * `ec2:RunInstances` with the production NAT instance profile, from a principal holding the deployed
+ * `kitchensink-ci-exec-ksprod-iam` policy, was refused `iam:PassRole` while the role carried `kitchensink:tier=prod`,
+ * and the decoded authorization context held only `iam:RoleName` (2026-10-24). The same probe was allowed by a grant
+ * scoped by role NAME to the tier and passed to EC2 only. The production deploy failed on exactly this, replacing the
+ * NAT instance (`kitchensink-network-prod`).
+ */
+describe.each(stageQualifiers)('executionPolicy(%s) — an EC2 instance profile role is passed by name', (qualifier) => {
+    const nonprod = qualifier === QUALIFIERS.nonprod;
+    const merged: PolicyDocument = { Version: '2012-10-17', Statement: statements(qualifier) };
+    const roleArn = (name: string): string => `arn:aws:iam::${ACCOUNT}:role/${name}`;
+    const own = nonprod
+        ? ['kitchensink-network-sandbox-VpcpublicSubnet1NatInstanc-AbC123', 'kitchensink-food-service-pr-91-TaskRole-x']
+        : ['kitchensink-network-prod-VpcpublicSubnet1NatInstanc-vPi0Kdk31iyx'];
+    const other = nonprod
+        ? [
+              'kitchensink-network-prod-VpcpublicSubnet1NatInstanc-vPi0Kdk31iyx',
+              // A prod role whose stack name IAM's 64-character cap cut to `-pr` (see tierNames.ts CUT_NAME_SERVICES).
+              'kitchensink-food-service-pr-FoodApiTaskRole9318E1E5-gjIjclZ0HZt5',
+          ]
+        : [
+              'kitchensink-network-sandbox-VpcpublicSubnet1NatInstanc-AbC123',
+              'kitchensink-food-service-pr-91-TaskRole-x',
+          ];
+    const ec2Service = 'ec2.amazonaws.com';
+    const toEc2 = { 'iam:PassedToService': ec2Service };
+
+    it('grants it in ONE statement, to ec2.amazonaws.com only, with no tag condition', () => {
+        const grants = allows(qualifier).filter(
+            (statement) =>
+                statement.Action.includes('iam:PassRole') &&
+                conditionValues(statement, 'iam:PassedToService').some((service) => service === ec2Service),
+        );
+
+        expect(grants.map((statement) => statement.Sid)).toEqual([EC2_PASS_ROLE_SID]);
+        expect(conditionValues(grants[0] as Statement, 'iam:PassedToService')).toEqual([ec2Service]);
+        expect(JSON.stringify(grants[0]?.Condition ?? {})).not.toContain('ResourceTag');
+    });
+
+    it("passes the tier's own role to EC2 with no tag in the request", () => {
+        for (const name of own) {
+            expect(evaluates(merged, 'iam:PassRole', roleArn(name), toEc2), name).toBe(true);
+        }
+    });
+
+    it("never passes another tier's role, nor a role that is not KitchenSink's", () => {
+        for (const name of [...other, 'armoury-prod-NatRole', 'some-other-role']) {
+            expect(evaluates(merged, 'iam:PassRole', roleArn(name), toEc2), name).toBe(false);
+        }
+    });
+
+    it('keeps the tag gate for every other service: the name alone passes nothing to Lambda', () => {
+        for (const name of own) {
+            expect(
+                evaluates(merged, 'iam:PassRole', roleArn(name), { 'iam:PassedToService': 'lambda.amazonaws.com' }),
+                name,
+            ).toBe(false);
+        }
+    });
+});
+
+/**
+ * CloudFormation tags a CloudWatch Logs delivery resource when it creates it, and `logs:*Delivery*` (on `*`) does not
+ * include `logs:TagResource`. The first production edge deploy through ksprod failed creating its access-log
+ * destination: "not authorized to perform: logs:TagResource on resource: ...:delivery-destination:
+ * kitchensink-edge-access-logs-prod" (2026-10-24). The sandbox never creates one, so only production showed it.
+ */
+describe.each(stageQualifiers)('executionPolicy(%s) — CloudWatch Logs delivery tags', (qualifier) => {
+    const nonprod = qualifier === QUALIFIERS.nonprod;
+    const stage = nonprod ? 'sandbox' : 'prod';
+    const merged: PolicyDocument = { Version: '2012-10-17', Statement: statements(qualifier) };
+    const logsArn = (resource: string): string => `arn:aws:logs:${REGION}:${ACCOUNT}:${resource}`;
+    const resources = [
+        logsArn(`delivery-destination:kitchensink-edge-access-logs-${stage}`),
+        logsArn(`delivery-source:kitchensink-edge-identity-${stage}`),
+        logsArn('delivery:AbCdEf0123456789'),
+    ];
+    const own = tierTagValue(qualifier);
+    const other = tierTagValue(nonprod ? QUALIFIERS.prod : QUALIFIERS.nonprod);
+
+    it('lets a new delivery resource receive its own tier tag (the create path)', () => {
+        for (const resource of resources) {
+            expect(
+                evaluates(merged, 'logs:TagResource', resource, { [REQUEST_TAG]: own, 'aws:TagKeys': TIER_TAG_KEY }),
+                resource,
+            ).toBe(true);
+        }
+    });
+
+    it('lets a delivery resource of its own tier change its tags', () => {
+        for (const resource of resources) {
+            expect(evaluates(merged, 'logs:TagResource', resource, { [RESOURCE_TAG]: own }), resource).toBe(true);
+            expect(evaluates(merged, 'logs:UntagResource', resource, { [RESOURCE_TAG]: own }), resource).toBe(true);
+        }
+    });
+
+    // `logs:*Delivery*` does not match `logs:DescribeDeliveries` ("Deliveries" holds no "Delivery"), and the Delivery
+    // create handler calls it: the next production edge deploy failed on exactly that (2026-10-25).
+    it('lists deliveries, which the Delivery create handler calls first', () => {
+        expect(evaluates(merged, 'logs:DescribeDeliveries', '*')).toBe(true);
+    });
+
+    it("never tags another tier's delivery resource, nor stamps the other tier's tag", () => {
+        for (const resource of resources) {
+            expect(evaluates(merged, 'logs:TagResource', resource, { [RESOURCE_TAG]: other }), resource).toBe(false);
+            expect(evaluates(merged, 'logs:TagResource', resource, { [REQUEST_TAG]: other }), resource).toBe(false);
+        }
+    });
+
+    it("never tags a delivery destination or source that is not KitchenSink's", () => {
+        for (const resource of [logsArn('delivery-destination:armoury-logs'), logsArn('delivery-source:other-app')]) {
+            expect(evaluates(merged, 'logs:TagResource', resource, { [REQUEST_TAG]: own }), resource).toBe(false);
         }
     });
 });

@@ -4,7 +4,7 @@
  * proves the deployed edge answers its `401` with CORS headers (plan 002 C1).
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,11 +36,44 @@ interface DeployStep {
  * @sideEffect Reads the workflow.
  */
 function prodDeploySteps(): readonly DeployStep[] {
-    const doc = parse(
-        readFileSync(fileURLToPath(new URL('../../../../.github/workflows/prod-deploy.yml', import.meta.url)), 'utf8'),
-    ) as { jobs: Record<string, { steps?: DeployStep[] }> };
+    return workflowJobSteps('prod-deploy.yml');
+}
 
-    return Object.values(doc.jobs)[0]?.steps ?? [];
+/** The repository root. */
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/**
+ * A step's `run:` with the text of every `.github/scripts/*.sh` it invokes appended, so an assertion about what a
+ * step does still holds when the step calls a shared script instead of carrying the commands inline. Impure (reads
+ * the scripts).
+ */
+function withScripts(step: DeployStep): DeployStep {
+    if (step.run === undefined) {
+        return step;
+    }
+
+    const scripts = [...step.run.matchAll(/\.github\/scripts\/[A-Za-z0-9]+\.sh/gu)].map((match) =>
+        readFileSync(path.join(REPO_ROOT, match[0]), 'utf8'),
+    );
+
+    return { ...step, run: [step.run, ...scripts].join('\n') };
+}
+
+/**
+ * A workflow job's steps, in file order, each with the scripts it invokes appended.
+ *
+ * @param file - The workflow's file name.
+ * @param job - The job's id; the first job when omitted.
+ * @returns The steps.
+ * @sideEffect Reads the workflow and the scripts.
+ */
+function workflowJobSteps(file: string, job?: string): readonly DeployStep[] {
+    const doc = parse(readFileSync(path.join(REPO_ROOT, '.github/workflows', file), 'utf8')) as {
+        jobs: Record<string, { steps?: DeployStep[] }>;
+    };
+    const steps = (job === undefined ? Object.values(doc.jobs)[0] : doc.jobs[job])?.steps ?? [];
+
+    return steps.map(withScripts);
 }
 
 /** The absolute path of the bundler script. */
@@ -219,6 +252,82 @@ describe('prod-deploy.yml supplies the build-time key, in the right order', () =
  * The DEPLOYED check (ADR-0032, a DEPLOYED target: prod, no token, writes nothing). A green unit and integration tier
  * proves the code; only a probe of the real distribution proves the version CloudFront serves carries the headers.
  */
+// ⛔ `main`'s CHECKS synthesize the global app at `prod` too (`deployInfra.yml`, `deploy: false`), and the synth refuses
+// without the key ("CLERK_JWT_KEY must be exported before synthesizing the CloudFront edge"). The first push to `main`
+// after PR 91 failed exactly there, so the checks job exports the key through the same script the deploy uses.
+describe('deployInfra.yml exports the build-time key for a prod synth, as the deploy does', () => {
+    const steps = (): readonly DeployStep[] => workflowJobSteps('deployInfra.yml', 'global');
+    const indexOf = (predicate: (step: DeployStep) => boolean): number => steps().findIndex(predicate);
+    const exporter = (step: DeployStep): boolean => (step.run ?? '').includes('exportClerkEdgeKey.sh');
+
+    it('runs the shared exporter, which reads the key from SSM, only when the stage is prod', () => {
+        const step = steps().find(exporter);
+
+        expect(step?.run).toContain('clerk/jwt-public-key');
+        expect(step?.if).toBe("inputs.stage == 'prod'");
+    });
+
+    it('exports it after AWS credentials exist and BEFORE the package step that bundles and synthesizes', () => {
+        const credentials = indexOf((step) => step.uses === './.github/actions/awsAuth');
+        const exportIndex = indexOf(exporter);
+        const packageStep = indexOf((step) => step.uses === './.github/actions/infra-package');
+
+        expect(credentials).toBeGreaterThanOrEqual(0);
+        expect(exportIndex).toBeGreaterThan(credentials);
+        expect(packageStep).toBeGreaterThan(exportIndex);
+    });
+
+    it('is the SAME exporter the production deploy runs, so the key has one export path', () => {
+        expect(prodDeploySteps().some(exporter)).toBe(true);
+    });
+});
+
+describe('exportClerkEdgeKey.sh', () => {
+    /** Run the script with a stub `aws` that prints `value`; returns the exit code, stderr and what it wrote. */
+    const run = (value: string): { status: number | null; stderr: string; env: string } => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'edgeKey'));
+
+        try {
+            const awsStub = path.join(dir, 'aws');
+            const envFile = path.join(dir, 'githubEnv');
+
+            const valueFile = path.join(dir, 'value');
+
+            // The value comes from a file, so its newlines reach the script as newlines.
+            writeFileSync(valueFile, `${value}\n`);
+            writeFileSync(awsStub, `#!/usr/bin/env bash\ncat ${JSON.stringify(valueFile)}\n`, { mode: 0o755 });
+            writeFileSync(envFile, '');
+
+            const result = spawnSync('bash', [path.join(REPO_ROOT, '.github/scripts/exportClerkEdgeKey.sh'), 'prod'], {
+                encoding: 'utf8',
+                env: { ...process.env, PATH: `${dir}:${process.env['PATH'] ?? ''}`, GITHUB_ENV: envFile },
+            });
+
+            return { status: result.status, stderr: result.stderr, env: readFileSync(envFile, 'utf8') };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+
+    it('writes the multi-line key to GITHUB_ENV in the heredoc form', () => {
+        const pem = '-----BEGIN PUBLIC KEY-----\nMIIBIjAN\n-----END PUBLIC KEY-----';
+        const result = run(pem);
+
+        expect(result.status).toBe(0);
+        expect(result.env).toBe(
+            `CLERK_JWT_KEY<<KITCHENSINK_CLERK_JWT_KEY_EOF\n${pem}\nKITCHENSINK_CLERK_JWT_KEY_EOF\n`,
+        );
+    });
+
+    it.each(['', 'None'])('refuses an empty parameter (%j), naming it, and writes nothing', (value) => {
+        const result = run(value);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('/kitchensink/prod/clerk/jwt-public-key');
+        expect(result.env).toBe('');
+    });
+});
+
 describe("prod-deploy.yml proves the deployed edge's 401 carries CORS headers", () => {
     const steps = prodDeploySteps();
     const edgeSmokeIndex = steps.findIndex(

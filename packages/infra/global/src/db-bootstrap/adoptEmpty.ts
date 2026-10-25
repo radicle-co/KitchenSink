@@ -1,10 +1,9 @@
 /**
  * @module db-bootstrap/adoptEmpty — is a master-owned database EMPTY, so that it can be re-owned instead of dropped?
  *
- * PERMANENT, unlike the legacy recreate. RDS creates the instance's `databaseName` (`kitchensink_identity`) for the
+ * RDS creates the instance's `databaseName` (`kitchensink_identity`) for the
  * master when a stage is born, so every new stage starts with an empty, master-owned identity database. Re-owning
- * it to `identity_owner` (`ALTER DATABASE … OWNER TO`) destroys nothing — which is why `decideDisposition` prefers it
- * to a drop whenever it applies, even while the recreate is armed.
+ * it to `identity_owner` (`ALTER DATABASE … OWNER TO`) destroys nothing, so `decideDisposition` adopts it.
  *
  * ⚠️ The emptiness check CONNECTS INTO the database, which is only possible while the master owns it: once it is
  * re-owned and closed to PUBLIC, prod's master (SET-only on the owner) cannot connect at all. So it is measured

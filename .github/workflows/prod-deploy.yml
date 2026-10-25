@@ -632,16 +632,7 @@ jobs:
             - name: Export the Clerk edge verification key
               if: steps.flags.outputs.deploy_global == 'true'
               run: |
-                  key="$(aws ssm get-parameter --name "/kitchensink/${STAGE}/clerk/jwt-public-key" --query 'Parameter.Value' --output text)"
-                  if [ -z "${key}" ] || [ "${key}" = "None" ]; then
-                      echo "::error::/kitchensink/${STAGE}/clerk/jwt-public-key is empty — the edge verifier would reject every request"
-                      exit 1
-                  fi
-                  {
-                      echo "CLERK_JWT_KEY<<KITCHENSINK_CLERK_JWT_KEY_EOF"
-                      echo "${key}"
-                      echo "KITCHENSINK_CLERK_JWT_KEY_EOF"
-                  } >> "${GITHUB_ENV}"
+                  bash .github/scripts/exportClerkEdgeKey.sh "${STAGE}"
                   parties="$(aws ssm get-parameter --name "/kitchensink/${STAGE}/clerk/authorized-parties" --query 'Parameter.Value' --output text | tr -d '[:space:]')"
                   if [ -z "${parties}" ] || [ "${parties}" = "None" ]; then
                       echo "::error::/kitchensink/${STAGE}/clerk/authorized-parties is empty — the edge's 401 would admit no browser origin"

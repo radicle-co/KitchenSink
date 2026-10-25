@@ -1,7 +1,8 @@
 // @vitest-environment node
 /**
  * Integration: the role-split bootstrap pass, run by a NOSUPERUSER stand-in for the RDS master against a REAL
- * PostgreSQL — including the one-shot legacy recreate and the ways it must refuse.
+ * PostgreSQL — including the ways it must refuse. ADR-0039's one-shot legacy recreate ran on sandbox and prod and was
+ * deleted by the disarm commit, so a legacy-owned database is now refused and nothing here drops one.
  *
  * ## The shape reproduced
  *
@@ -25,7 +26,6 @@ import {
     edgeConfersMembership,
     isRoleModelPostconditionError,
     pathsToRole,
-    type CatalogReader,
 } from '@kitchensink/db-schema-guard';
 import { provisionStandInMaster } from '@kitchensink/service-test-harness';
 
@@ -51,9 +51,8 @@ const FOOD = { owner: 'ksb_food_owner', migrator: 'ksb_food_migrator', app: 'ksb
 const IDENTITY = { owner: 'ksb_id_owner', migrator: 'ksb_id_migrator', app: 'ksb_id_service' } as const;
 const ADOPT = { owner: 'ksb_ad_owner', migrator: 'ksb_ad_migrator', app: 'ksb_ad_service' } as const;
 const STRICT = { owner: 'ksb_strict_owner', migrator: 'ksb_strict_migrator', app: 'ksb_strict_app' } as const;
-const IAM_VIA = 'ksb_iam_via';
 
-const DATABASES = ['ksb_fresh', 'ksb_food', 'ksb_food_pr_7', 'ksb_identity', 'ksb_adopt', 'ksb_strict'] as const;
+const DATABASES = ['ksb_fresh', 'ksb_food', 'ksb_identity', 'ksb_identity_new', 'ksb_adopt', 'ksb_strict'] as const;
 const ROLES = [
     ...Object.values(FRESH),
     ...Object.values(FOOD),
@@ -147,7 +146,6 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
         ({
             master: MASTER,
             isProd: false,
-            armed: false,
             lockOutEdges: 'inherit-or-set',
             ...input,
         }) as BootstrapPassInput;
@@ -183,7 +181,7 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
             await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);
         }
 
-        for (const role of [...ROLES, IAM_VIA, MASTER]) {
+        for (const role of [...ROLES, MASTER]) {
             await admin.query(`DROP ROLE IF EXISTS "${role}"`);
         }
     }
@@ -447,99 +445,33 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
             await admin.query(`CREATE ROLE ${FOOD.app} LOGIN CREATEDB PASSWORD '${PASSWORD}'`);
             // RDS's implicit ADMIN on the legacy app role, without a membership.
             await admin.query(`GRANT ${FOOD.app} TO ${MASTER} WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`);
-            // Granted BY THE SUPERUSER first — a grant the master did not make. The first armed test proves the
-            // recreate refuses that state; the fixture is then moved to the shape RDS actually has.
-            await admin.query(`GRANT rds_iam TO ${FOOD.app}`);
+            // The shape RDS has: the pre-split bootstrap granted rds_iam AS THE MASTER.
+            await session.query(`GRANT rds_iam TO ${FOOD.app}`);
+            await admin.query(`CREATE DATABASE ksb_food OWNER ${FOOD.app}`);
 
-            for (const database of ['ksb_food', 'ksb_food_pr_7']) {
-                await admin.query(`CREATE DATABASE ${database} OWNER ${FOOD.app}`);
+            const legacy = new pg.Client({ connectionString: urlFor(FOOD.app, 'ksb_food') });
 
-                const legacy = new pg.Client({ connectionString: urlFor(FOOD.app, database) });
-
-                await legacy.connect();
-                await legacy.query('CREATE TABLE marker (id int)');
-                await legacy.end();
-            }
+            await legacy.connect();
+            await legacy.query('CREATE TABLE marker (id int)');
+            await legacy.end();
         });
 
-        it('⛔ NOT armed → refuses, and drops nothing', async () => {
+        it('⛔ refuses by name, and drops nothing: the stage never completed the role split', async () => {
             const oid = (await databaseRow('ksb_food'))?.oid;
             const error = await runBootstrapPass(ports(), input).catch((caught: unknown) => caught);
 
             expect(isBootstrapRefusedError(error)).toBe(true);
-            expect(String(error)).toMatch(/not armed/u);
+            expect(String(error)).toMatch(/ksb_food_app, the legacy owner from before the role split/u);
             expect((await databaseRow('ksb_food'))?.oid).toBe(oid);
             expect(await hasMarker('ksb_food')).toBe(true);
-        });
-
-        it('⛔ an rds_iam grant the master cannot revoke (another grantor) → refuses BEFORE joining the master to it', async () => {
-            const error = await runBootstrapPass(ports(), { ...input, armed: true }).catch((caught: unknown) => caught);
-
-            expect(isBootstrapRefusedError(error)).toBe(true);
-            expect(String(error)).toMatch(/grant of rds_iam to ksb_food_app by postgres/u);
-            expect(await masterPathsTo(FOOD.app)).toEqual([]);
-            expect(await masterPathsTo('rds_iam')).toEqual([]);
-            expect(await hasMarker('ksb_food')).toBe(true);
-            expect(await masterCanLogIn()).toBe(true);
-
-            // Now the shape RDS has: the pre-split bootstrap granted rds_iam AS THE MASTER.
-            await admin.query(`REVOKE rds_iam FROM ${FOOD.app} GRANTED BY postgres`);
-            await session.query(`GRANT rds_iam TO ${FOOD.app}`);
-        });
-
-        it('⛔ NEGATIVE CONTROL: when the app role still reaches rds_iam another way, it refuses BEFORE joining the master to it', async () => {
-            await admin.query(`CREATE ROLE ${IAM_VIA} NOLOGIN`);
-            await admin.query(`GRANT rds_iam TO ${IAM_VIA}`);
-            await admin.query(`GRANT ${IAM_VIA} TO ${FOOD.app}`);
-
-            try {
-                const error = await runBootstrapPass(ports(), { ...input, armed: true }).catch(
-                    (caught: unknown) => caught,
-                );
-
-                expect(isBootstrapRefusedError(error)).toBe(true);
-                expect(String(error)).toContain(IAM_VIA);
-                expect(await masterPathsTo(FOOD.app)).toEqual([]);
-                expect(await masterPathsTo('rds_iam')).toEqual([]);
-                expect(await hasMarker('ksb_food')).toBe(true);
-                expect(await masterCanLogIn()).toBe(true);
-            } finally {
-                await admin.query(`REVOKE ${IAM_VIA} FROM ${FOOD.app}`);
-                await admin.query(`DROP ROLE ${IAM_VIA}`);
-            }
-        });
-
-        it('⛔ a failure between joining the master to the app role and the DROP leaves the master able to log in', async () => {
-            // The session, except that a DROP DATABASE throws — the moment after the master joined the app role.
-            const failingDrop: CatalogReader = {
-                query: async <Row>(sql: string, values?: unknown[]): Promise<{ rows: Row[] }> => {
-                    if (/^DROP DATABASE/u.test(sql)) {
-                        throw new Error('injected: the DROP never ran');
-                    }
-
-                    const result = await session.query(sql, values);
-
-                    return { rows: result.rows as Row[] };
-                },
-            };
-
-            const error = await runBootstrapPass(ports({ session: failingDrop }), { ...input, armed: true }).catch(
-                (caught: unknown) => caught,
-            );
-
-            expect(String(error)).toContain('injected');
-            // The `finally` took the master back out of the app role…
             expect(await masterPathsTo(FOOD.app)).toEqual([]);
             expect(await masterPathsTo('rds_iam')).toEqual([]);
             expect(await masterCanLogIn()).toBe(true);
-            // …and nothing was dropped.
-            expect(await hasMarker('ksb_food')).toBe(true);
         });
 
-        it('⛔ a failed master login right after the role model stops the pass BEFORE the drop, cutting rds_iam', async () => {
-            // The probe runs after each role-model step, not only at the END of the pass, so a
-            // lock-out fails the deploy before anything is destroyed; and its rollback revokes rds_iam from the login
-            // roles, which cuts EVERY path to it whatever kind of edge carried it.
+        it('⛔ a failed master login right after the role model stops the pass, cutting rds_iam', async () => {
+            // The probe runs right after the role model, before the database is touched; its rollback revokes rds_iam
+            // from the login roles, which cuts EVERY path to it whatever kind of edge carried it.
             const failingProbe: BootstrapPorts['connectAsMaster'] = async (database) => {
                 if (database === 'postgres') {
                     // ⚠️ `28P01`, as a real `pg` auth failure carries — the pass classifies by SQLSTATE,
@@ -552,10 +484,9 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
                 return connectAsMaster(database);
             };
 
-            const error = await runBootstrapPass(ports({ connectAsMaster: failingProbe }), {
-                ...input,
-                armed: true,
-            }).catch((caught: unknown) => caught);
+            const error = await runBootstrapPass(ports({ connectAsMaster: failingProbe }), input).catch(
+                (caught: unknown) => caught,
+            );
 
             expect(isMasterLoginProbeError(error)).toBe(true);
             expect(await hasMarker('ksb_food')).toBe(true);
@@ -563,40 +494,9 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
             expect(await holdsIamRow(FOOD.migrator)).toBe(false);
             expect(await masterPathsTo('rds_iam')).toEqual([]);
         });
-
-        it('ARMED → recreates the base database owned by the owner role, and re-owns the per-PR one for the reaper', async () => {
-            const before = await databaseRow('ksb_food');
-            const report = await runBootstrapPass(ports(), { ...input, armed: true });
-
-            expect(report.disposition).toBe('recreate');
-            expect(report.recreate?.reowned).toEqual(['ksb_food_pr_7']);
-
-            const after = await databaseRow('ksb_food');
-
-            expect(after?.owner).toBe(FOOD.owner);
-            expect(after?.oid).not.toBe(before?.oid);
-            expect(await hasMarker('ksb_food')).toBe(false);
-            expect((await databaseRow('ksb_food_pr_7'))?.owner).toBe(FOOD.owner);
-        });
-
-        it('leaves the app role back in rds_iam, the master out of it, and the master able to log in', async () => {
-            expect(pathsToRole(await edges(), FOOD.app, 'rds_iam')).toEqual([[FOOD.app, 'rds_iam']]);
-            expect(await masterPathsTo(FOOD.app)).toEqual([]);
-            expect(await masterPathsTo('rds_iam')).toEqual([]);
-            expect(await masterCanLogIn()).toBe(true);
-            expect(await can('public', 'CONNECT', 'ksb_food')).toBe(false);
-        });
-
-        it('a second ARMED run is a no-op — the recreate cannot repeat itself', async () => {
-            const before = await databaseRow('ksb_food');
-            const report = await runBootstrapPass(ports(), { ...input, armed: true });
-
-            expect(report.disposition).toBe('ready');
-            expect((await databaseRow('ksb_food'))?.oid).toBe(before?.oid);
-        });
     });
 
-    describe('a legacy identity database — master-owned, with data, on a PROD-shaped stage', () => {
+    describe('a legacy identity database — master-owned, with data', () => {
         const input = pass({ service: 'identity', roles: IDENTITY, database: 'ksb_identity', isProd: true });
 
         beforeAll(async () => {
@@ -608,19 +508,24 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
             await owned.end();
         });
 
-        it('⛔ NOT armed → refuses', async () => {
+        it('⛔ refuses as legacy-owned, and drops nothing', async () => {
             const error = await runBootstrapPass(ports(), input).catch((caught: unknown) => caught);
 
             expect(isBootstrapRefusedError(error)).toBe(true);
+            expect(String(error)).toMatch(/ksb_master, the legacy owner from before the role split/u);
             expect(await hasMarker('ksb_identity')).toBe(true);
         });
+    });
 
-        it('ARMED → drops and recreates it owned by the owner role', async () => {
-            const report = await runBootstrapPass(ports(), { ...input, armed: true });
+    describe('a NEW identity database on a PROD-shaped stage', () => {
+        beforeAll(async () => {
+            const report = await runBootstrapPass(
+                ports(),
+                pass({ service: 'identity', roles: IDENTITY, database: 'ksb_identity_new', isProd: true }),
+            );
 
-            expect(report.disposition).toBe('recreate');
-            expect((await databaseRow('ksb_identity'))?.owner).toBe(IDENTITY.owner);
-            expect(await hasMarker('ksb_identity')).toBe(false);
+            expect(report.disposition).toBe('create');
+            expect((await databaseRow('ksb_identity_new'))?.owner).toBe(IDENTITY.owner);
         });
 
         it('prod: the master may SET to the owner but does not INHERIT it — so it cannot even connect', async () => {
@@ -628,7 +533,7 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
 
             expect(toOwner.some((edge) => edge.set)).toBe(true);
             expect(toOwner.some((edge) => edge.inherit)).toBe(false);
-            expect(await masterCanLogIn('ksb_identity')).toBe(false);
+            expect(await masterCanLogIn('ksb_identity_new')).toBe(false);
             expect(await masterCanLogIn('postgres')).toBe(true);
         });
 
@@ -662,14 +567,14 @@ describe('the role-split bootstrap pass against real PostgreSQL', () => {
     });
 
     describe('an EMPTY master-owned database — what RDS creates for a new stage', () => {
-        it('is ADOPTED even when armed: re-owned in place, never dropped', async () => {
+        it('is ADOPTED: re-owned in place, never dropped', async () => {
             await session.query('CREATE DATABASE ksb_adopt');
 
             const before = await databaseRow('ksb_adopt');
-            const report = await runBootstrapPass(ports(), {
-                ...pass({ service: 'identity', roles: ADOPT, database: 'ksb_adopt' }),
-                armed: true,
-            });
+            const report = await runBootstrapPass(
+                ports(),
+                pass({ service: 'identity', roles: ADOPT, database: 'ksb_adopt' }),
+            );
 
             expect(report.disposition).toBe('adopt');
             expect(await databaseRow('ksb_adopt')).toEqual({ owner: ADOPT.owner, oid: before?.oid });

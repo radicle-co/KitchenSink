@@ -25,7 +25,6 @@ import {
 import { announceSilentNoOp } from '../observability/silentNoOp.js';
 import { runBootstrapPass, type MasterConnection } from './bootstrapPass.js';
 import { isMasterLoginProbeError } from './masterLoginProbeError.js';
-import { legacyRecreateArmed } from './disposition.js';
 
 /** The fields of a custom-resource event this handler reads. */
 interface CustomResourceEvent {
@@ -44,7 +43,6 @@ export interface BootstrapRequest {
     readonly roles: DatabaseRoles;
     readonly database: string;
     readonly isProd: boolean;
-    readonly armed: boolean;
 }
 
 const isService = (value: unknown): value is DatabaseService =>
@@ -53,10 +51,11 @@ const isService = (value: unknown): value is DatabaseService =>
 /**
  * Validate the custom resource's properties and the function's environment.
  *
- * @param properties - `ResourceProperties`: `service`, `database`, and — only on an armed stage — `legacyRecreate`.
- * @param env - Reads `STAGE` and, on an armed stage, `LEGACY_RECREATE_ARMED`.
+ * @param properties - `ResourceProperties`: `service` and `database`.
+ * @param env - Reads `STAGE`.
  * @returns The request. Pure.
- * @throws {Error} on an unknown service, an unsafe database name, a missing `STAGE`, or a mis-wired arming token.
+ * @throws {Error} on an unknown service, an unsafe database name, a missing `STAGE`, or a request for the removed
+ *   legacy recreate.
  */
 export function parseBootstrapRequest(
     properties: Readonly<Record<string, unknown>>,
@@ -68,7 +67,7 @@ export function parseBootstrapRequest(
         throw new Error('db-bootstrap: STAGE is not set — refusing to guess whether this is prod.');
     }
 
-    const { service, database, legacyRecreate } = properties;
+    const { service, database } = properties;
 
     if (!isService(service)) {
         throw new Error(`db-bootstrap: unknown service ${JSON.stringify(service)}.`);
@@ -78,22 +77,12 @@ export function parseBootstrapRequest(
         throw new Error(`db-bootstrap: refusing database name ${JSON.stringify(database)}.`);
     }
 
-    // TWO PLACES, ONE SOURCE — and the distinction matters, because the stronger reading is false. Both the
-    // event property and the function's environment are written from the SAME `LEGACY_RECREATE_ARMED_STAGES`
-    // constant in `DataStack.ts`, so this is not two independent judgements agreeing; a wrong entry in that
-    // list arms both halves at once and neither can catch it.
-    //
-    // What the pairing DOES buy is resistance to a hand-crafted invoke, which is the threat it exists for:
-    // the token is a public string and `lambda:Invoke` in this shared account is not the authority, so an
-    // event claiming to be armed is refused unless a DataStack DEPLOY of an armed stage also set the
-    // function's flag.
-    const eventArmed = legacyRecreateArmed(typeof legacyRecreate === 'string' ? legacyRecreate : undefined, stage);
-    const functionArmed = legacyRecreateArmed(env['LEGACY_RECREATE_ARMED'], stage);
-
-    if (eventArmed && !functionArmed) {
+    // ADR-0039's one-shot recreate was deleted by the disarm commit. A rollback re-sends the old properties only to
+    // the old function, which CloudFormation restores first, so an event that still names it here is a forged invoke
+    // or a mis-wired stack: surfaced, never run as an ordinary pass.
+    if ('legacyRecreate' in properties) {
         throw new Error(
-            'db-bootstrap: refusing an armed legacy-recreate request — this deployed function is not armed ' +
-                '(no LEGACY_RECREATE_ARMED in its environment).',
+            'db-bootstrap: the legacy recreate was removed (ADR-0039); refusing an event that asks for it.',
         );
     }
 
@@ -102,7 +91,6 @@ export function parseBootstrapRequest(
         roles: DATABASE_ROLES[service],
         database,
         isProd: stage === 'prod',
-        armed: eventArmed && functionArmed,
     };
 }
 
@@ -136,8 +124,7 @@ async function readMasterPassword(secretArn: string): Promise<string> {
  *
  * @param event - The CloudFormation event.
  * @returns The stable physical id `db-bootstrap-<service>`.
- * @sideEffect Reads Secrets Manager; creates roles, memberships and databases as the RDS master; on an armed stage,
- *   drops a legacy base database.
+ * @sideEffect Reads Secrets Manager; creates roles, memberships and databases as the RDS master.
  */
 export const handler = async (event: CustomResourceEvent): Promise<CustomResourceResponse> => {
     if (event.RequestType === 'Delete') {

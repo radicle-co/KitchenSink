@@ -173,9 +173,9 @@ describe('roleDatabase against real PostgreSQL', () => {
 
     it('⛔ REPORTS a database owned by someone else instead of rebuilding it', async () => {
         // The pre-role-split shape: a database left behind by a superuser run. The migrator could neither
-        // rebuild nor empty it, and the fixture must NOT clean it up — `DROP DATABASE` has exactly two
-        // authorities in this repository (the per-PR reaper and the armed legacy recreate,
-        // `dropDatabaseAuthority.test.ts` asserts the set by equality) and a test fixture is neither.
+        // rebuild nor empty it, and the fixture must NOT clean it up — `DROP DATABASE` has exactly one
+        // authority in this repository (the per-PR reaper, `dropDatabaseAuthority.test.ts` asserts the set by
+        // equality) and a test fixture is not it.
         //
         // Ownership is flipped rather than a second database created, so this suite issues no DROP either.
         const maintenance = new pg.Pool({ connectionString: db.migratorUrl.replace(`/${DATABASE}`, '/postgres') });

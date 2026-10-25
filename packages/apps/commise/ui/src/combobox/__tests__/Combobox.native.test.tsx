@@ -563,6 +563,54 @@ describe('Combobox (native) — an option’s detail line and own name (system c
     });
 });
 
+describe('Combobox (native) — a quiet tag after an option’s label (the picker’s Default, owner ruling 2026-10-25)', () => {
+    const tagged: readonly ComboboxGroup[] = [
+        {
+            key: 'catalog',
+            label: 'Food catalog',
+            options: [
+                { key: 'skim', label: 'Skim milk' },
+                { key: 'whole', label: 'Whole milk', tag: 'Default', accessibleName: 'Whole milk, Default' },
+                {
+                    key: 'oat',
+                    label: 'Oat milk',
+                    detailParts: ['unsweetened'],
+                    tag: 'Default',
+                    accessibleName: 'Oat milk, unsweetened, Default',
+                },
+            ],
+        },
+    ];
+
+    it('a tagged option shows its tag after its label, and its name says the tag', () => {
+        const onSelect = vi.fn();
+        render(<Host groups={tagged} onSelect={onSelect} />);
+        type('m');
+
+        const whole = screen.getByRole('button', { name: 'Whole milk, Default' });
+        expect(whole.textContent).toContain('Whole milk');
+        expect(whole.textContent).toContain('Default');
+        fireEvent.click(whole);
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('whole');
+    });
+
+    it('an option without a tag shows none, wherever the tagged one falls', () => {
+        render(<Host groups={tagged} />);
+        type('m');
+
+        expect(screen.getByRole('button', { name: 'Skim milk' }).textContent).toBe('Skim milk');
+    });
+
+    it('a tagged option keeps its variant’s parts', () => {
+        render(<Host groups={tagged} />);
+        type('m');
+
+        const oat = screen.getByRole('button', { name: 'Oat milk, unsweetened, Default' });
+        expect(oat.textContent).toContain('unsweetened');
+        expect(oat.textContent).toContain('Default');
+    });
+});
+
 describe('Combobox (native) — leaving the entry (item 4)', () => {
     it('Cancel: a button after the field, named by the host, that abandons the entry', () => {
         const onPress = vi.fn();

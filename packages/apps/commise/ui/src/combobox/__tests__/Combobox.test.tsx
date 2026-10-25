@@ -1102,6 +1102,68 @@ describe('Combobox (web) — an option’s detail line and own name (system chan
     });
 });
 
+describe('Combobox (web) — a quiet tag after an option’s label (the picker’s Default, owner ruling 2026-10-25)', () => {
+    // The default food is listed by the server, wherever it falls; the tag follows the option, never its position.
+    const tagged: readonly ComboboxGroup[] = [
+        {
+            key: 'catalog',
+            label: 'Food catalog',
+            options: [
+                { key: 'skim', label: 'Skim milk' },
+                { key: 'whole', label: 'Whole milk', tag: 'Default', accessibleName: 'Whole milk, Default' },
+                {
+                    key: 'oat',
+                    label: 'Oat milk',
+                    detailParts: ['unsweetened'],
+                    tag: 'Default',
+                    accessibleName: 'Oat milk, unsweetened, Default',
+                },
+            ],
+        },
+    ];
+
+    it('a tagged option shows its tag after its label, and its name says the tag', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        const whole = option('Whole milk, Default');
+        expect(within(whole).getByText('Whole milk')).toBeTruthy();
+        expect(within(whole).getByText('Default')).toBeTruthy();
+    });
+
+    it('an option without a tag shows none', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        expect(within(option('Skim milk')).queryByText('Default')).toBeNull();
+    });
+
+    it('a tagged option keeps its variant’s parts', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        const oat = option('Oat milk, unsweetened, Default');
+        expect(within(oat).getByText('unsweetened')).toBeTruthy();
+        expect(within(oat).getByText('Default')).toBeTruthy();
+    });
+
+    it('⛔ a tag never makes its option active or selected: nothing is picked for the cook', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        expect(activeOptionName()).toBeUndefined();
+        expect(screen.getAllByRole('option').some((row) => row.getAttribute('aria-selected') === 'true')).toBe(false);
+    });
+});
+
 describe('Combobox (web) — leaving the entry (system change 8, item 4)', () => {
     it('⛔ Escape on a CLOSED list asks the host to abandon the entry, and is consumed', () => {
         const onAbandon = vi.fn();

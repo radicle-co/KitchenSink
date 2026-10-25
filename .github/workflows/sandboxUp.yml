@@ -89,7 +89,7 @@ jobs:
             PR: ${{ inputs.pr }}
             AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
 
@@ -229,7 +229,7 @@ jobs:
             contents: read # checkout of this repo's workflow scripts
             id-token: write # awsAuth: the non-prod role (the owed-drop ledger)
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS
@@ -316,7 +316,7 @@ jobs:
             # Needed by the reachability step: the recipe service's browser origin is `{stage}.sandbox.{domain}`.
             DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             # The reachability step runs the SHARED post-deploy smoke (`recipe-service/infra/smoke/deployedSmoke.ts`)
@@ -613,7 +613,7 @@ jobs:
             contents: read # checkout of this repo's workflow scripts
             id-token: write # awsAuth: the non-prod role
         steps:
-            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - name: Sign in to AWS

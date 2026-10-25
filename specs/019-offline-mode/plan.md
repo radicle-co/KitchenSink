@@ -176,6 +176,10 @@ No constitution violations. The Principle VIII waiver is gone: the owner chose a
 - **Two tabs.** Without the Web Locks writer, two tabs send a change twice. Step 4's integration test drains one outbox
   from two tabs and counts the sends.
 
-## Owner Decisions To Confirm
+## Open Question
 
-1. SC-001 and SC-003 under the held-state design: SC-003 then reads Clerk's normal load path, not the experimental cache.
+**OQ-1 (major): how the app opens offline** (spec OQ-1, research R1). Options: Clerk's experimental cache on mobile
+with the held state on web only, the held state on both, or an answer from Clerk first. The owner does not want to
+build sign-in behavior ourselves. On 2026-10-25 Clerk had published no plan to make its cache stable or to support
+offline on web. The choice changes build step 3 and how SC-003 reads. Build steps 1, 2 and 4 to 6 do not depend on it.
+Step 4's web gate needs the held state under every option.

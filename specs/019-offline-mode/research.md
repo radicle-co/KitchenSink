@@ -4,9 +4,13 @@
 staff-architect PLANNING review, and an external research pass. Each section gives the decision, the reason and the
 options that lost.
 
-## R1. How the app opens offline
+## R1. How the app opens offline (OPEN, spec OQ-1)
 
-- **Decision**: a local-first gate. The shared auth state gains a `held` state. The device can hold a record of a cook's last successful sign-in. If it does, and Clerk has not loaded, the
+- **Status**: open owner question. The owner does not want to build sign-in behavior ourselves, and Clerk
+  publishes no plan to make its cache stable or to support offline on web (Clerk docs and changelog, read
+  2026-10-25). The options: Clerk's cache on mobile with the held state on web only, the held state on both, or an
+  answer from Clerk first. The rest of this section is the architect's recommendation, not a decision.
+- **Recommendation**: a local-first gate. The shared auth state gains a `held` state. The device can hold a record of a cook's last successful sign-in. If it does, and Clerk has not loaded, the
   gate admits that cook to their local data. Clerk loads on its
   normal path in the background. The app never mints a token from a cached session.
 - **Reason**: the held state keeps "this device remembers a cook" apart from "the server accepts this cook", so the

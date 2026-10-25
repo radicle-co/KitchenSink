@@ -3,6 +3,9 @@
 All of this lives on the device. The server's data model does not change. Formats marked as one-way doors cannot
 change without a migration of what devices already hold.
 
+**Status**: depends on spec OQ-1. Web needs the `held` state under every option. Mobile needs it only if OQ-1 does
+not choose Clerk's cache.
+
 ## Auth state (shared, `@commise/features-account` `authState.ts`)
 
 The union gains one member:

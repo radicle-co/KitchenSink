@@ -185,6 +185,23 @@ with no network: it shows the sign-in screen and none of the previous cook's dat
 - Q: How does the app tell an erased account from an ended session? → A (planning decision): It cannot, because both look the same to the
   device. So FR-025 bounds what stays on the device by time and by a change of cook (FR-027).
 
+## Open Question
+
+### OQ-1: How the app opens offline (major, owner, open)
+
+The app must open offline (FR-001, FR-002) without a lasting dependency on behavior the sign-in provider marks
+experimental. Two ways exist, and the choice decides how SC-003 reads:
+
+- **The provider's offline cache.** It needs no sign-in code of ours, but it is mobile-only and experimental. It is
+  the path ADR-0069 measured getting stuck, and SC-003 must be met again on every provider upgrade.
+- **Our own held state.** The app shows the cook's stored data until the provider loads, then hands back to it. It works
+  on web and mobile alike, but it is code we own.
+
+The owner does not want to build sign-in behavior ourselves. On 2026-10-25 the provider had published no plan to make
+its cache stable, and no offline support for web at all. There are three options. The provider's cache on mobile with our held state on web
+only. Our held state on both. Or an answer from the provider first. Plan research R1 holds the detail.
+Build step 1 does not depend on this choice.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements

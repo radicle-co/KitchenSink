@@ -2,6 +2,9 @@
 
 Owners: `mobile/src/components/AuthGate.tsx` on mobile, and the signed-in layout's gate on web. Pattern: Visitor, as an exhaustive switch over `AuthState`.
 
+**Status**: depends on spec OQ-1. Web needs the `held` state under every option. Mobile needs it only if OQ-1 does
+not choose Clerk's cache.
+
 | State             | Renders                                                      |
 | ----------------- | ------------------------------------------------------------ |
 | `loading`         | The waiting screen, "Checking your session…" (unchanged).    |

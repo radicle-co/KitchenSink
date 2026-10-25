@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Cooking mode, timer running (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    </head>
+    <body>
+        <!-- Redesign canvas: cooking mode (008), designed 2026-10-25. Static design board, not app code. Spec: docs/design/uiRefreshWorkshop5/cookingMode/spec.md -->
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                    }
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                    }
+                    /* Cooking mode reads at arm's length: secondary text is darker than the app's ink-muted so every text pair reaches 7:1 (plan §6, WCAG AAA). */
+                    .ck {
+                        --ck-muted: #474e57;
+                        --ck-steel: #264a68;
+                        position: relative;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 17px/1.4 var(--font-body);
+                        letter-spacing: -0.011em;
+                    }
+                    [data-theme='dark'] .ck {
+                        --ck-muted: #b4bcc5;
+                        --ck-steel: #96bcde;
+                    }
+                    .ck p,
+                    .ck h1,
+                    .ck h2,
+                    .ck h3,
+                    .ck ol,
+                    .ck ul {
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .ck a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .ck .ic {
+                        width: 22px;
+                        height: 22px;
+                        flex: none;
+                        stroke: currentColor;
+                        fill: none;
+                        stroke-width: 1.8;
+                        stroke-linecap: round;
+                        stroke-linejoin: round;
+                    }
+                    .ck .ic.sm {
+                        width: 18px;
+                        height: 18px;
+                    }
+                    .ck .t13 {
+                        font-size: 13px;
+                        line-height: 1.35;
+                    }
+                    .ck .t15 {
+                        font-size: 15px;
+                        line-height: 1.4;
+                    }
+                    .ck .muted {
+                        color: var(--ck-muted);
+                    }
+                    .ck .w600 {
+                        font-weight: 600;
+                    }
+                    .ck .tnum {
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .ck .dish {
+                        font-family: var(--font-display);
+                        font-weight: 600;
+                        letter-spacing: -0.02em;
+                    }
+                    .ck .title {
+                        font-size: 28px;
+                        line-height: 1.15;
+                    }
+                    /* Top bar: exit, place, ingredients. Never covers the status bar. */
+                    .ck .bar {
+                        flex: none;
+                        display: grid;
+                        grid-template-columns: 64px 1fr auto;
+                        align-items: center;
+                        gap: 8px;
+                        height: 64px;
+                        padding: 0 12px 0 4px;
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--paper);
+                    }
+                    .ck .iconBtn {
+                        width: 64px;
+                        height: 64px;
+                        display: grid;
+                        place-items: center;
+                        color: var(--ink);
+                    }
+                    .ck .iconBtn > span {
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--surface-muted);
+                    }
+                    .ck .where {
+                        min-width: 0;
+                        text-align: center;
+                    }
+                    .ck .where .s {
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .where .r {
+                        font-size: 13px;
+                        color: var(--ck-muted);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .ck .ingBtn {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 48px;
+                        padding: 0 16px 0 12px;
+                        border-radius: 24px;
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1.5px var(--line-control);
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .ck .ingBtn .ic {
+                        color: var(--action-text);
+                    }
+                    .ck .prog {
+                        flex: none;
+                        display: grid;
+                        gap: 4px;
+                        padding: 12px 20px 0;
+                    }
+                    .ck .prog i {
+                        display: block;
+                        height: 6px;
+                        border-radius: 3px;
+                        background: var(--surface-muted);
+                        box-shadow: inset 0 0 0 1px var(--line-divider);
+                    }
+                    .ck .prog i.done {
+                        background: var(--ck-steel);
+                        box-shadow: none;
+                    }
+                    .ck .prog i.cur {
+                        background: var(--action);
+                        box-shadow: none;
+                    }
+                    .ck .body {
+                        flex: 1;
+                        min-height: 0;
+                        overflow: hidden;
+                        padding: 20px 24px 0;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .ck .label {
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: var(--ck-muted);
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .ck .inl {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                    }
+                    .ck .alert.inflow {
+                        position: static;
+                        margin: 0;
+                    }
+                    .ck .timerCol .alert.inflow {
+                        flex-wrap: wrap;
+                    }
+                    /* THE cooking-mode reading size: 34 / 1.25 (spec §2). Amounts in 600. */
+                    .ck .stepText {
+                        font-size: 34px;
+                        line-height: 1.25;
+                        font-weight: 400;
+                        letter-spacing: -0.02em;
+                    }
+                    .ck .stepText b {
+                        font-weight: 600;
+                    }
+                    .ck .timerBtn {
+                        align-self: flex-start;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 64px;
+                        padding: 0 22px 0 18px;
+                        border-radius: 32px;
+                        background: var(--paper);
+                        box-shadow:
+                            inset 0 0 0 1.5px var(--line-control),
+                            var(--shadow-sm);
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .timerBtn .ic {
+                        color: var(--action-text);
+                        width: 26px;
+                        height: 26px;
+                    }
+                    .ck .timerBtn.running {
+                        background: var(--selected-fill);
+                        box-shadow: inset 0 0 0 1.5px var(--selected-edge);
+                    }
+                    .ck .dock {
+                        flex: none;
+                        margin: 12px 16px 0;
+                        background: var(--paper);
+                        border-radius: 18px;
+                        box-shadow:
+                            var(--shadow-lg),
+                            inset 0 0 0 1px var(--line-divider);
+                    }
+                    .ck .trow {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        min-height: 72px;
+                        padding: 8px 8px 8px 16px;
+                    }
+                    .ck .trow + .trow {
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .ck .trow .ring {
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--selected-fill);
+                        color: var(--ck-steel);
+                        flex: none;
+                    }
+                    .ck .trow .grow {
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .ck .trow .big {
+                        font-size: 34px;
+                        line-height: 1.05;
+                        font-weight: 600;
+                        letter-spacing: -0.01em;
+                    }
+                    .ck .trow .what {
+                        font-size: 15px;
+                    }
+                    .ck .trow .act {
+                        min-width: 64px;
+                        height: 56px;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                        padding: 0 14px;
+                        border-radius: 14px;
+                        background: var(--surface-muted);
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .ck .trow.doneRow {
+                        background: var(--attention-tint);
+                        border-radius: 18px;
+                    }
+                    .ck .trow.doneRow .ring {
+                        background: var(--paper);
+                        color: var(--attention);
+                    }
+                    .ck .nav {
+                        flex: none;
+                        display: grid;
+                        grid-template-columns: 1fr 1.6fr;
+                        gap: 12px;
+                        padding: 12px 16px 34px;
+                    }
+                    .ck .navBtn {
+                        min-height: 72px;
+                        border-radius: 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .navBtn.back {
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1.5px var(--line-control);
+                    }
+                    .ck .navBtn.next {
+                        background: var(--action);
+                        color: var(--on-action);
+                    }
+                    .ck .navBtn[aria-disabled='true'] {
+                        opacity: 0.4;
+                    }
+                    .ck .alert {
+                        position: absolute;
+                        z-index: 20;
+                        left: 12px;
+                        right: 12px;
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 14px 12px 14px 16px;
+                        border-radius: 18px;
+                        background: var(--paper-overlay);
+                        box-shadow:
+                            var(--shadow-xl),
+                            inset 0 0 0 2px var(--attention);
+                    }
+                    .ck .alert .bell {
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 50%;
+                        display: grid;
+                        place-items: center;
+                        background: var(--attention-tint);
+                        color: var(--attention);
+                        flex: none;
+                    }
+                    .ck .alert .grow {
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .ck .alert .h {
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .alert .stop {
+                        min-height: 56px;
+                        padding: 0 16px;
+                        border-radius: 14px;
+                        background: var(--action);
+                        color: var(--on-action);
+                        font-size: 15px;
+                        font-weight: 600;
+                        display: inline-flex;
+                        align-items: center;
+                    }
+                    .ck .scrim {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 10;
+                        background: var(--scrim);
+                    }
+                    .ck .sheet {
+                        position: absolute;
+                        z-index: 11;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: var(--paper-overlay);
+                        border-radius: 24px 24px 0 0;
+                        box-shadow: var(--shadow-xl);
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .ck .grab {
+                        width: 40px;
+                        height: 5px;
+                        border-radius: 3px;
+                        background: var(--line-control);
+                        margin: 10px auto 2px;
+                        opacity: 0.6;
+                    }
+                    .ck .sheetHead {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 6px 12px 6px 20px;
+                    }
+                    .ck .sheetHead h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .doneBtn {
+                        min-height: 48px;
+                        padding: 0 18px;
+                        border-radius: 24px;
+                        background: var(--surface-muted);
+                        font-size: 15px;
+                        font-weight: 600;
+                        display: inline-flex;
+                        align-items: center;
+                    }
+                    .ck .scale {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 4px;
+                        padding: 4px;
+                        margin: 4px 16px 0;
+                        border-radius: 16px;
+                        background: var(--surface-muted);
+                    }
+                    .ck .scale a {
+                        min-height: 48px;
+                        border-radius: 12px;
+                        display: grid;
+                        place-items: center;
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: var(--ck-muted);
+                    }
+                    .ck .scale a.on {
+                        background: var(--paper);
+                        color: var(--ink);
+                        box-shadow:
+                            var(--shadow-sm),
+                            inset 0 0 0 1.5px var(--selected-edge);
+                    }
+                    .ck .advisory {
+                        display: flex;
+                        gap: 10px;
+                        align-items: flex-start;
+                        margin: 10px 16px 0;
+                        padding: 12px 14px;
+                        border-radius: 14px;
+                        background: var(--selected-fill);
+                    }
+                    .ck .advisory .ic {
+                        color: var(--ck-steel);
+                        margin-top: 1px;
+                    }
+                    .ck .group {
+                        padding: 16px 20px 4px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        letter-spacing: 0.06em;
+                        text-transform: uppercase;
+                        color: var(--ck-muted);
+                    }
+                    .ck .ing {
+                        list-style: none;
+                    }
+                    .ck .ing li {
+                        display: flex;
+                        align-items: center;
+                        gap: 14px;
+                        min-height: 56px;
+                        padding: 6px 20px;
+                        position: relative;
+                        font-size: 17px;
+                    }
+                    .ck .ing li + li::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 64px;
+                        right: 0;
+                        height: 1px;
+                        background: var(--line-divider);
+                    }
+                    .ck .box {
+                        width: 28px;
+                        height: 28px;
+                        flex: none;
+                        border-radius: 8px;
+                        box-shadow: inset 0 0 0 2px var(--line-control);
+                        display: grid;
+                        place-items: center;
+                    }
+                    .ck .box.on {
+                        background: var(--action);
+                        box-shadow: none;
+                        color: var(--on-action);
+                    }
+                    .ck .box.on .ic {
+                        width: 18px;
+                        height: 18px;
+                        stroke-width: 2.6;
+                    }
+                    .ck .ing .q {
+                        font-weight: 600;
+                    }
+                    .ck .ing .note {
+                        color: var(--ck-muted);
+                    }
+                    .ck .ing li.done .nm {
+                        text-decoration: line-through;
+                        text-decoration-thickness: 1px;
+                        color: var(--ck-muted);
+                    }
+                    .ck .ing li.inStep {
+                        background: var(--selected-fill);
+                    }
+                    .ck .stepTag {
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: var(--ck-steel);
+                        white-space: nowrap;
+                    }
+                    .ck .offline {
+                        display: flex;
+                        gap: 10px;
+                        align-items: flex-start;
+                        margin: 12px 16px 0;
+                        padding: 12px 14px;
+                        border-radius: 14px;
+                        background: var(--surface-muted);
+                    }
+                    .ck .card {
+                        background: var(--paper);
+                        border-radius: 18px;
+                        box-shadow: var(--shadow-md);
+                    }
+                    .ck .timeline {
+                        display: flex;
+                        gap: 3px;
+                        height: 12px;
+                        border-radius: 6px;
+                        overflow: hidden;
+                        margin-top: 12px;
+                    }
+                    .ck .legend {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 6px 16px;
+                        margin-top: 10px;
+                    }
+                    .ck .legend span {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .ck .legend b {
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 3px;
+                        display: inline-block;
+                    }
+                    .ck .bul {
+                        list-style: none;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                        margin-top: 8px;
+                    }
+                    .ck .bul li {
+                        display: flex;
+                        gap: 10px;
+                        align-items: flex-start;
+                        font-size: 17px;
+                        line-height: 1.35;
+                    }
+                    .ck .bul li .ic {
+                        color: var(--ck-steel);
+                        margin-top: 1px;
+                    }
+                    .ck .primaryWide {
+                        min-height: 72px;
+                        border-radius: 20px;
+                        background: var(--action);
+                        color: var(--on-action);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 10px;
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .secondaryWide {
+                        min-height: 64px;
+                        border-radius: 20px;
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1.5px var(--line-control);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 10px;
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .dialog {
+                        position: absolute;
+                        z-index: 11;
+                        left: 16px;
+                        right: 16px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        background: var(--paper-overlay);
+                        border-radius: 24px;
+                        box-shadow: var(--shadow-xl);
+                        padding: 24px 20px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .ck .dialog h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                        font-family: var(--font-display);
+                    }
+                    .ck .photo {
+                        border-radius: 22px;
+                        background-size: cover;
+                        background-position: center 40%;
+                    }
+                    .ck .stats {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 8px;
+                    }
+                    .ck .stats > div {
+                        border-radius: 14px;
+                        padding: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .ck .stats .v {
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .cols {
+                        flex: 1;
+                        min-height: 0;
+                        display: grid;
+                        gap: 0;
+                    }
+                    .ck .ingCol {
+                        border-right: 1px solid var(--line-divider);
+                        background: var(--paper);
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .ck .ingCol .colHead {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 16px 16px 4px 20px;
+                    }
+                    .ck .ingCol .colHead h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                    }
+                    .ck .timerCol {
+                        border-left: 1px solid var(--line-divider);
+                        padding: 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .ck .timerCol h2 {
+                        font-size: 17px;
+                        font-weight: 600;
+                        padding: 0 4px;
+                    }
+                    .ck .timerCol .dock {
+                        margin: 0;
+                    }
+                    .ck .stepCol {
+                        display: flex;
+                        flex-direction: column;
+                        min-width: 0;
+                    }
+                    .ck .vh {
+                        position: absolute;
+                        width: 1px;
+                        height: 1px;
+                        overflow: hidden;
+                        clip: rect(0 0 0 0);
+                        white-space: nowrap;
+                    }
+                </style></helmet
+            ><svg width="0" height="0" style="position: absolute" aria-hidden="true">
+                <defs>
+                    <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+                    <symbol id="chevL" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6" /></symbol>
+                    <symbol id="chevR" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6" /></symbol>
+                    <symbol id="list" viewBox="0 0 24 24">
+                        <path d="M9 6.5h11M9 12h11M9 17.5h11" />
+                        <circle cx="4.5" cy="6.5" r="1.2" fill="currentColor" />
+                        <circle cx="4.5" cy="12" r="1.2" fill="currentColor" />
+                        <circle cx="4.5" cy="17.5" r="1.2" fill="currentColor" />
+                    </symbol>
+                    <symbol id="timer" viewBox="0 0 24 24">
+                        <circle cx="12" cy="13.5" r="7" />
+                        <path d="M12 13.5V10M10 3.5h4" />
+                    </symbol>
+                    <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" /></symbol>
+                    <symbol id="bell" viewBox="0 0 24 24">
+                        <path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5z" />
+                        <path d="M10 20.5h4" />
+                    </symbol>
+                    <symbol id="check" viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></symbol>
+                    <symbol id="info" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="M12 11v5M12 8h.01" />
+                    </symbol>
+                    <symbol id="cloudOff" viewBox="0 0 24 24">
+                        <path
+                            d="M7 17.5h9.5a3.5 3.5 0 0 0 .9-6.9A5.5 5.5 0 0 0 7.2 9.1 4.2 4.2 0 0 0 7 17.5zM4 4l16 16"
+                        />
+                    </symbol>
+                    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" /></symbol>
+                    <symbol id="minus" viewBox="0 0 24 24"><path d="M6.5 12h11" /></symbol>
+                    <symbol id="cook" viewBox="0 0 24 24">
+                        <path
+                            d="M4 11h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6zM2.5 11H4M20 11h1.5M9 7c0-1 1-1.5 1-2.5M13 7c0-1 1-1.5 1-2.5"
+                        />
+                    </symbol>
+                    <symbol id="sun" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3.5" />
+                        <path
+                            d="M12 3.5v1.8M12 18.7v1.8M3.5 12h1.8M18.7 12h1.8M6 6l1.3 1.3M16.7 16.7 18 18M6 18l1.3-1.3M16.7 7.3 18 6"
+                        />
+                    </symbol>
+                    <symbol id="dot" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                    </symbol>
+                </defs>
+            </svg>
+            <main
+                class="ck"
+                data-board="CookingModeStep"
+                aria-label="Cooking mode"
+                style="width: 1280px; height: 800px"
+            >
+                <div class="bar">
+                    <a class="iconBtn" href="#" aria-label="Exit cooking mode"
+                        ><span
+                            ><svg class="ic" aria-hidden="true"><use href="#x" /></svg></span
+                    ></a>
+                    <div class="where" aria-live="polite">
+                        <p class="s">Step 4 of 5</p>
+                        <p class="r">Lemon and thyme roast chicken</p>
+                    </div>
+                    <span></span>
+                </div>
+                <div class="cols" style="grid-template-columns: 320px 1fr 340px">
+                    <aside class="ingCol" aria-label="Ingredients">
+                        <div class="colHead">
+                            <h2>Ingredients</h2>
+                            <span class="t15 muted">4 servings</span>
+                        </div>
+                        <div class="scale" role="radiogroup" aria-label="Servings">
+                            <a href="#" role="radio" aria-checked="false">2</a
+                            ><a href="#" class="on" role="radio" aria-checked="true">4</a
+                            ><a href="#" role="radio" aria-checked="false">8</a
+                            ><a href="#" role="radio" aria-checked="false">12</a>
+                        </div>
+                        <div style="overflow: hidden; flex: 1">
+                            <p class="group">Chicken</p>
+                            <ul class="ing tnum">
+                                <li
+                                    class="done"
+                                    role="checkbox"
+                                    aria-checked="true"
+                                    aria-label="1 whole chicken, about 1.8 kg"
+                                >
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">1</span> whole chicken
+                                        <span class="note">about 1.8 kg</span></span
+                                    >
+                                </li>
+                                <li
+                                    class="done"
+                                    role="checkbox"
+                                    aria-checked="true"
+                                    aria-label="3 tbsp unsalted butter, softened"
+                                >
+                                    <span class="box on"
+                                        ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">3 tbsp</span> unsalted butter
+                                        <span class="note">softened</span></span
+                                    >
+                                </li>
+                                <li
+                                    class=""
+                                    role="checkbox"
+                                    aria-checked="false"
+                                    aria-label="1 lemon, zested and halved"
+                                >
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">1</span> lemon
+                                        <span class="note">zested and halved</span></span
+                                    >
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false" aria-label="6 sprigs fresh thyme">
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">6 sprigs</span> fresh thyme</span
+                                    >
+                                </li>
+                                <li
+                                    class=""
+                                    role="checkbox"
+                                    aria-checked="false"
+                                    aria-label="1 head garlic, halved crosswise"
+                                >
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">1 head</span> garlic
+                                        <span class="note">halved crosswise</span></span
+                                    >
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false" aria-label="1 tsp flaky sea salt">
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">1 tsp</span> flaky sea salt</span
+                                    >
+                                </li>
+                            </ul>
+                            <p class="group">Vegetables</p>
+                            <ul class="ing tnum">
+                                <li
+                                    class=""
+                                    role="checkbox"
+                                    aria-checked="false"
+                                    aria-label="800 g waxy potatoes, quartered"
+                                >
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">800 g</span> waxy potatoes
+                                        <span class="note">quartered</span></span
+                                    >
+                                </li>
+                                <li
+                                    class=""
+                                    role="checkbox"
+                                    aria-checked="false"
+                                    aria-label="3 carrots, cut into chunks"
+                                >
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">3</span> carrots
+                                        <span class="note">cut into chunks</span></span
+                                    >
+                                </li>
+                                <li
+                                    class=""
+                                    role="checkbox"
+                                    aria-checked="false"
+                                    aria-label="2 red onions, cut into wedges"
+                                >
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">2</span> red onions
+                                        <span class="note">cut into wedges</span></span
+                                    >
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false" aria-label="2 tbsp olive oil">
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        ><span class="q">2 tbsp</span> olive oil</span
+                                    >
+                                </li>
+                                <li class="" role="checkbox" aria-checked="false" aria-label=" Black pepper, to taste">
+                                    <span class="box"></span
+                                    ><span class="nm" style="flex: 1; min-width: 0"
+                                        >Black pepper <span class="note">to taste</span></span
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                    </aside>
+                    <section class="stepCol">
+                        <div
+                            class="prog"
+                            style="grid-template-columns: repeat(5, 1fr)"
+                            role="img"
+                            aria-label="Step 4 of 5"
+                        >
+                            <i class="done"></i><i class="done"></i><i class="done"></i><i class="cur"></i
+                            ><i class=""></i>
+                        </div>
+                        <div class="body">
+                            <p class="label">Step 4</p>
+                            <p class="stepText" aria-live="polite">
+                                Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for another 1
+                                hour 10 minutes, until the juices run clear.
+                            </p>
+                            <a class="timerBtn running" href="#" aria-pressed="true"
+                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg>Timer running</a
+                            >
+                        </div>
+                        <div class="nav">
+                            <a class="navBtn back" href="#"
+                                ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg>Back</a
+                            ><a class="navBtn next" href="#"
+                                >Next step<svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
+                            ></a>
+                        </div>
+                    </section>
+                    <aside class="timerCol" aria-label="Timers">
+                        <h2>Timers</h2>
+                        <div class="dock" aria-label="Running timers">
+                            <div class="trow" role="timer">
+                                <span class="ring"
+                                    ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
+                                ></span>
+                                <div class="grow">
+                                    <p class="big tnum">1:12:40</p>
+                                    <p class="what">Roast · Step 4</p>
+                                </div>
+                                <a class="act" href="#" aria-label="Pause Roast · Step 4"
+                                    ><svg class="ic sm" aria-hidden="true"><use href="#pause" /></svg>Pause</a
+                                >
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </main></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+            class Component extends DCLogic { renderVals(){ return {}; } }
+        </script>
+    </body>
+</html>

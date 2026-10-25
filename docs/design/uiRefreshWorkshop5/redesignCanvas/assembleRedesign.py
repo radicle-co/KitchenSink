@@ -69,13 +69,33 @@ def retheme_bundle(source: str, theme: dict) -> str:
 
 
 def add_extra_boards(data: dict, extra: dict) -> None:
-    """Place each new board at the end of the row of the board it follows, and add it to the order after that board."""
+    """Place the new boards.
+
+    An entry with `after` goes at the end of that board's row. An entry with `row` goes in a new row of that name below
+    every other row, with a title note, in the order the entries are listed.
+    """
+    new_rows: dict[str, dict] = {}
     for name, spec in extra.items():
-        after = data["boards"][spec["after"] + ".dc.html"]
-        row_end = max(b["x"] + b["w"] for b in data["boards"].values() if b["y"] == after["y"])
-        entry = {"x": row_end + 80, "y": after["y"], "w": spec["w"], "h": spec.get("h", after["h"]), "title": spec["title"]}
-        data["boards"][name + ".dc.html"] = entry
-        data["order"].insert(data["order"].index(spec["after"] + ".dc.html") + 1, name + ".dc.html")
+        file = name + ".dc.html"
+        if "after" in spec:
+            after = data["boards"][spec["after"] + ".dc.html"]
+            row_end = max(b["x"] + b["w"] for b in data["boards"].values() if b["y"] == after["y"])
+            x, y, h = row_end + 80, after["y"], spec.get("h", after["h"])
+            data["order"].insert(data["order"].index(spec["after"] + ".dc.html") + 1, file)
+        else:
+            row = new_rows.get(spec["row"])
+            if row is None:
+                bottom = max(b["y"] + b["h"] for b in data["boards"].values())
+                row = {"x": 0, "y": bottom + 120 + 260}
+                new_rows[spec["row"]] = row
+                note_id = "row" + str(len(data.setdefault("notes", {})))
+                data["notes"][note_id] = {"x": 0, "y": row["y"] - 260, "text": spec["row"], "kind": "title1", "maxW": 2400}
+            x, y, h = row["x"], row["y"], spec["h"]
+            row["x"] += spec["w"] + 80
+            data["order"].append(file)
+        data["boards"][file] = {"x": x, "y": y, "w": spec["w"], "h": h, "title": spec["title"]}
+        if spec.get("fill"):
+            data["boards"][file]["expand"] = "fill"
 
 
 def relayout(data: dict, heights: dict) -> None:

@@ -46,5 +46,101 @@
         "w": 834,
         "h": 1194,
         "title": "Profile, scrolled, 834 px (mobile)"
+    },
+    "CookingModeEntryMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 3083,
+        "title": "Cooking mode, start from recipe detail (mobile)"
+    },
+    "CookingModeBeforeYouStartMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, before you start (mobile)"
+    },
+    "CookingModeStepMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, a step with its amounts (mobile)"
+    },
+    "CookingModeTimerReadyMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, step timer not started (mobile)"
+    },
+    "CookingModeTimerRunningMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, timer running (mobile)"
+    },
+    "CookingModeTwoTimersMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, two timers running (mobile)"
+    },
+    "CookingModeTimerDoneMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, timer finished (mobile)"
+    },
+    "CookingModeIngredientsMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, ingredients at 8 servings (mobile)"
+    },
+    "CookingModeResumeMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, resume after leaving (mobile)"
+    },
+    "CookingModeOfflineMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, offline after loading (mobile)"
+    },
+    "CookingModeCompletedMobile": {
+        "row": "Cooking mode",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, completed (mobile)"
+    },
+    "CookingModeBeforeYouStart834Mobile": {
+        "row": "Cooking mode",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, before you start, 834 px (mobile)"
+    },
+    "CookingModeStep834Mobile": {
+        "row": "Cooking mode",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, timer running, 834 px (mobile)"
+    },
+    "CookingModeStep1194Mobile": {
+        "row": "Cooking mode",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, two timers and an alarm, 1194 px (mobile)"
+    },
+    "CookingModeStep": {
+        "row": "Cooking mode",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, timer running (web)"
+    },
+    "CookingModeCompleted": {
+        "row": "Cooking mode",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, completed (web)"
     }
 }

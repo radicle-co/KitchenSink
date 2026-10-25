@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 156,
-        "implementations": 265,
-        "props": 1301,
-        "documentedComponents": 156,
-        "implementationsWithModuleDoc": 265,
-        "implementationsWithComponentDoc": 158,
-        "documentedProps": 1022,
-        "classifiedComponents": 136,
-        "componentsWithPatternTag": 78,
-        "crossPlatformComponents": 109
+        "components": 167,
+        "implementations": 285,
+        "props": 1450,
+        "documentedComponents": 167,
+        "implementationsWithModuleDoc": 285,
+        "implementationsWithComponentDoc": 178,
+        "documentedProps": 1171,
+        "classifiedComponents": 147,
+        "componentsWithPatternTag": 81,
+        "crossPlatformComponents": 118
     },
     "components": [
         {
@@ -18493,6 +18493,2090 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportFlaggedList",
+            "name": "ImportFlaggedList",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportFlaggedList",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (web): \"N to check\" (board FlaggedLine), the lines the\nsave-time check doubts after a \"Pick the best match for me\" import. Each row names its line and recipe and the doubted\nmatch, then ONE action — \"Use Whole milk\", when the check has a food to offer — and a labelled Search, named \"Search for\na food for {line}\", with a 44 px target. Search opens the line's options: the sheet below the wide class, the pane\nbeside the list at it (`detail`), the same list either way (`ImportLineOptions`). Nothing changes until the cook acts.\n\nPresentational and controlled. The native leaf is `./ImportFlaggedList.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportFlaggedList` (web): \"N to check\" (board FlaggedLine), the lines the"
+                        }
+                    ],
+                    "description": "The lines the save-time check doubts.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "detail",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The open line's options, drawn beside the list at the wide container class.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lines",
+                            "type": "readonly ImportFlaggedLineItem[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The doubted lines shown.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the line's options: the sheet on phone and 834, the pane at 1194 and on web.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onUseSuggestion",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Bind the line to its suggestion.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every doubted line (the count in the title); `lines` may be a page of them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportFlaggedList",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Search sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Search opens the options sheet (the host's); at it (1194) the options pane stands beside the list.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The lines the save-time check doubts.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "detail",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The open line's options, drawn beside the list at the wide container class.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lines",
+                            "type": "readonly ImportFlaggedLineItem[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The doubted lines shown.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the line's options: the sheet on phone and 834, the pane at 1194 and on web.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onUseSuggestion",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Bind the line to its suggestion.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every doubted line (the count in the title); `lines` may be a page of them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportLineList",
+            "name": "ImportLineList",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [
+                "Visitor — `LineRow` is an exhaustive switch over the `ImportLine` state union; the expanded line is chosen by\n    the host's `expandedKey`, never by a mode flag"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportLineList",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineList.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineList` (web): one imported recipe's ingredient lines in the line\nstates the server derives (`ingredientMatching.md`; board WizardStep). ONE open line is expanded — its text, a neutral\nprompt and its option list (`ImportLineOptions`, search first); every other open line is a closed row that names its\nneed (\"Choose a food · 5 options\"). A matched line shows its food and Change; a checking line its proposal with\nChecking, Use this and Search for a food, one tap each; a cook's pick says \"your choice\", and a late check result keeps\nthat pick and adds one quiet sentence with See why. When every line arrived matched, it says there is nothing to fix.\n\nPresentational and controlled: which line is expanded, and what a pick does, are the host's (choosing a food expands\nthe next open line — `nextOpenLineKey`). Nothing moves (WCAG 2.2.2): a checking line draws a static glyph. The native\nleaf is `./ImportLineList.native.tsx`.\n\n⚠️ RECONCILE AT MERGE: the paste flow's line list (the editor builder's, in parallel) draws the same states. One of\nthe two must absorb the other; they must not both ship.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineList` (web): one imported recipe's ingredient lines in the line"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — `LineRow` is an exhaustive switch over the `ImportLine` state union; the expanded line is chosen by\n    the host's `expandedKey`, never by a mode flag"
+                        }
+                    ],
+                    "description": "One imported recipe's lines, one open line expanded.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "expandedKey",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line drawn expanded, or `undefined` for none. A checking line is never drawn expanded.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lines",
+                            "type": "readonly ImportLine[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's lines, in the recipe's order.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onExpand",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Expand the line (a closed open line, or Change on a matched or chosen line).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(key: string, pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook picked for the expanded line. Expanding the next open line is the host's (`nextOpenLineKey`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for the line (a checking line reaches it in one tap).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSeeWhy",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open why the late check suggested another food.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onUseProposal",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Bind a checking line's proposed food.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportLineList",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineList.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineList` (native): the React Native leaf of `./ImportLineList.tsx`,\non the same props and the same words (`importLineCopy.ts`). One open line expanded, every other open line a closed\n48 dp row naming its need, so the next choice is one tap within thumb reach; matched and chosen lines with Change; a\nchecking line with Use this and Search for a food; a late check result as one quiet sentence under the cook's pick.\nActions sit on their own line, so no label wraps inside a control at 320 dp. Nothing animates.\n\n⚠️ RECONCILE AT MERGE with the paste flow's line list (the editor builder's, in parallel).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineList` (native): the React Native leaf of `./ImportLineList.tsx`,"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — `LineRow` is an exhaustive switch over the `ImportLine` state union; the expanded line is chosen by\n    the host's `expandedKey`, never by a mode flag"
+                        }
+                    ],
+                    "description": "One imported recipe's lines, one open line expanded.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "expandedKey",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line drawn expanded, or `undefined` for none. A checking line is never drawn expanded.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lines",
+                            "type": "readonly ImportLine[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's lines, in the recipe's order.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onExpand",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Expand the line (a closed open line, or Change on a matched or chosen line).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(key: string, pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook picked for the expanded line. Expanding the next open line is the host's (`nextOpenLineKey`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for the line (a checking line reaches it in one tap).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSeeWhy",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open why the late check suggested another food.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onUseProposal",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Bind a checking line's proposed food.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportLineOptions",
+            "name": "ImportLineOptions",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `RadioList` — a line's candidates and the keep row as option rows, a row id\n    back as an `ImportLinePick` (`importLine.ts`)"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportLineOptions",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptions.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptions`: one line's options, the same list wherever a line is\nchosen for — the wizard's open line, the flagged pane at 1194 and on web, and the flagged sheet on phone and 834\n(`ingredientMatching.md`). \"Search for a food\" first (owner ruling I1: a shortlist or a default never replaces search),\nthen the server's candidates with the default tagged and never chosen, then \"Keep … as written\" as the last row of\nthe same list.\n\nONE component for both platforms: it composes only design-system parts (`Button`, `RadioList`), which resolve to\ntheir web or native leaf at bundle time, and returns them as siblings for the host's column to space.\n\nPresentational and controlled: the host holds the pick and opens search.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineOptions`: one line's options, the same list wherever a line is"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `RadioList` — a line's candidates and the keep row as option rows, a row id\n    back as an `ImportLinePick` (`importLine.ts`)"
+                        }
+                    ],
+                    "description": "One line's options: search first, then the foods, then keep as written.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "candidates",
+                            "type": "readonly ImportCandidate[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The server's candidates, in its order (the default first); drawn in that order, never re-sorted.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lineText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as written; names the list, the search button and the keep row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a food or to keep the line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "pick",
+                            "type": "ImportLinePick | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's pick, if any. A default is never passed here unless the cook picked it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportLineOptionsPane",
+            "name": "ImportLineOptionsPane",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportLineOptionsPane",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsPane.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsPane` (web): a flagged line's options beside the list at\nthe wide container class (board FlaggedLine, 1194 and web). A region headed by the line and its recipe, then the same\nlist the sheet shows (`ImportLineOptions`), search first.\n\nPresentational and controlled. The native leaf is `./ImportLineOptionsPane.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineOptionsPane` (web): a flagged line's options beside the list at"
+                        }
+                    ],
+                    "description": "A flagged line's options, as a pane.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "candidates",
+                            "type": "readonly ImportCandidate[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The server's candidates, in its order (the default first); drawn in that order, never re-sorted.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lineText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as written; names the list, the search button and the keep row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a food or to keep the line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "pick",
+                            "type": "ImportLinePick | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's pick, if any. A default is never passed here unless the cook picked it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The pane's heading: the line and its recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportLineOptionsPane",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsPane.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsPane` (native): the React Native leaf of\n`./ImportLineOptionsPane.tsx`, beside the flagged list at the wide container class (1194): the line and its recipe as\na heading, then the same list the sheet shows, search first.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineOptionsPane` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "A flagged line's options, as a pane.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "candidates",
+                            "type": "readonly ImportCandidate[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The server's candidates, in its order (the default first); drawn in that order, never re-sorted.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lineText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as written; names the list, the search button and the keep row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a food or to keep the line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "pick",
+                            "type": "ImportLinePick | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's pick, if any. A default is never passed here unless the cook picked it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The pane's heading: the line and its recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportLineOptionsSheet",
+            "name": "ImportLineOptionsSheet",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportLineOptionsSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsSheet.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsSheet` (web): a flagged line's options in a sheet, which\nSearch opens below the wide container class (board FlaggedLine). The board draws no phone sheet; its notes make it\nthe 1194 pane's list (`ImportLineOptionsPane`), search first, titled with the line and its recipe.\n\nPresentational and controlled. The native leaf is `./ImportLineOptionsSheet.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineOptionsSheet` (web): a flagged line's options in a sheet, which"
+                        }
+                    ],
+                    "description": "A flagged line's options, in a sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "candidates",
+                            "type": "readonly ImportCandidate[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The server's candidates, in its order (the default first); drawn in that order, never re-sorted.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lineText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as written; names the list, the search button and the keep row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route calls this with `false`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a food or to keep the line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "pick",
+                            "type": "ImportLinePick | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's pick, if any. A default is never passed here unless the cook picked it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sheet's title: the line and its recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportLineOptionsSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsSheet` (native): the React Native leaf of\n`./ImportLineOptionsSheet.tsx`. The house bottom `Sheet`, so the options open under the thumb: search first, then the\nfoods, then keep as written, titled with the line and its recipe.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportLineOptionsSheet` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "A flagged line's options, in a sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "candidates",
+                            "type": "readonly ImportCandidate[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The server's candidates, in its order (the default first); drawn in that order, never re-sorted.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "lineText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as written; names the list, the search button and the keep row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route calls this with `false`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onPick",
+                            "type": "(pick: ImportLinePick) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a food or to keep the line as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open food search for this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "pick",
+                            "type": "ImportLinePick | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's pick, if any. A default is never passed here unless the cook picked it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sheet's title: the line and its recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportModeChoice",
+            "name": "ImportModeChoice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportModeChoice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportModeChoice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportModeChoice` (web): before a bulk import, how ingredients are matched\nto foods (board ImportModeChoice; `ingredientMatching.md` \"Bulk import\"). The file, then three modes as one radio group\nof cards — Save lines as written, Pick the best match for me, Let me review each recipe — with NOTHING preselected,\nand Start disabled until the cook picks (owner ruling 2026-10-25), its hint saying why. At the wide container class a\nreassurance sits beside the choice.\n\nPresentational and controlled: the host holds the mode and starts the import. The native leaf is\n`./ImportModeChoice.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportModeChoice` (web): before a bulk import, how ingredients are matched"
+                        }
+                    ],
+                    "description": "The mode choice before a bulk import.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "fileName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The imported file's name (\"My Recipes.paprikarecipes\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "mode",
+                            "type": "enum",
+                            "typeDetail": [
+                                "undefined",
+                                "\"saveAsWritten\"",
+                                "\"best\"",
+                                "\"review\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The chosen mode, or `undefined`: nothing is preselected.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onModeChange",
+                            "type": "(mode: \"saveAsWritten\" | \"best\" | \"review\") => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a mode. The component keeps no choice of its own.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onStart",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Start the import. Never called while no mode is chosen.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "recipeCount",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How many recipes the file holds.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "sourceName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app the file came from (\"Paprika\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "starting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The start request is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportModeChoice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportModeChoice.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportModeChoice` (native): the React Native leaf of\n`./ImportModeChoice.tsx`, on the same props and the same words. The file, the three modes as one radio group of cards\nwith nothing preselected, then Start — disabled until the cook picks, full width so its label never wraps at 320 dp —\nand its hint. At the wide container class (1194) the reassurance follows the choice.\n\nPresentational: a column for the host's scroll view. Painted from the theme's roles, so it reads in both themes.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportModeChoice` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The mode choice before a bulk import.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "fileName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The imported file's name (\"My Recipes.paprikarecipes\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "mode",
+                            "type": "enum",
+                            "typeDetail": [
+                                "undefined",
+                                "\"saveAsWritten\"",
+                                "\"best\"",
+                                "\"review\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The chosen mode, or `undefined`: nothing is preselected.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onModeChange",
+                            "type": "(mode: \"saveAsWritten\" | \"best\" | \"review\") => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook chose a mode. The component keeps no choice of its own.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onStart",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Start the import. Never called while no mode is chosen.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "recipeCount",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How many recipes the file holds.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "sourceName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app the file came from (\"Paprika\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "starting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The start request is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportReviewRail",
+            "name": "ImportReviewRail",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportReviewRail",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportReviewRail.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportReviewRail` (web): beside the review step at the wide container\nclass (1194 and web, board WizardStep), a navigation landmark over a window of the recipes to review. The current\nrecipe is marked `aria-current=\"step\"` and filled; a skipped one says so in its own name, not by look alone; under the\nlist, how many recipes needed nothing and are already in.\n\nPresentational: the host picks the window (never all of a long library) and opens a recipe. The native leaf is\n`./ImportReviewRail.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportReviewRail` (web): beside the review step at the wide container"
+                        }
+                    ],
+                    "description": "The review's recipe rail.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "addedWithoutStep",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes added without a step. `0` hides the line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "currentId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the step shows.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onOpenRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Jump the review to a recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "recipes",
+                            "type": "readonly ImportRailRecipe[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The window of recipes shown, in order.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "All recipes to review (the count in the title).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportReviewRail",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportReviewRail.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportReviewRail` (native): the React Native leaf of\n`./ImportReviewRail.tsx`, drawn beside the review step at the wide container class (1194). The current recipe is\n`selected` and filled; a skipped one says so in its own words; each row keeps the 44 pt touch floor.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportReviewRail` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The review's recipe rail.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "addedWithoutStep",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes added without a step. `0` hides the line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "currentId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the step shows.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onOpenRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Jump the review to a recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "recipes",
+                            "type": "readonly ImportRailRecipe[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The window of recipes shown, in order.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "All recipes to review (the count in the title).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportSummary",
+            "name": "ImportSummary",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportSummary",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportSummary.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportSummary` (web): the end of a bulk import (board WizardSummary).\nYour library is in — from where and when; how many were added and how (needed nothing, reviewed, skipped) with See\nthem; how many were already here; which could not be read, with Fix; how many lines are kept as written and do not\ncount toward nutrition yet, with Choose foods; and, beside it at the wide container class, the nutrition coverage.\nA row whose count is zero is not drawn (`summaryCopy.ts`).\n\nA review with no recipe to review ends here directly, with 0 reviewed: that is the review's empty state.\n\nPresentational. The native leaf is `./ImportSummary.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportSummary` (web): the end of a bulk import (board WizardSummary)."
+                        }
+                    ],
+                    "description": "The end of a bulk import.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "added",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes added in all.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "alreadyHere",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes matched to ones the cook already has, so not added again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "asWrittenLines",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Lines kept as written, with no food, so not counted toward nutrition.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "asWrittenRecipes",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipes those lines are in.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "countedRecipes",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes with every ingredient counted, drawn beside the summary at the wide container class.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "finishedWhen",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "When the import finished, already formatted for the reader's locale (\"today at 11:20\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "neededNothing",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes added without a step.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onChooseFoods",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the lines kept as written, to choose their foods.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onFixUnreadable",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the recipes that could not be read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSeeAdded",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the added recipes.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "reviewed",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes the cook reviewed in the wizard.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "skipped",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes the cook skipped; they wait under \"To review\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "sourceName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app the library came from.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "unreadable",
+                            "type": "readonly string[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Titles of the recipes that could not be read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportSummary",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportSummary.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportSummary` (native): the React Native leaf of `./ImportSummary.tsx`,\non the same words (`summaryCopy.ts`). Each row's action sits after its words and wraps under them at 320 dp rather\nthan squeezing them; Choose foods fills the width. The nutrition coverage follows at the wide container class (1194).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportSummary` (native): the React Native leaf of `./ImportSummary.tsx`,"
+                        }
+                    ],
+                    "description": "The end of a bulk import.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "added",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes added in all.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "alreadyHere",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes matched to ones the cook already has, so not added again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "asWrittenLines",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Lines kept as written, with no food, so not counted toward nutrition.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "asWrittenRecipes",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipes those lines are in.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "countedRecipes",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes with every ingredient counted, drawn beside the summary at the wide container class.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "finishedWhen",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "When the import finished, already formatted for the reader's locale (\"today at 11:20\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "neededNothing",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes added without a step.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onChooseFoods",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the lines kept as written, to choose their foods.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onFixUnreadable",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the recipes that could not be read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSeeAdded",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the added recipes.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "reviewed",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes the cook reviewed in the wizard.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "skipped",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes the cook skipped; they wait under \"To review\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "sourceName",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app the library came from.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "unreadable",
+                            "type": "readonly string[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Titles of the recipes that could not be read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportWizardLeave",
+            "name": "ImportWizardLeave",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportWizardLeave",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardLeave.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardLeave` (web): \"Save and leave?\" (board WizardLeave). Says how\nmany recipes the cook reviewed, that the rest are saved now — matched foods and the usual defaults set, every other\nline as written — and that they wait under \"To review\" in My recipes, resuming at the next recipe. Then Keep reviewing\nor Save and leave.\n\n⚠️ NOT the design system's `ConfirmDialog`: that primitive is for a destructive step and paints its confirm in the\ndanger tone, and leaving loses nothing. So it is the house `Sheet` (a dialog on web, sized to its content), whose\nevery close route keeps reviewing.\n\nPresentational and controlled. The native leaf is `./ImportWizardLeave.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportWizardLeave` (web): \"Save and leave?\" (board WizardLeave). Says how"
+                        }
+                    ],
+                    "description": "\"Save and leave?\"",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Save the rest and leave the review.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onKeepReviewing",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Close the dialog and keep reviewing; every close route ends here.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown; `false` renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "resumeAt",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the review resumes at, from 1.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "reviewed",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes the cook has reviewed so far.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "saving",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The save is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes to review in all; the rest (`total - reviewed`) are saved now.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportWizardLeave",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardLeave.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardLeave` (native): the React Native leaf of\n`./ImportWizardLeave.tsx`, on the same words (`leaveCopyOf`). The house `Sheet`, anchored to the bottom, so Save and\nleave and Keep reviewing land under the thumb; each fills the sheet's width, so neither label wraps at 320 dp. Not a\ndestructive confirm: leaving loses nothing, and every close route keeps reviewing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportWizardLeave` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "\"Save and leave?\"",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Save the rest and leave the review.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onKeepReviewing",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Close the dialog and keep reviewing; every close route ends here.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown; `false` renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "resumeAt",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the review resumes at, from 1.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "reviewed",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes the cook has reviewed so far.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "saving",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The save is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes to review in all; the rest (`total - reviewed`) are saved now.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportWizardNotice",
+            "name": "ImportWizardNotice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [
+                "Visitor — an exhaustive switch over the `kind` discriminated union, one house notice per state"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportWizardNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardNotice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardNotice`: what the review says in place of a step it cannot\nshow (board WizardStates). Loading names the recipe being read; an error names the recipe, says the choices so far are\nsaved, and offers Try again and Skip this recipe; offline says the choices are kept on the device and the review\nresumes by itself — with no control, because there is nothing the cook must do (the `OfflineReadSlot` contract).\n\nThe board's two other states are not here, on purpose: a recipe with nothing to fix is a step whose lines are all\nmatched (`ImportLineList` says so), and a review with no recipe to review has no step at all — every recipe is added\nwithout one and the import ends at `ImportSummary`.\n\nONE component for both platforms: it composes only the design system's notices, which resolve to their web or native\nleaf at bundle time.\n\nPresentational: props → JSX; the host decides what Try again and Skip do.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportWizardNotice`: what the review says in place of a step it cannot"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the `kind` discriminated union, one house notice per state"
+                        }
+                    ],
+                    "description": "The review's loading, error and offline states.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "kind",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"error\"",
+                                "\"loading\"",
+                                "\"offline\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The next recipe is being read.\nThe recipe could not be loaded.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Load it again.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onSkip",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Move on without it; it waits under \"To review\".",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "position",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe being read, from 1.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "recipeTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe that failed.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes to review in all.",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/import/ImportWizardStep",
+            "name": "ImportWizardStep",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/import",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ImportWizardStep",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardStep.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardStep` (web): one step of the bulk import review (board\nWizardStep). Save and leave at the top; the recipe as the page's heading; \"Recipe 14 of 309 · 3 lines to choose\" in\nwords and as a progress bar; the recipe's lines (the host's `ImportLineList`); then Back, Skip and Next recipe.\n\nBelow the wide container class the action bar is pinned to the bottom of the viewport, so the step's primary action\nstays within thumb reach however long the recipe; at it (1194 and web) the bar sits in flow under the lines and the\nrecipe rail stands beside the step. Back is absent on the first recipe, and named for the recipe it returns to.\n\nPresentational: the host decides what each action does. The native leaf is `./ImportWizardStep.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportWizardStep` (web): one step of the bulk import review (board"
+                        }
+                    ],
+                    "description": "One step of the import review.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's line list.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onBack",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Return to the recipe before. Not offered on the first recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onNext",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Move to the next recipe with an open line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSaveAndLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Ask to save and leave (the host opens `ImportWizardLeave`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSkip",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Leave this recipe's open lines as they are and move on.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "openLines",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Lines still needing the cook (`openLineCount`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "position",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "This recipe's place among the recipes to review, from 1.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "rail",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recipe rail, drawn beside the step at the wide container class (1194 and web) and nowhere else.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "recipeTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe under review: the step's heading.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes to review in all.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ImportWizardStep",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardStep.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/import",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardStep` (native): the React Native leaf of\n`./ImportWizardStep.tsx`, on the same props and words (`wizardCopy.ts`). A frame of its own: Save and leave, the\nrecipe heading, the progress and the lines scroll; Back, Skip and Next recipe sit in a bar OUTSIDE the scroll region,\nat the bottom, within thumb reach. At the wide container class (1194) the recipe rail stands beside the step.\n\nAt large text or on a short screen the bar would take the frame: past half of it the bar becomes the scroll region's\nlast item instead (`usePinnedFooter`, `docs/design/compactHeightLayout.md` §3.1), the house rule the Sheet and the\nrecipe wizard share.\n\nPresentational: the host decides what each action does.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/import — `ImportWizardStep` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "One step of the import review.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's line list.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onBack",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Return to the recipe before. Not offered on the first recipe.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onNext",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Move to the next recipe with an open line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSaveAndLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Ask to save and leave (the host opens `ImportWizardLeave`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "onSkip",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Leave this recipe's open lines as they are and move on.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "openLines",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Lines still needing the cook (`openLineCount`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "position",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "This recipe's place among the recipes to review, from 1.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "rail",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recipe rail, drawn beside the step at the wide container class (1194 and web) and nowhere else.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "recipeTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe under review: the step's heading.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Recipes to review in all.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

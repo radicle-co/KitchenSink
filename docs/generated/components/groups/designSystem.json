@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 72,
-        "implementations": 125,
-        "props": 713,
-        "documentedComponents": 72,
-        "implementationsWithModuleDoc": 125,
-        "implementationsWithComponentDoc": 117,
-        "documentedProps": 678,
-        "classifiedComponents": 65,
-        "componentsWithPatternTag": 72,
-        "crossPlatformComponents": 53
+        "components": 74,
+        "implementations": 129,
+        "props": 729,
+        "documentedComponents": 74,
+        "implementationsWithModuleDoc": 129,
+        "implementationsWithComponentDoc": 121,
+        "documentedProps": 694,
+        "classifiedComponents": 67,
+        "componentsWithPatternTag": 74,
+        "crossPlatformComponents": 55
     },
     "components": [
         {
@@ -8689,6 +8689,139 @@
             ]
         },
         {
+            "id": "designSystem/progressBar/ProgressBar",
+            "name": "ProgressBar",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/progressBar",
+            "kind": "presentational",
+            "patterns": [
+                "Specification consumer — `progressFraction` decides the fill; both leaves draw its one answer"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProgressBar",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/progressBar/ProgressBar.tsx",
+                    "dir": "packages/apps/commise/ui/src/progressBar",
+                    "moduleDoc": "@commise/ui/progress-bar — the web design-system {@link ProgressBar}: a 6 px `surfaceMuted` track filled with\n`action` to the share done, exposed as a determinate `progressbar` (name, `aria-valuenow`, `aria-valuemin`,\n`aria-valuemax`). The fill does not animate.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/progress-bar — the web design-system {@link ProgressBar}: a 6 px `surfaceMuted` track filled with"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Specification consumer — `progressFraction` decides the fill; both leaves draw its one answer"
+                        }
+                    ],
+                    "description": "The web determinate progress bar.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The bar's accessible name (\"Recipes reviewed\"). Localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/progressBar/props.ts"
+                        },
+                        {
+                            "name": "max",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Steps in all. A bar with `max` of 0 or less draws empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/progressBar/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Steps done, from 0. Clamped into `[0, max]`.",
+                            "declaredIn": "packages/apps/commise/ui/src/progressBar/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ProgressBar",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/progressBar/ProgressBar.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/progressBar",
+                    "moduleDoc": "@commise/ui/progress-bar — the native design-system {@link ProgressBar}: a 6 dp `surfaceMuted` track filled\nwith `action` to the share done, exposed as a determinate `progressbar` with its name and value. Colours come from\nthe theme at render. The fill does not animate.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/progress-bar — the native design-system {@link ProgressBar}: a 6 dp `surfaceMuted` track filled"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Specification consumer — `progressFraction` decides the fill; both leaves draw its one answer"
+                        }
+                    ],
+                    "description": "The native determinate progress bar.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The bar's accessible name (\"Recipes reviewed\"). Localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/progressBar/props.ts"
+                        },
+                        {
+                            "name": "max",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Steps in all. A bar with `max` of 0 or less draws empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/progressBar/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Steps done, from 0. Clamped into `[0, max]`.",
+                            "declaredIn": "packages/apps/commise/ui/src/progressBar/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/pushedPage/PushedPageFrame",
             "name": "PushedPageFrame",
             "group": "designSystem",
@@ -8853,6 +8986,187 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/radioList/RadioList",
+            "name": "RadioList",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/radioList",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over `@radix-ui/react-radio-group` — the house option list on the library's radio group, which owns\n    the roving focus and the keyboard",
+                "Composite — the group owns the `radiogroup` semantics and the one value its rows cannot state alone",
+                "Registry consumer — `look` picks its group style from a closed `Record`; the structure is shared, so the\n    semantics cannot differ between the looks"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RadioList",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/radioList/RadioList.tsx",
+                    "dir": "packages/apps/commise/ui/src/radioList",
+                    "moduleDoc": "@commise/ui/radio-list — the web design-system {@link RadioList}.\n\nA Radix `RadioGroup`: Tab enters the group once, the arrow keys move between rows and check the row they land on\n(the WAI-ARIA radio group), Space checks the focused row. Each row is a whole-row radio at least 48 px tall: an 18 px\ncircle (a 2 px `lineControl` ring at rest, a 5 px `action` ring when checked), the label in `meta` type that wraps,\nthen the quiet tag as a `note` badge. The tag is inside the radio's name; the hint describes it. A visible focus ring\non the row.\n\nControlled with no default: `value` `undefined` is held as Radix's controlled empty value, so a click reports to\n`onChange` and checks nothing until the host passes the new value back.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/radio-list — the web design-system {@link RadioList}."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `@radix-ui/react-radio-group` — the house option list on the library's radio group, which owns\n    the roving focus and the keyboard"
+                        }
+                    ],
+                    "description": "The web design-system option list.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The group's accessible name (\"Food for 2 cups milk\").",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "look",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"rows\"",
+                                "\"cards\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How the rows are drawn.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "onChange",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called with a row's id when the person chooses it. The list holds no state: the host decides.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "options",
+                            "type": "readonly RadioListOption[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The rows, in the order they are drawn.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The checked row's id, or `undefined` when nothing is chosen yet.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "RadioList",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/radioList/RadioList.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/radioList",
+                    "moduleDoc": "@commise/ui/radio-list — the native design-system {@link RadioList}.\n\nA `radiogroup` of whole-row `Pressable` radios with `aria-checked` — the row is the control, so the label, the tag and\nthe hint are read as its name. Each row is at least 48 dp tall: an 18 dp circle (a 2 dp `lineControl` ring at rest, a\n5 dp `action` ring when checked), the label in `meta` type that wraps, then the quiet tag as a `note` badge. Colours\ncome from the theme at render, so it repaints in the dark scheme. Nothing animates.\n\nControlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/radio-list — the native design-system {@link RadioList}."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composite — the group owns the `radiogroup` semantics and the one value its rows cannot state alone"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Registry consumer — `look` picks its group style from a closed `Record`; the structure is shared, so the\n    semantics cannot differ between the looks"
+                        }
+                    ],
+                    "description": "The native design-system option list.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The group's accessible name (\"Food for 2 cups milk\").",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "look",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"rows\"",
+                                "\"cards\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How the rows are drawn.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "onChange",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called with a row's id when the person chooses it. The list holds no state: the host decides.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "options",
+                            "type": "readonly RadioListOption[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The rows, in the order they are drawn.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The checked row's id, or `undefined` when nothing is chosen yet.",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

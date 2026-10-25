@@ -13,20 +13,20 @@ import type { CatalogSearchOutcome } from '../../foodCatalog.gateway.js';
 import { decideLexicalTier, reformulateQuery, shouldReformulate, createLexicalTier } from '../lexicalTier.js';
 
 const HITS = [
-    { foodId: 'F-FLOUR', name: 'Flour, wheat, all-purpose', score: 0.91 },
-    { foodId: 'F-CAROB', name: 'Carob flour', score: 0.62 },
-    { foodId: 'F-RICE', name: 'Rice flour', score: 0.6 },
+    { foodId: 'F-FLOUR', name: 'Flour, wheat, all-purpose', score: 0.91, rung: 'head' },
+    { foodId: 'F-CAROB', name: 'Carob flour', score: 0.62, rung: 'head' },
+    { foodId: 'F-RICE', name: 'Rice flour', score: 0.6, rung: 'head' },
 ] as const;
 
 describe('decideLexicalTier — the pure judgement', () => {
     it('passes on an empty candidate set', () => {
-        const outcome = decideLexicalTier('flour', []);
+        const outcome = decideLexicalTier([]);
 
         expect(outcome.kind).toBe('pass');
     });
 
     it('resolves the TOP hit on any non-empty set, with the margin in the reserved confidence field', () => {
-        const outcome = decideLexicalTier('flour', HITS);
+        const outcome = decideLexicalTier(HITS);
 
         expect(outcome).toMatchObject({
             kind: 'resolved',
@@ -38,7 +38,7 @@ describe('decideLexicalTier — the pure judgement', () => {
     });
 
     it('⛔ R23: a top hit whose words name exactly ONE variant resolves to that variant (curated U9)', () => {
-        const outcome = decideLexicalTier('tomato paste', [
+        const outcome = decideLexicalTier([
             { foodId: 'R-TOMATO', variantId: 'V-PASTE', name: 'tomatoes', score: 0.93 },
             { foodId: 'R-PUREE', name: 'tomato puree', score: 0.6 },
         ]);
@@ -52,7 +52,7 @@ describe('decideLexicalTier — the pure judgement', () => {
     });
 
     it('a variant on a RUNNER-UP is not the answer — only the top hit binds', () => {
-        const outcome = decideLexicalTier('tomato', [
+        const outcome = decideLexicalTier([
             { foodId: 'R-TOMATO', name: 'tomatoes', score: 0.93 },
             { foodId: 'R-PASTE', variantId: 'V-X', name: 'tomato products', score: 0.6 },
         ]);
@@ -60,14 +60,29 @@ describe('decideLexicalTier — the pure judgement', () => {
         expect(outcome).toMatchObject({ kind: 'resolved', food: { kind: 'root', id: 'R-TOMATO' } });
     });
 
+    it('⛔ RECORDS the rung food published rather than classifying the name a second time (ADR-0070)', () => {
+        // `sugar` would classify at `head` for this query here; food said `synonym`, and food's SQL is the one
+        // authority for the rung, so that is what the band key records.
+        const outcome = decideLexicalTier([{ foodId: 'F-SUGAR', name: 'sugar', score: 0.75, rung: 'synonym' }]);
+
+        expect(outcome).toMatchObject({ kind: 'resolved', rung: 'synonym' });
+    });
+
+    it('records NO rung for a crosswalk hit, which matched an identifier rather than a name', () => {
+        const outcome = decideLexicalTier([{ foodId: 'F-BAR', name: 'cereal bar', score: 1 }]);
+
+        expect(outcome.kind).toBe('resolved');
+        expect(outcome.kind === 'resolved' ? outcome.rung : 'n/a').toBeUndefined();
+    });
+
     it('a singleton shortlist resolves with NO margin — a missing runner-up is not a margin of zero', () => {
-        const outcome = decideLexicalTier('flour', [HITS[0]]);
+        const outcome = decideLexicalTier([HITS[0]]);
 
         expect(outcome).toMatchObject({ kind: 'resolved', confidence: undefined });
     });
 
     it('carries the structured shortlist as ScoredCandidate[] for the gate and the event log', () => {
-        const outcome = decideLexicalTier('flour', HITS);
+        const outcome = decideLexicalTier(HITS);
 
         expect(outcome.kind === 'resolved' && outcome.shortlist).toEqual([
             { foodId: 'F-FLOUR', score: 0.91 },
@@ -77,7 +92,7 @@ describe('decideLexicalTier — the pure judgement', () => {
     });
 
     it('names the rung and candidate count in the human-readable evidence', () => {
-        const outcome = decideLexicalTier('flour', HITS);
+        const outcome = decideLexicalTier(HITS);
 
         expect(outcome.kind === 'resolved' && outcome.evidence).toMatch(/lexical.*head.*3 candidate/);
     });
@@ -94,15 +109,15 @@ describe('decideLexicalTier — author augmentation (R20)', () => {
     const PRIVATE = { foodId: 'F-MINE', name: 'Gran’s pie filling', score: 0.95, visibility: 'private' } as const;
 
     it('is false for a shortlist of ordinary catalog rows', () => {
-        expect(decideLexicalTier('flour', HITS)).toMatchObject({ authorAugmented: false });
+        expect(decideLexicalTier(HITS)).toMatchObject({ authorAugmented: false });
     });
 
     it('is true when the WINNER is the caller’s own private food', () => {
-        expect(decideLexicalTier('pie filling', [PRIVATE, ...HITS])).toMatchObject({ authorAugmented: true });
+        expect(decideLexicalTier([PRIVATE, ...HITS])).toMatchObject({ authorAugmented: true });
     });
 
     it('is true when a private row sits BELOW the winner — the flag describes the whole shortlist', () => {
-        expect(decideLexicalTier('pie filling', [HITS[0], PRIVATE])).toMatchObject({
+        expect(decideLexicalTier([HITS[0], PRIVATE])).toMatchObject({
             food: { kind: 'root', id: 'F-FLOUR' },
             authorAugmented: true,
         });
@@ -125,15 +140,19 @@ describe('reformulateQuery — the deterministic synonym retry (origin D11)', ()
 
 describe('shouldReformulate', () => {
     it('reformulates on an empty candidate set', () => {
-        expect(shouldReformulate('aubergine', [])).toBe(true);
+        expect(shouldReformulate([])).toBe(true);
     });
 
     it('reformulates when every candidate sits on the base rung — nothing structural matched', () => {
-        expect(shouldReformulate('aubergine', [{ foodId: 'F', name: 'Bergamot oil', score: 0.3 }])).toBe(true);
+        expect(shouldReformulate([{ foodId: 'F', name: 'Bergamot oil', score: 0.3, rung: 'base' }])).toBe(true);
     });
 
     it('does NOT reformulate when a structural rung was reached', () => {
-        expect(shouldReformulate('flour', HITS)).toBe(false);
+        expect(shouldReformulate(HITS)).toBe(false);
+    });
+
+    it('does NOT reformulate past a crosswalk hit, whose identifier match carries no rung', () => {
+        expect(shouldReformulate([{ foodId: 'F-BAR', name: 'cereal bar', score: 1 }])).toBe(false);
     });
 });
 

@@ -21,12 +21,12 @@
  * settled. See `resolutionRegistry.ts` for the full argument and `resolutionCascade.ts`'s evidence-class
  * ladder for the machine-checked form of it; do not move this tier forward to "match R11".
  *
- * ## Ranking is the CATALOG's, re-derived only for the rung label
+ * ## Ranking AND the rung are the CATALOG's
  *
- * `FoodCatalogGateway.search` returns hits already ordered by food-service's tiered relevance (the shared
- * ladder, U1's `rank_head` included) and re-sorted by score at the gateway. This tier does not re-rank;
- * it reads the order and CLASSIFIES the top hit against the same shared ladder so the rung stored in the
- * event log is the rung the ranking actually used.
+ * `FoodCatalogGateway.search` returns hits already ordered by food-service's tiered relevance and re-sorted by
+ * score at the gateway, each carrying the rung food ranked it on (ADR-0070). This tier neither re-ranks nor
+ * re-classifies: it records the published rung, so the rung in the event log is the rung the ranking used. It used
+ * to classify the top hit again in TypeScript, which was a second copy of a rule whose authority is food's SQL.
  *
  * ## The synonym-reformulation retry (origin D11)
  *
@@ -62,8 +62,6 @@
  * `ResolutionContext.userId` stays threaded for the tiers that key on an author (curated); this one keys on
  * the CREDENTIAL.
  */
-import { classifyRankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
-import { describeRankingName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
 import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 
 import type { CatalogHit, FoodCatalogGateway } from '../foodCatalog.gateway.js';
@@ -117,20 +115,15 @@ export function reformulateQuery(phrase: string): string | undefined {
     return changed ? tokens.join(' ') : undefined;
 }
 
-/** The top hit's ladder rung for this query. Pure. */
-function rungOf(phrase: string, hit: CatalogHit): string {
-    return classifyRankTier(describeRankingName(hit.name), describeRankingQuery(phrase));
-}
-
 /**
- * Whether the candidate set earns a reformulation retry: empty, or nothing structural matched.
+ * Whether the candidate set earns a reformulation retry: empty, or nothing structural matched. A crosswalk hit carries
+ * no rung, and an identifier match is not a weak one, so it never earns a retry.
  *
- * @param phrase - The query phrase.
- * @param hits - The ranked hits.
+ * @param hits - The ranked hits, each with the rung food published.
  * @returns Whether to retry through the synonym map. Pure.
  */
-export function shouldReformulate(phrase: string, hits: readonly CatalogHit[]): boolean {
-    return hits.length === 0 || hits.every((hit) => rungOf(phrase, hit) === 'base');
+export function shouldReformulate(hits: readonly CatalogHit[]): boolean {
+    return hits.length === 0 || hits.every((hit) => hit.rung === 'base');
 }
 
 /**
@@ -149,11 +142,10 @@ function isAuthorAugmented(hits: readonly CatalogHit[]): boolean {
 /**
  * Decide what a ranked candidate set means. Pure.
  *
- * @param phrase - The query phrase (for rung classification and evidence).
  * @param hits - The ranked hits, highest score first (the gateway's order).
  * @returns A resolution proposing the top hit with its evidence, or a pass on an empty set.
  */
-export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): TierOutcome {
+export function decideLexicalTier(hits: readonly CatalogHit[]): TierOutcome {
     const top = hits[0];
 
     if (top === undefined) {
@@ -162,7 +154,7 @@ export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): 
 
     const runnerUp = hits[1];
     const margin = runnerUp === undefined ? undefined : top.score - runnerUp.score;
-    const rung = rungOf(phrase, top);
+    const rung = top.rung;
     const shortlist: ScoredCandidate[] = hits.slice(0, LEXICAL_SHORTLIST_LIMIT).map((hit) => ({
         foodId: hit.foodId,
         score: hit.score,
@@ -181,7 +173,7 @@ export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): 
         // R23 (curated U9): food names a hit's variant only when the query names exactly one live variant of it, so
         // the top hit's variant IS "the words name exactly one variant". The shortlist above still ranks roots.
         food: top.variantId === undefined ? { kind: 'root', id: top.foodId } : { kind: 'variant', id: top.variantId },
-        evidence: `lexical shortlist (rung ${rung}, ${String(hits.length)} candidates, margin ${
+        evidence: `lexical shortlist (rung ${rung ?? 'none'}, ${String(hits.length)} candidates, margin ${
             margin === undefined ? 'none' : margin.toFixed(3)
         })`,
         confidence: margin,
@@ -219,14 +211,14 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
                 throw new Error('The food catalog was unavailable; the lexical tier could not look.');
             }
 
-            if (!shouldReformulate(query.phrase, first.hits)) {
-                return decideLexicalTier(query.phrase, first.hits);
+            if (!shouldReformulate(first.hits)) {
+                return decideLexicalTier(first.hits);
             }
 
             const reformulated = reformulateQuery(query.phrase);
 
             if (reformulated === undefined) {
-                return decideLexicalTier(query.phrase, first.hits);
+                return decideLexicalTier(first.hits);
             }
 
             const second = await gateway.search(context.caller, reformulated, LEXICAL_SHORTLIST_LIMIT, {
@@ -236,10 +228,10 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
             if (second.availability !== 'ok' || second.hits.length === 0) {
                 // The retry is best-effort: a degraded or empty second pass falls back to whatever the
                 // first pass held, judged on its own merits.
-                return decideLexicalTier(query.phrase, first.hits);
+                return decideLexicalTier(first.hits);
             }
 
-            const outcome = decideLexicalTier(reformulated, second.hits);
+            const outcome = decideLexicalTier(second.hits);
 
             if (outcome.kind === 'resolved') {
                 return {

@@ -70,6 +70,11 @@ export interface CatalogHit {
     /** food-service's relevance score (higher is better). */
     readonly score: number;
     /**
+     * The ranking rung food ordered this hit by (ADR-0070). Food's SQL is the one authority for it, so the lexical tier
+     * records it rather than classifying the name again. Absent on a crosswalk hit, which matched an identifier.
+     */
+    readonly rung?: SearchResultView['rung'];
+    /**
      * Per-100g macros, present only on an enriched search (`withNutrition` — plan U4b, the lexical tier's
      * path) and only where the catalog stores a qualifying row. Absent means UNKNOWN, never zero. Named in
      * `ScoredCandidate`'s spelling so the tier's projection is a field-for-field copy.
@@ -115,6 +120,7 @@ function toCatalogHit(row: SearchResultView): CatalogHit | null {
         ...(typeof row.variant?.id === 'string' && row.variant.id.length > 0 ? { variantId: row.variant.id } : {}),
         name,
         score: typeof row.score === 'number' ? row.score : 0,
+        ...(row.rung === undefined ? {} : { rung: row.rung }),
         // Present only on an enriched search; the boundary renames food's projection fields into
         // `ScoredCandidate`'s spelling (energy/carbohydrate) so nothing downstream translates again.
         ...(typeof row.caloriesPer100g === 'number' ? { energyKcalPer100g: row.caloriesPer100g } : {}),

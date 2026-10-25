@@ -31,7 +31,12 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
-import { RANK_TIERS, SCORE_CEILING, TIER_GAP } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import {
+    RANK_TIERS,
+    SCORE_CEILING,
+    TIER_GAP,
+    rankTierOrdinal,
+} from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import { CATALOG_RANK_TERM_COLUMNS, catalogTieredSortKey } from '../foodRelevance.js';
 
@@ -116,6 +121,28 @@ describe('catalogTieredSortKey — it reads the MATERIALIZED terms, and that is 
         // `rank_head` mirrors describeRankingName().head, comma-segment rule included.
         expect(SCORE.text).toContain('food.rank_head');
         expect(SCORE.text).not.toContain('rank_tokens[1]');
+    });
+});
+
+describe('catalogTieredSortKey — the synonym rung (ADR-0070)', () => {
+    it('reads the synonyms from the materialized rank_alias_keys column (migration 0026)', () => {
+        expect(SCORE.text).toContain('food.rank_alias_keys');
+    });
+
+    it("binds the query's comparison key as one parameter, the key the synonym column holds", () => {
+        expect(SCORE.params).toContain('brown sugar');
+        expect(SCORE.text).toMatch(/\$\d+ = ANY\(food\.rank_alias_keys\)/);
+    });
+
+    it('places the synonym branch directly below the exact branch', () => {
+        const exactAt = SCORE.text.indexOf(`THEN ${String(rankTierOrdinal('exact'))}`);
+        const synonymAt = SCORE.text.indexOf(`THEN ${String(rankTierOrdinal('synonym'))}`);
+        const tokenSetAt = SCORE.text.indexOf(`THEN ${String(rankTierOrdinal('tokenSet'))}`);
+
+        expect(exactAt).toBeGreaterThan(-1);
+        expect(synonymAt).toBeGreaterThan(exactAt);
+        expect(tokenSetAt).toBeGreaterThan(synonymAt);
+        expect(SCORE.text.slice(synonymAt - 60, synonymAt)).toContain('rank_alias_keys');
     });
 });
 

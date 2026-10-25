@@ -32,7 +32,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { describeRankingName, describeRankingQuery } from '../rankingTerms.js';
+import { describeCatalogName, describeRankingQuery } from '../rankingTerms.js';
 import {
     RANKER_VERSION,
     BASE_METRIC_MAX,
@@ -47,14 +47,39 @@ import {
 } from '../rankingTiers.js';
 
 /** Classify a (name, query) pair the way a surface's statement does. */
-function tierOf(name: string, query: string): string {
-    return classifyRankTier(describeRankingName(name), describeRankingQuery(query));
+function tierOf(name: string, query: string, synonyms: readonly string[] = []): string {
+    return classifyRankTier(describeCatalogName(name, synonyms), describeRankingQuery(query));
 }
+
+describe('the synonym rung (ADR-0070)', () => {
+    it("holds when the query IS one of the root's synonyms, folded and singularized", () => {
+        expect(tierOf('sugar', 'granulated sugar', ['granulated sugar', 'white sugar'])).toBe('synonym');
+        expect(tierOf('sugar', 'Granulated  Sugars', ['granulated sugar'])).toBe('synonym');
+        expect(tierOf('eggs', 'large eggs', ['chicken eggs', 'large eggs'])).toBe('synonym');
+    });
+
+    it('ranks a synonym below an equal name and above every other rung', () => {
+        expect(rankTierOrdinal('synonym')).toBe(rankTierOrdinal('exact') - 1);
+        expect(rankTierOrdinal('synonym')).toBeGreaterThan(rankTierOrdinal('tokenSet'));
+        // The root whose NAME is the query still wins over a root that merely lists it as a synonym.
+        expect(tierOf('white sugar', 'white sugar', [])).toBe('exact');
+    });
+
+    it('does not hold for a synonym that only SHARES words with the query', () => {
+        // `sugar` is the head of `white sugar`, which is a head-rung fact, not an identity.
+        expect(tierOf('sugar cane', 'sugar', ['white sugar'])).not.toBe('synonym');
+        expect(tierOf('baking soda', 'soda', ['bicarbonate of soda'])).not.toBe('synonym');
+    });
+
+    it('never promotes an empty query, even against an empty synonym', () => {
+        expect(tierOf('sugar', '   ', ['', '   '])).toBe('base');
+    });
+});
 
 describe('the ladder', () => {
     it('is ordered worst-first, so a tier IS its ordinal', () => {
-        expect(RANK_TIERS).toEqual(['base', 'covered', 'head', 'tokenSet', 'exact']);
-        expect(RANK_TIERS.map(rankTierOrdinal)).toEqual([0, 1, 2, 3, 4]);
+        expect(RANK_TIERS).toEqual(['base', 'covered', 'head', 'tokenSet', 'synonym', 'exact']);
+        expect(RANK_TIERS.map(rankTierOrdinal)).toEqual([0, 1, 2, 3, 4, 5]);
     });
 });
 

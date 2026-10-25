@@ -27,7 +27,14 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { describeRankingName, foldForRanking, rankingTokens } from '@kitchensink/recipe-core/resolution/ranking-terms';
+import {
+    describeCatalogName,
+    describeRankingName,
+    foldForRanking,
+    rankingTokens,
+} from '@kitchensink/recipe-core/resolution/ranking-terms';
+
+import { ALIAS_DELIMITER } from '../../src/foods/foodAliases.js';
 
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { makePool } from '../support/db.js';
@@ -177,6 +184,52 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
             );
 
             expect(rows).toEqual([{ provolatile: 'i' }]);
+        });
+    });
+
+    describe('food.rank_alias_keys (migration 0026) mirrors the synonym keys (ADR-0070)', () => {
+        const SYNONYM_SETS: readonly (readonly string[])[] = [
+            ['granulated sugar', 'white sugar'],
+            ['Chicken Eggs', 'large eggs'],
+            ['bacalao', 'baccalà', 'salted cod'],
+            ['half-and-half', 'half & half'],
+            ['   ', '---', 'Peaches'],
+        ];
+
+        it('the column exists, is GENERATED, and is a text array', async () => {
+            const { rows } = await pool.query(
+                `SELECT is_generated, data_type FROM information_schema.columns
+                 WHERE table_name = 'food' AND column_name = 'rank_alias_keys'`,
+            );
+
+            expect(rows).toEqual([{ is_generated: 'ALWAYS', data_type: 'ARRAY' }]);
+        });
+
+        it('⛔ computes EXACTLY what describeCatalogName().synonymKeys computes, for every synonym set', async () => {
+            for (const [index, synonyms] of SYNONYM_SETS.entries()) {
+                await makeCatalogFood(pool, {
+                    id: `syn-${String(index)}`,
+                    name: `root ${String(index)}`,
+                    normalizedName: `syn-${String(index)}`,
+                    aliases: synonyms.join(ALIAS_DELIMITER),
+                });
+            }
+
+            const { rows } = await pool.query<{ id: string; rank_alias_keys: string[] }>(
+                `SELECT id, rank_alias_keys FROM food WHERE id LIKE 'syn-%' ORDER BY id`,
+            );
+
+            expect(rows.map((row) => row.rank_alias_keys)).toEqual(
+                SYNONYM_SETS.map((synonyms) => [...describeCatalogName('root', synonyms).synonymKeys]),
+            );
+        });
+
+        it('is an EMPTY array, never NULL, for a root with no synonyms', async () => {
+            await makeCatalogFood(pool, { id: 'syn-none', name: 'plain', normalizedName: 'syn-none', aliases: null });
+
+            const { rows } = await pool.query(`SELECT rank_alias_keys FROM food WHERE id = 'syn-none'`);
+
+            expect(rows).toEqual([{ rank_alias_keys: [] }]);
         });
     });
 

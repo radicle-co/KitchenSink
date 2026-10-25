@@ -36,7 +36,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { registerRankingConformance } from '@kitchensink/service-test-harness';
-import type { ConformanceRow } from '@kitchensink/service-test-harness';
+import type { ConformanceRow, ConformanceSeedRow } from '@kitchensink/service-test-harness';
+
+import { ALIAS_DELIMITER } from '../../src/foods/foodAliases.js';
 
 import { FoodSearchDao } from '../../src/foods/dao/foodSearch.dao.js';
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
@@ -47,12 +49,21 @@ import { foodDb } from '../support/roleDb.js';
 interface RankingFixtureRow {
     readonly id: string;
     readonly name: string;
+    /** The root's synonyms, stored joined in `food.aliases` exactly as the seed stores them. */
+    readonly synonyms?: readonly string[];
 }
 
 /** Insert `RESOLVED` catalog rows — search only surfaces golden records. */
 async function seedFoods(pool: pg.Pool, rows: readonly RankingFixtureRow[]): Promise<void> {
     for (const row of rows) {
-        await makeCatalogFood(pool, { id: row.id, name: row.name, description: row.name });
+        const synonyms = row.synonyms ?? [];
+
+        await makeCatalogFood(pool, {
+            id: row.id,
+            name: row.name,
+            description: row.name,
+            aliases: synonyms.length === 0 ? null : synonyms.join(ALIAS_DELIMITER),
+        });
     }
 }
 
@@ -266,7 +277,7 @@ describe('catalog tiered ranking (integration)', () => {
     describe('the shared ranking conformance contract', () => {
         registerRankingConformance({
             surface: 'food catalog',
-            seed: async (rows: readonly ConformanceRow[]): Promise<void> => {
+            seed: async (rows: readonly ConformanceSeedRow[]): Promise<void> => {
                 await foodDb().truncate();
                 await seedFoods(pool, rows);
             },

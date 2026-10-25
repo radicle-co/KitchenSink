@@ -198,6 +198,13 @@ export const food = pgTable(
          * head noun of the first comma segment, computed by the immutable `rank_head_of()`.
          */
         rankHead: text('rank_head').generatedAlwaysAs(sql`rank_head_of(name)`),
+        /**
+         * The synonym keys (migration 0026, ADR-0070): `rankingKeyOf` of each alias, computed by the immutable
+         * `rank_alias_keys_of()`. The `synonym` rung compares the query key with these.
+         */
+        rankAliasKeys: text('rank_alias_keys')
+            .array()
+            .generatedAlwaysAs(sql`rank_alias_keys_of(aliases)`),
     },
     (table) => [
         // 0013's dedup split (KTD-H): catalog-unique where unowned, per-author where owned — so two

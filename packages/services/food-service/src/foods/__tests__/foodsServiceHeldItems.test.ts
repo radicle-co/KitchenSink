@@ -54,7 +54,13 @@ const db = drizzle.mock({ schema });
  */
 const unreachable = new pg.Pool({ host: '127.0.0.1', port: 1 });
 
-const BROCCOLI: CatalogSearchHit = { id: 'R-broccoli', name: 'Broccoli', aliases: 'calabrese', score: 1 };
+const BROCCOLI: CatalogSearchHit = {
+    id: 'R-broccoli',
+    name: 'Broccoli',
+    aliases: 'calabrese',
+    score: 1,
+    rung: 'exact',
+};
 const STEAMED: LiveVariant = {
     id: 'V-steamed',
     rootId: 'R-broccoli',
@@ -123,6 +129,7 @@ function serviceOver(spec: WorldSpec) {
         rankFolded: null,
         rankTokens: null,
         rankHead: null,
+        rankAliasKeys: [],
     };
     const createByName = vi.fn(
         async (_input: CreateByNameInput): Promise<CreateByNameResult> =>

@@ -104,6 +104,23 @@ describe('FoodCatalogGateway', () => {
             ]);
         });
 
+        it('carries the rung food ranked each hit on, and none for a crosswalk hit (ADR-0070)', async () => {
+            search.mockResolvedValue({
+                results: [
+                    makeSearchResultView({ id: 'F-bar', name: 'cereal bar', score: 1 }),
+                    makeSearchResultView({ id: 'F-sugar', name: 'sugar', score: 0.75, rung: 'synonym' }),
+                ],
+            });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            const outcome = await gateway.search(CALLER, 'granulated sugar', 10);
+
+            expect(outcome.hits).toEqual([
+                { foodId: 'F-bar', name: 'cereal bar', score: 1 },
+                { foodId: 'F-sugar', name: 'sugar', score: 0.75, rung: 'synonym' },
+            ]);
+        });
+
         it('breaks score ties on name so the ordering is deterministic', async () => {
             search.mockResolvedValue({
                 results: [

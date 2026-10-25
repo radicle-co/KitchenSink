@@ -491,6 +491,15 @@ export const candidatesResponseSchema = z.object({
 
 export type CandidatesResponse = z.infer<typeof candidatesResponseSchema>;
 
+/**
+ * The ranking rung a name-matched hit was ordered by (ADR-0070), worst first. It RESTATES `RANK_TIERS` from
+ * `@kitchensink/recipe-core`, because this file is copied into a package that may import only zod;
+ * `foods.schema.test.ts` fails if the two lists diverge.
+ */
+export const rankTierSchema = z.enum(['base', 'covered', 'head', 'tokenSet', 'synonym', 'exact']);
+
+export type RankTierView = z.infer<typeof rankTierSchema>;
+
 /** A single search hit (FR-008). */
 export const searchResultViewSchema = z.object({
     id: z.string(),
@@ -498,6 +507,11 @@ export const searchResultViewSchema = z.object({
     name: z.string().nullable(),
     /** Relevance score (trigram similarity; `1` for a barcode/external-key crosswalk hit). */
     score: z.number(),
+    /**
+     * The rung the hit was ranked on (ADR-0070): the ONE authority for it, so a consumer records this value rather
+     * than classifying the name again. Absent on a crosswalk hit, which matched an identifier, not a name.
+     */
+    rung: rankTierSchema.optional(),
     /**
      * Per-100g macros, present only when the caller asked (`withNutrition=true`) AND the food has a
      * qualifying stored row — absent is "unknown", never zero (plan U4b: recipe-service's verification
@@ -541,6 +555,7 @@ export const catalogSearchResultViewSchema = searchResultViewSchema.pick({
     id: true,
     name: true,
     score: true,
+    rung: true,
     variant: true,
 });
 

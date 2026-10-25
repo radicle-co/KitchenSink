@@ -640,6 +640,7 @@ export class FoodsService {
                 id: hit.id,
                 name: hit.name,
                 score: hit.score,
+                rung: hit.rung,
                 // R20 (U11): flagged ONLY on the caller's own authored hits — the lexical tier's
                 // author-augmentation signal. A catalog row publishes nothing; a stranger's authored row never
                 // left the DAO's predicate, because an authored food is author-only (ADR-0036).
@@ -714,6 +715,7 @@ export class FoodsService {
                 id: hit.id,
                 name: hit.name,
                 score: hit.score,
+                rung: hit.rung,
                 ...(variant === undefined ? {} : { variant: variantViewOf(variant) }),
             };
         });

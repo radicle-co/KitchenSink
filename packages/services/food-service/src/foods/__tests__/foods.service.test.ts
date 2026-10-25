@@ -401,12 +401,13 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
  * private by the route that served them (property 6). Both keep the FR-010a minimum: no read below it.
  */
 describe('FoodsService.searchCatalog / searchAuthored (plan 002 S3)', () => {
-    const CATALOG_HIT = { id: 'F-cat', name: 'chicken breast', aliases: null, score: 0.8 };
+    const CATALOG_HIT = { id: 'F-cat', name: 'chicken breast', aliases: null, score: 0.8, rung: 'head' as const };
     const AUTHORED_HIT = {
         id: 'F-mine',
         name: 'my chicken breast',
         aliases: null,
         score: 0.7,
+        rung: 'covered' as const,
         userId: CALLER,
         visibility: 'private',
     };
@@ -473,7 +474,10 @@ describe('FoodsService.searchCatalog / searchAuthored (plan 002 S3)', () => {
 
         expect(searchDao.searchCatalog).toHaveBeenCalledWith('chicken breast');
         expect(searchDao.search).not.toHaveBeenCalled();
-        expect(response).toStrictEqual({ results: [{ id: 'F-cat', name: 'chicken breast', score: 0.8 }] });
+        // Rewritten (ADR-0070): a catalog hit now publishes the rung it was ranked on.
+        expect(response).toStrictEqual({
+            results: [{ id: 'F-cat', name: 'chicken breast', score: 0.8, rung: 'head' }],
+        });
     });
 
     it('unshifts the barcode crosswalk hit at score 1, from one read that names it', async () => {
@@ -483,9 +487,25 @@ describe('FoodsService.searchCatalog / searchAuthored (plan 002 S3)', () => {
 
         const { results } = await service.searchCatalog('0012000161155');
 
+        // The crosswalk hit matched an IDENTIFIER, not a name, so it carries no rung (ADR-0070).
         expect(results).toStrictEqual([
             { id: 'F-bar', name: 'cereal bar', score: 1 },
-            { id: 'F-cat', name: 'chicken breast', score: 0.8 },
+            { id: 'F-cat', name: 'chicken breast', score: 0.8, rung: 'head' },
+        ]);
+    });
+
+    it('publishes each per-caller hit with the rung it was ranked on (ADR-0070)', async () => {
+        const { service, searchDao } = makeSplitService();
+        searchDao.search.mockResolvedValue([
+            { ...CATALOG_HIT, rung: 'synonym', userId: null, visibility: 'public' },
+            { ...AUTHORED_HIT, id: 'F-mine-2' },
+        ]);
+
+        const { results } = await service.search('chicken breast', CALLER);
+
+        expect(results.map((hit) => [hit.id, hit.rung])).toEqual([
+            ['F-cat', 'synonym'],
+            ['F-mine-2', 'covered'],
         ]);
     });
 

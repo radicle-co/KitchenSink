@@ -87,6 +87,7 @@ describe('GET /{id} — the catalog read contract (booted Nest, DAOs doubled)', 
         name: 'beef brisket',
         aliases: 'first cut brisket',
         score: 0.8,
+        rung: 'head',
         visibility: 'public',
         userId: null,
     };
@@ -199,6 +200,7 @@ describe('GET /{id} — the catalog read contract (booted Nest, DAOs doubled)', 
                 id: ROOT_ID,
                 name: 'beef brisket',
                 score: 0.8,
+                rung: 'head',
                 variant: {
                     id: '01JBR1SKETF1AT000000000000',
                     parts: [

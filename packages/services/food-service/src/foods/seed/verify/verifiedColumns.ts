@@ -55,6 +55,7 @@ export const VERIFIED_COLUMNS = {
         rank_folded: 'generated',
         rank_tokens: 'generated',
         rank_head: 'generated',
+        rank_alias_keys: 'generated',
     },
     food_item: {
         id: 'identity',

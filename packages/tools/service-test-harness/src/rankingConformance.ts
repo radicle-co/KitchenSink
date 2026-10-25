@@ -36,15 +36,21 @@
  * annotator).
  */
 import { expect, it } from 'vitest';
-import { describeRankingName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
+import { describeCatalogName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
 import { classifyRankTier, rankTierOrdinal } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
-/** One row as the conformance corpus seeds it, and as a surface returns it. */
+/** One row as a surface returns it. */
 export interface ConformanceRow {
     /** The surface's own row identifier. */
     readonly id: string;
     /** The display name the ranking is computed against. */
     readonly name: string;
+}
+
+/** One row as the conformance corpus seeds it: a returned row plus the root's curated synonyms. */
+export interface ConformanceSeedRow extends ConformanceRow {
+    /** The root's synonyms, which the surface stores however its schema does (food: `aliases`). */
+    readonly synonyms: readonly string[];
 }
 
 /**
@@ -63,7 +69,7 @@ export interface RankedSurface {
      * @param rows - The corpus to seed.
      * @sideEffect Truncates and writes the surface's table.
      */
-    seed(rows: readonly ConformanceRow[]): Promise<void>;
+    seed(rows: readonly ConformanceSeedRow[]): Promise<void>;
     /**
      * Run the surface's real ranked search.
      *
@@ -74,10 +80,8 @@ export interface RankedSurface {
     search(query: string): Promise<readonly ConformanceRow[]>;
 }
 
-/** One corpus entry: a row, and why it is in the corpus. */
-interface CorpusEntry {
-    readonly id: string;
-    readonly name: string;
+/** One corpus entry: a row, its synonyms, and why it is in the corpus. */
+interface CorpusEntry extends ConformanceSeedRow {
     readonly why: string;
 }
 
@@ -86,44 +90,88 @@ interface CorpusEntry {
  * attractor that shares a word with a query and must NOT be promoted by that alone.
  */
 const CORPUS: readonly CorpusEntry[] = [
-    { id: 'r01', name: 'Flour', why: 'exact rung for `flour`' },
-    { id: 'r02', name: 'Carob flour', why: 'the attractor: contains the query, heads a different food' },
-    { id: 'r03', name: 'Flour, wheat, all-purpose, enriched', why: 'head rung, and the length penalty inside it' },
-    { id: 'r04', name: 'Flour, all purpose', why: 'exact rung for the comma-inverted query' },
-    { id: 'r05', name: 'Milk, whole, 3.25% milkfat', why: 'a percentage inside a name; head rung for `milk`' },
-    { id: 'r06', name: 'Crackers, milk', why: 'the milk attractor' },
-    { id: 'r07', name: 'Sugars, brown', why: 'plural head, comma inversion, token-set rung for `brown sugar`' },
-    { id: 'r08', name: 'Candies, sugar-coated almonds', why: 'the sugar attractor, hyphenated' },
-    { id: 'r09', name: 'Vinegar, red wine', why: 'full three-token inversion' },
-    { id: 'r10', name: 'Wine, red, table', why: 'shares two tokens with `red wine vinegar` and must stay at base' },
-    { id: 'r11', name: 'Egg, whole, raw', why: 'singular catalog name against a plural query' },
-    { id: 'r12', name: 'Peppers, jalapeno, raw', why: 'the catalog spelling of a word cooks type with a tilde' },
-    { id: 'r13', name: 'Chives, raw', why: 'plural head plus a preparation term' },
-    { id: 'r14', name: 'Chives, freeze-dried', why: 'the same head, a different preparation' },
-    { id: 'r15', name: 'All-purpose flour', why: 'hyphenation, and the row the `flor` typo must still reach' },
-    { id: 'r16', name: 'Butter, salted', why: 'head rung for `butter`' },
-    { id: 'r17', name: 'Peanut butter, smooth', why: 'the butter attractor' },
-    { id: 'r18', name: 'Molasses', why: 'a word the plural rule over-folds — identically on both sides' },
-    { id: 'r19', name: 'milk crackers', why: 'natural-order attractor: `milk` is a modifier (ADR-0070)' },
-    { id: 'r20', name: 'whole milk', why: 'natural-order head rung for `milk`' },
-    { id: 'r21', name: 'salt cod', why: 'natural-order attractor for `salt`' },
-    { id: 'r22', name: 'kosher salt', why: 'natural-order head rung for `salt`' },
-    { id: 'r23', name: 'cinnamon rolls', why: 'natural-order attractor for `cinnamon`' },
-    { id: 'r24', name: 'ground cinnamon', why: 'natural-order head rung for `cinnamon`' },
-    { id: 'r25', name: 'bread flour', why: 'natural-order attractor for `bread`, and a flour' },
-    { id: 'r26', name: 'French bread', why: 'natural-order head rung for `bread`' },
+    { id: 'r01', name: 'Flour', synonyms: [], why: 'exact rung for `flour`' },
+    { id: 'r02', name: 'Carob flour', synonyms: [], why: 'the attractor: contains the query, heads a different food' },
+    {
+        id: 'r03',
+        name: 'Flour, wheat, all-purpose, enriched',
+        synonyms: [],
+        why: 'head rung, and the length penalty inside it',
+    },
+    { id: 'r04', name: 'Flour, all purpose', synonyms: [], why: 'exact rung for the comma-inverted query' },
+    {
+        id: 'r05',
+        name: 'Milk, whole, 3.25% milkfat',
+        synonyms: [],
+        why: 'a percentage inside a name; head rung for `milk`',
+    },
+    { id: 'r06', name: 'Crackers, milk', synonyms: [], why: 'the milk attractor' },
+    {
+        id: 'r07',
+        name: 'Sugars, brown',
+        synonyms: [],
+        why: 'plural head, comma inversion, token-set rung for `brown sugar`',
+    },
+    { id: 'r08', name: 'Candies, sugar-coated almonds', synonyms: [], why: 'the sugar attractor, hyphenated' },
+    { id: 'r09', name: 'Vinegar, red wine', synonyms: [], why: 'full three-token inversion' },
+    {
+        id: 'r10',
+        name: 'Wine, red, table',
+        synonyms: [],
+        why: 'shares two tokens with `red wine vinegar` and must stay at base',
+    },
+    { id: 'r11', name: 'Egg, whole, raw', synonyms: [], why: 'singular catalog name against a plural query' },
+    {
+        id: 'r12',
+        name: 'Peppers, jalapeno, raw',
+        synonyms: [],
+        why: 'the catalog spelling of a word cooks type with a tilde',
+    },
+    { id: 'r13', name: 'Chives, raw', synonyms: [], why: 'plural head plus a preparation term' },
+    { id: 'r14', name: 'Chives, freeze-dried', synonyms: [], why: 'the same head, a different preparation' },
+    {
+        id: 'r15',
+        name: 'All-purpose flour',
+        synonyms: [],
+        why: 'hyphenation, and the row the `flor` typo must still reach',
+    },
+    { id: 'r16', name: 'Butter, salted', synonyms: [], why: 'head rung for `butter`' },
+    { id: 'r17', name: 'Peanut butter, smooth', synonyms: [], why: 'the butter attractor' },
+    { id: 'r18', name: 'Molasses', synonyms: [], why: 'a word the plural rule over-folds — identically on both sides' },
+    { id: 'r19', name: 'milk crackers', synonyms: [], why: 'natural-order attractor: `milk` is a modifier (ADR-0070)' },
+    { id: 'r20', name: 'whole milk', synonyms: [], why: 'natural-order head rung for `milk`' },
+    { id: 'r21', name: 'salt cod', synonyms: [], why: 'natural-order attractor for `salt`' },
+    { id: 'r22', name: 'kosher salt', synonyms: [], why: 'natural-order head rung for `salt`' },
+    { id: 'r23', name: 'cinnamon rolls', synonyms: [], why: 'natural-order attractor for `cinnamon`' },
+    { id: 'r24', name: 'ground cinnamon', synonyms: [], why: 'natural-order head rung for `cinnamon`' },
+    { id: 'r25', name: 'bread flour', synonyms: [], why: 'natural-order attractor for `bread`, and a flour' },
+    { id: 'r26', name: 'French bread', synonyms: [], why: 'natural-order head rung for `bread`' },
+    {
+        id: 'r27',
+        name: 'sugar',
+        synonyms: ['granulated sugar', 'white sugar'],
+        why: 'synonym rung: `granulated sugar` names this root (ADR-0070)',
+    },
+    {
+        id: 'r28',
+        name: 'Sugars, granulated',
+        synonyms: [],
+        why: 'token-set rung for `granulated sugar`, below synonym',
+    },
 ];
 
 /**
- * The four wrong binds of a production paste import on 2026-10-25 (ADR-0070), as `[query, real food, attractor]`.
- * Each attractor contains the query only as a modifier. The real food must come back above it, whatever the policy
- * module says, so this pair list does not move when `classifyRankTier` moves.
+ * `[query, real food, attractor]` triples whose order is a FACT about food, not a prediction of the policy module, so
+ * the list does not move when `classifyRankTier` moves. The first four are the wrong binds of a production paste
+ * import on 2026-10-25 (ADR-0070), each attractor containing the query only as a modifier. The last is the synonym
+ * rung: `granulated sugar` names the root `sugar`, above the row that merely shares its words.
  */
-const PROD_BINDS: readonly (readonly [string, string, string])[] = [
+const REAL_FOOD_OVER_ATTRACTOR: readonly (readonly [string, string, string])[] = [
     ['milk', 'whole milk', 'milk crackers'],
     ['salt', 'kosher salt', 'salt cod'],
     ['cinnamon', 'ground cinnamon', 'cinnamon rolls'],
     ['bread', 'French bread', 'bread flour'],
+    ['granulated sugar', 'sugar', 'Sugars, granulated'],
 ];
 
 /**
@@ -155,6 +203,7 @@ const QUERIES: readonly string[] = [
     'salt',
     'cinnamon',
     'bread',
+    'granulated sugar',
 ];
 
 /**
@@ -176,7 +225,20 @@ const QUERIES: readonly string[] = [
 function rungsOf(observed: readonly ConformanceRow[], query: string): readonly number[] {
     const terms = describeRankingQuery(query);
 
-    return observed.map((row) => rankTierOrdinal(classifyRankTier(describeRankingName(row.name), terms)));
+    return observed.map((row) =>
+        rankTierOrdinal(classifyRankTier(describeCatalogName(row.name, synonymsOf(row.id)), terms)),
+    );
+}
+
+/**
+ * The corpus synonyms of a returned row. A surface returns ids and names only, so the synonyms come from the corpus
+ * that seeded it.
+ *
+ * @param id - The returned row's id.
+ * @returns Its synonyms, or none for a row the corpus did not seed. Pure.
+ */
+function synonymsOf(id: string): readonly string[] {
+    return CORPUS.find((entry) => entry.id === id)?.synonyms ?? [];
 }
 
 /**
@@ -213,12 +275,12 @@ export function registerRankingConformance(surface: RankedSurface): void {
         expect(violations).toEqual([]);
     });
 
-    it(`${surface.surface}: ranks the real food above the attractor for every prod bind of 2026-10-25`, async () => {
+    it(`${surface.surface}: ranks the real food above the attractor, for the prod binds of 2026-10-25 and the synonym rung`, async () => {
         await surface.seed(CORPUS);
 
         const wrong: string[] = [];
 
-        for (const [query, real, attractor] of PROD_BINDS) {
+        for (const [query, real, attractor] of REAL_FOOD_OVER_ATTRACTOR) {
             const names = (await surface.search(query)).map((row) => row.name);
             const realAt = names.indexOf(real);
             const attractorAt = names.indexOf(attractor);

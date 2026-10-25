@@ -631,6 +631,17 @@
                                             }
                                         ]
                                     },
+                                    "rung": {
+                                        "enum": [
+                                            "base",
+                                            "covered",
+                                            "head",
+                                            "tokenSet",
+                                            "synonym",
+                                            "exact"
+                                        ],
+                                        "type": "string"
+                                    },
                                     "score": {
                                         "type": "number"
                                     },
@@ -725,6 +736,17 @@
                                     }
                                 ]
                             },
+                            "rung": {
+                                "enum": [
+                                    "base",
+                                    "covered",
+                                    "head",
+                                    "tokenSet",
+                                    "synonym",
+                                    "exact"
+                                ],
+                                "type": "string"
+                            },
                             "score": {
                                 "type": "number"
                             },
@@ -798,6 +820,17 @@
                             "type": "null"
                         }
                     ]
+                },
+                "rung": {
+                    "enum": [
+                        "base",
+                        "covered",
+                        "head",
+                        "tokenSet",
+                        "synonym",
+                        "exact"
+                    ],
+                    "type": "string"
                 },
                 "score": {
                     "type": "number"
@@ -1191,6 +1224,17 @@
                                                         "type": "null"
                                                     }
                                                 ]
+                                            },
+                                            "rung": {
+                                                "enum": [
+                                                    "base",
+                                                    "covered",
+                                                    "head",
+                                                    "tokenSet",
+                                                    "synonym",
+                                                    "exact"
+                                                ],
+                                                "type": "string"
                                             },
                                             "score": {
                                                 "type": "number"
@@ -2962,6 +3006,17 @@
                                                             }
                                                         ]
                                                     },
+                                                    "rung": {
+                                                        "enum": [
+                                                            "base",
+                                                            "covered",
+                                                            "head",
+                                                            "tokenSet",
+                                                            "synonym",
+                                                            "exact"
+                                                        ],
+                                                        "type": "string"
+                                                    },
                                                     "score": {
                                                         "type": "number"
                                                     },
@@ -3216,6 +3271,18 @@
                 "tombstone"
             ],
             "type": "object"
+        },
+        "rankTierSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "base",
+                "covered",
+                "head",
+                "tokenSet",
+                "synonym",
+                "exact"
+            ],
+            "type": "string"
         },
         "remoteFoodViewSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3554,6 +3621,17 @@
                             "proteinGPer100g": {
                                 "type": "number"
                             },
+                            "rung": {
+                                "enum": [
+                                    "base",
+                                    "covered",
+                                    "head",
+                                    "tokenSet",
+                                    "synonym",
+                                    "exact"
+                                ],
+                                "type": "string"
+                            },
                             "score": {
                                 "type": "number"
                             },
@@ -3643,6 +3721,17 @@
                 },
                 "proteinGPer100g": {
                     "type": "number"
+                },
+                "rung": {
+                    "enum": [
+                        "base",
+                        "covered",
+                        "head",
+                        "tokenSet",
+                        "synonym",
+                        "exact"
+                    ],
+                    "type": "string"
                 },
                 "score": {
                     "type": "number"

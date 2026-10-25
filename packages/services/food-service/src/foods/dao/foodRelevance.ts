@@ -51,7 +51,13 @@ import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
 import type { RankingTerms } from '@kitchensink/recipe-core/resolution/ranking-terms';
-import { BASE_METRIC_MAX, SCORE_CEILING, TIER_GAP } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import {
+    BASE_METRIC_MAX,
+    SCORE_CEILING,
+    TIER_GAP,
+    rankTierOrdinal,
+} from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 /**
  * The columns migration `0008_food_rank_terms.sql` materializes: the SQL mirror of `foldForRanking(name)`
@@ -67,6 +73,20 @@ const RANK_FOLDED = 'food.rank_folded';
 
 /** The materialized token array. The head term lives in `rank_head` (U1) — not `[1]`. */
 const RANK_TOKENS = 'food.rank_tokens';
+
+/** The materialized synonym keys (migration 0026): `rankingKeyOf` of each alias. */
+const RANK_ALIAS_KEYS = 'food.rank_alias_keys';
+
+/**
+ * A rung's ordinal as a SQL LITERAL. Read from `RANK_TIERS`, so inserting a rung cannot leave a stale number in the
+ * `CASE`; rendered raw because it is a constant of the code, never a value a caller supplies.
+ *
+ * @param tier - The rung.
+ * @returns The literal. Pure.
+ */
+function rung(tier: RankTier): SQL {
+    return sql.raw(String(rankTierOrdinal(tier)));
+}
 
 /**
  * The tier expression: a `CASE` whose branches are the ladder, highest rung first, so the first branch that
@@ -91,12 +111,24 @@ function rankTierSql(terms: RankingTerms): SQL {
     const queryTokens = sql`${sql.param([...terms.tokens])}::text[]`;
 
     return sql`(CASE
-        WHEN food.rank_folded = ${terms.folded} THEN 4
-        WHEN food.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ food.rank_tokens THEN 3
-        WHEN food.rank_head = ${terms.head ?? null} THEN 2
-        WHEN ${queryTokens} <@ food.rank_tokens THEN 1
-        ELSE 0
+        WHEN food.rank_folded = ${terms.folded} THEN ${rung('exact')}
+        WHEN ${terms.tokens.join(' ')} = ANY(food.rank_alias_keys) THEN ${rung('synonym')}
+        WHEN food.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ food.rank_tokens THEN ${rung('tokenSet')}
+        WHEN food.rank_head = ${terms.head ?? null} THEN ${rung('head')}
+        WHEN ${queryTokens} <@ food.rank_tokens THEN ${rung('covered')}
+        ELSE ${rung('base')}
     END)`;
+}
+
+/**
+ * The rung a row sits on for one query, as an integer ordinal: the same `CASE` the sort key is built from, selected
+ * on its own so a hit can publish its rung without decoding it from a float score.
+ *
+ * @param query - The trimmed user query.
+ * @returns An integer expression in `[0, RANK_TIERS.length - 1]`. Pure.
+ */
+export function catalogRankTierOrdinal(query: string): SQL {
+    return rankTierSql(describeRankingQuery(query));
 }
 
 /**
@@ -120,4 +152,4 @@ export function catalogTieredSortKey(query: string, baseMetric: SQL): SQL {
 }
 
 /** The materialized columns this policy reads, exported so the unit test can assert the statement names them. */
-export const CATALOG_RANK_TERM_COLUMNS = [RANK_FOLDED, RANK_TOKENS] as const;
+export const CATALOG_RANK_TERM_COLUMNS = [RANK_FOLDED, RANK_TOKENS, RANK_ALIAS_KEYS] as const;

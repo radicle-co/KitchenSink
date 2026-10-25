@@ -16,11 +16,15 @@
  *    the values that matter (whitespace-only names, empty arrays) rather than only the happy path.
  */
 import { describe, expect, it } from 'vitest';
+import { RANK_TIERS } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import { apiErrorSchema } from '../../common/apiError.schema.js';
 import { foodStatusEnum } from '../../db/schema/food.js';
 import {
     addFoodRequestSchema,
+    catalogSearchResultViewSchema,
+    rankTierSchema,
+    searchResultViewSchema,
     addResponseSchema,
     batchAddFoodRequestSchema,
     foodErrorCodeSchema,
@@ -879,10 +883,13 @@ describe('the search query schemas refuse a NUL byte', () => {
 describe('the split search response shapes (plan 002 S3)', () => {
     const variant = { id: '01JVARIANT0000000000000001', parts: [{ attribute: 'cut', text: 'flat' }] };
 
-    it('publishes a catalog hit as id, name, score and an optional variant, and nothing that names a caller', () => {
+    it('publishes a catalog hit as id, name, score, a rung and an optional variant, and nothing naming a caller', () => {
+        // Rewritten (ADR-0070): the rung joined the catalog hit. It depends on the query and the row only, never
+        // on who asked, so the edge may still share one response across callers.
         expect(Object.keys(catalogSearchResponseSchema.shape.results.element.shape).sort()).toStrictEqual([
             'id',
             'name',
+            'rung',
             'score',
             'variant',
         ]);
@@ -912,5 +919,35 @@ describe('the split search response shapes (plan 002 S3)', () => {
                 results: [{ id: 'f1', name: 'my egg', score: 0.5, visibility: 'private' }],
             }),
         ).toStrictEqual({ results: [{ id: 'f1', name: 'my egg', score: 0.5 }] });
+    });
+});
+
+/**
+ * The search hit's `rung` (ADR-0070) restates the ranking ladder's rungs, because this file is copied into a package
+ * that may import only zod. The two lists change for the same reason, so they must never diverge silently.
+ */
+describe('searchResultViewSchema.rung', () => {
+    it("names exactly the ladder's rungs, in the ladder's order", () => {
+        expect(rankTierSchema.options).toEqual([...RANK_TIERS]);
+    });
+
+    it('accepts a hit with each rung, and one with none (a crosswalk hit matched an identifier)', () => {
+        for (const rung of RANK_TIERS) {
+            expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung }).rung).toBe(rung);
+        }
+
+        expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 1 }).rung).toBeUndefined();
+    });
+
+    it('rejects a rung the ladder does not have', () => {
+        expect(searchResultViewSchema.safeParse({ id: 'F', name: 'n', score: 0.5, rung: 'popular' }).success).toBe(
+            false,
+        );
+    });
+
+    it('carries the rung on the shared catalog search too', () => {
+        expect(catalogSearchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung: 'exact' }).rung).toBe(
+            'exact',
+        );
     });
 });

@@ -204,6 +204,7 @@ function brisketHit(overrides: Partial<SearchHit> = {}): SearchHit {
         name: 'beef brisket',
         aliases: 'first cut brisket',
         score: 0.8,
+        rung: 'head',
         visibility: 'public',
         userId: null,
         ...overrides,
@@ -225,6 +226,7 @@ describe('search — the variant a query names rides its root’s hit (R15, R16,
                 id: ROOT_ID,
                 name: 'beef brisket',
                 score: 0.8,
+                rung: 'head',
                 variant: { id: 'V-flat', parts: [{ attribute: 'cut', text: 'flat' }] },
             },
         ]);
@@ -306,7 +308,7 @@ describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
 
         expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
             { id: 'R-LIVE', name: 'oxtail', score: 1 },
-            { id: ROOT_ID, name: 'beef brisket', score: 0.8 },
+            { id: ROOT_ID, name: 'beef brisket', score: 0.8, rung: 'head' },
         ]);
     });
 
@@ -317,7 +319,7 @@ describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
         });
 
         expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
-            { id: ROOT_ID, name: 'beef brisket', score: 0.8 },
+            { id: ROOT_ID, name: 'beef brisket', score: 0.8, rung: 'head' },
         ]);
     });
 });

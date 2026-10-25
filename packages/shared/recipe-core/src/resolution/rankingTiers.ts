@@ -37,6 +37,7 @@
  * | `covered`  | every query token appears as a whole word in the name      | multi-word conjunction; the attractors land here |
  * | `head`     | the name's head term is the query's head term              | `milk` → `whole milk` over `milk crackers`       |
  * | `tokenSet` | the name and the query are the same set of tokens          | word-order inversion (`red wine vinegar`)        |
+ * | `synonym`  | the query IS one of the root's curated synonyms            | `granulated sugar` → `sugar` (ADR-0070)          |
  * | `exact`    | the folded name IS the folded query                        | the name that is the token wins outright         |
  *
  * The head rule is one English head-noun rule for a name and a query alike, `rankingHeadOf` (`./rankingTerms.ts`).
@@ -57,7 +58,7 @@
  */
 
 /** The tiers, worst first — so a tier's ordinal IS its index. */
-export const RANK_TIERS = ['base', 'covered', 'head', 'tokenSet', 'exact'] as const;
+export const RANK_TIERS = ['base', 'covered', 'head', 'tokenSet', 'synonym', 'exact'] as const;
 
 /** One rung of the ladder. */
 export type RankTier = (typeof RANK_TIERS)[number];
@@ -117,6 +118,11 @@ interface Terms {
     readonly head: string | undefined;
 }
 
+/** A catalog root's operand: its name's terms plus its synonym keys (`describeCatalogName`). */
+interface CatalogTerms extends Terms {
+    readonly synonymKeys: readonly string[];
+}
+
 /** Whether two token lists denote the same SET (multiplicity ignored). Pure. */
 function sameTokenSet(a: readonly string[], b: readonly string[]): boolean {
     const left = new Set(a);
@@ -136,13 +142,17 @@ function sameTokenSet(a: readonly string[], b: readonly string[]): boolean {
  * @param query - The query's terms (`describeRankingQuery`).
  * @returns The rung. Pure.
  */
-export function classifyRankTier(name: Terms, query: Terms): RankTier {
+export function classifyRankTier(name: CatalogTerms, query: Terms): RankTier {
     if (query.tokens.length === 0 || name.tokens.length === 0) {
         return 'base';
     }
 
     if (name.folded === query.folded) {
         return 'exact';
+    }
+
+    if (name.synonymKeys.includes(query.tokens.join(' '))) {
+        return 'synonym';
     }
 
     if (sameTokenSet(name.tokens, query.tokens)) {

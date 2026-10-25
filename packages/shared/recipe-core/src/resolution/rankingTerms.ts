@@ -216,6 +216,41 @@ export function describeRankingName(name: string): RankingTerms {
 }
 
 /**
+ * The comparison key of a phrase: its folded, singularized tokens joined by one space. Two phrases with the same key
+ * say the same words in the same order, whatever their case, accents, plurals or punctuation. ⚠️ The SQL mirror is
+ * `rank_alias_keys_of()` (migration 0026), applied to each synonym.
+ *
+ * @param text - A name, a synonym or a typed query.
+ * @returns The key; `''` when the text holds nothing alphanumeric. Pure.
+ */
+export function rankingKeyOf(text: string): string {
+    return rankingTokens(text).join(' ');
+}
+
+/** A catalog root's ranking terms: its name's terms, plus the keys of its curated synonyms. */
+export interface CatalogNameTerms extends RankingTerms {
+    /** {@link rankingKeyOf} of each synonym, empty keys removed. What the `synonym` rung compares. */
+    readonly synonymKeys: readonly string[];
+}
+
+/**
+ * Parse a catalog ROOT — its name and its synonyms — into the terms the ladder classifies.
+ *
+ * The synonyms are REQUIRED, not defaulted: a caller that forgets them would rank every root as if it had none, and
+ * the `synonym` rung would silently never hold.
+ *
+ * @param name - The root's display name.
+ * @param synonyms - The root's curated synonyms (food's `aliases`, split on its delimiter).
+ * @returns The terms. Pure.
+ */
+export function describeCatalogName(name: string, synonyms: readonly string[]): CatalogNameTerms {
+    return {
+        ...describeRankingName(name),
+        synonymKeys: synonyms.map(rankingKeyOf).filter((key) => key.length > 0),
+    };
+}
+
+/**
  * Parse a TYPED QUERY into its ranking terms. The head is {@link rankingHeadOf}'s, the same as a name's.
  *
  * ⚠️ A name and a query used to take OPPOSITE heads (first word of a name, last word of a query), because the

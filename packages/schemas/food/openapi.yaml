@@ -1899,6 +1899,15 @@ components:
           type: string
         score:
           type: number
+        rung:
+          type: string
+          enum:
+            - base
+            - covered
+            - head
+            - tokenSet
+            - synonym
+            - exact
         caloriesPer100g:
           type: number
         proteinGPer100g:
@@ -1937,6 +1946,15 @@ components:
           type: string
         score:
           type: number
+        rung:
+          type: string
+          enum:
+            - base
+            - covered
+            - head
+            - tokenSet
+            - synonym
+            - exact
         variant:
           allOf:
             - $ref: "#/components/schemas/VariantView"

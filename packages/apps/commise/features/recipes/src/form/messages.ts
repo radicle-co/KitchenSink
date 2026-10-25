@@ -544,6 +544,91 @@ export interface RecipeFormMessages {
     readonly visibilityLabel: string;
 
     /** Localized copy for each `RecipeFormErrorCode` validation error (B20). */
+    /**
+     * The "Add an ingredient" picker's default food (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`,
+     * owner rulings 2026-10-25): the server lists it first, and the list only tags it. Nothing is ever picked for the cook.
+     */
+    readonly foodSearch: {
+        /** The quiet tag after the default food's name. */
+        readonly defaultTag: string;
+        /** The tagged option's accessible name: its label, then the tag (WCAG 2.5.3). */
+        readonly defaultOptionName: string;
+        /** Under the list while it shows a default. */
+        readonly defaultHint: string;
+    };
+
+    /**
+     * Choosing foods after Paste a list (`ingredientMatching.md`, RecipeEditorPasteChoose and RecipeEditorPasteChooseStates).
+     * Where the spec names a key without its words, the words are the signed-off board's. Every per-line action has a
+     * `…Name` that starts with its visible words and names its line, because the same action shows on several lines
+     * (WCAG 2.5.3, 2.4.6; the precedent is `statusActionAddAsWrittenLabel`).
+     */
+    readonly pasteMatch: {
+        readonly summary: {
+            readonly added: PluralText;
+            /** The count line's parts, in the spec's order; a part whose count is 0 is left out. */
+            readonly choose: PluralText;
+            readonly checking: PluralText;
+            readonly matched: PluralText;
+            /** Joins the count line's parts. */
+            readonly separator: string;
+            readonly rule: string;
+        };
+        readonly line: {
+            readonly default: { readonly prompt: string };
+            readonly needsChoice: { readonly prompt: string };
+            readonly noMatch: { readonly prompt: string };
+            readonly checking: { readonly tag: string; readonly paused: string };
+            readonly useThis: string;
+            readonly useThisName: string;
+            /** One label in paste, the wizard, flagged lines and the picker (ruling I1). */
+            readonly search: string;
+            readonly searchName: string;
+            /** The last row of a line's options. */
+            readonly keepAsWritten: string;
+            readonly keepHint: string;
+            /** The short form, as an action on a checking or failed line; its name is `keepAsWritten`. */
+            readonly keepAsWrittenShort: string;
+            readonly change: string;
+            readonly changeName: string;
+            /** A collapsed open line: what it needs. */
+            readonly closedNeed: PluralText;
+            readonly closedNeedDefault: PluralText;
+            readonly closedNeedNoMatch: string;
+            /** After a food the cook picked, with the separator that sets it apart ("· your choice"). */
+            readonly yourChoice: string;
+            /** A food option's name when it has a variant's parts: `{parts}` is the parts joined by `, `. */
+            readonly optionWithParts: string;
+            /** The option a reopened line already holds: its name, then this (the check is drawn, never only coloured). */
+            readonly chosenName: string;
+            readonly lateSuggestion: string;
+            readonly seeWhy: string;
+            readonly seeWhyName: string;
+            /** A line the cook kept, or the daily limit kept, as written. */
+            readonly keptAsWritten: string;
+            /** The accessible name of a line's group of options. */
+            readonly optionsName: string;
+        };
+        /** The side pane at 1194 and on web. */
+        readonly pane: {
+            readonly label: string;
+            readonly position: string;
+            readonly previous: string;
+            readonly next: string;
+        };
+        readonly offline: {
+            /** Keyed by where the draft is kept (D7), as `status.savedOnDevice` / `status.savedInTab` are. */
+            readonly bodyDevice: string;
+            readonly bodyTab: string;
+            readonly searchNeedsNetwork: string;
+        };
+        readonly optionsError: string;
+        readonly retry: string;
+        readonly retryName: string;
+        /** 004 FR-022's daily limit; `{time}` is when it resets. */
+        readonly quota: { readonly body: string };
+    };
+
     readonly errors: {
         readonly titleRequired: string;
         readonly titleTooLong: string;
@@ -809,6 +894,71 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         noSteps: 'No steps yet. Add your first step.',
 
         visibilityLabel: 'Private recipe',
+
+        foodSearch: {
+            defaultTag: 'Default',
+            defaultOptionName: '{food}, Default',
+            defaultHint: '“Default” marks the food most cooks mean. Nothing is picked until you tap one.',
+        },
+
+        pasteMatch: {
+            summary: {
+                added: { one: 'Added {count} line', other: 'Added {count} lines' },
+                choose: { one: '{count} needs your choice', other: '{count} need your choice' },
+                checking: { one: '{count} being checked', other: '{count} being checked' },
+                matched: { one: '{count} matched', other: '{count} matched' },
+                separator: ' · ',
+                rule: 'Matched lines are ready, and you can change them. Nothing else is chosen for you.',
+            },
+            line: {
+                default: { prompt: 'Choose the {noun} you use' },
+                needsChoice: { prompt: 'More than one food fits. Nothing is chosen for you.' },
+                noMatch: { prompt: 'No food found for this' },
+                checking: { tag: 'Checking', paused: 'Check paused' },
+                useThis: 'Use this',
+                useThisName: 'Use this: {food} for {line}',
+                search: 'Search for a food',
+                searchName: 'Search for a food for {line}',
+                keepAsWritten: 'Keep “{line}” as written',
+                keepHint: 'No nutrition for this line',
+                keepAsWrittenShort: 'Keep as written',
+                change: 'Change',
+                changeName: 'Change the food for {line}',
+                closedNeed: { one: 'Choose a food · {count} option', other: 'Choose a food · {count} options' },
+                closedNeedDefault: {
+                    one: 'Choose the {noun} you use · {count} option',
+                    other: 'Choose the {noun} you use · {count} options',
+                },
+                closedNeedNoMatch: 'No food found · search or keep as written',
+                yourChoice: '· your choice',
+                optionWithParts: '{food}, {parts}',
+                chosenName: '{food}, chosen',
+                lateSuggestion: 'Our check suggested {food}. Your choice stays.',
+                seeWhy: 'See why',
+                seeWhyName: 'See why our check suggested {food} for {line}',
+                keptAsWritten: 'Kept as written · no nutrition yet',
+                optionsName: 'Food for {line}',
+            },
+            pane: {
+                label: 'Choose a food',
+                position: 'Open line {n} of {total}',
+                previous: 'Previous',
+                next: 'Next open line',
+            },
+            offline: {
+                bodyDevice:
+                    'You’re offline. Your choices are saved on this device. Search and the check start again when you’re back online.',
+                bodyTab:
+                    'You’re offline. Your choices are kept in this tab. Search and the check start again when you’re back online.',
+                searchNeedsNetwork: 'Search needs the network',
+            },
+            optionsError: 'We couldn’t load the options for this line.',
+            retry: 'Try again',
+            retryName: 'Try again to load the options for {line}',
+            quota: {
+                body: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+            },
+        },
 
         errors: {
             titleRequired: 'A title is required.',

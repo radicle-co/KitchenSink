@@ -176,6 +176,21 @@ export interface EditorMessages {
         readonly addToGroup: string;
     };
 
+    /**
+     * Publishing with open choices (R23): allowed, and the cook is told what happens. The spec's
+     * `editor.publish.openChoices.*` (`publish` is already the action's own label here).
+     */
+    readonly openChoices: {
+        readonly title: PluralText;
+        /** `{names}` is the open lines' foods as a list (`Intl.ListFormat`). */
+        readonly body: PluralText;
+        readonly checking: PluralText;
+        readonly chooseNow: string;
+        readonly publishAnyway: string;
+        readonly later: string;
+        readonly close: string;
+    };
+
     readonly steps: {
         readonly label: string;
         readonly addTimer: string;
@@ -362,6 +377,22 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             pasteAdded: { one: 'Added {count} ingredient.', other: 'Added {count} ingredients.' },
             pasteFailed: 'We couldn’t start reading that. Your text is still here — try again.',
             addToGroup: 'Add to {group}',
+        },
+
+        openChoices: {
+            title: { one: '{count} ingredient has no food yet', other: '{count} ingredients have no food yet' },
+            body: {
+                one: '{names} is saved as written. It doesn’t count toward nutrition until you choose a food.',
+                other: '{names} are saved as written. They don’t count toward nutrition until you choose a food.',
+            },
+            checking: {
+                one: '{names} is still being checked. If you publish now, it is saved as written too.',
+                other: '{names} are still being checked. If you publish now, they are saved as written too.',
+            },
+            chooseNow: 'Choose now',
+            publishAnyway: 'Publish anyway',
+            later: 'You can choose later from each ingredient’s menu. Nutrition reads “{counted} of {total} counted”.',
+            close: 'Close',
         },
 
         steps: {

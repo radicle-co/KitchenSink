@@ -180,7 +180,7 @@ with no network: it shows the sign-in screen and none of the previous cook's dat
 - Q: Must web reopen with no network after the tab or browser closed? → A: Yes (owner, 2026-10-25). Web gets the same
   offline start as mobile, and keeps unsynced changes after the tab or browser closes. The ruling of 2026-09-17 that
   kept app data out of the browser was overturned the same day.
-- Q: Which recipes must open with no network? → A (planning default, the owner has not ruled on it yet): Summaries of the whole library, the full version of every recipe the
+- Q: Which recipes must open with no network? → A (owner, 2026-10-25, accepted for now): Summaries of the whole library, the full version of every recipe the
   cook wrote, and recently opened recipes within a storage budget (FR-004).
 - Q: How does the app tell an erased account from an ended session? → A (planning decision): It cannot, because both look the same to the
   device. So FR-025 bounds what stays on the device by time and by a change of cook (FR-027).

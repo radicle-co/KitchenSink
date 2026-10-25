@@ -31,8 +31,8 @@
 
 ## Notes
 
-- Web scope is the owner's decision of 2026-10-25: a full web offline start. Which recipes stay on the device is a
-  planning default the owner has not ruled on yet (FR-004).
+- Web scope is the owner's decision of 2026-10-25: a full web offline start. Which recipes stay on the device (FR-004) is the
+  planning default, which the owner accepted for now on 2026-10-25.
 - The spec names the outbox, the device draft and the device's own storage on purpose. GR-005 requires a feature
   with offline data to declare its persistence layer and sync strategy in `spec.md`. It names no library or format.
 - The NFRs that name TypeScript and JSDoc come from the constitution, through the spec template.

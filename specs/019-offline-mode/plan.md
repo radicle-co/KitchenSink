@@ -178,6 +178,4 @@ No constitution violations. The Principle VIII waiver is gone: the owner chose a
 
 ## Owner Decisions To Confirm
 
-1. Which recipes stay on the device (FR-004): the planning default is library summaries, the cook's own recipes and
-   recently opened ones.
-2. SC-001 and SC-003 under the held-state design: SC-003 then reads Clerk's normal load path, not the experimental cache.
+1. SC-001 and SC-003 under the held-state design: SC-003 then reads Clerk's normal load path, not the experimental cache.

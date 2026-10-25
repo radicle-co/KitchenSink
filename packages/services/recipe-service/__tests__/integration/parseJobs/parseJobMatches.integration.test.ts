@@ -151,6 +151,39 @@ describe('POST /api/v1/recipe-parse-jobs/:id/matches (integration: real pipeline
         });
     });
 
+    it('answers with each proposed food’s MATCH, named by food as the cook, and GET shows the same', async () => {
+        const response = await proposeMatches(COOK, JOB_ID);
+        const body = parseJobResponseSchema.parse(await response.json());
+        const expected = {
+            state: 'checking',
+            reason: 'awaitingReview',
+            proposed: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
+            candidates: [{ kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: false }],
+        };
+
+        expect(body.lines[0]?.proposal?.foods[0]?.match).toStrictEqual(expected);
+
+        const polled = await asPrincipal(COOK, () =>
+            fetch(`${booted.baseUrl}/api/v1/recipe-parse-jobs/${JOB_ID}`, {
+                headers: { authorization: bearerFor(COOK) },
+            }),
+        );
+
+        expect(parseJobResponseSchema.parse(await polled.json()).lines[0]?.proposal?.foods[0]?.match).toStrictEqual(
+            expected,
+        );
+    });
+
+    it('a job with no matches yet shows `match: null` on its proposed foods', async () => {
+        const polled = await asPrincipal(COOK, () =>
+            fetch(`${booted.baseUrl}/api/v1/recipe-parse-jobs/${JOB_ID}`, {
+                headers: { authorization: bearerFor(COOK) },
+            }),
+        );
+
+        expect(parseJobResponseSchema.parse(await polled.json()).lines[0]?.proposal?.foods[0]?.match).toBeNull();
+    });
+
     it('⛔ is idempotent: a second call sends nothing more', async () => {
         await proposeMatches(COOK, JOB_ID);
         const again = await proposeMatches(COOK, JOB_ID);

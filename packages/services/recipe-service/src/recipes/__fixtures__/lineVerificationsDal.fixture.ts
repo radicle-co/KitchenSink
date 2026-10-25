@@ -21,10 +21,12 @@ import type { VerificationBand } from '../domain/lineVerification.js';
  * A `LineVerificationsDal` stub answering with the given verdicts.
  *
  * @param bands - Verdict key → band. Defaults to none, i.e. the gate has judged nothing.
+ * @param exhausted - Keys the gate gave up on (an attempts row with a failure code). Defaults to none.
  * @returns The stub, pre-cast to the DAL type.
  */
 export function fakeLineVerificationsDal(
     bands: ReadonlyMap<string, VerificationBand> = new Map(),
+    exhausted: ReadonlySet<string> = new Set(),
 ): LineVerificationsDal {
     return {
         findBandsByKeys: vi.fn().mockImplementation((keys: readonly string[]) =>
@@ -44,6 +46,12 @@ export function fakeLineVerificationsDal(
             .fn()
             .mockImplementation((keys: readonly string[]) =>
                 Promise.resolve(new Set(keys.filter((key) => bands.has(key)))),
+            ),
+        // ADR-0071: the keys the gate gave up on.
+        findExhaustedKeys: vi
+            .fn()
+            .mockImplementation((keys: readonly string[]) =>
+                Promise.resolve(new Set(keys.filter((key) => exhausted.has(key)))),
             ),
     } as unknown as LineVerificationsDal;
 }

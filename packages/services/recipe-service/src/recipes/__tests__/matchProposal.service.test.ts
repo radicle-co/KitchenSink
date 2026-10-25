@@ -14,6 +14,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 
 import { CallerToken } from '../../auth/CallerToken.js';
@@ -228,7 +229,8 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
         expect(row).toMatchObject({
             lineIndex: 0,
             foodIndex: 0,
-            lineDigest: 'digest-0',
+            // The line's stored digest, carried onto the row so a later edit is seen as stale.
+            lineDigest: lineDigest('2 cups whole milk', sha256Hex),
             proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
             candidates: [
                 { kind: 'root', id: 'F-whole', rung: 'head' },

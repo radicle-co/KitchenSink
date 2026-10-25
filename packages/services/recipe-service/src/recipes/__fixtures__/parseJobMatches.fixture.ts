@@ -6,6 +6,9 @@
  * e2e (`tests/e2e/parseJobs/parseJobMatches.e2e.test.ts`) is what proves the SQL keeps them. If the two ever
  * disagree, the e2e is the authority.
  */
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+
+import { sha256Hex } from '../../common/sha256.js';
 import type { ParseJobLineRecord, ParseJobRecord } from '../parseJobs.service.js';
 import type { MatchSlot, NewParseJobMatch, ParseJobMatch, ParseJobMatchesPort } from '../domain/parseJobMatch.js';
 
@@ -91,12 +94,17 @@ export function makeStoredProposal(overrides: Record<string, unknown> = {}): Rec
     };
 }
 
-/** One parse-job line record. Defaults to a parsed line with one food. */
+/**
+ * One parse-job line record. Defaults to a parsed line with one food, whose digest is the REAL digest of its text
+ * (as the create path stores it), so the job view's staleness check agrees with the store.
+ */
 export function makeParseJobLine(overrides: Partial<ParseJobLineRecord> = {}): ParseJobLineRecord {
+    const sourceLine = overrides.sourceLine ?? '2 cups whole milk';
+
     return {
         lineIndex: 0,
-        sourceLine: '2 cups whole milk',
-        lineDigest: 'digest-0',
+        sourceLine,
+        lineDigest: lineDigest(sourceLine, sha256Hex),
         status: 'parsed',
         proposal: makeStoredProposal(),
         llmAttempts: 1,

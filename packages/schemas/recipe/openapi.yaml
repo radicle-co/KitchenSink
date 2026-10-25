@@ -5971,6 +5971,72 @@ components:
               prep:
                 nullable: true
                 type: string
+              match:
+                nullable: true
+                type: object
+                properties:
+                  state:
+                    type: string
+                    enum:
+                      - checking
+                      - confident
+                      - default
+                      - needsChoice
+                      - noMatch
+                  reason:
+                    type: string
+                    minLength: 1
+                  proposed:
+                    nullable: true
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - root
+                          - variant
+                      id:
+                        type: string
+                        minLength: 1
+                      name:
+                        type: string
+                        minLength: 1
+                    required:
+                      - kind
+                      - id
+                      - name
+                  candidates:
+                    maxItems: 5
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                          enum:
+                            - root
+                            - variant
+                        id:
+                          type: string
+                          minLength: 1
+                        name:
+                          type: string
+                          minLength: 1
+                        isDefault:
+                          type: boolean
+                      required:
+                        - kind
+                        - id
+                        - name
+                        - isDefault
+                  reviewNote:
+                    type: string
+                    minLength: 1
+                required:
+                  - state
+                  - reason
+                  - proposed
+                  - candidates
             required:
               - name
               - prep

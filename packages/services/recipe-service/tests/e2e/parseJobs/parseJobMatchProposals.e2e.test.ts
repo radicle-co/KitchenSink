@@ -11,11 +11,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient, type Message } from '@aws-sdk/client-sqs';
 import pg from 'pg';
 
+import { parseJobResponseSchema } from '@kitchensink/schema-recipe';
 import {
     verificationOriginOf,
     verifyIngredientLineMessageSchema,
 } from '@kitchensink/recipe-core/resolution/verification-message';
 
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+
+import { sha256Hex } from '../../../src/common/sha256.js';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { SEED_VERIFICATION_QUEUE_URL } from '../../support/localHarness.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../support/foodFake.js';
@@ -107,8 +111,9 @@ describe('paste-job match proposals (LOCAL e2e)', () => {
 
         await pool.query(
             `INSERT INTO recipe_parse_job_lines (job_id, line_index, source_line, line_digest, status, proposal)
-             VALUES ($1, 0, '2 cups milk', 'digest-milk', 'parsed', $2::jsonb)`,
-            [id, JSON.stringify(proposal)],
+             VALUES ($1, 0, '2 cups milk', $3, 'parsed', $2::jsonb)`,
+            // The REAL digest of the text, as the create path stores it: the view's staleness check recomputes it.
+            [id, JSON.stringify(proposal), lineDigest('2 cups milk', sha256Hex)],
         );
 
         return id;
@@ -158,5 +163,71 @@ describe('paste-job match proposals (LOCAL e2e)', () => {
 
         expect(again.status).toBe(202);
         expect(await drainQueue()).toEqual([]);
+    });
+
+    /** GET the job and return food 0 of line 0's match. */
+    async function matchOnView(jobId: string): Promise<unknown> {
+        const response = await fetch(`${booted.baseUrl}/api/v1/recipe-parse-jobs/${jobId}`, {
+            headers: { authorization: bearerFor(OWNER) },
+        });
+        const body = parseJobResponseSchema.parse(await response.json());
+
+        return body.lines[0]?.proposal?.foods[0]?.match;
+    }
+
+    /** The verification key the proposal's row stored. */
+    async function storedKey(jobId: string): Promise<string> {
+        const rows = await pool.query<{ verification_key: string }>(
+            'SELECT verification_key FROM recipe_parse_job_matches WHERE job_id = $1',
+            [jobId],
+        );
+
+        return rows.rows[0]?.verification_key ?? '';
+    }
+
+    it('the view reads `checking`, then `confident` once a verdict verifying identity lands in the REAL table', async () => {
+        const jobId = await parsedJob();
+
+        await proposeMatches(jobId);
+
+        expect(await matchOnView(jobId)).toMatchObject({
+            state: 'checking',
+            proposed: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
+        });
+
+        const key = await storedKey(jobId);
+
+        await pool.query(
+            `INSERT INTO recipe_ingredient_verifications
+                 (verification_key, verdict, certainty, band, aspects, identity_verdict, quantity_verdict, model_id, food_id)
+             VALUES ($1, 'agree', 'high', 'verified', ARRAY['identity', 'quantity'], 'agree', 'agree', 'test-model', 'F-whole')`,
+            [key],
+        );
+
+        try {
+            expect(await matchOnView(jobId)).toMatchObject({ state: 'confident', reason: 'reviewVerified' });
+        } finally {
+            await pool.query('DELETE FROM recipe_ingredient_verifications WHERE verification_key = $1', [key]);
+        }
+    });
+
+    it('the view reads `needsChoice` once the gate GAVE UP on the key (an attempts row with a failure code)', async () => {
+        const jobId = await parsedJob();
+
+        await proposeMatches(jobId);
+
+        const key = await storedKey(jobId);
+
+        await pool.query(
+            `INSERT INTO recipe_verification_attempts (verification_key, model_id, attempts, failure_code)
+             VALUES ($1, 'test-model', 5, 'VERIFICATION_ATTEMPTS_EXHAUSTED')`,
+            [key],
+        );
+
+        try {
+            expect(await matchOnView(jobId)).toMatchObject({ state: 'needsChoice', reason: 'reviewUnchecked' });
+        } finally {
+            await pool.query('DELETE FROM recipe_verification_attempts WHERE verification_key = $1', [key]);
+        }
     });
 });

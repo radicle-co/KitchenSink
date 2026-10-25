@@ -14,6 +14,9 @@
  * reviewed draft goes through ordinary `POST /recipes`, which re-validates every food id through
  * `by-food` admission (R19: a parse binds nothing).
  *
+ * ADR-0071: every view a route answers with carries each proposed food's `match`, added by the one
+ * {@link ParseJobMatchView} Decorator, so every route takes the caller's credential (food names the foods).
+ *
  * Owner scoping is a `404`, never a `403`: a stranger polling another user's job must not learn the id
  * exists. Retry (`POST /:id/retry`) and line edit (`PATCH /:id/lines/:lineIndex`) answer `202` as well —
  * both re-open asynchronous work — and refuse an expired job with `409 PARSE_JOB_EXPIRED`.
@@ -35,6 +38,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ParseJobsService } from './parseJobs.service.js';
 import { MatchProposalService } from './matchProposal.service.js';
+import { ParseJobMatchView } from './parseJobMatchView.js';
 import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
@@ -52,31 +56,42 @@ export class ParseJobsController {
     public constructor(
         private readonly parseJobsService: ParseJobsService,
         private readonly matchProposals: MatchProposalService,
+        // ADR-0071 — every route answering with a job view goes through the ONE match projection (a Decorator).
+        private readonly matchView: ParseJobMatchView,
     ) {}
 
     /** `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously. */
     @Post()
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
-    public async create(@OwnerId() ownerId: string, @Body() body: CreateParseJobDto): Promise<ParseJobResponse> {
-        return this.parseJobsService.create(ownerId, body.text);
+    public async create(
+        @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: CreateParseJobDto,
+    ): Promise<ParseJobResponse> {
+        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.create(ownerId, body.text));
     }
 
     /** `GET /api/v1/recipe-parse-jobs/:id` — poll the owner's job. A stranger gets `404`. */
     @Get(':id')
     public async getById(
         @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        return this.parseJobsService.get(ownerId, id);
+        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.get(ownerId, id));
     }
 
     /** `POST /api/v1/recipe-parse-jobs/:id/retry` — re-drive exactly the `failed_retryable` lines. */
     @Post(':id/retry')
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
-    public async retry(@OwnerId() ownerId: string, @Param('id', ParseUUIDPipe) id: string): Promise<ParseJobResponse> {
-        return this.parseJobsService.retry(ownerId, id);
+    public async retry(
+        @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Param('id', ParseUUIDPipe) id: string,
+    ): Promise<ParseJobResponse> {
+        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.retry(ownerId, id));
     }
 
     /**
@@ -89,11 +104,16 @@ export class ParseJobsController {
     @WriteRateLimit()
     public async editLine(
         @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Param('lineIndex', ParseIntPipe) lineIndex: number,
         @Body() body: EditParseJobLineDto,
     ): Promise<ParseJobResponse> {
-        return this.parseJobsService.editLine(ownerId, id, lineIndex, body.sourceLine);
+        return this.matchView.decorate(
+            ownerId,
+            caller,
+            await this.parseJobsService.editLine(ownerId, id, lineIndex, body.sourceLine),
+        );
     }
 
     /**
@@ -105,10 +125,15 @@ export class ParseJobsController {
     @WriteRateLimit()
     public async withdrawLines(
         @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Body() body: WithdrawParseJobLinesDto,
     ): Promise<ParseJobResponse> {
-        return this.parseJobsService.withdrawLines(ownerId, id, body.lineIndexes);
+        return this.matchView.decorate(
+            ownerId,
+            caller,
+            await this.parseJobsService.withdrawLines(ownerId, id, body.lineIndexes),
+        );
     }
 
     /**
@@ -129,6 +154,6 @@ export class ParseJobsController {
     ): Promise<ParseJobResponse> {
         await this.matchProposals.propose(ownerId, caller, id);
 
-        return this.parseJobsService.get(ownerId, id);
+        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.get(ownerId, id));
     }
 }

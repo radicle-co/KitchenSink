@@ -24,10 +24,11 @@
  *
  * @sideEffect Reads `recipe_ingredient_verifications`.
  */
-import { inArray } from 'drizzle-orm';
+import { and, inArray, isNotNull } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeIngredientVerifications } from '../../database/schema/lineVerifications.js';
+import { verificationAttempts } from '../../database/schema/verificationAttempts.js';
 import { VERIFICATION_BANDS, type VerificationBand } from '../domain/lineVerification.js';
 
 /** Whether a stored band is one this build knows how to act on. Pure. */
@@ -114,6 +115,31 @@ export class LineVerificationsDal {
             .select({ verificationKey: recipeIngredientVerifications.verificationKey })
             .from(recipeIngredientVerifications)
             .where(inArray(recipeIngredientVerifications.verificationKey, unique));
+
+        return new Set(rows.map((row) => row.verificationKey));
+    }
+
+    /**
+     * Which of these keys the gate GAVE UP on (ADR-0071): an attempts row with a failure code and, by the worker's
+     * settle rule, no verdict. A paste proposal under such a key is `needsChoice` rather than `checking` forever.
+     *
+     * @param keys - The keys to look up; duplicates are collapsed.
+     * @returns The exhausted keys.
+     * @sideEffect One `recipe_verification_attempts` read.
+     */
+    public async findExhaustedKeys(keys: readonly string[]): Promise<ReadonlySet<string>> {
+        const unique = [...new Set(keys)];
+
+        if (unique.length === 0) {
+            return new Set();
+        }
+
+        const rows = await this.db
+            .select({ verificationKey: verificationAttempts.verificationKey })
+            .from(verificationAttempts)
+            .where(
+                and(inArray(verificationAttempts.verificationKey, unique), isNotNull(verificationAttempts.failureCode)),
+            );
 
         return new Set(rows.map((row) => row.verificationKey));
     }

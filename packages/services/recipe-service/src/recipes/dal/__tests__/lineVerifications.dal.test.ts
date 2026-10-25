@@ -155,3 +155,30 @@ describe('LineVerificationsDal.findExistingKeys — the save path’s dedup read
         expect(boundKeysOfWhere(control).sort()).toEqual([KEY_A, KEY_B]);
     });
 });
+
+describe('LineVerificationsDal.findExhaustedKeys — keys the gate gave up on (ADR-0071)', () => {
+    it('answers the keys whose attempts row carries a failure code', async () => {
+        const control = createFakeDb();
+        control.enqueue([{ verificationKey: KEY_B }]);
+
+        const exhausted = await new LineVerificationsDal(control.db).findExhaustedKeys([KEY_A, KEY_B]);
+
+        expect([...exhausted]).toEqual([KEY_B]);
+    });
+
+    it('issues NO query for an empty key list', async () => {
+        const control = createFakeDb();
+
+        expect((await new LineVerificationsDal(control.db).findExhaustedKeys([])).size).toBe(0);
+        expect(control.calls).toEqual([]);
+    });
+
+    it('binds each key once', async () => {
+        const control = createFakeDb();
+        control.enqueue([]);
+
+        await new LineVerificationsDal(control.db).findExhaustedKeys([KEY_A, KEY_A]);
+
+        expect(boundKeysOfWhere(control)).toEqual([KEY_A]);
+    });
+});

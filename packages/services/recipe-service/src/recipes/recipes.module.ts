@@ -33,6 +33,7 @@ import { DEFAULT_COPY_FORWARD_MAX_AGE_HOURS } from '../config/config.types.js';
 import { ParseJobsDal } from './dal/parseJobs.dal.js';
 import { ParseJobMatchesDal } from './dal/parseJobMatches.dal.js';
 import { MatchProposalService, PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
+import { ParseJobMatchView } from './parseJobMatchView.js';
 
 /**
  * Recipes module (US1). Owns recipe CRUD and ownership (`owner_id` = app-user ULID). Wires the
@@ -156,6 +157,8 @@ import { MatchProposalService, PARSE_JOB_MATCHES_DAL } from './matchProposal.ser
         ParseJobsService,
         // ADR-0071 — matches a paste job's parsed foods as proposals, as the cook.
         MatchProposalService,
+        // ADR-0071 — adds each proposed food's match to every parse-job view.
+        ParseJobMatchView,
     ],
     exports: [RecipesService],
 })

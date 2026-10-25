@@ -35,12 +35,11 @@
  * | ---------- | --------------------------------------------------------- | ----------------------------------------------- |
  * | `base`     | nothing structural                                        | typos survive on the base metric alone (`flor`) |
  * | `covered`  | every query token appears as a whole word in the name      | multi-word conjunction; the attractors land here |
- * | `head`     | the name's head term is the query's head term              | `flour` → `Flour, wheat, …` over `Carob flour`   |
+ * | `head`     | the name's head term is the query's head term              | `milk` → `whole milk` over `milk crackers`       |
  * | `tokenSet` | the name and the query are the same set of tokens          | word-order inversion (`red wine vinegar`)        |
  * | `exact`    | the folded name IS the folded query                        | the name that is the token wins outright         |
  *
- * The head rule's asymmetry between a name and a query is the load-bearing part and lives in
- * `describeRankingQuery` (`./rankingTerms.ts`).
+ * The head rule is one English head-noun rule for a name and a query alike, `rankingHeadOf` (`./rankingTerms.ts`).
  *
  * ## The score is the SORT KEY, and it stays inside `[0, 1)`
  *
@@ -73,9 +72,9 @@ export type RankTier = (typeof RANK_TIERS)[number];
  *
  * ⚠️ An accidental edit is a silent full authority reset, so the constant is PINNED by test the way
  * `engineVersionDiff.test.ts` pins the RDS engine: changing it must be a decision, not a side effect.
- * The current value names the text-match era: the U1 comma-segment head rule over text match alone.
+ * The current value names the head-noun era: one English head-noun rule for names and queries (ADR-0070).
  */
-export const RANKER_VERSION = 'ladder-v3-text-match';
+export const RANKER_VERSION = 'ladder-v4-head-noun';
 
 /**
  * The largest value either surface's base metric can take. `similarity` and `word_similarity` are both

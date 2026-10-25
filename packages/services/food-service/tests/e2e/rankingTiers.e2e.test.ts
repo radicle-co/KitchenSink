@@ -85,18 +85,24 @@ describe('catalog tiered ranking (integration)', () => {
     }
 
     describe('the three attractors the 448-recipe import collapsed onto', () => {
-        it('`flour` returns the flour row, not `Carob flour`', async () => {
+        it('`flour` ranks every flour above a food that only mentions flour', async () => {
+            // Rewritten (ADR-0070): this test once required the wheat row above `Carob flour`, which the first-word
+            // head rule delivered by calling carob flour a carob product. Carob flour IS a flour, so both sit on the
+            // head rung now; which flour a bare `flour` means is the seed default's job, asserted where defaults are.
             await seedFoods(pool, [
                 { id: 'f-carob', name: 'Carob flour' },
                 { id: 'f-wheat', name: 'Flour, wheat, all-purpose, enriched, bleached' },
+                { id: 'f-tortilla', name: 'Tortillas, flour' },
             ]);
 
             const ranked = await rank('flour');
 
-            expect(ranked[0]).toBe('Flour, wheat, all-purpose, enriched, bleached');
-            // The attractor is still RETURNED — the fix is a ranking fix, not a retrieval filter, and a
-            // carob-flour recipe must still be able to find carob flour.
-            expect(ranked).toContain('Carob flour');
+            expect(new Set(ranked.slice(0, 2))).toEqual(
+                new Set(['Carob flour', 'Flour, wheat, all-purpose, enriched, bleached']),
+            );
+            // The attractor is still RETURNED — a ranking fix, not a retrieval filter, so a tortilla recipe still
+            // finds its food.
+            expect(ranked[2]).toBe('Tortillas, flour');
         });
 
         it('`milk` returns a milk, not `Crackers, milk`', async () => {

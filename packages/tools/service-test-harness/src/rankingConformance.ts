@@ -37,7 +37,7 @@
  */
 import { expect, it } from 'vitest';
 import { describeRankingName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
-import { classifyRankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import { classifyRankTier, rankTierOrdinal } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 /** One row as the conformance corpus seeds it, and as a surface returns it. */
 export interface ConformanceRow {
@@ -104,6 +104,26 @@ const CORPUS: readonly CorpusEntry[] = [
     { id: 'r16', name: 'Butter, salted', why: 'head rung for `butter`' },
     { id: 'r17', name: 'Peanut butter, smooth', why: 'the butter attractor' },
     { id: 'r18', name: 'Molasses', why: 'a word the plural rule over-folds — identically on both sides' },
+    { id: 'r19', name: 'milk crackers', why: 'natural-order attractor: `milk` is a modifier (ADR-0070)' },
+    { id: 'r20', name: 'whole milk', why: 'natural-order head rung for `milk`' },
+    { id: 'r21', name: 'salt cod', why: 'natural-order attractor for `salt`' },
+    { id: 'r22', name: 'kosher salt', why: 'natural-order head rung for `salt`' },
+    { id: 'r23', name: 'cinnamon rolls', why: 'natural-order attractor for `cinnamon`' },
+    { id: 'r24', name: 'ground cinnamon', why: 'natural-order head rung for `cinnamon`' },
+    { id: 'r25', name: 'bread flour', why: 'natural-order attractor for `bread`, and a flour' },
+    { id: 'r26', name: 'French bread', why: 'natural-order head rung for `bread`' },
+];
+
+/**
+ * The four wrong binds of a production paste import on 2026-10-25 (ADR-0070), as `[query, real food, attractor]`.
+ * Each attractor contains the query only as a modifier. The real food must come back above it, whatever the policy
+ * module says, so this pair list does not move when `classifyRankTier` moves.
+ */
+const PROD_BINDS: readonly (readonly [string, string, string])[] = [
+    ['milk', 'whole milk', 'milk crackers'],
+    ['salt', 'kosher salt', 'salt cod'],
+    ['cinnamon', 'ground cinnamon', 'cinnamon rolls'],
+    ['bread', 'French bread', 'bread flour'],
 ];
 
 /**
@@ -132,6 +152,9 @@ const QUERIES: readonly string[] = [
     'butter',
     'molasses',
     'flor',
+    'salt',
+    'cinnamon',
+    'bread',
 ];
 
 /**
@@ -152,9 +175,8 @@ const QUERIES: readonly string[] = [
  */
 function rungsOf(observed: readonly ConformanceRow[], query: string): readonly number[] {
     const terms = describeRankingQuery(query);
-    const ladder = ['base', 'covered', 'head', 'tokenSet', 'exact'] as const;
 
-    return observed.map((row) => ladder.indexOf(classifyRankTier(describeRankingName(row.name), terms)));
+    return observed.map((row) => rankTierOrdinal(classifyRankTier(describeRankingName(row.name), terms)));
 }
 
 /**
@@ -189,6 +211,25 @@ export function registerRankingConformance(surface: RankedSurface): void {
         // ⛔ Every violation at once, not the first: a fold that diverges shifts many rows, and reporting one
         // of them turns a single systematic defect into a dozen sequential debugging rounds.
         expect(violations).toEqual([]);
+    });
+
+    it(`${surface.surface}: ranks the real food above the attractor for every prod bind of 2026-10-25`, async () => {
+        await surface.seed(CORPUS);
+
+        const wrong: string[] = [];
+
+        for (const [query, real, attractor] of PROD_BINDS) {
+            const names = (await surface.search(query)).map((row) => row.name);
+            const realAt = names.indexOf(real);
+            const attractorAt = names.indexOf(attractor);
+
+            // A real food that was not returned at all is as wrong as one ranked below the attractor.
+            if (realAt === -1 || (attractorAt !== -1 && attractorAt < realAt)) {
+                wrong.push(`${query}: ${JSON.stringify(names)}`);
+            }
+        }
+
+        expect(wrong).toEqual([]);
     });
 
     it(`${surface.surface}: the corpus DISCRIMINATES — the ladder is not passing on a flat result`, async () => {

@@ -89,9 +89,22 @@ describe('classifyRankTier', () => {
     });
 
     it('leaves each ATTRACTOR at `covered` — it contains the query, and that is all it does', () => {
-        expect(tierOf('Carob flour', 'flour')).toBe('covered');
+        // The four prod binds of 2026-10-25 (ADR-0070): each name contains the query as a MODIFIER only.
+        expect(tierOf('milk crackers', 'milk')).toBe('covered');
+        expect(tierOf('salt cod', 'salt')).toBe('covered');
+        expect(tierOf('cinnamon rolls', 'cinnamon')).toBe('covered');
+        expect(tierOf('bread flour', 'bread')).toBe('covered');
         expect(tierOf('Crackers, milk', 'milk')).toBe('covered');
         expect(tierOf('Candies, sugar-coated almonds', 'sugar')).toBe('covered');
+    });
+
+    it('lifts the real food to `head` above every attractor', () => {
+        expect(tierOf('whole milk', 'milk')).toBe('head');
+        expect(tierOf('kosher salt', 'salt')).toBe('head');
+        expect(tierOf('ground cinnamon', 'cinnamon')).toBe('head');
+        // Rewritten: `Carob flour` was pinned at `covered` while the head rule stood in for a default meaning.
+        // It IS a flour; which flour a bare `flour` means is a seed default now (ADR-0070).
+        expect(tierOf('Carob flour', 'flour')).toBe('head');
     });
 
     it('requires EVERY query token for `covered`, so a partial overlap stays at `base`', () => {
@@ -197,7 +210,7 @@ describe('RANKER_VERSION — the band-authority version key (plan U3, R15)', () 
      * behavior, update BOTH together and say so in the commit.
      */
     it('is pinned to the current ladder era', () => {
-        expect(RANKER_VERSION).toBe('ladder-v3-text-match');
+        expect(RANKER_VERSION).toBe('ladder-v4-head-noun');
     });
 });
 

@@ -194,13 +194,10 @@ export const food = pgTable(
                 sql`array_remove(regexp_split_to_array(regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' '), '([[:alnum:]]{2}(s|x|z|ch|sh))es(?![[:alnum:]])', '\1', 'g'), '([[:alnum:]]{2}(?!s)[[:alnum:]])s(?![[:alnum:]])', '\1', 'g'), '[^[:alnum:]]+'), '')`,
             ),
         /**
-         * U1's head term — the SQL mirror of `describeRankingName(name).head` (migration 0011): the last
-         * token of a multi-word first comma segment, else the first token. Supersedes `rankTokens[1]` as
-         * the head; `rank_tokens_of()` is the immutable helper 0011 creates.
+         * The head term — the SQL mirror of `describeRankingName(name).head` (migration 0025, ADR-0070): the English
+         * head noun of the first comma segment, computed by the immutable `rank_head_of()`.
          */
-        rankHead: text('rank_head').generatedAlwaysAs(
-            sql`CASE WHEN position(',' in name) > 0 AND cardinality(rank_tokens_of(split_part(name, ',', 1))) > 1 THEN (rank_tokens_of(split_part(name, ',', 1)))[cardinality(rank_tokens_of(split_part(name, ',', 1)))] ELSE (rank_tokens_of(name))[1] END`,
-        ),
+        rankHead: text('rank_head').generatedAlwaysAs(sql`rank_head_of(name)`),
     },
     (table) => [
         // 0013's dedup split (KTD-H): catalog-unique where unowned, per-author where owned — so two

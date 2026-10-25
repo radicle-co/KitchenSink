@@ -63,6 +63,30 @@ const NAMES: readonly string[] = [
     'GAS',
 ];
 
+/**
+ * Names that separate the head-noun rule from the first-word rule it replaced (ADR-0070): natural-order names,
+ * a bracketed qualifier, a trailing `in …` phrase, a standalone-word boundary, and an empty first segment.
+ */
+const HEAD_NOUN_NAMES: readonly string[] = [
+    'milk crackers',
+    'salt cod',
+    'cinnamon rolls',
+    'bread flour',
+    'whole milk',
+    'ground cinnamon',
+    'Tamales (Navajo)',
+    'Cheese (cheddar, sharp), shredded',
+    'walnuts in syrup',
+    'Fish, tuna, light, canned in water',
+    'Beans, in tomato sauce',
+    'cream of mushroom soup',
+    'instant oatmeal',
+    'raisin bread',
+    '(boiled), potatoes',
+    '( )',
+    'IN SEASON greens IN brine',
+];
+
 describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
     let pool: pg.Pool;
 
@@ -80,7 +104,7 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
         await foodDb().truncate();
     });
 
-    describe('food.rank_head (migration 0011) mirrors the comma-segment head rule (plan U1, D4b)', () => {
+    describe('food.rank_head (migration 0025) mirrors the English head-noun rule (ADR-0070)', () => {
         it('the column exists, is GENERATED, and is STORED', async () => {
             const { rows } = await pool.query(
                 `SELECT is_generated FROM information_schema.columns
@@ -92,7 +116,13 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
         });
 
         it('⛔ computes EXACTLY what describeRankingName().head computes, for every name', async () => {
-            for (const name of [...NAMES, 'Cinnamon buns, frosted', 'Salad dressing, russian', ', frosted']) {
+            for (const name of [
+                ...NAMES,
+                ...HEAD_NOUN_NAMES,
+                'Cinnamon buns, frosted',
+                'Salad dressing, russian',
+                ', frosted',
+            ]) {
                 await makeCatalogFood(pool, { name, normalizedName: `${name}-${randomUUID()}` });
             }
 
@@ -115,6 +145,38 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
             const { rows } = await pool.query(`SELECT rank_head FROM food WHERE id = 'u1-cinnamon'`);
 
             expect(rows[0].rank_head).toBe('bun');
+        });
+
+        it('reads the head noun LAST in a natural-order name — the prod binds of 2026-10-25', async () => {
+            for (const [id, name] of [
+                ['h-crackers', 'milk crackers'],
+                ['h-milk', 'whole milk'],
+                ['h-cod', 'salt cod'],
+                ['h-walnut', 'walnuts in syrup'],
+                ['h-tamale', 'Tamales (Navajo)'],
+            ] as const) {
+                await makeCatalogFood(pool, { id, name, normalizedName: id });
+            }
+
+            const { rows } = await pool.query<{ id: string; rank_head: string }>(
+                `SELECT id, rank_head FROM food WHERE id LIKE 'h-%' ORDER BY id`,
+            );
+
+            expect(Object.fromEntries(rows.map((row) => [row.id, row.rank_head]))).toEqual({
+                'h-cod': 'cod',
+                'h-crackers': 'cracker',
+                'h-milk': 'milk',
+                'h-tamale': 'tamale',
+                'h-walnut': 'walnut',
+            });
+        });
+
+        it('rank_head_of() is IMMUTABLE, so the generated column may call it', async () => {
+            const { rows } = await pool.query<{ provolatile: string }>(
+                `SELECT provolatile FROM pg_proc WHERE proname = 'rank_head_of'`,
+            );
+
+            expect(rows).toEqual([{ provolatile: 'i' }]);
         });
     });
 

@@ -31,6 +31,8 @@ import { ParseJobsController } from './parseJobs.controller.js';
 import { ParseJobsService, PARSE_COPY_FORWARD_MAX_AGE_HOURS, PARSE_JOBS_DAL } from './parseJobs.service.js';
 import { DEFAULT_COPY_FORWARD_MAX_AGE_HOURS } from '../config/config.types.js';
 import { ParseJobsDal } from './dal/parseJobs.dal.js';
+import { ParseJobMatchesDal } from './dal/parseJobMatches.dal.js';
+import { MatchProposalService, PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
 
 /**
  * Recipes module (US1). Owns recipe CRUD and ownership (`owner_id` = app-user ULID). Wires the
@@ -96,6 +98,12 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
             useFactory: (db: RecipeDrizzle, pool: pg.Pool): ParseJobsDal => new ParseJobsDal(db, pool),
         },
         {
+            // ADR-0071 — the paste job's match proposals. Its OWN instance over the shared Drizzle client.
+            provide: PARSE_JOB_MATCHES_DAL,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): ParseJobMatchesDal => new ParseJobMatchesDal(db),
+        },
+        {
             provide: RECIPES_DAL,
             inject: [DrizzleProvider],
             useFactory: (db: RecipeDrizzle): RecipesDal => new RecipesDal(db),
@@ -146,6 +154,8 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
         // Plan 002 U5 — one line's rebind, executed through `RecipesService.update`.
         IngredientRebindService,
         ParseJobsService,
+        // ADR-0071 — matches a paste job's parsed foods as proposals, as the cook.
+        MatchProposalService,
     ],
     exports: [RecipesService],
 })

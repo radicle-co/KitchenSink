@@ -260,6 +260,8 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
         IngredientResolutionsDal,
         ResolutionBandsDal,
         PROPOSAL_TIERS,
+        // ADR-0071: the paste matcher asks whether the blend is switched on before it proposes anything.
+        FoodCatalogGateway,
     ],
 })
 export class IngredientsModule {}

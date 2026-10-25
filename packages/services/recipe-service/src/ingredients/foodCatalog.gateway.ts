@@ -148,6 +148,11 @@ export class FoodCatalogGateway {
         private readonly options: FoodCatalogGatewayOptions,
     ) {}
 
+    /** Whether the operator has the catalog blend switched on. A switched-off catalog answers `disabled`. */
+    public get enabled(): boolean {
+        return this.options.enabled;
+    }
+
     /**
      * Search the food-service golden catalog, AS the calling user.
      *

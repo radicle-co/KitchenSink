@@ -123,9 +123,19 @@ export function verificationFoodNameOf(identity: IngredientLineIdentity): string
         return undefined;
     }
 
-    const parts = identity.food?.variant?.parts;
+    return variantDisplayName(identity.name, identity.food?.variant?.parts);
+}
 
-    return parts === undefined ? identity.name : `${identity.name} (${parts.map((part) => part.text).join(', ')})`;
+/**
+ * A food's name as the gate is shown it: the root's name, with a variant's parts in brackets
+ * (`beef brisket (flat, separable lean)`).
+ *
+ * @param rootName - The root food's name.
+ * @param parts - The variant's label parts, when the food is a variant.
+ * @returns The name. Pure.
+ */
+export function variantDisplayName(rootName: string, parts: readonly { readonly text: string }[] | undefined): string {
+    return parts === undefined ? rootName : `${rootName} (${parts.map((part) => part.text).join(', ')})`;
 }
 
 /**

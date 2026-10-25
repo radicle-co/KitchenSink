@@ -57,6 +57,31 @@ describe('decideLexicalTier — the pure judgement', () => {
         ]);
     });
 
+    it('lists the ranked CANDIDATES the cook may choose from: each hit’s food (its variant when named) and rung', () => {
+        // ADR-0071: the paste matcher shows a shortlist and marks the default, so it needs each hit's own food ref and
+        // rung — the scored shortlist above carries a root id and a score only.
+        const outcome = decideLexicalTier([
+            { foodId: 'R-TOMATO', variantId: 'V-PASTE', name: 'tomatoes', score: 0.93, rung: 'head' },
+            { foodId: 'R-PUREE', name: 'tomato puree', score: 0.6 },
+        ]);
+
+        expect(outcome.kind === 'resolved' ? outcome.candidates : undefined).toStrictEqual([
+            { food: { kind: 'variant', id: 'V-PASTE' }, rung: 'head' },
+            { food: { kind: 'root', id: 'R-PUREE' }, rung: undefined },
+        ]);
+    });
+
+    it('keeps at most five candidates', () => {
+        const hits = Array.from({ length: 7 }, (_, index) => ({
+            foodId: `F-${String(index)}`,
+            name: `food ${String(index)}`,
+            score: 0.9 - index / 10,
+        }));
+        const outcome = decideLexicalTier(hits);
+
+        expect(outcome.kind === 'resolved' ? outcome.candidates?.length : 0).toBe(5);
+    });
+
     it('a variant on a RUNNER-UP is not the answer — only the top hit binds', () => {
         const outcome = decideLexicalTier([
             { foodId: 'R-TOMATO', name: 'tomatoes', score: 0.93 },

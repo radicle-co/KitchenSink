@@ -34,11 +34,14 @@ import {
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ParseJobsService } from './parseJobs.service.js';
+import { MatchProposalService } from './matchProposal.service.js';
 import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
 import { OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
+import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // New surface: canonical `/api/v1/` prefix only — the bare `v1/...` alias exists for consumers that
@@ -46,7 +49,10 @@ import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 @Controller('api/v1/recipe-parse-jobs')
 @UsePipes(ZodValidationPipe)
 export class ParseJobsController {
-    public constructor(private readonly parseJobsService: ParseJobsService) {}
+    public constructor(
+        private readonly parseJobsService: ParseJobsService,
+        private readonly matchProposals: MatchProposalService,
+    ) {}
 
     /** `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously. */
     @Post()
@@ -103,5 +109,26 @@ export class ParseJobsController {
         @Body() body: WithdrawParseJobLinesDto,
     ): Promise<ParseJobResponse> {
         return this.parseJobsService.withdrawLines(ownerId, id, body.lineIndexes);
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/:id/matches` — match the parsed lines' foods to catalog foods, as PROPOSALS
+     * (ADR-0071). The client calls it from its poll loop when newly parsed lines appear.
+     *
+     * Answers `202` with the job view: the gate's review of each proposal continues asynchronously. Idempotent (a
+     * matched line is not matched or paid for again), owner-only (a stranger gets `404`), and refused past the TTL with
+     * `409 PARSE_JOB_EXPIRED`. The food searches it makes are made AS the caller (#120).
+     */
+    @Post(':id/matches')
+    @HttpCode(HttpStatus.ACCEPTED)
+    @WriteRateLimit()
+    public async proposeMatches(
+        @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Param('id', ParseUUIDPipe) id: string,
+    ): Promise<ParseJobResponse> {
+        await this.matchProposals.propose(ownerId, caller, id);
+
+        return this.parseJobsService.get(ownerId, id);
     }
 }

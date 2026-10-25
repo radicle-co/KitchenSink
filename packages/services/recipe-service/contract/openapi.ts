@@ -783,6 +783,23 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             },
         },
     },
+    '/api/v1/recipe-parse-jobs/{id}/matches': {
+        post: {
+            operationId: 'proposeParseJobMatches',
+            summary: 'Match the parsed lines’ foods to catalog foods, as proposals the cook confirms.',
+            description:
+                'Idempotent: a line already matched for its current text is not matched or reviewed again. Runs the ' +
+                'match as the caller and asks the review gate about each proposal; the review continues ' +
+                'asynchronously, so a proposal reads "checking" until its verdict lands. A proposal binds nothing.',
+            parameters: [uuidPathParam('id', 'The job id.')],
+            responses: {
+                '202': { description: 'The job, with any new proposals.', schema: 'ParseJob' },
+                '404': { description: 'No such job owned by the caller.', schema: 'ErrorResponse' },
+                '409': { description: 'The job expired; create a new one.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
     '/api/v1/recipe-parse-jobs/{id}/withdraw-lines': {
         post: {
             operationId: 'withdrawParseJobLines',

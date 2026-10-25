@@ -262,6 +262,15 @@ describe('FoodCatalogGateway', () => {
         });
     });
 
+    describe('enabled — whether the operator has the blend switched on (ADR-0071)', () => {
+        // The paste matcher asks before it proposes anything: a switched-off catalog cannot rank, and a proposal
+        // stored then would read as "no match" for that line until the cook edits it.
+        it('reports the switch as configured', () => {
+            expect(new FoodCatalogGateway(clients, { enabled: true }).enabled).toBe(true);
+            expect(new FoodCatalogGateway(clients, { enabled: false }).enabled).toBe(false);
+        });
+    });
+
     describe('short-circuits (no cross-service call at all)', () => {
         it('returns `disabled` without calling food-service when the blend is switched off', async () => {
             const gateway = new FoodCatalogGateway(clients, { enabled: false });

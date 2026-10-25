@@ -66,6 +66,7 @@
 import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 
 import type { CatalogHit, FoodCatalogGateway } from '../foodCatalog.gateway.js';
+import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
 
 /**
@@ -186,6 +187,11 @@ function isAuthorAugmented(hits: readonly CatalogHit[]): boolean {
     return hits.some((hit) => hit.visibility === 'private');
 }
 
+/** The food a hit names: its variant when food named exactly one (R23), else its root. Pure. */
+function foodOfHit(hit: CatalogHit): FoodRef {
+    return hit.variantId === undefined ? { kind: 'root', id: hit.foodId } : { kind: 'variant', id: hit.variantId };
+}
+
 /**
  * Decide what a ranked candidate set means. Pure.
  *
@@ -219,12 +225,14 @@ export function decideLexicalTier(hits: readonly CatalogHit[]): TierOutcome {
         tier: 'lexical',
         // R23 (curated U9): food names a hit's variant only when the query names exactly one live variant of it, so
         // the top hit's variant IS "the words name exactly one variant". The shortlist above still ranks roots.
-        food: top.variantId === undefined ? { kind: 'root', id: top.foodId } : { kind: 'variant', id: top.variantId },
+        food: foodOfHit(top),
         evidence: `lexical shortlist (rung ${rung ?? 'none'}, ${String(hits.length)} candidates, margin ${
             margin === undefined ? 'none' : margin.toFixed(3)
         })`,
         confidence: margin,
         shortlist,
+        // ADR-0071: what the paste matcher offers the cook, each with the rung food ranked it on.
+        candidates: hits.slice(0, LEXICAL_SHORTLIST_LIMIT).map((hit) => ({ food: foodOfHit(hit), rung: hit.rung })),
         rung,
     };
 }

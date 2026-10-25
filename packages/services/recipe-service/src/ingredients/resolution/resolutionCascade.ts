@@ -262,6 +262,11 @@ export type TierOutcome =
           /** The top hit's ladder rung — the band key's first axis. Ranking tiers only. */
           readonly rung?: string | undefined;
           /**
+           * ADR-0071: the ranked foods a cook may choose from, each with its own rung — what the paste matcher shows
+           * and marks the default in. Ranking tiers only; the scored {@link shortlist} above ranks root ids alone.
+           */
+          readonly candidates?: readonly RankedCandidate[] | undefined;
+          /**
            * U11 (R20): the shortlist contained the CALLER's own private authored food, so its margins are
            * facts about one user's catalog rather than the shared ranker. The event records the flag, no
            * band epoch is observed, and the verification is excluded from band feedback on both sides.
@@ -274,6 +279,13 @@ export type TierOutcome =
           /** Why this tier declined: a miss, or a hit it did not trust enough to answer with. */
           readonly reason: string;
       };
+
+/** One ranked food a cook may choose (ADR-0071): the hit's food (its named variant when food named one) and rung. */
+export interface RankedCandidate {
+    readonly food: FoodRef;
+    /** The rung food ranked the hit on, or `undefined` when food sent none (a crosswalk hit, or an older food). */
+    readonly rung: string | undefined;
+}
 
 /** The phrase being resolved, parsed once at the boundary and passed down. */
 export interface ResolutionQuery {
@@ -341,6 +353,7 @@ export type CascadeOutcome =
           readonly confidence?: number | undefined;
           readonly shortlist?: readonly ScoredCandidate[] | undefined;
           readonly rung?: string | undefined;
+          readonly candidates?: readonly RankedCandidate[] | undefined;
           readonly authorAugmented?: boolean | undefined;
           /** The tiers consulted, in order, up to and including the one that answered. */
           readonly consulted: readonly ResolutionTierId[];
@@ -419,6 +432,7 @@ export async function runResolutionCascade(
                 confidence: outcome.confidence,
                 shortlist: outcome.shortlist,
                 rung: outcome.rung,
+                candidates: outcome.candidates,
                 authorAugmented: outcome.authorAugmented,
                 consulted,
                 unavailable,

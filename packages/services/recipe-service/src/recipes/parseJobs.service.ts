@@ -190,7 +190,7 @@ const storedProposalSchema = z.looseObject({
 });
 
 /** Project a stored `ParsedLine` onto the strict wire shape. Pure. @throws On a row this build cannot read. */
-function projectProposal(stored: unknown): ParseProposal {
+export function projectProposal(stored: unknown): ParseProposal {
     const parsed = storedProposalSchema.parse(stored);
 
     return {
@@ -228,12 +228,12 @@ function progressOf(line: ParseJobLineRecord, quietSeconds: number): ParseJobLin
 }
 
 /** `PARSE_JOB_NOT_FOUND` — stranger and absent are deliberately one answer. */
-function parseJobNotFound(jobId: string): RecipeDomainError {
+export function parseJobNotFound(jobId: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.PARSE_JOB_NOT_FOUND, `Parse job ${jobId} not found.`);
 }
 
 /** `PARSE_JOB_EXPIRED` — the TTL passed; the remedy is a fresh create. */
-function parseJobExpired(jobId: string): RecipeDomainError {
+export function parseJobExpired(jobId: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.PARSE_JOB_EXPIRED, `Parse job ${jobId} expired.`);
 }
 

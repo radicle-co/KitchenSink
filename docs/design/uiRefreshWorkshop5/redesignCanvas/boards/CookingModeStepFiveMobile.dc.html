@@ -161,14 +161,7 @@
                         opacity: 0.9;
                     }
 
-                    /* Type: 38 is the one cooking size. 28 (title), 17 and 13 are the redesign ramp. */
-                    .t38 {
-                        font-size: 38px;
-                        line-height: 1.13;
-                        letter-spacing: -0.02em;
-                        font-weight: 400;
-                    }
-                    .t38 b,
+                    /* Type: 28 (title and focus), 17, 15 and 13: the redesign ramp (owner decision C1). */
                     .t17 b {
                         font-weight: 600;
                     }
@@ -978,6 +971,121 @@
                     .nextLine {
                         letter-spacing: -0.01em;
                     }
+
+                    /* Owner decision C1: nothing massive. The focus line and the soonest timer use the 28 title size; the rest is
+   13, 15 and 17. Controls are normal app sizes (44 to 56). */
+                    .t28 {
+                        font-size: 28px;
+                        line-height: 1.22;
+                        letter-spacing: -0.01em;
+                        font-weight: 400;
+                    }
+                    .t28 b {
+                        font-weight: 600;
+                    }
+                    .focusLine .box {
+                        width: 26px;
+                        height: 26px;
+                        margin-top: 3px;
+                    }
+                    .center {
+                        gap: 14px;
+                        padding-top: 24px;
+                    }
+                    .then {
+                        padding-top: 10px;
+                    }
+                    .btn {
+                        min-height: 56px;
+                        border-radius: 14px;
+                    }
+                    .btnBack {
+                        width: 56px;
+                        min-height: 56px;
+                    }
+                    .btnNext {
+                        padding: 8px 14px 8px 16px;
+                    }
+                    .iconBtn {
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .pillBtn {
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .pauseBtn {
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .stepBtn {
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .offer {
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .outlineBtn {
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .smallBtn {
+                        height: 44px;
+                        border-radius: 22px;
+                    }
+                    .dockRow {
+                        min-height: 56px;
+                        padding: 6px 0;
+                    }
+                    .job {
+                        min-height: 48px;
+                    }
+                    .ing {
+                        min-height: 48px;
+                    }
+                    .stopBtn {
+                        height: 56px;
+                        border-radius: 14px;
+                    }
+                    .ghost {
+                        height: 48px;
+                        border-radius: 14px;
+                    }
+                    .ring {
+                        width: 52px;
+                        height: 52px;
+                        border-radius: 26px;
+                    }
+                    .alarmBody {
+                        gap: 14px;
+                        padding-top: 56px;
+                    }
+                    .sysAlert .t28 {
+                        font-weight: 600;
+                    }
+                    .nav {
+                        padding-bottom: 28px;
+                    }
+                    .btnBack {
+                        align-self: center;
+                        height: 56px;
+                    }
+                    .nav {
+                        align-items: center;
+                    }
+                    .t15 {
+                        font-size: 15px;
+                        line-height: 1.4;
+                    }
+                    .shape {
+                        padding-top: 18px;
+                        border-top: 1px solid var(--line-divider);
+                        margin-top: 6px;
+                    }
                 </style>
             </helmet>
             <div class="screen phone" data-screen="phoneStepFive" style="width: 390px; height: 844px">
@@ -1041,7 +1149,7 @@
                         <div class="over">Line 1 of 4</div>
                         <div class="focusLine">
                             <span class="box" role="checkbox" aria-checked="false"></span>
-                            <div class="t38">Lift the chicken onto a board, under foil, for <b>15&nbsp;min</b></div>
+                            <div class="t28">Lift the chicken onto a board, under foil, for <b>15&nbsp;min</b></div>
                         </div>
                         <div class="then">
                             <div class="over">Then</div>

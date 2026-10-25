@@ -172,7 +172,7 @@ describe('the resolution registry', () => {
     } as unknown as FoodCatalogGateway;
 
     /** THE SUBJECT: the registry production wires, not a re-listing of it. */
-    const registry = createResolutionRegistry(mappings, catalog);
+    const registry = createResolutionRegistry(mappings, catalog, { onUnrankedHits: () => undefined });
     const registeredIds = registry.map((tier) => tier.id);
 
     beforeEach(() => {

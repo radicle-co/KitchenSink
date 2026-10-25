@@ -128,7 +128,11 @@ describe('U4 — the lexical tier inside the real cascade', () => {
             clients,
             catalog,
             new FoodRefsGateway(clients),
-            [createCuratedTier(mappings), createLexicalTier(catalog), createMemoTier(mappings)],
+            [
+                createCuratedTier(mappings),
+                createLexicalTier(catalog, { onUnrankedHits: () => undefined }),
+                createMemoTier(mappings),
+            ],
             resolutions,
             makeFakeResolutionBandsDal(),
         );

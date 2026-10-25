@@ -113,7 +113,9 @@ describe('cascade precedence against a real knowledge base', () => {
             new FoodRefsGateway(clients),
             // ⛔ THE REAL REGISTRY, not a hand-listed pair. A suite that re-lists the tiers proves its own
             // list, not production's — the drift `natEgressConsumers.test.ts` exists to stop.
-            createResolutionRegistry(mappings, { search: catalogSearch } as unknown as FoodCatalogGateway),
+            createResolutionRegistry(mappings, { search: catalogSearch } as unknown as FoodCatalogGateway, {
+                onUnrankedHits: () => undefined,
+            }),
             makeFakeIngredientResolutionsDal(),
             makeFakeResolutionBandsDal(),
         );

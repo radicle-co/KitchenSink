@@ -69,6 +69,7 @@ import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal
 import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
+import { UnrankedHitsReporter } from './resolution/unrankedHitsReporter.js';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -105,6 +106,17 @@ const POST_COMMIT_NUTRITION_TIMEOUT_MS = 1_500;
  * `MAX_READ_NUTRITION_DEADLINE_MS`, by `FOOD_NUTRITION_READ_DEADLINE_MS`.
  */
 const READ_NUTRITION_DEADLINE_MS = 3_000;
+
+/**
+ * The lexical tier's rung-less-hit reporter: its warning goes through Nest's `Logger`, its metric to stdout as EMF.
+ *
+ * @returns The reporter.
+ */
+function unrankedHitsReporter(): UnrankedHitsReporter {
+    const logger = new Logger('LexicalTier');
+
+    return new UnrankedHitsReporter(undefined, undefined, (message) => logger.warn(message));
+}
 
 @Module({
     controllers: [IngredientsController],
@@ -222,7 +234,7 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
                     clients,
                     catalog,
                     refs,
-                    createResolutionRegistry(mappings, catalog),
+                    createResolutionRegistry(mappings, catalog, unrankedHitsReporter()),
                     resolutions,
                     bands,
                 ),

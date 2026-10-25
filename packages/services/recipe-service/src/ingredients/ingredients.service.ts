@@ -758,21 +758,25 @@ export class IngredientsService {
             await this.resolutions.record({
                 foodLookupId,
                 tier: outcome.tier,
-                // KTD-C: a RANKED resolution persists its full confidence shape.
-                ...(outcome.rung === undefined
+                // KTD-C: a RANKED resolution persists its full confidence shape. ⛔ Keyed on the SHORTLIST, never on the
+                // rung: a food that publishes no rung (older than this service, or a rung this build cannot read) still
+                // ranked these candidates, and dropping the whole event would turn every such line `unattributed`.
+                ...(outcome.shortlist === undefined
                     ? {}
                     : {
-                          rung: outcome.rung,
+                          ...(outcome.rung === undefined ? {} : { rung: outcome.rung }),
                           margin: outcome.confidence,
                           shortlist: outcome.shortlist,
                           queryShape: queryShapeOf(name),
                           rankerVersion: RANKER_VERSION,
                           authorAugmented: outcome.authorAugmented ?? false,
                           // U11/R20: an author-augmented shortlist's margins describe ONE user's catalog, so no
-                          // shared band authority is consulted or observed for it.
-                          bandEpoch: outcome.authorAugmented
-                              ? undefined
-                              : await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
+                          // shared band authority is consulted or observed for it. A band is keyed on the rung, so
+                          // with no rung there is no band to consult either.
+                          bandEpoch:
+                              outcome.authorAugmented || outcome.rung === undefined
+                                  ? undefined
+                                  : await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
                       }),
             });
         } catch (error) {

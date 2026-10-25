@@ -44,7 +44,27 @@ const rankedTier: ResolutionTier = {
     }),
 };
 
-function build(record: ReturnType<typeof vi.fn>, authorityFor: ReturnType<typeof vi.fn>): IngredientsService {
+/** The same ranked outcome with NO rung: a food older than this service, or a rung this build cannot read. */
+const runglessTier: ResolutionTier = {
+    id: 'lexical',
+    resolve: async () => {
+        const outcome = await rankedTier.resolve(
+            { key: 'plain flour' as never, phrase: 'plain flour' },
+            {
+                userId: undefined,
+                caller: undefined,
+            },
+        );
+
+        return outcome.kind === 'resolved' ? { ...outcome, rung: undefined } : outcome;
+    },
+};
+
+function build(
+    record: ReturnType<typeof vi.fn>,
+    authorityFor: ReturnType<typeof vi.fn>,
+    tier: ResolutionTier = rankedTier,
+): IngredientsService {
     const lookups = { findOrCreateBound: vi.fn().mockResolvedValue(BOUND) } as unknown as FoodLookupsDal;
     const refs = {
         resolveForBind: vi.fn().mockResolvedValue({
@@ -61,7 +81,7 @@ function build(record: ReturnType<typeof vi.fn>, authorityFor: ReturnType<typeof
         makeFoodClients().clients,
         { search: vi.fn() } as unknown as FoodCatalogGateway,
         refs,
-        [rankedTier],
+        [tier],
         { record } as never,
         { authorityFor } as never,
     );
@@ -100,5 +120,34 @@ describe('addByName — a RANKED resolution records the full band-keyed event (p
 
         expect(admitted.foodId).toBe(MAPPED_FOOD);
         expect(record).toHaveBeenCalledWith(expect.objectContaining({ bandEpoch: undefined }));
+    });
+
+    it('⛔ persists the shortlist, margin, query shape and ranker version when the hit carries NO rung', async () => {
+        // A missing rung used to drop the WHOLE ranked event, so the line's evidence fell to `unattributed` and every
+        // line went to the gate. The shortlist and margin are facts about the scores; only the rung is absent.
+        const record = vi.fn().mockResolvedValue(undefined);
+        const authorityFor = vi.fn();
+
+        await build(record, authorityFor, runglessTier).addByName(CALLER, NAME, AUTHOR);
+
+        expect(record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                tier: 'lexical',
+                margin: 0.29,
+                queryShape: 'multi-word',
+                rankerVersion: expect.any(String),
+                authorAugmented: false,
+                shortlist: [
+                    { foodId: MAPPED_FOOD, score: 0.91 },
+                    { foodId: '01JU10WIRE000000000RUNNER0', score: 0.62 },
+                ],
+            }),
+        );
+        const event = record.mock.calls[0]?.[0] as Record<string, unknown>;
+
+        expect(event['rung']).toBeUndefined();
+        // A band is keyed on the rung, so with no rung there is no band to consult and no epoch to observe.
+        expect(event['bandEpoch']).toBeUndefined();
+        expect(authorityFor).not.toHaveBeenCalled();
     });
 });

@@ -114,7 +114,7 @@
  */
 import type { FoodCatalogGateway } from '../foodCatalog.gateway.js';
 import { createCuratedTier } from './curatedTier.js';
-import { createLexicalTier } from './lexicalTier.js';
+import { createLexicalTier, type LexicalTierObserver } from './lexicalTier.js';
 import { createMemoTier } from './memoTier.js';
 import type { ResolutionMappingsDal } from './resolutionMappings.dal.js';
 import type { ResolutionTier } from './resolutionCascade.js';
@@ -128,11 +128,13 @@ import type { ResolutionTier } from './resolutionCascade.js';
  *
  * @param mappings - The knowledge-base repository the curated and memo tiers read through.
  * @param catalog - The availability-disciplined search gateway the lexical tier retrieves through (plan U4).
+ * @param lexicalObserver - Where the lexical tier reports name hits that arrived with no rung.
  * @returns The tiers, in precedence order. Pure — each tier is constructed, none is consulted.
  */
 export function createResolutionRegistry(
     mappings: ResolutionMappingsDal,
     catalog: FoodCatalogGateway,
+    lexicalObserver: LexicalTierObserver,
 ): readonly ResolutionTier[] {
-    return [createCuratedTier(mappings), createMemoTier(mappings), createLexicalTier(catalog)];
+    return [createCuratedTier(mappings), createMemoTier(mappings), createLexicalTier(catalog, lexicalObserver)];
 }

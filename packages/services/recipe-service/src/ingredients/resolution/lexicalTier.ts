@@ -30,8 +30,9 @@
  *
  * ## The synonym-reformulation retry (origin D11)
  *
- * On an empty or all-`base` candidate set the tier retries ONCE through a small curated synonym map
- * ("aubergine" → "eggplant"): deterministic, no LLM, one extra query. The map is a vocabulary, not a
+ * On an empty candidate set, or one where no hit is KNOWN to match structurally (every hit `base` or carrying no
+ * rung), the tier retries ONCE through a small curated synonym map ("aubergine" → "eggplant"): deterministic, no
+ * LLM, one extra query. A crosswalk hit (no rung, score 1) never earns a retry. The map is a vocabulary, not a
  * tagger — entries are added by a human who has seen the miss, the same discipline as
  * `modifierLexicon.ts` (ADR-0026).
  *
@@ -116,14 +117,60 @@ export function reformulateQuery(phrase: string): string | undefined {
 }
 
 /**
- * Whether the candidate set earns a reformulation retry: empty, or nothing structural matched. A crosswalk hit carries
- * no rung, and an identifier match is not a weak one, so it never earns a retry.
+ * The score food gives an identifier (barcode or external key) crosswalk hit. `foodRelevance.ts` keeps every name hit
+ * below it, so it is the one way to tell a crosswalk hit from a name hit whose rung is missing.
+ */
+const CROSSWALK_SCORE = 1;
+
+/** A hit that matched an identifier rather than a name: no rung, at the crosswalk score. Pure. */
+function isCrosswalkHit(hit: CatalogHit): boolean {
+    return hit.rung === undefined && hit.score >= CROSSWALK_SCORE;
+}
+
+/**
+ * Whether a hit is KNOWN to have matched structurally: it carries a rung above `base`, or it is a crosswalk hit.
+ *
+ * ⛔ An absent rung below the crosswalk score is UNKNOWN, not structural. Food publishes no rung when it is older than
+ * this service, and the food client reads a rung it does not know as absent. Treating unknown as structural would
+ * switch the D11 retry off for every query the day food rolled back, with nothing to show it happened.
+ *
+ * @param hit - One ranked hit.
+ * @returns Whether it is known to be a structural match. Pure.
+ */
+function isKnownStructural(hit: CatalogHit): boolean {
+    return isCrosswalkHit(hit) || (hit.rung !== undefined && hit.rung !== 'base');
+}
+
+/**
+ * Whether the candidate set earns a reformulation retry: empty, or no hit is KNOWN to be a structural match (every hit
+ * is `base` or has an unknown rung). A crosswalk hit never earns a retry, since an identifier match is not a weak one.
  *
  * @param hits - The ranked hits, each with the rung food published.
  * @returns Whether to retry through the synonym map. Pure.
  */
 export function shouldReformulate(hits: readonly CatalogHit[]): boolean {
-    return hits.length === 0 || hits.every((hit) => hit.rung === 'base');
+    return !hits.some(isKnownStructural);
+}
+
+/**
+ * How many hits are NAME hits that arrived with no rung. Each one means food sent no rung, or one this build cannot
+ * read. The tier reports the count so the condition shows in logs and metrics instead of passing silently.
+ *
+ * @param hits - The ranked hits.
+ * @returns The count of rung-less hits below the crosswalk score. Pure.
+ */
+export function countUnrankedHits(hits: readonly CatalogHit[]): number {
+    return hits.filter((hit) => hit.rung === undefined && !isCrosswalkHit(hit)).length;
+}
+
+/** Where the tier reports what it saw that an operator needs to know. */
+export interface LexicalTierObserver {
+    /**
+     * Called with the number of name hits that arrived with no rung, when there are any.
+     *
+     * Required, not optional-with-default, so no wiring acquires a silent tier by omission.
+     */
+    readonly onUnrankedHits: (count: number) => void;
 }
 
 /**
@@ -186,9 +233,23 @@ export function decideLexicalTier(hits: readonly CatalogHit[]): TierOutcome {
  * Build the lexical tier over the catalog gateway.
  *
  * @param gateway - The availability-disciplined food-service search gateway.
+ * @param observer - Where rung-less hits are reported.
  * @returns The tier, for the LAST slot of the cascade's ordered registry.
  */
-export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
+export function createLexicalTier(gateway: FoodCatalogGateway, observer: LexicalTierObserver): ResolutionTier {
+    /** Report rung-less hits; the report itself never fails a resolution. */
+    const observe = (hits: readonly CatalogHit[]): void => {
+        const unranked = countUnrankedHits(hits);
+
+        if (unranked > 0) {
+            try {
+                observer.onUnrankedHits(unranked);
+            } catch {
+                // Observability must not become an availability dependency (the cascade's own rule).
+            }
+        }
+    };
+
     return {
         id: 'lexical',
         /**
@@ -211,6 +272,8 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
                 throw new Error('The food catalog was unavailable; the lexical tier could not look.');
             }
 
+            observe(first.hits);
+
             if (!shouldReformulate(first.hits)) {
                 return decideLexicalTier(first.hits);
             }
@@ -224,6 +287,8 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
             const second = await gateway.search(context.caller, reformulated, LEXICAL_SHORTLIST_LIMIT, {
                 withNutrition: true,
             });
+
+            observe(second.hits);
 
             if (second.availability !== 'ok' || second.hits.length === 0) {
                 // The retry is best-effort: a degraded or empty second pass falls back to whatever the

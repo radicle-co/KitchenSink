@@ -3,9 +3,10 @@
  *
  * DESIGN PATTERNS: **Composition root** over four Ports (the spend ledger, the Bedrock adapter, the settings
  * resolver, the verdict store), each of which is replaced wholesale in the unit suite. Every JUDGEMENT this
- * handler appears to make was already made by a pure module — `decideVerification` chose the aspects,
- * `planReservation` priced the call, `bandFor` collapsed the verdict — so what is left here is ORCHESTRATION
- * and the one thing orchestration owns: which failures are transient and which are terminal.
+ * handler appears to make was already made by a pure module — `decideVerification` (or, for a paste proposal,
+ * `decideProposalVerification`) chose the aspects, `planReservation` priced the call, `bandFor` collapsed the
+ * verdict — so what is left here is ORCHESTRATION and the one thing orchestration owns: which failures are
+ * transient and which are terminal.
  *
  * ## ⛔ THE DISTINCTION THIS FILE EXISTS TO GET RIGHT
  *
@@ -50,6 +51,7 @@ import {
     actualCostMicros,
     inputTokenBound,
     inputTokensBeyondBound,
+    PASTE_MATCH_REVIEW_CALL_SITE,
     VERIFICATION_GATE_CALL_SITE,
     type PricedReservation,
     type SpendCallSite,
@@ -57,17 +59,21 @@ import {
 import {
     PROVISIONAL_VERIFICATION_THRESHOLDS,
     curatedExactEvidence,
+    decideProposalVerification,
     decideVerification,
     rankedEvidence,
     rememberedEvidence,
     unattributedEvidence,
     type IdentityEvidence,
     type VerificationAspect,
+    type VerificationDecision,
 } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import {
     verificationFoodOf,
+    verificationOriginOf,
     verifyIngredientLineMessageSchema,
     type VerificationFood,
+    type VerificationOrigin,
     type VerifyIngredientLineMessage,
 } from '@kitchensink/recipe-core/resolution/verification-message';
 import { bandFor, type ConfidenceBand } from '@kitchensink/recipe-core/resolution/confidence';
@@ -124,7 +130,7 @@ export {
 } from '../common/spendMetrics.js';
 
 /**
- * WHO the spend is attributed to — the `CallSite` dimension's value for this gate (U36 / KTD-17).
+ * WHO the spend is attributed to — the `CallSite` dimension's value for one message (U36 / KTD-17, ADR-0071).
  *
  * ⛔ ATTRIBUTION, NOT PARTITIONING. The owner's 2026-08-24 ruling makes ADR-0024's $100/month a single global
  * pool shared with the ingredient parse leg and 017's capture tiers, first come first served. Not capping per
@@ -137,11 +143,24 @@ export {
  * the other direction: it carries a `source` dimension and no `stage`, so prod and every preview co-mingle
  * into one series and no call can be attributed at all.
  *
- * ⛔ The VALUE now comes from `@kitchensink/recipe-core/spend/spend-arithmetic`, where the closed union of
- * claimants lives beside the ceiling they claim against. Two consumers naming their own string literals is
- * how a `CallSite` typo becomes a silent third series that no dashboard charts and no alarm sums.
+ * ⛔ The VALUES come from `@kitchensink/recipe-core/spend/spend-arithmetic`, where the closed union of claimants
+ * lives beside the ceiling they claim against. Two consumers naming their own string literals is how a
+ * `CallSite` typo becomes a silent third series that no dashboard charts and no alarm sums.
+ *
+ * A saved recipe's line is this gate's own work; a pasted line's PROPOSAL is the paste-match review (ADR-0071) —
+ * the same handler and prompt, but spend that scales with what cooks paste rather than with what they save.
+ *
+ * @param origin - Where the line came from.
+ * @returns The claimant. Pure.
  */
-const VERIFICATION_CALL_SITE: SpendCallSite = VERIFICATION_GATE_CALL_SITE;
+function callSiteFor(origin: VerificationOrigin): SpendCallSite {
+    switch (origin.kind) {
+        case 'recipe':
+            return VERIFICATION_GATE_CALL_SITE;
+        case 'parseJob':
+            return PASTE_MATCH_REVIEW_CALL_SITE;
+    }
+}
 
 /**
  * Fires when a response reported cache tokens.
@@ -271,10 +290,11 @@ function publish(deps: VerificationDeps, name: string, value: number, unit: EmfM
  * billed series to say nothing.
  *
  * @param deps - The handler's collaborators.
+ * @param callSite - Who the spend is attributed to.
  * @param micros - The period's reserved total, or this call's actual cost where the counter is bypassed.
  * @sideEffect Emits one EMF line.
  */
-function publishSpend(deps: VerificationDeps, micros: number): void {
+function publishSpend(deps: VerificationDeps, callSite: SpendCallSite, micros: number): void {
     deps.emit({
         namespace: SPEND_METRIC_NAMESPACE,
         name: SPEND_METRIC_NAME,
@@ -282,7 +302,7 @@ function publishSpend(deps: VerificationDeps, micros: number): void {
         unit: 'None',
         stage: deps.stage,
         value: micros,
-        dimensions: { CallSite: VERIFICATION_CALL_SITE },
+        dimensions: { CallSite: callSite },
     });
 }
 
@@ -290,10 +310,11 @@ function publishSpend(deps: VerificationDeps, micros: number): void {
  * Publish the over-bound detector, attributed to this call site.
  *
  * @param deps - The handler's collaborators.
+ * @param callSite - Who the spend is attributed to.
  * @param overrunTokens - How many billed input tokens exceeded the bound the plan was priced from.
  * @sideEffect Emits one EMF line.
  */
-function publishInputOverrun(deps: VerificationDeps, overrunTokens: number): void {
+function publishInputOverrun(deps: VerificationDeps, callSite: SpendCallSite, overrunTokens: number): void {
     deps.emit({
         namespace: SPEND_METRIC_NAMESPACE,
         name: INPUT_BOUND_EXCEEDED_METRIC_NAME,
@@ -302,7 +323,7 @@ function publishInputOverrun(deps: VerificationDeps, overrunTokens: number): voi
         value: overrunTokens,
         // ⛔ WHICH consumer's prompt broke the bound is the diagnostic — the gate's prompt is ~1 KB and the
         // parse leg's ~20 KB, and the repair differs. Same dimension the dollar metric carries.
-        dimensions: { CallSite: VERIFICATION_CALL_SITE },
+        dimensions: { CallSite: callSite },
     });
 }
 
@@ -376,6 +397,58 @@ function excludedFromBands(message: VerifyIngredientLineMessage): boolean {
 }
 
 /**
+ * Whether this verdict is reported to the shared band statistics (plan U3): a BINDING's line, not excluded above.
+ *
+ * ⛔ A paste PROPOSAL (ADR-0071) reports nothing, and the reason is the band KEY rather than the data. The store
+ * finds the band a verdict belongs to from the food's latest LEXICAL `ingredient_resolutions` event, not from the
+ * message. A proposal writes no such event, so for a proposal that event is some other cook's resolution of the
+ * same food — another rung, another margin, another query shape — and the observation would move a band this line
+ * was never ranked in. Until the message carries the proposal's own key (rung, margin, query shape, ranker version)
+ * the honest record is none. Pure.
+ */
+function reportsToBands(message: VerifyIngredientLineMessage, origin: VerificationOrigin): boolean {
+    return origin.kind === 'recipe' && !excludedFromBands(message);
+}
+
+/**
+ * Decide what the gate asks about this line — the policy for a BINDING or for a PROPOSAL (ADR-0071).
+ *
+ * A saved recipe's line re-runs {@link decideVerification} with the worker's OWN band authority (KTD-A): a
+ * shadow-sampled or excluded message reads none. A paste proposal re-runs {@link decideProposalVerification},
+ * which asks identity whatever the evidence ("the review LLM checks every paste-import match", owner ruling
+ * 2026-10-25) and takes no band authority, so none is read.
+ *
+ * @param deps - The handler's collaborators.
+ * @param message - The parsed message.
+ * @param origin - Where the line came from.
+ * @param food - The line's food.
+ * @returns The decision. @sideEffect Reads the band tables for a recipe line that may consult them.
+ */
+async function policyDecision(
+    deps: VerificationDeps,
+    message: VerifyIngredientLineMessage,
+    origin: VerificationOrigin,
+    food: VerificationFood,
+): Promise<VerificationDecision> {
+    const gateInput = {
+        sourceLine: message.sourceLine,
+        evidence: evidenceFrom(message),
+        thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
+        // A variant on ranked evidence always asks identity — the shortlist ranked roots (curated U9).
+        boundTo: food.kind,
+    };
+
+    if (origin.kind === 'parseJob') {
+        return decideProposalVerification(gateInput);
+    }
+
+    const bandAuthority =
+        message.shadowSample === true || excludedFromBands(message) ? undefined : await authorityQuietly(deps, food);
+
+    return decideVerification({ ...gateInput, bandAuthority });
+}
+
+/**
  * Read band authority, degrading any failure to `undefined`.
  *
  * The production implementation already degrades internally, but KTD-B's stale-read rule belongs to the
@@ -435,18 +508,12 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     //    producer release or a replayed message must not be able to skip an identity check silently. Band
     //    authority follows the same rule (KTD-A): the worker reads its OWN — a shadow-sampled message
     //    deliberately reads none, because the coin's whole job is to ask identity anyway.
-    //    The food is read off the message's arc ONCE (curated U9): every write below records the same root or variant.
+    //    The food and the origin are read off the message ONCE (curated U9, ADR-0071): every write below records
+    //    the same root or variant, and every metric the same claimant.
     const food = verificationFoodOf(message);
-    const bandAuthority =
-        message.shadowSample === true || excludedFromBands(message) ? undefined : await authorityQuietly(deps, food);
-    const decision = decideVerification({
-        sourceLine: message.sourceLine,
-        evidence: evidenceFrom(message),
-        bandAuthority,
-        thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
-        // A variant on ranked evidence always asks identity — the shortlist ranked roots (curated U9).
-        boundTo: food.kind,
-    });
+    const origin = verificationOriginOf(message);
+    const callSite = callSiteFor(origin);
+    const decision = await policyDecision(deps, message, origin, food);
 
     if (decision.kind === 'skip') {
         logger.info('verification skipped', { reason: decision.reason });
@@ -544,7 +611,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
             unit: 'Count',
             stage: deps.stage,
             value: 1,
-            dimensions: { CallSite: VERIFICATION_GATE_CALL_SITE },
+            dimensions: { CallSite: callSite },
         });
         logger.error('verification model is not cleared for residency; the line was not checked', {
             modelId: plan.modelId,
@@ -608,7 +675,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
             throw new Error(`verification ceiling reached for ${reservation.period}; the call was not made`);
         }
 
-        publishSpend(deps, reservation.reservedMicros);
+        publishSpend(deps, callSite, reservation.reservedMicros);
     }
 
     // 5. The call.
@@ -650,7 +717,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         const overrun = inputTokensBeyondBound(inputBound, usage);
 
         if (overrun > 0) {
-            publishInputOverrun(deps, overrun);
+            publishInputOverrun(deps, callSite, overrun);
             logger.warn('verification billed MORE input tokens than the reservation was priced for', {
                 bound: inputBound,
                 overrun,
@@ -671,7 +738,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     if (!gated) {
         // The dollar metric is emitted in EVERY stage — it costs one log line and it is the only visibility on
         // the ungated ~$88/month/stage exposure ADR-0024 accepts.
-        publishSpend(deps, usage === undefined ? 0 : actualCostMicros(plan.rate, usage));
+        publishSpend(deps, callSite, usage === undefined ? 0 : actualCostMicros(plan.rate, usage));
     }
 
     // 7. Read the answer, and record it. Every path from here is TERMINAL.
@@ -687,7 +754,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         logger.warn('verification answer was unreadable', { reason: reading.reason });
         await recordQuietly(deps, verdictRow(message, plan, decision.aspects, 'abstain', 'low', 'inconclusive', key));
 
-        if (!excludedFromBands(message)) {
+        if (reportsToBands(message, origin)) {
             await reportBandQuietly(deps, {
                 food,
                 band: 'inconclusive',
@@ -707,7 +774,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         ...aspectVerdictColumns(reading.outcome),
     });
 
-    if (!excludedFromBands(message)) {
+    if (reportsToBands(message, origin)) {
         await reportBandQuietly(deps, {
             food,
             band,
@@ -723,7 +790,17 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     // U11/R20: NEVER for a private food — `ingredient_resolution_memos` answers for EVERY future cook,
     // and a memo row would surface the private food id in every user's memo tier. The author's own line
     // is still verified (the verdict above landed); only the shared cache abstains.
-    if (band === 'verified' && decision.aspects.includes('identity') && message.privateFood !== true) {
+    // ⛔ AND NEVER FROM A PASTE PROPOSAL (ADR-0071). The message does not say which rung proposed the food, so the
+    // worker cannot tell a lexical proposal from a `default` one — and a memo of `salt → table salt` would make the
+    // next pasted `salt` an exact-memo match, which binds as CONFIDENT: a default auto-selected by another route,
+    // which the owner forbids (2026-10-25). The memo answers for every cook, so this fails closed. A curated or
+    // remembered proposal loses nothing — its mapping or memo already exists.
+    if (
+        band === 'verified' &&
+        decision.aspects.includes('identity') &&
+        message.privateFood !== true &&
+        origin.kind === 'recipe'
+    ) {
         // ⛔ KEYED ON THE PARSED PHRASE, OR NOT AT ALL (migration 0041, owner ruling 2026-08-31). The memo
         // tier's read side queries `normalizedIngredientKey(name)` — the phrase a picker types — so a memo
         // keyed on the whole line is unreachable by construction: U15 measured 289 of them, none of which

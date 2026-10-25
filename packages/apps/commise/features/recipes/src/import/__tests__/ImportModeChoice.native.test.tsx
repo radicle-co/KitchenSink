@@ -1,0 +1,114 @@
+/**
+ * Native component tests for `ImportModeChoice`, rendered through react-native-web under jsdom. Mirrors
+ * `ImportModeChoice.test.tsx`: nothing preselected, Start disabled until the cook picks; plus the native layout's own
+ * rule — the promise shows only at the wide container class.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
+
+const windowWidth = vi.hoisted(() => ({ current: 390 }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: windowWidth.current }),
+    };
+});
+
+// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { ImportModeChoice } from '../ImportModeChoice.native.js';
+import { importMessages } from '../messages.js';
+import type { ImportModeChoiceProps } from '../props.js';
+
+const m = importMessages.en.mode;
+
+afterEach(() => {
+    cleanup();
+    windowWidth.current = 390;
+});
+
+function renderChoice(overrides: Partial<ImportModeChoiceProps> = {}) {
+    const onModeChange = vi.fn();
+    const onStart = vi.fn();
+    render(
+        <ImportModeChoice
+            fileName="My Recipes.paprikarecipes"
+            sourceName="Paprika"
+            recipeCount={864}
+            mode={undefined}
+            onModeChange={onModeChange}
+            onStart={onStart}
+            {...overrides}
+        />,
+    );
+
+    return { onModeChange, onStart };
+}
+
+const start = () => screen.getByRole('button', { name: m.start });
+
+describe('ImportModeChoice (native)', () => {
+    it('names the screen and the file it imports', () => {
+        renderChoice();
+
+        expect(screen.getByRole('heading', { name: m.title })).toBeTruthy();
+        expect(screen.getByText('My Recipes.paprikarecipes')).toBeTruthy();
+        expect(screen.getByText('Paprika · 864 recipes')).toBeTruthy();
+        expect(screen.getByText(m.intro)).toBeTruthy();
+    });
+
+    it('offers the three modes as one radio group', () => {
+        renderChoice();
+
+        const radios = within(screen.getByRole('radiogroup', { name: m.groupLabel })).getAllByRole('radio');
+
+        expect(radios.map((radio) => radio.textContent)).toEqual([
+            `${m.saveAsWrittenTitle}${m.saveAsWrittenHint}`,
+            `${m.bestTitle}${m.bestHint}`,
+            `${m.reviewTitle}${m.reviewHint}`,
+        ]);
+    });
+
+    it('⛔ preselects nothing, and Start is disabled with the hint saying why', () => {
+        const { onStart } = renderChoice();
+
+        expect(screen.queryByRole('radio', { checked: true })).toBeNull();
+        expect(start().getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText(m.startHint)).toBeTruthy();
+
+        fireEvent.click(start());
+
+        expect(onStart).not.toHaveBeenCalled();
+    });
+
+    it('choosing a mode reports it', () => {
+        const { onModeChange } = renderChoice();
+
+        fireEvent.click(screen.getAllByRole('radio')[1] as HTMLElement);
+
+        expect(onModeChange).toHaveBeenCalledWith('best');
+    });
+
+    it('with a mode chosen, that mode is checked and Start starts', () => {
+        const { onStart } = renderChoice({ mode: 'saveAsWritten' });
+
+        expect(screen.getByRole('radio', { checked: true }).textContent).toContain(m.saveAsWrittenTitle);
+
+        fireEvent.click(start());
+
+        expect(onStart).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the promise only at the wide container class', () => {
+        renderChoice();
+        expect(screen.queryByText(m.promise)).toBeNull();
+        cleanup();
+
+        windowWidth.current = 1194;
+        renderChoice();
+        expect(screen.getByText(m.promise)).toBeTruthy();
+    });
+});

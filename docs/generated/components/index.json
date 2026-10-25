@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
-        "components": 372,
-        "implementations": 540,
-        "props": 2348,
-        "documentedComponents": 368,
-        "implementationsWithModuleDoc": 519,
-        "implementationsWithComponentDoc": 384,
-        "documentedProps": 1977,
-        "classifiedComponents": 280,
-        "componentsWithPatternTag": 210,
-        "crossPlatformComponents": 168
+        "components": 381,
+        "implementations": 558,
+        "props": 2422,
+        "documentedComponents": 377,
+        "implementationsWithModuleDoc": 537,
+        "implementationsWithComponentDoc": 402,
+        "documentedProps": 2051,
+        "classifiedComponents": 289,
+        "componentsWithPatternTag": 211,
+        "crossPlatformComponents": 177
     },
     "groups": [
         {
@@ -40,16 +40,16 @@
             "layer": "feature",
             "catalogue": "docs/generated/components/groups/featuresRecipes.json",
             "coverage": {
-                "components": 156,
-                "implementations": 265,
-                "props": 1301,
-                "documentedComponents": 156,
-                "implementationsWithModuleDoc": 265,
-                "implementationsWithComponentDoc": 158,
-                "documentedProps": 1022,
-                "classifiedComponents": 136,
-                "componentsWithPatternTag": 78,
-                "crossPlatformComponents": 109
+                "components": 165,
+                "implementations": 283,
+                "props": 1375,
+                "documentedComponents": 165,
+                "implementationsWithModuleDoc": 283,
+                "implementationsWithComponentDoc": 176,
+                "documentedProps": 1096,
+                "classifiedComponents": 145,
+                "componentsWithPatternTag": 79,
+                "crossPlatformComponents": 118
             }
         },
         {

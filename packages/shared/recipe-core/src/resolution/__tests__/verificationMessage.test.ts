@@ -18,6 +18,7 @@ import {
     MAX_VERIFICATION_SOURCE_LINE_LENGTH,
     verificationFoodFieldsOf,
     verificationFoodOf,
+    verificationOriginOf,
     verifyIngredientLineMessageSchema,
 } from '../verificationMessage.js';
 
@@ -47,6 +48,69 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
 
     it('accepts a well-formed message', () => {
         expect(() => verifyIngredientLineMessageSchema.parse(verifyLine())).not.toThrow();
+    });
+
+    describe('the origin (ADR-0071): a saved recipe or a paste job, exactly one', () => {
+        const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+
+        it('⛔ still parses the legacy `recipeId`-only message — workers deploy first, so it is in flight', () => {
+            const message = verifyIngredientLineMessageSchema.parse(verifyLine());
+
+            expect(verificationOriginOf(message)).toStrictEqual({
+                kind: 'recipe',
+                recipeId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+            });
+        });
+
+        it('parses a recipe origin', () => {
+            const message = verifyIngredientLineMessageSchema.parse(
+                verifyLine({ recipeId: undefined, origin: { kind: 'recipe', recipeId: JOB } }),
+            );
+
+            expect(verificationOriginOf(message)).toStrictEqual({ kind: 'recipe', recipeId: JOB });
+        });
+
+        it('parses a paste-job origin, naming the line and the food within it', () => {
+            const message = verifyIngredientLineMessageSchema.parse(
+                verifyLine({
+                    recipeId: undefined,
+                    origin: { kind: 'parseJob', jobId: JOB, lineIndex: 3, foodIndex: 1 },
+                }),
+            );
+
+            expect(verificationOriginOf(message)).toStrictEqual({
+                kind: 'parseJob',
+                jobId: JOB,
+                lineIndex: 3,
+                foodIndex: 1,
+            });
+        });
+
+        it('refuses a message naming no origin, and one naming both spellings', () => {
+            expect(verifyIngredientLineMessageSchema.safeParse(verifyLine({ recipeId: undefined })).success).toBe(
+                false,
+            );
+            expect(
+                verifyIngredientLineMessageSchema.safeParse(verifyLine({ origin: { kind: 'recipe', recipeId: JOB } }))
+                    .success,
+            ).toBe(false);
+        });
+
+        it.each([
+            ['a negative line index', { kind: 'parseJob', jobId: JOB, lineIndex: -1, foodIndex: 0 }],
+            ['a line index past the job cap', { kind: 'parseJob', jobId: JOB, lineIndex: 200, foodIndex: 0 }],
+            ['a fractional food index', { kind: 'parseJob', jobId: JOB, lineIndex: 0, foodIndex: 0.5 }],
+            ['a job id that is not a UUID', { kind: 'parseJob', jobId: 'job-1', lineIndex: 0, foodIndex: 0 }],
+            ['an unknown origin kind', { kind: 'import', jobId: JOB }],
+        ])('refuses %s', (_label, origin) => {
+            expect(
+                verifyIngredientLineMessageSchema.safeParse(verifyLine({ recipeId: undefined, origin })).success,
+            ).toBe(false);
+        });
+
+        it('throws when read without a parse, rather than guessing an origin', () => {
+            expect(() => verificationOriginOf({})).toThrow('origin');
+        });
     });
 
     describe('the food arc (curated U9): a root or a variant, exactly one', () => {

@@ -3,7 +3,7 @@
  *
  * U11 shipped the verification gate's CONSUMER and never shipped its producer: `verifyLine.ts` was deployed,
  * IAM'd, alarmed and given a queue, and nothing in the tree sent it a message. These cases are the seam that
- * closes that, pinned at the ONE layer that holds every field the contract needs — `recipeId` from the write,
+ * closes that, pinned at the ONE layer that holds every field the contract needs — the recipe origin from the write,
  * `sourceLine`/`quantity`/`unit` from the persisted line, `foodId` from the binding and `candidateFoodName` from
  * food's answer about it (plan 002 R9).
  *
@@ -257,7 +257,7 @@ describe('RecipesService.create — the verification producer', () => {
         expect(messages).toHaveLength(1);
         expect(messages?.[0]).toMatchObject({
             // ⛔ The PERSISTED recipe's id. A producer that ran before the write would have nothing to name.
-            recipeId: RECIPE_ID,
+            origin: { kind: 'recipe', recipeId: RECIPE_ID },
             sourceLine: SOURCE_LINE,
             foodId: FLOUR_FOOD_ID,
             candidateFoodName: 'Flour, wheat, all-purpose',

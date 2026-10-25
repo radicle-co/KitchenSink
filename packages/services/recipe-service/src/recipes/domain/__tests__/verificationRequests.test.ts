@@ -208,7 +208,9 @@ describe('buildVerificationRequests — what reaches the queue at all (ADR-0024 
         const requests = build([makeLine()]);
 
         expect(requests).toHaveLength(1);
-        expect(requests[0]?.recipeId).toBe(RECIPE_ID);
+        // Rewritten (ADR-0071): the producer names the origin, never the legacy `recipeId` spelling.
+        expect(requests[0]?.origin).toStrictEqual({ kind: 'recipe', recipeId: RECIPE_ID });
+        expect(requests[0]).not.toHaveProperty('recipeId');
         expect(requests[0]?.foodId).toBe('01JFOOD000000000000000000');
         expect(requests[0]?.candidateFoodName).toBe('Flour, wheat, all-purpose');
         expect(requests[0]?.sourceLine).toBe('2 cups all-purpose flour, sifted');

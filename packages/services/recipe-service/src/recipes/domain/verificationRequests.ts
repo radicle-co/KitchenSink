@@ -450,7 +450,7 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
         seen.add(identity);
 
         const message: VerifyIngredientLineMessage = {
-            recipeId: input.recipeId,
+            origin: { kind: 'recipe', recipeId: input.recipeId },
             sourceLine,
             // Migration 0041 — the parsed phrase the memo will be keyed on (owner ruling 2026-08-31).
             // Spread-if-present: absence means the worker writes NO memo, never one at the dead line grain.

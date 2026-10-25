@@ -29,6 +29,8 @@
  */
 import { z } from 'zod';
 
+import { MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
+
 /**
  * An ISO-8601 instant.
  *
@@ -140,10 +142,40 @@ export const scoredCandidateSchema = z.object({
  * it does not purge SQS). The queue is SSE-encrypted and this DLQ's retention is shortened accordingly — see
  * `RecipeWorkersStack`. Recorded here so the next field added is weighed against the same question.
  */
+/**
+ * WHERE a line to verify came from (ADR-0071): a SAVED recipe, or a line of a paste job the cook has not saved yet.
+ *
+ * Correlation only — the verdict is keyed on content, not on this. A paste-job origin names the line AND the food
+ * within it, because one parsed line can propose more than one food (`salt and pepper`), and the worker writes the
+ * verdict back onto that one proposal.
+ */
+export const verificationOriginSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('recipe'), recipeId: z.uuid() }),
+    z.object({
+        kind: z.literal('parseJob'),
+        jobId: z.uuid(),
+        lineIndex: z
+            .number()
+            .int()
+            .min(0)
+            .max(MAX_PARSE_JOB_LINES - 1),
+        foodIndex: z.number().int().min(0),
+    }),
+]);
+
+/** One origin of a line to verify. */
+export type VerificationOrigin = z.infer<typeof verificationOriginSchema>;
+
 export const verifyIngredientLineMessageSchema = z
     .object({
-        /** The recipe the line belongs to. Correlation only — the verdict is keyed on content, not on this. */
-        recipeId: z.uuid(),
+        /**
+         * The LEGACY spelling of a recipe origin: the only field an older producer sends. Read it through
+         * {@link verificationOriginOf}, never directly. ⚠️ Remove it one release after every producer sends
+         * `origin`: workers deploy before the service, so the queue still holds messages that carry only this.
+         */
+        recipeId: z.uuid().optional(),
+        /** Where the line came from (ADR-0071). Exactly one of this and the legacy `recipeId` is set. */
+        origin: verificationOriginSchema.optional(),
         /**
          * ⛔ `ownerId` STOOD HERE AND WAS REMOVED — owner ruling 2026-08-25, ADR-0027. Do not re-add it.
          *
@@ -309,6 +341,9 @@ export const verifyIngredientLineMessageSchema = z
     })
     .refine((message) => (message.foodId === undefined) !== (message.foodVariantId === undefined), {
         error: 'a verification message names exactly one food: a foodId or a foodVariantId',
+    })
+    .refine((message) => (message.recipeId === undefined) !== (message.origin === undefined), {
+        error: 'a verification message names exactly one origin: an origin or the legacy recipeId',
     });
 
 /** The verification gate's message contract. */
@@ -334,6 +369,28 @@ export function verificationFoodOf(
     }
 
     throw new Error('a verification message must name exactly one food; parse it before reading it');
+}
+
+/**
+ * Where a PARSED message came from — the one reader of both spellings of its origin.
+ *
+ * @param message - A message the schema accepted, which names exactly one origin.
+ * @returns The origin; a legacy `recipeId` reads as a recipe origin.
+ * @throws {Error} when the message names neither or both, which the schema refuses — a caller that skipped the parse.
+ *   Pure.
+ */
+export function verificationOriginOf(
+    message: Partial<Pick<VerifyIngredientLineMessage, 'recipeId' | 'origin'>>,
+): VerificationOrigin {
+    if (message.origin !== undefined && message.recipeId === undefined) {
+        return message.origin;
+    }
+
+    if (message.origin === undefined && message.recipeId !== undefined) {
+        return { kind: 'recipe', recipeId: message.recipeId };
+    }
+
+    throw new Error('a verification message must name exactly one origin; parse it before reading it');
 }
 
 /**

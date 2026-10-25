@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 
+import { Tags } from 'aws-cdk-lib';
+import { TIER_TAG_KEY, accountTierTagValue } from '@kitchensink/cdk-bootstrap/qualifiers';
+
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
 import { testApp } from './testApp.js';
 import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
@@ -115,6 +118,27 @@ describe('CostGuardrailsStack (ADR-0008)', () => {
             MonitorType: 'DIMENSIONAL',
             MonitorDimension: 'SERVICE',
         });
+    });
+
+    /**
+     * `ResourceTags` is create-only on both Cost Explorer types, so the app-level tier tag (ADR-0065) replaced the
+     * monitor, and AWS refused the new one beside the old: "Limit exceeded on dimensional spend monitor creation"
+     * (account deploy, 2026-10-24). The CE grant is not tag-gated, so the tag buys nothing there.
+     */
+    it('keeps the app-level tier tag OFF the two Cost Explorer resources, and on the rest', () => {
+        const app = testApp();
+
+        Tags.of(app).add(TIER_TAG_KEY, accountTierTagValue());
+
+        const template = Template.fromStack(new CostGuardrailsStack(app, 'CostGuardrails', { env }));
+        const keys = (type: string, property: string): string[][] =>
+            Object.values(template.findResources(type)).map((resource) =>
+                ((resource.Properties[property] ?? []) as { Key: string }[]).map((tag) => tag.Key),
+            );
+
+        expect(keys('AWS::CE::AnomalyMonitor', 'ResourceTags')).toEqual([['Environment']]);
+        expect(keys('AWS::CE::AnomalySubscription', 'ResourceTags')).toEqual([['Environment']]);
+        expect(keys('AWS::SNS::Topic', 'Tags')).toEqual([expect.arrayContaining([TIER_TAG_KEY])]);
     });
 
     it('creates an IMMEDIATE anomaly subscription over SNS with a ~$20 absolute-impact threshold', () => {

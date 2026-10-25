@@ -31,6 +31,8 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { TIER_TAG_KEY } from '@kitchensink/cdk-bootstrap/qualifiers';
+
 // ── Tunable guardrail constants (edit here to retune the account budget / alerts) ────────────────
 /** Monthly cost budget ceiling in USD. Tunable. */
 const MONTHLY_BUDGET_USD = 300;
@@ -78,13 +80,11 @@ export class CostGuardrailsStack extends Stack {
         // the resource types rather than a mistake here: they carry tags through `ResourceTags`, which
         // CloudFormation documents as `Update requires: Replacement` on both `AWS::CE::AnomalyMonitor` and
         // `AWS::CE::AnomalySubscription` (as does every other property of the monitor — it is effectively
-        // immutable). The replacement itself is safe: identity is the generated `MonitorArn`, the names are
-        // labels with a documented minimum length of 0, `CreateAnomalyMonitor` declares no conflict error,
-        // and the only reference to either is the `Fn::GetAtt` between them inside this stack. The cost is
-        // DETECTION CONTINUITY — AWS says a new monitor "might start receiving alerts within 24 hours" — so
-        // a rename buys a bounded gap in anomaly alerting on the whole account. That is exactly what
-        // reverting this word to `global` AVOIDS: the live stack already carries it, so the tag does not
-        // change and neither resource is replaced.
+        // immutable). And the replacement FAILS: AWS allows one dimensional SERVICE monitor per account, and
+        // CloudFormation creates the new one before it deletes the old, so the account deploy of 2026-10-24
+        // died on "Limit exceeded on dimensional spend monitor creation". Keeping this word at `global`, which
+        // the live stack already carries, is what keeps the tag from changing; see the tier-tag removal below
+        // for the same reason one tag over.
         Tags.of(this).add('Environment', 'global');
 
         this.alertTopic = new sns.Topic(this, 'CostAlertTopic', {
@@ -204,5 +204,12 @@ export class CostGuardrailsStack extends Stack {
             }),
         });
         anomalySubscription.node.addDependency(topicPolicy);
+
+        // ADR-0065's app-level tier tag would change `ResourceTags`, which replaces both resources and fails on the
+        // monitor limit above. The ksaccount execution policy grants the CE actions on these ARNs with no tag
+        // condition, so the tag authorizes nothing here; removing it keeps both resources in place.
+        for (const resource of [anomalyMonitor, anomalySubscription]) {
+            Tags.of(resource).remove(TIER_TAG_KEY);
+        }
     }
 }

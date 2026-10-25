@@ -402,21 +402,5 @@
     "SignUp834Mobile": 950,
     "SignUpFinish": 844,
     "SignUpFinishMobile": 1530,
-    "SignUpMobile": 950,
-    "CookingModeEntryMobile": 3083,
-    "CookingModeBeforeYouStartMobile": 844,
-    "CookingModeStepMobile": 844,
-    "CookingModeTimerReadyMobile": 844,
-    "CookingModeTimerRunningMobile": 844,
-    "CookingModeTwoTimersMobile": 844,
-    "CookingModeTimerDoneMobile": 844,
-    "CookingModeIngredientsMobile": 844,
-    "CookingModeResumeMobile": 844,
-    "CookingModeOfflineMobile": 844,
-    "CookingModeCompletedMobile": 844,
-    "CookingModeBeforeYouStart834Mobile": 1194,
-    "CookingModeStep834Mobile": 1194,
-    "CookingModeStep1194Mobile": 834,
-    "CookingModeStep": 800,
-    "CookingModeCompleted": 800
+    "SignUpMobile": 950
 }

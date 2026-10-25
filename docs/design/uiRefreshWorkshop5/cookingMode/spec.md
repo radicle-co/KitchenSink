@@ -1,3 +1,6 @@
+> Superseded on 2026-10-25. The owner rejected this design. The design in force is the cooking mode workshop result:
+> `workshop/round3/designerC/` (`mockup.html` and `rationale.md`), built from `research.md` over three rounds.
+
 # Cooking mode: design and spec (feature 008, redesign system)
 
 This is a design spec, not a build plan. The boards are in `../redesignCanvas/boards/CookingMode*.dc.html`, in the

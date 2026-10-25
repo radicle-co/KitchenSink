@@ -47,100 +47,364 @@
         "h": 1194,
         "title": "Profile, scrolled, 834 px (mobile)"
     },
-    "CookingModeEntryMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 3083,
-        "title": "Cooking mode, start from recipe detail (mobile)"
-    },
-    "CookingModeBeforeYouStartMobile": {
-        "row": "Cooking mode",
+    "CookingModeBeforeMobile": {
+        "row": "Cooking mode: phone",
         "w": 390,
         "h": 844,
-        "title": "Cooking mode, before you start (mobile)"
+        "title": "Cooking mode, before (phone)"
     },
-    "CookingModeStepMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, a step with its amounts (mobile)"
-    },
-    "CookingModeTimerReadyMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, step timer not started (mobile)"
-    },
-    "CookingModeTimerRunningMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, timer running (mobile)"
-    },
-    "CookingModeTwoTimersMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, two timers running (mobile)"
-    },
-    "CookingModeTimerDoneMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, timer finished (mobile)"
-    },
-    "CookingModeIngredientsMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, ingredients at 8 servings (mobile)"
-    },
-    "CookingModeResumeMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, resume after leaving (mobile)"
-    },
-    "CookingModeOfflineMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, offline after loading (mobile)"
-    },
-    "CookingModeCompletedMobile": {
-        "row": "Cooking mode",
-        "w": 390,
-        "h": 844,
-        "title": "Cooking mode, completed (mobile)"
-    },
-    "CookingModeBeforeYouStart834Mobile": {
-        "row": "Cooking mode",
+    "CookingModeBefore834Mobile": {
+        "row": "Cooking mode: tablet",
         "w": 834,
         "h": 1194,
-        "title": "Cooking mode, before you start, 834 px (mobile)"
+        "title": "Cooking mode, before (tablet 834 px)"
     },
-    "CookingModeStep834Mobile": {
-        "row": "Cooking mode",
-        "w": 834,
-        "h": 1194,
-        "title": "Cooking mode, timer running, 834 px (mobile)"
-    },
-    "CookingModeStep1194Mobile": {
-        "row": "Cooking mode",
+    "CookingModeBefore1194Mobile": {
+        "row": "Cooking mode: tablet",
         "w": 1194,
         "h": 834,
-        "title": "Cooking mode, two timers and an alarm, 1194 px (mobile)"
+        "title": "Cooking mode, before (tablet 1194 px)"
+    },
+    "CookingModeBefore": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, before (web)"
+    },
+    "CookingModeStepMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, step (phone)"
+    },
+    "CookingModeStep834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, step (tablet 834 px)"
+    },
+    "CookingModeStep1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, step (tablet 1194 px)"
     },
     "CookingModeStep": {
-        "row": "Cooking mode",
+        "row": "Cooking mode: web",
         "w": 1280,
         "h": 800,
-        "title": "Cooking mode, timer running (web)"
+        "title": "Cooking mode, step (web)"
     },
-    "CookingModeCompleted": {
-        "row": "Cooking mode",
+    "CookingModeStep768": {
+        "row": "Cooking mode: web",
+        "w": 768,
+        "h": 1024,
+        "title": "Cooking mode, step (web 768 px)"
+    },
+    "CookingModeStepTickedMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, step ticked (phone)"
+    },
+    "CookingModeStepTicked834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, step ticked (tablet 834 px)"
+    },
+    "CookingModeStepTicked1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, step ticked (tablet 1194 px)"
+    },
+    "CookingModeStepTicked": {
+        "row": "Cooking mode: web",
         "w": 1280,
         "h": 800,
-        "title": "Cooking mode, completed (web)"
+        "title": "Cooking mode, step ticked (web)"
+    },
+    "CookingModeStepJumpedMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, step jumped (phone)"
+    },
+    "CookingModeStepJumped834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, step jumped (tablet 834 px)"
+    },
+    "CookingModeStepJumped1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, step jumped (tablet 1194 px)"
+    },
+    "CookingModeStepJumped": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, step jumped (web)"
+    },
+    "CookingModeNextComingMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, next coming (phone)"
+    },
+    "CookingModeNextComing834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, next coming (tablet 834 px)"
+    },
+    "CookingModeNextComing1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, next coming (tablet 1194 px)"
+    },
+    "CookingModeNextComing": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, next coming (web)"
+    },
+    "CookingModeWaitMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, wait (phone)"
+    },
+    "CookingModeWait834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, wait (tablet 834 px)"
+    },
+    "CookingModeWait1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, wait (tablet 1194 px)"
+    },
+    "CookingModeWait": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, wait (web)"
+    },
+    "CookingModeWait768": {
+        "row": "Cooking mode: web",
+        "w": 768,
+        "h": 1024,
+        "title": "Cooking mode, wait (web 768 px)"
+    },
+    "CookingModeTwoTimersMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, two timers (phone)"
+    },
+    "CookingModeTwoTimers834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, two timers (tablet 834 px)"
+    },
+    "CookingModeTwoTimers1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, two timers (tablet 1194 px)"
+    },
+    "CookingModeTwoTimers": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, two timers (web)"
+    },
+    "CookingModeJobInProgressMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, job in progress (phone)"
+    },
+    "CookingModeJobInProgress834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, job in progress (tablet 834 px)"
+    },
+    "CookingModeJobInProgress1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, job in progress (tablet 1194 px)"
+    },
+    "CookingModeJobInProgress": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, job in progress (web)"
+    },
+    "CookingModeStepFiveMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, step five (phone)"
+    },
+    "CookingModeStepFive834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, step five (tablet 834 px)"
+    },
+    "CookingModeStepFive1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, step five (tablet 1194 px)"
+    },
+    "CookingModeStepFive": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, step five (web)"
+    },
+    "CookingModeTimerDoneMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, timer done (phone)"
+    },
+    "CookingModeTimerDone834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, timer done (tablet 834 px)"
+    },
+    "CookingModeTimerDone1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, timer done (tablet 1194 px)"
+    },
+    "CookingModeTimerDone": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, timer done (web)"
+    },
+    "CookingModeTimerDoneLockedMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, timer done locked (phone)"
+    },
+    "CookingModeAlarmsOffMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, alarms off (phone)"
+    },
+    "CookingModeAlarmsOff834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, alarms off (tablet 834 px)"
+    },
+    "CookingModeAlarmsOff1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, alarms off (tablet 1194 px)"
+    },
+    "CookingModeAlarmsOff": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, alarms off (web)"
+    },
+    "CookingModeIngredientsMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, ingredients (phone)"
+    },
+    "CookingModeIngredients834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, ingredients (tablet 834 px)"
+    },
+    "CookingModeIngredients1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, ingredients (tablet 1194 px)"
+    },
+    "CookingModeIngredients": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, ingredients (web)"
+    },
+    "CookingModeIngredients768": {
+        "row": "Cooking mode: web",
+        "w": 768,
+        "h": 1024,
+        "title": "Cooking mode, ingredients (web 768 px)"
+    },
+    "CookingModeAllStepsMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, all steps (phone)"
+    },
+    "CookingModeAllSteps834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, all steps (tablet 834 px)"
+    },
+    "CookingModeAllSteps1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, all steps (tablet 1194 px)"
+    },
+    "CookingModeAllSteps": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, all steps (web)"
+    },
+    "CookingModeDoneMobile": {
+        "row": "Cooking mode: phone",
+        "w": 390,
+        "h": 844,
+        "title": "Cooking mode, done (phone)"
+    },
+    "CookingModeDone834Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 834,
+        "h": 1194,
+        "title": "Cooking mode, done (tablet 834 px)"
+    },
+    "CookingModeDone1194Mobile": {
+        "row": "Cooking mode: tablet",
+        "w": 1194,
+        "h": 834,
+        "title": "Cooking mode, done (tablet 1194 px)"
+    },
+    "CookingModeDone": {
+        "row": "Cooking mode: web",
+        "w": 1280,
+        "h": 800,
+        "title": "Cooking mode, done (web)"
     }
 }

@@ -1,0 +1,3198 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Cooking Mode Glance</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            [data-theme='light'] {
+                --canvas: #eff3f6;
+                --paper: #fcfdff;
+                --ink: #171b20;
+                --ink-muted: #5c646e;
+                --line-control: #80878f;
+                --line-divider: #dfe3e8;
+                --action: #325c7f;
+                --action-text: #325c7f;
+                --here-bar: #325c7f;
+                --attention: #8c5a00;
+                --paper-raised: #ffffff;
+                --paper-overlay: #ffffff;
+                --surface-muted: #e9edf2;
+                --inverse: #171b20;
+                --inverse-ink: #ffffff;
+                --scrim: rgba(10, 16, 24, 0.42);
+                --on-action: #ffffff;
+                --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+            }
+            [data-theme='dark'] {
+                --canvas: #0e161e;
+                --paper: #172029;
+                --ink: #ebeff2;
+                --ink-muted: #a3acb6;
+                --line-control: #7d8792;
+                --line-divider: #262f38;
+                --action: #96bcde;
+                --action-text: #96bcde;
+                --here-bar: #96bcde;
+                --attention: #efba64;
+                --paper-raised: #212b36;
+                --paper-overlay: #26313d;
+                --surface-muted: #212b36;
+                --inverse: #ebeff2;
+                --inverse-ink: #171b20;
+                --scrim: rgba(0, 0, 0, 0.66);
+                --on-action: #0e161e;
+                --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4);
+            }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: #d9dee3;
+                font-family: Inter, system-ui, sans-serif;
+                color: #171b20;
+                padding: 40px;
+            }
+            .sheetTitle {
+                font:
+                    600 28px/1.15 Manrope,
+                    Inter,
+                    sans-serif;
+                margin-bottom: 8px;
+            }
+            .sheetNote {
+                font-size: 15px;
+                color: #5c646e;
+                max-width: 780px;
+                margin-bottom: 32px;
+                line-height: 1.45;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 40px;
+                align-items: flex-start;
+                margin-bottom: 56px;
+            }
+            figure {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            figcaption {
+                font-size: 13px;
+                color: #5c646e;
+                max-width: 390px;
+                line-height: 1.4;
+            }
+            figcaption b {
+                color: #171b20;
+                font-weight: 600;
+            }
+
+            .screen {
+                background: var(--canvas);
+                color: var(--ink);
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                font-family: Inter, system-ui, sans-serif;
+            }
+            .phone {
+                width: 390px;
+                height: 844px;
+                border-radius: 44px;
+                box-shadow:
+                    0 0 0 10px #111,
+                    0 20px 50px rgba(0, 0, 0, 0.25);
+            }
+            .tab834 {
+                width: 834px;
+                height: 1194px;
+                border-radius: 28px;
+                box-shadow:
+                    0 0 0 14px #111,
+                    0 20px 50px rgba(0, 0, 0, 0.25);
+            }
+            .tab1194 {
+                width: 1194px;
+                height: 834px;
+                border-radius: 28px;
+                box-shadow:
+                    0 0 0 14px #111,
+                    0 20px 50px rgba(0, 0, 0, 0.25);
+            }
+            .web {
+                width: 1280px;
+                height: 800px;
+                border-radius: 10px;
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            }
+            .status {
+                height: 47px;
+                flex: none;
+                display: flex;
+                align-items: flex-end;
+                padding: 0 32px 6px;
+                font-size: 17px;
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .homeBar {
+                position: absolute;
+                bottom: 8px;
+                left: 50%;
+                width: 134px;
+                height: 5px;
+                margin-left: -67px;
+                border-radius: 3px;
+                background: var(--ink);
+                opacity: 0.9;
+            }
+
+            /* Three sizes per screen: 38 (the one cooking size), 17 and 13. */
+            .t38 {
+                font-size: 38px;
+                line-height: 1.13;
+                letter-spacing: -0.02em;
+                font-weight: 400;
+            }
+            .t38 b,
+            .t17 b {
+                font-weight: 600;
+            }
+            .t17 {
+                font-size: 17px;
+                line-height: 1.4;
+            }
+            .t13 {
+                font-size: 13px;
+                line-height: 1.35;
+            }
+            .strong {
+                font-weight: 600;
+            }
+            .over {
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--ink-muted);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .over.att {
+                color: var(--attention);
+            }
+            .muted {
+                color: var(--ink-muted);
+            }
+            .num {
+                font-variant-numeric: tabular-nums;
+            }
+            .ell {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 0;
+            }
+            .linkish {
+                color: var(--action-text);
+                font-weight: 600;
+            }
+            .pad {
+                padding: 18px 20px 6px;
+            }
+
+            .top {
+                flex: none;
+                height: 60px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0 16px;
+            }
+            .wideTop {
+                height: 72px;
+                padding: 0 24px;
+            }
+            .wideTop .place {
+                text-align: left;
+            }
+            .iconBtn {
+                width: 48px;
+                height: 48px;
+                border-radius: 24px;
+                background: var(--surface-muted);
+                display: grid;
+                place-items: center;
+                flex: none;
+            }
+            .place {
+                flex: 1;
+                min-width: 0;
+                text-align: center;
+            }
+            .pillBtn {
+                height: 48px;
+                padding: 0 14px;
+                border-radius: 24px;
+                border: 1px solid var(--line-control);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 17px;
+                font-weight: 500;
+                flex: none;
+            }
+            .pillBtn svg {
+                color: var(--action-text);
+            }
+            .track {
+                flex: none;
+                display: flex;
+                gap: 4px;
+                padding: 0 16px;
+            }
+            .wideTop + .track {
+                padding: 0 24px;
+            }
+            .track i {
+                flex: 1;
+                height: 4px;
+                border-radius: 2px;
+                background: var(--line-divider);
+            }
+            .track i.done {
+                background: var(--ink-muted);
+            }
+            .track i.now {
+                background: var(--here-bar);
+            }
+
+            .body {
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+                padding: 0 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+            .lines {
+                display: flex;
+                flex-direction: column;
+            }
+            .line {
+                display: flex;
+                gap: 14px;
+                padding: 12px 0;
+            }
+            .line .box {
+                margin-top: 6px;
+            }
+            .lineBody {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                min-width: 0;
+            }
+            .line.preview .t38 {
+                color: var(--ink-muted);
+            }
+            .upnext {
+                padding: 14px 0 0;
+            }
+            .box {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                border: 1.5px solid var(--line-control);
+                flex: none;
+                display: grid;
+                place-items: center;
+            }
+            .box.on {
+                background: var(--ink-muted);
+                border-color: var(--ink-muted);
+                color: var(--canvas);
+            }
+            .record {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 48px;
+                color: var(--ink-muted);
+                border-bottom: 1px solid var(--line-divider);
+            }
+            .record .t17 {
+                flex: 1;
+            }
+            .offer {
+                align-self: flex-start;
+                height: 48px;
+                padding: 0 16px;
+                border-radius: 24px;
+                border: 1px solid var(--line-control);
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 17px;
+                font-weight: 600;
+                color: var(--action-text);
+            }
+            .offerRow {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .waitHead {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                padding-top: 4px;
+            }
+            .thenRow {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .jobs {
+                display: flex;
+                flex-direction: column;
+                padding-top: 6px;
+            }
+            .jobs .over {
+                margin-bottom: 4px;
+            }
+            .job {
+                min-height: 48px;
+                display: flex;
+                align-items: center;
+                border-top: 1px solid var(--line-divider);
+            }
+            .fast {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding-top: 14px;
+                border-top: 1px solid var(--line-divider);
+            }
+            .notice {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                padding-top: 14px;
+                border-top: 1px solid var(--line-divider);
+            }
+            .notice svg {
+                color: var(--attention);
+                flex: none;
+                margin-top: 2px;
+            }
+
+            .dock {
+                flex: none;
+                margin: 0 16px;
+                border-top: 1px solid var(--line-divider);
+            }
+            .dockRow {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 0 10px 4px;
+                min-height: 64px;
+            }
+            .dockRow + .dockRow {
+                border-top: 1px solid var(--line-divider);
+            }
+            .dockRow .lab {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            .pauseBtn {
+                width: 56px;
+                height: 56px;
+                border-radius: 28px;
+                background: var(--surface-muted);
+                display: grid;
+                place-items: center;
+                flex: none;
+            }
+            .pauseBtn.small {
+                width: 48px;
+                height: 48px;
+            }
+            .nav {
+                flex: none;
+                display: flex;
+                gap: 12px;
+                padding: 10px 16px 30px;
+            }
+            .navWide {
+                padding: 10px 40px 28px;
+            }
+            .btn {
+                height: 72px;
+                border-radius: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .btnBack {
+                width: 112px;
+                border: 1px solid var(--line-control);
+                flex: none;
+            }
+            .btnNext {
+                flex: 1;
+                background: var(--action);
+                color: var(--on-action);
+                justify-content: space-between;
+                padding: 0 18px 0 20px;
+                min-width: 0;
+            }
+            .nx {
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+                text-align: left;
+            }
+            .nx .sub {
+                font-weight: 400;
+                opacity: 0.92;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .navWide .btnBack {
+                width: 160px;
+            }
+
+            .bys {
+                padding: 8px 20px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 22px;
+            }
+            .title {
+                font:
+                    600 28px/1.15 Manrope,
+                    Inter,
+                    sans-serif;
+                letter-spacing: -0.02em;
+            }
+            .bysRow {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding-top: 16px;
+                border-top: 1px solid var(--line-divider);
+            }
+            .bysRow.perm {
+                flex-direction: row;
+                align-items: center;
+                gap: 14px;
+            }
+            .permText {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .outlineBtn {
+                height: 48px;
+                padding: 0 18px;
+                border-radius: 24px;
+                border: 1px solid var(--line-control);
+                display: grid;
+                place-items: center;
+                font-size: 17px;
+                font-weight: 600;
+                color: var(--action-text);
+                flex: none;
+            }
+            .spacer {
+                flex: 1;
+            }
+            .stepper {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                padding: 6px 20px 8px;
+            }
+            .stepper.inline {
+                padding: 0;
+                gap: 8px;
+            }
+            .stepper .lab {
+                flex: 1;
+            }
+            .stepBtn {
+                width: 52px;
+                height: 52px;
+                border-radius: 26px;
+                border: 1px solid var(--line-control);
+                display: grid;
+                place-items: center;
+                flex: none;
+            }
+            .stepVal {
+                width: 40px;
+                text-align: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+
+            .alarm {
+                background: var(--inverse);
+                color: var(--inverse-ink);
+            }
+            .alarm .over {
+                color: var(--inverse-ink);
+                opacity: 0.78;
+            }
+            .alarm .homeBar {
+                background: var(--inverse-ink);
+            }
+            .alarmBody {
+                flex: 1;
+                padding: 36px 24px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+            .soft {
+                opacity: 0.82;
+            }
+            .ring {
+                width: 64px;
+                height: 64px;
+                border-radius: 32px;
+                border: 2px solid currentColor;
+                display: grid;
+                place-items: center;
+            }
+            .alarmNav {
+                flex: none;
+                padding: 0 16px 30px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .stopBtn {
+                height: 112px;
+                border-radius: 24px;
+                background: var(--inverse-ink);
+                color: var(--inverse);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .alarmSecondary {
+                display: flex;
+                gap: 12px;
+            }
+            .ghost {
+                flex: 1;
+                height: 64px;
+                border-radius: 18px;
+                border: 1px solid currentColor;
+                display: grid;
+                place-items: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+
+            .lock {
+                background: linear-gradient(180deg, #2b3440, #11161c);
+                color: #fff;
+            }
+            .lock .homeBar {
+                background: #fff;
+            }
+            .lockTime {
+                text-align: center;
+                font-size: 80px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                margin-top: 30px;
+            }
+            .lockDate {
+                text-align: center;
+                font-size: 17px;
+                opacity: 0.85;
+            }
+            .dim {
+                opacity: 0.75;
+            }
+            .sysAlert {
+                margin: 26px 12px 0;
+                border-radius: 26px;
+                background: rgba(40, 46, 54, 0.82);
+                padding: 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                outline: 1px dashed rgba(255, 255, 255, 0.35);
+                outline-offset: 4px;
+            }
+            .sysRow {
+                display: flex;
+                gap: 10px;
+            }
+            .sysBtn {
+                flex: 1;
+                height: 56px;
+                border-radius: 28px;
+                background: rgba(255, 255, 255, 0.16);
+                display: grid;
+                place-items: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .sysBtn.stop {
+                background: #fff;
+                color: #11161c;
+            }
+            .sysNote {
+                margin: 16px 24px 0;
+                font-size: 13px;
+                opacity: 0.7;
+                line-height: 1.35;
+            }
+
+            .scrimWrap {
+                position: absolute;
+                inset: 0;
+                background: var(--scrim);
+            }
+            .sheet {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: 280px;
+                background: var(--paper-overlay);
+                border-radius: 24px 24px 0 0;
+                display: flex;
+                flex-direction: column;
+                box-shadow: var(--shadow-lg);
+                overflow: hidden;
+            }
+            .grab {
+                width: 40px;
+                height: 5px;
+                border-radius: 3px;
+                background: var(--line-divider);
+                margin: 8px auto 0;
+            }
+            .sheetHead {
+                display: flex;
+                align-items: center;
+                padding: 10px 16px 4px 20px;
+            }
+            .sheetHead .t17 {
+                flex: 1;
+            }
+            .smallBtn {
+                height: 48px;
+                padding: 0 16px;
+                border-radius: 24px;
+                background: var(--surface-muted);
+                display: grid;
+                place-items: center;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .group {
+                padding: 14px 20px 4px;
+            }
+            .ing {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 52px;
+                padding: 0 20px;
+            }
+            .ing .t17 {
+                flex: 1;
+            }
+            .already {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                min-height: 52px;
+                margin: 6px 20px 0;
+                border-top: 1px solid var(--line-divider);
+                color: var(--ink-muted);
+            }
+
+            .cols {
+                flex: 1;
+                min-height: 0;
+                display: grid;
+                margin-top: 12px;
+            }
+            .colIng {
+                background: var(--paper);
+                border-right: 1px solid var(--line-divider);
+                overflow: hidden;
+                padding-top: 12px;
+            }
+            .colHead {
+                padding: 4px 20px 0;
+            }
+            .colStep {
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+            }
+            .colStep .pad {
+                padding: 22px 40px 6px;
+            }
+            .colStep .body {
+                padding: 0 40px;
+            }
+            .colStep .dock {
+                margin: 0 40px;
+            }
+            .tab834 .colStep .nav {
+                padding: 10px 40px 30px;
+            }
+            .colTimers {
+                border-left: 1px solid var(--line-divider);
+                padding: 22px 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .colTimers .dock {
+                margin: 0;
+            }
+            .addTimer {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                height: 48px;
+                color: var(--action-text);
+                font-size: 17px;
+                font-weight: 600;
+            }
+            .webNote {
+                margin-top: 8px;
+            }
+            .gap {
+                height: 14px;
+                flex: none;
+            }
+            .body {
+                position: relative;
+            }
+            .moreHint {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 64px;
+                display: flex;
+                align-items: flex-end;
+                justify-content: center;
+                padding-bottom: 8px;
+                color: var(--ink-muted);
+                background: linear-gradient(180deg, transparent, var(--canvas) 60%);
+            }
+            .place {
+                text-align: left;
+            }
+        </style>
+    </head>
+    <body>
+        <h1 class="sheetTitle">Glance from across the kitchen · round 2</h1>
+        <p class="sheetNote">
+            Designer C. The step's own lines are the reading layer, at one cooking size, 38. Ticked lines fold away;
+            untouched lines stay. The soonest timer is the only other big thing. Everything else is 17 and 13, for the
+            cook who steps closer. Lemon and thyme roast chicken, 6 steps, for 4.
+        </p>
+        <div class="row">
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneBeforeYouStart">
+                    <div class="status">9:30</div>
+
+                    <div class="top">
+                        <div class="iconBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place"></div>
+                    </div>
+                    <div class="bys">
+                        <div class="title">Before you start</div>
+                        <div class="t17">
+                            About <b>2 h 05</b>. Your hands are busy for 25 min of it. The oven does the rest.
+                        </div>
+                        <div class="bysRow">
+                            <div class="over">Do first</div>
+                            <div class="t17">Take the chicken out of the fridge 30 min ahead.</div>
+                        </div>
+                        <div class="bysRow">
+                            <div class="over">Servings</div>
+                            <div class="stepper inline">
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M5 12h14" />
+                                    </svg>
+                                </div>
+                                <div class="stepVal">4</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </div>
+                                <span class="t17 muted">· 11 ingredients</span>
+                            </div>
+                        </div>
+                        <div class="bysRow perm">
+                            <div class="permText">
+                                <div class="t17 strong">Let timers ring on silent</div>
+                                <div class="t13 muted">
+                                    So you hear the roast from another room, even with the phone locked. If you say no,
+                                    timers ring only while this screen is open.
+                                </div>
+                            </div>
+                            <div class="outlineBtn">Allow</div>
+                        </div>
+                        <div class="t13 muted">The screen stays on while you cook.</div>
+                    </div>
+                    <div class="spacer"></div>
+                    <div class="nav">
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Start step 1</span
+                                ><span class="t13 sub">Heat the oven to 220°C</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>0 · Before you start.</b> The shape of the job and the alarm permission, asked once (Keep 5,
+                    CK-030, CK-007). No cards: space and hairlines only.
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneStep">
+                    <div class="status">9:41</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 2 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="gap"></div>
+                    <div class="body">
+                        <div class="lines">
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Zest <b>1 lemon</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Mash <b>3 tbsp butter</b> with the zest</div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Add the leaves of <b>3 sprigs thyme</b> and <b>1 tsp salt</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Spread it under the skin of the breast</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="moreHint"><span class="t13">More below · scroll</span></div>
+                    </div>
+                    <div class="dock">
+                        <div class="dockRow" role="timer">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <span class="t38 num">6:20</span>
+                                <div class="t13 muted">Oven to 220°C · step 1</div>
+                            </div>
+                            <div class="pauseBtn" aria-label="Pause Oven to 220°C · step 1">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M9 6v12M15 6v12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 3</span
+                                ><span class="t13 sub">Toss the vegetables in oil</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>1 · Step in progress, light.</b> The step's lines are the reading layer at 38: nothing else on
+                    screen repeats them. The oven timer is the one other big thing, in the dock. A long step scrolls,
+                    and says so. Next carries the preview of step 3 (CK-033, Keep 2).
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="dark" data-screen="phoneStepDark">
+                    <div class="status">9:41</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 2 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="gap"></div>
+                    <div class="body">
+                        <div class="lines">
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Zest <b>1 lemon</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Mash <b>3 tbsp butter</b> with the zest</div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Add the leaves of <b>3 sprigs thyme</b> and <b>1 tsp salt</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Spread it under the skin of the breast</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="moreHint"><span class="t13">More below · scroll</span></div>
+                    </div>
+                    <div class="dock">
+                        <div class="dockRow" role="timer">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <span class="t38 num">6:20</span>
+                                <div class="t13 muted">Oven to 220°C · step 1</div>
+                            </div>
+                            <div class="pauseBtn" aria-label="Pause Oven to 220°C · step 1">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M9 6v12M15 6v12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 3</span
+                                ><span class="t13 sub">Toss the vegetables in oil</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption><b>1 · Step in progress, dark.</b> Same screen on the dusk canvas.</figcaption>
+            </figure>
+        </div>
+        <div class="row">
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneStepTicked">
+                    <div class="status">9:43</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 2 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="gap"></div>
+                    <div class="body">
+                        <div class="lines">
+                            <div class="record">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M5 12l5 5 9-10" /></svg
+                                ><span class="t17 muted ell">You ticked 2 lines</span
+                                ><span class="t13 linkish">Show</span>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Add the leaves of <b>3 sprigs thyme</b> and <b>1 tsp salt</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Spread it under the skin of the breast</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dock">
+                        <div class="dockRow" role="timer">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <span class="t38 num">4:05</span>
+                                <div class="t13 muted">Oven to 220°C · step 1</div>
+                            </div>
+                            <div class="pauseBtn" aria-label="Pause Oven to 220°C · step 1">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M9 6v12M15 6v12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 3</span
+                                ><span class="t13 sub">Toss the vegetables in oil</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>1b · After two ticks.</b> Ticked lines fold into one true record: "You ticked", not "Done"
+                    (CK-020). The rest stay at 38. A cook who never ticks sees every line, so nothing goes stale.
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneUpNext">
+                    <div class="status">9:58</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 3 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="gap"></div>
+                    <div class="body">
+                        <div class="lines">
+                            <div class="record">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M5 12l5 5 9-10" /></svg
+                                ><span class="t17 muted ell">You ticked both lines</span
+                                ><span class="t13 linkish">Show</span>
+                            </div>
+                            <div class="over upnext">Up next · Step 4</div>
+                            <div class="line preview">
+                                <div class="lineBody">
+                                    <div class="t38">Roast <b>20 min</b> at 220°C</div>
+                                </div>
+                            </div>
+                            <div class="line preview">
+                                <div class="lineBody">
+                                    <div class="t38">Lower the oven to <b>190°C</b> (170°C fan)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"><span class="t17 strong">Start step 4</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>2 · The next step coming.</b> Once every line is ticked, step 4 takes the reading layer as a
+                    preview, labelled "Up next". Nothing moves until Start step 4 (CK-033, CK-003).
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneTimerOffered">
+                    <div class="status">9:59</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 4 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="gap"></div>
+                    <div class="body">
+                        <div class="lines">
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Roast <b>20 min</b> at 220°C</div>
+                                    <div class="offer">
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <circle cx="12" cy="13" r="8" />
+                                            <path d="M12 9v4l2 2M9 2h6" /></svg
+                                        ><span>Start · 20 min</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Lower the oven to <b>190°C</b> (170°C fan)</div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Roast <b>1 h 10</b> more, turning the potatoes halfway</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 5</span
+                                ><span class="t13 sub">Lift out, make the gravy</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>2b · A timer offered where the time is.</b> "Roast 20 min" carries Start · 20 min in its own line
+                    (Keep 4, CK-031).
+                </figcaption>
+            </figure>
+        </div>
+        <div class="row">
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneWait">
+                    <div class="status">10:21</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 4 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="over pad">Roasting</div>
+                    <div class="body">
+                        <div class="waitHead">
+                            <div class="t38">Nothing needs you for <span class="num strong">35 min</span></div>
+                            <div class="thenRow"><span class="t17">Then turn the potatoes.</span></div>
+                            <div class="t17 muted">The roast is out at 11:31, when the juices run clear.</div>
+                        </div>
+                        <div class="offerRow">
+                            <span class="t17">Time the turn?</span>
+                            <div class="offer">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="12" cy="13" r="8" />
+                                    <path d="M12 9v4l2 2M9 2h6" /></svg
+                                ><span>Start · 35 min</span>
+                            </div>
+                        </div>
+                        <div class="jobs">
+                            <div class="over">If you like, from step 5</div>
+                            <div class="job"><span class="t17">Get out a board and foil</span></div>
+                            <div class="job"><span class="t17">Measure 1 tbsp flour and 300 ml stock</span></div>
+                        </div>
+                    </div>
+                    <div class="dock">
+                        <div class="dockRow" role="timer">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <span class="t17 strong num">1:09:50</span>
+                                <div class="t13 muted">Roast · step 4</div>
+                            </div>
+                            <div class="pauseBtn" aria-label="Pause Roast · step 4">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M9 6v12M15 6v12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 5</span
+                                ><span class="t13 sub">Lift out, make the gravy</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>3 · A wait.</b> "Nothing needs you for 35 min", then what ends it. The turn is offered as a
+                    timer. Two jobs at most, prep from later steps only (Keep 3, CK-033, CK-036).
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneTwoTimers">
+                    <div class="status">10:48</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 4 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="over pad">Roasting</div>
+                    <div class="body">
+                        <div class="waitHead">
+                            <div class="t38">Nothing needs you for <span class="num strong">8:12</span></div>
+                            <div class="thenRow">
+                                <span class="t17">Then turn the potatoes.</span>
+                                <div class="pauseBtn small" aria-label="Pause the potatoes timer">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M9 6v12M15 6v12" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="t17 muted">The roast runs on below.</div>
+                        </div>
+                        <div class="jobs">
+                            <div class="over">If you like, from step 5</div>
+                            <div class="job"><span class="t17">Get out a board and foil</span></div>
+                            <div class="job"><span class="t17">Measure 1 tbsp flour and 300 ml stock</span></div>
+                        </div>
+                    </div>
+                    <div class="dock">
+                        <div class="dockRow" role="timer">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <span class="t17 strong num">0:43:12</span>
+                                <div class="t13 muted">Roast · step 4</div>
+                            </div>
+                            <div class="pauseBtn" aria-label="Pause Roast · step 4">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M9 6v12M15 6v12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 5</span
+                                ><span class="t13 sub">Lift out, make the gravy</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>4 · Two timers.</b> The soonest timer is the big number in the sentence, and only there. The
+                    roast sits in the dock at 17 (Fix 2, CK-031).
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneFastAhead">
+                    <div class="status">11:19</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 4 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="over pad">Roasting</div>
+                    <div class="body">
+                        <div class="waitHead">
+                            <div class="t38">Nothing needs you for <span class="num strong">12:30</span></div>
+                            <div class="thenRow"><span class="t17">Then take the chicken out.</span></div>
+                            <div class="t17 muted">Check that the juices run clear.</div>
+                        </div>
+                        <div class="fast">
+                            <div class="over att">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.4"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M5 6l6 6-6 6M13 6l6 6-6 6" /></svg
+                                >Step 5 goes fast
+                            </div>
+                            <div class="t17">
+                                Have these out before the beep: a board and foil, <b>1 tbsp flour</b>,
+                                <b>300 ml stock</b> and a whisk.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 5</span
+                                ><span class="t13 sub">Lift out, make the gravy</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>4b · The fast stretch, one step early.</b> Near the end of the wait, the jobs give way to "Step 5
+                    goes fast" and what to have out (Keep 1, CK-021, CK-022). Amber is an icon and a word, never a fill.
+                </figcaption>
+            </figure>
+        </div>
+        <div class="row">
+            <figure>
+                <div class="screen phone alarm" data-theme="light" data-screen="phoneTimerDone">
+                    <div class="status">11:32</div>
+
+                    <div class="alarmBody" role="alert">
+                        <div class="ring">
+                            <svg
+                                width="30"
+                                height="30"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 16v-5a6 6 0 0112 0v5l2 2H4l2-2zM10 21a2 2 0 004 0" />
+                            </svg>
+                        </div>
+                        <div class="over">Roast is done · <span class="num">0:42</span> ago</div>
+                        <div class="t38">Take the chicken out</div>
+                        <div class="t17 soft">Step 5 goes fast. The board, foil, flour and stock are next.</div>
+                    </div>
+                    <div class="alarmNav">
+                        <div class="stopBtn">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12" rx="2" /></svg
+                            >Stop alarm
+                        </div>
+                        <div class="alarmSecondary">
+                            <div class="ghost">+ 5 min</div>
+                            <div class="ghost">+ 10 min</div>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>5a · A finished timer, in the app.</b> The only loud screen in the design. The whole screen turns
+                    over once; bell, words and a count-up carry it (Keep 6, NFR-004).
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone lock" data-screen="phoneTimerDoneLocked">
+                    <div class="status">&nbsp;</div>
+                    <div class="lockTime">11:32</div>
+                    <div class="lockDate">Sunday 25 October</div>
+                    <div class="sysAlert">
+                        <div class="t13 dim">COMMISE</div>
+                        <div class="t38">Take the chicken out</div>
+                        <div class="sysRow">
+                            <div class="sysBtn stop">Stop</div>
+                            <div class="sysBtn">Open step</div>
+                        </div>
+                    </div>
+                    <p class="sysNote">
+                        Schematic. iOS 26 draws this alert (AlarmKit); we supply the title and one extra button. It
+                        sounds through silent mode once the cook allowed alarms in Before you start, and repeats until
+                        Stop.
+                    </p>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption><b>5b · Locked or silent.</b> The system alarm, titled with the task (CK-030).</figcaption>
+            </figure>
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneAlarmsOff">
+                    <div class="status">10:21</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 4 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="over pad">Roasting</div>
+                    <div class="body">
+                        <div class="waitHead">
+                            <div class="t38">Nothing needs you for <span class="num strong">35 min</span></div>
+                            <div class="thenRow"><span class="t17">Then turn the potatoes.</span></div>
+                            <div class="t17 muted">The roast is out at 11:31.</div>
+                        </div>
+                        <div class="notice">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 16v-5a6 6 0 0112 0v5l2 2H4l2-2zM10 21a2 2 0 004 0M3 3l18 18" />
+                            </svg>
+                            <div class="t17">
+                                <b>Alarms are off.</b> If the phone locks or is on silent, timers will not ring.
+                                <span class="linkish">Allow alarms</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dock">
+                        <div class="dockRow" role="timer">
+                            <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="13" r="8" />
+                                <path d="M12 9v4l2 2M9 2h6" />
+                            </svg>
+                            <div class="lab">
+                                <span class="t17 strong num">1:09:50</span>
+                                <div class="t13 muted">Roast · step 4</div>
+                            </div>
+                            <div class="pauseBtn" aria-label="Pause Roast · step 4">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M9 6v12M15 6v12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav">
+                        <div class="btn btnBack">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M15 6l-6 6 6 6" /></svg
+                            >Back
+                        </div>
+                        <div class="btn btnNext">
+                            <span class="nx"
+                                ><span class="t17 strong">Next · Step 5</span
+                                ><span class="t13 sub">Lift out, make the gravy</span></span
+                            ><svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6l6 6-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption><b>5c · Alarms not allowed.</b> One honest line while a timer runs (Keep 5).</figcaption>
+            </figure>
+        </div>
+        <div class="row">
+            <figure>
+                <div class="screen phone" data-theme="light" data-screen="phoneIngredients">
+                    <div class="status">9:43</div>
+                    <div class="top">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite"><div class="t17 strong">Step 2 of 6</div></div>
+                        <div class="pillBtn">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
+                            >Ingredients
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="gap"></div>
+                    <div class="body">
+                        <div class="lines">
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Zest <b>1 lemon</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Mash <b>3 tbsp butter</b> with the zest</div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Add the leaves of <b>3 sprigs thyme</b> and <b>1 tsp salt</b></div>
+                                </div>
+                            </div>
+                            <div class="line">
+                                <span class="box"></span>
+                                <div class="lineBody">
+                                    <div class="t38">Spread it under the skin of the breast</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="scrimWrap"></div>
+                    <div class="sheet" role="dialog" aria-label="Ingredients">
+                        <div class="grab"></div>
+                        <div class="sheetHead">
+                            <div class="t17 strong">Ingredients for 4 · 11 items</div>
+                            <div class="smallBtn">Done</div>
+                        </div>
+                        <div class="stepper">
+                            <div class="lab t17">Servings</div>
+                            <div class="stepBtn">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M5 12h14" />
+                                </svg>
+                            </div>
+                            <div class="stepVal">4</div>
+                            <div class="stepBtn">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="group over">Now · step 2</div>
+                        <div class="ing">
+                            <span class="box on"
+                                ><svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M5 12l5 5 9-10" /></svg></span
+                            ><span class="t17"><b>1 lemon</b> zested</span>
+                        </div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>3 tbsp butter</b> softened</span>
+                        </div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>6 sprigs thyme</b></span>
+                        </div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>1 tsp sea salt</b></span>
+                        </div>
+                        <div class="group over">Later</div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>800 g potatoes</b> quartered</span
+                            ><span class="t13 muted">Step 3</span>
+                        </div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>3 carrots</b></span
+                            ><span class="t13 muted">Step 3</span>
+                        </div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>2 red onions</b></span
+                            ><span class="t13 muted">Step 3</span>
+                        </div>
+                        <div class="ing">
+                            <span class="box"></span><span class="t17"><b>2 tbsp olive oil</b></span
+                            ><span class="t13 muted">Step 3</span>
+                        </div>
+                        <div class="already">
+                            <span class="t17 muted">In already · 1 chicken</span
+                            ><svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 9l6 6 6-6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>6 · Ingredients from any step.</b> Named in words (R1), the stepper on top, grouped Now, Later,
+                    In already. No tint, no strikethrough list: what is in folds away (Keep 7, P4).
+                </figcaption>
+            </figure>
+            <figure>
+                <div class="screen tab834" data-theme="light" data-screen="tablet834Step">
+                    <div class="status">9:43</div>
+                    <div class="top wideTop">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite">
+                            <div class="t17 strong">Step 2 of 6</div>
+                            <div class="t13 muted ell">Lemon and thyme roast chicken</div>
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 300px 1fr">
+                        <div class="colIng">
+                            <div class="colHead t17 strong">Ingredients for 4</div>
+                            <div class="stepper">
+                                <div class="lab t17">Servings</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M5 12h14" />
+                                    </svg>
+                                </div>
+                                <div class="stepVal">4</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="group over">Now · step 2</div>
+                            <div class="ing">
+                                <span class="box on"
+                                    ><svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M5 12l5 5 9-10" /></svg></span
+                                ><span class="t17"><b>1 lemon</b> zested</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>3 tbsp butter</b> softened</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>6 sprigs thyme</b></span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 tsp sea salt</b></span>
+                            </div>
+                            <div class="group over">Later</div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>800 g potatoes</b> quartered</span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>3 carrots</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>2 red onions</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>2 tbsp olive oil</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 head garlic</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 tbsp flour</b></span
+                                ><span class="t13 muted">Step 5</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>300 ml stock</b></span
+                                ><span class="t13 muted">Step 5</span>
+                            </div>
+                            <div class="already">
+                                <span class="t17 muted">In already · 1 chicken</span
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="colStep">
+                            <div class="gap"></div>
+                            <div class="body">
+                                <div class="lines">
+                                    <div class="record">
+                                        <svg
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M5 12l5 5 9-10" /></svg
+                                        ><span class="t17 muted ell">You ticked 1 line</span
+                                        ><span class="t13 linkish">Show</span>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span>
+                                        <div class="lineBody">
+                                            <div class="t38">Mash <b>3 tbsp butter</b> with the zest</div>
+                                        </div>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span>
+                                        <div class="lineBody">
+                                            <div class="t38">
+                                                Add the leaves of <b>3 sprigs thyme</b> and <b>1 tsp salt</b>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span>
+                                        <div class="lineBody">
+                                            <div class="t38">Spread it under the skin of the breast</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="dock">
+                                <div class="dockRow" role="timer">
+                                    <svg
+                                        width="22"
+                                        height="22"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="13" r="8" />
+                                        <path d="M12 9v4l2 2M9 2h6" />
+                                    </svg>
+                                    <div class="lab">
+                                        <span class="t38 num">5:10</span>
+                                        <div class="t13 muted">Oven to 220°C · step 1</div>
+                                    </div>
+                                    <div class="pauseBtn" aria-label="Pause Oven to 220°C · step 1">
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M9 6v12M15 6v12" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="nav">
+                                <div class="btn btnBack">
+                                    <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M15 6l-6 6 6 6" /></svg
+                                    >Back
+                                </div>
+                                <div class="btn btnNext">
+                                    <span class="nx"
+                                        ><span class="t17 strong">Next · Step 3</span
+                                        ><span class="t13 sub">Toss the vegetables in oil</span></span
+                                    ><svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M9 6l6 6-6 6" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="homeBar"></div>
+                </div>
+                <figcaption>
+                    <b>Tablet 834, upright.</b> Ingredients | step. The dock and Next sit under the step. One line
+                    ticked.
+                </figcaption>
+            </figure>
+        </div>
+        <div class="row">
+            <figure>
+                <div class="screen tab1194" data-theme="light" data-screen="tablet1194Wait">
+                    <div class="top wideTop">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite">
+                            <div class="t17 strong">Step 4 of 6</div>
+                            <div class="t13 muted ell">Lemon and thyme roast chicken</div>
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 300px 1fr 330px">
+                        <div class="colIng">
+                            <div class="colHead t17 strong">Ingredients for 4</div>
+                            <div class="stepper">
+                                <div class="lab t17">Servings</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M5 12h14" />
+                                    </svg>
+                                </div>
+                                <div class="stepVal">4</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="group over">Now · step 4</div>
+                            <div class="ing"><span class="t17 muted">Nothing new for this step</span></div>
+                            <div class="group over">Later</div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 tbsp flour</b></span
+                                ><span class="t13 muted">Step 5</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>300 ml stock</b></span
+                                ><span class="t13 muted">Step 5</span>
+                            </div>
+                            <div class="already">
+                                <span class="t17 muted">In already · 9 items</span
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="colStep">
+                            <div class="over pad">Roasting</div>
+                            <div class="body">
+                                <div class="waitHead">
+                                    <div class="t38">Nothing needs you for <span class="num strong">8:12</span></div>
+                                    <div class="thenRow">
+                                        <span class="t17">Then turn the potatoes.</span>
+                                        <div class="pauseBtn small" aria-label="Pause the potatoes timer">
+                                            <svg
+                                                width="18"
+                                                height="18"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                aria-hidden="true"
+                                            >
+                                                <path d="M9 6v12M15 6v12" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="t17 muted">The roast is out at 11:31, when the juices run clear.</div>
+                                </div>
+                                <div class="jobs">
+                                    <div class="over">If you like, from step 5</div>
+                                    <div class="job"><span class="t17">Get out a board and foil</span></div>
+                                    <div class="job">
+                                        <span class="t17">Measure 1 tbsp flour and 300 ml stock</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="nav navWide">
+                                <div class="btn btnBack">
+                                    <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M15 6l-6 6 6 6" /></svg
+                                    >Back
+                                </div>
+                                <div class="btn btnNext">
+                                    <span class="nx"
+                                        ><span class="t17 strong">Next · Step 5</span
+                                        ><span class="t13 sub">Lift out, make the gravy</span></span
+                                    ><svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M9 6l6 6-6 6" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="colTimers">
+                            <div class="over">Also running</div>
+                            <div class="dock">
+                                <div class="dockRow" role="timer">
+                                    <svg
+                                        width="22"
+                                        height="22"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="13" r="8" />
+                                        <path d="M12 9v4l2 2M9 2h6" />
+                                    </svg>
+                                    <div class="lab">
+                                        <span class="t17 strong num">0:43:12</span>
+                                        <div class="t13 muted">Roast · step 4</div>
+                                    </div>
+                                    <div class="pauseBtn" aria-label="Pause Roast · step 4">
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M9 6v12M15 6v12" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="addTimer">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M12 5v14M5 12h14" /></svg
+                                >Add a timer
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <figcaption>
+                    <b>Tablet 1194, sideways in a stand (CK-032).</b> Ingredients | the wait | other timers. The soonest
+                    timer is in the sentence; the roast is in the right column, once.
+                </figcaption>
+            </figure>
+        </div>
+        <div class="row">
+            <figure>
+                <div class="screen web" data-theme="light" data-screen="web1280Step">
+                    <div class="top wideTop">
+                        <div class="iconBtn" aria-label="Exit cooking mode">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </div>
+                        <div class="place" aria-live="polite">
+                            <div class="t17 strong">Step 2 of 6</div>
+                            <div class="t13 muted ell">Lemon and thyme roast chicken</div>
+                        </div>
+                    </div>
+                    <div class="track" aria-hidden="true">
+                        <i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i
+                        ><i class=""></i>
+                    </div>
+                    <div class="cols" style="grid-template-columns: 300px 1fr 330px">
+                        <div class="colIng">
+                            <div class="colHead t17 strong">Ingredients for 4</div>
+                            <div class="stepper">
+                                <div class="lab t17">Servings</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M5 12h14" />
+                                    </svg>
+                                </div>
+                                <div class="stepVal">4</div>
+                                <div class="stepBtn">
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="group over">Now · step 2</div>
+                            <div class="ing">
+                                <span class="box on"
+                                    ><svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M5 12l5 5 9-10" /></svg></span
+                                ><span class="t17"><b>1 lemon</b> zested</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>3 tbsp butter</b> softened</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>6 sprigs thyme</b></span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 tsp sea salt</b></span>
+                            </div>
+                            <div class="group over">Later</div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>800 g potatoes</b> quartered</span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>3 carrots</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>2 red onions</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>2 tbsp olive oil</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 head garlic</b></span
+                                ><span class="t13 muted">Step 3</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>1 tbsp flour</b></span
+                                ><span class="t13 muted">Step 5</span>
+                            </div>
+                            <div class="ing">
+                                <span class="box"></span><span class="t17"><b>300 ml stock</b></span
+                                ><span class="t13 muted">Step 5</span>
+                            </div>
+                            <div class="already">
+                                <span class="t17 muted">In already · 1 chicken</span
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="colStep">
+                            <div class="gap"></div>
+                            <div class="body">
+                                <div class="lines">
+                                    <div class="record">
+                                        <svg
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M5 12l5 5 9-10" /></svg
+                                        ><span class="t17 muted ell">You ticked 1 line</span
+                                        ><span class="t13 linkish">Show</span>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span>
+                                        <div class="lineBody">
+                                            <div class="t38">Mash <b>3 tbsp butter</b> with the zest</div>
+                                        </div>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span>
+                                        <div class="lineBody">
+                                            <div class="t38">
+                                                Add the leaves of <b>3 sprigs thyme</b> and <b>1 tsp salt</b>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span>
+                                        <div class="lineBody">
+                                            <div class="t38">Spread it under the skin of the breast</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="nav navWide">
+                                <div class="btn btnBack">
+                                    <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M15 6l-6 6 6 6" /></svg
+                                    >Back
+                                </div>
+                                <div class="btn btnNext">
+                                    <span class="nx"
+                                        ><span class="t17 strong">Next · Step 3</span
+                                        ><span class="t13 sub">Toss the vegetables in oil</span></span
+                                    ><svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M9 6l6 6-6 6" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="colTimers">
+                            <div class="over">Timers</div>
+                            <div class="dock">
+                                <div class="dockRow" role="timer">
+                                    <svg
+                                        width="22"
+                                        height="22"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="13" r="8" />
+                                        <path d="M12 9v4l2 2M9 2h6" />
+                                    </svg>
+                                    <div class="lab">
+                                        <span class="t38 num">5:10</span>
+                                        <div class="t13 muted">Oven to 220°C · step 1</div>
+                                    </div>
+                                    <div class="pauseBtn" aria-label="Pause Oven to 220°C · step 1">
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M9 6v12M15 6v12" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="addTimer">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M12 5v14M5 12h14" /></svg
+                                >Add a timer
+                            </div>
+                            <p class="t13 muted webNote">
+                                In a browser, a timer rings only while this tab is open. Keys: → next, ← back.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <figcaption>
+                    <b>Web 1280.</b> The same columns. The browser cannot promise an alarm through a closed tab, so the
+                    timer column says so (not researched).
+                </figcaption>
+            </figure>
+        </div>
+    </body>
+</html>

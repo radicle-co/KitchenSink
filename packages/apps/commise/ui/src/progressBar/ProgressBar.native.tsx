@@ -22,6 +22,7 @@ export const ProgressBar: FC<ProgressBarProps> = ({ label, value, max }) => {
 
     return (
         <View
+            collapsable={false}
             role="progressbar"
             aria-label={label}
             aria-valuenow={Math.round(fraction * bound)}

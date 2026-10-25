@@ -126,3 +126,32 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
         expect(bands.has(KEY_A)).toBe(false);
     });
 });
+
+describe('LineVerificationsDal.findExistingKeys — the save path’s dedup read (ADR-0071)', () => {
+    it('answers every key that has a verdict row, WHATEVER its band — a band this build cannot read is still on record', async () => {
+        const control = createFakeDb();
+        control.enqueue([{ verificationKey: KEY_A }, { verificationKey: KEY_B }]);
+
+        const existing = await new LineVerificationsDal(control.db).findExistingKeys([KEY_A, KEY_B, 'v2:cccc']);
+
+        expect([...existing].sort()).toEqual([KEY_A, KEY_B]);
+    });
+
+    it('issues NO query for an empty key list — `in ()` is a Postgres syntax error', async () => {
+        const control = createFakeDb();
+
+        const existing = await new LineVerificationsDal(control.db).findExistingKeys([]);
+
+        expect(existing.size).toBe(0);
+        expect(control.calls).toEqual([]);
+    });
+
+    it('binds each key once, however often the caller repeats it', async () => {
+        const control = createFakeDb();
+        control.enqueue([]);
+
+        await new LineVerificationsDal(control.db).findExistingKeys([KEY_A, KEY_A, KEY_B]);
+
+        expect(boundKeysOfWhere(control).sort()).toEqual([KEY_A, KEY_B]);
+    });
+});

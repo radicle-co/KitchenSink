@@ -39,5 +39,11 @@ export function fakeLineVerificationsDal(
                 ),
             ),
         ),
+        // ADR-0071: the save path's dedup read. A verdict of ANY band counts as on record.
+        findExistingKeys: vi
+            .fn()
+            .mockImplementation((keys: readonly string[]) =>
+                Promise.resolve(new Set(keys.filter((key) => bands.has(key)))),
+            ),
     } as unknown as LineVerificationsDal;
 }

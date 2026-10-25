@@ -12,13 +12,14 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
 import * as Sentry from '@sentry/nestjs';
-import { createHash } from 'node:crypto';
-import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { quantitiesEqual, type RecipeSnapshot, type VersionConflictSide } from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verifiedLineIdentityOfMessage,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
-import { shadowRateFor } from '@kitchensink/recipe-core/resolution/band-policy';
 import {
     RecipeSourceType,
     RecipeStatus,
@@ -53,16 +54,7 @@ import { toRecipeSummaryResponse } from './mappers/recipeResponse.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
 import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
-import {
-    buildVerificationRequests,
-    type VerifiableLine,
-    bandKeyOf,
-    type BandConsultation,
-} from './domain/verificationRequests.js';
-import { IngredientResolutionsDal } from '../ingredients/resolution/ingredientResolutions.dal.js';
-import type { LatestResolution } from '../ingredients/resolution/ingredientResolutions.dal.js';
-import { ResolutionBandsDal } from '../ingredients/resolution/resolutionBands.dal.js';
-import { VerificationRedriveDal } from '../ingredients/resolution/verificationRedrive.dal.js';
+import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
@@ -82,7 +74,14 @@ import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { resolveByline, type Byline } from '../authors/domain/bylinePolicy.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { NutritionReadBudget } from '../ingredients/foodNutrition.gateway.js';
-import { RECIPES_DAL, RECIPES_SHADOW_RNG, RECIPE_PHOTOS_CDN_URL, RECIPE_RATINGS_DAL } from './recipes.tokens.js';
+import {
+    RECIPES_DAL,
+    RECIPE_LINE_VERIFICATIONS_DAL,
+    RECIPE_PHOTOS_CDN_URL,
+    RECIPE_RATINGS_DAL,
+} from './recipes.tokens.js';
+import type { LineVerificationsDal } from './dal/lineVerifications.dal.js';
+import { sha256Hex } from '../common/sha256.js';
 import { RecipeDetailAssembler } from './recipeDetail.assembler.js';
 import { IngredientLinePlanner } from './ingredientLine.planner.js';
 import { ingredientNamesText } from './domain/ingredientNamesText.js';
@@ -113,11 +112,7 @@ type LineIdentities = ReadonlyMap<string, IngredientLineIdentity>;
  * @param resolutions - The latest resolution events, by lookup id.
  * @returns The verifiable projection. Pure.
  */
-function storedLineToVerifiable(
-    row: IngredientRow,
-    identities: LineIdentities,
-    resolutions: ReadonlyMap<string, LatestResolution>,
-): VerifiableLine {
+function storedLineToVerifiable(row: IngredientRow, identities: LineIdentities): VerifiableLine {
     const identity = identities.get(row.foodLookupId);
     const name = identity?.name;
 
@@ -136,8 +131,6 @@ function storedLineToVerifiable(
         // adapter, and never omitted: a projection that dropped it would key the resulting verdict the pre-0027
         // way, so the corrected line could never find it.
         statedMeasure: statedMeasureFromColumns(row),
-        // U2/U4: the latest recorded resolution EVENT for this line's binding — absence maps to `unattributed`.
-        resolution: resolutions.get(row.foodLookupId),
         // U11 (0040): whether this line's food is someone's PRIVATE authored one. Rides to the worker as the
         // message's `privateFood` — no memo write, no band observation for a food only its author sees. The owner
         // is on the binding, so this can no longer fail to be read.
@@ -411,31 +404,19 @@ export class RecipesService {
         // gate's consumer with nothing sending it a message, and a collaborator that defaults to a no-op is
         // how that state comes back — silently, past a green suite. Every construction site must name it.
         @Inject(VERIFICATION_QUEUE) private readonly verificationQueue: VerificationQueuePort,
-        // U2 — REQUIRED, for the reason the verification queue above is: production has always supplied it,
-        // and an optional collaborator is how a feature goes silently absent past a green suite. A fixture
-        // that does not care passes a double; it may not omit it.
-        private readonly ingredientResolutions: IngredientResolutionsDal,
-        // U4 — required for the same reason.
-        // ⚠️ A VALUE import, not a type-only one: this class is registered by reflection, so the param type
-        // must be a runtime class Nest can resolve (a type-only import emits `Object` into
-        // design:paramtypes and the app fails to BOOT — observed, not theorized).
-        private readonly resolutionBands: ResolutionBandsDal,
-        // U4c — required like its siblings.
-        private readonly verificationRedrive: VerificationRedriveDal,
+        // ADR-0071 — the producer's dedup read: a verdict already on record under a line's key is not paid for again.
+        // REQUIRED like the queue above. Token-injected, so the `Pick` type emits nothing Nest must resolve.
+        @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
+        private readonly verdicts: Pick<LineVerificationsDal, 'findExistingKeys'>,
         // U-DA — the READ-side collaborator (`recipeDetail.assembler.ts`). Every detail projection that needs
         // the food service lives there, behind three public methods; this class keeps the orchestration and
         // the writes. ⛔ Call it only AFTER a transaction has committed: no signature there accepts a `RecipeTx`, so
         // it cannot USE one — but nothing stops a caller awaiting it inside a transaction callback, so ADR-0034's
         // "never hold a transaction across a network call" is still a rule each call site keeps.
         private readonly detailAssembler: RecipeDetailAssembler,
-        // LAST, and the only optional one left: injected so the shadow coin is testable, with production
-        // falling back to Math.random — the coin needs no cryptographic strength, only an unbiased rate.
-        // ⚠️ Token-injected: a bare `() => number` param emits `Function` into design:paramtypes, which
-        // Nest cannot resolve.
         // Plan 2026-10-15-010 D8 — the read model a write's byline is resolved from. Required like the others.
         // ⚠️ Token-injected with a VALUE import: the `Pick` type emits `Object` into design:paramtypes.
         @Inject(AuthorHandlesDal) private readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>,
-        @Optional() @Inject(RECIPES_SHADOW_RNG) private readonly rng?: () => number,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -677,7 +658,11 @@ export class RecipesService {
      *  - **⛔ Nothing at all for a CONTAINED test principal (ADR-0040).** The worker spends ADR-0024's shared
      *    production LLM pool and writes the GLOBAL `ingredient_resolution_memos` tier, which answers for every future
      *    cook and has no user column the test purge could reach — so, like analytics, it can only be PREVENTED. The
-     *    return is the FIRST statement, before the provenance read, so a request never sent pays for nothing.
+     *    return is the FIRST statement, before the dedup read, so a request never sent pays for nothing.
+     *  - **⛔ A judgement already on record is not asked again (ADR-0071).** Before enqueueing, the verdict table
+     *    is read by each request's key — the exact answer `alreadyRequested` approximates. It covers a line two
+     *    recipes share, and a pasted line whose proposal the gate already judged. The read fails OPEN: on any
+     *    error every request is sent, because a missed dedup costs a duplicate question, never a skipped check.
      *    `subject` is REQUIRED so a new caller cannot reach the queue without deciding.
      *
      * @param subject - Who is saving, and whether this stage contains test principals.
@@ -698,28 +683,15 @@ export class RecipesService {
             return;
         }
 
-        // U2/U4: the latest resolution event per binding, batched over every line this call names.
-        // Inside the same never-throws boundary as the enqueue — a failed read degrades to `unattributed`.
-        const resolutions = await this.ingredientResolutions
-            .latestResolutionsByLookupIds([...lines, ...previous].map((row) => row.foodLookupId))
-            .catch((error: unknown) => {
-                this.logger.warn(
-                    'Resolution provenance read failed; verification proceeds unattributed.',
-                    error instanceof Error ? error.stack : String(error),
-                );
-
-                return new Map<string, LatestResolution>();
-            });
-
-        const plan = buildVerificationRequests({
+        // ADR-0071: no provenance is read here. A binding is SHARED by every cook, so its latest event describes
+        // someone else's add; the plan declares every line `unattributed`.
+        const { requests: planned, unasked } = buildVerificationRequests({
             recipeId,
-            lines: lines.map((row) => storedLineToVerifiable(row, identities, resolutions)),
-            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, identities, resolutions)),
+            lines: lines.map((row) => storedLineToVerifiable(row, identities)),
+            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, identities)),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
             requestedAt: new Date().toISOString(),
-            bands: await this.consultBands(resolutions),
         });
-        const { requests, unasked } = plan;
 
         // ⛔ An over-cap line is the ONE unasked reason worth a log line. `authored` and
         // `no-catalog-identity` are the normal, dominant cases and would drown it; `over-cap` means the
@@ -736,6 +708,8 @@ export class RecipesService {
                     )} characters)`,
             );
         }
+
+        const requests = await this.withoutVerdictsOnRecord(recipeId, planned);
 
         if (requests.length === 0) {
             // ⛔ Not an empty batch — no call at all. `SendMessageBatch` REFUSES an empty `Entries` list
@@ -760,95 +734,43 @@ export class RecipesService {
                 error instanceof Error ? error.stack : String(error),
             );
         }
-
-        // KTD-A: identity settlements granted by band authority this save, persisted so revocation can
-        // re-verify them (R14). Quietly — a lost skip row costs one re-verification, never a save.
-        // Concurrent, not sequential: the rows are independent, and each write keeps its OWN catch, so a
-        // failure still costs exactly one re-verification rather than the rest of the batch.
-        await Promise.all(
-            plan.bandSkips.map(async (skip) => {
-                try {
-                    await this.resolutionBands.recordSkip(skip.band, skip.epoch, skip.message);
-                } catch (error) {
-                    this.logger.warn(
-                        'band-skip record failed; the settlement is unlogged for the drain',
-                        error instanceof Error ? error.stack : String(error),
-                    );
-                }
-            }),
-        );
-
-        // KTD-A: the withholding lines' ready messages, stored under the verdict store's own content key so
-        // the scheduled drain can re-send any that age out with no verdict (plan U4c). Quietly — if BOTH
-        // the enqueue above and this write fail, the age-bounded needs-review treatment is the backstop.
-        // Concurrent for the same reason as the skips above: independent rows, per-write catch preserved.
-        await Promise.all(
-            plan.pendingRedrives.map(async (redrive) => {
-                try {
-                    await this.verificationRedrive.record(
-                        verificationKey(redrive.judgement, (input) => createHash('sha256').update(input).digest('hex')),
-                        redrive.message,
-                    );
-                } catch (error) {
-                    this.logger.warn(
-                        'pending-redrive record failed; the line relies on the age-bounded review treatment',
-                        error instanceof Error ? error.stack : String(error),
-                    );
-                }
-            }),
-        );
     }
 
     /**
-     * Load band authority (and roll the shadow coin) for every complete band key among this save's
-     * resolution events.
+     * Drop the requests whose judgement already has a verdict on record (ADR-0071).
      *
-     * ⚠️ Quiet and total: with no bands DAL, or on any read failure, the map is simply missing entries —
-     * and an absent consultation verifies identity, the safe direction (KTD-B's stale-read rule).
+     * Fails OPEN: an unreadable verdict table sends everything, because a missed dedup costs a duplicate question
+     * whose verdict write is idempotent by key, never a skipped check.
      *
-     * @param resolutions - The latest events, by lookup id.
-     * @returns Consultations by `bandKeyText`. @sideEffect Band-authority reads; one RNG roll per
-     *   authorized band.
+     * @param recipeId - For the log line only.
+     * @param requests - The plan's messages.
+     * @returns The messages to send. @sideEffect One keyed read of `recipe_ingredient_verifications`.
      */
-    private async consultBands(
-        resolutions: ReadonlyMap<string, LatestResolution>,
-    ): Promise<ReadonlyMap<string, BandConsultation>> {
-        const consultations = new Map<string, BandConsultation>();
-
-        for (const resolution of resolutions.values()) {
-            const key = bandKeyOf(resolution);
-
-            if (key === undefined) {
-                continue;
-            }
-
-            const text = bandKeyText(key);
-
-            if (consultations.has(text)) {
-                continue;
-            }
-
-            try {
-                const authority = await this.resolutionBands.authorityFor(key);
-                let shadow = false;
-
-                if (authority?.state === 'authorized') {
-                    // The ramped shadow rate: 50% during the burn-in after a grant, 5% steady — what keeps
-                    // an authorized band's measured record accruing (plan U3).
-                    const observed = await this.resolutionBands.observationsSinceGrant(key);
-                    shadow = (this.rng ?? Math.random)() < shadowRateFor(observed);
-                }
-
-                consultations.set(text, { authority, shadow });
-            } catch (error) {
-                this.logger.warn(
-                    'band-authority read failed; the affected lines verify identity',
-                    error instanceof Error ? error.stack : String(error),
-                );
-            }
+    private async withoutVerdictsOnRecord(
+        recipeId: string,
+        requests: readonly VerifyIngredientLineMessage[],
+    ): Promise<readonly VerifyIngredientLineMessage[]> {
+        if (requests.length === 0) {
+            return requests;
         }
 
-        return consultations;
+        const keyed = requests.map((message) => ({
+            message,
+            key: verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex),
+        }));
+
+        try {
+            const onRecord = await this.verdicts.findExistingKeys(keyed.map(({ key }) => key));
+
+            return keyed.filter(({ key }) => !onRecord.has(key)).map(({ message }) => message);
+        } catch (error) {
+            this.logger.warn(
+                `recipe ${recipeId}: verdict dedup read failed; asking about all ${String(requests.length)} line(s)`,
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return requests;
+        }
     }
 
     /**

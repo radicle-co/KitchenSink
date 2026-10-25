@@ -26,7 +26,6 @@ import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../.
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import {
     RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -117,8 +116,10 @@ beforeAll(async () => {
             },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: { findBandsByKeys: async () => new Map() } },
-            { provide: IngredientResolutionsDal, useValue: { latestResolutionsByLookupIds: async () => new Map() } },
+            {
+                provide: RECIPE_LINE_VERIFICATIONS_DAL,
+                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+            },
             {
                 provide: FoodLookupsDal,
                 useValue: {

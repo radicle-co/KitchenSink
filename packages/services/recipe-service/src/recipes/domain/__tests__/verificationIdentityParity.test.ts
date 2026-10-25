@@ -61,14 +61,12 @@ function producerPreimage(line: StoredLine): string {
                 ...line,
                 food: { kind: 'root', id: FOOD_ID },
                 candidateFoodName: 'Plain flour',
-                resolution: undefined,
                 sourcePhrase: undefined,
             },
         ],
         alreadyRequested: [],
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
         requestedAt: '2026-08-22T00:00:00.000Z',
-        bands: new Map(),
     });
     const message = requests[0];
 

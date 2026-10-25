@@ -1,7 +1,6 @@
 import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { forwardRef, Module } from '@nestjs/common';
 import type pg from 'pg';
-import { VerificationRedriveDal } from '../ingredients/resolution/verificationRedrive.dal.js';
 import { ConfigService } from '@nestjs/config';
 
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
@@ -54,13 +53,6 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
     imports: [forwardRef(() => VersionsModule), IngredientsModule, AnalyticsModule],
     controllers: [RecipesController, ParseJobsController],
     providers: [
-        {
-            // U4c — the pending re-drive substrate's write half. Its OWN instance over the shared Drizzle
-            // client, the embedded-DAL pattern PhotosDal/RatingsDal established (no module import, no cycle).
-            provide: VerificationRedriveDal,
-            inject: [DrizzleProvider],
-            useFactory: (db: RecipeDrizzle): VerificationRedriveDal => new VerificationRedriveDal(db),
-        },
         {
             provide: VERIFICATION_QUEUE,
             inject: [ConfigService],

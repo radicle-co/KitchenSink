@@ -30,10 +30,11 @@
  *
  * ## ⛔ EVERY LINE VERIFIES BOTH ASPECTS, AND THAT IS NOT A PLACEHOLDER
  *
- * The evidence declared is `unattributed` (see the policy's own member docstring). Nothing persists which
- * cascade tier resolved a catalog row — `resolveThroughCascade` keeps only the `foodId` — so by the time a
- * line is saved against a recipe, the provenance is genuinely unrecoverable rather than merely unread. That
- * evidence opens no skip door, so `decideVerification` asks about identity AND quantity. This is KTD-3's own
+ * The evidence declared is `unattributed`, always (ADR-0071). The only provenance a saved line has is the latest
+ * resolution event on its BINDING, and a binding is shared by every cook who bound that food: reading it let one
+ * cook's later curated bind of food X mark another cook's wrong lexical "milk → X" line as settled. So nothing here
+ * reads it, and the band skips and pending re-drives that hung off it are gone from this producer. That evidence
+ * opens no skip door, so `decideVerification` asks about identity AND quantity. This is KTD-3's own
  * default ("everything else verifies") and the safe direction: over-verifying costs money at ~370x headroom,
  * under-verifying publishes nutrition nothing checked. It is also free against the plan's cost basis, which
  * is stated "under KTD-3's verify-everything policy".
@@ -45,42 +46,29 @@
  * line in the recipe, which is the exact failure `verificationKey.ts` says content-keying removes. Content
  * keying made the verdict WRITE idempotent; nothing makes the CALL idempotent. ⚠️ This is not that either: it
  * deduplicates within ONE recipe, across ONE save, and only
- * if the previous save's enqueue actually happened. Across recipes it does nothing, and a second create of
- * the same content asks again. The exact answer is a keyed read of `recipe_ingredient_verifications` — see
- * {@link VerificationRequestInput.alreadyRequested}.
+ * if the previous save's enqueue actually happened. Across recipes it does nothing on its own. The exact answer
+ * is the keyed read of `recipe_ingredient_verifications` that `RecipesService` makes on this plan's requests before
+ * it enqueues (ADR-0071), which also stops a pasted line whose proposal the gate already judged being paid twice.
  *
  * The comparison defers to {@link verificationKeyPreimage} rather than comparing fields locally, because that
  * function is the ONE authoritative answer to "what is this judgement about" — it is what the verdict table
  * is keyed on. Two implementations of that rule would drift, and the drift would be invisible: it would show
  * up only as a bill.
  */
-import { z } from 'zod';
-
 import type { IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
 import {
-    curatedExactEvidence,
     decideVerification,
-    rankedEvidence,
-    rememberedEvidence,
     unattributedEvidence,
-    type IdentityEvidence,
     type VerificationThresholds,
 } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-import { bandKeyText, type BandKey } from '@kitchensink/recipe-core/resolution/band-authority-store';
-import { marginBandOf, type BandAuthority } from '@kitchensink/recipe-core/resolution/band-policy';
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 import {
-    MAX_VERIFICATION_SHORTLIST,
-    scoredCandidateSchema,
     verificationFoodFieldsOf,
     type VerificationFood,
     type VerifyIngredientLineMessage,
 } from '@kitchensink/recipe-core/resolution/verification-message';
 
-import type { LatestResolution } from '../../ingredients/resolution/ingredientResolutions.dal.js';
-
 import { verifiedLineIdentity } from './lineVerification.js';
-import type { VerifiedLineIdentity } from '@kitchensink/recipe-core/resolution/verification-key';
 
 /**
  * One persisted recipe ingredient line, adapted for the gate.
@@ -129,14 +117,6 @@ export interface VerifiableLine {
      */
     readonly statedMeasure: StatedMeasure | undefined;
     /**
-     * The latest recorded resolution EVENT for this line's ingredient, or `undefined` when none is
-     * recorded (plan U2/U4). A REQUIRED key carrying `undefined`, like {@link sourceLine} — every
-     * projection site must decide, and absence is a statement ("nothing attributed"), never missing data.
-     * The full event, not the tier name alone: the stored shortlist is what an honest `ranked` claim
-     * requires, and the band fields are what authority is consulted under.
-     */
-    readonly resolution: LatestResolution | undefined;
-    /**
      * U11/R20: the bound food is the OWNER's private authored one (`ingredients.food_owner_id` matched
      * the recipe's owner). Rides to the worker as the message's `privateFood` — no memo, no band.
      */
@@ -171,37 +151,9 @@ export interface UnaskedLine {
     readonly observedChars?: number;
 }
 
-/** One identity settlement granted by band authority, recorded for revocation's drain (plan U3, R14). */
-export interface BandSkipRecord {
-    readonly band: BandKey;
-    /** The authority epoch the settlement happened under. */
-    readonly epoch: number;
-    /** The message as SENT, verbatim — what the drain re-sends if the band is revoked. */
-    readonly message: VerifyIngredientLineMessage;
-}
-
-/** One withholding line's judgement identity and its ready message, for the re-drive substrate (0037). */
-export interface PendingRedriveRecord {
-    readonly judgement: VerifiedLineIdentity;
-    readonly message: VerifyIngredientLineMessage;
-}
-
 /** What the producer decided: the messages to send, and every line it will never ask about. */
 export interface VerificationRequestPlan {
     readonly requests: readonly VerifyIngredientLineMessage[];
-    /**
-     * Identity settlements granted by band authority this save (⚠️ these lines' messages are STILL in
-     * {@link requests} — quantity is never skippable). The impure half persists each into
-     * `resolution_band_skips`; revocation's drain re-sends from there.
-     */
-    readonly bandSkips: readonly BandSkipRecord[];
-    /**
-     * The WITHHOLDING lines' judgements + ready messages (plan U4c, KTD-A): every ranked line that will
-     * render `pending-verification` until its verdict lands. The impure half stores each in the re-drive
-     * substrate (0037) under the verdict store's content key, so a lost or DLQ'd verification is
-     * re-driven by the scheduled drain rather than pending forever.
-     */
-    readonly pendingRedrives: readonly PendingRedriveRecord[];
     /**
      * Lines that will never be verified.
      *
@@ -209,12 +161,6 @@ export interface VerificationRequestPlan {
      * one entry that means "we permanently gave up on a line a cook can see", is not invisible.
      */
     readonly unasked: readonly UnaskedLine[];
-}
-
-/** One band's loaded authority plus the shadow coin's outcome, as the impure half supplies them. */
-export interface BandConsultation {
-    readonly authority: BandAuthority | undefined;
-    readonly shadow: boolean;
 }
 
 /** Everything the plan needs. Total: every input produces a plan, and nothing here throws. */
@@ -235,10 +181,9 @@ export interface VerificationRequestInput {
      *    false for one written before it, whose unchanged lines will never be asked about by an edit. The
      *    backfill for those is plan U15's re-import, which goes through CREATE (where this list is empty),
      *    not through an edit.
-     *  - **It is scoped to THIS RECIPE.** Two recipes quoting the same source line each pay, which
-     *    contradicts `0023_line_verifications.sql`'s claim to verify such a line "once". Closing that needs
-     *    a read of `recipe_ingredient_verifications` by key — an exact answer where this is an approximation,
-     *    and the follow-up that would also cover the first case.
+     *  - **It is scoped to THIS RECIPE.** Two recipes quoting the same source line would each pay. The keyed
+     *    read of `recipe_ingredient_verifications` that `RecipesService` makes on the plan's requests (ADR-0071)
+     *    is the exact answer; this list stays because it is free and saves that read most of the time.
      *
      * Both directions of imprecision cost MONEY, never correctness: the worst outcome is a duplicate
      * question whose verdict write is idempotent by primary key.
@@ -246,13 +191,6 @@ export interface VerificationRequestInput {
     readonly alreadyRequested: readonly VerifiableLine[];
     /** The gate's bands, injected — R17 makes them measured, so calibration is a value change. */
     readonly thresholds: VerificationThresholds;
-    /**
-     * Band consultations by {@link bandKeyText}, loaded by the impure half for the bands this save's
-     * ranked lines fall in. An absent entry means NO authority — the day-one state, in which every ranked
-     * line verifies identity. `shadow: true` is the impure half's coin: ask identity anyway and flag the
-     * message so the worker records the observation under `shadow`.
-     */
-    readonly bands: ReadonlyMap<string, BandConsultation>;
     /** ISO-8601 instant of this request. Injected so this module has no clock. */
     readonly requestedAt: string;
 }
@@ -283,82 +221,6 @@ function judgementIdentity(line: VerifiableLine): string | undefined {
     return identity === undefined ? undefined : verificationKeyPreimage(identity);
 }
 
-/** The wire's own bound applied to the STORED snapshot — a row nothing validates cannot claim `ranked`. */
-const storedShortlistSchema = z.array(scoredCandidateSchema).max(MAX_VERIFICATION_SHORTLIST);
-
-/**
- * Parse a stored `ingredient_resolutions.shortlist` jsonb into the wire candidates, or `undefined` when
- * the row predates the schema or was mangled.
- *
- * ⛔ THE one boundary parse, exported for the READ side (U13's `ambiguousStateOf` feed) so "what counts
- * as a valid stored shortlist" has a single spelling — `evidenceFor` below and the detail projection
- * must never disagree about the same row. Pure.
- */
-export function parseStoredShortlist(raw: unknown): readonly z.infer<typeof scoredCandidateSchema>[] | undefined {
-    const parsed = storedShortlistSchema.safeParse(raw);
-
-    return parsed.success ? parsed.data : undefined;
-}
-
-/**
- * The identity evidence a persisted resolution event honestly supports (plan U2/U4).
- *
- * ⛔ `lexical` claims `ranked` ONLY through a shortlist the wire schema accepts: the stored jsonb is
- * zod-parsed here, and a legacy or mangled row degrades to `unattributed` — which opens no skip door and
- * verifies both aspects, the safe direction. `llm` stays unattributed (no tier ships it yet).
- *
- * @param resolution - The recorded event, or `undefined` when none exists.
- * @returns The evidence the gate policy may act on. Pure.
- */
-function evidenceFor(resolution: LatestResolution | undefined): IdentityEvidence {
-    if (resolution?.tier === 'curated') {
-        return curatedExactEvidence();
-    }
-
-    if (resolution?.tier === 'memo') {
-        return rememberedEvidence();
-    }
-
-    if (resolution?.tier === 'lexical') {
-        const parsed = parseStoredShortlist(resolution.shortlist);
-
-        if (parsed !== undefined) {
-            return rankedEvidence(parsed);
-        }
-    }
-
-    return unattributedEvidence();
-}
-
-/**
- * The band a ranked resolution's confidence shape belongs to, or `undefined` when the event does not
- * carry a complete key (non-ranking tiers, and legacy rows).
- *
- * @param resolution - The recorded event.
- * @returns The full band key, or `undefined`. Pure.
- */
-export function bandKeyOf(resolution: LatestResolution | undefined): BandKey | undefined {
-    if (
-        resolution === undefined ||
-        resolution.tier !== 'lexical' ||
-        resolution.rung === null ||
-        resolution.queryShape === null ||
-        resolution.rankerVersion === null ||
-        // U11/R20: an author-augmented shortlist's margins describe ONE user's private catalog. No band is
-        // consulted (no skip, no shadow) and none is fed — the line simply verifies, every time.
-        resolution.authorAugmented
-    ) {
-        return undefined;
-    }
-
-    return {
-        rung: resolution.rung,
-        marginBand: marginBandOf(resolution.margin ?? undefined),
-        queryShape: resolution.queryShape,
-        rankerVersion: resolution.rankerVersion,
-    };
-}
-
 /**
  * Decide which of a saved recipe's lines the verification gate is asked about, and build those messages.
  *
@@ -382,8 +244,6 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
     const requests: VerifyIngredientLineMessage[] = [];
     const unasked: UnaskedLine[] = [];
-    const bandSkips: BandSkipRecord[] = [];
-    const pendingRedrives: PendingRedriveRecord[] = [];
 
     for (const line of input.lines) {
         const { sourceLine, food } = line;
@@ -405,18 +265,16 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         // ⛔ ADR-0024 layer 0. The pure policy decides whether there is anything to ask BEFORE anything is
         // sent — `skip` for a blank line, `reject` for an over-cap one (which is never truncated).
-        const evidence = evidenceFor(line.resolution);
-        const bandKey = bandKeyOf(line.resolution);
-        const consultation = bandKey === undefined ? undefined : input.bands.get(bandKeyText(bandKey));
-        // A shadow-sampled line hides its authority from the policy ON PURPOSE — the coin's whole job is
-        // to make the gate ask identity anyway, so the band's measured record keeps accruing.
-        const shadow = consultation?.shadow === true;
+        // ⛔ UNATTRIBUTED, always (ADR-0071). The only provenance a saved line has is the latest event on its
+        // binding, and a binding is SHARED by every cook: one cook's later curated bind of food X would otherwise
+        // mark another cook's wrong lexical "milk → X" line as settled. Unattributed opens no skip door, so the
+        // gate asks identity AND quantity — KTD-3's default.
+        const evidence = unattributedEvidence();
         const decision = decideVerification({
             sourceLine,
             evidence,
             thresholds: input.thresholds,
-            bandAuthority: shadow ? undefined : consultation?.authority,
-            // Curated U9: a variant on ranked evidence always asks identity — the shortlist ranked roots.
+            bandAuthority: undefined,
             boundTo: food.kind,
         });
 
@@ -467,48 +325,16 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
             // U14's reader never looks up. `null` on the identity means "not restated"; the wire spells that
             // by omitting the key, which is why this is a spread rather than an assignment.
             ...(judgement.statedMeasure === null ? {} : { statedMeasure: judgement.statedMeasure }),
-            // U2: the PERSISTED tier, mapped through `evidenceFor` — the same evidence the decision above
-            // was made from, so the worker's re-run judges what this producer judged.
             evidenceKind: evidence.kind,
-            // U4: the SAME validated shortlist the evidence was built from — never re-read from the row.
-            shortlist: evidence.kind === 'ranked' ? [...evidence.shortlist] : [],
+            shortlist: [],
             requestedAt: input.requestedAt,
-            ...(shadow ? { shadowSample: true } : {}),
-            // U11/R20 — see the message schema: author-augmented margins feed no band; a private bound
-            // food writes no memo. Spread so an ordinary line's wire bytes are unchanged.
-            ...(line.resolution?.authorAugmented ? { authorAugmented: true } : {}),
+            // U11/R20 — see the message schema: a private bound food writes no memo. Spread so an ordinary line's
+            // wire bytes are unchanged.
             ...(line.privateFood ? { privateFood: true } : {}),
         };
 
         requests.push(message);
-
-        // KTD-A: an AUTHORIZED band whose line also met the floors settled identity — the decision above
-        // excused the aspect. Record the settlement with the message VERBATIM: the drain re-sends exactly
-        // this if the band is ever revoked, and the content-keyed verdict store makes the re-ask cheap.
-        if (
-            bandKey !== undefined &&
-            consultation?.authority?.state === 'authorized' &&
-            !shadow &&
-            decision.kind === 'verify' &&
-            !decision.aspects.includes('identity')
-        ) {
-            bandSkips.push({ band: bandKey, epoch: consultation.authority.epoch, message });
-        }
-
-        // KTD-A: a RANKED line still being asked about identity is the withholding class — it renders
-        // `pending-verification` until this very message's verdict lands, so its judgement + message go to
-        // the re-drive substrate. Shadow is excluded (a shadow line's band is authorized, so it settled
-        // instantly and does not pend); curated/memo/unattributed keep absence-means-publish and need no
-        // re-drive.
-        if (
-            evidence.kind === 'ranked' &&
-            !shadow &&
-            decision.kind === 'verify' &&
-            decision.aspects.includes('identity')
-        ) {
-            pendingRedrives.push({ judgement, message });
-        }
     }
 
-    return { requests, unasked, bandSkips, pendingRedrives };
+    return { requests, unasked };
 }

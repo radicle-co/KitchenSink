@@ -10,7 +10,7 @@
  *
  * 1. ONE bindings read (`FoodLookupsDal.findByIds`), where each `food_lookups` row is parsed into its arm.
  * 2. Concurrently: the nutrition of the bound foods — roots and variants alike, by the id each binding stores (curated
- *    U9) — the lines' names (`LineIdentityReader`, detail only), and the verdict and pending reads. The verdict read
+ *    U9) — the lines' names (`LineIdentityReader`, detail only), and the verdict read. The verdict read
  *    no longer waits for food, because the food id a verdict is keyed on is on the binding (`foodRefOf(arm)`).
  * 3. Per line, the pure overlay chain `resolveLineStatus → foodPresenceStatus → viewerLineStatus`, then
  *    `composeIngredientLineView`.
@@ -54,10 +54,6 @@ import { RecipesDal, type RecipeAggregate } from './dal/recipes.dal.js';
 import { toRecipeNutritionState } from './domain/nutritionState.js';
 import {
     isWithheld,
-    isWithheldLine,
-    pendingStateOf,
-    type PendingState,
-    ambiguousStateOf,
     identityContradictedOf,
     foodPresenceStatus,
     resolveLineStatus,
@@ -70,9 +66,6 @@ import { sha256Hex } from '../common/sha256.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityColumns.js';
 import { userNutritionFromColumns } from './dal/userNutritionColumns.js';
-import { parseStoredShortlist } from './domain/verificationRequests.js';
-import { IngredientResolutionsDal } from '../ingredients/resolution/ingredientResolutions.dal.js';
-import type { LatestResolution } from '../ingredients/resolution/ingredientResolutions.dal.js';
 import type { RecipeResponse } from './dto/recipeResponse.dto.js';
 import { FoodLookupsDal } from '../ingredients/dal/foodLookups.dal.js';
 import {
@@ -166,14 +159,6 @@ interface LineCatalog {
     readonly degraded: boolean;
 }
 
-/** The verdict and pending reads of one request, which run beside the food requests. */
-interface LineJudgements {
-    readonly verdicts: LineVerdicts;
-    readonly pending: ReadonlyMap<string, PendingState>;
-    /** The latest resolution event by LOOKUP id — the ambiguity classifier's feed. */
-    readonly resolutions: ReadonlyMap<string, LatestResolution>;
-}
-
 /**
  * The view of a line whose binding vanished between the recipe read and the bindings read — a rebind that
  * repointed the line and removed the orphaned binding in that window. The line is shown as unreachable for this
@@ -207,41 +192,10 @@ function assembleLines(
     catalog: LineCatalog,
     measures: readonly LineNutritionInput[],
     verdicts: LineVerdicts,
-    pending: ReadonlyMap<string, PendingState>,
 ): NutritionLine[] {
     return measures.map(({ lookupId, lineId, sourceLine: _sourceLine, ...measure }) =>
-        toNutritionLine(
-            measure,
-            isWithheldLine(verdicts.get(lineId)?.band, pending.get(lineId) ?? 'none')
-                ? undefined
-                : catalog.byLookupId.get(lookupId),
-        ),
+        toNutritionLine(measure, isWithheld(verdicts.get(lineId)?.band) ? undefined : catalog.byLookupId.get(lookupId)),
     );
-}
-
-/**
- * How many of these lines KTD-A's pending state withheld and thereby cost this recipe a contribution.
- * Pure — the pending twin of {@link countWithheldContributions}, with the same "would otherwise have
- * accounted" discipline: a pending line the catalog could not have priced anyway, or one carrying the
- * cook's own override, did not cost the recipe its figure.
- */
-function countPendingContributions(
-    catalog: LineCatalog,
-    measures: readonly LineNutritionInput[],
-    pending: ReadonlyMap<string, PendingState>,
-): number {
-    return measures.filter(({ lookupId, lineId, sourceLine: _sourceLine, ...measure }) => {
-        if ((pending.get(lineId) ?? 'none') === 'none') {
-            return false;
-        }
-
-        const withCatalog = toNutritionLine(measure, catalog.byLookupId.get(lookupId));
-
-        return (
-            lineNutritionSource(withCatalog) !== null &&
-            lineNutritionSource(toNutritionLine(measure, undefined)) === null
-        );
-    }).length;
 }
 
 /**
@@ -259,9 +213,6 @@ function countWithheldContributions(
     verdicts: LineVerdicts,
 ): number {
     return measures.filter(({ lookupId, lineId, sourceLine: _sourceLine, ...measure }) => {
-        // ⛔ CONTRADICTIONS ONLY, deliberately not KTD-A's pending withholds — those are counted (and
-        // classified) separately, because "we disagreed" and "we have not checked yet" tell the reader two
-        // different things with two different fixes. See `countPendingContributions`.
         if (!isWithheld(verdicts.get(lineId)?.band)) {
             return false;
         }
@@ -286,7 +237,6 @@ export class RecipeDetailAssembler {
         @Inject(RECIPE_PHOTOS_CDN_URL) private readonly photosCdnUrl: string,
         private readonly foodNutrition: FoodNutritionGateway,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL) private readonly lineVerificationsDal: LineVerificationsDal,
-        private readonly ingredientResolutions: IngredientResolutionsDal,
     ) {}
 
     /** Its own logger — a quiet-and-total read that failed open must still be visible. */
@@ -315,8 +265,7 @@ export class RecipeDetailAssembler {
      * ⚠️ Named for what it returns, but NOT a pure mapper like `toRecipeResponse` — it performs the detail
      * read's food and verification I/O.
      *
-     * @sideEffect One bindings read, two concurrent food requests (nutrition and names), and the verdict and
-     *   pending reads.
+     * @sideEffect One bindings read, two concurrent food requests (nutrition and names), and the verdict read.
      */
     public async toDetailResponse(
         aggregate: RecipeAggregate,
@@ -374,8 +323,7 @@ export class RecipeDetailAssembler {
      * @param recipeIds - The recipes to report on (already capped by `recipeNutritionRequestSchema`).
      * @param caller - The requesting user's credential, forwarded to food. Absent ⇒ the gateway degrades.
      * @returns The nutrition state per READABLE recipe; unreadable and unknown ids are simply absent.
-     * @sideEffect One `recipes` + `ingredients` read, one bindings read, one food lookup, and the verdict and
-     *   pending reads.
+     * @sideEffect One `recipes` + `ingredients` read, one bindings read, one food lookup, and the verdict read.
      */
     public async getNutritionForRecipes(
         viewerId: string,
@@ -394,9 +342,9 @@ export class RecipeDetailAssembler {
         const allMeasures = [...measuresByRecipe.values()].flat();
         const arms = await this.lookups.findByIds(allMeasures.map((measure) => measure.lookupId));
         // A READ — the card batch — so the standard food deadline.
-        const [catalog, { verdicts, pending }] = await Promise.all([
+        const [catalog, verdicts] = await Promise.all([
             this.loadLineCatalog(caller, arms, 'read'),
-            this.loadJudgements(arms, allMeasures),
+            this.loadLineVerdicts(arms, allMeasures),
         ]);
 
         const nutrition: Record<string, RecipeNutritionState> = {};
@@ -414,11 +362,10 @@ export class RecipeDetailAssembler {
 
             nutrition[input.recipeId] = toRecipeNutritionState(
                 {
-                    lines: assembleLines(catalog, measures, verdicts, pending),
+                    lines: assembleLines(catalog, measures, verdicts),
                     referencedFoodCount: referenced.size,
                     resolvedFoodCount: [...referenced].filter((foodId) => catalog.resolvedFoodIds.has(foodId)).length,
                     withheldLineCount: countWithheldContributions(catalog, measures, verdicts),
-                    pendingLineCount: countPendingContributions(catalog, measures, pending),
                 },
                 input.servings,
                 catalog.degraded,
@@ -437,7 +384,7 @@ export class RecipeDetailAssembler {
      * same loads, and splitting them would either double the I/O or let the two disagree: a line badged
      * "needs review" while its nutrition still fed the total is exactly the incoherence this unit removes.
      *
-     * @sideEffect One bindings read, two concurrent food requests, and the verdict and pending reads.
+     * @sideEffect One bindings read, two concurrent food requests, and the verdict read.
      */
     private async computeDetailNutrition(
         aggregate: RecipeAggregate,
@@ -448,10 +395,10 @@ export class RecipeDetailAssembler {
     ): Promise<{ nutrition: RecipeDetailNutrition; lineViews: ReadonlyMap<string, IngredientLineView> }> {
         const measures = aggregate.ingredients.map(rowToMeasureInput);
         const arms = await this.lookups.findByIds(measures.map((measure) => measure.lookupId));
-        const [catalog, identities, { verdicts, pending, resolutions }] = await Promise.all([
+        const [catalog, identities, verdicts] = await Promise.all([
             this.loadLineCatalog(caller, arms, budget),
             this.identities.identifyArms(caller, arms, budget),
-            this.loadJudgements(arms, measures),
+            this.loadLineVerdicts(arms, measures),
         ]);
         const lineViews = new Map<string, IngredientLineView>();
 
@@ -469,23 +416,15 @@ export class RecipeDetailAssembler {
 
             lineViews.set(
                 measure.lineId,
-                composeIngredientLineView(
-                    identity,
-                    finalLineStatus(
-                        identity,
-                        verdicts.get(measure.lineId),
-                        pending.get(measure.lineId),
-                        resolutions.get(measure.lookupId),
-                        viewerId,
-                    ),
-                    { hasLiveVariants: catalog.hasLiveVariantsByLookupId.get(measure.lookupId) },
-                ),
+                composeIngredientLineView(identity, finalLineStatus(identity, verdicts.get(measure.lineId), viewerId), {
+                    hasLiveVariants: catalog.hasLiveVariantsByLookupId.get(measure.lookupId),
+                }),
             );
         }
 
         // Assembled ONCE: the figure and its freshness must be read off the same lines, or a withheld line could
         // count in one and not the other.
-        const lines = assembleLines(catalog, measures, verdicts, pending);
+        const lines = assembleLines(catalog, measures, verdicts);
 
         return {
             nutrition: {
@@ -550,22 +489,6 @@ export class RecipeDetailAssembler {
     }
 
     /**
-     * The verdict read, then the pending read that depends on it. Neither waits for food: the food id a verdict
-     * is keyed on is on the binding.
-     *
-     * @sideEffect One `recipe_ingredient_verifications` read and one batched resolutions read.
-     */
-    private async loadJudgements(
-        arms: ReadonlyMap<string, FoodLookupArm>,
-        measures: readonly LineNutritionInput[],
-    ): Promise<LineJudgements> {
-        const verdicts = await this.loadLineVerdicts(arms, measures);
-        const { pending, resolutions } = await this.loadPendingStates(measures, verdicts);
-
-        return { verdicts, pending, resolutions };
-    }
-
-    /**
      * What the U11 verification gate concluded about these lines — ONE batched read, keyed back to each
      * line's row id (plan U14 / R15).
      *
@@ -612,62 +535,6 @@ export class RecipeDetailAssembler {
 
         return byLineId;
     }
-
-    /**
-     * KTD-A's per-line pending classification (plan U4c): for each line, whether its binding's latest
-     * resolution is a zero-authority LEXICAL bind still awaiting its verdict.
-     *
-     * ⚠️ Quiet and total, like every auxiliary read on this path: on a failed read every line classifies `none`
-     * — the shipped absence-means-publish semantics, never an error.
-     *
-     * @param measures - The recipe's lines.
-     * @param verdicts - The loaded verdicts, by line id.
-     * @returns Pending state by line id, and the events by lookup id.
-     * @sideEffect One batched resolutions read.
-     */
-    private async loadPendingStates(
-        measures: readonly LineNutritionInput[],
-        verdicts: LineVerdicts,
-    ): Promise<Omit<LineJudgements, 'verdicts'>> {
-        const pending = new Map<string, PendingState>();
-
-        if (measures.length === 0) {
-            return { pending, resolutions: new Map<string, LatestResolution>() };
-        }
-
-        let resolutions: ReadonlyMap<string, LatestResolution>;
-
-        try {
-            resolutions = await this.ingredientResolutions.latestResolutionsByLookupIds(
-                measures.map((measure) => measure.lookupId),
-            );
-        } catch (error) {
-            this.logger.warn(
-                'Resolution provenance read failed; no line renders pending.',
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return { pending, resolutions: new Map<string, LatestResolution>() };
-        }
-
-        const now = new Date();
-
-        for (const measure of measures) {
-            const event = resolutions.get(measure.lookupId);
-            pending.set(
-                measure.lineId,
-                pendingStateOf(
-                    verdicts.get(measure.lineId)?.band,
-                    event === undefined
-                        ? undefined
-                        : { tier: event.tier, bandEpoch: event.bandEpoch, resolvedAt: event.createdAt },
-                    now,
-                ),
-            );
-        }
-
-        return { pending, resolutions };
-    }
 }
 
 /**
@@ -681,29 +548,19 @@ export class RecipeDetailAssembler {
  *
  * @param identity - The line's identity.
  * @param verdict - The gate's verdict about the line, if any.
- * @param pending - The line's pending state, if classified.
- * @param resolution - The binding's latest resolution event, if any.
  * @param viewerId - The viewing user.
  * @returns The final status. Pure.
  */
 function finalLineStatus(
     identity: IngredientLineIdentity,
     verdict: LineVerdictRow | undefined,
-    pending: PendingState | undefined,
-    resolution: LatestResolution | undefined,
     viewerId: string | undefined,
 ) {
-    // U13 (D7/R9): material spread over the SAME parsed shortlist the producer's evidence uses — one boundary
-    // parse, one agreement rule, so the gate and the badge cannot disagree.
-    const ambiguous = ambiguousStateOf(verdict?.band, parseStoredShortlist(resolution?.shortlist));
-
     return viewerLineStatus(
         foodPresenceStatus(
             resolveLineStatus(
                 verdict?.band,
                 catalogStatusOf(identity),
-                pending ?? 'none',
-                ambiguous,
                 // Owner ruling 2026-08-31 (§4): a high-certainty identity contradiction opens the re-pick door; a
                 // pre-0042 verdict (identityVerdict null) keeps the passive badge.
                 verdict !== undefined && identityContradictedOf(verdict),

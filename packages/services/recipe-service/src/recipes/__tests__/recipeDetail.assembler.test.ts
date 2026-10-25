@@ -304,6 +304,50 @@ describe('RecipeDetailAssembler.toDetailResponse — names and statuses through 
     });
 });
 
+describe('RecipeDetailAssembler — provenance on the SHARED binding no longer shapes a line (ADR-0071)', () => {
+    it('⛔ a lexical event on the binding does not render the line PENDING_VERIFICATION, and is not read', async () => {
+        // A binding row is shared by every cook, so its latest event says what ANOTHER cook's add did. Reading it
+        // withheld this cook's line, or (after a later curated bind of the same food) published someone's wrong one.
+        const latestResolutionsByLookupIds = vi.fn().mockResolvedValue(
+            new Map([
+                [
+                    'l-shared',
+                    {
+                        tier: 'lexical',
+                        rung: 'head',
+                        margin: 0.1,
+                        shortlist: [],
+                        queryShape: 'single-word',
+                        rankerVersion: 'v',
+                        bandEpoch: null,
+                        authorAugmented: false,
+                        createdAt: new Date(),
+                    },
+                ],
+            ]),
+        );
+        const collaborators = {
+            lookups: fakeFoodLookupsDal(SHARED),
+            refs: refsOf({ 'root:food-shared': found('milk') }).gateway,
+            ingredientResolutions: { latestResolutionsByLookupIds },
+        } as Parameters<typeof makeRecipeDetailAssembler>[0];
+        const stored = aggregateOf('l-shared');
+        const transcribed: RecipeAggregate = {
+            ...stored,
+            ingredients: stored.ingredients.map((line) => ({ ...line, sourceLine: '1 cup milk' })),
+        };
+
+        const detail = await makeRecipeDetailAssembler(collaborators).toDetailResponse(transcribed, [], {
+            caller: CALLER,
+            budget: 'read',
+            viewerId: AUTHOR,
+        });
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+        expect(latestResolutionsByLookupIds).not.toHaveBeenCalled();
+    });
+});
+
 describe('RecipeDetailAssembler — a binding that vanished between the recipe read and the bindings read', () => {
     it('renders that line unreachable and nameless rather than failing the whole recipe', async () => {
         const detail = await detailOf(

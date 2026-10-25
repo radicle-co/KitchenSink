@@ -1,5 +1,5 @@
 /**
- * Doubles for the three resolution-side collaborators `RecipesService` requires.
+ * Doubles for the two resolution-side collaborators `IngredientsService` requires: the event log and band authority.
  *
  * ⛔ They are REQUIRED on the constructor, which is why these exist. An optional collaborator means a null
  * branch per site that production never reaches and only under-specified suites rely on — and it is how a
@@ -12,7 +12,6 @@ import { vi } from 'vitest';
 
 import type { IngredientResolutionsDal, LatestResolution } from '../resolution/ingredientResolutions.dal.js';
 import type { ResolutionBandsDal } from '../resolution/resolutionBands.dal.js';
-import type { VerificationRedriveDal } from '../resolution/verificationRedrive.dal.js';
 
 /**
  * A resolutions DAL that has no events — the shape a fresh database has.
@@ -49,24 +48,6 @@ export function makeFakeIngredientResolutionsDal(
 export function makeFakeResolutionBandsDal(overrides: Partial<ResolutionBandsDal> = {}): ResolutionBandsDal {
     return {
         authorityFor: vi.fn().mockResolvedValue(undefined),
-        observationsSinceGrant: vi.fn().mockResolvedValue(0),
-        recordSkip: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     } as unknown as ResolutionBandsDal;
-}
-
-/**
- * A redrive DAL that accepts every write — without it a withholding line simply is not re-drivable, which
- * is a fact about the drain, not about the save under test.
- *
- * @param overrides - Methods a suite asserts on.
- * @returns The double.
- */
-export function makeFakeVerificationRedriveDal(
-    overrides: Partial<VerificationRedriveDal> = {},
-): VerificationRedriveDal {
-    return {
-        record: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    } as unknown as VerificationRedriveDal;
 }

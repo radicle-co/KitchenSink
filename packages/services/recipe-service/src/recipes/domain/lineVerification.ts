@@ -54,12 +54,6 @@
  * the call.
  */
 import {
-    nutrientAgreementOf,
-    PENDING_VERIFICATION_MAX_AGE_HOURS,
-    PROVISIONAL_VERIFICATION_THRESHOLDS,
-    type ScoredCandidate,
-} from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-import {
     FoodResolutionStatus,
     type IngredientQuantity,
     type LineResolutionStatus,
@@ -242,33 +236,18 @@ function unitOf(unit: string): string | null {
 export function resolveLineStatus(
     band: VerificationBand | undefined,
     catalogStatus: LineResolutionStatus | undefined,
-    pending: PendingState,
-    /**
-     * U13 (D7/R9): whether the line's shortlist showed MATERIAL nutrient spread — the
-     * {@link ambiguousStateOf} verdict, computed by the caller from the line's latest resolution.
-     * ⛔ REQUIRED, never defaulted: a call site that has not thought about ambiguity must not silently
-     * keep the pre-U13 behaviour (the 015 `hasAvailablePrivateSlot` posture).
-     */
-    ambiguous: boolean,
     /**
      * The re-pick arm (owner ruling 2026-08-31, U15 report "Owner rulings" §4): whether this line's
      * verdict is a HIGH-certainty IDENTITY contradiction — {@link identityContradictedOf}'s answer.
-     * ⛔ REQUIRED, never defaulted, for exactly `ambiguous`'s reason one parameter up.
+     * ⛔ REQUIRED, never defaulted: a call site that has not thought about the re-pick must not silently keep
+     * the passive badge.
      */
     identityContradicted: boolean,
 ): LineResolutionStatus | undefined {
     if (band === undefined) {
-        // KTD-A (plan U4c): a zero-authority lexical bind is visibly PENDING until the gate agrees, and
-        // past the age bound it adopts the actionable needs-review treatment — a DLQ'd verification is
-        // user-visible harm under withhold semantics, so the aged state must invite action, not wait.
-        if (pending === 'pending') {
-            return FoodResolutionStatus.PENDING_VERIFICATION;
-        }
-
-        if (pending === 'aged') {
-            return FoodResolutionStatus.NEEDS_REVIEW;
-        }
-
+        // ⛔ No verdict publishes (migration 0023). KTD-A's `pending-verification` withhold read the latest
+        // resolution event on the line's BINDING, which every cook shares; ADR-0071 removed that read, so an
+        // unjudged line reports its catalog status like every other.
         return catalogStatus;
     }
 
@@ -282,72 +261,10 @@ export function resolveLineStatus(
         case 'verified':
             return catalogStatus;
         case 'inconclusive':
-            // U13 (D7/R9): the gate ABSTAINED. When the shortlist it abstained over differs materially on
-            // nutrition, the pick changes the figure and the AUTHOR is asked; otherwise the abstention
-            // publishes exactly as before (the shipped absence semantics — R23 keeps publish allowed).
-            return ambiguous ? FoodResolutionStatus.AMBIGUOUS : catalogStatus;
+            // The gate ABSTAINED, which publishes exactly as no verdict does (R23 keeps publish allowed). U13's
+            // AMBIGUOUS arm here read the abstention's shortlist off the SHARED binding's event; ADR-0071 removed it.
+            return catalogStatus;
     }
-}
-
-// The age bound lives in recipe-core (both sides of the worker seam read it); re-exported so this
-// module stays the one import site for the pending rule's vocabulary.
-export { PENDING_VERIFICATION_MAX_AGE_HOURS };
-
-/** A line's KTD-A pending classification. */
-export type PendingState = 'pending' | 'aged' | 'none';
-
-/** What the pending derivation reads off the line's latest resolution event. */
-export interface PendingProvenance {
-    readonly tier: string;
-    /** The band-authority epoch observed at resolve time — `null` IS the zero-authority state. */
-    readonly bandEpoch: string | null;
-    /** When the resolution was made — the clock pending ages against. */
-    readonly resolvedAt: Date;
-}
-
-/**
- * Classify a line's KTD-A pending state. Pure.
- *
- * ⛔ FOR LEXICAL BINDS ONLY: curated and memo binds, user picks, and lines with no recorded resolution all
- * keep the shipped absence-means-publish semantics. And ANY verdict ends pending — verified publishes,
- * contradicted withholds via its own rule, inconclusive publishes (the shipped absence semantics) — so the
- * verdict row landing flips the state with no write anywhere.
- *
- * @param band - The gate's verdict for this line, or `undefined` when it has not judged it.
- * @param provenance - The line's latest resolution event, or `undefined` when none is recorded.
- * @param now - The read's clock, injected.
- * @returns The pending state.
- */
-export function pendingStateOf(
-    band: VerificationBand | undefined,
-    provenance: PendingProvenance | undefined,
-    now: Date,
-): PendingState {
-    if (band !== undefined || provenance === undefined) {
-        return 'none';
-    }
-
-    if (provenance.tier !== 'lexical' || provenance.bandEpoch !== null) {
-        return 'none';
-    }
-
-    const ageHours = (now.getTime() - provenance.resolvedAt.getTime()) / 3_600_000;
-
-    return ageHours < PENDING_VERIFICATION_MAX_AGE_HOURS ? 'pending' : 'aged';
-}
-
-/**
- * Whether a line's catalog nutrition is withheld from the recipe figure — the ONE definition, now over
- * both withholding causes: an explicit contradiction, and KTD-A's pending/aged states (an aged line is
- * still an unverified zero-authority bind; publishing it at an age threshold would re-open the silent
- * wrong-bind hole through nothing more than a DLQ'd message).
- *
- * @param band - The gate's verdict, or `undefined`.
- * @param pending - The line's pending state.
- * @returns Whether the catalog contribution is withheld. Pure.
- */
-export function isWithheldLine(band: VerificationBand | undefined, pending: PendingState): boolean {
-    return isWithheld(band) || pending !== 'none';
 }
 
 /**
@@ -375,31 +292,6 @@ function quantityLowOf(quantity: IngredientQuantity): number | null {
             // fabricated number would key the verdict to a quantity nobody wrote.
             return null;
     }
-}
-
-/**
- * D7/R9 (plan U13): whether one line's gate abstention is AMBIGUOUS — author-actionable — rather than a
- * quiet publish.
- *
- * ⛔ ONE authority for "material spread": {@link nutrientAgreementOf} is the SAME rule the gate's own
- * decision read (`decideVerification`'s D4a conjunct), imported rather than re-derived — two spellings of
- * "do these candidates agree?" would let the gate and this classifier disagree about the same shortlist.
- * Only an explicit `disagree` is material: `unknown` (absent vectors, a lone candidate, no shortlist at
- * all) must never invite a pick over nothing.
- *
- * @param band - The gate's verdict for this line, or `undefined`.
- * @param shortlist - The line's latest resolution's stored shortlist, or `null`/absent.
- * @returns Whether the line renders the AMBIGUOUS pick affordance. Pure.
- */
-export function ambiguousStateOf(
-    band: VerificationBand | undefined,
-    shortlist: readonly ScoredCandidate[] | null | undefined,
-): boolean {
-    if (band !== 'inconclusive' || shortlist === null || shortlist === undefined) {
-        return false;
-    }
-
-    return nutrientAgreementOf(shortlist, PROVISIONAL_VERIFICATION_THRESHOLDS.nutrientAgreementFraction) === 'disagree';
 }
 
 /**

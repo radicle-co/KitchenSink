@@ -30,6 +30,7 @@
 import { z } from 'zod';
 
 import { MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
+import type { VerifiedLineIdentity } from './verificationKey.js';
 
 /**
  * An ISO-8601 instant.
@@ -403,4 +404,26 @@ export function verificationFoodFieldsOf(
     food: VerificationFood,
 ): Pick<VerifyIngredientLineMessage, 'foodId' | 'foodVariantId'> {
     return food.kind === 'root' ? { foodId: food.id } : { foodVariantId: food.id };
+}
+
+/**
+ * The judgement a PARSED message asks for — the identity its verdict is keyed on (ADR-0071).
+ *
+ * ⛔ One mapping for both ends of the verdict table. The producer reads the table by this identity's key before it
+ * enqueues (a judgement already on record is never paid for twice), and the worker writes the verdict under the same
+ * fields. A second mapping would let the read miss the write, and the miss would show up only as a bill.
+ *
+ * @param message - A message the schema accepted.
+ * @returns The identity: the line, the food it names (root or variant), the parsed measure, the stated measure.
+ * @throws {Error} when the message names no food, which the schema refuses. Pure.
+ */
+export function verifiedLineIdentityOfMessage(message: VerifyIngredientLineMessage): VerifiedLineIdentity {
+    return {
+        sourceLine: message.sourceLine,
+        foodRefId: verificationFoodOf(message).id,
+        quantityLow: message.quantityLow,
+        quantityHigh: message.quantityHigh,
+        unit: message.unit,
+        statedMeasure: message.statedMeasure ?? null,
+    };
 }

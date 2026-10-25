@@ -7,8 +7,9 @@
  * "authorize = `epoch + 1`" implementations is knowledge drift that breaks R14's revocation enumeration.
  * This class only binds the store to this service's `pg.Pool`.
  *
- * This service's writers: the producer's authority consultation + skip recording (U4), and R16's
- * correction-as-disagreement (`recordObservationAndEvaluate(band, 'disagree', 'correction')`).
+ * This service's use: the resolution event's band-epoch observation (`IngredientsService`), and R16's
+ * correction-as-disagreement (`recordObservationAndEvaluate(band, 'disagree', 'correction')`). ADR-0071 removed the
+ * save path's authority consultation and skip recording: it no longer reads provenance, so it has no band.
  */
 import { BandAuthorityStore } from '@kitchensink/recipe-core/resolution/band-authority-store';
 import type pg from 'pg';

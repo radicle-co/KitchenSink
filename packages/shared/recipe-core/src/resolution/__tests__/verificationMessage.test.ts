@@ -19,6 +19,7 @@ import {
     verificationFoodFieldsOf,
     verificationFoodOf,
     verificationOriginOf,
+    verifiedLineIdentityOfMessage,
     verifyIngredientLineMessageSchema,
 } from '../verificationMessage.js';
 
@@ -400,6 +401,40 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
                     verifyLine({ statedMeasure: { ...GILL, quantityLow: Number.NaN } }),
                 ),
             ).toThrow();
+        });
+    });
+
+    describe('verifiedLineIdentityOfMessage — the judgement a message asks for (ADR-0071)', () => {
+        // The save path's dedup reads the verdict table by this identity's key BEFORE it enqueues, and the worker keys
+        // the verdict it writes on the same fields. One mapping, so the read and the write meet.
+        it('maps a root message onto its identity, a missing stated measure as null', () => {
+            const message = verifyIngredientLineMessageSchema.parse(verifyLine());
+
+            expect(verifiedLineIdentityOfMessage(message)).toStrictEqual({
+                sourceLine: '2 cups all-purpose flour',
+                foodRefId: '01JFOOD000000000000000000',
+                quantityLow: 2,
+                quantityHigh: null,
+                unit: 'cup',
+                statedMeasure: null,
+            });
+        });
+
+        it('keys a variant message on the VARIANT id, and carries the stated measure', () => {
+            const message = verifyIngredientLineMessageSchema.parse(
+                verifyLine({
+                    foodId: undefined,
+                    foodVariantId: 'VAR-1',
+                    quantityLow: 0.5,
+                    unit: 'cup',
+                    statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gill' },
+                }),
+            );
+
+            expect(verifiedLineIdentityOfMessage(message)).toMatchObject({
+                foodRefId: 'VAR-1',
+                statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gill' },
+            });
         });
     });
 });

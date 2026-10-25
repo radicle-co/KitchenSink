@@ -91,6 +91,32 @@ export class LineVerificationsDal {
 
         return bands;
     }
+
+    /**
+     * Which of these verdict keys already have a verdict row (ADR-0071) — the save path's dedup read.
+     *
+     * ⛔ ANY band counts, including one this build cannot interpret. Unlike {@link findBandsByKeys}, the question is
+     * not "how should this line publish" but "has the gate already been paid to judge this", and a row the worker
+     * wrote under a newer band is still a judgement on record.
+     *
+     * @param keys - The keys the producer is about to ask about; duplicates are collapsed.
+     * @returns The keys that have a row.
+     * @sideEffect One `recipe_ingredient_verifications` read.
+     */
+    public async findExistingKeys(keys: readonly string[]): Promise<ReadonlySet<string>> {
+        const unique = [...new Set(keys)];
+
+        if (unique.length === 0) {
+            return new Set();
+        }
+
+        const rows = await this.db
+            .select({ verificationKey: recipeIngredientVerifications.verificationKey })
+            .from(recipeIngredientVerifications)
+            .where(inArray(recipeIngredientVerifications.verificationKey, unique));
+
+        return new Set(rows.map((row) => row.verificationKey));
+    }
 }
 
 /**

@@ -401,46 +401,16 @@ describe('U14 — a verification verdict reaches the cook (integration)', () => 
         expect(line?.resolutionStatus).toBe('RESOLVED');
     });
 
-    it('⛔ KTD-A (plan U4c): a fresh zero-authority LEXICAL bind renders PENDING and withholds the figure', async () => {
+    it('⛔ ADR-0071: a lexical event on the SHARED binding no longer withholds — the line publishes', async () => {
+        // REWRITTEN (ADR-0071). KTD-A rendered this line PENDING_VERIFICATION and withheld its figure, read off the
+        // latest event on a binding every cook shares. The read is gone, so the four KTD-A cases (pending, verdict
+        // landing, aged, authorized band) collapse into this one: an event on the binding changes nothing.
         await recordLexicalEvent(1);
-
-        // The stub answered with real nutrition, the catalog row is RESOLVED — the withholding is OURS,
-        // and the reason says so: "we have not finished checking", never an outage or a data gap.
-        expect((await askBatch()).nutrition[RECIPE_ID]).toStrictEqual({
-            state: 'unaccounted',
-            reason: 'verification_pending',
-        });
-
-        const line = (await askDetail()).ingredients.find((entry) => entry.ingredientId === CATALOG_ID);
-        expect(line?.resolutionStatus).toBe('PENDING_VERIFICATION');
-    });
-
-    it('KTD-A: the VERDICT LANDING flips a pending line to published with no write anywhere', async () => {
-        await recordLexicalEvent(1);
-        await recordVerdict('verified');
 
         expect((await askBatch()).nutrition[RECIPE_ID]).toMatchObject({ state: 'known', caloriesPerServing: 350 });
 
         const line = (await askDetail()).ingredients.find((entry) => entry.ingredientId === CATALOG_ID);
         expect(line?.resolutionStatus).toBe('RESOLVED');
-    });
-
-    it('KTD-A: past the age bound the line adopts the actionable NEEDS_REVIEW treatment — still withheld', async () => {
-        await recordLexicalEvent(100);
-
-        expect((await askBatch()).nutrition[RECIPE_ID]).toStrictEqual({
-            state: 'unaccounted',
-            reason: 'verification_pending',
-        });
-
-        const line = (await askDetail()).ingredients.find((entry) => entry.ingredientId === CATALOG_ID);
-        expect(line?.resolutionStatus).toBe('NEEDS_REVIEW');
-    });
-
-    it("KTD-A: an AUTHORIZED-band bind (non-null epoch) publishes instantly — earned autonomy's payoff", async () => {
-        await recordLexicalEvent(1, '2');
-
-        expect((await askBatch()).nutrition[RECIPE_ID]).toMatchObject({ state: 'known', caloriesPerServing: 350 });
     });
 
     it('⛔ leaves the shared BINDING untouched — a line verdict has no catalog blast radius', async () => {
@@ -460,25 +430,6 @@ describe('U14 — a verification verdict reaches the cook (integration)', () => 
     });
     // ── U13: the AMBIGUOUS member (D7/R9) ────────────────────────────────────────────────────────────
 
-    /** Two candidates whose macros AGREE within the gate's tolerance. */
-    const AGREEING_SHORTLIST = [
-        {
-            foodId: FOOD_ID,
-            score: 0.9,
-            energyKcalPer100g: 364,
-            proteinGPer100g: 10,
-            fatGPer100g: 1,
-            carbohydrateGPer100g: 76,
-        },
-        {
-            foodId: '01JFOODU13OTHER0000000001',
-            score: 0.85,
-            energyKcalPer100g: 360,
-            proteinGPer100g: 10,
-            fatGPer100g: 1,
-            carbohydrateGPer100g: 75,
-        },
-    ];
     /** Two candidates that differ MATERIALLY — the pick changes the figure. */
     const SPREAD_SHORTLIST = [
         {
@@ -499,26 +450,16 @@ describe('U14 — a verification verdict reaches the cook (integration)', () => 
         },
     ];
 
-    it('U13: an INCONCLUSIVE verdict over a materially-spread shortlist badges the line AMBIGUOUS — and still publishes (R23)', async () => {
+    it('ADR-0071: an INCONCLUSIVE verdict publishes quietly, whatever shortlist sits on the shared binding', async () => {
+        // REWRITTEN (ADR-0071). U13 badged this AMBIGUOUS from the spread of a shortlist stored on the binding's
+        // latest event, which another cook's add may have written. That read is gone; an abstention publishes.
         await recordLexicalEvent(1, null, SPREAD_SHORTLIST);
         await recordVerdict('inconclusive');
 
         const detail = await askDetail();
 
-        expect(detail.ingredients[0]?.resolutionStatus).toBe('AMBIGUOUS');
-        // R23: ambiguity never withholds — the abstention publishes exactly as absence does.
-        const batch = await askBatch();
-
-        expect(batch.nutrition[RECIPE_ID]?.state).toBe('known');
-    });
-
-    it('U13: the same inconclusive verdict over AGREEING candidates stays quiet — no pick over nothing', async () => {
-        await recordLexicalEvent(1, null, AGREEING_SHORTLIST);
-        await recordVerdict('inconclusive');
-
-        const detail = await askDetail();
-
         expect(detail.ingredients[0]?.resolutionStatus).not.toBe('AMBIGUOUS');
+        expect((await askBatch()).nutrition[RECIPE_ID]?.state).toBe('known');
     });
 
     // ── U13: the RESOLVED_UNAVAILABLE overlay (R20) ─────────────────────────────────────────────────

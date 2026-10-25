@@ -24,7 +24,7 @@
         "@lhncbc/ucum-lhc": "^7.1.9",
         "p-limit": "^7.1.1",
         "p-retry": "^8.0.0",
-        "zod": "^4.4.3"
+        "zod": "^4.6.7"
     },
     "devDependencies": {
         "@kitchensink/e2e-fixtures": "*",
@@ -40,7 +40,7 @@
         "prettier": "^3.0.0",
         "tsx": "^4.20.6",
         "typescript": "^6.0.3",
-        "vitest": "^4.0.0"
+        "vitest": "^4.1.12"
     },
     "engines": {
         "node": "24.x"

@@ -21,7 +21,7 @@
         "@types/aws-lambda": "^8.10.0",
         "@types/node": "^24.13.3",
         "@types/pg": "^8.11.0",
-        "vitest": "^4.0.0",
+        "vitest": "^4.1.12",
         "yaml": "^2.8.1"
     },
     "dependencies": {

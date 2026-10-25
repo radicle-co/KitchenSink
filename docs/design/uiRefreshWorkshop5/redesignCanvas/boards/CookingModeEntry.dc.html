@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>Cooking mode, wait (web 768 px)</title>
+        <title>Cooking mode, entry (web)</title>
         <script src="./support.js"></script>
     </head>
     <body>
@@ -16,7 +16,6 @@
                     body {
                         margin: 0;
                     }
-
                     [data-theme='light'] {
                         --canvas: #eff3f6;
                         --paper: #fcfdff;
@@ -1087,154 +1086,222 @@
                         border-top: 1px solid var(--line-divider);
                         margin-top: 6px;
                     }
+
+                    /* Owner, 2026-10-25: Next is not the loudest thing. Back and Next are a quiet pair; the focus line leads. */
+                    .navBlock {
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        width: 100%;
+                    }
+                    .nextPreview {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                        padding: 12px 16px 0;
+                        margin: 0 0;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .colStep .nextPreview {
+                        padding: 12px 32px 0;
+                    }
+                    .web768 .navBlock {
+                        max-width: 600px;
+                        margin: 0 auto;
+                    }
+                    .nextLab {
+                        font-weight: 600;
+                        color: var(--ink-muted);
+                    }
+                    .steelWord {
+                        color: var(--action-text);
+                    }
+                    .nav {
+                        align-items: stretch;
+                    }
+                    .btn {
+                        min-height: 52px;
+                        height: 52px;
+                        border-radius: 14px;
+                        padding: 0 16px;
+                        gap: 6px;
+                    }
+                    .btnBack {
+                        width: auto;
+                        flex: 1;
+                        height: 52px;
+                        align-self: stretch;
+                        border: 1px solid var(--line-control);
+                        background: transparent;
+                        color: var(--ink);
+                        justify-content: center;
+                    }
+                    .btnNext {
+                        flex: 1;
+                        background: var(--paper-raised);
+                        color: var(--ink);
+                        border: 1px solid var(--line-control);
+                        justify-content: center;
+                        padding: 0 16px;
+                    }
+                    .btnNext svg,
+                    .btnBack svg {
+                        color: var(--action-text);
+                        flex: none;
+                    }
+                    .btnPrimary {
+                        flex: 1;
+                        background: var(--action);
+                        color: var(--on-action);
+                        justify-content: center;
+                    }
+                    .phone .nav {
+                        padding: 10px 16px 28px;
+                        gap: 12px;
+                    }
+
+                    /* Entry screens */
+                    .cover {
+                        width: 100%;
+                        flex: none;
+                        background: var(--cover-seafoam, #e1edfa);
+                    }
+                    [data-theme='light'] {
+                        --cover-seafoam: #e1edfa;
+                        --selected-fill: #e4eef7;
+                    }
+                    .detail {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .detail .title {
+                        margin-bottom: 2px;
+                    }
+                    .facts {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 8px;
+                        margin-top: 6px;
+                    }
+                    .fact {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                        padding: 10px 12px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .entryBtn {
+                        margin-top: 10px;
+                        height: 48px;
+                        min-height: 48px;
+                    }
+                    .pair2 {
+                        display: grid;
+                        grid-template-columns: 1fr auto;
+                        gap: 8px;
+                    }
+                    .btn2 {
+                        height: 44px;
+                        border-radius: 12px;
+                        border: 1px solid var(--line-divider);
+                        background: var(--paper);
+                        display: grid;
+                        place-items: center;
+                        padding: 0 14px;
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    .entryCols {
+                        display: grid;
+                        grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
+                        gap: 32px;
+                        padding: 0 32px;
+                    }
+                    .web768 .entryCols,
+                    .tab834 .entryCols {
+                        grid-template-columns: 1fr;
+                    }
+                    .web768 .entryCover,
+                    .tab834 .entryCover {
+                        order: -1;
+                    }
+                    .entryCover {
+                        padding-top: 18px;
+                    }
+                    .entryCover .cover {
+                        border-radius: 18px;
+                    }
+                    .tab834 .entryCover .cover,
+                    .web768 .entryCover .cover {
+                        height: 220px !important;
+                    }
+                    .homeCol {
+                        gap: 10px;
+                        padding-top: 28px;
+                    }
+                    .pickCard {
+                        display: flex;
+                        gap: 14px;
+                        align-items: center;
+                        padding: 14px;
+                        border-radius: 18px;
+                        background: var(--paper);
+                        box-shadow:
+                            0 1px 2px rgba(20, 30, 45, 0.05),
+                            0 2px 8px rgba(20, 30, 45, 0.05);
+                    }
+                    .thumb {
+                        width: 64px;
+                        height: 64px;
+                        border-radius: 12px;
+                        background: #e1edfa;
+                        flex: none;
+                    }
+                    .pickText {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                        min-width: 0;
+                    }
+                    .pickBtn {
+                        flex: none;
+                        width: 100%;
+                    }
+                    .sectionGap {
+                        margin-top: 18px;
+                    }
+                    .resumeNote {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding-bottom: 12px;
+                        border-bottom: 1px solid var(--line-divider);
+                    }
+                    .coverBar {
+                        position: absolute;
+                        top: 47px;
+                        left: 0;
+                        right: 0;
+                        z-index: 2;
+                    }
+                    .coverBar .iconBtn {
+                        background: rgba(252, 253, 255, 0.94);
+                    }
+                    .phone .cover {
+                        margin-top: -47px;
+                        padding-top: 47px;
+                        box-sizing: content-box;
+                    }
                 </style>
             </helmet>
-            <div class="screen web768" data-screen="web768Wait" style="width: 768px; height: 1024px">
+            <div class="screen web1280" data-screen="web1280Entry" style="width: 1280px; height: 800px">
                 <div class="top">
-                    <div class="iconBtn" aria-label="Exit cooking mode">
+                    <div class="iconBtn" aria-label="Back to My recipes">
                         <svg
                             width="20"
                             height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2.0"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M6 6l12 12M18 6L6 18" />
-                        </svg>
-                    </div>
-                    <div class="placeBtn" role="button" aria-label="Step 4 of 6. Open all steps">
-                        <div class="placeRow">
-                            <span class="t17 strong">Step 4 of 6</span
-                            ><svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2.0"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path d="M6 9l6 6 6-6" />
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="pillBtn">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2.0"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg
-                        >Ingredients
-                    </div>
-                </div>
-                <div class="track" aria-hidden="true">
-                    <i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i class=""></i
-                    ><i class=""></i>
-                </div>
-                <div class="body">
-                    <div class="center">
-                        <div class="record">
-                            <svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2.5"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path d="M5 12l5 5 9-10" /></svg
-                            ><span class="t17 muted">You ticked 2 lines</span><span class="t13 linkish">Show</span>
-                        </div>
-                        <div class="over">Roasting</div>
-                        <div class="t28">Nothing needs you for about 35 min.</div>
-                        <div class="offerRow">
-                            <span class="t17">Then turn the potatoes.</span
-                            ><span class="offer"
-                                ><svg
-                                    width="20"
-                                    height="20"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2.0"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    aria-hidden="true"
-                                >
-                                    <circle cx="12" cy="13" r="8" />
-                                    <path d="M12 9v4l2 2M9 2h6" /></svg
-                                >Time the turn</span
-                            >
-                        </div>
-                        <div class="jobs">
-                            <div class="over">If you like, get ready for step 5</div>
-                            <div class="job" role="checkbox" aria-checked="false">
-                                <span class="box" role="checkbox" aria-checked="false"></span
-                                ><span class="t17">Measure <b>1&nbsp;tbsp</b>&nbsp;flour</span>
-                            </div>
-                            <div class="job" role="checkbox" aria-checked="false">
-                                <span class="box" role="checkbox" aria-checked="false"></span
-                                ><span class="t17">Measure <b>300&nbsp;ml</b>&nbsp;stock</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="dock">
-                    <div class="dockRow" role="timer">
-                        <svg
-                            width="22"
-                            height="22"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2.0"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                        >
-                            <circle cx="12" cy="13" r="8" />
-                            <path d="M12 9v4l2 2M9 2h6" />
-                        </svg>
-                        <div class="lab">
-                            <span class="t28 num">1:09:50</span><span class="t13 muted">Roast · step 4</span>
-                        </div>
-                        <span class="pauseBtn" role="button" aria-label="Pause Roast"
-                            ><svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2.0"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path d="M9 6v12M15 6v12" /></svg
-                        ></span>
-                    </div>
-                </div>
-                <div class="nav">
-                    <div class="btn btnBack" role="button" aria-label="Back to step 3">
-                        <svg
-                            width="24"
-                            height="24"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -1246,18 +1313,60 @@
                             <path d="M15 6l-6 6 6 6" />
                         </svg>
                     </div>
-                    <div class="btn btnNext">
-                        <span class="nx"
-                            ><span class="t13 lab">Next · Step 5</span
-                            ><span class="t17 nextLine"
-                                >Lift the chicken onto a board, under foil, for <b>15&nbsp;min</b></span
-                            ></span
+                    <div class="placeBtn"></div>
+                    <div class="iconBtn" aria-label="More actions">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
                         >
+                            <path d="M6 12h.01M12 12h.01M18 12h.01" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="body">
+                    <div class="entryCols">
+                        <div class="center">
+                            <div class="detail">
+                                <span class="over">British</span>
+                                <span class="title">Lemon and thyme roast chicken</span>
+                                <span class="t15 muted">Public · Family recipe card</span>
+                                <div class="facts">
+                                    <div class="fact">
+                                        <span class="t13 muted">Total</span><span class="t17 strong">1 h 50 min</span>
+                                    </div>
+                                    <div class="fact">
+                                        <span class="t13 muted">Prep</span><span class="t17 strong">20 min</span>
+                                    </div>
+                                    <div class="fact">
+                                        <span class="t13 muted">Difficulty</span><span class="t17 strong">Medium</span>
+                                    </div>
+                                </div>
+                                <div class="btn btnPrimary entryBtn" role="button">
+                                    <span class="t17 strong">Start cooking</span>
+                                </div>
+                                <div class="pair2">
+                                    <span class="btn2">Edit recipe</span
+                                    ><span class="btn2" role="switch" aria-checked="false">Screen on</span>
+                                </div>
+                                <span class="t17"
+                                    >A Sunday roast that does the work for you: butter, lemon and thyme under the skin,
+                                    and everything else in the same tin.</span
+                                >
+                            </div>
+                        </div>
+                        <div class="entryCover"><div class="cover" style="height: 360px" aria-hidden="true"></div></div>
                     </div>
                 </div>
             </div>
         </x-dc>
-        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 768, "height": 1024}}'>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1280, "height": 800}}'>
             class Component extends DCLogic {
             renderVals() {
             return {};

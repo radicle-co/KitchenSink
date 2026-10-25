@@ -23,8 +23,10 @@ SIZES = {
     "web1280": ("", "web", "Cooking mode: web"),
     "web768": ("768", "web 768 px", "Cooking mode: web"),
 }
-# web 768 is a breakpoint: only the screens that change most at that width.
-WEB768 = {"Step", "Wait", "Ingredients"}
+# The canvas holds at most 512 files. Web 768 is a breakpoint that the other rows already show, and the Home row
+# already draws "Pick up where you left off" with Continue, so neither is drawn again here.
+SKIP_SIZES = {"web768"}
+SKIP_STATES = {"Home"}
 
 
 def screen_html(source: str, start: int) -> str:
@@ -94,7 +96,7 @@ def main() -> None:
         screen = match.group(1)
         size = next(key for key in SIZES if screen.startswith(key))
         state = screen[len(size):]
-        if screen in seen or (size == "web768" and state not in WEB768):
+        if screen in seen or size in SKIP_SIZES or state in SKIP_STATES:
             continue
         seen.add(screen)
         suffix, size_label, row = SIZES[size]

@@ -1654,6 +1654,23 @@
                         display: block;
                         line-height: 44px;
                     }
+                    /* Cooking-mode entry (cooking workshop, owner 2026-10-25): the screen's one primary action. */
+                    .rd .startCook {
+                        margin-top: 16px;
+                        width: 100%;
+                        height: 48px;
+                    }
+                    .rd .startCook + .btnPair {
+                        margin-top: 8px;
+                    }
+                    .rd .topBar.withCook {
+                        grid-template-columns: 44px 1fr auto 44px;
+                    }
+                    .rd .barCook {
+                        height: 36px;
+                        padding: 0 14px;
+                        border-radius: 18px;
+                    }
                 </style></helmet
             >
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -1760,7 +1777,7 @@
                     </symbol>
                 </defs>
             </svg>
-            <div class="rd" data-board="RecipeDetail1194Mobile" style="width: 1194px; height: 1846px">
+            <div class="rd" data-board="RecipeDetail1194Mobile" style="width: 1194px; height: 1863px">
                 <div class="tabMain" style="padding-bottom: 0">
                     <div class="navRow">
                         <a class="crumb" href="#" aria-label="Back to My recipes"
@@ -1806,6 +1823,7 @@
                                         <p class="v">Medium</p>
                                     </div>
                                 </div>
+                                <a class="btn primary startCook" href="#">Start cooking</a>
                                 <div class="btnPair">
                                     <a class="btn2" href="#"
                                         ><svg class="ic sm" aria-hidden="true"><use href="#pencil" /></svg>Edit
@@ -2090,7 +2108,7 @@
                 </nav>
             </div></x-dc
         >
-        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1194,"height":1846}}'>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1194,"height":1863}}'>
             class Component extends DCLogic { renderVals(){ return {}; } }
         </script>
     </body>

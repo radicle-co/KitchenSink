@@ -912,7 +912,8 @@ function stageGrants(qualifier: 'ksnonprod' | 'ksprod'): Grant[] {
         allow(
             'observe',
             'LogDeliveries',
-            ['logs:*Delivery*', 'logs:DescribeLogGroups'],
+            // `logs:DescribeDeliveries` is named: "Deliveries" holds no "Delivery", so the wildcard misses it.
+            ['logs:*Delivery*', 'logs:DescribeDeliveries', 'logs:DescribeLogGroups'],
             ['*'],
             ['AWS::Logs::Delivery', 'AWS::Logs::DeliveryDestination', 'AWS::Logs::DeliverySource'],
         ),

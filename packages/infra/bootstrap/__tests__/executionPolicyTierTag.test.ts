@@ -396,6 +396,12 @@ describe.each(stageQualifiers)('executionPolicy(%s) — CloudWatch Logs delivery
         }
     });
 
+    // `logs:*Delivery*` does not match `logs:DescribeDeliveries` ("Deliveries" holds no "Delivery"), and the Delivery
+    // create handler calls it: the next production edge deploy failed on exactly that (2026-10-25).
+    it('lists deliveries, which the Delivery create handler calls first', () => {
+        expect(evaluates(merged, 'logs:DescribeDeliveries', '*')).toBe(true);
+    });
+
     it("never tags another tier's delivery resource, nor stamps the other tier's tag", () => {
         for (const resource of resources) {
             expect(evaluates(merged, 'logs:TagResource', resource, { [RESOURCE_TAG]: other }), resource).toBe(false);

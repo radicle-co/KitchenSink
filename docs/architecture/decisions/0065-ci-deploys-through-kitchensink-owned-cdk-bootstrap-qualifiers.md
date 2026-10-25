@@ -143,6 +143,12 @@ match on it would admit that application's resources. The rules the execution po
   `ec2:RunInstances` with the production NAT instance profile was refused while the role carried the tag, and its
   decoded context held only `iam:RoleName`. A role passed to `ec2.amazonaws.com` is therefore allowed by the tier's own
   role names (`role/kitchensink-*-prod*`, or the sandbox and `pr-` names), and that grant passes to nothing else.
+- In IAM names, a preview's token is `pr-` followed by a digit, never `pr-` alone. IAM caps a role or instance-profile
+  name at 64 characters, so CloudFormation cuts the stack-name part short. `kitchensink-food-service-prod` became
+  `kitchensink-food-service-pr-FoodApiTaskRole…`, and the production guard refused production's own role as a preview's
+  (prod deploy 40147809293, 2026-10-25). A preview token always carries its number (ADR-0005), so the IAM name Denies
+  and the EC2 grant above match `pr-1*` to `pr-9*`. A preview role cut the same way loses its number and matches no
+  name, so its tier tag is what keeps it out of production.
 
 **Migration.** Resources that exist today carry no tier tag, so nothing can modify them until they are tagged. In order:
 (1) the owner deploys the policy stack, which adds `kitchensink-ci-exec-<qualifier>-tags` and the new conditions;

@@ -320,7 +320,11 @@ describe.each(stageQualifiers)('executionPolicy(%s) — an EC2 instance profile 
         ? ['kitchensink-network-sandbox-VpcpublicSubnet1NatInstanc-AbC123', 'kitchensink-food-service-pr-91-TaskRole-x']
         : ['kitchensink-network-prod-VpcpublicSubnet1NatInstanc-vPi0Kdk31iyx'];
     const other = nonprod
-        ? ['kitchensink-network-prod-VpcpublicSubnet1NatInstanc-vPi0Kdk31iyx']
+        ? [
+              'kitchensink-network-prod-VpcpublicSubnet1NatInstanc-vPi0Kdk31iyx',
+              // A prod role whose stack name IAM's 64-character cap cut to `-pr` (see tierNames.ts CUT_NAME_SERVICES).
+              'kitchensink-food-service-pr-FoodApiTaskRole9318E1E5-gjIjclZ0HZt5',
+          ]
         : [
               'kitchensink-network-sandbox-VpcpublicSubnet1NatInstanc-AbC123',
               'kitchensink-food-service-pr-91-TaskRole-x',

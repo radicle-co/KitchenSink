@@ -211,3 +211,44 @@ describe.each(stageQualifiers)('%s — the tier Denies', (qualifier) => {
         },
     );
 });
+
+/**
+ * IAM caps a role or instance-profile name at 64 characters, so CloudFormation cuts the stack-name part of a
+ * generated name short. `kitchensink-food-service-prod` became `kitchensink-food-service-pr-FoodApiTaskRole…`, and
+ * the prod guard refused prod's own role as a preview's (prod deploy 40147809293, `iam:PutRolePermissionsBoundary`).
+ * A preview token always carries its number (ADR-0005), so an IAM name is a preview's only when a digit follows
+ * `-pr-`. A preview role cut the same way loses its number too; its `kitchensink:tier` tag still keeps it out.
+ */
+describe('a prod IAM name whose stack name CloudFormation cut to "-pr"', () => {
+    const iam = (resource: string): string => `arn:aws:iam::${'123456789012'}:${resource}`;
+    const cutProdNames = [
+        iam('role/kitchensink-food-service-pr-FoodApiTaskRole9318E1E5-gjIjclZ0HZt5'),
+        iam('role/kitchensink-recipe-workers-pr-BandDrainRoleB0F4CD3C-CCh7vqmjyL14'),
+        iam('instance-profile/kitchensink-network-service-pr-NatInstanceProfile1A2B3C4D-AbCdEfGhIjKl'),
+    ];
+    const previewNames = [
+        iam('role/kitchensink-food-service-pr-91-FoodApiTaskRole-AbCdEf'),
+        iam('role/kitchensink-recipe-pr-7-Role-AbCdEf'),
+        iam('instance-profile/kitchensink-nat-pr-103-Profile'),
+    ];
+
+    it.each(['execution', 'boundary'] as const)('is not refused by the prod %s policy', (kind) => {
+        const documents = documentsOf(QUALIFIERS.prod, kind);
+
+        expect(cutProdNames.filter((arn) => unconditionalDeny(documents, 'sts:Any', arn))).toEqual([]);
+    });
+
+    it('leaves a numbered preview IAM name refused by the prod execution policy', () => {
+        const documents = documentsOf(QUALIFIERS.prod, 'execution');
+
+        expect(previewNames.filter((arn) => !unconditionalDeny(documents, 'sts:Any', arn))).toEqual([]);
+    });
+
+    it('leaves a numbered preview role refused by the prod boundary', () => {
+        const documents = documentsOf(QUALIFIERS.prod, 'boundary');
+
+        expect(
+            previewNames.filter((arn) => arn.includes(':role/') && !unconditionalDeny(documents, 'sts:Any', arn)),
+        ).toEqual([]);
+    });
+});

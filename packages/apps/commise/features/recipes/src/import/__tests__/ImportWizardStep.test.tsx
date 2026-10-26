@@ -123,6 +123,20 @@ describe('ImportWizardStep (web)', () => {
         expect(bar.className.split(' ')).toEqual(expect.arrayContaining(['sticky', 'bottom-0', '@wide/main:static']));
     });
 
+    it('below the wide class Next recipe fills its own row under Back and Skip; at it the three share one row', () => {
+        renderStep();
+
+        const bar = screen.getByRole('group', { name: w.actionsLabel });
+        const next = within(bar).getByRole('button', { name: w.next });
+        const skip = within(bar).getByRole('button', { name: w.skip });
+        const secondary = skip.closest('div');
+
+        expect(bar.className.split(' ')).toEqual(expect.arrayContaining(['flex-col', '@wide/main:flex-row']));
+        expect(secondary?.contains(next)).toBe(false);
+        expect(secondary?.contains(within(bar).getByRole('button', { name: 'Back to recipe 13' }))).toBe(true);
+        expect(skip.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('draws the rail only at the wide class, and nothing for it without one', () => {
         renderStep({ rail: <nav aria-label="Recipes to review" /> });
 

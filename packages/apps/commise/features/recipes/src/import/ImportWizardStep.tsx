@@ -7,7 +7,9 @@
  *
  * Below the wide container class the action bar is pinned to the bottom of the viewport, so the step's primary action
  * stays within thumb reach however long the recipe; at it (1194 and web) the bar sits in flow under the lines and the
- * recipe rail stands beside the step. Back is absent on the first recipe, and named for the recipe it returns to.
+ * recipe rail stands beside the step. Below the wide class Next recipe fills its own row nearest the thumb, with Back and
+ * Skip on the row above (three actions in one row clip Next at 320 px); at it the three share one row. Back is absent on
+ * the first recipe, and named for the recipe it returns to.
  *
  * When a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to
  * the top of the page (staff-ux 2026-10-25).
@@ -63,25 +65,28 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
                 <div
                     role="group"
                     aria-label={w.actionsLabel}
-                    className="sticky bottom-0 flex items-center gap-3 border-t border-line-divider bg-bar py-3 @wide/main:static"
+                    className="sticky bottom-0 flex flex-col gap-2 border-t border-line-divider bg-bar py-3 @wide/main:static @wide/main:flex-row @wide/main:items-center @wide/main:gap-3"
                 >
-                    {backTo === undefined ? null : (
-                        <Button
-                            variant="secondary"
-                            icon="chevronLeft"
-                            accessibilityLabel={fillTemplate(w.backName, { n: backTo })}
-                            onPress={onBack}
-                        >
-                            {w.back}
+                    {/* Back and Skip share the row above; Next fills its own row nearest the thumb below the wide class. */}
+                    <div className="flex items-center gap-3 @wide/main:flex-1">
+                        {backTo === undefined ? null : (
+                            <Button
+                                variant="secondary"
+                                icon="chevronLeft"
+                                accessibilityLabel={fillTemplate(w.backName, { n: backTo })}
+                                onPress={onBack}
+                            >
+                                {w.back}
+                            </Button>
+                        )}
+                        <Button variant="ghost" onPress={onSkip}>
+                            {w.skip}
                         </Button>
-                    )}
-                    <Button variant="ghost" onPress={onSkip}>
-                        {w.skip}
-                    </Button>
-                    <span className="flex-1" />
+                    </div>
                     <Button
                         icon="chevronRight"
                         iconPlacement="end"
+                        width="fill"
                         focusRequested={nextFocus.requested}
                         onFocusRequestHandled={nextFocus.onHandled}
                         onPress={onNext}

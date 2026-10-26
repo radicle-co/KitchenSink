@@ -2,7 +2,9 @@
  * Native component tests for `ImportWizardStep`, rendered through react-native-web under jsdom. Mirrors
  * `ImportWizardStep.test.tsx` — the recipe heading, the progress in words and as a bar, Save and leave, Back (absent on
  * the first recipe), Skip and Next — plus the native layout's rules: the action bar outside the scroll region (thumb
- * reach), and the recipe rail only at the wide container class. The focus case is new (review finding M4): when nothing
+ * reach), and the recipe rail only at the wide container class. The bar's layout case is review finding M3: three
+ * actions in one row needed 383 px against 288 at 320 dp and clipped Next; Next now fills its own row nearest the thumb
+ * with Back and Skip on the row above. The focus case is new (review finding M4): when nothing
  * is left open, the host's request moves the screen reader to Next recipe.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -134,5 +136,50 @@ describe('ImportWizardStep (native)', () => {
         renderStep();
 
         expect(focus.moved).not.toHaveBeenCalled();
+    });
+
+    it('⛔ at 320 dp Next recipe fills the bar on its own row nearest the thumb; Back and Skip share the row above', () => {
+        renderStep();
+
+        const bar = screen.getByRole('group', { name: w.actionsLabel });
+        const back = within(bar).getByRole('button', { name: 'Back to recipe 13' });
+        const skip = within(bar).getByRole('button', { name: w.skip });
+        const next = within(bar).getByRole('button', { name: w.next });
+        let row: HTMLElement | null = back.parentElement;
+
+        while (row !== null && !row.contains(skip)) {
+            row = row.parentElement;
+        }
+
+        // Next stretches across a column, so it takes the bar's whole width (the 383 px row clipped it at 320).
+        expect(getComputedStyle(bar).flexDirection).toBe('column');
+        expect(next.style.alignSelf).toBe('stretch');
+        // Back and Skip sit together on one row that does not hold Next, and that row comes first, above Next.
+        expect(row === null ? undefined : getComputedStyle(row).flexDirection).toBe('row');
+        expect(row?.contains(next)).toBe(false);
+        expect(skip.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('on the first recipe Skip stands alone above Next recipe', () => {
+        renderStep({ position: 1 });
+
+        const bar = screen.getByRole('group', { name: w.actionsLabel });
+
+        expect(
+            within(bar)
+                .getAllByRole('button')
+                .map((button) => button.textContent),
+        ).toEqual([w.skip, w.next]);
+        expect(within(bar).getByRole('button', { name: w.next }).style.alignSelf).toBe('stretch');
+    });
+
+    it('at the wide container class the three share one row, Next at its end', () => {
+        windowWidth.current = 1194;
+        renderStep();
+
+        const bar = screen.getByRole('group', { name: w.actionsLabel });
+
+        expect(getComputedStyle(bar).flexDirection).toBe('row');
+        expect(within(bar).getByRole('button', { name: w.next }).style.alignSelf).toBe('');
     });
 });

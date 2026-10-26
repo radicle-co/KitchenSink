@@ -6,8 +6,9 @@
  * ALL the recipe's lines ("Line 3 of 9", M4), the line as its heading, the muted prompt, a pick that did not save with
  * Try again, the line's `FoodChoiceList`, then Previous and Next open line (`paneStepsOf`).
  *
- * Previous and Next are always drawn and are disabled at an end, so nothing moves under the cook and the pair never
- * changes shape (a top-level `hasNext && <Button>` would also be §11.2's boolean-selects-a-subtree). A pick in the pane
+ * Previous and Next are always drawn and are refused at an end — focusable, the press cancelled, never natively
+ * disabled, because the step that reaches the end is the one holding focus (WCAG 2.4.3) — so nothing moves under the
+ * cook and the pair never changes shape (a top-level `hasNext && <Button>` would also be §11.2's boolean-selects-a-subtree). A pick in the pane
  * does not move on by itself (staff-ux ruling 2026-10-25): the check appears on the row, and Next moves on.
  *
  * Presentational: props in, markup out. The native leaf is `./PasteChoicePane.native.tsx`.
@@ -34,14 +35,14 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, on
         </div>
         <FoodChoiceList view={view.open.list} {...list} />
         <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" icon="chevronLeft" disabled={view.previous.disabled} onPress={onPrevious}>
+            <Button variant="ghost" icon="chevronLeft" refused={view.previous.disabled} onPress={onPrevious}>
                 {view.previous.label}
             </Button>
             <Button
                 variant="ghost"
                 icon="chevronRight"
                 iconPlacement="end"
-                disabled={view.next.disabled}
+                refused={view.next.disabled}
                 onPress={onNext}
             >
                 {view.next.label}

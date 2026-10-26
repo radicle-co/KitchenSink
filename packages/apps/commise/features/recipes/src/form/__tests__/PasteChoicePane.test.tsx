@@ -50,23 +50,37 @@ afterEach(cleanup);
 const RECIPE: readonly MatchLine[] = [makeConfidentLine(), MILK_LINE, makeCheckingLine(), BREAD_LINE, SPICE_LINE];
 const NOTHING_SENT: ReadonlySet<string> = new Set();
 
-function renderPane(shownKey: string, options: { failed?: boolean } = {}) {
-    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onPrevious: vi.fn(), onNext: vi.fn(), onRetryPick: vi.fn() };
-
-    render(
+function paneOf(
+    shownKey: string,
+    options: { failed?: boolean; online?: boolean; focusRequested?: boolean },
+    handlers: Record<'onSearch' | 'onPick' | 'onPrevious' | 'onNext' | 'onRetryPick' | 'onHandled', () => void>,
+) {
+    return (
         <PasteChoicePane
             view={pasteMatchPaneViewOf(
                 { lines: RECIPE, shownKey, sending: NOTHING_SENT },
-                { online: true, pending: undefined, failed: options.failed ?? false },
+                { online: options.online ?? true, pending: undefined, failed: options.failed ?? false },
                 m,
                 lineCopy,
             )}
-            focus={{ requested: false, onHandled: vi.fn() }}
+            focus={{ requested: options.focusRequested ?? false, onHandled: handlers.onHandled }}
             {...handlers}
-        />,
+        />
     );
+}
 
-    return handlers;
+function renderPane(shownKey: string, options: { failed?: boolean; online?: boolean; focusRequested?: boolean } = {}) {
+    const handlers = {
+        onSearch: vi.fn(),
+        onPick: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onRetryPick: vi.fn(),
+        onHandled: vi.fn(),
+    };
+    const result = render(paneOf(shownKey, options, handlers));
+
+    return { ...handlers, rerender: (key: string) => result.rerender(paneOf(key, options, handlers)) };
 }
 
 const disabled = (button: HTMLElement): boolean =>
@@ -137,5 +151,27 @@ describe('PasteChoicePane (web)', () => {
             screen.getByRole('button', { name: 'Try again to save the choice for 6 slices day-old bread' }),
         );
         expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ H1: offline, a focus request in the pane lands on the first option, and is acknowledged', () => {
+        const { onHandled } = renderPane('bread', { online: false, focusRequested: true });
+
+        expect(document.activeElement).toBe(
+            screen.getByRole('button', { name: 'White bread, sliced, Commercially prepared' }),
+        );
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ stepping onto the last open line keeps focus on Next: refused, never natively disabled (2.4.3)', () => {
+        const { rerender } = renderPane('bread');
+
+        screen.getByRole('button', { name: 'Next open line' }).focus();
+        rerender('spice');
+
+        const next = screen.getByRole('button', { name: 'Next open line' });
+
+        expect(next.getAttribute('aria-disabled')).toBe('true');
+        expect(next.hasAttribute('disabled')).toBe(false);
+        expect(document.activeElement).toBe(next);
     });
 });

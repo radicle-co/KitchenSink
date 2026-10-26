@@ -132,6 +132,19 @@ describe('MatchClosedRow (web)', () => {
         );
     });
 
+    // The current ring and the focus indicator are two channels: both as rings, the `aria-[current]` variant wins the
+    // ring colour, so a focused current row would look exactly like an unfocused one (2.4.7). Focus is an outline.
+    it('draws focus as an outline inside the current ring, never as a second ring colour', () => {
+        renderRow(makeNeedsChoiceLine(), true);
+
+        const classes = screen.getByRole('button').className.split(' ');
+
+        expect(classes).toEqual(
+            expect.arrayContaining(['focus-visible:outline-2', 'focus-visible:outline-focus-ring']),
+        );
+        expect(classes.filter((token) => token.startsWith('focus-visible:ring'))).toEqual([]);
+    });
+
     it('U3: a rule above it, in the divider tone; U1: its need is the 14 px list role', () => {
         renderRow(makeNoMatchLine());
 

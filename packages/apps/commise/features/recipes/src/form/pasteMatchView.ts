@@ -122,9 +122,10 @@ export interface PaneSteps {
     readonly nextKey: string | undefined;
 }
 
-/** A step control of the side pane: always drawn, disabled at an end, so nothing moves under the cook. */
+/** A step control of the side pane: always drawn, refused at an end (and focusable), so nothing moves under the cook. */
 export interface PaneStep {
     readonly label: string;
+    /** The pane is at this end: the step refuses a press. */
     readonly disabled: boolean;
 }
 

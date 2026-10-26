@@ -11,6 +11,8 @@
  * - The line the pane shows is `aria-current`, drawn with the selected fill AND the 2 px selected-edge ring Combobox's
  *   active option takes (U10): the fill alone is 1.2:1 against the paper, under WCAG 1.4.11's 3:1; the ring is 3.9:1
  *   on the fill in the light theme and 5.1:1 in the dark.
+ * - Focus is an OUTLINE inset inside that ring: as a second ring, the `aria-[current]` variant would win its colour and
+ *   a focused current row would look unfocused (2.4.7).
  * - While the line's choice is being sent it refuses to open: focusable, the press cancelled (M1, 2.4.3).
  * - A rule sits above it, as above every line (U3).
  *
@@ -24,7 +26,7 @@ import { MatchLineText } from './MatchLineText.js';
 import type { MatchClosedRowProps } from './matchClosedRowProps.js';
 
 /** The row's button: the whole line, 48 px at least. */
-const ROW_CLASS = `flex min-h-12 w-full items-center gap-2 rounded-xl px-1 py-3 text-start hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring aria-[current=true]:bg-selected-fill aria-[current=true]:ring-2 aria-[current=true]:ring-inset aria-[current=true]:ring-selected-edge ${BUSY_CONTROL_CLASS}`;
+const ROW_CLASS = `flex min-h-12 w-full items-center gap-2 rounded-xl px-1 py-3 text-start hover:bg-surface-muted focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-focus-ring aria-[current=true]:bg-selected-fill aria-[current=true]:ring-2 aria-[current=true]:ring-inset aria-[current=true]:ring-selected-edge ${BUSY_CONTROL_CLASS}`;
 
 /** One collapsed open line. */
 export const MatchClosedRow: FC<MatchClosedRowProps> = ({ line, need, current, refusing, failure, onOpen }) => (

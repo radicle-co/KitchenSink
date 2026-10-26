@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,
  * the side pane a 1194 tablet shows: which line it shows out of all the recipe's lines (M4), the line as a header, its
  * prompt, a pick that did not save with Try again, the line's `FoodChoiceList`, then Previous and Next open line,
- * always drawn and disabled at an end. Painted from the theme's roles (D15).
+ * always drawn and refused at an end. Painted from the theme's roles (D15).
  *
  * The pane carries NO name of its own: the web `aside`'s "Choose a food" only repeats a landmark, which on native is one
  * more swipe stop with no new fact, and the line's header already names the pane (`docs/design/nativeContainerNames.md`
@@ -38,14 +38,14 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, on
             </View>
             <FoodChoiceList view={view.open.list} {...list} />
             <View style={styles.steps}>
-                <Button variant="ghost" icon="chevronLeft" disabled={view.previous.disabled} onPress={onPrevious}>
+                <Button variant="ghost" icon="chevronLeft" refused={view.previous.disabled} onPress={onPrevious}>
                     {view.previous.label}
                 </Button>
                 <Button
                     variant="ghost"
                     icon="chevronRight"
                     iconPlacement="end"
-                    disabled={view.next.disabled}
+                    refused={view.next.disabled}
                     onPress={onNext}
                 >
                     {view.next.label}

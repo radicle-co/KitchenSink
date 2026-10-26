@@ -12,6 +12,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+const focusMoved = vi.hoisted(() => vi.fn());
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus request reads its calls.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focusMoved } };
+});
+
 import { recipeMessages } from '../../messages.js';
 import {
     makeCheckingLine,
@@ -48,23 +57,37 @@ afterEach(cleanup);
 const RECIPE: readonly MatchLine[] = [makeConfidentLine(), MILK_LINE, makeCheckingLine(), BREAD_LINE, SPICE_LINE];
 const NOTHING_SENT: ReadonlySet<string> = new Set();
 
-function renderPane(shownKey: string, options: { failed?: boolean } = {}) {
-    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onPrevious: vi.fn(), onNext: vi.fn(), onRetryPick: vi.fn() };
-
-    render(
+function paneOf(
+    shownKey: string,
+    options: { failed?: boolean; online?: boolean; focusRequested?: boolean },
+    handlers: Record<'onSearch' | 'onPick' | 'onPrevious' | 'onNext' | 'onRetryPick' | 'onHandled', () => void>,
+) {
+    return (
         <PasteChoicePane
             view={pasteMatchPaneViewOf(
                 { lines: RECIPE, shownKey, sending: NOTHING_SENT },
-                { online: true, pending: undefined, failed: options.failed ?? false },
+                { online: options.online ?? true, pending: undefined, failed: options.failed ?? false },
                 m,
                 lineCopy,
             )}
-            focus={{ requested: false, onHandled: vi.fn() }}
+            focus={{ requested: options.focusRequested ?? false, onHandled: handlers.onHandled }}
             {...handlers}
-        />,
+        />
     );
+}
 
-    return handlers;
+function renderPane(shownKey: string, options: { failed?: boolean; online?: boolean; focusRequested?: boolean } = {}) {
+    const handlers = {
+        onSearch: vi.fn(),
+        onPick: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onRetryPick: vi.fn(),
+        onHandled: vi.fn(),
+    };
+    const result = render(paneOf(shownKey, options, handlers));
+
+    return { ...handlers, rerender: (key: string) => result.rerender(paneOf(key, options, handlers)) };
 }
 
 const disabled = (button: HTMLElement): boolean =>
@@ -140,5 +163,15 @@ describe('PasteChoicePane (native)', () => {
             screen.getByRole('button', { name: 'Try again to save the choice for 6 slices day-old bread' }),
         );
         expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ H1: offline, a focus request in the pane moves the screen reader to the first option', () => {
+        const { onHandled } = renderPane('bread', { online: false, focusRequested: true });
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('button', { name: 'White bread, sliced, Commercially prepared' }),
+            'focus',
+        );
+        expect(onHandled).toHaveBeenCalledTimes(1);
     });
 });

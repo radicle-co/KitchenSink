@@ -1,15 +1,17 @@
 /**
  * @module @commise/features-recipes/form — `PasteMatchNotice` (native): the React Native leaf of
  * `./PasteMatchNotice.tsx`, on the same props and words (`pasteMatchNoticeOf`). On a device the choices are saved on the
- * device. A polite `status` live region (U9), as the web leaf, under the same host rule. Painted from the theme's roles
- * (D15).
+ * device. Its sentence is the house `LiveRegion`, polite (U9): Android's live region speaks it, and on iOS, which honours
+ * none, the region announces it — a `role` or `accessibilityLiveRegion` alone is silent there. The same host rule as the
+ * web leaf holds. Painted from the theme's roles (D15).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
+import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { recipeFormMessages } from './messages.js';
 import type { PasteMatchNoticeProps } from './pasteMatchNoticeProps.js';
@@ -22,15 +24,11 @@ export const PasteMatchNotice: FC<PasteMatchNoticeProps> = ({ notice }) => {
     const { colors } = useTheme();
 
     return (
-        <View
-            collapsable={false}
-            role="status"
-            accessibilityLiveRegion="polite"
-            aria-live="polite"
-            style={[styles.notice, { backgroundColor: colors.surfaceMuted }]}
-        >
+        <View style={[styles.notice, { backgroundColor: colors.surfaceMuted }]}>
             <Icon name="info" size={20} tone="inkMuted" />
-            <Text style={[styles.text, { color: colors.ink }]}>{pasteMatchNoticeOf(notice, m, locale)}</Text>
+            <LiveRegion politeness="polite" style={[styles.text, { color: colors.ink }]}>
+                {pasteMatchNoticeOf(notice, m, locale)}
+            </LiveRegion>
         </View>
     );
 };

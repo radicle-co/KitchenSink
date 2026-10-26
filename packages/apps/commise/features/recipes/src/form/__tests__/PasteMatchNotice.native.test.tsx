@@ -3,8 +3,27 @@
  * the daily limit (004 FR-022; matching starts again at the reset time, in the cook's locale)
  * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, RecipeEditorPasteChooseStates).
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { AccessibilityInfo } from 'react-native';
+
+const platform = vi.hoisted(() => ({ os: 'web' as string }));
+
+// The iOS announce path: `Platform.OS` is switched per test, and the announcement is read off the spy.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        Platform: {
+            ...actual.Platform,
+            get OS() {
+                return platform.os;
+            },
+        },
+        AccessibilityInfo: { ...actual.AccessibilityInfo, announceForAccessibilityWithOptions: vi.fn() },
+    };
+});
 
 import { recipeFormMessages } from '../messages.js';
 import { pasteMatchNoticeOf } from '../pasteMatchView.js';
@@ -13,7 +32,11 @@ import { PasteMatchNotice } from '../PasteMatchNotice.native.js';
 
 const m = recipeFormMessages.en;
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    platform.os = 'web';
+    vi.mocked(AccessibilityInfo.announceForAccessibilityWithOptions).mockClear();
+});
 
 describe('PasteMatchNotice (native)', () => {
     it('offline on a device: says choices are saved on this device', () => {
@@ -39,12 +62,21 @@ describe('PasteMatchNotice (native)', () => {
     });
 
     // U9 (staff-ux, WCAG 4.1.3): the notice is a polite status, so a change to it is spoken; it was not live.
-    it('is a polite status region holding its sentence', () => {
+    it('is a polite live region holding its sentence', () => {
         render(<PasteMatchNotice notice={{ kind: 'offline', keep: 'disk' }} />);
 
-        const region = screen.getByRole('status');
+        const sentence = screen.getByText(/saved on this device/);
 
-        expect(region.getAttribute('aria-live')).toBe('polite');
-        expect(region.textContent).toContain('saved on this device');
+        expect(sentence.getAttribute('aria-live')).toBe('polite');
+    });
+
+    // iOS honours no live region: the house `LiveRegion` announces, so the notice speaks there too (U9).
+    it('⛔ on iOS, announces its sentence politely', () => {
+        platform.os = 'ios';
+        render(<PasteMatchNotice notice={{ kind: 'offline', keep: 'disk' }} />);
+
+        expect(vi.mocked(AccessibilityInfo.announceForAccessibilityWithOptions).mock.calls).toEqual([
+            [pasteMatchNoticeOf({ kind: 'offline', keep: 'disk' }, m, 'en'), { queue: true }],
+        ]);
     });
 });

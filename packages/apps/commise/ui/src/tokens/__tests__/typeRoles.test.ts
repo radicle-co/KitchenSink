@@ -34,6 +34,8 @@ describe('typeRole — the §1.5 table', () => {
             body: { face: 'body', size: 16, weight: 'normal', lineHeight: 1.5 },
             readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 1.6 },
             meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
+            // Owner rule C5: ingredient lists at 13, and 15 was "still too large" (redesignSpec.md's 13 / 1.35 step).
+            list: { face: 'body', size: 13, weight: 'normal', lineHeight: 1.35 },
             label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 1.2 },
             caption: { face: 'body', size: 12, weight: 'medium', lineHeight: 1.4 },
             overline: {
@@ -79,6 +81,10 @@ describe('webTypeRoles — the --text-{role} projection', () => {
         expect(webTypeRoles['figure-stat']).toEqual({ size: '1.25rem', lineHeight: '1.2', fontWeight: '600' });
     });
 
+    it('emits the list role at 13 px (0.8125rem), leading 1.35, weight 400', () => {
+        expect(webTypeRoles.list).toEqual({ size: '0.8125rem', lineHeight: '1.35', fontWeight: '400' });
+    });
+
     it('carries the overline’s tracking as a letter-spacing sub-property', () => {
         expect(webTypeRoles.overline).toEqual({
             size: '0.6875rem',
@@ -117,6 +123,7 @@ describe('webTypeRoles — the --text-{role} projection', () => {
                 'body',
                 'reading-body',
                 'meta',
+                'list',
                 'label',
                 'caption',
                 'overline',
@@ -163,6 +170,10 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
         expect(nativeTokens.type.cardTitle.fontFamily).toBe(bodyFontFace.semibold);
         expect(nativeTokens.type.caption.fontFamily).toBe(bodyFontFace.medium);
         expect(nativeTokens.type.largeTitle.narrow.fontFamily).toBe(displayFontFace.semibold);
+    });
+
+    it('sets the list role in the regular body face at 13, with a 17.6 leading (13 x 1.35, to one decimal)', () => {
+        expect(nativeTokens.type.list).toEqual({ fontFamily: bodyFontFace.normal, fontSize: 13, lineHeight: 17.6 });
     });
 
     it('gives the large title one size per container class', () => {

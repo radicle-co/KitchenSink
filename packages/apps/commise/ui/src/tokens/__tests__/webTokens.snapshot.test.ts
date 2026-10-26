@@ -273,6 +273,9 @@ describe('web tokens — generated theme.css artifact', () => {
               --text-meta: 0.875rem;
               --text-meta--line-height: 1.4;
               --text-meta--font-weight: 400;
+              --text-list: 0.8125rem;
+              --text-list--line-height: 1.35;
+              --text-list--font-weight: 400;
               --text-label: 0.875rem;
               --text-label--line-height: 1.2;
               --text-label--font-weight: 600;

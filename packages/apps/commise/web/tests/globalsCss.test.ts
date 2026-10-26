@@ -84,6 +84,21 @@ describe('globals.css', () => {
         expect(globalsCss, 'no height literal of its own: the property is the one source').not.toContain('3.5rem');
     });
 
+    /**
+     * Bulk import's review wizard and mode choice pin their action bar to the bottom of the document below the wide
+     * container class (`[data-import-bar]`; staff-ux U8). Its tallest form is the wizard's at 320 px: Back and Skip on a
+     * 44 px row, an 8 px gap, Next recipe on its own 44 px row, 12 px above and below, and a 1 px rule — 7.5rem + 1px. The
+     * document's `scroll-padding-bottom` reserves that, so a focused line is never left under the bar (WCAG 2.2 SC
+     * 2.4.11). ⚠️ The bar turns static at the wide CONTAINER class, which an `html` rule cannot see, so from there the
+     * reservation is surplus: a focused control scrolls in a little higher than it must, and is never covered. A text
+     * check: the browser behaviour needs a Playwright run against the wired wizard.
+     */
+    it('reserves the import action bar’s height while it is in the page', () => {
+        const compact = globalsCss.replace(/\s+/g, ' ');
+
+        expect(compact).toContain('html:has([data-import-bar]) { scroll-padding-bottom: calc(7.5rem + 1px); }');
+    });
+
     it('declares the main top padding default once', () => {
         const declarations = globalsCss.match(/--main-top:\s*1\.5rem/g) ?? [];
 

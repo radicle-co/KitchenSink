@@ -1,8 +1,9 @@
 /**
  * @module @commise/features-recipes/import — `ImportWizardLeave` (native): the React Native leaf of
- * `./ImportWizardLeave.tsx`, on the same words (`leaveCopyOf`). The house `Sheet`, anchored to the bottom, so Save and
- * leave and Keep reviewing land under the thumb; each fills the sheet's width, so neither label wraps at 320 dp. Not a
- * destructive confirm: leaving loses nothing, and every close route keeps reviewing.
+ * `./ImportWizardLeave.tsx`, on the same words (`leaveCopyOf`). The house `Sheet`, anchored to the bottom, so Keep
+ * reviewing and Save and leave land under the thumb, stacked with Save and leave LAST, nearest it (U11); each fills the
+ * sheet's width, so neither label wraps at 320 dp. Not a destructive confirm: leaving loses nothing, and every close
+ * route keeps reviewing.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -45,11 +46,11 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
             size="content"
             footer={
                 <View style={styles.actions}>
-                    <Button icon="save" width="fill" busy={saving} onPress={onConfirm}>
-                        {l.confirm}
-                    </Button>
                     <Button variant="secondary" icon="chevronLeft" width="fill" onPress={onKeepReviewing}>
                         {l.keep}
+                    </Button>
+                    <Button icon="save" width="fill" busy={saving} onPress={onConfirm}>
+                        {l.confirm}
                     </Button>
                 </View>
             }

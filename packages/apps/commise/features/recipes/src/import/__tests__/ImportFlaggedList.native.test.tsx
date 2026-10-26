@@ -29,7 +29,7 @@ afterEach(() => {
 
 function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
     const onUseSuggestion = vi.fn();
-    const onSearch = vi.fn();
+    const onChooseAnother = vi.fn();
     render(
         <ImportFlaggedList
             total={23}
@@ -42,28 +42,48 @@ function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
                     suggestion: { foodId: 'f-whole', name: 'Whole milk' },
                 },
             ]}
+            pending={new Map()}
             onUseSuggestion={onUseSuggestion}
-            onSearch={onSearch}
+            onChooseAnother={onChooseAnother}
             {...overrides}
         />,
     );
 
-    return { onUseSuggestion, onSearch };
+    return { onUseSuggestion, onChooseAnother };
 }
 
 describe('ImportFlaggedList (native)', () => {
-    it('heads “23 to check”; a row’s Use and labelled Search report by key', () => {
-        const { onUseSuggestion, onSearch } = renderList();
+    // REWRITTEN (design session, U7): the second control is "Choose another", named "Choose another food for {line}".
+    it('heads “23 to check”; a row’s Use and Choose another report by key', () => {
+        const { onUseSuggestion, onChooseAnother } = renderList();
 
         expect(screen.getByRole('heading', { name: '23 to check' })).toBeTruthy();
         expect(screen.getByText('1 1/4 cups milk · Pancakes')).toBeTruthy();
         expect(screen.getByText('Matched to milk crackers. Our check doubts it.')).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Search for a food for 1 1/4 cups milk' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Choose another food for 1 1/4 cups milk' }));
 
+        expect(screen.getByRole('button', { name: 'Choose another food for 1 1/4 cups milk' }).textContent).toBe(
+            'Choose another',
+        );
         expect(onUseSuggestion).toHaveBeenCalledWith('milk');
-        expect(onSearch).toHaveBeenCalledWith('milk');
+        expect(onChooseAnother).toHaveBeenCalledWith('milk');
+    });
+
+    it('⛔ M5: Use in flight reads busy; neither it nor Choose another sends again', () => {
+        const { onUseSuggestion, onChooseAnother } = renderList({
+            pending: new Map([['milk', { kind: 'useProposal' }]]),
+        });
+
+        const use = screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' });
+
+        expect(use.getAttribute('aria-busy')).toBe('true');
+        fireEvent.click(use);
+        fireEvent.click(screen.getByRole('button', { name: 'Choose another food for 1 1/4 cups milk' }));
+
+        expect(onUseSuggestion).not.toHaveBeenCalled();
+        expect(onChooseAnother).not.toHaveBeenCalled();
     });
 
     it('shows the options pane only at the wide container class', () => {

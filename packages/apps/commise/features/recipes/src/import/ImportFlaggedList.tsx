@@ -3,9 +3,11 @@
 /**
  * @module @commise/features-recipes/import — `ImportFlaggedList` (web): "N to check" (board FlaggedLine), the lines the
  * save-time check doubts after a "Pick the best match for me" import. Each row names its line and recipe and the doubted
- * match, then ONE action — "Use Whole milk", when the check has a food to offer — and a labelled Search, named "Search for
- * a food for {line}", with a 44 px target. Search opens the line's options: the sheet below the wide class, the pane
- * beside the list at it (`detail`), the same shared `FoodChoiceList` either way. Nothing changes until the cook acts.
+ * match, then ONE action — "Use Whole milk", when the check has a food to offer — and "Choose another", named "Choose
+ * another food for {line}", with a 44 px target. Choose another opens the line's options, search first: the sheet below
+ * the wide class, the pane beside the list at it (`detail`), the same shared `FoodChoiceList` either way. Nothing
+ * changes until the cook acts. While a send for a line is in flight, Use reads busy if it is the one sending, and both
+ * controls refuse a press and keep focus (M5).
  *
  * Presentational and controlled. The native leaf is `./ImportFlaggedList.native.tsx`.
  */
@@ -15,14 +17,19 @@ import type { FC } from 'react';
 
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { matchLineMessages } from '../ingredientMatching/messages.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
 /** The lines the save-time check doubts. */
-export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, onUseSuggestion, onSearch, detail }) => {
+export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
+    total,
+    lines,
+    pending,
+    onUseSuggestion,
+    onChooseAnother,
+    detail,
+}) => {
     const { flagged: f } = useMessages(importMessages);
-    const m = useMessages(matchLineMessages);
     const locale = useLocale();
 
     return (
@@ -48,6 +55,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                                             food: line.suggestion.name,
                                             line: line.text,
                                         })}
+                                        busy={pending.get(line.key)?.kind === 'useProposal'}
+                                        refused={pending.has(line.key)}
                                         onPress={() => onUseSuggestion(line.key)}
                                     >
                                         {fillTemplate(f.use, { food: line.suggestion.name })}
@@ -56,11 +65,11 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    icon="search"
-                                    accessibilityLabel={fillTemplate(m.searchName, { line: line.text })}
-                                    onPress={() => onSearch(line.key)}
+                                    accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
+                                    refused={pending.has(line.key)}
+                                    onPress={() => onChooseAnother(line.key)}
                                 >
-                                    {f.search}
+                                    {f.chooseAnother}
                                 </Button>
                             </span>
                         </li>

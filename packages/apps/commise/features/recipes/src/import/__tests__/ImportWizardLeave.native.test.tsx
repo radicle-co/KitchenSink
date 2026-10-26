@@ -54,6 +54,25 @@ describe('ImportWizardLeave (native)', () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
+    // U11: stacked with the PRIMARY LAST, nearest the thumb; Save and leave used to come first, at the top.
+    it('stacks Keep reviewing then Save and leave, the primary last', () => {
+        render(
+            <ImportWizardLeave
+                open
+                reviewed={14}
+                total={309}
+                resumeAt={15}
+                onKeepReviewing={vi.fn()}
+                onConfirm={vi.fn()}
+            />,
+        );
+
+        const keep = screen.getByRole('button', { name: l.keep });
+        const confirm = screen.getByRole('button', { name: l.confirm });
+
+        expect(keep.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('renders nothing while closed', () => {
         render(
             <ImportWizardLeave

@@ -26,6 +26,8 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { themeFor } from '@commise/ui/theme';
+
 import { ImportWizardStep } from '../ImportWizardStep.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportWizardStepProps } from '../props.js';
@@ -74,7 +76,7 @@ describe('ImportWizardStep (native)', () => {
         renderStep();
 
         expect(screen.getByRole('heading', { name: 'Lemon drizzle cake' })).toBeTruthy();
-        expect(screen.getByText('Recipe 14 of 309 · 3 lines to choose')).toBeTruthy();
+        expect(screen.getByText('Recipe 14 of 309 · 3 to choose')).toBeTruthy();
         expect(screen.getByRole('progressbar', { name: 'Review progress' }).getAttribute('aria-valuenow')).toBe('14');
         expect(screen.getByText('the lines')).toBeTruthy();
     });
@@ -158,6 +160,19 @@ describe('ImportWizardStep (native)', () => {
         expect(row === null ? undefined : getComputedStyle(row).flexDirection).toBe('row');
         expect(row?.contains(next)).toBe(false);
         expect(skip.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // U15: Skip is the quiet tier (an inkMuted label), so it does not compete with Next recipe.
+    it('draws Skip in the quiet tier', () => {
+        renderStep();
+
+        const skip = within(screen.getByRole('group', { name: w.actionsLabel })).getByRole('button', { name: w.skip });
+        const hex = themeFor('light').colors.inkMuted;
+        const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+
+        expect(getComputedStyle(within(skip).getByText(w.skip)).color).toBe(
+            `rgb(${String(r)}, ${String(g)}, ${String(b)})`,
+        );
     });
 
     it('on the first recipe Skip stands alone above Next recipe', () => {

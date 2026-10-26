@@ -8,7 +8,9 @@
  *
  * ⚠️ NOT the design system's `ConfirmDialog`: that primitive is for a destructive step and paints its confirm in the
  * danger tone, and leaving loses nothing. So it is the house `Sheet` (a dialog on web, sized to its content), whose
- * every close route keeps reviewing.
+ * every close route keeps reviewing. At narrow the two actions stack, Save and leave LAST, nearest the thumb; from the
+ * `nav` width they share a row, the primary at its end. The DOM order is the visual order, so Tab and the eye agree
+ * (U11).
  *
  * Presentational and controlled. The native leaf is `./ImportWizardLeave.native.tsx`.
  */
@@ -47,7 +49,7 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
             closeLabel={l.close}
             size="content"
             footer={
-                <div className="flex flex-col-reverse gap-3 nav:flex-row nav:justify-end">
+                <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
                     <Button variant="secondary" icon="chevronLeft" onPress={onKeepReviewing}>
                         {l.keep}
                     </Button>

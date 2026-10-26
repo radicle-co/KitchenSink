@@ -105,6 +105,20 @@ describe('ImportWizardLeave (web)', () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 
+    // U11: at narrow the two stack with the PRIMARY LAST, nearest the thumb, in the same order the keyboard reaches them;
+    // the footer used to reverse its column, so the eye and Tab disagreed.
+    it('stacks Keep reviewing then Save and leave, in visual and Tab order alike, the primary last', () => {
+        renderLeave();
+
+        const keep = screen.getByRole('button', { name: l.keep });
+        const confirm = screen.getByRole('button', { name: l.confirm });
+        const footer = keep.closest('div.flex');
+
+        expect(keep.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(footer?.className.split(' ')).toContain('flex-col');
+        expect(footer?.className).not.toContain('reverse');
+    });
+
     it('never counts below zero recipes saved now', () => {
         renderLeave({ reviewed: 309, total: 309 });
 

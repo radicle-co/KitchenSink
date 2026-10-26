@@ -18,7 +18,7 @@ export interface WizardPlace {
 }
 
 /**
- * The progress line: "Recipe 14 of 309 · 2 lines to choose · 1 being checked". Only lines that need a pick count as to
+ * The progress line: "Recipe 14 of 309 · 2 to choose · 1 being checked". Only lines that need a pick count as to
  * choose; a checking line is counted on its own; a count of 0 is left out, so a recipe with neither reads "Recipe 14 of
  * 309". Pure.
  *

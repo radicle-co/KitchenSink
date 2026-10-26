@@ -51,7 +51,10 @@ export interface ImportMessages {
     readonly wizard: {
         /** Where the review is (contains `{n}`, `{total}`); the counts below follow it, each after `partSeparator`. */
         readonly progress: string;
-        /** `{count}` lines to choose: default, needsChoice and noMatch lines with nothing bound. */
+        /**
+         * `{count}` to choose: default, needsChoice and noMatch lines with nothing bound ("Recipe {n} of {total} ·
+         * {choose} to choose · {checking} being checked", commit 7b62777fc).
+         */
         readonly toChoose: PluralText;
         /** `{count}` lines still being checked, counted on their own, never as lines to choose. */
         readonly beingChecked: PluralText;
@@ -141,8 +144,13 @@ export interface ImportMessages {
         readonly use: string;
         /** Its accessible name (contains `{food}`, `{line}`). */
         readonly useName: string;
-        /** The labelled Search button. Its accessible name is the matched line's `searchName` (one key). */
-        readonly search: string;
+        /**
+         * The spec's `import.flagged.chooseAnother`: the row's way to another food. It opens the line's options, search
+         * first (the sheet below the wide class, the pane at it).
+         */
+        readonly chooseAnother: string;
+        /** Its accessible name, which starts with its visible words (WCAG 2.5.3; contains `{line}`). */
+        readonly chooseAnotherName: string;
         /** Contains `{title}`, filled with the title's own plural, so the two always say the same words. */
         readonly footer: string;
         /** The options sheet's close control (house form "Close {thing}"; contains `{line}`). */
@@ -174,7 +182,7 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
         },
         wizard: {
             progress: 'Recipe {n} of {total}',
-            toChoose: { one: '{count} line to choose', other: '{count} lines to choose' },
+            toChoose: { one: '{count} to choose', other: '{count} to choose' },
             beingChecked: { one: '{count} being checked', other: '{count} being checked' },
             partSeparator: '\u00A0· ',
             progressLabel: 'Review progress',
@@ -247,7 +255,8 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             doubt: 'Matched to {food}. Our check doubts it.',
             use: 'Use {food}',
             useName: 'Use {food} for {line}',
-            search: 'Search',
+            chooseAnother: 'Choose another',
+            chooseAnotherName: 'Choose another food for {line}',
             footer: 'Each line also has a mark in its recipe. “{title}” stays at the top of My recipes until you are done.',
             sheetClose: 'Close options for {line}',
         },

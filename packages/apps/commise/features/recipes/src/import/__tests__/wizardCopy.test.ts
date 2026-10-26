@@ -18,11 +18,12 @@ const l = importMessages.en.leave;
 const RULE =
     'Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.';
 
+// REWRITTEN for U15 (the newest doc, commit 7b62777fc): "{choose} to choose", it was "{n} lines to choose".
 describe('progressTextOf', () => {
     it.each([
-        [3, 0, 'Recipe 14 of 309 · 3 lines to choose'],
-        [1, 0, 'Recipe 14 of 309 · 1 line to choose'],
-        [2, 1, 'Recipe 14 of 309 · 2 lines to choose · 1 being checked'],
+        [3, 0, 'Recipe 14 of 309 · 3 to choose'],
+        [1, 0, 'Recipe 14 of 309 · 1 to choose'],
+        [2, 1, 'Recipe 14 of 309 · 2 to choose · 1 being checked'],
         [0, 1, 'Recipe 14 of 309 · 1 being checked'],
         [0, 2, 'Recipe 14 of 309 · 2 being checked'],
         [0, 0, 'Recipe 14 of 309'],

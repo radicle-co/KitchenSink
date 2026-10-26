@@ -125,4 +125,20 @@ describe('ImportModeChoice (web)', () => {
 
         expect(promise.closest('.hidden')).not.toBeNull();
     });
+
+    // U17: below the wide class Start and its hint are pinned to the bottom of the viewport, within thumb reach, as the
+    // review wizard's action bar is; at it they sit in flow under the modes.
+    it('pins Start and its hint to the bottom below the wide class, and lets them sit in flow at it', () => {
+        renderChoice();
+
+        const bar = screen.getByRole('button', { name: m.start }).closest('div.sticky');
+
+        expect(bar).not.toBeNull();
+        expect(bar?.className.split(' ')).toEqual(
+            expect.arrayContaining(['sticky', 'bottom-0', 'bg-bar', 'border-t', '@wide/main:static']),
+        );
+        expect(bar?.contains(screen.getByText(m.startHint))).toBe(true);
+        // U8: it marks itself, so the document reserves its height under a focused card (`globals.css`).
+        expect(bar?.hasAttribute('data-import-bar')).toBe(true);
+    });
 });

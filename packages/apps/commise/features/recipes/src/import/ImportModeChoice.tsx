@@ -7,6 +7,11 @@
  * and Start disabled until the cook picks (owner ruling 2026-10-25), its hint saying why. At the wide container class a
  * reassurance sits beside the choice.
  *
+ * Below the wide class Start and its hint are pinned to the bottom of the viewport (U17), as the review wizard's action
+ * bar is, so three tall mode cards never push the primary action off a phone screen; at it they sit in flow under the
+ * modes. The document's `scroll-padding-bottom` keeps a focused card clear of the pinned bar (`data-import-bar`,
+ * `globals.css`).
+ *
  * Presentational and controlled: the host holds the mode and starts the import. The native leaf is
  * `./ImportModeChoice.native.tsx`.
  */
@@ -62,7 +67,10 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
                         }
                     }}
                 />
-                <div className="flex flex-col items-start gap-2">
+                <div
+                    data-import-bar=""
+                    className="sticky bottom-0 flex flex-col items-start gap-2 border-t border-line-divider bg-bar py-3 @wide/main:static @wide/main:border-t-0 @wide/main:bg-transparent @wide/main:py-0"
+                >
                     <Button icon="check" disabled={mode === undefined} busy={starting} onPress={onStart}>
                         {m.start}
                     </Button>

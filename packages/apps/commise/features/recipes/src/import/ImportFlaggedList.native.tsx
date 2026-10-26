@@ -1,8 +1,9 @@
 /**
  * @module @commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of
- * `./ImportFlaggedList.tsx`, on the same words. Each row's Use and Search sit on their own line under the doubt and wrap
+ * `./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap
  * rather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the
- * wide container class Search opens the options sheet (the host's); at it (1194) the options pane stands beside the list.
+ * wide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside
+ * the list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -14,7 +15,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { matchLineMessages } from '../ingredientMatching/messages.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -22,9 +22,15 @@ import type { ImportFlaggedListProps } from './props.js';
 const PANE_WIDTH = 384;
 
 /** The lines the save-time check doubts. */
-export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, onUseSuggestion, onSearch, detail }) => {
+export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
+    total,
+    lines,
+    pending,
+    onUseSuggestion,
+    onChooseAnother,
+    detail,
+}) => {
     const { flagged: f } = useMessages(importMessages);
-    const m = useMessages(matchLineMessages);
     const locale = useLocale();
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
@@ -54,6 +60,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                                             food: line.suggestion.name,
                                             line: line.text,
                                         })}
+                                        busy={pending.get(line.key)?.kind === 'useProposal'}
+                                        refused={pending.has(line.key)}
                                         onPress={() => onUseSuggestion(line.key)}
                                     >
                                         {fillTemplate(f.use, { food: line.suggestion.name })}
@@ -62,11 +70,11 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    icon="search"
-                                    accessibilityLabel={fillTemplate(m.searchName, { line: line.text })}
-                                    onPress={() => onSearch(line.key)}
+                                    accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
+                                    refused={pending.has(line.key)}
+                                    onPress={() => onChooseAnother(line.key)}
                                 >
-                                    {f.search}
+                                    {f.chooseAnother}
                                 </Button>
                             </View>
                         </View>

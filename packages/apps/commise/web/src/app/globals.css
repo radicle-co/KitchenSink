@@ -43,6 +43,15 @@
         }
     }
 
+    /* Bulk import's review wizard and mode choice pin their action bar to the bottom of the document below the wide
+       container class (`[data-import-bar]`, U8). Its tallest form, the wizard's at 320 px, is two 44 px rows, an 8 px gap,
+       12 px above and below and a 1 px rule: 7.5rem + 1px, reserved as `scroll-padding-bottom` so a focused line is never
+       left under it (WCAG 2.2 SC 2.4.11). The bar turns static at the wide CONTAINER class, which this rule cannot see,
+       so from there the reservation is surplus: a focused control lands a little higher, and is never covered. */
+    html:has([data-import-bar]) {
+        scroll-padding-bottom: calc(7.5rem + 1px);
+    }
+
     /* The same for the top. A pushed page pins its Back bar over the document below 840 (`PushedPageFrame`,
        `docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). The bar's rendered height is ONE property, `--pinned-bar-block`
        (`@commise/ui`'s theme: `--pinned-bar-height`, the same number as `PINNED_BAR_HEIGHT`, plus the notch's inset), and it is

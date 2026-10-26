@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Component tests for the web `ImportWizardStep` (board WizardStep): the recipe as the page's heading, "Recipe N of M ·
- * K lines to choose" in words and as a progress bar, Save and leave, the recipe's lines, and Back, Skip and Next in the
+ * K to choose" in words and as a progress bar, Save and leave, the recipe's lines, and Back, Skip and Next in the
  * step's action bar — pinned to the bottom below the wide class (thumb reach), in flow beside the rail at it.
  *
  * The progress bar is "Review progress" with the recipe's place as its value (review finding m2: "Recipes reviewed" at
@@ -47,7 +47,7 @@ describe('ImportWizardStep (web)', () => {
         renderStep();
 
         expect(screen.getByRole('heading', { level: 1, name: 'Lemon drizzle cake' })).toBeTruthy();
-        expect(screen.getByText('Recipe 14 of 309 · 3 lines to choose')).toBeTruthy();
+        expect(screen.getByText('Recipe 14 of 309 · 3 to choose')).toBeTruthy();
 
         const bar = screen.getByRole('progressbar', { name: 'Review progress' });
 
@@ -57,7 +57,7 @@ describe('ImportWizardStep (web)', () => {
 
     it('counts one line in the singular, and drops the count when nothing is left to choose', () => {
         renderStep({ openLines: 1 });
-        expect(screen.getByText('Recipe 14 of 309 · 1 line to choose')).toBeTruthy();
+        expect(screen.getByText('Recipe 14 of 309 · 1 to choose')).toBeTruthy();
         cleanup();
 
         renderStep({ openLines: 0 });
@@ -66,7 +66,7 @@ describe('ImportWizardStep (web)', () => {
 
     it('counts a line still being checked on its own, never as one to choose', () => {
         renderStep({ openLines: 2, checkingLines: 1 });
-        expect(screen.getByText('Recipe 14 of 309 · 2 lines to choose · 1 being checked')).toBeTruthy();
+        expect(screen.getByText('Recipe 14 of 309 · 2 to choose · 1 being checked')).toBeTruthy();
         cleanup();
 
         renderStep({ openLines: 0, checkingLines: 1 });
@@ -121,6 +121,22 @@ describe('ImportWizardStep (web)', () => {
         const bar = screen.getByRole('group', { name: w.actionsLabel });
 
         expect(bar.className.split(' ')).toEqual(expect.arrayContaining(['sticky', 'bottom-0', '@wide/main:static']));
+    });
+
+    // U8: the bar marks itself, so the document reserves its height under a focused line (`globals.css`).
+    it('marks its pinned action bar for the document’s scroll reservation', () => {
+        renderStep();
+
+        expect(screen.getByRole('group', { name: w.actionsLabel }).hasAttribute('data-import-bar')).toBe(true);
+    });
+
+    // U15: Skip is the quiet tier, so it does not compete with Next recipe.
+    it('draws Skip in the quiet tier', () => {
+        renderStep();
+
+        const skip = within(screen.getByRole('group', { name: w.actionsLabel })).getByRole('button', { name: w.skip });
+
+        expect(skip.className.split(' ')).toContain('text-ink-muted');
     });
 
     it('below the wide class Next recipe fills its own row under Back and Skip; at it the three share one row', () => {

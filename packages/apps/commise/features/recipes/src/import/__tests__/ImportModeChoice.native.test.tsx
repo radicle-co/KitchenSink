@@ -2,6 +2,10 @@
  * Native component tests for `ImportModeChoice`, rendered through react-native-web under jsdom. Mirrors
  * `ImportModeChoice.test.tsx`: nothing preselected, Start disabled until the cook picks; plus the native layout's own
  * rule — the promise shows only at the wide container class.
+ *
+ * NEW for U17 (staff-ux, 2026-10-25): Start is pinned in a bar outside the scroll region, within thumb reach, the same
+ * house pinning the review wizard uses (`usePinnedFooter`), so three tall mode cards never push it off a phone screen.
+ * The leaf owns its frame now; it was a column for the host's scroll view.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -24,6 +28,17 @@ import { importMessages } from '../messages.js';
 import type { ImportModeChoiceProps } from '../props.js';
 
 const m = importMessages.en.mode;
+
+/** The nearest ancestor react-native-web draws as a scroll container. */
+function scrollerOf(element: HTMLElement): HTMLElement | null {
+    for (let at = element.parentElement; at !== null; at = at.parentElement) {
+        if (['auto', 'scroll'].includes(getComputedStyle(at).overflowY)) {
+            return at;
+        }
+    }
+
+    return null;
+}
 
 afterEach(() => {
     cleanup();
@@ -110,5 +125,17 @@ describe('ImportModeChoice (native)', () => {
         windowWidth.current = 1194;
         renderChoice();
         expect(screen.getByText(m.promise)).toBeTruthy();
+    });
+
+    it('⛔ U17: pins Start and its hint after the modes, outside their scroll region', () => {
+        renderChoice();
+
+        const start = screen.getByRole('button', { name: m.start });
+        const group = screen.getByRole('radiogroup', { name: m.groupLabel });
+
+        expect(group.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(scrollerOf(group)).not.toBeNull();
+        expect(scrollerOf(group)?.contains(start)).toBe(false);
+        expect(scrollerOf(screen.getByText(m.startHint))).toBeNull();
     });
 });

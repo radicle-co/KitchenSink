@@ -179,10 +179,15 @@ export interface ImportFlaggedListProps {
     readonly total: number;
     /** The doubted lines shown. */
     readonly lines: readonly ImportFlaggedLineItem[];
-    /** Bind the line to its suggestion. */
+    /**
+     * What the host is sending, by line: "Use {food}" is a `useProposal` and reads busy on its Use; any send refuses
+     * both of the line's controls, so a double press cannot send twice (M5).
+     */
+    readonly pending: ReadonlyMap<string, PendingSend>;
+    /** Bind the line to its suggestion. The host raises its pending send in this call. */
     readonly onUseSuggestion: (key: string) => void;
-    /** Open the line's options: the sheet on phone and 834, the pane at 1194 and on web. */
-    readonly onSearch: (key: string) => void;
+    /** Choose another: open the line's options, search first — the sheet on phone and 834, the pane at 1194 and web. */
+    readonly onChooseAnother: (key: string) => void;
     /** The open line's options, drawn beside the list at the wide container class. */
     readonly detail?: ReactNode;
 }

@@ -73,7 +73,7 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
                         {w.back}
                     </Button>
                 )}
-                <Button variant="ghost" onPress={onSkip}>
+                <Button variant="quiet" onPress={onSkip}>
                     {w.skip}
                 </Button>
             </View>

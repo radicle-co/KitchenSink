@@ -39,6 +39,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ParseJobsService } from './parseJobs.service.js';
 import { MatchProposalService } from './matchProposal.service.js';
+import { MATCH_REQUEST_DEADLINE_MS } from '../config/matchBudget.js';
 import { ParseJobMatchView } from './parseJobMatchView.js';
 import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
@@ -166,10 +167,13 @@ export class ParseJobsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
+        // ⛔ ONE budget for the whole request (ADR-0071), taken before any I/O: the matcher keeps its own shorter deadline
+        // inside it, and the view's reads end at this one. `parseJobMatchesBudget.test.ts` holds the sum to the client's 10 s.
+        const deadline = AbortSignal.timeout(MATCH_REQUEST_DEADLINE_MS);
         const acting = actingPrincipalOf(principal);
 
         await this.matchProposals.propose(acting, caller, id);
 
-        return this.matchView.decorate(acting, caller, await this.parseJobsService.get(principal.userId, id));
+        return this.matchView.decorate(acting, caller, await this.parseJobsService.get(principal.userId, id), deadline);
     }
 }

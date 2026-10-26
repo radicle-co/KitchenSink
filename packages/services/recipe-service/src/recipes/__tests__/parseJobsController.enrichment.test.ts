@@ -76,11 +76,45 @@ describe('ParseJobsController — every route answers with an ENRICHED view', ()
             );
 
             expect(answered).toBe(enriched);
-            expect(decorate).toHaveBeenCalledWith(
+            expect(decorate.mock.calls[0]?.slice(0, 3)).toStrictEqual([
                 { userId: PRINCIPAL.userId, principalKind: 'real', containment: 'enforce' },
                 undefined,
                 view,
-            );
+            ]);
         },
     );
+
+    it('⛔ the matches route hands the enricher the request’s deadline, so the view’s reads end with it', async () => {
+        const service = new Proxy(
+            {},
+            { get: () => vi.fn().mockResolvedValue({ id: 'view' }) },
+        ) as unknown as ParseJobsService;
+        const proposals = { propose: vi.fn().mockResolvedValue(undefined) } as unknown as MatchProposalService;
+        const decorate = vi.fn().mockResolvedValue({ id: 'enriched' });
+        const controller = new ParseJobsController(service, proposals, { decorate } as unknown as ParseJobMatchView);
+
+        await controller.proposeMatches(PRINCIPAL, undefined, '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+
+        const deadline = decorate.mock.calls[0]?.[3];
+
+        expect(deadline).toBeInstanceOf(AbortSignal);
+        expect((deadline as AbortSignal).aborted).toBe(false);
+    });
+
+    it('every route but the matches route enriches WITHOUT a deadline (a plain poll has no budget to keep)', async () => {
+        const service = new Proxy(
+            {},
+            { get: () => vi.fn().mockResolvedValue({ id: 'view' }) },
+        ) as unknown as ParseJobsService;
+        const decorate = vi.fn().mockResolvedValue({ id: 'enriched' });
+        const controller = new ParseJobsController(
+            service,
+            { propose: vi.fn() } as unknown as MatchProposalService,
+            { decorate } as unknown as ParseJobMatchView,
+        );
+
+        await controller.getById(PRINCIPAL, undefined, '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+
+        expect(decorate.mock.calls[0]?.[3]).toBeUndefined();
+    });
 });

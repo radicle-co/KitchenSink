@@ -141,6 +141,7 @@ describe('U4 — the lexical tier inside the real proposal chain', () => {
             fakeVerificationQueue(),
             new LineVerificationsDal(db),
             DEFAULT_MATCH_PROPOSAL_LIMITS,
+            () => undefined,
         );
     }
 

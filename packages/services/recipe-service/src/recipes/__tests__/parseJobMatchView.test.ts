@@ -485,3 +485,121 @@ describe('ParseJobMatchView.decorate', () => {
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
     });
 });
+
+/**
+ * The view's reads end with the request's deadline (ADR-0071). The matches request hands `decorate` a signal; every
+ * database read is awaited through `boundedBy` and food's names read takes the signal, so a saturated pool or a slow food
+ * cannot carry the response past the client's timeout. What it could not read degrades exactly as an unreadable read does
+ * (the view stays total), and the client's next poll repairs it.
+ */
+describe('ParseJobMatchView.decorate — under a request deadline', () => {
+    it('⛔ hands food’s names read the request’s deadline, beside the read budget', async () => {
+        const { view, resolve } = setup();
+        const deadline = new AbortController();
+
+        await view.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        expect(resolve).toHaveBeenCalledWith(CALLER, expect.any(Array), 'read', { signal: deadline.signal });
+    });
+
+    it('⛔ a verdict read that never answers ends at the deadline: the proposal reads as awaiting review', async () => {
+        const deadline = new AbortController();
+        const hanging = new ParseJobMatchView(
+            { findForJob: async () => [matchOf()], claimCurationReport: async () => false },
+            { findBandsByKeys: () => new Promise(() => undefined), findExhaustedKeys: async () => new Set() },
+            {
+                resolve: async (_caller: unknown, refs: readonly FoodRef[]) => ({
+                    answers: new Map(refs.map((ref) => [`${ref.kind}:${ref.id}`, NAMED[`${ref.kind}:${ref.id}`]!])),
+                    degraded: false,
+                }),
+            } as unknown as FoodRefsGateway,
+            vi.fn(),
+        );
+
+        const decorating = hanging.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        await new Promise((resolve) => setImmediate(resolve));
+        deadline.abort();
+
+        expect(firstMatch(await decorating)).toMatchObject({ state: 'checking', reason: 'awaitingReview' });
+    });
+
+    it('⛔ a match store read that never answers ends at the deadline: every food reads `match: null`', async () => {
+        const deadline = new AbortController();
+        const hanging = new ParseJobMatchView(
+            { findForJob: () => new Promise(() => undefined), claimCurationReport: async () => false },
+            { findBandsByKeys: async () => new Map(), findExhaustedKeys: async () => new Set() },
+            { resolve: async () => ({ answers: new Map(), degraded: false }) } as unknown as FoodRefsGateway,
+            vi.fn(),
+        );
+
+        const decorating = hanging.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        deadline.abort();
+
+        expect(firstMatch(await decorating)).toBeNull();
+    });
+
+    it('⛔ starts no database read once the deadline has passed', async () => {
+        const { view, findForJob, resolve } = setup();
+
+        const decorated = await view.decorate(COOK, CALLER, viewOf(), AbortSignal.abort());
+
+        expect(findForJob).not.toHaveBeenCalled();
+        expect(resolve).not.toHaveBeenCalled();
+        expect(firstMatch(decorated)).toBeNull();
+    });
+
+    it('⛔ a curated-contradiction count that wins after the deadline is still reported, once', async () => {
+        const deadline = new AbortController();
+        const metric = vi.fn();
+        let settle: (won: boolean) => void = () => undefined;
+        const lateClaim = new Promise<boolean>((resolve) => {
+            settle = resolve;
+        });
+        const claim = vi.fn(() => lateClaim);
+        const contradicted: LineVerdictRow = {
+            band: 'contradicted',
+            certainty: 'high',
+            identityVerdict: 'disagree',
+            aspects: ['identity', 'quantity'],
+        };
+        const view = new ParseJobMatchView(
+            {
+                findForJob: async () => [
+                    matchOf({
+                        proposal: {
+                            matchedBy: 'curated',
+                            food: { kind: 'root', id: 'F-whole' },
+                            rung: null,
+                            margin: null,
+                        },
+                    }),
+                ],
+                claimCurationReport: claim,
+            },
+            {
+                findBandsByKeys: async () => new Map([['v2:milk', contradicted]]),
+                findExhaustedKeys: async () => new Set(),
+            },
+            {
+                resolve: async (_caller: unknown, refs: readonly FoodRef[]) => ({
+                    answers: new Map(refs.map((ref) => [`${ref.kind}:${ref.id}`, NAMED[`${ref.kind}:${ref.id}`]!])),
+                    degraded: false,
+                }),
+            } as unknown as FoodRefsGateway,
+            metric,
+        );
+
+        const decorating = view.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        await vi.waitFor(() => expect(claim).toHaveBeenCalledTimes(1));
+        deadline.abort();
+        const decorated = await decorating;
+
+        settle(true);
+        await vi.waitFor(() => expect(metric).toHaveBeenCalledTimes(1));
+
+        expect(firstMatch(decorated)?.reviewNote).toBe('reviewDisagreed');
+    });
+});

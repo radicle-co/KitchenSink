@@ -49,7 +49,16 @@ import {
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
+import { boundedBy, isDeadlineExceededError } from '../common/boundedBy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
+import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetricLine.js';
+import {
+    MATCH_PROPOSE_DEADLINE_MS,
+    MATCH_RELEASE_WAIT_MS,
+    MATCH_SEARCHES_PER_FOOD,
+    MATCH_TAIL_MS,
+} from '../config/matchBudget.js';
+import { RECIPE_RESOLUTION_NAMESPACE } from '../ingredients/resolution/resolutionMetrics.js';
 import { isBatchEnqueueError } from '../common/batchEnqueueError.js';
 import { sha256Hex } from '../common/sha256.js';
 import { foodRefKey, type FoodRef } from '../database/schema/foodLookupArm.js';
@@ -78,6 +87,7 @@ import {
     isCurrentMatch,
     slotKey,
     type MatchReview,
+    type EnqueueClaim,
     type MatchSlot,
     type NewParseJobMatch,
     type ParseJobMatch,
@@ -102,43 +112,76 @@ export const PARSE_JOB_MATCHES_DAL = 'PARSE_JOB_MATCHES_DAL';
 /** DI token for the matcher's work bounds. */
 export const MATCH_PROPOSAL_LIMITS = 'MATCH_PROPOSAL_LIMITS';
 
-/**
- * The deadline `propose` keeps, from its first statement. The same response then reads the job view's names
- * (`ParseJobMatchView`, under the read deadline, at most `MAX_READ_NUTRITION_DEADLINE_MS`), so this plus that ceiling
- * must leave margin inside the recipe client's 10 s timeout. `parseJobMatchesBudget.test.ts` asserts the sum against the
- * client's own constant.
- */
-export const MATCH_PROPOSE_DEADLINE_MS = 4_500;
+/** DI token for where a call that left proposals unmade reports it (provided by `RecipesModule`). */
+export const UNMADE_PROPOSALS_SINK = 'UNMADE_PROPOSALS_SINK';
 
-/** The catalog searches one food can cost at most: the lexical pass and its one synonym reformulation. */
-const SEARCHES_PER_FOOD = 2;
+/** What a call that left proposals unmade reports: counts and the job id, never the cook's text. */
+export interface UnmadeProposalsReport {
+    readonly jobId: string;
+    /** The (line, food) pairs that had no current match when the call began. */
+    readonly owed: number;
+    /** How many of them got a row this call. */
+    readonly made: number;
+    /** How many were never started because the budget ran out first. */
+    readonly notStarted: number;
+}
+
+/** The metric for a call that left proposals unmade, under the one resolution namespace. */
+const UNMADE_METRIC = 'paste-proposals-unmade';
+
+/**
+ * Production's report: one EMF count, dimensioned by stage alone, with the counts as context fields.
+ *
+ * @param report - What the call left unmade.
+ * @sideEffect Writes one EMF line to stdout.
+ */
+export function emitUnmadeProposals(report: UnmadeProposalsReport): void {
+    console.log(
+        buildStageCountMetricLine({
+            namespace: RECIPE_RESOLUTION_NAMESPACE,
+            metricName: UNMADE_METRIC,
+            stage: resolveMetricStage(),
+            properties: {
+                owed: String(report.owed),
+                made: String(report.made),
+                notStarted: String(report.notStarted),
+            },
+        }),
+    );
+}
 
 /** How much work one call may do. */
 export interface MatchProposalLimits {
     /** How many (line, food) pairs are matched at once — each costs up to two catalog searches as the cook. */
     readonly concurrency: number;
-    /** Time kept back from the deadline, after the last wave, for the refs read and the send. */
+    /** Time kept back from the deadline, after the last wave, for the refs read, the saves, the claim and the send. */
     readonly tailMs: number;
     /** Milliseconds since the epoch; injected so the budget is tested without wall time. */
     readonly now: () => number;
+    /**
+     * A signal that fires at `deadlineAt` (milliseconds since the epoch). Injected beside `now` because the budget and
+     * the signal are two clocks: a test that moves the fake clock fires nothing unless it also owns the signal.
+     */
+    readonly signalAt: (deadlineAt: number) => AbortSignal;
 }
 
-/**
- * Production's bounds, provided by `RecipesModule` under {@link MATCH_PROPOSAL_LIMITS}: four foods at a time, 1.5 s kept
- * for the refs read and the send, the wall clock.
- */
-export const DEFAULT_MATCH_PROPOSAL_LIMITS: MatchProposalLimits = {
-    concurrency: 4,
-    tailMs: 1_500,
-    now: () => Date.now(),
-};
-
 /** An abort signal that fires at `deadlineAt`, or one already aborted when that has passed. */
-function signalUntil(deadlineAt: number, now: number): AbortSignal {
-    const remaining = deadlineAt - now;
+function signalUntil(deadlineAt: number): AbortSignal {
+    const remaining = deadlineAt - Date.now();
 
     return remaining > 0 ? AbortSignal.timeout(remaining) : AbortSignal.abort();
 }
+
+/**
+ * Production's bounds, provided by `RecipesModule` under {@link MATCH_PROPOSAL_LIMITS}: four foods at a time, the budget
+ * module's tail kept for the refs read and the send, the wall clock.
+ */
+export const DEFAULT_MATCH_PROPOSAL_LIMITS: MatchProposalLimits = {
+    concurrency: 4,
+    tailMs: MATCH_TAIL_MS,
+    now: () => Date.now(),
+    signalAt: signalUntil,
+};
 
 /** One parsed line of the job: its index, its stored digest, the parse's measure and its foods' names. */
 interface ParsedLine extends ParsedLineMeasure {
@@ -212,6 +255,7 @@ export class MatchProposalService {
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
         private readonly verdicts: Pick<LineVerificationsDal, 'findExistingKeys'>,
         @Inject(MATCH_PROPOSAL_LIMITS) private readonly limits: MatchProposalLimits,
+        @Inject(UNMADE_PROPOSALS_SINK) private readonly reportUnmade: (report: UnmadeProposalsReport) => void,
     ) {}
 
     /**
@@ -224,10 +268,33 @@ export class MatchProposalService {
      * @sideEffect Food searches and refs reads as the caller, match writes, verification enqueues.
      */
     public async propose(acting: ActingPrincipal, caller: CallerToken | undefined, jobId: string): Promise<void> {
-        // ⛔ ONE deadline for the whole call (rule 9), taken before any I/O.
+        // ⛔ ONE deadline for the whole call (rule 9), taken before any I/O, as an instant and as a signal.
         const deadlineAt = this.limits.now() + MATCH_PROPOSE_DEADLINE_MS;
+        const deadline = this.limits.signalAt(deadlineAt);
+
+        try {
+            await this.proposeWithin(acting, caller, jobId, deadlineAt, deadline);
+        } catch (error) {
+            if (!isDeadlineExceededError(error)) {
+                throw error;
+            }
+
+            // A database call outlived the request. What it was doing is idempotent or undone (see `sendOwed`), so the
+            // client's next call finishes the job.
+            this.logger.warn(`parse-job ${jobId}: the request deadline passed in a database call; the rest waits`);
+        }
+    }
+
+    /** `propose` under its deadline: every database wait ends with `deadline`, and an unfinished call reports itself. */
+    private async proposeWithin(
+        acting: ActingPrincipal,
+        caller: CallerToken | undefined,
+        jobId: string,
+        deadlineAt: number,
+        deadline: AbortSignal,
+    ): Promise<void> {
         const ownerId = acting.userId;
-        const job = await this.jobs.getJob(ownerId, jobId);
+        const job = await boundedBy(deadline, () => this.jobs.getJob(ownerId, jobId));
 
         if (job === undefined) {
             throw parseJobNotFound(jobId);
@@ -245,7 +312,7 @@ export class MatchProposalService {
         }
 
         const lines = this.parsedLines(job);
-        const stored = await this.matches.findForJob(ownerId, jobId);
+        const stored = await boundedBy(deadline, () => this.matches.findForJob(ownerId, jobId));
         const current = new Map(
             stored.filter((match) => isCurrentFor(lines, match)).map((match) => [slotKey(match), match] as const),
         );
@@ -258,31 +325,70 @@ export class MatchProposalService {
                     : [{ lineIndex: line.lineIndex, foodIndex, line, phrase, judgementDigest }];
             }),
         );
-        const drafts = await this.matchWithinBudget(ownerId, caller, owed, deadlineAt);
-        // ONE batched refs read, under the deadline: the new proposals, and the stored ones this call may send (rule 9).
-        const nowMs = this.limits.now();
-        const answers = await this.askFoodAbout(
-            caller,
-            [
-                ...drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
-                ...[...current.values()].flatMap((match) =>
-                    isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
-                ),
-            ],
-            deadlineAt,
-        );
-        const fresh = drafts.flatMap((draft) => this.withLiveProposal(jobId, draft, lines, answers));
-        // A stored proposal is the LIVE end of what the chain named, so the message lookup is by that end too.
-        const known = new Map(answers);
+        const progress = { started: 0, made: 0 };
 
-        for (const answer of answers.values()) {
-            if (answer.outcome === 'found') {
-                known.set(foodRefKey(liveEndOf(answer)), answer);
+        try {
+            const { drafts, started } = await this.matchWithinBudget(ownerId, caller, owed, deadlineAt, deadline);
+
+            progress.started = started;
+
+            // ONE batched refs read, under the deadline: the new proposals, and the stored ones this call may send (rule 9).
+            const nowMs = this.limits.now();
+            const answers = await this.askFoodAbout(
+                caller,
+                [
+                    ...drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
+                    ...[...current.values()].flatMap((match) =>
+                        isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
+                    ),
+                ],
+                deadlineAt,
+                deadline,
+            );
+            const fresh = drafts.flatMap((draft) => this.withLiveProposal(jobId, draft, lines, answers));
+            // A stored proposal is the LIVE end of what the chain named, so the message lookup is by that end too.
+            const known = new Map(answers);
+
+            for (const answer of answers.values()) {
+                if (answer.outcome === 'found') {
+                    known.set(foodRefKey(liveEndOf(answer)), answer);
+                }
             }
+
+            // An idempotent write (first writer wins), so a save that lands after the request gave up is harmless.
+            await boundedBy(deadline, () => this.matches.saveMatches(jobId, fresh));
+            progress.made = fresh.length;
+            await this.sendOwed(acting, jobId, lines, known, deadlineAt, deadline);
+        } finally {
+            this.reportIfUnmade(jobId, owed.length, progress);
+        }
+    }
+
+    /**
+     * Say so, in the log and as one count, when this call left owed proposals unmade (ADR-0071). A paste that quietly
+     * matches nothing (a food outage, a mis-set timeout, an exhausted budget) otherwise shows only as a cook's complaint.
+     */
+    private reportIfUnmade(jobId: string, owed: number, progress: { started: number; made: number }): void {
+        if (progress.made >= owed) {
+            return;
         }
 
-        await this.matches.saveMatches(jobId, fresh);
-        await this.sendOwed(acting, jobId, lines, known, deadlineAt);
+        const report = { jobId, owed, made: progress.made, notStarted: owed - progress.started };
+
+        this.logger.warn(
+            `parse-job ${jobId}: ${String(owed - progress.made)} of ${String(owed)} owed proposal(s) were not made ` +
+                `this call (${String(report.notStarted)} never started); the next call retries`,
+        );
+
+        try {
+            this.reportUnmade(report);
+        } catch (error) {
+            // Observability must not become an availability dependency.
+            this.logger.warn(
+                `parse-job ${jobId}: the unmade-proposals report failed`,
+                error instanceof Error ? error.stack : String(error),
+            );
+        }
     }
 
     /**
@@ -326,24 +432,26 @@ export class MatchProposalService {
         caller: CallerToken | undefined,
         owed: readonly OwedSlot[],
         deadlineAt: number,
-    ): Promise<readonly DraftMatch[]> {
-        const lastStart = deadlineAt - this.limits.tailMs - SEARCHES_PER_FOOD * this.catalog.searchTimeoutMs();
+        deadline: AbortSignal,
+    ): Promise<{ readonly drafts: readonly DraftMatch[]; readonly started: number }> {
+        const lastStart = deadlineAt - this.limits.tailMs - MATCH_SEARCHES_PER_FOOD * this.catalog.searchTimeoutMs();
         const drafts: DraftMatch[] = [];
         const width = Math.max(1, this.limits.concurrency);
+        let started = 0;
 
         for (let start = 0; start < owed.length; start += width) {
-            if (this.limits.now() > lastStart) {
+            if (this.limits.now() > lastStart || deadline.aborted) {
                 break;
             }
 
-            const wave = await Promise.all(
-                owed.slice(start, start + width).map((slot) => this.matchOne(ownerId, caller, slot)),
-            );
+            const slots = owed.slice(start, start + width);
+            const wave = await Promise.all(slots.map((slot) => this.matchOne(ownerId, caller, slot, deadline)));
 
+            started += slots.length;
             drafts.push(...wave.filter((draft): draft is DraftMatch => draft !== undefined));
         }
 
-        return drafts;
+        return { drafts, started };
     }
 
     /**
@@ -355,6 +463,7 @@ export class MatchProposalService {
         ownerId: string,
         caller: CallerToken | undefined,
         slot: OwedSlot,
+        deadline: AbortSignal,
     ): Promise<DraftMatch | undefined> {
         const base = {
             lineIndex: slot.lineIndex,
@@ -370,7 +479,8 @@ export class MatchProposalService {
         }
 
         const query = { key, phrase: slot.phrase };
-        const context = { userId: ownerId, caller };
+        // ⛔ The tiers get the request's deadline: an in-flight catalog search ends with it (rule 9).
+        const context = { userId: ownerId, caller, signal: deadline };
         const outcome = await runResolutionCascade(this.tiers, query, context, {
             onTierFailure: (tier, error) =>
                 this.logger.warn(
@@ -462,14 +572,13 @@ export class MatchProposalService {
         caller: CallerToken | undefined,
         refs: readonly FoodRef[],
         deadlineAt: number,
+        deadline: AbortSignal,
     ): Promise<ReadonlyMap<string, FoodRefAnswer>> {
-        const now = this.limits.now();
-
-        if (refs.length === 0 || now >= deadlineAt) {
+        if (refs.length === 0 || this.limits.now() >= deadlineAt || deadline.aborted) {
             return new Map();
         }
 
-        return (await this.refs.resolve(caller, refs, 'postCommit', { signal: signalUntil(deadlineAt, now) })).answers;
+        return (await this.refs.resolve(caller, refs, 'postCommit', { signal: deadline })).answers;
     }
 
     /**
@@ -563,14 +672,15 @@ export class MatchProposalService {
         lines: ReadonlyMap<number, ParsedLine>,
         answers: ReadonlyMap<string, FoodRefAnswer>,
         deadlineAt: number,
+        deadline: AbortSignal,
     ): Promise<void> {
         // A contained principal never sends (ADR-0040); past the deadline nothing is claimed, and the next call sends.
-        if (isContained(subject) || this.limits.now() >= deadlineAt) {
+        if (isContained(subject) || this.limits.now() >= deadlineAt || deadline.aborted) {
             return;
         }
 
         const nowMs = this.limits.now();
-        const owed = (await this.matches.findForJob(subject.userId, jobId)).filter(
+        const owed = (await boundedBy(deadline, () => this.matches.findForJob(subject.userId, jobId))).filter(
             (match) => isCurrentFor(lines, match) && isSendable(match, nowMs),
         );
 
@@ -578,15 +688,17 @@ export class MatchProposalService {
             return;
         }
 
-        const unjudged = await withoutVerdictsOnRecord(
-            this.verdicts,
-            owed,
-            (match) => match.verificationKey,
-            (error) =>
-                this.logger.warn(
-                    `parse-job ${jobId}: verdict dedup read failed; asking about all ${String(owed.length)} proposal(s)`,
-                    error instanceof Error ? error.stack : String(error),
-                ),
+        const unjudged = await boundedBy(deadline, () =>
+            withoutVerdictsOnRecord(
+                this.verdicts,
+                owed,
+                (match) => match.verificationKey,
+                (error) =>
+                    this.logger.warn(
+                        `parse-job ${jobId}: verdict dedup read failed; asking about all ${String(owed.length)} proposal(s)`,
+                        error instanceof Error ? error.stack : String(error),
+                    ),
+            ),
         );
         const requests = unjudged.flatMap((match) => {
             const message = this.messageFor(jobId, match, lines, answers);
@@ -595,15 +707,22 @@ export class MatchProposalService {
                 ? []
                 : [{ match, message, verificationKey: match.verificationKey }];
         });
-        const won = await this.matches.claimEnqueue(
-            jobId,
-            requests.map(({ match, verificationKey }) => ({
-                lineIndex: match.lineIndex,
-                foodIndex: match.foodIndex,
-                lineDigest: match.lineDigest,
-                verificationKey,
-            })),
-            verificationDeliveryBoundSeconds(),
+        // ⛔ The one write that must not simply be abandoned: a claim that lands after the request gave up would hold a
+        // send nobody makes. `onLate` releases it the moment it lands, so abandoning the wait is safe.
+        const won = await boundedBy(
+            deadline,
+            () =>
+                this.matches.claimEnqueue(
+                    jobId,
+                    requests.map(({ match, verificationKey }) => ({
+                        lineIndex: match.lineIndex,
+                        foodIndex: match.foodIndex,
+                        lineDigest: match.lineDigest,
+                        verificationKey,
+                    })),
+                    verificationDeliveryBoundSeconds(),
+                ),
+            (late) => this.release(jobId, late),
         );
         const messages = new Map(requests.map(({ match, message }) => [slotKey(match), message] as const));
         const toSend = won.flatMap((claim) => {
@@ -619,8 +738,9 @@ export class MatchProposalService {
         try {
             await this.queue.enqueue(
                 toSend.map(({ message }) => message),
-                // ⛔ The deadline reaches SQS: an aborted send is undelivered, and its claims are released below.
-                { signal: signalUntil(deadlineAt, this.limits.now()) },
+                // ⛔ The deadline reaches SQS: an aborted send is treated as undelivered, and its claims are released below.
+                // SQS may nonetheless have accepted it; the resend is a duplicate the worker's keyed claim makes free.
+                { signal: deadline },
             );
         } catch (error) {
             const lost = isBatchEnqueueError(error)
@@ -636,7 +756,41 @@ export class MatchProposalService {
                     `${String(toSend.length)} proposal(s); their claims are released for the next call`,
                 error instanceof Error ? error.stack : String(error),
             );
-            await this.matches.releaseEnqueue(jobId, lost);
+            await this.releaseWithinCap(jobId, lost);
+        }
+    }
+
+    /**
+     * Release claims, ALWAYS, and wait for it only briefly: the release must run even after the request's deadline, but
+     * the response must not wait on a saturated pool for it. Past {@link MATCH_RELEASE_WAIT_MS} the write carries on in
+     * the background.
+     *
+     * @sideEffect Clears `enqueued_at` on the rows still holding these claims. Never throws.
+     */
+    private async releaseWithinCap(jobId: string, claims: readonly EnqueueClaim[]): Promise<void> {
+        try {
+            await boundedBy(AbortSignal.timeout(MATCH_RELEASE_WAIT_MS), () => this.release(jobId, claims));
+        } catch (error) {
+            if (!isDeadlineExceededError(error)) {
+                this.logger.warn(
+                    `parse-job ${jobId}: releasing ${String(claims.length)} claim(s) failed; they are taken again after ` +
+                        'the queue’s delivery bound',
+                    error instanceof Error ? error.stack : String(error),
+                );
+            }
+        }
+    }
+
+    /** Release claims; a failure is logged, not thrown, because it can run with nobody left to hear it. */
+    private async release(jobId: string, claims: readonly EnqueueClaim[]): Promise<void> {
+        try {
+            await this.matches.releaseEnqueue(jobId, claims);
+        } catch (error) {
+            this.logger.warn(
+                `parse-job ${jobId}: releasing ${String(claims.length)} claim(s) failed; they are taken again after ` +
+                    'the queue’s delivery bound',
+                error instanceof Error ? error.stack : String(error),
+            );
         }
     }
 

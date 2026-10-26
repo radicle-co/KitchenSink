@@ -37,11 +37,13 @@ import {
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import { matchJudgementDigestOf } from '../domain/matchProposal.js';
+import { MATCH_PROPOSE_DEADLINE_MS, MATCH_TAIL_MS, MAX_MATCH_SEARCH_TIMEOUT_MS } from '../../config/matchBudget.js';
 import {
     DEFAULT_MATCH_PROPOSAL_LIMITS,
-    MATCH_PROPOSE_DEADLINE_MS,
+    emitUnmadeProposals,
     MatchProposalService,
     type MatchProposalLimits,
+    type UnmadeProposalsReport,
 } from '../matchProposal.service.js';
 import type { ParseJobRecord } from '../parseJobs.service.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -75,17 +77,17 @@ interface World {
 
 /** Stub tiers in the proposal chain's order, reading `world` at call time. */
 function tiersOver(world: World) {
-    const curated = vi.fn(async () =>
+    const curated = vi.fn(async (_query?: unknown, _context?: unknown) =>
         world.curated === undefined
             ? ({ kind: 'pass', tier: 'curated', reason: 'none' } as const)
             : ({ kind: 'resolved', tier: 'curated', food: world.curated, evidence: 'curated' } as const),
     );
-    const memo = vi.fn(async () =>
+    const memo = vi.fn(async (_query?: unknown, _context?: unknown) =>
         world.memo === undefined
             ? ({ kind: 'pass', tier: 'memo', reason: 'none' } as const)
             : ({ kind: 'resolved', tier: 'memo', food: world.memo, evidence: 'memo' } as const),
     );
-    const lexical = vi.fn(async () => {
+    const lexical = vi.fn(async (_query?: unknown, _context?: unknown) => {
         if (world.lexical === 'unavailable') {
             throw new Error('catalog unavailable');
         }
@@ -190,6 +192,7 @@ function setup(options: Setup = {}) {
         queue,
         options.verdicts ?? fakeLineVerificationsDal(),
         options.limits ?? DEFAULT_MATCH_PROPOSAL_LIMITS,
+        vi.fn(),
     );
 
     return { service, matches, chain, refs, queue, getJob };
@@ -297,6 +300,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
         expect(chain.lexical).toHaveBeenCalledWith(expect.objectContaining({ phrase: 'whole milk' }), {
             userId: OWNER,
             caller: CALLER,
+            signal: expect.any(AbortSignal),
         });
         const [row] = matches.rows.values();
 
@@ -737,21 +741,26 @@ describe('MatchProposalService.propose — ADR-0040 containment', () => {
 });
 
 /**
- * Bounded work under ONE request deadline (ADR-0071 review, item 13). The client gives `POST …/matches` 10 s, and the
- * same response carries the job view's names read after it; so the matcher stops at {@link MATCH_PROPOSE_DEADLINE_MS}.
- * A wave starts only when it can finish (two catalog searches per food at most) before the tail kept for the refs read
- * and the send, and both of those carry the deadline too. What is left is matched or sent on the client's next call.
+ * Bounded work under ONE request deadline (ADR-0071). The client gives `POST …/matches` 10 s, and the same response
+ * carries the job view's reads after it; so the matcher stops at {@link MATCH_PROPOSE_DEADLINE_MS}, and EVERY leg of it
+ * ends with that deadline: a wave starts only when its searches can finish before the tail, the searches themselves
+ * take the deadline as an abort signal, the refs read and the send do too, and every database call is awaited through
+ * `boundedBy`. What is left is matched or sent on the client's next call.
+ *
+ * Two clocks, both injected: the budget runs on `limits.now`, and the deadline SIGNAL comes from `limits.signalAt`, so a
+ * case can fire it by hand. A signal the code never reads would not fail a test that only checks its type.
  */
 describe('MatchProposalService.propose — bounded work under one request deadline', () => {
-    /** A clock the test moves: each lexical search costs `costMs`. */
+    /** A clock the test moves, and a deadline the test fires: each lexical search costs `costMs` of the fake clock. */
     function clockedSetup(lineCount: number, costMs: number, extra: Partial<Setup> = {}) {
         let now = 1_000_000;
+        const deadline = new AbortController();
         const lines = Array.from({ length: lineCount }, (_, index) =>
             makeParseJobLine({ lineIndex: index, lineDigest: `digest-${String(index)}` }),
         );
         const built = setup({
             job: makeParseJobRecord({ lines }),
-            limits: { concurrency: 1, tailMs: 1_500, now: () => now },
+            limits: { concurrency: 1, tailMs: MATCH_TAIL_MS, now: () => now, signalAt: () => deadline.signal },
             ...extra,
         });
 
@@ -769,18 +778,18 @@ describe('MatchProposalService.propose — bounded work under one request deadli
             } as const;
         });
 
-        return { ...built, advance: (ms: number) => (now += ms) };
+        return { ...built, deadline, advance: (ms: number) => (now += ms) };
     }
 
     it('⛔ starts no wave that could end past the cutoff, and leaves the rest for the next call', async () => {
-        // Deadline 4 500 ms; tail 1 500 ms; a wave may need two 600 ms searches: no wave starts after 1 800 ms.
-        // Each search here costs 1 000 ms, so waves start at 0 and 1 000 ms and the third (at 2 000 ms) does not.
-        const { service, matches } = clockedSetup(6, 1_000);
+        // Deadline 3 500 ms; tail 1 500 ms; a wave may need two 600 ms searches: no wave starts after 800 ms.
+        // Each search here costs 500 ms, so waves start at 0 and 500 ms and the third (at 1 000 ms) does not.
+        const { service, matches } = clockedSetup(6, 500);
 
         await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(2);
-        expect(MATCH_PROPOSE_DEADLINE_MS).toBe(4_500);
+        expect(MATCH_PROPOSE_DEADLINE_MS).toBe(3_500);
     });
 
     it('matches a long paste over waves of the configured width while time remains', async () => {
@@ -791,35 +800,108 @@ describe('MatchProposalService.propose — bounded work under one request deadli
         expect(matches.rows.size).toBe(5);
     });
 
-    it('⛔ hands the refs read and the send the request deadline', async () => {
-        const { service, refs, queue } = clockedSetup(1, 0);
+    it('⛔ hands the refs read and the send the request deadline itself', async () => {
+        const { service, refs, queue, deadline } = clockedSetup(1, 0);
 
         await service.propose(COOK, CALLER, JOB);
 
-        expect(refs.resolve.mock.calls[0]?.[3]?.signal).toBeInstanceOf(AbortSignal);
-        expect(queue.enqueue.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+        expect(refs.resolve.mock.calls[0]?.[3]?.signal).toBe(deadline.signal);
+        expect(queue.enqueue.mock.calls[0]?.[1]?.signal).toBe(deadline.signal);
     });
 
-    it('⛔ at the catalog timeout’s configured CEILING no wave starts: the deadline wins over the work', async () => {
-        // `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` may be set up to 5 s; two such searches cannot finish inside the deadline,
-        // so the matcher declines to start rather than run past the client's timeout.
+    it('⛔ hands every tier the request deadline, so a catalog search cannot outlive it', async () => {
+        const { service, chain, deadline } = clockedSetup(1, 0);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        for (const tier of [chain.curated, chain.memo, chain.lexical]) {
+            expect(tier.mock.calls[0]?.[1]).toMatchObject({ signal: deadline.signal });
+        }
+    });
+
+    it('⛔ an abort STOPS the work in flight: nothing is stored, no later wave starts, nothing is sent', async () => {
+        const { service, chain, matches, queue, refs, deadline } = clockedSetup(4, 0);
+
+        // A catalog search that honours its signal, as the real client does: it settles only when the signal fires.
+        chain.lexical.mockImplementation(
+            (_query?: unknown, context?: unknown) =>
+                new Promise((_resolve, reject) => {
+                    (context as { signal?: AbortSignal }).signal?.addEventListener('abort', () =>
+                        reject(new Error('aborted')),
+                    );
+                }),
+        );
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        await vi.waitFor(() => expect(chain.lexical).toHaveBeenCalledTimes(1));
+        deadline.abort();
+        await proposing;
+
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+        expect(matches.rows.size).toBe(0);
+        expect(refs.resolve).not.toHaveBeenCalled();
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a database read that never answers ends at the deadline instead of holding the request', async () => {
+        const { service, matches, chain, deadline } = clockedSetup(1, 0);
+
+        vi.spyOn(matches, 'findForJob').mockImplementation(() => new Promise(() => undefined));
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        deadline.abort();
+        await proposing;
+
+        expect(chain.lexical).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a claim that lands after the deadline is released at once, never left holding a send nobody makes', async () => {
+        const { service, matches, deadline } = clockedSetup(1, 0);
+        const realClaim = matches.claimEnqueue;
+        let landed: (() => void) | undefined;
+
+        vi.spyOn(matches, 'claimEnqueue').mockImplementation(async (...args) => {
+            await new Promise<void>((resolve) => {
+                landed = resolve;
+            });
+
+            return realClaim(...args);
+        });
+        const release = vi.spyOn(matches, 'releaseEnqueue');
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        await vi.waitFor(() => expect(landed).toBeDefined());
+        deadline.abort();
+        await proposing;
+        landed?.();
+        await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+
+        expect(release.mock.calls[0]?.[1]).toHaveLength(1);
+        expect([...matches.rows.values()].every((row) => row.enqueuedAt === null)).toBe(true);
+    });
+
+    it('⛔ the search timeout at its configured CEILING still starts a wave', async () => {
         const matches = inMemoryParseJobMatches(new Map([[JOB, OWNER]]));
         const chain = tiersOver({ lexical: MILK_RANKED });
         const slow = new MatchProposalService(
             { getJob: async () => makeParseJobRecord() },
             matches,
             chain.tiers,
-            { enabled: true, searchTimeoutMs: () => 5_000 },
+            { enabled: true, searchTimeoutMs: () => MAX_MATCH_SEARCH_TIMEOUT_MS },
             refsAnswering({ 'root:F-whole': found('Milk, whole', 'F-whole') }).gateway,
             fakeVerificationQueue(),
             fakeLineVerificationsDal(),
             DEFAULT_MATCH_PROPOSAL_LIMITS,
+            vi.fn(),
         );
 
         await slow.propose(COOK, CALLER, JOB);
 
-        expect(chain.lexical).not.toHaveBeenCalled();
-        expect(matches.rows.size).toBe(0);
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+        expect(matches.rows.size).toBe(1);
     });
 
     it('⛔ past the deadline it asks food nothing and sends nothing — the line is matched on the next call', async () => {
@@ -830,5 +912,100 @@ describe('MatchProposalService.propose — bounded work under one request deadli
         expect(refs.resolve).not.toHaveBeenCalled();
         expect(queue.enqueue).not.toHaveBeenCalled();
         expect(matches.rows.size).toBe(0);
+    });
+});
+
+/**
+ * A call that leaves proposals unmade says so (ADR-0071): a log line and a Stage-dimensioned count, so a configuration
+ * or a food outage that quietly stops a paste matching shows on a dashboard rather than only in a cook's complaint.
+ */
+describe('MatchProposalService.propose — proposals left unmade are reported', () => {
+    function reportingSetup(lineCount: number, extra: Partial<Setup> = {}) {
+        const report = vi.fn<(report: UnmadeProposalsReport) => void>();
+        const lines = Array.from({ length: lineCount }, (_, index) =>
+            makeParseJobLine({ lineIndex: index, lineDigest: `digest-${String(index)}` }),
+        );
+        const built = setup({ job: makeParseJobRecord({ lines }), ...extra });
+        const service = new MatchProposalService(
+            { getJob: async () => makeParseJobRecord({ lines }) },
+            built.matches,
+            built.chain.tiers,
+            { enabled: true, searchTimeoutMs: () => SEARCH_TIMEOUT_MS },
+            built.refs.gateway,
+            built.queue,
+            fakeLineVerificationsDal(),
+            extra.limits ?? DEFAULT_MATCH_PROPOSAL_LIMITS,
+            report,
+        );
+
+        return { ...built, service, report };
+    }
+
+    it('reports nothing when every owed proposal was made', async () => {
+        const { service, report } = reportingSetup(2);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(report).not.toHaveBeenCalled();
+    });
+
+    it('⛔ reports how many were left when the catalog could not be searched', async () => {
+        const { service, report } = reportingSetup(3, { world: { lexical: 'unavailable' } });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(report).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, owed: 3, made: 0, notStarted: 0 });
+    });
+
+    it('⛔ reports the lines the budget never started', async () => {
+        let now = 1_000_000;
+        const { service, report, chain } = reportingSetup(6, {
+            limits: {
+                concurrency: 1,
+                tailMs: MATCH_TAIL_MS,
+                now: () => now,
+                signalAt: () => new AbortController().signal,
+            },
+        });
+
+        // Each search costs the fake clock 500 ms, so only two of the six waves start.
+        chain.lexical.mockImplementation(async () => {
+            now += 500;
+
+            return {
+                kind: 'resolved',
+                tier: 'lexical',
+                food: { kind: 'root', id: 'F-whole' },
+                evidence: 'lexical',
+                rung: 'head',
+                confidence: 0.2,
+                candidates: [...MILK_RANKED],
+            } as const;
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(report).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, owed: 6, made: 2, notStarted: 4 });
+    });
+});
+
+describe('emitUnmadeProposals — the production report', () => {
+    it('⛔ writes one count dimensioned by Stage (ADR-0062), carrying the counts as context', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        emitUnmadeProposals({ jobId: JOB, owed: 6, made: 2, notStarted: 4 });
+
+        const line = JSON.parse(String(log.mock.calls[0]?.[0])) as Record<string, unknown> & {
+            _aws: { CloudWatchMetrics: { Dimensions: string[][]; Metrics: { Name: string }[] }[] };
+        };
+
+        log.mockRestore();
+
+        expect(line._aws.CloudWatchMetrics[0]?.Dimensions).toStrictEqual([['Stage']]);
+        expect(line._aws.CloudWatchMetrics[0]?.Metrics).toStrictEqual([
+            { Name: 'paste-proposals-unmade', Unit: 'Count' },
+        ]);
+        expect(line).toMatchObject({ 'paste-proposals-unmade': 1, owed: '6', made: '2', notStarted: '4' });
+        expect(JSON.stringify(line)).not.toContain(JOB);
     });
 });

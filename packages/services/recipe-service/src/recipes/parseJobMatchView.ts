@@ -26,6 +26,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
+import { boundedBy, isDeadlineExceededError } from '../common/boundedBy.js';
 import { isContained } from '../common/containmentPolicy.js';
 import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetricLine.js';
 import { sha256Hex } from '../common/sha256.js';
@@ -100,6 +101,14 @@ function isNamed(answer: FoodRefAnswer | undefined): answer is NamedAnswer {
     return answer?.outcome === 'found' && answer.name !== undefined && answer.name.length > 0;
 }
 
+/**
+ * Run `work` under the request's deadline when it has one: the wait ends with the deadline (`boundedBy`), and the work
+ * is never started past it. Without a deadline it simply runs.
+ */
+function within<T>(deadline: AbortSignal | undefined, work: () => Promise<T>, onLate?: (value: T) => void): Promise<T> {
+    return deadline === undefined ? work() : boundedBy(deadline, work, onLate);
+}
+
 @Injectable()
 export class ParseJobMatchView {
     private readonly logger = new Logger(ParseJobMatchView.name);
@@ -121,6 +130,10 @@ export class ParseJobMatchView {
      *   which are never sent (ADR-0040), read `needsChoice` instead of `checking` forever.
      * @param caller - The caller's credential, forwarded to food for names.
      * @param view - The job view.
+     * @param deadline - The request's deadline, when it has one (the matches route does). Every read here ends with it:
+     *   a database read is awaited through `boundedBy` and food's names read takes the signal. What could not be read
+     *   degrades exactly as an unreadable read does (rule 4), and the next poll repairs it. Absent, the reads are
+     *   unbounded by anything but their own timeouts, as a plain poll's always were.
      * @returns The decorated view. Never throws for an auxiliary read.
      * @sideEffect Reads the match store and the verdict tables, and food's refs as the caller.
      */
@@ -128,8 +141,9 @@ export class ParseJobMatchView {
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
         view: ParseJobResponse,
+        deadline?: AbortSignal,
     ): Promise<ParseJobResponse> {
-        const current = await this.currentMatches(acting.userId, view);
+        const current = await this.currentMatches(acting.userId, view, deadline);
 
         if (current.size === 0) {
             return this.withMatches(view, () => null);
@@ -139,9 +153,9 @@ export class ParseJobMatchView {
             match.verificationKey === null ? [] : [match.verificationKey],
         );
         const [verdicts, exhausted, answers] = await Promise.all([
-            this.readVerdicts(view.id, keys),
-            this.readExhausted(view.id, keys),
-            this.namesFor(caller, [...current.values()]),
+            this.readVerdicts(view.id, keys, deadline),
+            this.readExhausted(view.id, keys, deadline),
+            this.namesFor(caller, [...current.values()], deadline),
         ]);
 
         const contained = isContained(acting);
@@ -154,17 +168,21 @@ export class ParseJobMatchView {
                 : this.project(match, { answers, verdicts, exhausted, contained, toReport });
         });
 
-        await this.reportOnce(view.id, toReport);
+        await this.reportOnce(view.id, toReport, deadline);
 
         return decorated;
     }
 
     /** The matches that are still their line's (rule 3), by slot. An unreadable store is no matches (rule 4). */
-    private async currentMatches(ownerId: string, view: ParseJobResponse): Promise<ReadonlyMap<string, ParseJobMatch>> {
+    private async currentMatches(
+        ownerId: string,
+        view: ParseJobResponse,
+        deadline: AbortSignal | undefined,
+    ): Promise<ReadonlyMap<string, ParseJobMatch>> {
         let stored: readonly ParseJobMatch[];
 
         try {
-            stored = await this.matches.findForJob(ownerId, view.id);
+            stored = await within(deadline, () => this.matches.findForJob(ownerId, view.id));
         } catch (error) {
             this.logger.warn(
                 `parse-job ${view.id}: matches could not be read; the view shows none`,
@@ -204,9 +222,13 @@ export class ParseJobMatchView {
     }
 
     /** The gate's verdicts by key; an unreadable table is "no verdict yet". */
-    private async readVerdicts(jobId: string, keys: readonly string[]): Promise<ReadonlyMap<string, LineVerdictRow>> {
+    private async readVerdicts(
+        jobId: string,
+        keys: readonly string[],
+        deadline: AbortSignal | undefined,
+    ): Promise<ReadonlyMap<string, LineVerdictRow>> {
         try {
-            return await this.verdicts.findBandsByKeys(keys);
+            return await within(deadline, () => this.verdicts.findBandsByKeys(keys));
         } catch (error) {
             this.logger.warn(
                 `parse-job ${jobId}: verdicts could not be read; proposals read as awaiting review`,
@@ -218,9 +240,13 @@ export class ParseJobMatchView {
     }
 
     /** The keys the gate gave up on; an unreadable table is none. */
-    private async readExhausted(jobId: string, keys: readonly string[]): Promise<ReadonlySet<string>> {
+    private async readExhausted(
+        jobId: string,
+        keys: readonly string[],
+        deadline: AbortSignal | undefined,
+    ): Promise<ReadonlySet<string>> {
         try {
-            return await this.verdicts.findExhaustedKeys(keys);
+            return await within(deadline, () => this.verdicts.findExhaustedKeys(keys));
         } catch (error) {
             this.logger.warn(
                 `parse-job ${jobId}: verification attempts could not be read`,
@@ -235,13 +261,18 @@ export class ParseJobMatchView {
     private async namesFor(
         caller: CallerToken | undefined,
         matches: readonly ParseJobMatch[],
+        deadline: AbortSignal | undefined,
     ): Promise<ReadonlyMap<string, FoodRefAnswer>> {
         const refs = matches.flatMap((match) => [
             ...(match.proposal === null ? [] : [match.proposal.food]),
             ...match.candidates.map(({ kind, id }) => ({ kind, id })),
         ]);
 
-        return (await this.refs.resolve(caller, refs, 'read')).answers;
+        return (
+            await (deadline === undefined
+                ? this.refs.resolve(caller, refs, 'read')
+                : this.refs.resolve(caller, refs, 'read', { signal: deadline }))
+        ).answers;
     }
 
     /**
@@ -356,23 +387,46 @@ export class ParseJobMatchView {
      *
      * @sideEffect Conditional writes of the store's marker; one EMF line per won claim.
      */
-    private async reportOnce(jobId: string, reports: readonly CurationReport[]): Promise<void> {
+    private async reportOnce(
+        jobId: string,
+        reports: readonly CurationReport[],
+        deadline: AbortSignal | undefined,
+    ): Promise<void> {
+        const emit = (report: CurationReport): void => {
+            this.reportCurationDisagreement({ jobId, foodId: report.foodId });
+            this.logger.warn('A curated mapping was contradicted by the review gate on a paste line.', {
+                jobId,
+                foodId: report.foodId,
+            });
+        };
+
         for (const report of reports) {
             try {
-                const won = await this.matches.claimCurationReport(jobId, {
-                    lineIndex: report.match.lineIndex,
-                    foodIndex: report.match.foodIndex,
-                    verificationKey: report.verificationKey,
-                });
+                const won = await within(
+                    deadline,
+                    () =>
+                        this.matches.claimCurationReport(jobId, {
+                            lineIndex: report.match.lineIndex,
+                            foodIndex: report.match.foodIndex,
+                            verificationKey: report.verificationKey,
+                        }),
+                    // ⛔ A claim that wins after the request stopped waiting still owns the one count: emit it then, or
+                    // it is lost for good (the marker is taken and no later read will win it).
+                    (lateWon) => {
+                        if (lateWon) {
+                            emit(report);
+                        }
+                    },
+                );
 
                 if (won) {
-                    this.reportCurationDisagreement({ jobId, foodId: report.foodId });
-                    this.logger.warn('A curated mapping was contradicted by the review gate on a paste line.', {
-                        jobId,
-                        foodId: report.foodId,
-                    });
+                    emit(report);
                 }
             } catch (error) {
+                if (isDeadlineExceededError(error)) {
+                    continue;
+                }
+
                 // Observability must not become an availability dependency.
                 this.logger.warn(
                     `parse-job ${jobId}: a curated contradiction could not be counted`,

@@ -14,6 +14,7 @@ import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-nam
 import { TEST_PRINCIPAL_CONTAINMENT_MODES } from '../common/containmentPolicy.js';
 import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
 import { isDeployedEnvironment } from './cors.js';
+import { MAX_MATCH_SEARCH_TIMEOUT_MS } from './matchBudget.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -487,7 +488,16 @@ export const foodServiceConfigSchema = z.object({
      * depends on observed inter-service latency, and the blast radius of a wrong one is bounded by design (too
      * low simply means the catalog section degrades to empty). `IngredientsModule` applies a default.
      */
-    FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce.number().int().min(50).max(5_000).optional(),
+    FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce
+        .number()
+        .int()
+        .min(50)
+        .max(MAX_MATCH_SEARCH_TIMEOUT_MS, {
+            message:
+                `must be at most ${String(MAX_MATCH_SEARCH_TIMEOUT_MS)} ms: above that the paste matcher can never start ` +
+                'a wave inside its request deadline and would match nothing (ADR-0071, config/matchBudget.ts)',
+        })
+        .optional(),
 
     /**
      * Per-request bound (ms) on the nutrition lookup a recipe response makes AFTER its write has committed.

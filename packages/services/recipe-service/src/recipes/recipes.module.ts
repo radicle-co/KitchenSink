@@ -34,9 +34,11 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
 import { ParseJobMatchesDal } from './dal/parseJobMatches.dal.js';
 import {
     DEFAULT_MATCH_PROPOSAL_LIMITS,
+    emitUnmadeProposals,
     MATCH_PROPOSAL_LIMITS,
     MatchProposalService,
     PARSE_JOB_MATCHES_DAL,
+    UNMADE_PROPOSALS_SINK,
 } from './matchProposal.service.js';
 import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView } from './parseJobMatchView.js';
 
@@ -167,6 +169,7 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         // ADR-0071: the view's curated-contradiction report, provided here so the view names no default of its own.
         { provide: CURATION_DISAGREEMENT_SINK, useValue: emitCurationDisagreement },
         { provide: MATCH_PROPOSAL_LIMITS, useValue: DEFAULT_MATCH_PROPOSAL_LIMITS },
+        { provide: UNMADE_PROPOSALS_SINK, useValue: emitUnmadeProposals },
     ],
     exports: [RecipesService],
 })

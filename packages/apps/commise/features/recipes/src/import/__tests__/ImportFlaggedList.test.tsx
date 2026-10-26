@@ -384,3 +384,72 @@ describe('ImportFlaggedList (web): Try again keeps focus (WCAG 2.4.3)', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: USE_MILK }));
     });
 });
+
+/**
+ * Focus after a Use SAVES (host gap rule 3, WCAG 2.4.3): the saved row leaves the list and the Use that held focus
+ * unmounts with it, so the host names where focus goes next (`flaggedFocusAfterSave`): the next row's landing control, or
+ * the page heading when no row is left. The list takes the request as props and lowers it once it has landed.
+ */
+describe('ImportFlaggedList (web): focus after a Use saves (WCAG 2.4.3)', () => {
+    it('⛔ lands on the next row’s Use when the host asks, and reports it handled once', () => {
+        const onHandled = vi.fn();
+
+        renderList({ rowFocus: { key: 'milk', landing: 'use', onHandled } });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' }));
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ lands on Choose another for a row the check offered no food for', () => {
+        const onHandled = vi.fn();
+
+        renderList({ rowFocus: { key: 'spice', landing: 'chooseAnother', onHandled } });
+
+        expect(document.activeElement).toBe(
+            screen.getByRole('button', { name: 'Choose another food for 1 tsp mixed spice' }),
+        );
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes no focus when the host asked for nothing', () => {
+        renderList();
+
+        expect(document.activeElement).toBe(document.body);
+    });
+
+    it('⛔ lands on the heading when no row is left, which is focusable but not a tab stop', () => {
+        const { rerender } = render(
+            <ImportFlaggedList
+                total={0}
+                lines={[]}
+                pending={new Map()}
+                failed={new Set()}
+                announcement={{ text: '', occurrence: 0 }}
+                onUseSuggestion={vi.fn()}
+                onChooseAnother={vi.fn()}
+                onRetry={vi.fn()}
+                headingFocusSignal={0}
+            />,
+        );
+        const heading = screen.getByRole('heading', { level: 1 });
+
+        expect(heading.getAttribute('tabindex')).toBe('-1');
+        expect(document.activeElement).toBe(document.body);
+
+        rerender(
+            <ImportFlaggedList
+                total={0}
+                lines={[]}
+                pending={new Map()}
+                failed={new Set()}
+                announcement={{ text: '', occurrence: 0 }}
+                onUseSuggestion={vi.fn()}
+                onChooseAnother={vi.fn()}
+                onRetry={vi.fn()}
+                headingFocusSignal={1}
+            />,
+        );
+
+        expect(document.activeElement).toBe(heading);
+    });
+});

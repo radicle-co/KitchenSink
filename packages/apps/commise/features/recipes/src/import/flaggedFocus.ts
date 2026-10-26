@@ -11,8 +11,9 @@
  *
  * @pattern Specification — the one rule for the flagged list's post-save focus
  */
+import type { ControlFocus } from '../common/controlFocus.js';
 import { flaggedLandingOf, type FlaggedLanding } from './flaggedRowView.js';
-import type { ImportFlaggedLineItem } from './props.js';
+import type { FlaggedRowFocus, ImportFlaggedLineItem } from './props.js';
 
 /** Where focus goes after a save: a row's control, or the heading when no row is left. */
 export type FlaggedFocus =
@@ -30,4 +31,36 @@ export function flaggedFocusAfterSave(rows: readonly ImportFlaggedLineItem[], sa
     const next = rows.slice(at + 1).at(0) ?? rows.slice(0, Math.max(at, 0)).at(0);
 
     return next === undefined ? { kind: 'heading' } : { kind: 'row', key: next.key, landing: flaggedLandingOf(next) };
+}
+
+/**
+ * The focus request for ONE control of a flagged row: raised by a retry that landed on it (`retry`, when the row's
+ * landing control is this one) or by the host's move after a save (`rowFocus`, when it names this row and control).
+ * Either request, once taken, lowers both its own source only, so neither can cancel the other. Pure.
+ *
+ * @param rowFocus - The host's post-save request, or `undefined`.
+ * @param key - The row.
+ * @param control - The control this focus is for.
+ * @param retry - The row's landing control and its retry request.
+ * @returns The control's focus request.
+ */
+export function controlFocusOf(
+    rowFocus: FlaggedRowFocus | undefined,
+    key: string,
+    control: FlaggedLanding,
+    retry: { readonly landing: FlaggedLanding; readonly focus: ControlFocus },
+): ControlFocus {
+    const fromRetry = retry.landing === control && retry.focus.requested;
+    const fromHost = rowFocus !== undefined && rowFocus.key === key && rowFocus.landing === control;
+
+    return {
+        requested: fromRetry || fromHost,
+        onHandled: () => {
+            retry.focus.onHandled();
+
+            if (fromHost) {
+                rowFocus.onHandled();
+            }
+        },
+    };
 }

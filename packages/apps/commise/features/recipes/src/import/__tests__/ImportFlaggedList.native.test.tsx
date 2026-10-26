@@ -260,3 +260,76 @@ describe('ImportFlaggedList (native): Try again keeps the screen-reader cursor (
         expect(focusMoved).not.toHaveBeenCalled();
     });
 });
+
+/**
+ * Focus after a Use SAVES, native (host gap rule 3, WCAG 2.4.3): the saved row leaves and its Use unmounts with it, so the
+ * screen-reader cursor goes where the host says (`flaggedFocusAfterSave`): the next row's landing control, or the heading.
+ */
+describe('ImportFlaggedList (native): the cursor after a Use saves (WCAG 2.4.3)', () => {
+    const LINES = [
+        {
+            key: 'milk',
+            text: '1 1/4 cups milk',
+            recipeTitle: 'Pancakes',
+            matchedFood: 'milk crackers',
+            suggestion: { foodId: 'f-whole', name: 'Whole milk' },
+        },
+        { key: 'spice', text: '1 tsp mixed spice', recipeTitle: 'Hot cross buns', matchedFood: 'Spice cake' },
+    ];
+
+    const listWith = (props: Partial<ImportFlaggedListProps>) => (
+        <ImportFlaggedList
+            total={2}
+            lines={LINES}
+            pending={new Map()}
+            failed={new Set()}
+            announcement={{ text: '', occurrence: 0 }}
+            onUseSuggestion={vi.fn()}
+            onChooseAnother={vi.fn()}
+            onRetry={vi.fn()}
+            {...props}
+        />
+    );
+
+    it('⛔ moves the cursor to the next row’s Use and reports it handled once', () => {
+        const onHandled = vi.fn();
+
+        focusMoved.mockClear();
+        render(listWith({ rowFocus: { key: 'milk', landing: 'use', onHandled } }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' }),
+            'focus',
+        );
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves the cursor to Choose another for a row with no Use', () => {
+        focusMoved.mockClear();
+        render(listWith({ rowFocus: { key: 'spice', landing: 'chooseAnother', onHandled: vi.fn() } }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('button', { name: 'Choose another food for 1 tsp mixed spice' }),
+            'focus',
+        );
+    });
+
+    it('moves the cursor nowhere when the host asked for nothing', () => {
+        focusMoved.mockClear();
+        render(listWith({}));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+    });
+
+    it('⛔ moves the cursor to the heading when no row is left', () => {
+        const { rerender } = render(listWith({ total: 0, lines: [], headingFocusSignal: 0 }));
+
+        focusMoved.mockClear();
+        rerender(listWith({ total: 0, lines: [], headingFocusSignal: 1 }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('heading', { name: '0 to check' }),
+            'focus',
+        );
+    });
+});

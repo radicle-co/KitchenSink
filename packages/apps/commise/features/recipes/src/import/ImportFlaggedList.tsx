@@ -13,7 +13,7 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';

@@ -22,7 +22,8 @@ import { useEffect, useEffectEvent, useState, type FC, type ReactNode } from 're
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
-import { editorMessages, pluralOf } from '../editor/messages.js';
+import { editorMessages } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';

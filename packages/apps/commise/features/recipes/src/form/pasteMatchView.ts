@@ -23,7 +23,7 @@
  */
 import type { IconName } from '@commise/ui/icon';
 
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import type { IngredientDetailsMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { foodChoiceNameOf } from './foodChoiceName.js';

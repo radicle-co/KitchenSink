@@ -18,7 +18,7 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../editor/messages.js';
+import type { PluralText } from '../format/plural.js';
 
 /** Copy for one ingredient line in the wizard, the flagged pane and the options sheet. */
 export interface ImportLineMessages {

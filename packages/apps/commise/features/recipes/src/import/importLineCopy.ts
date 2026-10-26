@@ -5,7 +5,7 @@
  *
  * @pattern Visitor — exhaustive switches over the `ImportLine` state union, one per question asked of a line
  */
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { ImportCandidate, ImportLinePick, PickableImportLine } from './importLine.js';
 import type { ImportLineMessages } from './messages.js';

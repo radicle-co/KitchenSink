@@ -13,7 +13,8 @@
  * @pattern Presentation Model — the sheet's words derived once for both platform leaves
  */
 import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf, type EditorMessages } from './messages.js';
+import { pluralOf } from '../format/plural.js';
+import type { EditorMessages } from './messages.js';
 
 /** What the sheet is told. */
 export interface OpenChoicesFacts {

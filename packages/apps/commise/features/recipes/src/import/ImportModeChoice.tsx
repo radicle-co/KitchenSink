@@ -16,7 +16,7 @@ import { Icon } from '@commise/ui/icon';
 import { RadioList } from '@commise/ui/radio-list';
 import type { FC } from 'react';
 
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { modeOfOptionId, modeOptionsOf } from './importMode.js';
 import { importMessages } from './messages.js';

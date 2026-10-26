@@ -8,7 +8,7 @@
 import type { LocalizedMessages } from '@commise/i18n';
 import type { RecipeMealType } from '@kitchensink/recipe-core';
 
-import type { PluralText } from '../editor/messages.js';
+import type { PluralText } from '../format/plural.js';
 
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {

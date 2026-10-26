@@ -24,7 +24,7 @@ import { Icon } from '@commise/ui/icon';
 import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC } from 'react';
 
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { isNothingToFix } from './importLine.js';
 import { candidatesOf, closedNeedOf, openPromptOf, pickTextOf } from './importLineCopy.js';

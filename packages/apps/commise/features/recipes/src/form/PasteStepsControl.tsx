@@ -14,7 +14,8 @@ import { FieldLabel, TextArea, fieldHintId } from '@commise/ui/input';
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
-import { editorMessages, pluralOf } from '../editor/messages.js';
+import { editorMessages } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { pasteStepsFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 import { usePasteSteps } from './usePasteSteps.js';

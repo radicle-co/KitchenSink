@@ -6,18 +6,13 @@
  * Copy not in the build spec was written by `staff-ux-engineer` for slice 7: the save status for each place a draft can
  * be kept (`disk` says "on this device", `tabSession` says "in this tab", D7), the parked-write alerts, the section
  * reasons and the announcements. A count is a `{ one, other }` pair with `{count}`, chosen through `Intl.PluralRules`
- * (`pluralOf`), the way every count in this package is.
+ * (`pluralOf`, `format/plural.ts`), the way every count in this package is.
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { PluralText } from '../format/plural.js';
 import type { EditorSectionId } from './sections.js';
 import type { AttentionReason, InProgressReason } from './sectionStatus.js';
-
-/** A count's two English forms, each holding `{count}`. */
-export interface PluralText {
-    readonly one: string;
-    readonly other: string;
-}
 
 /** The editor's copy. */
 export interface EditorMessages {
@@ -435,17 +430,3 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
         },
     },
 };
-
-/**
- * A count's localized text: the `one` or `other` form, with `{count}` filled in.
- *
- * @param text - The two forms.
- * @param count - The count.
- * @param locale - The active locale.
- * @returns The text. Pure.
- */
-export function pluralOf(text: PluralText, count: number, locale: string): string {
-    const form = new Intl.PluralRules(locale).select(count) === 'one' ? text.one : text.other;
-
-    return form.replaceAll('{count}', String(count));
-}

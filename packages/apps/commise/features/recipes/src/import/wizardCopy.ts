@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/import — the review wizard's words that depend on where the review is, read by both
  * `ImportWizardStep` leaves so they cannot drift.
  */
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { ImportMessages } from './messages.js';
 

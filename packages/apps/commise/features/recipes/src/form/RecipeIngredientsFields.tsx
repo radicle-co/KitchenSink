@@ -21,7 +21,8 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { useEffect, useEffectEvent, type FC, type ReactNode } from 'react';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.js';
-import { editorMessages, pluralOf } from '../editor/messages.js';
+import { editorMessages } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.js';

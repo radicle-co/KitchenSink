@@ -9,14 +9,13 @@
  * Presentational and controlled: which line is open, the pick in flight and where focus goes are the host's. The
  * native leaf is `./MatchLineList.native.tsx`.
  */
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { useLocale } from '@commise/i18n/react';
 import type { FC } from 'react';
 
-import { recipeMessages } from '../messages.js';
 import type { MatchLineListProps } from './matchLineListProps.js';
 import { lineRowOf } from './matchLineView.js';
 import { MatchRow } from './MatchRow.js';
-import { matchLineMessages } from './messages.js';
+import { useMatchCopy } from './useMatchCopy.js';
 
 /** A recipe's matched lines. */
 export const MatchLineList: FC<MatchLineListProps> = ({
@@ -28,7 +27,7 @@ export const MatchLineList: FC<MatchLineListProps> = ({
     searchFocus,
     ...handlers
 }) => {
-    const copy = { line: useMessages(matchLineMessages), details: useMessages(recipeMessages).ingredientDetails };
+    const copy = useMatchCopy();
     const locale = useLocale();
 
     return (

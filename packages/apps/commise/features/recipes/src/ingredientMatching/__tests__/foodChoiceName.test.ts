@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { recipeMessages } from '../../messages.js';
-import { foodChoiceNameOf } from '../foodChoiceName.js';
+import { foodChoiceNameOf, foodNameWithPartsOf } from '../foodChoiceName.js';
 import { matchLineMessages } from '../messages.js';
 
 const copy = {
@@ -52,5 +52,27 @@ describe('foodChoiceNameOf', () => {
                 { ...copy, defaultTag: 'Par défaut' },
             ),
         ).toBe('Lait entier, Par défaut');
+    });
+});
+
+describe('foodNameWithPartsOf', () => {
+    const withDetails = recipeMessages.en.ingredientDetails.suggestionWithDetails;
+
+    it('is the name alone without parts', () => {
+        expect(foodNameWithPartsOf('Skim milk', undefined, withDetails)).toBe('Skim milk');
+    });
+
+    it('names the parts after the name, in the picker’s words', () => {
+        expect(foodNameWithPartsOf('Beef brisket', ['flat half', 'select'], withDetails)).toBe(
+            'Beef brisket, flat half, select',
+        );
+    });
+
+    it('is the first half of a food option’s name, so the picker and the matching lists say parts one way', () => {
+        expect(
+            foodChoiceNameOf({ name: 'Oat milk', detailParts: ['unsweetened'], isDefault: true }, copy).startsWith(
+                foodNameWithPartsOf('Oat milk', ['unsweetened'], withDetails),
+            ),
+        ).toBe(true);
     });
 });

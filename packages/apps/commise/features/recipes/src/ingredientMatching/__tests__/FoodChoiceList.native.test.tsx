@@ -116,6 +116,18 @@ describe('FoodChoiceList (native)', () => {
         ]);
     });
 
+    it('⛔ ArrowUp and ArrowDown never pick (a hardware keyboard on a tablet): moving through the list chooses nothing', () => {
+        const { onPick } = renderList(makeDefaultLine());
+        const skim = screen.getByRole('button', { name: 'Skim milk' });
+
+        skim.focus();
+        fireEvent.keyDown(skim, { key: 'ArrowDown' });
+        fireEvent.keyDown(skim, { key: 'ArrowUp' });
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Whole milk, Default' }), { key: 'ArrowDown' });
+
+        expect(onPick).not.toHaveBeenCalled();
+    });
+
     it('a reopened line says the food it holds is chosen, in its name, and draws a check', () => {
         renderList(makeDefaultLine({ binding: cookPicked(SKIM) }));
 

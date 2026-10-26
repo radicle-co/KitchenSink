@@ -19,7 +19,6 @@ import {
 } from '../../__fixtures__/progressiveFrames.js';
 import type { CatalogFoodOption, EntrySearchView } from '../../hooks/foodSuggestions.model.js';
 import type { LineCommitTarget } from '../../hooks/lineCommit.js';
-import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeMessages } from '../../messages.js';
 import { ingredientNameFieldId } from '../fieldIds.js';
 import { seedLineKey } from '../lineKey.js';
@@ -34,7 +33,6 @@ const COPY: RowEntryFieldCopy = {
     pickerSearch: shared.ingredientPickerSearch,
     remote: shared.ingredientRemoteSearch,
     details: shared.ingredientDetails,
-    match: matchLineMessages.en,
     readOffline: 'Waiting for a connection. This loads on its own.',
 };
 

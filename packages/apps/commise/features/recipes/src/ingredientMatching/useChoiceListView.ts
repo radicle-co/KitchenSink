@@ -1,14 +1,10 @@
 /**
  * @module @commise/features-recipes/ingredientMatching — a line's food-choice list view in the reader's copy, for a leaf
- * that is handed the line rather than its view (a flagged line's sheet and pane). One place reads the two copy sets the
- * view needs, so no leaf assembles them on its own.
+ * that is handed the line rather than its view (a flagged line's sheet and pane).
  */
-import { useMessages } from '@commise/i18n/react';
-
-import { recipeMessages } from '../messages.js';
 import type { MatchLine } from './matchLine.js';
 import { choiceListViewOf, type FoodChoiceListView, type ListPlace } from './matchLineView.js';
-import { matchLineMessages } from './messages.js';
+import { useMatchCopy } from './useMatchCopy.js';
 
 /**
  * The line's food-choice list, in the active locale's words.
@@ -18,7 +14,5 @@ import { matchLineMessages } from './messages.js';
  * @returns The list's view.
  */
 export function useChoiceListView(line: MatchLine, place: ListPlace): FoodChoiceListView {
-    const copy = { line: useMessages(matchLineMessages), details: useMessages(recipeMessages).ingredientDetails };
-
-    return choiceListViewOf(line, place, copy);
+    return choiceListViewOf(line, place, useMatchCopy());
 }

@@ -4,16 +4,15 @@
  * `listitem`s, so a screen reader can say how many lines there are and where each sits; the list keeps its native node
  * for that role (`docs/design/nativeContainerNames.md` N1 rule 4). Painted from the theme's roles (D15).
  */
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { useLocale } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { recipeMessages } from '../messages.js';
 import type { MatchLineListProps } from './matchLineListProps.js';
 import { lineRowOf } from './matchLineView.js';
 import { MatchRow } from './MatchRow.js';
-import { matchLineMessages } from './messages.js';
+import { useMatchCopy } from './useMatchCopy.js';
 
 /** A recipe's matched lines. */
 export const MatchLineList: FC<MatchLineListProps> = ({
@@ -25,7 +24,7 @@ export const MatchLineList: FC<MatchLineListProps> = ({
     searchFocus,
     ...handlers
 }) => {
-    const copy = { line: useMessages(matchLineMessages), details: useMessages(recipeMessages).ingredientDetails };
+    const copy = useMatchCopy();
     const locale = useLocale();
 
     return (

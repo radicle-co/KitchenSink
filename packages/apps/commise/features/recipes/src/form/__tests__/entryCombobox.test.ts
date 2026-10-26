@@ -23,7 +23,6 @@ import {
     sourceUnavailable,
 } from '../../__fixtures__/progressiveFrames.js';
 import { entrySearchViewOf, type EntrySearchView, type ProgressiveRead } from '../../hooks/foodSuggestions.model.js';
-import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeMessages } from '../../messages.js';
 import { entryComboboxOf, type EntryComboboxCopy, type EntryComboboxInput } from '../entryCombobox.js';
 import { recipeFormMessages } from '../messages.js';
@@ -38,7 +37,6 @@ const COPY: EntryComboboxCopy = {
     pickerSearch: shared.ingredientPickerSearch,
     remote: shared.ingredientRemoteSearch,
     details: shared.ingredientDetails,
-    match: matchLineMessages.en,
     readOffline: READ_OFFLINE,
 };
 

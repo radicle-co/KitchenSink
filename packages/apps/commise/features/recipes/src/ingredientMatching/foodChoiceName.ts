@@ -28,17 +28,33 @@ export interface FoodChoiceNameCopy {
 }
 
 /**
- * A food option's accessible name. Pure.
+ * A food's name with its variant's parts, in the picker's existing words (`suggestionWithDetails`): the first half of
+ * every food option's name, and the whole of it where no default tag can apply (the picker's catalog options, whose
+ * search wire carries no `isDefault` yet). Pure.
+ *
+ * @param name - The food's name.
+ * @param detailParts - Its variant's parts, if any.
+ * @param suggestionWithDetails - `{food}, {parts}`.
+ * @returns The name, with the parts after it.
+ */
+export const foodNameWithPartsOf = (
+    name: string,
+    detailParts: readonly [string, ...string[]] | undefined,
+    suggestionWithDetails: string,
+): string =>
+    detailParts === undefined
+        ? name
+        : fillTemplate(suggestionWithDetails, { food: name, parts: detailParts.join(', ') });
+
+/**
+ * A food option's accessible name: its name and parts, then the Default tag on the default food only. Pure.
  *
  * @param food - The food.
  * @param copy - The localised templates.
  * @returns The name.
  */
 export const foodChoiceNameOf = (food: NamedFoodChoice, copy: FoodChoiceNameCopy): string => {
-    const withParts =
-        food.detailParts === undefined
-            ? food.name
-            : fillTemplate(copy.suggestionWithDetails, { food: food.name, parts: food.detailParts.join(', ') });
+    const withParts = foodNameWithPartsOf(food.name, food.detailParts, copy.suggestionWithDetails);
 
     return food.isDefault ? fillTemplate(copy.defaultOptionName, { food: withParts, tag: copy.defaultTag }) : withParts;
 };

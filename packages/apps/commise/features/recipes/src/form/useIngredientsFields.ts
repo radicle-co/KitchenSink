@@ -27,7 +27,6 @@ import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { RowDetailsTarget } from '../hooks/useIngredientRowEditor.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { matchLineMessages } from '../ingredientMatching/messages.js';
 import { recipeMessages } from '../messages.js';
 import { trailingEntryDescribedBy } from './fieldErrorIds.js';
 import { namesAFood } from './ingredientRowPolicy.js';
@@ -140,7 +139,6 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const m = useMessages(recipeFormMessages);
     const shared = useMessages(recipeMessages);
     const { readOffline } = useMessages(offlineNoticeMessages);
-    const match = useMessages(matchLineMessages);
     const locale = useLocale();
     const { ingredients: addCopy } = useMessages(editorMessages);
     const { entry, naming } = rowEditor;
@@ -264,7 +262,6 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
             pickerSearch: shared.ingredientPickerSearch,
             remote: shared.ingredientRemoteSearch,
             details: shared.ingredientDetails,
-            match,
             readOffline,
         },
         sections,

@@ -10,14 +10,32 @@ adds a product surface, a renderer, and — the actual gap — an importer.
 
 ## Endpoints
 
-| Method | Path                                     | Purpose                               | FR                     | Status          |
-| ------ | ---------------------------------------- | ------------------------------------- | ---------------------- | --------------- |
-| `GET`  | `/api/v1/account/export`                 | Lossless machine-readable library     | FR-018                 | **Ships today** |
-| `GET`  | `/api/v1/recipes/export?format=document` | Human-readable document               | FR-019                 | New             |
-| `POST` | `/api/v1/recipes/migrations`             | Import a competitor or Commise export | FR-016, FR-017, FR-020 | New             |
-| `GET`  | `/api/v1/recipes/migrations/{id}`        | Per-item outcome + restart position   | FR-017                 | New             |
+| Method  | Path                                     | Purpose                               | FR                     | Status          |
+| ------- | ---------------------------------------- | ------------------------------------- | ---------------------- | --------------- |
+| `GET`   | `/api/v1/account/export`                 | Lossless machine-readable library     | FR-018                 | **Ships today** |
+| `GET`   | `/api/v1/recipes/export?format=document` | Human-readable document               | FR-019                 | New             |
+| Not set | ⚠️ **Open question OQ-P1** (below)       | Import a competitor or Commise export | FR-016, FR-017, FR-020 | New             |
+
+## ⚠️ Open question OQ-P1: the URL for library migration (owner to confirm)
+
+The route `/api/v1/recipes/migrations` that this contract used to propose is withdrawn (owner ruling, 2026-10-26).
+Bulk recipe import already uses **`/api/v1/import`** ([ADR-0072](../../../docs/architecture/decisions/0072-bulk-recipe-import.md)
+§1): `POST /api/v1/import` creates an import, `GET /api/v1/import/{importId}` reads it, and
+`POST /api/v1/import/{importId}/advance` moves it on.
+
+**The owner must confirm the URL for this feature's library migration.** Two answers are possible:
+
+1. Library migration IS bulk import, so it uses `/api/v1/import` and ADR-0072's resource. `sourceApp` and the
+   per-item outcome below then become fields of that resource.
+2. Library migration is a separate resource, and the owner names its URL.
+
+Until the owner answers, no migration route is built. Whatever the answer, ADR-0072's rules hold for every recipe a
+migration saves: a per-recipe source statement with a citation, the bulk allowance of 1,000 recipes a rolling day, and one
+draft per recipe.
 
 ## Migration response
+
+The shape below stands whatever OQ-P1 decides.
 
 ```text
 {

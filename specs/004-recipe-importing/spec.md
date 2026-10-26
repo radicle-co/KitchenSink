@@ -345,6 +345,13 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   detection heuristics MUST additionally run as a **secondary signal** that flags a recipe for review; a
   heuristic MUST NOT by itself reclassify a recipe or block a save. _(Legal review remains advisable on the
   heuristic set; the attestation + citation rule above is operable without it — see D-003.)_
+    > ⚠️ **Bulk import.** Owner ruling, 2026-10-26. This attestation applies to **every** bulk-imported recipe,
+    > private as well as public: each recipe carries its own source statement and citation, and one statement for a
+    > whole file does not count. A recipe whose source is not a public web page cannot be public. Counsel confirms
+    > the wording before launch (016 FR-050). See
+    > [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9, which also records two open
+    > interactions: Premium still gates private (015's D4a), and a public bulk-imported recipe has no declarable
+    > provenance value yet.
 
 **Failure handling and lifecycle**
 
@@ -443,6 +450,14 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   a transport rate limit: it is evaluated in the domain layer and is expected to vary by subscription tier once
   [010-subscriptions](../010-subscriptions/spec.md) lands. Per-minute burst limiting remains the shipped
   throttler's job (D-006).
+    > ⚠️ **Where the count lives, and the bulk allowance.** Owner ruling, 2026-10-26. The quota is counted in
+    > the `import_allowance_events` ledger (recipe-service migration 0058), not over an `import_jobs` table, which
+    > was never built. Each channel counts only its own rows: **paste, 200 a rolling day**, one unit per paste,
+    > and **bulk import, 1,000 recipes a rolling day**, one unit per recipe. The two never borrow from each other.
+    > This replaces "across all channels" for these two channels, and it replaces D-013's "one file is one
+    > import". Bulk import now sends every line through the LLM parse and the match review, so a file is no longer
+    > free of third-party calls. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds
+    > the rule. The OCR sub-quota is unchanged and stays with 011.
 - **FR-018**: System MUST expire unconfirmed import drafts **7 days** after creation, and MUST delete any OCR
   source image on confirm, discard, or expiry — whichever occurs first. The draft and its image share one
   lifetime: there is no state in which an image outlives the draft that references it. The retention period is
@@ -808,6 +823,9 @@ The section above decides **who authors** the contract; this one is where it **r
   daily allowance, not one per recipe — the allowance exists to bound outbound fetching and OCR spend, and a
   file import does neither (one upload, parsed locally, no third-party call). Without this carve-out a
   first-day migration would exhaust a user's daily allowance on the day they join, which is precisely backwards.
+    > ⚠️ **The counting half is replaced.** Owner ruling, 2026-10-26. Bulk import has its own allowance of
+    > 1,000 recipes a rolling day. It counts per recipe, and it is separate from paste (see the note under
+    > `FR-022`). The 1,000-recipe file limit above is unchanged.
 - **D-012 (Bulk import, 2026-08-02)**: A single uploaded export file may contain many recipes — the realistic
   migration path from Paprika, Mealie, or Plan To Eat, and the onboarding case this feature exists to serve.
   One draft per recipe (so nothing is fabricated and every rule still applies), with **split review**: complete

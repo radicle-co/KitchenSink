@@ -388,6 +388,11 @@ household's content intact.
   and ReciMe.
 - **FR-017** `→ 004 ADDED`: A library migration MUST report a per-recipe outcome, MUST retain successfully
   imported recipes when others fail, and MUST be restartable without duplicating already-imported recipes.
+    > ⚠️ **Open question OQ-P1 (owner to confirm): the URL for library migration.** The route
+    > `/api/v1/recipes/migrations` is withdrawn (owner ruling, 2026-10-26). Bulk import already uses
+    > `/api/v1/import` ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md)). The question, and
+    > the two possible answers, are in [contracts/portability.md](contracts/portability.md). Note also that bulk
+    > import allows 1,000 recipes a rolling day, so SC-004's 2,000-recipe export takes more than one day to finish.
 - **FR-018** `→ 001 MODIFIED`: Users MUST be able to export their entire recipe library as a lossless
   machine-readable file **from a product surface**, not only as a privacy-request endpoint. ⚠️ **Corrected by
   research R-02:** `GET /api/v1/account/export` already ships a zod-contracted GDPR Art. 15/20 export covering

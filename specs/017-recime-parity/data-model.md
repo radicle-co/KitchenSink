@@ -165,6 +165,9 @@ mean the system default; a household never sees an empty taxonomy.
 
 ## 5. Library migration
 
+> ⚠️ The resource and its URL wait on open question OQ-P1 in [contracts/portability.md](contracts/portability.md). If
+> library migration is ADR-0072's bulk import, these two tables become that import's tables, not a second set.
+
 ```text
 library_migrations
   id              ULID PK

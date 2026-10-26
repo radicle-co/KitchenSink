@@ -60,7 +60,7 @@ export const recipeParseJobMatches = pgTable(
             .notNull()
             .default(sql`'[]'::jsonb`),
         verificationKey: text('verification_key'),
-        /** `owed` or `refused`; NULL: nothing to review. */
+        /** `owed` or `refused`; NULL: no food was proposed (a proposal always has one of the two). */
         review: text('review'),
         enqueuedAt: timestamp('enqueued_at', { withTimezone: true }),
         /** When a contradicted curated proposal was counted for curation review; reset with the row. */
@@ -88,6 +88,10 @@ export const recipeParseJobMatches = pgTable(
         check(
             'recipe_parse_job_matches_key_iff_owed',
             sql`(${table.review} IS NOT DISTINCT FROM 'owed') = (${table.verificationKey} IS NOT NULL)`,
+        ),
+        check(
+            'recipe_parse_job_matches_review_iff_food',
+            sql`(${table.review} IS NULL) = (num_nonnulls(${table.foodId}, ${table.foodVariantId}) = 0)`,
         ),
         check(
             'recipe_parse_job_matches_refusal_has_food',

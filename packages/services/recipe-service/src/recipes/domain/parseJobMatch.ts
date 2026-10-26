@@ -39,36 +39,44 @@ export interface MatchProposal {
  * Where the gate's review of a proposal stands, as the row records it (ADR-0071).
  *
  *  - `owed` — a review is owed under `verificationKey` (sent once `enqueuedAt` is set);
- *  - `refused` — the gate will never be asked: the line is over the gate's cap, or the queue's contract refuses the
- *    request. Persisted when the row is written, so the job view never re-runs the policy to find out.
- *
- * `null` means there is nothing to review: no proposal, or a proposal food could not name.
+ *  - `refused` — the gate will never be asked: the line is blank or over the gate's cap, or the queue's contract refuses
+ *    the request. Persisted when the row is written, so the job view never re-runs the policy to find out.
  */
 export type MatchReview = (typeof MATCH_REVIEWS)[number];
 
+/**
+ * A proposal, its review and its verdict key, as ONE of three shapes (the table's CHECKs, made a type): nothing proposed
+ * has nothing to review; a proposal is owed a review under its key; or it is refused, with no key. A proposal with no
+ * review at all is unrepresentable, because it would read as awaiting a review nothing sends.
+ */
+export type ProposalReview =
+    | { readonly proposal: null; readonly verificationKey: null; readonly review: null }
+    | { readonly proposal: MatchProposal; readonly verificationKey: string; readonly review: 'owed' }
+    | { readonly proposal: MatchProposal; readonly verificationKey: null; readonly review: 'refused' };
+
 /** A match as written: the proposal (or none), the shortlist, and the verdict key. */
-export interface NewParseJobMatch extends MatchSlot {
+export type NewParseJobMatch = MatchSlot & {
     /** The line's stored digest when it was matched. The write only lands while the line still has it. */
     readonly lineDigest: LineDigest;
     /** What the match was computed from (`matchJudgementDigestOf`); a row is current only while it still matches. */
     readonly judgementDigest: string;
-    /** `null`: the chain found nothing for this food. */
-    readonly proposal: MatchProposal | null;
     /** At most five, food's ranked order. Empty when the chain found nothing. */
     readonly candidates: readonly MatchCandidate[];
-    /** The key the gate's verdict for the proposal is stored under; set exactly when `review` is `owed`. */
-    readonly verificationKey: string | null;
-    /** Where the review stands; `null` when there is nothing to review. */
-    readonly review: MatchReview | null;
-}
+} & ProposalReview;
+
+/** What the chain drafted for one food before food was asked about its proposal: no key, no review yet. */
+export type DraftParseJobMatch = Pick<
+    NewParseJobMatch,
+    'lineIndex' | 'foodIndex' | 'lineDigest' | 'judgementDigest' | 'candidates' | 'proposal'
+>;
 
 /** A stored match, with whether its verification request was sent and the line's digest now. */
-export interface ParseJobMatch extends NewParseJobMatch {
+export type ParseJobMatch = NewParseJobMatch & {
     /** When the request was claimed and sent; `null` means it is owed. */
     readonly enqueuedAt: Date | null;
     /** The line's stored digest NOW, read with the row: the job view compares it rather than recomputing one. */
     readonly lineDigestNow: LineDigest;
-}
+};
 
 /** A request to claim one owed review: the slot, the digest and the key it was computed for. */
 export interface EnqueueRequest extends MatchSlot {

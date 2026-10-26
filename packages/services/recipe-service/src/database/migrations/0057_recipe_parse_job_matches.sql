@@ -22,13 +22,15 @@
 --
 -- ⚠️ enqueued_at is a CLAIM, a lease: one caller wins it for one digest and key, only that caller's own claim is
 -- released, and a claim older than the verification queue's delivery bound that left no verdict and no attempt behind
--- may be taken again (the request was lost). review records where the gate's review stands: 'owed' under the key, or
--- 'refused' (the gate is never asked: an over-cap line, or a request the queue's contract refuses). NULL: nothing to
--- review.
+-- may be taken again (the request was lost): no verdict that asked identity, and no attempt that is exhausted or recent
+-- (an old unfinished attempt is a lost verdict write, so the line is sent again and the worker's allowance bounds it).
+-- review records where the gate's review stands: 'owed' under the key, or 'refused' (the gate is never asked: a blank or
+-- over-cap line, or a request the queue's contract refuses). NULL: nothing was proposed, so nothing to review.
 --
 -- The CHECKs make bad rows unrepresentable: at most one food (0052's arc), a food only with the tier that proposed
--- it, a verification key only with a food and exactly when a review is owed, a refusal only of a proposed food, an
--- enqueue only with a key, and at most five candidates.
+-- it, a verification key only with a food and exactly when a review is owed, a review exactly when a food is proposed
+-- (a proposal with no review would read as awaiting one forever), a refusal only of a proposed food, an enqueue only
+-- with a key, and at most five candidates.
 --
 -- Additive and expand-only (ADR-0035): one new table, read and written only by this release's code.
 
@@ -52,7 +54,7 @@ CREATE TABLE recipe_parse_job_matches (
     candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
     -- The key the gate's verdict for the proposal is stored under in recipe_ingredient_verifications.
     verification_key text,
-    -- Where the gate's review stands: 'owed' (under verification_key) or 'refused' (never asked). NULL: nothing to review.
+    -- Where the gate's review stands: 'owed' (under verification_key) or 'refused' (never asked). NULL: no proposal.
     review text CHECK (review IN ('owed', 'refused')),
     -- When the verification request was last claimed and sent. NULL means owed and unclaimed.
     enqueued_at timestamptz,
@@ -69,6 +71,9 @@ CREATE TABLE recipe_parse_job_matches (
     -- IS NOT DISTINCT FROM, never `=`: a NULL review would make `review = 'owed'` NULL, and a NULL CHECK passes.
     CONSTRAINT recipe_parse_job_matches_key_iff_owed
         CHECK ((review IS NOT DISTINCT FROM 'owed') = (verification_key IS NOT NULL)),
+    -- A proposed food always has a review disposition, and nothing else does: no proposal reads `checking` forever.
+    CONSTRAINT recipe_parse_job_matches_review_iff_food
+        CHECK ((review IS NULL) = (num_nonnulls(food_id, food_variant_id) = 0)),
     CONSTRAINT recipe_parse_job_matches_refusal_has_food
         CHECK (review IS DISTINCT FROM 'refused' OR num_nonnulls(food_id, food_variant_id) = 1),
     CONSTRAINT recipe_parse_job_matches_enqueue_has_key CHECK (enqueued_at IS NULL OR verification_key IS NOT NULL),
@@ -85,8 +90,8 @@ COMMENT ON COLUMN recipe_parse_job_matches.line_digest IS
 COMMENT ON COLUMN recipe_parse_job_matches.judgement_digest IS
     'What the match was computed from. A row whose judgement differs from the current parse''s is recomputed.';
 COMMENT ON COLUMN recipe_parse_job_matches.review IS
-    'owed: a review is owed under verification_key. refused: the gate is never asked. NULL: nothing to review.';
+    'owed: a review is owed under verification_key. refused: the gate is never asked. NULL: no food was proposed.';
 COMMENT ON COLUMN recipe_parse_job_matches.curation_reported_at IS
     'When a curated proposal the review contradicted was counted. Reset with the row; one count per verdict, not per read.';
 COMMENT ON COLUMN recipe_parse_job_matches.enqueued_at IS
-    'A claim (lease): one caller wins it; only its own claim is released; a traceless claim past the delivery bound is retaken.';
+    'A claim (lease): one caller wins it; only its own claim is released; a claim past the delivery bound with no identity verdict and no exhausted or recent attempt is retaken.';

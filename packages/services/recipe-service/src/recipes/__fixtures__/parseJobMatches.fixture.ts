@@ -19,10 +19,13 @@ import type {
     ParseJobMatchesPort,
 } from '../domain/parseJobMatch.js';
 
+/** `Omit` applied to each member of a union: plain `Omit` over a union keeps only the keys common to all of it. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
 /** An in-memory matches repository, with the rows it holds exposed for assertions. */
 export interface InMemoryParseJobMatches extends ParseJobMatchesPort {
     /** Every row, by `jobId:line:food`. */
-    readonly rows: Map<string, Omit<ParseJobMatch, 'lineDigestNow'> & { readonly jobId: string }>;
+    readonly rows: Map<string, DistributiveOmit<ParseJobMatch, 'lineDigestNow'> & { readonly jobId: string }>;
     /** The owner of each job, so `findForJob` can apply the owner filter. */
     readonly owners: Map<string, string>;
 }

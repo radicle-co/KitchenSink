@@ -504,17 +504,36 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
-    it('stores nothing to review for a proposal food cannot name — no key, no review, and nothing sent', async () => {
+    it('⛔ stores NOTHING for a proposal food cannot name yet — a row would outlive the name food has yet to publish', async () => {
+        const answers: Record<string, FoodRefAnswer> = {
+            'root:F-whole': { ...foundRecord('Milk, whole', 'F-whole'), name: undefined },
+            'root:F-crackers': found('Milk crackers', 'F-crackers'),
+        };
+        const { service, matches, queue } = setup({ answers });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(0);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+
+        // Food names it on a later call: the proposal is then stored with a review owed, never stranded.
+        answers['root:F-whole'] = found('Milk, whole', 'F-whole');
+        await service.propose(COOK, CALLER, JOB);
+
+        expect([...matches.rows.values()][0]).toMatchObject({ review: 'owed', enqueuedAt: expect.any(Date) });
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ refuses, with a terminal disposition, a proposal on a line the gate is never asked about (a blank line)', async () => {
         const { service, matches, queue } = setup({
-            answers: {
-                'root:F-whole': { ...foundRecord('Milk, whole', 'F-whole'), name: undefined },
-                'root:F-crackers': found('Milk crackers', 'F-crackers'),
-            },
+            job: makeParseJobRecord({ lines: [makeParseJobLine({ sourceLine: '   ' })] }),
         });
 
         await service.propose(COOK, CALLER, JOB);
 
-        expect([...matches.rows.values()][0]).toMatchObject({ verificationKey: null, review: null });
+        // A proposal with NO review would read `checking` forever once food named it: nothing would ever send it.
+        expect([...matches.rows.values()][0]).toMatchObject({ review: 'refused', verificationKey: null });
+        expect([...matches.rows.values()].every((row) => row.proposal === null || row.review !== null)).toBe(true);
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
 });

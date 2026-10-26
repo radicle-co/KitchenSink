@@ -110,6 +110,8 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
         ['a refusal carrying a key', `'curated', 'F1', NULL, 'v2:k', 'refused', NULL`],
         ['a refusal of nothing proposed', `NULL, NULL, NULL, NULL, 'refused', NULL`],
         ['an unknown review', `'curated', 'F1', NULL, NULL, 'parked', NULL`],
+        // ⛔ L5: a proposal with NO review would read `checking` forever once food named it, since nothing sends it.
+        ['⛔ a proposed food with no review at all', `'lexical', 'F1', NULL, NULL, NULL, NULL`],
     ])('⛔ refuses a row with %s', async (_label, values) => {
         const job = await insertJob(pool, OWNER);
 
@@ -366,7 +368,7 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
             expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toHaveLength(1);
         });
 
-        it('is NOT claimed again while an attempt is on record — the worker still holds it', async () => {
+        it('is NOT claimed again while a RECENT attempt is on record — the worker still holds it', async () => {
             const job = await lostClaim();
 
             await pool.query(
@@ -376,7 +378,47 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
             expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toEqual([]);
         });
 
-        it('is NOT claimed again once a verdict is on record', async () => {
+        // ⛔ L6: a worker that took an attempt and then lost its verdict write leaves an attempt row with no failure code
+        // and no verdict. Past the delivery bound that row proves nothing is still in flight, so the line must be
+        // re-sent (the worker re-claims it, and its allowance bounds the retries) instead of reading `checking` forever.
+        it('⛔ IS claimed again when an attempt is on record but old and unfinished — its verdict write was lost', async () => {
+            const job = await lostClaim();
+
+            await pool.query(
+                `INSERT INTO recipe_verification_attempts (verification_key, model_id, attempts, last_received_at)
+                 VALUES ('v2:F-milk', 'm', 1, now() - make_interval(secs => $1 + 60))`,
+                [STALE_AFTER],
+            );
+
+            expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toHaveLength(1);
+        });
+
+        it('⛔ is NOT claimed again once the gate GAVE UP — an exhausted attempt is final', async () => {
+            const job = await lostClaim();
+
+            await pool.query(
+                `INSERT INTO recipe_verification_attempts
+                     (verification_key, model_id, attempts, last_received_at, failure_code)
+                 VALUES ('v2:F-milk', 'm', 3, now() - make_interval(secs => $1 + 60), 'unreadable')`,
+                [STALE_AFTER],
+            );
+
+            expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toEqual([]);
+        });
+
+        it('⛔ IS claimed again when the only verdict on record never asked identity — it judged no food', async () => {
+            const job = await lostClaim();
+
+            await pool.query(
+                `INSERT INTO recipe_ingredient_verifications
+                     (verification_key, verdict, certainty, band, aspects, model_id, food_id)
+                 VALUES ('v2:F-milk', 'agree', 'high', 'verified', ARRAY['quantity'], 'm', 'F-milk')`,
+            );
+
+            expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toHaveLength(1);
+        });
+
+        it('is NOT claimed again once a verdict that asked identity is on record', async () => {
             const job = await lostClaim();
 
             await pool.query(

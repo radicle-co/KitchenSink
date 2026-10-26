@@ -79,14 +79,13 @@ import {
     matchJudgementDigestOf,
     proposalKeyOf,
     proposalMessageOf,
-    proposalVerificationDecision,
     rankTierOf,
     type ParsedLineMeasure,
 } from './domain/matchProposal.js';
 import {
     isCurrentMatch,
     slotKey,
-    type MatchReview,
+    type DraftParseJobMatch,
     type EnqueueClaim,
     type MatchSlot,
     type NewParseJobMatch,
@@ -198,7 +197,7 @@ interface OwedSlot extends MatchSlot {
 }
 
 /** A computed match before food has been asked about its proposal. */
-type DraftMatch = Omit<NewParseJobMatch, 'verificationKey' | 'review'>;
+type DraftMatch = DraftParseJobMatch;
 
 /**
  * The judgement digest the CURRENT parse yields for one food of a line, or `undefined` when the line names no such food.
@@ -595,8 +594,13 @@ export class MatchProposalService {
     ): readonly NewParseJobMatch[] {
         const line = lines.get(draft.lineIndex);
 
-        if (draft.proposal === null || line === undefined) {
-            return [{ ...draft, verificationKey: null, review: null }];
+        if (draft.proposal === null) {
+            return [{ ...draft, proposal: null, verificationKey: null, review: null }];
+        }
+
+        if (line === undefined) {
+            // The job no longer holds this line; there is nothing to store a match against.
+            return [];
         }
 
         const answer = answers.get(foodRefKey(draft.proposal.food)) ?? { outcome: 'unreachable' };
@@ -621,6 +625,12 @@ export class MatchProposalService {
             ];
         }
 
+        if (answer.name === undefined) {
+            // Food published no usable name: the review cannot be asked NOW, but it can be later. Not stored, exactly as
+            // an outage is not (rule 4): a refusal stored here would outlive the name food has yet to publish.
+            return [];
+        }
+
         const food = liveEndOf(answer);
         const proposal = { ...draft.proposal, food };
         // ⛔ The key is the key of the request this row will send: the worker writes the verdict under it.
@@ -634,10 +644,9 @@ export class MatchProposalService {
         });
 
         if (message === undefined) {
-            const review: MatchReview | null =
-                proposalVerificationDecision(line.sourceLine, food.kind).kind === 'reject' ? 'refused' : null;
-
-            return [{ ...draft, proposal, verificationKey: null, review }];
+            // Nothing can ever be asked about this line (blank, over the gate's cap, or no measure to judge): refused,
+            // so the proposal has a terminal disposition and never reads as awaiting a review nothing sends.
+            return [{ ...draft, proposal, verificationKey: null, review: 'refused' }];
         }
 
         if (!verifyIngredientLineMessageSchema.safeParse(message).success) {

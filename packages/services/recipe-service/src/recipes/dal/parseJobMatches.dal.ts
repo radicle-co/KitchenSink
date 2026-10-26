@@ -43,6 +43,7 @@ import type {
     MatchSlot,
     NewParseJobMatch,
     ParseJobMatch,
+    ProposalReview,
     ParseJobMatchesPort,
 } from '../domain/parseJobMatch.js';
 
@@ -82,6 +83,49 @@ function foodOf(row: { readonly foodId: string | null; readonly foodVariantId: s
     return row.foodVariantId === null ? undefined : { kind: 'variant', id: row.foodVariantId };
 }
 
+/**
+ * A stored row's proposal, review and key, as one of the three shapes the table's CHECKs admit (`ProposalReview`).
+ *
+ * @throws On a combination the CHECKs forbid: the writer is this service, so a row outside them is a defect to surface.
+ */
+function proposalReviewOf(row: {
+    readonly foodId: string | null;
+    readonly foodVariantId: string | null;
+    readonly matchedBy: string | null;
+    readonly rung: string | null;
+    readonly margin: number | null;
+    readonly verificationKey: string | null;
+    readonly review: string | null;
+}): ProposalReview {
+    const food = foodOf(row);
+    const review = reviewSchema.parse(row.review);
+
+    if (food === undefined) {
+        if (review !== null || row.verificationKey !== null) {
+            throw new Error('a parse-job match with no food carries a review or a key');
+        }
+
+        return { proposal: null, verificationKey: null, review: null };
+    }
+
+    const proposal = {
+        matchedBy: proposingTierSchema.parse(row.matchedBy),
+        food,
+        rung: rankTierOf(row.rung),
+        margin: row.margin,
+    };
+
+    if (review === 'owed' && row.verificationKey !== null) {
+        return { proposal, verificationKey: row.verificationKey, review };
+    }
+
+    if (review === 'refused' && row.verificationKey === null) {
+        return { proposal, verificationKey: null, review };
+    }
+
+    throw new Error('a parse-job match with a food has no consistent review');
+}
+
 export class ParseJobMatchesDal implements ParseJobMatchesPort {
     public constructor(private readonly db: RecipeDrizzle) {}
 
@@ -102,7 +146,6 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
             .orderBy(asc(recipeParseJobMatches.lineIndex), asc(recipeParseJobMatches.foodIndex));
 
         return rows.map(({ match, lineDigestNow }) => {
-            const food = foodOf(match);
             const candidates: readonly MatchCandidate[] = storedCandidatesSchema.parse(match.candidates);
 
             return {
@@ -110,18 +153,8 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                 foodIndex: match.foodIndex,
                 lineDigest: parseStoredLineDigest(match.lineDigest),
                 judgementDigest: match.judgementDigest,
-                proposal:
-                    food === undefined
-                        ? null
-                        : {
-                              matchedBy: proposingTierSchema.parse(match.matchedBy),
-                              food,
-                              rung: rankTierOf(match.rung),
-                              margin: match.margin,
-                          },
+                ...proposalReviewOf(match),
                 candidates,
-                verificationKey: match.verificationKey,
-                review: reviewSchema.parse(match.review),
                 enqueuedAt: match.enqueuedAt,
                 lineDigestNow: parseStoredLineDigest(lineDigestNow),
             };
@@ -215,10 +248,18 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                AND m.review = 'owed'
                AND (m.enqueued_at IS NULL
                     OR (m.enqueued_at < now() - make_interval(secs => ${staleAfterSeconds})
+                        -- ⛔ A verdict counts only if it judged the FOOD, as the dedup read (findExistingKeys) does.
                         AND NOT EXISTS (SELECT 1 FROM recipe_ingredient_verifications v
-                                         WHERE v.verification_key = m.verification_key)
+                                         WHERE v.verification_key = m.verification_key
+                                           AND 'identity' = ANY (v.aspects))
+                        -- ⛔ An attempt blocks only while it can still be IN FLIGHT or is FINAL: exhausted (the gate
+                        -- gave up), or recent. An old unfinished attempt is a lost verdict write: send again, and the
+                        -- worker's allowance bounds the retries.
                         AND NOT EXISTS (SELECT 1 FROM recipe_verification_attempts a
-                                         WHERE a.verification_key = m.verification_key)))
+                                         WHERE a.verification_key = m.verification_key
+                                           AND (a.failure_code IS NOT NULL
+                                                OR a.last_received_at
+                                                   >= now() - make_interval(secs => ${staleAfterSeconds})))))
             RETURNING m.line_index, m.food_index, m.line_digest, m.verification_key,
                       to_json(m.enqueued_at) #>> '{}' AS claimed_at
         `);

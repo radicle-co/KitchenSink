@@ -79,6 +79,7 @@ function judgementOf(digest: LineDigest = DIGEST, sourceLine = LINE): string {
 
 /** A stored, current match for food 0 of line 0: a lexical proposal of F-whole with two candidates, review owed. */
 function matchOf(overrides: Partial<ParseJobMatch> = {}): ParseJobMatch {
+    // The cast is the fixture's: an override may swap the whole proposal/review/key trio, which `Partial` of a union cannot say.
     return {
         lineIndex: 0,
         foodIndex: 0,
@@ -94,7 +95,7 @@ function matchOf(overrides: Partial<ParseJobMatch> = {}): ParseJobMatch {
         verificationKey: 'v2:milk',
         enqueuedAt: new Date(),
         ...overrides,
-    };
+    } as ParseJobMatch;
 }
 
 function found(name: string, rootId: string, variantId?: string): FoodRefAnswer {

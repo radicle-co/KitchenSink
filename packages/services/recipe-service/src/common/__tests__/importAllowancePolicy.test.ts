@@ -16,8 +16,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    IMPORT_ALLOWANCE_LIMITS,
-    IMPORT_ALLOWANCE_WINDOW_MS,
+    IMPORT_ALLOWANCE_RULES,
     evaluateImportAllowance,
     importAllowanceWindowStart,
     type AllowanceEvent,
@@ -51,8 +50,10 @@ function decide(
 
 describe('the allowance numbers (ADR-0072 §8; 004 FR-022 and plan.md §5)', () => {
     it('is 200 a rolling day for paste and 1,000 recipes a rolling day for bulk import', () => {
-        expect(IMPORT_ALLOWANCE_LIMITS).toEqual({ paste: 200, bulk: 1000 });
-        expect(IMPORT_ALLOWANCE_WINDOW_MS).toBe(24 * HOUR);
+        expect(IMPORT_ALLOWANCE_RULES).toEqual({
+            paste: { limit: 200, windowMs: 24 * HOUR },
+            bulk: { limit: 1000, windowMs: 24 * HOUR },
+        });
     });
 });
 
@@ -176,25 +177,33 @@ describe('evaluateImportAllowance — bulk admits what fits (ADR-0072 §8)', () 
 
 describe('the window edge', () => {
     it.each(['paste', 'bulk'] as const)('%s: counts an event 24 h minus 1 ms old', (channel) => {
-        const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS - 1, IMPORT_ALLOWANCE_LIMITS[channel], channel)];
+        const full = [
+            eventAged(IMPORT_ALLOWANCE_RULES[channel].windowMs - 1, IMPORT_ALLOWANCE_RULES[channel].limit, channel),
+        ];
 
         expect(decide(channel, full, 1).kind).toBe('refuse');
     });
 
     it.each(['paste', 'bulk'] as const)('%s: does not count an event exactly 24 h old', (channel) => {
-        const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS, IMPORT_ALLOWANCE_LIMITS[channel], channel)];
+        const full = [
+            eventAged(IMPORT_ALLOWANCE_RULES[channel].windowMs, IMPORT_ALLOWANCE_RULES[channel].limit, channel),
+        ];
 
         expect(decide(channel, full, 1)).toEqual({ kind: 'admit', units: 1 });
     });
 
     it.each(['paste', 'bulk'] as const)('%s: does not count an event older than 24 h', (channel) => {
-        const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS + 1, IMPORT_ALLOWANCE_LIMITS[channel], channel)];
+        const full = [
+            eventAged(IMPORT_ALLOWANCE_RULES[channel].windowMs + 1, IMPORT_ALLOWANCE_RULES[channel].limit, channel),
+        ];
 
         expect(decide(channel, full, 1)).toEqual({ kind: 'admit', units: 1 });
     });
 
     it.each(['paste', 'bulk'] as const)('%s: exposes the same edge to the DAL', (channel) => {
-        expect(importAllowanceWindowStart(channel, NOW).getTime()).toBe(NOW.getTime() - IMPORT_ALLOWANCE_WINDOW_MS);
+        expect(importAllowanceWindowStart(channel, NOW).getTime()).toBe(
+            NOW.getTime() - IMPORT_ALLOWANCE_RULES[channel].windowMs,
+        );
     });
 });
 

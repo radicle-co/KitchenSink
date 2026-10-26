@@ -41,16 +41,25 @@
  */
 import type { ImportAllowanceChannel } from '../database/schema/importAllowanceEvents.js';
 
-/** The trailing window an event counts in, in milliseconds: 24 hours. */
-export const IMPORT_ALLOWANCE_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** A rolling day, in milliseconds. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** What one channel allows: how many units, over how long a trailing window. */
+export interface ImportAllowanceRule {
+    /** Units a user may spend in one window, whatever the tier (010 will vary this by tier). */
+    readonly limit: number;
+    /** The trailing window an event counts in, in milliseconds. */
+    readonly windowMs: number;
+}
 
 /**
- * Units a user may spend in one window on each channel, whatever the tier (010 will vary this by tier). Typed over the
- * channel union, so a channel added to the ledger without a limit is a compile error rather than an unlimited channel.
+ * Each channel's own rule: its limit and its own window (ADR-0072 §8). Typed over the channel union, so a channel added to
+ * the ledger without a rule is a compile error rather than an unlimited channel. Both windows are a rolling day today;
+ * they are separate values so that one can change without the other.
  */
-export const IMPORT_ALLOWANCE_LIMITS: Readonly<Record<ImportAllowanceChannel, number>> = {
-    paste: 200,
-    bulk: 1000,
+export const IMPORT_ALLOWANCE_RULES: Readonly<Record<ImportAllowanceChannel, ImportAllowanceRule>> = {
+    paste: { limit: 200, windowMs: DAY_MS },
+    bulk: { limit: 1000, windowMs: DAY_MS },
 };
 
 /** The caller's tier, as far as the allowance is concerned: the same fact `isPremiumPrincipal` reads. */
@@ -95,21 +104,18 @@ export interface ImportAllowanceInput {
  * @returns Units per window. Pure.
  */
 function limitFor(channel: ImportAllowanceChannel, _tier: ImportAllowanceTier): number {
-    return IMPORT_ALLOWANCE_LIMITS[channel];
+    return IMPORT_ALLOWANCE_RULES[channel].limit;
 }
 
 /**
  * The instant before which an event no longer counts on `channel`. An event at or before this instant is out of the window.
  *
- * Every channel shares the 24-hour window today; the parameter keeps the DAL's prune and read on the channel's own edge
- * if a channel ever gets another.
- *
- * @param _channel - The channel whose window this is.
+ * @param channel - The channel whose window this is.
  * @param now - The instant the decision is made at.
  * @returns `now` minus the window. Pure.
  */
-export function importAllowanceWindowStart(_channel: ImportAllowanceChannel, now: Date): Date {
-    return new Date(now.getTime() - IMPORT_ALLOWANCE_WINDOW_MS);
+export function importAllowanceWindowStart(channel: ImportAllowanceChannel, now: Date): Date {
+    return new Date(now.getTime() - IMPORT_ALLOWANCE_RULES[channel].windowMs);
 }
 
 /**
@@ -117,16 +123,21 @@ export function importAllowanceWindowStart(_channel: ImportAllowanceChannel, now
  *
  * @param counted - The counted events, oldest first.
  * @param needed - Units that must leave: at least 1.
+ * @param windowMs - The channel's window.
  * @returns The moment the last of the units needed leaves. Pure.
  */
-function whenUnitsLeave(counted: readonly { units: number; createdAt: Date }[], needed: number): Date {
+function whenUnitsLeave(
+    counted: readonly { units: number; createdAt: Date }[],
+    needed: number,
+    windowMs: number,
+): Date {
     let freed = 0;
 
     for (const event of counted) {
         freed += event.units;
 
         if (freed >= needed) {
-            return new Date(event.createdAt.getTime() + IMPORT_ALLOWANCE_WINDOW_MS);
+            return new Date(event.createdAt.getTime() + windowMs);
         }
     }
 
@@ -154,6 +165,7 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
         .filter((event) => event.channel === input.channel && event.createdAt.getTime() > windowStart)
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const spent = counted.reduce((sum, event) => sum + event.units, 0);
+    const { windowMs } = IMPORT_ALLOWANCE_RULES[input.channel];
     const room = limitFor(input.channel, input.tier) - spent;
 
     if (room >= input.requestedUnits) {
@@ -162,12 +174,12 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
 
     if (room < 1) {
         // Over the limit by `-room` (or exactly at it): ONE unit of room needs `1 - room` units to leave.
-        return { kind: 'refuse', resetsAt: whenUnitsLeave(counted, 1 - room) };
+        return { kind: 'refuse', resetsAt: whenUnitsLeave(counted, 1 - room, windowMs) };
     }
 
     // The `room` units admitted now sit on the ledger at `now`, so the allowance is full again and the next unit to
     // leave is the oldest one counted, or the units just written when nothing older counts.
     const afterAdmission = [...counted, { units: room, createdAt: input.now }];
 
-    return { kind: 'partial', units: room, resetsAt: whenUnitsLeave(afterAdmission, 1) };
+    return { kind: 'partial', units: room, resetsAt: whenUnitsLeave(afterAdmission, 1, windowMs) };
 }

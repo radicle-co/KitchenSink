@@ -5,7 +5,7 @@
  * convention); its header carries the design: one row per unit spent, an event counts for 24 hours, no GRANT written
  * (the service role's DML comes from the default privileges, ADR-0039), erased with its user.
  */
-import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import { inArray, sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 /** What can spend a unit of the allowance, mirrored from the SQL CHECK. */
@@ -24,7 +24,7 @@ export const importAllowanceEvents = pgTable(
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
-        check('import_allowance_events_channel_check', sql`${table.channel} IN ('paste', 'bulk')`),
+        check('import_allowance_events_channel_check', inArray(table.channel, [...IMPORT_ALLOWANCE_CHANNELS])),
         check('import_allowance_events_units_check', sql`${table.units} > 0`),
         index('import_allowance_events_user_created_idx').on(table.userId, table.createdAt),
     ],

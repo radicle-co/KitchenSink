@@ -14,7 +14,7 @@ import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 import type { RecipeDrizzle } from '../../../database/client.js';
 import { makeFakeDrizzle, methodsOf, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
-import { IMPORT_ALLOWANCE_LIMITS, IMPORT_ALLOWANCE_WINDOW_MS } from '../../importAllowancePolicy.js';
+import { IMPORT_ALLOWANCE_RULES } from '../../importAllowancePolicy.js';
 import type { ImportAllowanceChannel } from '../../../database/schema/importAllowanceEvents.js';
 import { ImportAllowanceDal } from '../importAllowance.dal.js';
 
@@ -77,7 +77,7 @@ describe('ImportAllowanceDal.admit', () => {
 
     it('refuses at the limit, names when the oldest unit leaves, and writes nothing', async () => {
         const oldest = new Date(NOW.getTime() - 20 * 3_600_000);
-        const rest = Array.from({ length: IMPORT_ALLOWANCE_LIMITS.paste - 1 }, () => ({
+        const rest = Array.from({ length: IMPORT_ALLOWANCE_RULES.paste.limit - 1 }, () => ({
             channel: 'paste' as const,
             units: 1,
             createdAt: new Date(NOW.getTime() - 3_600_000),
@@ -86,7 +86,10 @@ describe('ImportAllowanceDal.admit', () => {
 
         const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
 
-        expect(outcome).toEqual({ kind: 'refused', resetsAt: new Date(oldest.getTime() + IMPORT_ALLOWANCE_WINDOW_MS) });
+        expect(outcome).toEqual({
+            kind: 'refused',
+            resetsAt: new Date(oldest.getTime() + IMPORT_ALLOWANCE_RULES.paste.windowMs),
+        });
         expect(methodsOf(control)).not.toContain('insert');
     });
 
@@ -118,7 +121,7 @@ describe('ImportAllowanceDal.admit', () => {
 
         await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
 
-        const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_WINDOW_MS).toISOString();
+        const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_RULES.paste.windowMs).toISOString();
         const wheres = control.calls.filter((call) => call.method === 'where').map((call) => rendered(call.args[0]));
         const perChannel = (operator: '<=' | '>'): string =>
             [
@@ -142,7 +145,7 @@ describe('ImportAllowanceDal.admit', () => {
 
     it('⛔ asks the policy for the REQUESTED channel: a full paste allowance does not stop a bulk admission', async () => {
         queueReads(
-            Array.from({ length: IMPORT_ALLOWANCE_LIMITS.paste }, () => ({
+            Array.from({ length: IMPORT_ALLOWANCE_RULES.paste.limit }, () => ({
                 channel: 'paste' as const,
                 units: 1,
                 createdAt: new Date(NOW.getTime() - 3_600_000),
@@ -163,7 +166,7 @@ describe('ImportAllowanceDal.admit', () => {
         expect(outcome).toEqual({
             kind: 'partial',
             units: 10,
-            resetsAt: new Date(NOW.getTime() - 3_600_000 + IMPORT_ALLOWANCE_WINDOW_MS),
+            resetsAt: new Date(NOW.getTime() - 3_600_000 + IMPORT_ALLOWANCE_RULES.bulk.windowMs),
         });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 10, createdAt: NOW }]);
     });

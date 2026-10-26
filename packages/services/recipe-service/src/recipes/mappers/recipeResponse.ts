@@ -9,7 +9,7 @@
  * `RecipesService.list` project through it; leaving it on the service would have made the assembler import
  * the orchestrator to render a response, inverting the dependency direction.
  */
-import { boundBySchema, type RecipeDetailNutrition, type RecipePhoto } from '@kitchensink/recipe-core';
+import { isBoundBy, type RecipeDetailNutrition, type RecipePhoto } from '@kitchensink/recipe-core';
 
 import type { IngredientRow } from '../../database/schema/index.js';
 import { quantityFromColumns } from '../dal/quantityColumns.js';
@@ -31,8 +31,6 @@ import { recipeRowToDomain } from './recipeRowToDomain.js';
  * @returns The wire line.
  */
 export function toIngredientResponse(row: IngredientRow, view: IngredientLineView): RecipeIngredientResponse {
-    const boundBy = boundBySchema.safeParse(row.boundBy);
-
     return {
         // The binding id, under the wire's continuous name (a binding replaced the old catalog row one for one).
         ingredientId: row.foodLookupId,
@@ -51,9 +49,10 @@ export function toIngredientResponse(row: IngredientRow, view: IngredientLineVie
         ...(row.groupLabel !== null ? { groupLabel: row.groupLabel } : {}),
         isUserEntered: view.isUserEntered,
         ...(view.resolutionStatus === undefined ? {} : { resolutionStatus: view.resolutionStatus }),
-        // ADR-0072 §5 — parsed, not cast: the column is `text`, and the wire carries only the closed set. NULL (no recorded
-        // origin) omits the key. `import_line_id` is provenance and is not published.
-        ...(boundBy.success ? { boundBy: boundBy.data } : {}),
+        // ADR-0072 §5 — narrowed, not cast: the column is `text`, and the wire carries only the closed set. NULL (no recorded
+        // origin) omits the key, and so would a stranger the CHECK should have kept out: a read does not 500 over provenance.
+        // `import_line_id` is provenance and is not published.
+        ...(isBoundBy(row.boundBy) ? { boundBy: row.boundBy } : {}),
     };
 }
 

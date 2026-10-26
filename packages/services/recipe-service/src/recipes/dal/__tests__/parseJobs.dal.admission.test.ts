@@ -17,24 +17,28 @@ const OWNER = '01JADMISSIONOWNER000000001';
 const EXPIRES = new Date('2026-10-27T12:00:00.000Z');
 const CHARGE = { kind: 'charge', channel: 'paste', units: 1, tier: { isPremium: false } } as const;
 
-function dalAnswering(answer: Awaited<ReturnType<ImportAllowanceDal['admit']>>): ParseJobsDal {
+function dalAnswering(answer: Awaited<ReturnType<ImportAllowanceDal['admit']>>) {
     const control = makeFakeDrizzle<RecipeDrizzle>();
     const allowance = { admit: () => Promise.resolve(answer) } as unknown as ImportAllowanceDal;
 
-    return new ParseJobsDal(control.db, {} as pg.Pool, allowance);
+    return { control, dal: new ParseJobsDal(control.db, {} as pg.Pool, allowance) };
 }
 
 describe('ParseJobsDal.createJob reads the allowance answer', () => {
     it('returns a refusal untouched, and writes nothing', async () => {
         const resetsAt = new Date('2026-10-27T01:00:00.000Z');
-        const outcome = await dalAnswering({ kind: 'refused', resetsAt }).createJob(OWNER, [], EXPIRES, CHARGE);
+        const { control, dal } = dalAnswering({ kind: 'refused', resetsAt });
+        const outcome = await dal.createJob(OWNER, [], EXPIRES, CHARGE);
 
         expect(outcome).toEqual({ kind: 'refused', resetsAt });
+        // Nothing past the allowance ran: no job insert, no line insert.
+        expect(control.calls.filter((call) => call.method === 'insert')).toEqual([]);
     });
 
     it('⛔ treats an admission of PART of a one-unit job as a defect, so the transaction rolls back', async () => {
-        await expect(
-            dalAnswering({ kind: 'partial', units: 1, resetsAt: EXPIRES }).createJob(OWNER, [], EXPIRES, CHARGE),
-        ).rejects.toThrow(/part of a single-unit parse job/u);
+        const { control, dal } = dalAnswering({ kind: 'partial', units: 1, resetsAt: EXPIRES });
+
+        await expect(dal.createJob(OWNER, [], EXPIRES, CHARGE)).rejects.toThrow(/part of a single-unit parse job/u);
+        expect(control.calls.filter((call) => call.method === 'insert')).toEqual([]);
     });
 });

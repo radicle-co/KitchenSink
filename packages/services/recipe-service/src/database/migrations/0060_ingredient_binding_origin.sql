@@ -1,7 +1,7 @@
 -- 0060 — who bound an ingredient line, and which imported line it came from (ADR-0072 §5).
 --
 -- `bound_by` is a CLOSED SET, owned by `BOUND_BY_VALUES` in `recipes/domain/bindingOriginCarryForward.ts` and parity-tested
--- against the CHECK below (`boundByParity.test.ts`). Adding a value is a migration AND a contract change, so the set is a
+-- against the CHECK below (`importSchemaParity.test.ts`). Adding a value is a migration AND a contract change, so the set is a
 -- one-way door for stored rows. NULL means NO RECORDED ORIGIN: a line kept as written, or one written before bulk import
 -- existed. A line bound to a food without a carried origin is `cook` (`carryForwardBinding`).
 --

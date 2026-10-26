@@ -23,7 +23,7 @@ import pg from 'pg';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 import { ImportAllowanceDal, type AdmitOutcome } from '../../../src/common/dal/importAllowance.dal.js';
-import { IMPORT_ALLOWANCE_LIMITS, IMPORT_ALLOWANCE_WINDOW_MS } from '../../../src/common/importAllowancePolicy.js';
+import { IMPORT_ALLOWANCE_RULES } from '../../../src/common/importAllowancePolicy.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -74,16 +74,16 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
     }
 
     it('⛔ a full paste allowance does not touch bulk, and a full bulk allowance does not touch paste', async () => {
-        await seed('paste', IMPORT_ALLOWANCE_LIMITS.paste, 1);
+        await seed('paste', IMPORT_ALLOWANCE_RULES.paste.limit, 1);
 
         expect(await admit('bulk', 3)).toEqual({ kind: 'admitted', units: 3 });
         expect((await admit('paste', 1)).kind).toBe('refused');
 
-        await seed('bulk', IMPORT_ALLOWANCE_LIMITS.bulk - 3, 1);
+        await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit - 3, 1);
 
         expect((await admit('bulk', 1)).kind).toBe('refused');
-        expect(await spent('paste')).toBe(IMPORT_ALLOWANCE_LIMITS.paste);
-        expect(await spent('bulk')).toBe(IMPORT_ALLOWANCE_LIMITS.bulk);
+        expect(await spent('paste')).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+        expect(await spent('bulk')).toBe(IMPORT_ALLOWANCE_RULES.bulk.limit);
     });
 
     it('⛔ a 2,000-recipe file at an empty ledger admits exactly 1,000 and names a day from now', async () => {
@@ -103,7 +103,7 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
 
         // The units admitted now are the only ones counted, so the next room opens a day after they were written.
         expect(outcome.resetsAt.getTime()).toBe(
-            (written.rows[0] as { created_at: Date }).created_at.getTime() + IMPORT_ALLOWANCE_WINDOW_MS,
+            (written.rows[0] as { created_at: Date }).created_at.getTime() + IMPORT_ALLOWANCE_RULES.bulk.windowMs,
         );
     });
 
@@ -127,7 +127,7 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         }
 
         expect(outcome.resetsAt.getTime()).toBe(
-            (oldest.rows[0] as { at: Date }).at.getTime() + IMPORT_ALLOWANCE_WINDOW_MS,
+            (oldest.rows[0] as { at: Date }).at.getTime() + IMPORT_ALLOWANCE_RULES.bulk.windowMs,
         );
     });
 
@@ -206,13 +206,13 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
     });
 
     it("counts each caller's allowance separately", async () => {
-        await seed('bulk', IMPORT_ALLOWANCE_LIMITS.bulk, 1, OTHER);
+        await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit, 1, OTHER);
 
         expect(await admit('bulk', 10)).toEqual({ kind: 'admitted', units: 10 });
     });
 
     it('a refusal writes no ledger row', async () => {
-        await seed('bulk', IMPORT_ALLOWANCE_LIMITS.bulk, 1);
+        await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit, 1);
         const before = await spent('bulk');
 
         expect((await admit('bulk', 10)).kind).toBe('refused');

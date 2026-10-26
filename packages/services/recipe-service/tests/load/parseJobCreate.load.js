@@ -71,7 +71,7 @@ const TYPICAL_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_P95_MS'] || SC009_P95_MS);
  */
 const MAX_PASTE_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_MAX_P95_MS'] || TYPICAL_P95_MS * 2);
 
-/** The service's daily import allowance per user (004 FR-022, plan.md §5). Mirrors `IMPORT_ALLOWANCE_DAILY_LIMIT`. */
+/** The service's daily import allowance per user (004 FR-022, plan.md §5). Mirrors `IMPORT_ALLOWANCE_RULES.paste.limit`. */
 const DAILY_ALLOWANCE = Number(__ENV['RECIPE_IMPORT_DAILY_LIMIT'] || 200);
 
 /**

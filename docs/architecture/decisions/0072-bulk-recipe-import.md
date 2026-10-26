@@ -113,7 +113,8 @@ open.
 ### 5. Who bound a line is stored: `ingredients.bound_by`
 
 A new nullable column on `ingredients` records who bound each line. Its values are a closed set, owned by
-`BOUND_BY_VALUES` in `recipes/domain/bindingOriginCarryForward.ts`:
+`BOUND_BY_VALUES`. It is declared once in `@kitchensink/recipe-core`, because the wire schema is built from it, and
+`recipes/domain/bindingOriginCarryForward.ts` re-exports it for the carry-forward rule:
 
 | Value      | The line was bound by                                                                  |
 | ---------- | -------------------------------------------------------------------------------------- |

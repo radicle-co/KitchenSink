@@ -13,7 +13,7 @@
 -- ONE ROW PER SPEND. `units` is positive (a paste is 1; a bulk spend is the number of recipes admitted at once, which a
 -- file larger than the room left makes smaller than the file) and `channel` names what spent it, so the 011 OCR
 -- sub-quota can count its own channel without a second table. The channel is a closed set: adding one is a migration
--- AND a limit in `IMPORT_ALLOWANCE_LIMITS` (a `Record` over the union, so a channel without a limit does not compile). `created_at` is written by the application from the
+-- AND a limit in `IMPORT_ALLOWANCE_RULES` (a `Record` over the union, so a channel without a rule does not compile). `created_at` is written by the application from the
 -- same database-clock reading the decision was made on, never defaulted per statement, so a decision and its record agree.
 --
 -- ⚠️ ROWS EXPIRE: an event stops counting 24 hours after `created_at`, and the DAL deletes the caller's expired rows under

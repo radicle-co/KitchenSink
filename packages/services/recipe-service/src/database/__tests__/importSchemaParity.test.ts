@@ -19,6 +19,7 @@ import { MATCH_MODES, ITEM_REVIEWS } from '../../import/domain/importBindingPoli
 import { boundBySchema } from '@kitchensink/recipe-core';
 
 import { BOUND_BY_VALUES } from '../../recipes/domain/bindingOriginCarryForward.js';
+import { IMPORT_ALLOWANCE_CHANNELS } from '../schema/importAllowanceEvents.js';
 import { importMatchModeSchema, importReviewMarkSchema, importStageSchema } from '../../recipes/import.schema.js';
 import {
     IMPORT_ITEM_REVIEWS,
@@ -64,6 +65,7 @@ function inListOf(sql: string, table: string, column: string): string[] | undefi
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
 const MIGRATION_0059 = read('0059_recipe_imports.sql');
+const MIGRATION_0058 = read('0058_import_allowance_events.sql');
 const MIGRATION_0060 = read('0060_ingredient_binding_origin.sql');
 
 describe('the bulk-import CHECK vocabularies are the code vocabularies', () => {
@@ -92,6 +94,14 @@ describe('the bulk-import CHECK vocabularies are the code vocabularies', () => {
 
         expect(values.length).toBeGreaterThan(0);
         expect(values).toStrictEqual(sorted(BOUND_BY_VALUES));
+    });
+});
+
+describe("the allowance ledger's channel CHECK is the channel vocabulary (0058)", () => {
+    it('import_allowance_events.channel', () => {
+        expect(inListOf(MIGRATION_0058, 'CREATE TABLE import_allowance_events', 'channel')).toStrictEqual(
+            sorted(IMPORT_ALLOWANCE_CHANNELS),
+        );
     });
 });
 

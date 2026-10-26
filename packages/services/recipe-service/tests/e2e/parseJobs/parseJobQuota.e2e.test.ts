@@ -23,7 +23,7 @@ import pg from 'pg';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 import { apiErrorSchema, parseJobResponseSchema, recipeApiErrorSchema } from '@kitchensink/schema-recipe';
 
-import { IMPORT_ALLOWANCE_LIMITS, IMPORT_ALLOWANCE_WINDOW_MS } from '../../../src/common/importAllowancePolicy.js';
+import { IMPORT_ALLOWANCE_RULES } from '../../../src/common/importAllowancePolicy.js';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -137,13 +137,13 @@ describe('the daily import allowance (LOCAL e2e)', () => {
 
     describe('admission over HTTP', () => {
         it('admits the 200th unit and refuses the 201st with 429 IMPORT_QUOTA_EXCEEDED', async () => {
-            await seed(USER, IMPORT_ALLOWANCE_LIMITS.paste - 1, 1);
+            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit - 1, 1);
 
             const admitted = await paste('2 cups flour');
 
             expect(admitted.status).toBe(202);
             parseJobResponseSchema.parse(await admitted.json());
-            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_LIMITS.paste);
+            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
 
             const refused = await paste('1 tsp salt');
 
@@ -184,14 +184,14 @@ describe('the daily import allowance (LOCAL e2e)', () => {
                 [USER],
             );
             const expected = new Date(
-                (oldest.rows[0] as { oldest: Date }).oldest.getTime() + IMPORT_ALLOWANCE_WINDOW_MS,
+                (oldest.rows[0] as { oldest: Date }).oldest.getTime() + IMPORT_ALLOWANCE_RULES.paste.windowMs,
             );
 
             expect(body.details.resetsAt).toBe(expected.toISOString());
         });
 
         it('⛔ a refusal leaves no job, no line and no new ledger row', async () => {
-            await seed(USER, IMPORT_ALLOWANCE_LIMITS.paste, 1);
+            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit, 1);
             const before = await ledgerUnits();
 
             const response = await paste('2 cups flour\n1 tsp salt');
@@ -210,7 +210,7 @@ describe('the daily import allowance (LOCAL e2e)', () => {
 
         it('⛔ a unit older than 24 h neither counts nor survives', async () => {
             // 199 fresh units and 5 expired ones: the expired five must not push the caller over the limit.
-            await seed(USER, IMPORT_ALLOWANCE_LIMITS.paste - 1, 1);
+            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit - 1, 1);
             await seed(USER, 5, 25);
 
             const response = await paste('2 cups flour');
@@ -223,16 +223,16 @@ describe('the daily import allowance (LOCAL e2e)', () => {
             );
 
             expect((old.rows[0] as { n: number }).n).toBe(0);
-            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_LIMITS.paste);
+            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
         });
 
         it("counts each caller's allowance separately", async () => {
-            await seed(OTHER, IMPORT_ALLOWANCE_LIMITS.paste, 1);
+            await seed(OTHER, IMPORT_ALLOWANCE_RULES.paste.limit, 1);
 
             const response = await paste('2 cups flour');
 
             expect(response.status).toBe(202);
-            expect(await ledgerUnits(OTHER)).toBe(IMPORT_ALLOWANCE_LIMITS.paste);
+            expect(await ledgerUnits(OTHER)).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
         });
     });
 
@@ -284,14 +284,14 @@ describe('the daily import allowance (LOCAL e2e)', () => {
         });
 
         it('⛔ admits exactly one of two concurrent creates at 199 units', async () => {
-            await seed(USER, IMPORT_ALLOWANCE_LIMITS.paste - 1, 1);
+            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit - 1, 1);
 
             const statuses = (await Promise.all([paste('2 cups flour'), paste('1 tsp salt')])).map(
                 (response) => response.status,
             );
 
             expect([...statuses].sort()).toEqual([202, 429]);
-            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_LIMITS.paste);
+            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
             expect(await jobCount()).toBe(1);
         });
     });

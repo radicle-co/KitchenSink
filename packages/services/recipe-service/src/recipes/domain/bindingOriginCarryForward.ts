@@ -23,15 +23,13 @@
  * carries nothing for it. Its `import_line_id` survives only when the caller passes it. Matching by position would
  * hide that and is refused for the reason the precedent records (silent corruption on insert or reorder).
  *
- * ⚠️ `BOUND_BY_VALUES` is the one home of the vocabulary. The SQL CHECK in the migration that adds the column must be
- * parity-tested against it.
+ * ⚠️ `BOUND_BY_VALUES` is the one TypeScript home of the vocabulary. It is DECLARED in `@kitchensink/recipe-core`, because
+ * the wire schema for a recipe line's `boundBy` is built from it there, and re-exported here so the rule reads it from the
+ * domain. The SQL CHECK in migration 0060 is parity-tested against it (`importSchemaParity.test.ts`).
  */
+import { BOUND_BY_VALUES, type BoundBy } from '@kitchensink/recipe-core';
 
-/** Who bound a line to its food. */
-export const BOUND_BY_VALUES = ['exact', 'curated', 'review', 'default', 'autoBest', 'cook'] as const;
-
-/** One origin. */
-export type BoundBy = (typeof BOUND_BY_VALUES)[number];
+export { BOUND_BY_VALUES, type BoundBy };
 
 /** One persisted line, reduced to what this rule reads. */
 export interface StoredBinding {

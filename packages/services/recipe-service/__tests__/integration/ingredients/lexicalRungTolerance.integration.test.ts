@@ -1,17 +1,18 @@
 /**
- * Integration proof that the lexical tier survives a food that publishes NO rung (ADR-0070), over a REAL HTTP server.
+ * Integration proof that the lexical tier survives a food that publishes NO rung (ADR-0070), over a REAL HTTP server,
+ * on the path that runs it: the paste matcher's proposal chain (ADR-0071).
  *
- * An absent rung on a name hit means food is older than recipe, or sent a rung the food client reads as absent. Before
- * this, `IngredientsService.recordResolution` dropped the whole ranked event when the rung was missing (so the line's
- * evidence fell to `unattributed`), and `shouldReformulate` read a rung-less list as "structural" (so the D11 synonym
- * retry stopped). Both failures were silent. This suite drives the real collaborators end to end:
- * `FoodServiceClients` → the socket → `FoodCatalogGateway` → `createLexicalTier` → `IngredientsService`.
+ * An absent rung on a name hit means food is older than recipe, or sent a rung the food client reads as absent. Two
+ * silent failures were possible: the ranked shape was dropped (so nothing was proposed or ranked), and
+ * `shouldReformulate` read a rung-less list as "structural" (so the D11 synonym retry stopped). This suite drives the
+ * real collaborators end to end: `FoodServiceClients` → the socket → `FoodCatalogGateway` → `createLexicalTier` →
+ * `MatchProposalService`, and reads what the matcher stores.
  *
- * The tier is wired into the service explicitly. Production's by-name path no longer runs the lexical tier (ADR-0071),
- * and the paste-match proposal chain does; this suite is about the tier and the event write, not about which chain
- * holds it.
+ * ⚠️ Re-targeted (ADR-0071). It drove `IngredientsService.addByName` with the lexical tier wired in by hand and asserted
+ * the ranked resolution EVENT. By-name now runs the settled chain only, and that event write was deleted as unreachable,
+ * so the same rung-less food is asserted through the matcher's stored PROPOSAL instead.
  *
- * No database: the bindings and resolution repositories are doubled, which is the integration tier's rule.
+ * No database: the parse job and the match store are doubled, which is the integration tier's rule.
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -19,19 +20,20 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CallerToken } from '../../../src/auth/CallerToken.js';
-import type { RootArm } from '../../../src/database/schema/foodLookupArm.js';
-import type { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-
+import type { Principal } from '../../../src/auth/principal.js';
 import { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway.js';
 import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import { FoodServiceClients } from '../../../src/ingredients/FoodServiceClients.factory.js';
-import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import { createLexicalTier } from '../../../src/ingredients/resolution/lexicalTier.js';
+import { fakeLineVerificationsDal } from '../../../src/recipes/__fixtures__/lineVerificationsDal.fixture.js';
 import {
-    makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
-import { makeCanonicalName } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+    inMemoryParseJobMatches,
+    makeParseJobLine,
+    makeParseJobRecord,
+    makeStoredProposal,
+} from '../../../src/recipes/__fixtures__/parseJobMatches.fixture.js';
+import { fakeVerificationQueue } from '../../../src/recipes/__fixtures__/verificationQueue.fixture.js';
+import { MatchProposalService } from '../../../src/recipes/matchProposal.service.js';
 
 /** What the stub food answers for each search term: hits with NO rung, as an older food sends them. */
 const SEARCHES: Readonly<Record<string, readonly { id: string; name: string; score: number }[]>> = {
@@ -45,6 +47,18 @@ const SEARCHES: Readonly<Record<string, readonly { id: string; name: string; sco
 
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer eyJhbGciOiJSUzI1NiJ9.RUNGLESS.sig');
 const AUTHOR = '01JU10RUNGLESS00000AUTHOR0';
+const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+
+/** The cook, as the auth middleware hands it over. */
+const COOK: Principal = {
+    userId: AUTHOR,
+    sub: `clerk_${AUTHOR}`,
+    scopes: [],
+    permissions: [],
+    roles: [],
+    principalKind: 'real',
+    containment: 'enforce',
+};
 
 describe('the lexical tier against a food that publishes no rung (integration)', () => {
     let server: Server;
@@ -105,10 +119,10 @@ describe('the lexical tier against a food that publishes no rung (integration)',
         searchedTerms = [];
     });
 
-    /** The service over the real food stack, with the lexical tier wired in and its observer and recorder captured. */
-    function build(): {
-        service: IngredientsService;
-        record: ReturnType<typeof vi.fn>;
+    /** The matcher over the real food stack, proposing for one pasted line naming `phrase`, with its observer captured. */
+    function build(phrase: string): {
+        service: MatchProposalService;
+        matches: ReturnType<typeof inMemoryParseJobMatches>;
         onUnrankedHits: ReturnType<typeof vi.fn>;
     } {
         const clients = new FoodServiceClients({
@@ -118,59 +132,59 @@ describe('the lexical tier against a food that publishes no rung (integration)',
             readNutritionDeadlineMs: 3_000,
         });
         const gateway = new FoodCatalogGateway(clients, { enabled: true });
-        const record = vi.fn().mockResolvedValue(undefined);
         const onUnrankedHits = vi.fn();
-        const lookups = {
-            findOrCreateBound: vi.fn(async (ref: { id: string }): Promise<RootArm> => ({
-                kind: 'root',
-                lookupId: `lookup-${ref.id}`,
-                foodId: ref.id,
-                foodOwnerId: null,
-                createdAt: new Date('2026-10-25T00:00:00.000Z'),
-            })),
-        } as unknown as FoodLookupsDal;
+        const matches = inMemoryParseJobMatches(new Map([[JOB, AUTHOR]]));
+        const sourceLine = `2 cups ${phrase}`;
+        const job = makeParseJobRecord({
+            lines: [
+                makeParseJobLine({
+                    sourceLine,
+                    proposal: makeStoredProposal({ raw: sourceLine, foods: [{ name: phrase, prep: null }] }),
+                }),
+            ],
+        });
 
         return {
-            service: new IngredientsService(
-                lookups,
-                clients,
+            service: new MatchProposalService(
+                { getJob: vi.fn(async (ownerId: string) => (ownerId === AUTHOR ? job : undefined)) },
+                matches,
+                [createLexicalTier(gateway, { onUnrankedHits })],
                 gateway,
                 new FoodRefsGateway(clients),
-                [createLexicalTier(gateway, { onUnrankedHits })],
-                makeFakeIngredientResolutionsDal({ record }),
-                makeFakeResolutionBandsDal(),
+                fakeVerificationQueue(),
+                fakeLineVerificationsDal(),
             ),
-            record,
+            matches,
             onUnrankedHits,
         };
     }
 
-    it('records the shortlist and margin with no rung, and reports the rung-less hits', async () => {
-        const { service, record, onUnrankedHits } = build();
+    it('proposes the top rung-less hit with its margin and shortlist, no rung, and reports the rung-less hits', async () => {
+        const { service, matches, onUnrankedHits } = build('plain flour');
 
-        const bound = await service.addByName(CALLER, makeCanonicalName('plain flour'), AUTHOR);
+        await service.propose(COOK, CALLER, JOB);
 
-        expect(bound.foodId).toBe('food-flour');
-        expect(record).toHaveBeenCalledWith(
-            expect.objectContaining({
-                tier: 'lexical',
-                margin: expect.closeTo(0.3, 6),
-                shortlist: [
-                    { foodId: 'food-flour', score: 0.9 },
-                    { foodId: 'food-carob', score: 0.6 },
-                ],
-            }),
-        );
-        expect((record.mock.calls[0]?.[0] as Record<string, unknown>)['rung']).toBeUndefined();
+        const [row] = matches.rows.values();
+
+        expect(row?.proposal).toMatchObject({
+            matchedBy: 'lexical',
+            food: { kind: 'root', id: 'food-flour' },
+            rung: null,
+            margin: expect.closeTo(0.3, 6),
+        });
+        expect(row?.candidates).toStrictEqual([
+            { kind: 'root', id: 'food-flour', rung: null },
+            { kind: 'root', id: 'food-carob', rung: null },
+        ]);
         expect(onUnrankedHits).toHaveBeenCalledWith(2);
     });
 
     it('still runs the synonym retry when the first pass carries only rung-less hits', async () => {
-        const { service } = build();
+        const { service, matches } = build('aubergine');
 
-        const bound = await service.addByName(CALLER, makeCanonicalName('aubergine'), AUTHOR);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(searchedTerms).toEqual(['aubergine', 'eggplant']);
-        expect(bound.foodId).toBe('food-eggplant');
+        expect([...matches.rows.values()][0]?.proposal?.food).toStrictEqual({ kind: 'root', id: 'food-eggplant' });
     });
 });

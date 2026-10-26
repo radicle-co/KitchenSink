@@ -304,32 +304,19 @@ describe('RecipeDetailAssembler.toDetailResponse — names and statuses through 
     });
 });
 
+/**
+ * Rewritten (ADR-0071): this case used to hand the assembler a provenance double and assert it was never read. That
+ * read (`IngredientResolutionsDal.latestResolutionsByLookupIds`) was deleted with the band subsystem's last consumer, so
+ * the assembler has no way to reach provenance at all. What stays is the outcome: an unjudged line reports its catalog
+ * status, never `PENDING_VERIFICATION`.
+ */
 describe('RecipeDetailAssembler — provenance on the SHARED binding no longer shapes a line (ADR-0071)', () => {
-    it('⛔ a lexical event on the binding does not render the line PENDING_VERIFICATION, and is not read', async () => {
+    it('⛔ an unjudged line on a shared binding reports its catalog status, never PENDING_VERIFICATION', async () => {
         // A binding row is shared by every cook, so its latest event says what ANOTHER cook's add did. Reading it
         // withheld this cook's line, or (after a later curated bind of the same food) published someone's wrong one.
-        const latestResolutionsByLookupIds = vi.fn().mockResolvedValue(
-            new Map([
-                [
-                    'l-shared',
-                    {
-                        tier: 'lexical',
-                        rung: 'head',
-                        margin: 0.1,
-                        shortlist: [],
-                        queryShape: 'single-word',
-                        rankerVersion: 'v',
-                        bandEpoch: null,
-                        authorAugmented: false,
-                        createdAt: new Date(),
-                    },
-                ],
-            ]),
-        );
         const collaborators = {
             lookups: fakeFoodLookupsDal(SHARED),
             refs: refsOf({ 'root:food-shared': found('milk') }).gateway,
-            ingredientResolutions: { latestResolutionsByLookupIds },
         } as Parameters<typeof makeRecipeDetailAssembler>[0];
         const stored = aggregateOf('l-shared');
         const transcribed: RecipeAggregate = {
@@ -344,7 +331,6 @@ describe('RecipeDetailAssembler — provenance on the SHARED binding no longer s
         });
 
         expect(detail.ingredients[0]?.resolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-        expect(latestResolutionsByLookupIds).not.toHaveBeenCalled();
     });
 });
 

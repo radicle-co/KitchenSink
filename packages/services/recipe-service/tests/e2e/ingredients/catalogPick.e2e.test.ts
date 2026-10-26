@@ -32,7 +32,6 @@ import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
@@ -85,7 +84,6 @@ describe('catalog pick and filter search (integration: service + real DAL + stub
             new FoodRefsGateway(foodClientsOf(food)),
             [],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     }
 

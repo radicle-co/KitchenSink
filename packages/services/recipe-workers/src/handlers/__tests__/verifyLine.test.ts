@@ -71,6 +71,20 @@ const MESSAGE = {
     requestedAt: '2026-08-21T10:00:00.000Z',
 };
 
+/**
+ * The band a ranked message may name (ADR-0071). The band subsystem is DORMANT BY DECISION: no producer sends one, so a
+ * message without it feeds no band and reads no authority. The cases that exercise the band path carry it explicitly.
+ */
+const BAND_KEY = {
+    rung: 'head',
+    marginBand: 'ge-0.9-rung',
+    queryShape: 'multi-word',
+    rankerVersion: 'ladder-v2-comma-head',
+} as const;
+
+/** {@link MESSAGE}, naming its own band: the only shape the worker feeds a band observation from. */
+const BANDED = { ...MESSAGE, bandKey: BAND_KEY };
+
 const SETTINGS = { ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' };
 
 const ANSWERED = {
@@ -129,7 +143,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         },
         claimLeaseSeconds: 60,
         attemptAllowance: 20,
-        bands: { record: spies.bandRecord, authorityForFood: spies.bandAuthority },
+        bands: { record: spies.bandRecord, authorityFor: spies.bandAuthority },
         emit: spies.emit,
         now: () => new Date('2026-08-21T10:00:01.000Z'),
         ...overrides,
@@ -1002,14 +1016,50 @@ describe('a line whose measure was RESTATED', () => {
     });
 });
 
-describe('band feedback (plan U3)', () => {
-    it('reports the TERMINAL verdict to the band store, after the verdict is recorded', async () => {
+/**
+ * Band feedback (plan U3), ONLY from the band the message names (ADR-0071: the band subsystem is DORMANT BY DECISION).
+ *
+ * Rewritten: these cases used to prove that every ranked recipe verdict reached the band store, which then looked the
+ * band up from the food's latest lexical resolution event, a row every cook shares. One cook's verdict moved a band
+ * another cook was ranked in. They now prove the opposite default: no key on the message, no observation, no read.
+ */
+describe('band feedback (plan U3) — only from the band the message names', () => {
+    it('⛔ an unattributed, recipe-origin, identity-verified verdict writes no band observation and reads no authority', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, evidenceKind: 'unattributed', shortlist: [] });
+
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]).toMatchObject({
+            band: 'verified',
+            aspects: expect.arrayContaining(['identity']),
+        });
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a ranked message that names no band feeds nothing and reads nothing', async () => {
         const d = deps();
         await processVerification(d, MESSAGE);
 
+        expect(bandRecorded(d.spies)).toBe('verified');
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a band key on a non-ranked message feeds nothing: the key describes a ranking that did not happen', async () => {
+        const d = deps();
+        await processVerification(d, { ...BANDED, evidenceKind: 'unattributed', shortlist: [] });
+
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('reports the TERMINAL verdict under the message’s own band, after the verdict is recorded', async () => {
+        const d = deps();
+        await processVerification(d, BANDED);
+
         expect(d.spies.bandRecord).toHaveBeenCalledWith(
             expect.objectContaining({
-                food: { kind: 'root', id: MESSAGE.foodId },
+                bandKey: BAND_KEY,
                 band: 'verified',
                 aspects: expect.arrayContaining(['identity']),
             }),
@@ -1023,7 +1073,7 @@ describe('band feedback (plan U3)', () => {
         const d = deps();
         d.spies.bandRecord.mockRejectedValue(new Error('band store down'));
 
-        await expect(processVerification(d, MESSAGE)).resolves.toBeUndefined();
+        await expect(processVerification(d, BANDED)).resolves.toBeUndefined();
     });
 
     it('an unreadable answer reports inconclusive — which the mapping discards as absence', async () => {
@@ -1034,7 +1084,7 @@ describe('band feedback (plan U3)', () => {
             stopReason: 'end_turn',
             usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
         });
-        await processVerification(d, MESSAGE);
+        await processVerification(d, BANDED);
 
         expect(d.spies.bandRecord).toHaveBeenCalledWith(expect.objectContaining({ band: 'inconclusive' }));
     });
@@ -1060,18 +1110,18 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
         },
     ];
 
-    it('reads its OWN authority — never the message — and an authorized band narrows to quantity', async () => {
+    it('reads its OWN authority for the band the message named, and an authorized band narrows to quantity', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING });
 
-        expect(d.spies.bandAuthority).toHaveBeenCalledWith({ kind: 'root', id: MESSAGE.foodId });
+        expect(d.spies.bandAuthority).toHaveBeenCalledWith(BAND_KEY);
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
     });
 
     it('day one — no authority — a ranked line asks identity and quantity', async () => {
         const d = deps();
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING });
 
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
             expect.arrayContaining(['identity', 'quantity']),
@@ -1081,7 +1131,7 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
     it('⛔ a SHADOW-sampled message never consults authority — the coin already decided to ask', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING, shadowSample: true });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING, shadowSample: true });
 
         expect(d.spies.bandAuthority).not.toHaveBeenCalled();
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
@@ -1094,7 +1144,7 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
         const d = deps();
         d.spies.bandAuthority.mockRejectedValue(new Error('band table unreachable'));
 
-        await expect(processVerification(d, { ...MESSAGE, shortlist: AGREEING })).resolves.toBeUndefined();
+        await expect(processVerification(d, { ...BANDED, shortlist: AGREEING })).resolves.toBeUndefined();
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
             expect.arrayContaining(['identity', 'quantity']),
         );
@@ -1111,9 +1161,9 @@ describe('U11/R20 — private-food and author-augmented lines stay OUT of the sh
         expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
     });
 
-    it('a privateFood message feeds NO band observation and consults NO authority', async () => {
+    it('a privateFood message feeds NO band observation and consults NO authority, even naming a band', async () => {
         const d = deps();
-        await processVerification(d, { ...MESSAGE, privateFood: true });
+        await processVerification(d, { ...BANDED, privateFood: true });
 
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
         expect(d.spies.bandAuthority).not.toHaveBeenCalled();
@@ -1121,7 +1171,7 @@ describe('U11/R20 — private-food and author-augmented lines stay OUT of the sh
 
     it('an authorAugmented message feeds NO band observation — but the memo is NOT its concern', async () => {
         const d = deps();
-        await processVerification(d, { ...MESSAGE, authorAugmented: true });
+        await processVerification(d, { ...BANDED, authorAugmented: true });
 
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
         expect(d.spies.bandAuthority).not.toHaveBeenCalled();
@@ -1138,7 +1188,7 @@ describe('U11/R20 — private-food and author-augmented lines stay OUT of the sh
             stopReason: 'end_turn',
             usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
         });
-        await processVerification(d, { ...MESSAGE, privateFood: true });
+        await processVerification(d, { ...BANDED, privateFood: true });
 
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
     });
@@ -1231,15 +1281,12 @@ describe('a VARIANT-bound line (curated U9)', () => {
         expect(d.spies.rememberAgreement).toHaveBeenCalledWith(
             expect.objectContaining({ food: { kind: 'variant', id: VARIANT_ID } }),
         );
-        expect(d.spies.bandRecord).toHaveBeenCalledWith(
-            expect.objectContaining({ food: { kind: 'variant', id: VARIANT_ID } }),
-        );
     });
 
     it('⛔ always asks identity on ranked evidence, even under an AUTHORIZED band — the shortlist ranked roots', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...variantMessage, shortlist: AGREEING });
+        await processVerification(d, { ...variantMessage, bandKey: BAND_KEY, shortlist: AGREEING });
 
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['identity', 'quantity']);
     });
@@ -1247,7 +1294,7 @@ describe('a VARIANT-bound line (curated U9)', () => {
     it('the same message as a ROOT narrows to quantity — the positive control', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING });
 
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
     });
@@ -1260,9 +1307,8 @@ describe('a VARIANT-bound line (curated U9)', () => {
  *
  *  - **Identity is always asked** (owner ruling 2026-10-25: "the review LLM checks every paste-import match"). Neither
  *    an earned band nor a curated mapping excuses it, and the worker does not even READ band authority.
- *  - **No band observation.** The band key is read from the food's latest lexical `ingredient_resolutions` event; a
- *    proposal writes none, so that event is some other cook's resolution and the observation would land in the
- *    wrong band. Recording nothing is the honest answer until the message carries the proposal's own key.
+ *  - **No band observation.** A paste message names no band (`bandKey`), and the worker never looks one up, so
+ *    nothing is observed (ADR-0071: the band subsystem is dormant by decision).
  *  - **No memo.** The message does not say whether the proposal came from the `default` rung, and a memo of
  *    `salt → table salt` would make the next pasted `salt` an exact-memo match — a CONFIDENT bind of a default,
  *    which the owner's rule forbids. A memo is shared across every cook, so this fails closed.
@@ -1322,10 +1368,10 @@ describe('a paste-job origin (ADR-0071)', () => {
             },
         );
 
-        it('the control: the same verdicts on a RECIPE origin do report to the band store', async () => {
+        it('the control: a RECIPE origin naming its own band does report to the band store', async () => {
             const d = deps();
 
-            await processVerification(d, RECIPE);
+            await processVerification(d, { ...RECIPE, bandKey: BAND_KEY });
 
             expect(d.spies.bandRecord).toHaveBeenCalledTimes(1);
         });
@@ -1363,8 +1409,8 @@ describe('a paste-job origin (ADR-0071)', () => {
             paste.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
             recipe.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
 
-            await processVerification(paste, { ...PASTE, shortlist: WIDE_AGREEING });
-            await processVerification(recipe, { ...RECIPE, shortlist: WIDE_AGREEING });
+            await processVerification(paste, { ...PASTE, bandKey: BAND_KEY, shortlist: WIDE_AGREEING });
+            await processVerification(recipe, { ...RECIPE, bandKey: BAND_KEY, shortlist: WIDE_AGREEING });
 
             expect(paste.spies.bandAuthority).not.toHaveBeenCalled();
             expect(paste.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['identity', 'quantity']);
@@ -1467,8 +1513,8 @@ describe('a legacy recipeId message', () => {
         const legacy = deps();
         const modern = deps();
 
-        await processVerification(legacy, MESSAGE);
-        await processVerification(modern, { ...content, origin: { kind: 'recipe', recipeId } });
+        await processVerification(legacy, BANDED);
+        await processVerification(modern, { ...content, bandKey: BAND_KEY, origin: { kind: 'recipe', recipeId } });
 
         for (const spy of [
             'claimVerification',

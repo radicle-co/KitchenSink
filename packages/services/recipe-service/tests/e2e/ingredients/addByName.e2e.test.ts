@@ -39,7 +39,6 @@ import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
@@ -111,7 +110,6 @@ describe('ingredient addByName (integration: service + real DAL + stubbed food c
             new FoodRefsGateway(foodClientsOf(food)),
             [],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     });
 

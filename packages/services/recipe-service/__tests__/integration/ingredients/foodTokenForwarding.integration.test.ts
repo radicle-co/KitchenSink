@@ -61,7 +61,6 @@ import { IngredientsService } from '../../../src/ingredients/ingredients.service
 import type { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 /** Two distinguishable caller credentials — a leak or a swap is unmistakable. */
@@ -118,7 +117,6 @@ function serviceOver(factory: FoodServiceClients): IngredientsService {
         new FoodRefsGateway(factory),
         [],
         makeFakeIngredientResolutionsDal(),
-        makeFakeResolutionBandsDal(),
     );
 }
 

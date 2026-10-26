@@ -55,7 +55,6 @@ import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
@@ -121,7 +120,6 @@ describe('the curated-resolution learning loop', () => {
             new FoodRefsGateway(clients),
             [createCuratedTier(mappings), createMemoTier(mappings)],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     });
 

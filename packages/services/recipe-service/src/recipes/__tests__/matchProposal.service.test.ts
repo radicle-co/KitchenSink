@@ -271,6 +271,32 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
         });
     });
 
+    it('⛔ stores a RUNG-LESS lexical proposal with no rung, keeping its margin and candidates', async () => {
+        // Moved here from the by-name path (ADR-0071): a food older than this service, or a rung this build cannot read,
+        // sends hits with no rung. The proposal and its shortlist are facts about the scores; only the rung is absent.
+        const { service, matches, queue } = setup({
+            world: {
+                lexical: [
+                    { food: { kind: 'root', id: 'F-whole' }, rung: undefined },
+                    { food: { kind: 'root', id: 'F-crackers' }, rung: undefined },
+                ],
+            },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row).toMatchObject({
+            proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: 0.2 },
+            candidates: [
+                { kind: 'root', id: 'F-whole', rung: null },
+                { kind: 'root', id: 'F-crackers', rung: null },
+            ],
+        });
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
     it('keys a SECOND food of a line with no measure, as the editor saves it', async () => {
         const { service, queue } = setup({
             job: makeParseJobRecord({

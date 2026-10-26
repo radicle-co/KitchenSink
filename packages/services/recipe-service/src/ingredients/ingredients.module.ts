@@ -50,10 +50,9 @@
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
 import { Logger, Module } from '@nestjs/common';
-import type pg from 'pg';
 import { ConfigService } from '@nestjs/config';
 
-import { DrizzleProvider, PgPoolProvider, type RecipeDrizzle } from '../database/database.module.js';
+import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
@@ -66,7 +65,6 @@ import { LineIdentityReader } from './lineIdentity.reader.js';
 import { createBindingRegistry, createProposalRegistry, PROPOSAL_TIERS } from './resolution/resolutionRegistry.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
 import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
-import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 import { UnrankedHitsReporter } from './resolution/unrankedHitsReporter.js';
@@ -192,11 +190,6 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
             useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
         },
         {
-            provide: ResolutionBandsDal,
-            inject: [PgPoolProvider],
-            useFactory: (pool: pg.Pool): ResolutionBandsDal => new ResolutionBandsDal(pool),
-        },
-        {
             // The promotion audit's log half goes through Nest's `Logger`, so the identifiers it carries are
             // scrubbed on the way out; the metric half writes EMF straight to stdout by default.
             provide: MappingPromotionAudit,
@@ -225,7 +218,6 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
                 FoodRefsGateway,
                 ResolutionMappingsDal,
                 IngredientResolutionsDal,
-                ResolutionBandsDal,
             ],
             useFactory: (
                 lookups: FoodLookupsDal,
@@ -234,7 +226,6 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
                 refs: FoodRefsGateway,
                 mappings: ResolutionMappingsDal,
                 resolutions: IngredientResolutionsDal,
-                bands: ResolutionBandsDal,
             ): IngredientsService =>
                 new IngredientsService(
                     lookups,
@@ -244,7 +235,6 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
                     // ADR-0071: by-name BINDS, so it runs the settled-evidence chain only.
                     createBindingRegistry(mappings),
                     resolutions,
-                    bands,
                 ),
         },
     ],
@@ -258,7 +248,6 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
         LineIdentityReader,
         ResolutionMappingsService,
         IngredientResolutionsDal,
-        ResolutionBandsDal,
         PROPOSAL_TIERS,
         // ADR-0071: the paste matcher asks whether the blend is switched on before it proposes anything.
         FoodCatalogGateway,

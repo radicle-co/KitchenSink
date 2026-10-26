@@ -34,8 +34,6 @@ import {
     normalizedIngredientKey,
     type NormalizedIngredientKey,
 } from '@kitchensink/recipe-core/resolution/normalized-key';
-import { marginBandOf, queryShapeOf } from '@kitchensink/recipe-core/resolution/band-policy';
-import { RANKER_VERSION } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import { apiError } from '../common/apiError.js';
@@ -75,7 +73,6 @@ import { toIngredient } from './ingredientProjection.js';
 import { identifyArmsThrough } from './lineIdentity.reader.js';
 import type { FoodReferencesResponse } from './ingredients.schema.js';
 import type { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
-import type { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { isCascadeTierId, runResolutionCascade, type ResolutionTier } from './resolution/resolutionCascade.js';
 
 /** Search hits when a caller names no limit. */
@@ -152,18 +149,16 @@ export class IngredientsService {
      * @param refs - Food's authorship-checked answer about a food reference (R51).
      * @param resolutionTiers - The ORDERED resolution cascade (plan U10). An EMPTY array is a supported state.
      * @param resolutions - The cascade's provenance events.
-     * @param bands - Band authority, for a ranked resolution's epoch.
      */
     public constructor(
         private readonly lookups: FoodLookupsDal,
         private readonly foodClients: FoodServiceClients,
         private readonly catalog: FoodCatalogGateway,
         private readonly refs: FoodRefsGateway,
-        // ⛔ REQUIRED, all three: a collaborator that defaults to absent is how a feature ships silently disabled
+        // ⛔ REQUIRED, both: a collaborator that defaults to absent is how a feature ships silently disabled
         // past a green suite. A fixture that does not care passes a double.
         private readonly resolutionTiers: readonly ResolutionTier[],
-        private readonly resolutions: IngredientResolutionsDal,
-        private readonly bands: Pick<ResolutionBandsDal, 'authorityFor'>,
+        private readonly resolutions: Pick<IngredientResolutionsDal, 'record'>,
     ) {}
 
     /**
@@ -738,82 +733,31 @@ export class IngredientsService {
 
         const ingredient = await this.bind(admission);
 
-        await this.recordResolution(ingredient.id, outcome, name);
+        await this.recordResolution(ingredient.id, outcome);
 
         return { kind: 'bound', ingredient };
     }
 
     /**
-     * Record which tier produced a binding — the provenance EVENT the verification producer and the band log
-     * read. Quietly: a lost event degrades to `unattributed` and must never fail a resolution that succeeded.
+     * Record which tier produced a binding: a telemetry EVENT, never read back as provenance (ADR-0071). Quietly: a
+     * lost event must never fail a resolution that succeeded.
      *
-     * @sideEffect One insert, and a band-authority read for a ranked resolution.
+     * ⚠️ The tier alone. By-name runs the settled chain `[curated, memo]`, so a resolution here is never ranked, and the
+     * ranked shape (rung, margin, shortlist, band epoch) this used to write had no production path left (ADR-0071).
+     *
+     * @sideEffect One insert.
      */
     private async recordResolution(
         foodLookupId: string,
         outcome: Extract<Awaited<ReturnType<typeof runResolutionCascade>>, { kind: 'resolved' }>,
-        name: CanonicalIngredientName,
     ): Promise<void> {
         try {
-            await this.resolutions.record({
-                foodLookupId,
-                tier: outcome.tier,
-                // KTD-C: a RANKED resolution persists its full confidence shape. ⛔ Keyed on the SHORTLIST, never on the
-                // rung: a food that publishes no rung (older than this service, or a rung this build cannot read) still
-                // ranked these candidates, and dropping the whole event would turn every such line `unattributed`.
-                ...(outcome.shortlist === undefined
-                    ? {}
-                    : {
-                          ...(outcome.rung === undefined ? {} : { rung: outcome.rung }),
-                          margin: outcome.confidence,
-                          shortlist: outcome.shortlist,
-                          queryShape: queryShapeOf(name),
-                          rankerVersion: RANKER_VERSION,
-                          authorAugmented: outcome.authorAugmented ?? false,
-                          // U11/R20: an author-augmented shortlist's margins describe ONE user's catalog, so no
-                          // shared band authority is consulted or observed for it. A band is keyed on the rung, so
-                          // with no rung there is no band to consult either.
-                          bandEpoch:
-                              outcome.authorAugmented || outcome.rung === undefined
-                                  ? undefined
-                                  : await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
-                      }),
-            });
+            await this.resolutions.record({ foodLookupId, tier: outcome.tier });
         } catch (error) {
             this.logger.warn(
                 `Resolution provenance write failed for binding '${foodLookupId}' (tier '${outcome.tier}').`,
                 error instanceof Error ? error.stack : String(error),
             );
-        }
-    }
-
-    /**
-     * The band-authority epoch a ranked resolution was made under, or `undefined` when the band has never
-     * crossed a threshold. Quiet: an unreadable band table degrades to "no epoch observed".
-     *
-     * @sideEffect One band-authority read.
-     */
-    private async observedBandEpoch(
-        rung: string,
-        margin: number | undefined,
-        phrase: string,
-    ): Promise<string | undefined> {
-        try {
-            const authority = await this.bands.authorityFor({
-                rung,
-                marginBand: marginBandOf(margin),
-                queryShape: queryShapeOf(phrase),
-                rankerVersion: RANKER_VERSION,
-            });
-
-            return authority === undefined ? undefined : String(authority.epoch);
-        } catch (error) {
-            this.logger.warn(
-                'Band-authority read failed; the resolution event records no epoch.',
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return undefined;
         }
     }
 

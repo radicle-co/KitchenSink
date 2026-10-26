@@ -30,6 +30,7 @@
 import { z } from 'zod';
 
 import { MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
+import { MARGIN_BANDS, QUERY_SHAPES } from './bandPolicy.js';
 import type { VerifiedLineIdentity } from './verificationKey.js';
 
 /**
@@ -170,6 +171,23 @@ export const verificationOriginSchema = z.discriminatedUnion('kind', [
 
 /** One origin of a line to verify. */
 export type VerificationOrigin = z.infer<typeof verificationOriginSchema>;
+
+/**
+ * The band a verdict on this line is observed in, named BY THE PRODUCER (ADR-0071).
+ *
+ * ⛔ The worker never looks a band up. It used to find one from the food's latest lexical `ingredient_resolutions`
+ * event, a row every cook who bound that food shares, so one cook's verdict moved a band another cook's resolution was
+ * ranked in. A band is now the one the message names, from the ranking that produced THIS line, or none.
+ *
+ * ⚠️ No producer sends it today: the band subsystem is DORMANT BY DECISION (ADR-0071). It is fed again when the paste
+ * origin carries the match row's rung, margin, query shape and ranker version.
+ */
+export const verificationBandKeySchema = z.object({
+    rung: z.string().min(1).max(32),
+    marginBand: z.enum(MARGIN_BANDS),
+    queryShape: z.enum(QUERY_SHAPES),
+    rankerVersion: z.string().min(1).max(64),
+});
 
 export const verifyIngredientLineMessageSchema = z
     .object({
@@ -343,6 +361,11 @@ export const verifyIngredientLineMessageSchema = z
          * observation. The verdict itself still lands — the author's own line is verified like any other.
          */
         privateFood: z.boolean().optional(),
+        /**
+         * The band the verdict is observed in, on `ranked` evidence only ({@link verificationBandKeySchema}). Absent
+         * means no band observation and no band authority: what every producer sends today.
+         */
+        bandKey: verificationBandKeySchema.optional(),
     })
     .refine((message) => (message.foodId === undefined) !== (message.foodVariantId === undefined), {
         error: 'a verification message names exactly one food: a foodId or a foodVariantId',

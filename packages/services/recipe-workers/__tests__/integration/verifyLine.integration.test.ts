@@ -215,24 +215,49 @@ describe('the verification gate — a paste-job origin, queue body to verdict ro
 });
 
 /**
- * The controls: the same wiring, a SAVED recipe's line. The legacy `recipeId` spelling and the `origin` spelling
- * must produce the same statements, and both must reach the band tables and the memo — which is what makes the
- * paste origin's silence above a property of the origin rather than of the fixtures.
+ * The controls: the same wiring, a SAVED recipe's line. The legacy `recipeId` spelling and the `origin` spelling must
+ * produce the same statements and both must remember the phrase, which is what makes the paste origin's silence above
+ * a property of the origin rather than of the fixtures.
+ *
+ * ⛔ The band tables (ADR-0071: dormant by decision). A recipe line reaches them ONLY when its message names its own
+ * band on ranked evidence, and never by reading the shared `ingredient_resolutions` events. Rewritten from "both
+ * spellings report to the band tables": that read filed one cook's verdict under another cook's band.
  */
 describe('the verification gate — a recipe origin, both spellings', () => {
     it.each([
         ['legacy recipeId', { recipeId: RECIPE_ID }],
         ['origin', { origin: { kind: 'recipe', recipeId: RECIPE_ID } }],
-    ])('the %s spelling reports to the band tables, remembers the phrase, and claims as the gate', async (_l, o) => {
-        // Ranked evidence, so the band read and the observation both have a lexical bind to be about.
-        await runHandler(
-            event({ ...CONTENT, evidenceKind: 'ranked', shortlist: [{ foodId: FOOD_ID, score: 0.9 }], ...o }),
-        );
+    ])('the %s spelling remembers the phrase, claims as the gate, and touches no band table', async (_l, o) => {
+        await runHandler(event({ ...CONTENT, evidenceKind: 'unattributed', shortlist: [], ...o }));
 
         expect(verdictInsert()?.params[3]).toBe('verified');
         expect(issued('insert into ingredient_resolution_memos')).toHaveLength(1);
-        expect(poolQueries.some((text) => text.includes('from ingredient_resolutions'))).toBe(true);
+        expect(poolQueries).toEqual([]);
         expect(spendCallSites()).toEqual(['verification-gate']);
+    });
+
+    it('⛔ a ranked line that names NO band reads no band authority and records no observation', async () => {
+        await runHandler(
+            event({ ...CONTENT, evidenceKind: 'ranked', shortlist: [{ foodId: FOOD_ID, score: 0.9 }], recipeId: RECIPE_ID }),
+        );
+
+        expect(verdictInsert()?.params[3]).toBe('verified');
+        expect(poolQueries).toEqual([]);
+    });
+
+    it('a ranked line naming its own band records under that band, and never reads the shared events', async () => {
+        await runHandler(
+            event({
+                ...CONTENT,
+                evidenceKind: 'ranked',
+                shortlist: [{ foodId: FOOD_ID, score: 0.9 }],
+                bandKey: { rung: 'head', marginBand: 'none', queryShape: 'multi-word', rankerVersion: 'r1' },
+                recipeId: RECIPE_ID,
+            }),
+        );
+
+        expect(poolQueries.some((text) => text.includes('resolution_band_observations'))).toBe(true);
+        expect(poolQueries.some((text) => text.includes('ingredient_resolutions'))).toBe(false);
     });
 
     it('issues byte-identical statements for the two spellings', async () => {

@@ -35,7 +35,6 @@ import {
 } from '../__fixtures__/ingredients.fixtures.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../__fixtures__/resolutionDals.fixture.js';
 
 const AT = new Date('2026-09-30T00:00:00.000Z');
@@ -136,7 +135,6 @@ function build(tiers: readonly ResolutionTier[] = []): Harness {
             refs as unknown as FoodRefsGateway,
             tiers,
             resolutions,
-            makeFakeResolutionBandsDal(),
         ),
         lookups,
         refs,

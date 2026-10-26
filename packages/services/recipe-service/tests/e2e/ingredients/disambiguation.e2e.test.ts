@@ -41,7 +41,6 @@ import { insertIngredientLine, readFailureRecord } from '../../support/lineChain
 import { recipeDb } from '../../support/roleDb.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
@@ -114,7 +113,6 @@ describe('ingredient disambiguation (integration: service + real DAL + stubbed f
             new FoodRefsGateway(foodClientsOf(food)),
             [],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     });
 

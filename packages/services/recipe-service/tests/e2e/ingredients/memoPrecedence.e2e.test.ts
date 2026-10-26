@@ -62,7 +62,6 @@ import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 import {
     makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
 } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
@@ -119,7 +118,6 @@ describe('cascade precedence against a real knowledge base', () => {
                 onUnrankedHits: () => undefined,
             }),
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     });
 

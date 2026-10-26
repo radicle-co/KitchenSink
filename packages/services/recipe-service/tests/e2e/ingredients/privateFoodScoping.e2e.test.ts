@@ -9,8 +9,11 @@
  *     test cannot observe a migration that did not apply.
  *   - **Correction reach** — `findWriteFacts.correctedFoodIsPrivate` reads the privacy fact from the real
  *     binding row, which is what clamps a curator grant / corroboration pair to author scope in the policy.
- *   - **Resolution provenance** — `author_augmented` round-trips through record → latestResolutionsByLookupIds,
- *     which is what carries the band-statistics exclusion to the verification producer.
+ *
+ * ⚠️ REMOVED (ADR-0071): "record → latestResolutionsByLookupIds carries the `author_augmented` flag". Nothing in this
+ * service writes the flag or reads the event back any more: by-name binds through the settled chain only, so it records
+ * no ranked event, and provenance is no longer read from the shared binding. The column stays until a later release
+ * contracts it (ADR-0035); this suite's schema case still asserts it exists.
  *
  * ⚠️ REWRITTEN (plan 002): three cases were REMOVED because their subject no longer exists in this service, not
  * because they failed. Where each behaviour went:
@@ -32,7 +35,6 @@ import pg from 'pg';
 
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
@@ -49,13 +51,12 @@ const SUITE_FOODS = [PRIVATE_FOOD, PUBLIC_FOOD];
 describe('U11/R20 private-food scoping (integration)', () => {
     let pool: pg.Pool;
     let db: RecipeDrizzle;
-    let privateLookupId: string;
 
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
 
-        privateLookupId = await ensureFoodLookup(pool, { arm: 'private', foodId: PRIVATE_FOOD, ownerId: AUTHOR });
+        await ensureFoodLookup(pool, { arm: 'private', foodId: PRIVATE_FOOD, ownerId: AUTHOR });
         await ensureFoodLookup(pool, { arm: 'shared', foodId: PUBLIC_FOOD });
     });
 
@@ -125,18 +126,6 @@ describe('U11/R20 private-food scoping (integration)', () => {
 
             expect(privateFacts.correctedFoodIsPrivate).toBe(true);
             expect(publicFacts.correctedFoodIsPrivate).toBe(false);
-        });
-    });
-
-    describe('resolution provenance — author_augmented round-trips', () => {
-        it('record → latestResolutionsByLookupIds carries the flag', async () => {
-            const resolutions = new IngredientResolutionsDal(db);
-
-            await resolutions.record({ foodLookupId: privateLookupId, tier: 'lexical', authorAugmented: true });
-
-            const latest = await resolutions.latestResolutionsByLookupIds([privateLookupId]);
-
-            expect(latest.get(privateLookupId)?.authorAugmented).toBe(true);
         });
     });
 });

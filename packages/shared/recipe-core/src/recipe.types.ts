@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 
+import { boundBySchema, type BoundBy } from './boundBy.js';
 import { ingredientQuantitySchema, type IngredientQuantity } from './ingredientQuantity.js';
 import {
     foodResolutionStatusSchema,
@@ -532,6 +533,14 @@ export interface RecipeIngredientView {
      * ⛔ PER LINE, never the shared catalog row's status — see {@link foodResolutionStatusSchema}.
      */
     resolutionStatus?: LineResolutionStatus;
+    /**
+     * Who bound the line to its food (ADR-0072 §5): a confident match (`exact`, `curated`, `review`), the seeded
+     * `default`, "pick the best match for me" (`autoBest`), or the cook's own pick (`cook`).
+     *
+     * ABSENT means no recorded origin: a line kept as written, or one written before bulk import existed. RESPONSE-ONLY —
+     * no request carries it, because it is written only by the save path and carried forward by the food alone.
+     */
+    boundBy?: BoundBy;
 }
 
 /**
@@ -560,6 +569,8 @@ export const recipeIngredientViewSchema = z.object({
     groupLabel: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
     resolutionStatus: lineResolutionStatusSchema.optional(),
+    // ADR-0072 §5 — who bound the line. Response-only and optional, so an older client strips it rather than rejecting the recipe.
+    boundBy: boundBySchema.optional(),
 });
 
 /**

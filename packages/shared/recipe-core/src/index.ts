@@ -211,6 +211,8 @@ export {
 export { statedAmountSchema } from './ingredientQuantity.js';
 export type { IngredientQuantity, StatedAmount } from './ingredientQuantity.js';
 export { statedMeasureSchema } from './statedMeasure.js';
+export { boundBySchema } from './boundBy.js';
+export type { BoundBy } from './boundBy.js';
 export type { StatedMeasure } from './statedMeasure.js';
 export {
     UNRESOLVED_FOOD_REASON_CODES,

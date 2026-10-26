@@ -81,7 +81,14 @@
 
 ---
 
-## Group D — The C-004 amendment (D4a — sequence FIRST, behind a flag)
+## Group D — The C-004 amendment (D4a — now delivered by ADR-0073, outside 015)
+
+> ⚠️ **Owner ruling, 2026-10-26.** [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)
+> builds this group now, with a base of 50 slots and no flag. Its "Code owed" list is the authority, and it
+> differs from these tasks in three ways. `imported_physical` and `imported_paid` are slot-bound too. The real call
+> sites are `create`, `setVisibility`, `clone` and the bulk import save; `update` never changes visibility. TC034's
+> "clone and import behaviour unchanged" no longer holds, because a clone that lands private now takes the slot
+> check. When 015 resumes, its part here is only to add earned slots to the limit.
 
 - [ ] TC030 — Unit tests: C-004 matrix re-asserted with the new `hasAvailablePrivateSlot` input; free+slot→private ALLOWED, free+no-slot→DENIED, premium unchanged
       Paths: packages/services/recipe-service/src/recipes/domain/**tests**/visibilityPolicy.test.ts

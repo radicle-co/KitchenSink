@@ -81,9 +81,10 @@ this section is the single place the boundary now lives.
    justified moving this channel here rather than leaving it as 004's single sentence.
 
 **What 011 inherits rather than re-derives.** 004's photo-specific _rules_ transfer with the channel and are
-binding on 011 (004 § "Channel-ownership transfer"): the premium entitlement gate on `imported_physical`
-(`004-FR-028`, D-014, enforced via the shared entitlement mechanism — never by importing the identity
-service, ADR-0017 decision 3), the tighter per-photo/OCR sub-quota (`004-FR-022`), deletion of OCR
+binding on 011 (004 § "Channel-ownership transfer"): the private-slot rule on `imported_physical`
+(`004-FR-028` and D-014 as amended 2026-10-26: no premium gate, but every photo recipe a free-tier user keeps
+uses one of their 50 private slots, ADR-0073; premium is read via the shared entitlement mechanism — never by
+importing the identity service, ADR-0017 decision 3), the tighter per-photo/OCR sub-quota (`004-FR-022`), deletion of OCR
 artifacts on draft expiry (`004-FR-018`), and the OCR vendor's classification as an untrusted third-party
 boundary whose output is parsed with zod at the boundary (ADR-0015, `CODING_STANDARDS` §15-d).
 

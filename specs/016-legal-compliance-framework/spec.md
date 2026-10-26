@@ -843,7 +843,8 @@ they do not create a second mechanism.
   hosting providers regardless of size — the micro/small-enterprise exclusion covers the _online-platform_
   section, not the hosting section — so size is not a defence here.
 - **D4a and D4b land** (`docs/competitive/02GapAnalysisAndStrategy.md`): free users may set their own
-  recipes private, and imported public content becomes private-to-the-importer by default. `FR-038` assumes
+  recipes private, and imported public content becomes private-to-the-importer by default. D4a landed as a
+  ruling on 2026-10-26: a free cook holds up to 50 private recipes (ADR-0073). `FR-038` assumes
   the first; the reproduction controls are materially cheaper under the second.
 - **Erasure, provenance, attribution and billing exist.** This feature adds surfaces and records over them and
   owns none of their mechanics.
@@ -930,7 +931,8 @@ are specified in `001/data-model.md`, and both are implementation work requiring
    no `sourceType` behind it today.
 2. **`001-FR-005b` collides with `001-FR-003`.** FR-003 still says free-tier users' recipes are always public,
    so "not yet publishable" is unrepresentable for a free-tier user as a `private` visibility. It needs either
-   D4a to land or a distinct **unpublished-draft** state that is not `visibility = private`. **Unresolved.**
+   D4a to land or a distinct **unpublished-draft** state that is not `visibility = private`. _Both now exist:
+   D4a is decided within 50 private slots (ADR-0073, 2026-10-26), and a clone is created as a draft._
 3. **`001-FR-003a`'s PRO-badge derivation is invalidated.** It infers "uses a premium capability" from
    _private AND `user_created`/`imported_public`_. Once a clone can be private without premium, privacy stops
    implying premium. FR-003a promises exactly one authoritative derivation, so it is a single-site fix — but it
@@ -1065,7 +1067,9 @@ feature raised against this one is settled. Nothing here blocks planning.
 3. **Two blockers remain in `001`, and they are `001`'s to clear, not this feature's.** `001-FR-005b` is
    unrepresentable for a free-tier user while `001-FR-003` says free-tier recipes are always public — it needs
    D4a or an unpublished-draft state distinct from `visibility = private`; and `001-FR-003a`'s PRO-badge
-   derivation infers premium from privacy and must be fixed in the **same** change. _(A third — "no
+   derivation infers premium from privacy and must be fixed in the **same** change. _Since 2026-10-26 001
+   carries both answers: FR-003 holds up to 50 free private recipes, and FR-003a marks only private
+   `imported_public` (ADR-0073)._ _(A third — "no
    provenance-restriction signal exists" — was withdrawn: `GR-014` AC-014-e already covers it. The residual is
    one narrow case, a public and freely-available source whose licence forbids **derivatives** specifically.)_
 4. **`017-recime-parity` is unblocked.** Its video wedge conflicted with `FR-027c`'s original wording;

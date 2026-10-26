@@ -52,7 +52,7 @@ phases:
         status: 'pending'
     implement:
         status: 'blocked'
-        note: '⛔ STOP LINE (owner directive 2026-08-22): do not implement. Feature is launch-blocked on D4a/D4b, D5, D24 and the missing ToS content licence.'
+        note: '⛔ STOP LINE (owner directive 2026-08-22): do not implement. Feature is launch-blocked on D4b, D5, D24 and the missing ToS content licence (D4a decided 2026-10-26, ADR-0073).'
     code_review:
         status: 'pending'
     verify:
@@ -90,5 +90,5 @@ scope:
 
 stop_line:
     phase: 'implement'
-    reason: 'Owner directive 2026-08-22 — stop after tasks. Feature is launch-blocked on 016 (ToS licence + DMCA), D4a, D5; and US5/US6 are unbuildable until 008 and 012 exist.'
+    reason: 'Owner directive 2026-08-22 — stop after tasks. Feature is launch-blocked on 016 (ToS licence + DMCA) and D5 (D4a decided 2026-10-26, ADR-0073); and US5/US6 are unbuildable until 008 and 012 exist.'
 last_updated: '2026-08-22'

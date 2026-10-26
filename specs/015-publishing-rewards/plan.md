@@ -5,27 +5,39 @@
 **Evidence**: [`research/reward-psychology.md`](./research/reward-psychology.md)
 **Status**: Plan only. ⛔ **Implementation is BLOCKED** — see §9.
 
+> ⚠️ **Owner ruling, 2026-10-26.** The C-004 change this plan sequenced first (§2, Group D) is no longer 015's.
+> [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md) ships it now, outside 015: a free
+> cook holds up to 50 private recipes, every private recipe uses a slot (book and paid-site recipes included), and
+> `visibilityPolicy.ts` gains the required `hasAvailablePrivateSlot`. D4a (B2) is decided. 015 stays STOPPED. When it
+> resumes, it changes only how the limit is worked out: the base of 50 plus the slots a cook has earned.
+
 ---
 
 ## 1. The one-sentence architecture
 
 Publishing rewards is a **pure-policy + append-only-ledger** feature bolted onto the existing
 `recipe-service`: four new pure evaluators join `evaluateVisibility`/`evaluateProvenance` in
-`recipes/domain/`, a new `rewards/` module owns a monotonic grant ledger, and **exactly one existing line of
-business logic changes** — the C-004 rule that today makes free-tier privacy impossible.
+`recipes/domain/`, a new `rewards/` module owns a monotonic grant ledger, and the free-tier private-slot limit
+(ADR-0073) grows by the slots a cook has earned.
 
 ## 2. The change that matters most
 
-`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts` currently encodes:
+> ⚠️ **Delivered outside 015 (ADR-0073, 2026-10-26).** The branch below is now ADR-0073's work, with a base of 50
+> and with `imported_physical` and `imported_paid` slot-bound too. What remains for 015 is the earned part of the
+> limit. The three consequences below still hold, and ADR-0073 adopts all three.
+
+`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts` encoded, when this plan was written:
 
 ```
 requested `private` + `user_created` → ALLOW iff isPremium
 ```
 
-That single branch **is** `001-FR-003`, the free-tier privacy prohibition. 015 replaces it:
+That single branch **was** `001-FR-003`, the free-tier privacy prohibition. ADR-0073 replaces it:
 
 ```
-requested `private` + `user_created` → ALLOW iff (isPremium OR the account holds an unconsumed earned slot)
+requested `private` + `user_created`, `imported_physical` or `imported_paid`
+    → ALLOW iff (isPremium OR the cook's private count is below their limit)
+limit = 50 today; 50 + earned slots once 015 ships
 ```
 
 Three consequences that shape the whole plan:
@@ -37,9 +49,9 @@ Three consequences that shape the whole plan:
 2. **`isPremium` comes from the Clerk token** (`principal.permissions.includes(PREMIUM_PERMISSION)`,
    `recipes.service.ts:687,1032`) — it is _not_ DB-derived. Slot balance is the opposite: DB-derived and
    read-at-decision-time. The two entitlement sources must not be conflated behind one boolean.
-3. **This is D4a.** If the un-gating does not land, 015 inverts from a fix to an aggravation (spec
-   Assumptions). The plan therefore sequences the policy amendment **first**, behind a flag, so it is
-   independently shippable and independently revertible.
+3. **This was D4a.** It is decided (ADR-0073), and it ships now with no flag. The count is a live
+   `COUNT(*)` of the cook's private, undeleted recipes under a per-user advisory lock, in the same
+   transaction as the write.
 
 ## 3. Pattern register
 
@@ -95,10 +107,9 @@ All in `packages/services/recipe-service/src/recipes/domain/`, all `input → de
 > backfill over existing rows.
 
 `visibilityPolicy.ts` is **amended, not replaced**: `VisibilityPolicyInput` gains
-`hasAvailablePrivateSlot: boolean`, and the `user_created` + `private` branch becomes
-`isPremium || hasAvailablePrivateSlot`. Every existing test in
-`recipes/domain/__tests__/` must be re-run; the C-004 matrix docstring must be updated in the same commit or
-it becomes a lie.
+`hasAvailablePrivateSlot: boolean`, and the `user_created`, `imported_physical` and `imported_paid` + `private`
+branches become `isPremium || hasAvailablePrivateSlot`. ADR-0073 makes that change now, with a base of 50. 015's
+part is to add the earned slots to the limit the caller resolves; the policy's input does not change.
 
 ## 6. Service, API, and frontend
 
@@ -187,7 +198,7 @@ Verified against the codebase, not assumed:
 | --- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | B1  | **016 Legal Compliance Framework** — portfolio-wide DMCA/takedown                   | Spec drafted 2026-08-22, **no code**                                   | `FR-015`–`FR-019` (**US4 only**)                                                                                                             | 🔴 **Hard for US4**                   |
 | B1a | **016's user content licence** (`016-FR-010`–`FR-015`)                              | No terms acceptance, consent record or age floor exists (`016` spec)   | Nothing in 015 _newly_ — see the note below                                                                                                  | 🟠 **Pre-existing; 015 amplifies it** |
-| B2  | **001-FR-003 amendment (D4a)** — un-gate free-tier privacy in `visibilityPolicy.ts` | Code exists, gate is `isPremium`                                       | Everything. The reward is meaningless while privacy is also paywalled                                                                        | 🔴 **Hard**                           |
+| B2  | **001-FR-003 amendment (D4a)** — un-gate free-tier privacy in `visibilityPolicy.ts` | **Decided 2026-10-26** (ADR-0073, base of 50); code owed outside 015   | Nothing further in 015. The earned slots add to the base                                                                                     | ✅ **Decided**                        |
 | B3  | **008 Cooking Mode** — the producer of cook events                                  | **Not implemented** (only a mockup e2e reference)                      | `FR-007f` cook signal, `FR-007g` milestones, `FR-007h` standing → all of **US5**                                                             | 🟠 **Hard for US5, not for US1–3**    |
 | B4  | **012 Creator Profiles** — the public surface for standing                          | **Not implemented** (no code)                                          | `FR-007h` public visibility (`C-015-018`), `FR-032`                                                                                          | 🟠 **Hard for public standing**       |
 | B5  | **010 Subscriptions (D5)** — re-pricing after the privacy lever is removed          | Entitlement _read_ path exists (`PREMIUM_PERMISSION`); billing partial | Not technically blocking, but removing the free tier's only paywall lever without re-pricing is a business decision that must precede launch | 🟡 **Business gate**                  |
@@ -211,11 +222,11 @@ Verified against the codebase, not assumed:
 > programme can launch safely without it only if launch volume is small and takedowns are handled by hand."_
 
 **What this means for sequencing.** US1–US3 (publish, unpublish, ineligible-cannot-earn) are buildable
-today against B2 alone. **US5 is not buildable at all** — its data source does not exist. And `FR-007j`'s
+once ADR-0073's base of 50 ships (B2). **US5 is not buildable at all** — its data source does not exist. And `FR-007j`'s
 handoff makes that structural, not cosmetic: slots are a finite bootstrap that must hand off to recognition
 before the ceiling, and recognition cannot exist until B3 and B4 land. **Shipping US1–US3 without a dated
 plan for B3/B4 builds the cliff recorded in the spec's overjustification risk.** US1–US3 do **not** require
-B1 — they require `D4a`.
+B1 — they required `D4a`, now decided by ADR-0073.
 
 ## 10. Risks
 

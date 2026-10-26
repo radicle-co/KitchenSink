@@ -22,12 +22,12 @@ renumbered so existing links and the index entry keep resolving.
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                                                                                                                                                                                             |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required — and largely already shipped.** Owns the Recipe entity, attribution columns, clone, and the C-004 visibility policy. See _Relationship to shipped 001_ below.                                                                                                |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all import actions require authentication                                                                                                                                                                                                                 |
-| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — imported ingredient lines resolve against the food catalog via `@kitchensink/food-service-client`                                                                                                                                                         |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — premium entitlement gates clone-to-private (`004-FR-011`) **and now gates every channel whose result is non-public** (`004-FR-028`, D-014). Until 010 ships, premium is derived from the signed token's `permissions` (the shipped `PREMIUM_PERMISSION`). |
+| Spec                                                        | Relationship                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required — and largely already shipped.** Owns the Recipe entity, attribution columns, clone, and the C-004 visibility policy. See _Relationship to shipped 001_ below.                                                                                                                  |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all import actions require authentication                                                                                                                                                                                                                                   |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — imported ingredient lines resolve against the food catalog via `@kitchensink/food-service-client`                                                                                                                                                                           |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — premium entitlement gates clone-to-private (`004-FR-011`) and lifts the free-tier limit of 50 private recipes (`004-FR-028` as amended 2026-10-26, ADR-0073). Until 010 ships, premium is derived from the signed token's `permissions` (the shipped `PREMIUM_PERMISSION`). |
 
 ### Relationship to shipped 001 — what 004 does NOT build
 
@@ -161,8 +161,8 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 > **Channel-ownership transfer (2026-08-14, D-001 as amended · [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md)).**
 > Photo/OCR is **011's channel**, not 004's. Consequently **every photo/OCR-specific provision below transfers
 > to 011 along with the channel** and is retained here only because the provision's _rule_ is still the right
-> one and 011 MUST inherit it rather than re-derive it — specifically: the premium gate on
-> `imported_physical` (`FR-028`, D-014), the tighter OCR sub-quota (`FR-022`), deletion of OCR artifacts on
+> one and 011 MUST inherit it rather than re-derive it — specifically: the private-slot rule on
+> `imported_physical` (`FR-028` as amended 2026-10-26, ADR-0073), the tighter OCR sub-quota (`FR-022`), deletion of OCR artifacts on
 > draft expiry (`FR-018`), the OCR vendor's classification as an untrusted third-party boundary (§15-d), and
 > the per-photo rate limit. Read each as _"011 MUST satisfy this for the photo channel"_.
 > **004 retains exactly two photo-related obligations**: the chooser presents the method as
@@ -335,8 +335,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   `imported_public` for web/Instagram, `imported_physical` for **photo/OCR** imports, `imported_paid` for
   attested paid sources, and **`user_created` for structured-file imports**. A file export is the user's own
   recipe content in a different container, not third-party material: classifying it `imported_physical` would
-  have wrongly marked a user's own migrated recipes as un-attributable third-party content and — once D-014
-  applies — locked migration behind a subscription. The D-003 attestation remains available if the user
+  have wrongly marked a user's own migrated recipes as un-attributable third-party content and, under D-014 as
+  first written, locked migration behind a subscription. The D-003 attestation remains available if the user
   declares the file's contents came from elsewhere. Enforcement of the resulting visibility rules is **001's shipped `evaluateVisibility`
   policy**; 004 MUST NOT reimplement it.
 - **FR-013**: System MUST create recipes imported from physical copies as private, with no public source
@@ -358,7 +358,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > carries its own statement, and one statement for a whole file does not count. The statement is "I wrote this",
     > with no citation, or "From a source", with a citation. A source is a public web page, a book or a paid site. The import sets the label from it: `user_created`, `imported_public`,
     > `imported_physical` or `imported_paid`. A recipe whose source is not a public web page cannot be public. A free
-    > cook can keep a book or paid-site recipe private. Counsel approves the wording before launch (016
+    > cook keeps a book or paid-site recipe private within their 50 private slots
+    > ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). Counsel approves the wording before launch (016
     > FR-050). See [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9.
 
 **Failure handling and lifecycle**
@@ -373,15 +374,15 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
 - **FR-029**: Every API path this feature introduces MUST begin `/api/{version}/`. Where 004 references an
   endpoint shipped by another feature, it MUST cite that endpoint's **actual** current path until the
   platform-wide prefix migration lands (D-015).
-- **FR-028**: Any import channel whose result is **non-public by policy** MUST require an active premium
-  entitlement: photo/OCR import (`imported_physical`) and attested paid-source entry (`imported_paid`). A
-  caller without the entitlement MUST be refused with a distinct, machine-readable code — not a generic
-  authorization error — so the client can present the upgrade path rather than a failure. The channel MUST also
-  be absent from the advertised channel list for such a caller, so no unusable affordance is rendered.
-    > ⚠️ **Open: bulk import does not apply this gate.** Owner ruling, 2026-10-26: a free cook can keep a
-    > bulk-imported book or paid-site recipe private
-    > ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9). Whether this requirement still
-    > gates the same labels on a single paste or a photo import is for the owner to confirm.
+- **FR-028** _(amended 2026-10-26, owner ruling — [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md))_:
+  An import channel whose result is **non-public by policy** — photo/OCR import (`imported_physical`), attested
+  paid-source entry (`imported_paid`), a URL the rights check allows only as private, and bulk import — MUST NOT
+  require a premium entitlement. Every such recipe a free-tier user keeps uses one of their 50 private slots
+  (`001-FR-003`). A free-tier user with no free slot MUST be refused with a distinct, machine-readable code that
+  states the slots used and the limit, not a generic authorization error, so the client can explain the choices.
+  Such a recipe can never be made public, so the single-recipe channels refuse the save, and bulk import pauses
+  ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9). The channels MUST stay
+  advertised to free-tier users. Premium users have no slot limit.
 - **FR-024** _(PARTIALLY IMPLEMENTED 2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe creation
   MUST accept an explicit provenance (`sourceType` plus optional source URL and attribution) rather than
   assuming `user_created`, and MUST evaluate the C-004 visibility policy against the **actual** provenance.
@@ -402,8 +403,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   whitelisted, never mass-assigned. A caller MAY declare only provenance that is **equally or more restrictive**
   than `user_created` — specifically the attested paid-source case (`FR-014a`). An **unprivileged** caller MUST
   NOT be able to declare `imported_public` (which would let them attach false attribution) or
-  `imported_physical` (which would grant a free-tier caller a private recipe that C-004 reserves for premium).
-  Those classifications are set by the server from the channel it observed, **or declared by a principal holding
+  `imported_physical` (whose attestation and citation, `FR-014a`, are not built on that route). Those
+  classifications are set by the server from the channel it observed, **or declared by a principal holding
   the grant that channel requires**.
     > ⚠️ **The word "unprivileged" is an AMENDMENT, not a reading of the original.** This requirement previously
     > forbade **any** caller from declaring `imported_public`, justified by the server setting it "from the
@@ -420,7 +421,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > about authorship, and this requirement is an authorship control.
     >
     > `imported_physical` and `imported_paid` remain **undeclarable by anyone** — that half is unchanged, and
-    > ADR-0023 records why admitting them today would breach `FR-028`.
+    > ADR-0023 records why: the attestation and citation that must travel with them are not built there.
 - **FR-026**: System MUST support importing a single file containing **many** recipes — up to **1,000** per
   file, rejecting a larger file with an explicit limit message — producing one draft per
   recipe. Drafts with no missing required fields MUST be confirmable in a single bulk action; drafts with gaps
@@ -752,9 +753,9 @@ The section above decides **who authors** the contract; this one is where it **r
     - **Why 011 rather than 004 owns it.** 011's photo depth — handwriting, multi-photo batches, per-token
       confidence, and a side-by-side correction UI — is a product in its own right and far exceeds 004's
       single `FR-012` sentence. Folding it into 004 would have discarded the differentiator 011 exists for.
-    - **Consequence for D-014.** The premium gate on OCR moves with the channel; it becomes 011's to enforce,
-      via the same shared entitlement mechanism (never an import of the identity service — ADR-0017
-      decision 3). D-014's rule for 004's own non-public channels is unchanged.
+    - **Consequence for D-014.** D-014's rule moves with the channel and becomes 011's to enforce. Since
+      2026-10-26 that rule is the private-slot limit, not a premium gate (ADR-0073). It is read through the
+      same shared entitlement mechanism, never an import of the identity service (ADR-0017 decision 3).
 - **D-002 (Instagram)**: `FR-009` is **fully specified but gated**. The public no-auth oEmbed endpoint
   (`api.instagram.com/oembed`) was withdrawn on 2020-10-24; oEmbed now requires a Meta app credential and App
   Review. Instagram import therefore ships behind a capability flag, defaulting off, and its adapter is
@@ -822,14 +823,14 @@ The section above decides **who authors** the contract; this one is where it **r
   "tidy away" the bare alias it may encounter in shipped controllers: it is load-bearing, not dead code.
   _An earlier revision of this decision recorded the shipped services as non-compliant and scoped the
   migration as future work. That was true when written and is now obsolete — the migration has landed._
-- **D-014 (Non-public creation is premium, 2026-08-02)**: Creating a recipe that is not public requires a
-  subscription — applied consistently, including where the privacy is imposed by policy rather than chosen.
-  Consequences, stated plainly: **photo/OCR import and attested paid-source entry become premium-only**; free
-  tier keeps URL, Instagram, and file/migration import. Two things make this coherent rather than merely
-  restrictive: it confines Textract spend to paying users, which retires the cost concern D-001 opened; and it
-  is enforced by the **shipped** C-004 policy, since `imported_physical` and `imported_paid` are already
-  non-public classes — the gate is on _creation_, not a second visibility rule. Free-tier users are shown the
-  upgrade path, and the gated channels are not advertised to them at all (`FR-028`).
+- **D-014 (Non-public creation is bounded by private slots — amended 2026-10-26, owner ruling,
+  [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md))**: Creating a recipe that is
+  not public no longer requires a subscription. A free-tier user holds up to 50 private recipes, and every one
+  uses a slot, including where the privacy is imposed by policy rather than chosen. Photo/OCR import and attested
+  paid-source entry are open to the free tier, within its slots. The decision of 2026-08-02 made both
+  premium-only, and it also confined Textract spend to paying users. That spend bound is gone: free-tier OCR is
+  now bounded only by the OCR sub-quota (`FR-022`). The slot check is a visibility rule in the C-004 policy, not
+  a gate on the channel (`FR-028`).
 - **D-013 (Bulk limits, 2026-08-02)**: A single export file may contain up to **1,000 recipes**; above that it
   is rejected with an explicit limit message. A bulk file import counts as **one** import against the D-006
   daily allowance, not one per recipe — the allowance exists to bound outbound fetching and OCR spend, and a

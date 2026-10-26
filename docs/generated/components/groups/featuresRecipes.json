@@ -20194,7 +20194,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportReviewRail.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportReviewRail` (web): beside the review step at the wide container\nclass (1194 and web, board WizardStep), a navigation landmark over a window of the recipes to review. The current\nrecipe is marked `aria-current=\"step\"`, filled and ringed in the selected edge (U10: the fill alone is 1.2:1); a\nskipped one says so in its own name, not by look alone; under the\nlist, how many recipes needed nothing and are already in.\n\nPresentational: the host picks the window (never all of a long library) and opens a recipe. The native leaf is\n`./ImportReviewRail.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportReviewRail` (web): beside the review step at the wide container\nclass (1194 and web, board WizardStep), a navigation landmark over a window of the recipes to review. The current\nrecipe is marked `aria-current=\"step\"`, filled and ringed in the selected edge (U10: the fill alone is 1.2:1); a\nskipped one says so in its own name, not by look alone; under the list, how many recipes needed nothing and are\nalready in.\n\nPresentational: the host picks the window (never all of a long library) and opens a recipe. The native leaf is\n`./ImportReviewRail.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",

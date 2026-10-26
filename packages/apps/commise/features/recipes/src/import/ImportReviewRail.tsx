@@ -4,8 +4,8 @@
  * @module @commise/features-recipes/import — `ImportReviewRail` (web): beside the review step at the wide container
  * class (1194 and web, board WizardStep), a navigation landmark over a window of the recipes to review. The current
  * recipe is marked `aria-current="step"`, filled and ringed in the selected edge (U10: the fill alone is 1.2:1); a
- * skipped one says so in its own name, not by look alone; under the
- * list, how many recipes needed nothing and are already in.
+ * skipped one says so in its own name, not by look alone; under the list, how many recipes needed nothing and are
+ * already in.
  *
  * Presentational: the host picks the window (never all of a long library) and opens a recipe. The native leaf is
  * `./ImportReviewRail.native.tsx`.

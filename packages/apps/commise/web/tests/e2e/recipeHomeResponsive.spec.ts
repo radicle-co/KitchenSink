@@ -335,9 +335,11 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         const heading = page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' });
         await expect(heading).toBeVisible();
 
-        // The title is the large-title role (build spec §1.5); its wide size is the role's own, read from the page.
+        // The title is the large-title role (build spec §1.5). REWRITTEN to the owner's type-scale rule (2026-10-25: 28 px
+        // is the largest size in the app, and `largeTitle` is 28 at every container class). It asserted a floor of 34 px,
+        // which the scale no longer allows; the exact value also fails on drift the other way. Read from the page.
         const fontSize = await heading.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
-        expect(fontSize).toBeGreaterThanOrEqual(34);
+        expect(fontSize).toBe(28);
 
         // The drawn ingredient box is 24 px at every width; the row around it is the target.
         const drawn = await page

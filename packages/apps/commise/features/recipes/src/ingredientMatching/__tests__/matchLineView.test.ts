@@ -39,7 +39,7 @@ import {
     MILKS,
 } from '../__fixtures__/matchLines.js';
 import type { MatchLine, PendingSend } from '../matchLine.js';
-import { choiceListViewOf, lineRowOf, type LinePlace, type LineRow } from '../matchLineView.js';
+import { choiceListViewOf, lineRowOf, pickFailureViewOf, type LinePlace, type LineRow } from '../matchLineView.js';
 import { matchLineMessages } from '../messages.js';
 
 const copy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
@@ -386,6 +386,23 @@ describe('a failed pick (M6)', () => {
                 pending: pickPending('skim', 'Skim milk'),
             }).view.failure,
         ).toBeUndefined();
+    });
+});
+
+describe('pickFailureViewOf (M6, for a surface that has no MatchLine)', () => {
+    it('words the failure and Try again exactly as a matched line does, named for the line it is given', () => {
+        const view = pickFailureViewOf('1 1/4 cups milk', copy);
+
+        expect(view).toEqual({
+            text: 'We couldn’t save that choice.',
+            retry: { label: 'Try again', name: 'Try again to save the choice for 1 1/4 cups milk' },
+        });
+        expect(view).toEqual(
+            rowOf('open', makeDefaultLine({ line: { measure: '1 1/4 cups', words: 'milk' } }), {
+                expanded: true,
+                failed: true,
+            }).view.failure,
+        );
     });
 });
 

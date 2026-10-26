@@ -51,6 +51,18 @@ const resolvedOf = (line: MatchLine, text: string, copy: MatchCopy): string | un
 const noteFoodOf = (line: MatchLine | undefined): string | undefined =>
     line?.binding?.boundBy === 'cook' ? line.binding.reviewNote?.suggestedFood : undefined;
 
+/**
+ * What the list's region says when a send for a line failed (M6). The ONE wording, for a matched line (`lineChangesOf`)
+ * and for a surface that holds the line only as text (the flagged list and its options). Pure.
+ *
+ * @param text - The line as the cook wrote it.
+ * @param copy - The localised copy.
+ * @returns The sentence.
+ */
+export function pickFailedAnnouncementOf(text: string, copy: MatchCopy): string {
+    return fillTemplate(copy.line.announce.pickFailed, { line: text });
+}
+
 /** What changed on one line, as sentences, in order. Pure. */
 const changesOfLine = (
     line: MatchLine,
@@ -67,9 +79,7 @@ const changesOfLine = (
             ? fillTemplate(copy.line.announce.lateSuggestion, { line: text, food: noteFood })
             : undefined;
     const failed =
-        after.failed.has(line.key) && !before.failed.has(line.key)
-            ? fillTemplate(copy.line.announce.pickFailed, { line: text })
-            : undefined;
+        after.failed.has(line.key) && !before.failed.has(line.key) ? pickFailedAnnouncementOf(text, copy) : undefined;
 
     return [resolved, note, failed].filter((sentence): sentence is string => sentence !== undefined);
 };

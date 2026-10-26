@@ -43,6 +43,8 @@ function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
                 },
             ]}
             pending={new Map()}
+            failed={new Set()}
+            announcement={{ text: '', occurrence: 0 }}
             onUseSuggestion={onUseSuggestion}
             onChooseAnother={onChooseAnother}
             {...overrides}
@@ -94,5 +96,38 @@ describe('ImportFlaggedList (native)', () => {
         windowWidth.current = 1194;
         renderList({ detail: <Text>the pane</Text> });
         expect(screen.getByText('the pane')).toBeTruthy();
+    });
+
+    it('⛔ M6: a Use that did not save says so on its row, with Try again naming the line; Try again sends Use again', () => {
+        const { onUseSuggestion } = renderList({ failed: new Set(['milk']) });
+
+        expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
+
+        const retry = screen.getByRole('button', { name: 'Try again to save the choice for 1 1/4 cups milk' });
+
+        expect(retry.textContent).toBe('Try again');
+
+        fireEvent.click(retry);
+
+        expect(onUseSuggestion).toHaveBeenCalledExactlyOnceWith('milk');
+        expect(
+            screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' }).hasAttribute('disabled'),
+        ).toBe(false);
+    });
+
+    it('M6: a retry in flight hides the failure, and no failure shows when nothing failed', () => {
+        renderList({ failed: new Set(['milk']), pending: new Map([['milk', { kind: 'useProposal' }]]) });
+
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+        cleanup();
+
+        renderList();
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+    });
+
+    it('⛔ U9: says what the host announces in ONE polite live region', () => {
+        renderList({ announcement: { text: 'We couldn’t save the choice for 1 1/4 cups milk.', occurrence: 1 } });
+
+        expect(screen.getAllByText('We couldn’t save the choice for 1 1/4 cups milk.')).toHaveLength(1);
     });
 });

@@ -3,11 +3,13 @@
  * `./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap
  * rather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the
  * wide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside
- * the list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5).
+ * the list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite
+ * live region (M6, U9).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { useContainerClass } from '@commise/ui/layout';
+import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
@@ -15,6 +17,9 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
+import { pickFailureViewOf } from '../ingredientMatching/matchLineView.js';
+import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -26,12 +31,15 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     total,
     lines,
     pending,
+    failed,
+    announcement,
     onUseSuggestion,
     onChooseAnother,
     detail,
 }) => {
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
+    const copy = useMatchCopy();
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
 
@@ -77,6 +85,12 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                     {f.chooseAnother}
                                 </Button>
                             </View>
+                            {failed.has(line.key) && !pending.has(line.key) ? (
+                                <MatchFailureLine
+                                    failure={pickFailureViewOf(line.text, copy)}
+                                    onRetry={() => onUseSuggestion(line.key)}
+                                />
+                            ) : null}
                         </View>
                     ))}
                 </View>
@@ -85,6 +99,9 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                 </Text>
             </View>
             {wide && detail !== undefined ? <View style={styles.pane}>{detail}</View> : null}
+            <LiveRegion politeness="polite" occurrence={announcement.occurrence} visuallyHidden>
+                {announcement.text}
+            </LiveRegion>
         </View>
     );
 };

@@ -44,6 +44,8 @@ function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
             total={23}
             lines={[MILK, SPICE]}
             pending={new Map()}
+            failed={new Set()}
+            announcement={{ text: '', occurrence: 0 }}
             onUseSuggestion={onUseSuggestion}
             onChooseAnother={onChooseAnother}
             {...overrides}
@@ -157,6 +159,56 @@ describe('ImportFlaggedList (web)', () => {
 
         expect(use.getAttribute('aria-disabled')).toBe('true');
         expect(use.hasAttribute('aria-busy')).toBe(false);
+    });
+
+    it('⛔ M6: a Use that did not save says so on its row, in the shared words, with Try again naming the line', async () => {
+        const user = userEvent.setup();
+        const { onUseSuggestion } = renderList({ failed: new Set(['milk']) });
+
+        const row = itemOf('1 1/4 cups milk');
+        const retry = within(row).getByRole('button', { name: 'Try again to save the choice for 1 1/4 cups milk' });
+
+        expect(within(row).getByText('We couldn’t save that choice.')).toBeTruthy();
+        expect(retry.textContent).toBe('Try again');
+        expect(within(itemOf('1 tsp mixed spice')).queryByText('We couldn’t save that choice.')).toBeNull();
+
+        // Try again sends the same Use again; Use itself is still there, and neither control is natively disabled.
+        await user.click(retry);
+
+        expect(onUseSuggestion).toHaveBeenCalledExactlyOnceWith('milk');
+
+        for (const button of within(row).getAllByRole('button')) {
+            expect(button.hasAttribute('disabled')).toBe(false);
+        }
+    });
+
+    it('M6: a retry in flight hides the failure; the busy Use says what is happening and keeps focus', () => {
+        const pending: ReadonlyMap<string, PendingSend> = new Map([['milk', { kind: 'useProposal' }]]);
+
+        renderList({ failed: new Set(['milk']), pending });
+
+        const use = screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' });
+
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+        expect(use.getAttribute('aria-busy')).toBe('true');
+        expect(use.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('M6: no failure, no failure line', () => {
+        renderList();
+
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+    });
+
+    it('⛔ U9: the page has ONE polite live region, saying what the host announces, outside every row', () => {
+        renderList({ announcement: { text: 'We couldn’t save the choice for 1 1/4 cups milk.', occurrence: 1 } });
+
+        const spoken = screen.getAllByRole('status').filter((region) => region.textContent !== '');
+
+        expect(spoken.map((region) => region.textContent)).toEqual([
+            'We couldn’t save the choice for 1 1/4 cups milk.',
+        ]);
+        expect(spoken.every((region) => region.closest('li') === null)).toBe(true);
     });
 
     it('says the lines also carry a mark in their recipes', () => {

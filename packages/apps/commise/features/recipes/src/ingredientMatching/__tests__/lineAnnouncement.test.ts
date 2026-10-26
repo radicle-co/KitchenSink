@@ -22,7 +22,7 @@ import {
     makeOptionsFailedLine,
     MILKS,
 } from '../__fixtures__/matchLines.js';
-import { lineChangesOf, type ListSnapshot } from '../lineAnnouncement.js';
+import { lineChangesOf, pickFailedAnnouncementOf, type ListSnapshot } from '../lineAnnouncement.js';
 import type { MatchLine } from '../matchLine.js';
 import { matchLineMessages } from '../messages.js';
 
@@ -108,5 +108,15 @@ describe('lineChangesOf', () => {
 
     it('a line new to the list is not a change of a checking line', () => {
         expect(lineChangesOf(snapshot([]), snapshot([makeConfidentLine()]), copy)).toBe('');
+    });
+});
+
+describe('pickFailedAnnouncementOf', () => {
+    it('says the failure for a line given only as text, in the words lineChangesOf uses for a matched line', () => {
+        const line = makeDefaultLine({ key: 'milk', line: { measure: '1 1/4 cups', words: 'milk' } });
+        const said = lineChangesOf(snapshot([line]), snapshot([line], new Set(['milk'])), copy);
+
+        expect(pickFailedAnnouncementOf('1 1/4 cups milk', copy)).toBe(said);
+        expect(said).not.toBe('');
     });
 });

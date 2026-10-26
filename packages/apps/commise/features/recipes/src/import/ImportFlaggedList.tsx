@@ -7,16 +7,21 @@
  * another food for {line}", with a 44 px target. Choose another opens the line's options, search first: the sheet below
  * the wide class, the pane beside the list at it (`detail`), the same shared `FoodChoiceList` either way. Nothing
  * changes until the cook acts. While a send for a line is in flight, Use reads busy if it is the one sending, and both
- * controls refuse a press and keep focus (M5).
+ * controls refuse a press and keep focus (M5). A Use that did not save says so on its row in the matched-line list's
+ * words, with Try again, and the page has ONE polite live region (M6, U9).
  *
  * Presentational and controlled. The native leaf is `./ImportFlaggedList.native.tsx`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
 
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
+import { pickFailureViewOf } from '../ingredientMatching/matchLineView.js';
+import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -25,12 +30,15 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     total,
     lines,
     pending,
+    failed,
+    announcement,
     onUseSuggestion,
     onChooseAnother,
     detail,
 }) => {
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
+    const copy = useMatchCopy();
 
     return (
         <div className="flex flex-col gap-6 @wide/main:flex-row @wide/main:items-start">
@@ -72,6 +80,12 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                     {f.chooseAnother}
                                 </Button>
                             </span>
+                            {failed.has(line.key) && !pending.has(line.key) ? (
+                                <MatchFailureLine
+                                    failure={pickFailureViewOf(line.text, copy)}
+                                    onRetry={() => onUseSuggestion(line.key)}
+                                />
+                            ) : null}
                         </li>
                     ))}
                 </ul>
@@ -80,6 +94,9 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                 </p>
             </div>
             {detail === undefined ? null : <div className="hidden w-96 shrink-0 @wide/main:block">{detail}</div>}
+            <LiveRegion politeness="polite" occurrence={announcement.occurrence} visuallyHidden>
+                {announcement.text}
+            </LiveRegion>
         </div>
     );
 };

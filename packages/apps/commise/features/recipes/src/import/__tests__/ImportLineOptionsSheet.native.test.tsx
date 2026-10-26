@@ -20,6 +20,7 @@ import { makeDefaultLine, makeFoodChoice } from '../../ingredientMatching/__fixt
 // Explicit `.native.js` — tsc and the native config's resolver both map them to the `.native.tsx` leaves.
 import { ImportLineOptionsPane } from '../ImportLineOptionsPane.native.js';
 import { ImportLineOptionsSheet } from '../ImportLineOptionsSheet.native.js';
+import type { ImportLineOptionsPaneProps, ImportLineOptionsSheetProps } from '../props.js';
 
 const LINE = '1 1/4 cups milk';
 const MILK_LINE = makeDefaultLine({
@@ -33,24 +34,57 @@ const NO_FOCUS = { requested: false, onHandled: vi.fn() };
 
 afterEach(cleanup);
 
+function renderSheet(overrides: Partial<ImportLineOptionsSheetProps> = {}) {
+    const onRetryPick = vi.fn();
+
+    render(
+        <ImportLineOptionsSheet
+            open
+            onOpenChange={vi.fn()}
+            title="1 1/4 cups milk · Pancakes"
+            line={MILK_LINE}
+            online
+            pending={undefined}
+            failed={false}
+            announcement={{ text: '', occurrence: 0 }}
+            focus={NO_FOCUS}
+            onPick={vi.fn()}
+            onSearch={vi.fn()}
+            onRetryPick={onRetryPick}
+            {...overrides}
+        />,
+    );
+
+    return { onRetryPick };
+}
+
+function renderPane(overrides: Partial<ImportLineOptionsPaneProps> = {}) {
+    const onRetryPick = vi.fn();
+
+    render(
+        <ImportLineOptionsPane
+            title="1 1/4 cups milk · Pancakes"
+            line={MILK_LINE}
+            online
+            pending={undefined}
+            failed={false}
+            focus={NO_FOCUS}
+            onPick={vi.fn()}
+            onSearch={vi.fn()}
+            onRetryPick={onRetryPick}
+            {...overrides}
+        />,
+    );
+
+    return { onRetryPick };
+}
+
 describe('ImportLineOptionsSheet (native)', () => {
     it('titled with the line and its recipe: Search first, the options as buttons with nothing chosen', () => {
         const onSearch = vi.fn();
         const onPick = vi.fn();
 
-        render(
-            <ImportLineOptionsSheet
-                open
-                onOpenChange={vi.fn()}
-                title="1 1/4 cups milk · Pancakes"
-                line={MILK_LINE}
-                online
-                pending={undefined}
-                focus={NO_FOCUS}
-                onPick={onPick}
-                onSearch={onSearch}
-            />,
-        );
+        renderSheet({ onSearch, onPick });
 
         expect(screen.getByText('1 1/4 cups milk · Pancakes')).toBeTruthy();
 
@@ -69,19 +103,62 @@ describe('ImportLineOptionsSheet (native)', () => {
     });
 });
 
+describe('a pick that did not save (M6), on the sheet (native)', () => {
+    it('says so above the list in the shared words, and Try again sends the pick again', () => {
+        const { onRetryPick } = renderSheet({ failed: true });
+
+        expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
+
+        const retry = screen.getByRole('button', { name: `Try again to save the choice for ${LINE}` });
+
+        expect(retry.textContent).toBe('Try again');
+        expect(retry.hasAttribute('disabled')).toBe(false);
+
+        fireEvent.click(retry);
+
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('says nothing when nothing failed, and nothing while a retry is in flight', () => {
+        renderSheet();
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+        cleanup();
+
+        renderSheet({ failed: true, pending: { kind: 'searchPick' } });
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+    });
+
+    it('⛔ the sheet speaks the failure itself, in its own polite region', () => {
+        renderSheet({ announcement: { text: 'We couldn’t save the choice for 1 1/4 cups milk.', occurrence: 1 } });
+
+        expect(screen.getAllByText('We couldn’t save the choice for 1 1/4 cups milk.')).toHaveLength(1);
+    });
+});
+
+describe('a pick that did not save (M6), on the pane (native)', () => {
+    it('says so under the heading, and Try again sends the pick again', () => {
+        const { onRetryPick } = renderPane({ failed: true });
+
+        expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: `Try again to save the choice for ${LINE}` }));
+
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('says nothing when nothing failed, and nothing while a retry is in flight', () => {
+        renderPane();
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+        cleanup();
+
+        renderPane({ failed: true, pending: { kind: 'searchPick' } });
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+    });
+});
+
 describe('ImportLineOptionsPane (native)', () => {
     it('heads the same list with the line and its recipe', () => {
-        render(
-            <ImportLineOptionsPane
-                title="1 1/4 cups milk · Pancakes"
-                line={MILK_LINE}
-                online
-                pending={undefined}
-                focus={NO_FOCUS}
-                onPick={vi.fn()}
-                onSearch={vi.fn()}
-            />,
-        );
+        renderPane();
 
         expect(screen.getByRole('heading', { name: '1 1/4 cups milk · Pancakes' })).toBeTruthy();
         expect(screen.getByRole('button', { name: `Search for a food for ${LINE}` })).toBeTruthy();

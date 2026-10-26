@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 import type { ControlFocus } from '../common/controlFocus.js';
 import type { FoodChoiceListProps } from '../ingredientMatching/foodChoiceListProps.js';
 import type { MatchLine, PendingSend } from '../ingredientMatching/matchLine.js';
-import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
+import type { ListAnnouncement, MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
 import type { ImportMatchMode } from './importMode.js';
 
 /** The mode choice before a bulk import (board ImportModeChoice). */
@@ -184,7 +184,17 @@ export interface ImportFlaggedListProps {
      * both of the line's controls, so a double press cannot send twice (M5).
      */
     readonly pending: ReadonlyMap<string, PendingSend>;
-    /** Bind the line to its suggestion. The host raises its pending send in this call. */
+    /**
+     * The lines whose "Use {food}" did not save. Each says so, in the matched-line list's words, with Try again, until
+     * a retry is in flight (M6). Try again is {@link onUseSuggestion} again.
+     */
+    readonly failed: ReadonlySet<string>;
+    /**
+     * What the page's ONE polite live region says now (U9): the host words a failed Use, or a failed pick from the
+     * pane beside the list, with `pickFailedAnnouncementOf`. A pick from the SHEET is spoken by the sheet's own region.
+     */
+    readonly announcement: ListAnnouncement;
+    /** Bind the line to its suggestion. The host raises its pending send in this call. Try again calls it again. */
     readonly onUseSuggestion: (key: string) => void;
     /** Choose another: open the line's options, search first — the sheet on phone and 834, the pane at 1194 and web. */
     readonly onChooseAnother: (key: string) => void;
@@ -203,6 +213,10 @@ export interface ImportLineOptionsProps extends Omit<FoodChoiceListProps, 'view'
     readonly online: boolean;
     /** The pick in flight for this line, if any. */
     readonly pending: PendingSend | undefined;
+    /** The line's last pick did not save: say so, with Try again, until a retry is in flight (M6). */
+    readonly failed: boolean;
+    /** Try again was pressed: send the line's pick again. */
+    readonly onRetryPick: () => void;
 }
 
 /** A flagged line's options in a sheet (phone and 834). */
@@ -213,9 +227,17 @@ export interface ImportLineOptionsSheetProps extends ImportLineOptionsProps {
     readonly onOpenChange: (open: boolean) => void;
     /** The sheet's title: the line and its recipe. */
     readonly title: string;
+    /**
+     * What the sheet's own polite live region says now. The sheet is modal, so it hides the flagged list and its region
+     * from assistive technology while it is open: the failure has to be spoken from inside it.
+     */
+    readonly announcement: ListAnnouncement;
 }
 
-/** A flagged line's options in the pane beside the flagged list (1194 and web): the same list as the sheet. */
+/**
+ * A flagged line's options in the pane beside the flagged list (1194 and web): the same list as the sheet. It has no
+ * live region: the flagged list beside it has the page's one.
+ */
 export interface ImportLineOptionsPaneProps extends ImportLineOptionsProps {
     /** The pane's heading: the line and its recipe. */
     readonly title: string;

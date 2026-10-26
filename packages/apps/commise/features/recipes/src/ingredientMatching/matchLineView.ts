@@ -343,14 +343,25 @@ export function isFocusTarget(target: ListFocusTarget, control: ListFocusTarget)
     }
 }
 
+/**
+ * A failed send, worded for one line: the attention sentence and Try again named for the line. The ONE place the words
+ * are put together, for a matched line (`failureOf`) and for a surface that holds the line only as text (the flagged
+ * list's rows). Pure.
+ *
+ * @param text - The line as the cook wrote it.
+ * @param copy - The localised copy.
+ * @returns The failure's view.
+ */
+export function pickFailureViewOf(text: string, copy: MatchCopy): PickFailureView {
+    return {
+        text: copy.line.pickFailed,
+        retry: { label: copy.line.retry, name: fillTemplate(copy.line.pickRetryName, { line: text }) },
+    };
+}
+
 /** A send's failure, shown until a retry is in flight. Pure. */
 const failureOf = (text: string, place: OpenPlace, copy: MatchCopy): PickFailureView | undefined =>
-    place.failed && place.pending === undefined
-        ? {
-              text: copy.line.pickFailed,
-              retry: { label: copy.line.retry, name: fillTemplate(copy.line.pickRetryName, { line: text }) },
-          }
-        : undefined;
+    place.failed && place.pending === undefined ? pickFailureViewOf(text, copy) : undefined;
 
 /** The muted prompt over an open line, by its state; none once something is bound (a Change). Pure. */
 const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {

@@ -16,6 +16,7 @@ import userEvent from '@testing-library/user-event';
 import { makeDefaultLine, makeFoodChoice } from '../../ingredientMatching/__fixtures__/matchLines.js';
 import { ImportLineOptionsPane } from '../ImportLineOptionsPane.js';
 import { ImportLineOptionsSheet } from '../ImportLineOptionsSheet.js';
+import type { ImportLineOptionsPaneProps, ImportLineOptionsSheetProps } from '../props.js';
 
 const LINE = '1 1/4 cups milk';
 const MILK_LINE = makeDefaultLine({
@@ -30,8 +31,8 @@ const NO_FOCUS = { requested: false, onHandled: vi.fn() };
 
 afterEach(cleanup);
 
-function renderSheet(open = true) {
-    const handlers = { onOpenChange: vi.fn(), onPick: vi.fn(), onSearch: vi.fn() };
+function renderSheet(open = true, overrides: Partial<ImportLineOptionsSheetProps> = {}) {
+    const handlers = { onOpenChange: vi.fn(), onPick: vi.fn(), onSearch: vi.fn(), onRetryPick: vi.fn() };
 
     render(
         <ImportLineOptionsSheet
@@ -40,8 +41,30 @@ function renderSheet(open = true) {
             line={MILK_LINE}
             online
             pending={undefined}
+            failed={false}
+            announcement={{ text: '', occurrence: 0 }}
             focus={NO_FOCUS}
             {...handlers}
+            {...overrides}
+        />,
+    );
+
+    return handlers;
+}
+
+function renderPane(overrides: Partial<ImportLineOptionsPaneProps> = {}) {
+    const handlers = { onPick: vi.fn(), onSearch: vi.fn(), onRetryPick: vi.fn() };
+
+    render(
+        <ImportLineOptionsPane
+            title="1 1/4 cups milk · Pancakes"
+            line={MILK_LINE}
+            online
+            pending={undefined}
+            failed={false}
+            focus={NO_FOCUS}
+            {...handlers}
+            {...overrides}
         />,
     );
 
@@ -85,19 +108,81 @@ describe('ImportLineOptionsSheet (web)', () => {
     });
 });
 
+describe('a pick that did not save (M6), on the sheet', () => {
+    it('says so above the list in the shared words, and Try again sends the pick again', async () => {
+        const user = userEvent.setup();
+        const { onRetryPick } = renderSheet(true, { failed: true });
+
+        const dialog = screen.getByRole('dialog', { name: '1 1/4 cups milk · Pancakes' });
+        const retry = within(dialog).getByRole('button', { name: `Try again to save the choice for ${LINE}` });
+
+        expect(within(dialog).getByText('We couldn’t save that choice.')).toBeTruthy();
+        expect(retry.textContent).toBe('Try again');
+        expect(retry.hasAttribute('disabled')).toBe(false);
+
+        await user.click(retry);
+
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('says nothing when nothing failed, and nothing while a retry is in flight', () => {
+        renderSheet();
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+        cleanup();
+
+        renderSheet(true, { failed: true, pending: { kind: 'searchPick' } });
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+    });
+
+    it('⛔ the sheet speaks the failure itself: its own polite region INSIDE the dialog, which hides the page behind it', () => {
+        renderSheet(true, {
+            announcement: { text: 'We couldn’t save the choice for 1 1/4 cups milk.', occurrence: 1 },
+        });
+
+        const dialog = screen.getByRole('dialog', { name: '1 1/4 cups milk · Pancakes' });
+        const spoken = within(dialog)
+            .getAllByRole('status')
+            .filter((region) => region.textContent !== '');
+
+        expect(spoken.map((region) => region.textContent)).toEqual([
+            'We couldn’t save the choice for 1 1/4 cups milk.',
+        ]);
+    });
+});
+
+describe('a pick that did not save (M6), on the pane', () => {
+    it('says so under the heading, and Try again sends the pick again', async () => {
+        const user = userEvent.setup();
+        const { onRetryPick } = renderPane({ failed: true });
+
+        const pane = screen.getByRole('region', { name: '1 1/4 cups milk · Pancakes' });
+
+        expect(within(pane).getByText('We couldn’t save that choice.')).toBeTruthy();
+
+        await user.click(within(pane).getByRole('button', { name: `Try again to save the choice for ${LINE}` }));
+
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('says nothing when nothing failed, and nothing while a retry is in flight', () => {
+        renderPane();
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+        cleanup();
+
+        renderPane({ failed: true, pending: { kind: 'searchPick' } });
+        expect(screen.queryByText('We couldn’t save that choice.')).toBeNull();
+    });
+
+    it('has no live region of its own: the flagged list beside it speaks (one region per page)', () => {
+        renderPane({ failed: true });
+
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+});
+
 describe('ImportLineOptionsPane (web)', () => {
     it('is a region headed by the line and its recipe, with the same list: Search first, nothing chosen', () => {
-        render(
-            <ImportLineOptionsPane
-                title="1 1/4 cups milk · Pancakes"
-                line={MILK_LINE}
-                online
-                pending={undefined}
-                focus={NO_FOCUS}
-                onPick={vi.fn()}
-                onSearch={vi.fn()}
-            />,
-        );
+        renderPane();
 
         const pane = screen.getByRole('region', { name: '1 1/4 cups milk · Pancakes' });
 

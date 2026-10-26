@@ -6,11 +6,11 @@
     "coverage": {
         "components": 178,
         "implementations": 307,
-        "props": 1586,
+        "props": 1600,
         "documentedComponents": 178,
         "implementationsWithModuleDoc": 307,
         "implementationsWithComponentDoc": 200,
-        "documentedProps": 1307,
+        "documentedProps": 1321,
         "classifiedComponents": 158,
         "componentsWithPatternTag": 81,
         "crossPlatformComponents": 129
@@ -19047,7 +19047,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (web): \"N to check\" (board FlaggedLine), the lines the\nsave-time check doubts after a \"Pick the best match for me\" import. Each row names its line and recipe and the doubted\nmatch, then ONE action — \"Use Whole milk\", when the check has a food to offer — and \"Choose another\", named \"Choose\nanother food for {line}\", with a 44 px target. Choose another opens the line's options, search first: the sheet below\nthe wide class, the pane beside the list at it (`detail`), the same shared `FoodChoiceList` either way. Nothing\nchanges until the cook acts. While a send for a line is in flight, Use reads busy if it is the one sending, and both\ncontrols refuse a press and keep focus (M5).\n\nPresentational and controlled. The native leaf is `./ImportFlaggedList.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (web): \"N to check\" (board FlaggedLine), the lines the\nsave-time check doubts after a \"Pick the best match for me\" import. Each row names its line and recipe and the doubted\nmatch, then ONE action — \"Use Whole milk\", when the check has a food to offer — and \"Choose another\", named \"Choose\nanother food for {line}\", with a 44 px target. Choose another opens the line's options, search first: the sheet below\nthe wide class, the pane beside the list at it (`detail`), the same shared `FoodChoiceList` either way. Nothing\nchanges until the cook acts. While a send for a line is in flight, Use reads busy if it is the one sending, and both\ncontrols refuse a press and keep focus (M5). A Use that did not save says so on its row in the matched-line list's\nwords, with Try again, and the page has ONE polite live region (M6, U9).\n\nPresentational and controlled. The native leaf is `./ImportFlaggedList.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19060,12 +19060,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the page's ONE polite live region says now (U9): the host words a failed Use, or a failed pick from the\npane beside the list, with `pickFailedAnnouncementOf`. A pick from the SHEET is spoken by the sheet's own region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
                             "name": "detail",
                             "type": "ReactNode",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
                             "description": "The open line's options, drawn beside the list at the wide container class.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19092,7 +19110,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Bind the line to its suggestion. The host raises its pending send in this call.",
+                            "description": "Bind the line to its suggestion. The host raises its pending send in this call. Try again calls it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19126,7 +19144,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside\nthe list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5).",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside\nthe list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite\nlive region (M6, U9).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19139,12 +19157,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the page's ONE polite live region says now (U9): the host words a failed Use, or a failed pick from the\npane beside the list, with `pickFailedAnnouncementOf`. A pick from the SHEET is spoken by the sheet's own region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
                             "name": "detail",
                             "type": "ReactNode",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
                             "description": "The open line's options, drawn beside the list at the wide container class.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19171,7 +19207,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Bind the line to its suggestion. The host raises its pending send in this call.",
+                            "description": "Bind the line to its suggestion. The host raises its pending send in this call. Try again calls it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19563,7 +19599,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsPane.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsPane` (web): a flagged line's options beside the list at\nthe wide container class (board FlaggedLine, 1194 and web). A region headed by the line and its recipe, then the same\nlist the sheet shows (the shared `FoodChoiceList`), search first.\n\nPresentational and controlled. The native leaf is `./ImportLineOptionsPane.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsPane` (web): a flagged line's options beside the list at\nthe wide container class (board FlaggedLine, 1194 and web). A region headed by the line and its recipe, a pick that did\nnot save with Try again (M6), then the same list the sheet shows (the shared `FoodChoiceList`), search first. It has no\nlive region: the flagged list beside it has the page's one.\n\nPresentational and controlled. The native leaf is `./ImportLineOptionsPane.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19575,6 +19611,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's last pick did not save: say so, with Try again, until a retry is in flight (M6).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
                         {
                             "name": "focus",
                             "type": "ControlFocus",
@@ -19610,6 +19655,15 @@
                             "defaultValue": null,
                             "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed: send the line's pick again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
                             "name": "onSearch",
@@ -19651,7 +19705,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsPane.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsPane` (native): the React Native leaf of\n`./ImportLineOptionsPane.tsx`, beside the flagged list at the wide container class (1194): the line and its recipe as\na heading, then the same list the sheet shows, search first.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsPane` (native): the React Native leaf of\n`./ImportLineOptionsPane.tsx`, beside the flagged list at the wide container class (1194): the line and its recipe as\na heading, a pick that did not save with Try again (M6), then the same list the sheet shows, search first. It has no\nlive region: the flagged list beside it has the page's one.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19663,6 +19717,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's last pick did not save: say so, with Try again, until a retry is in flight (M6).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
                         {
                             "name": "focus",
                             "type": "ControlFocus",
@@ -19698,6 +19761,15 @@
                             "defaultValue": null,
                             "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed: send the line's pick again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
                             "name": "onSearch",
@@ -19758,7 +19830,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsSheet.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsSheet` (web): a flagged line's options in a sheet, which\nSearch opens below the wide container class (board FlaggedLine). The board draws no phone sheet; its notes make it\nthe 1194 pane's list (the shared `FoodChoiceList`), search first, titled with the line and its recipe.\n\nPresentational and controlled. The native leaf is `./ImportLineOptionsSheet.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsSheet` (web): a flagged line's options in a sheet, which\nSearch opens below the wide container class (board FlaggedLine). The board draws no phone sheet; its notes make it\nthe 1194 pane's list (the shared `FoodChoiceList`), search first, titled with the line and its recipe.\n\nA pick that did not save says so above the list, with Try again, and the sheet speaks it from its OWN polite region:\nit is modal, so the page's region behind it is hidden from assistive technology (M6, U9).\n\nPresentational and controlled. The native leaf is `./ImportLineOptionsSheet.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19770,6 +19842,24 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the sheet's own polite live region says now. The sheet is modal, so it hides the flagged list and its region\nfrom assistive technology while it is open: the failure has to be spoken from inside it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's last pick did not save: say so, with Try again, until a retry is in flight (M6).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
                         {
                             "name": "focus",
                             "type": "ControlFocus",
@@ -19814,6 +19904,15 @@
                             "defaultValue": null,
                             "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed: send the line's pick again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
                             "name": "onSearch",
@@ -19864,7 +19963,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptionsSheet.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsSheet` (native): the React Native leaf of\n`./ImportLineOptionsSheet.tsx`. The house bottom `Sheet`, so the options open under the thumb: search first, then the\nfoods, then keep as written, titled with the line and its recipe.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportLineOptionsSheet` (native): the React Native leaf of\n`./ImportLineOptionsSheet.tsx`. The house bottom `Sheet`, so the options open under the thumb: search first, then the\nfoods, then keep as written, titled with the line and its recipe. A pick that did not save says so above the list,\nwith Try again, and the sheet speaks it from its own polite region (M6, U9).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19876,6 +19975,24 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the sheet's own polite live region says now. The sheet is modal, so it hides the flagged list and its region\nfrom assistive technology while it is open: the failure has to be spoken from inside it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's last pick did not save: say so, with Try again, until a retry is in flight (M6).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
                         {
                             "name": "focus",
                             "type": "ControlFocus",
@@ -19920,6 +20037,15 @@
                             "defaultValue": null,
                             "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed: send the line's pick again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
                             "name": "onSearch",

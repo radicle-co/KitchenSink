@@ -29,6 +29,7 @@ import {
 import {
     IMPORT_MAX_CITATION_LENGTH,
     MAX_IMPORT_ITEMS,
+    MAX_IMPORT_RECIPE_BYTES,
     MAX_IMPORT_ITEMS_PER_REQUEST,
     advanceImportRequestSchema,
     createImportRequestSchema,
@@ -100,7 +101,7 @@ describe('createImportRequestSchema', () => {
     });
 });
 
-describe('the item ordinal fits int4 and a file of any plausible size (no per-file cap, ADR-0072 §8)', () => {
+describe('the item ordinal fits int4, and there is no per-file cap (ADR-0072 §8)', () => {
     const withOrdinal = (ordinal: number) => putImportItemsRequestSchema.safeParse({ items: [{ ...ITEM, ordinal }] });
 
     it('accepts 0 and the last ordinal', () => {
@@ -112,8 +113,9 @@ describe('the item ordinal fits int4 and a file of any plausible size (no per-fi
         expect(withOrdinal(ordinal).success).toBe(false);
     });
 
-    it('keeps the ceiling inside int4, so an out-of-range ordinal is a 400 and never a 22003', () => {
-        expect(MAX_IMPORT_ITEMS).toBeLessThanOrEqual(INT4_MAX);
+    it('⛔ puts the ceiling at int4 itself: the owner ruled a file of any size is accepted, so only the column bounds it', () => {
+        expect(MAX_IMPORT_ITEMS).toBe(INT4_MAX);
+        expect(withOrdinal(INT4_MAX - 1).success).toBe(true);
     });
 });
 
@@ -156,6 +158,65 @@ describe('importRecipeSchema — the create-recipe bounds, reused', () => {
         ['a client-sent source url (the statement carries the citation)', { sourceUrl: 'https://example.test/x' }],
     ])('rejects %s', (_name, extra) => {
         expect(importRecipeSchema.safeParse({ ...RECIPE, ...extra }).success).toBe(false);
+    });
+});
+
+describe('one recipe always fits one request (the body limit is 100 kB)', () => {
+    const BODY_LIMIT_BYTES = 100 * 1024;
+    const bytes = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
+
+    /** The recipe with `chars` of `filler` spread over steps of at most 4,000 characters (the per-step cap is 5,000). */
+    function recipeWithFiller(chars: number, filler: string) {
+        const steps = [];
+
+        for (let left = chars; left > 0; left -= 4_000) {
+            steps.push({ instruction: filler.repeat(Math.min(left, 4_000)) });
+        }
+
+        return { ...RECIPE, steps };
+    }
+
+    /** The recipe with the MOST filler whose serialized size is still at most `target` bytes. */
+    function recipeOfBytes(target: number, filler = 'x') {
+        let low = 1;
+        let high = target;
+
+        while (low < high) {
+            const mid = Math.ceil((low + high) / 2);
+
+            if (bytes(recipeWithFiller(mid, filler)) <= target) {
+                low = mid;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        return recipeWithFiller(low, filler);
+    }
+
+    it('keeps the bound under the limit with room for the envelope', () => {
+        expect(MAX_IMPORT_RECIPE_BYTES).toBeLessThan(BODY_LIMIT_BYTES);
+    });
+
+    it('accepts a recipe right at the bound, and a request carrying only that recipe fits the body limit', () => {
+        const recipe = recipeOfBytes(MAX_IMPORT_RECIPE_BYTES);
+
+        expect(importRecipeSchema.safeParse(recipe).success).toBe(true);
+        expect(bytes({ matchMode: 'review', visibility: 'private', items: [{ ordinal: 0, recipe }] })).toBeLessThan(
+            BODY_LIMIT_BYTES,
+        );
+    });
+
+    it('rejects a recipe over the bound, so "send fewer items" is always a remedy', () => {
+        expect(importRecipeSchema.safeParse(recipeOfBytes(MAX_IMPORT_RECIPE_BYTES + 1_000)).success).toBe(false);
+    });
+
+    it('counts BYTES, not characters: multi-byte text that is short in characters is still over', () => {
+        const recipe = recipeOfBytes(MAX_IMPORT_RECIPE_BYTES + 3_000, '汁');
+        const characters = recipe.steps.reduce((sum, step) => sum + step.instruction.length, 0);
+
+        expect(characters).toBeLessThan(MAX_IMPORT_RECIPE_BYTES / 2);
+        expect(importRecipeSchema.safeParse(recipe).success).toBe(false);
     });
 });
 

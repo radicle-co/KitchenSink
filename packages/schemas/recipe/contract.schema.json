@@ -1818,7 +1818,7 @@
                         "additionalProperties": false,
                         "properties": {
                             "ordinal": {
-                                "maximum": 99999,
+                                "maximum": 2147483646,
                                 "minimum": 0,
                                 "type": "integer"
                             },
@@ -2680,7 +2680,7 @@
             "additionalProperties": false,
             "properties": {
                 "after": {
-                    "maximum": 100000,
+                    "maximum": 2147483647,
                     "minimum": -1,
                     "type": "integer"
                 },
@@ -2723,7 +2723,7 @@
                 "from": {
                     "anyOf": [
                         {
-                            "maximum": 99999,
+                            "maximum": 2147483646,
                             "minimum": 0,
                             "type": "integer"
                         },
@@ -2781,7 +2781,7 @@
                                     "type": "string"
                                 },
                                 "to": {
-                                    "maximum": 99999,
+                                    "maximum": 2147483646,
                                     "minimum": 0,
                                     "type": "integer"
                                 }
@@ -3174,7 +3174,7 @@
             "additionalProperties": false,
             "properties": {
                 "ordinal": {
-                    "maximum": 99999,
+                    "maximum": 2147483646,
                     "minimum": 0,
                     "type": "integer"
                 },
@@ -7433,7 +7433,7 @@
                         "additionalProperties": false,
                         "properties": {
                             "ordinal": {
-                                "maximum": 99999,
+                                "maximum": 2147483646,
                                 "minimum": 0,
                                 "type": "integer"
                             },

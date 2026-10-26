@@ -92,6 +92,8 @@ export const recipeImportItems = pgTable(
             .notNull()
             .references(() => recipeImports.id, { onDelete: 'cascade' }),
         ordinal: integer('ordinal').notNull(),
+        /** The recipe's title, kept beside the payload so the list needs no document and a saved item still names itself. */
+        title: text('title').notNull(),
         /** The recipe as the client sent it; dropped once saved. Its size is the contract's bound. */
         payload: jsonb('payload'),
         stage: text('stage').notNull().default('received'),
@@ -114,6 +116,7 @@ export const recipeImportItems = pgTable(
     (table) => [
         primaryKey({ columns: [table.importId, table.ordinal] }),
         check('recipe_import_items_ordinal_check', sql`${table.ordinal} >= 0`),
+        check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),
         check('recipe_import_items_stage_check', inArray(table.stage, [...IMPORT_STAGES])),
         check('recipe_import_items_review_check', inArray(table.review, [...IMPORT_ITEM_REVIEWS])),
         check('recipe_import_items_statement_kind_check', inArray(table.statementKind, [...IMPORT_STATEMENT_KINDS])),
@@ -172,6 +175,8 @@ export const recipeImportLines = pgTable(
         ordinal: integer('ordinal').notNull(),
         lineIndex: integer('line_index').notNull(),
         foodIndex: integer('food_index').notNull(),
+        /** The line as the file stated it, kept after the payload is shed. */
+        sourceLine: text('source_line').notNull(),
         lineDigest: text('line_digest').notNull(),
         judgementDigest: text('judgement_digest').notNull(),
         /** The ingredient phrase the parse lifted out of the line, in the source's own words. */
@@ -209,6 +214,7 @@ export const recipeImportLines = pgTable(
         unique('recipe_import_lines_position_key').on(table.importId, table.ordinal, table.lineIndex, table.foodIndex),
         check('recipe_import_lines_line_index_check', sql`${table.lineIndex} >= 0`),
         check('recipe_import_lines_food_index_check', sql`${table.foodIndex} >= 0`),
+        check('recipe_import_lines_source_line_check', sql`btrim(${table.sourceLine}) <> ''`),
         check('recipe_import_lines_matched_by_check', inArray(table.matchedBy, [...IMPORT_MATCHED_BY])),
         check('recipe_import_lines_review_check', inArray(table.review, [...IMPORT_LINE_REVIEWS])),
         check('recipe_import_lines_one_food', sql`num_nonnulls(${table.foodId}, ${table.foodVariantId}) <= 1`),

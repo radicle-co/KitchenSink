@@ -274,6 +274,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         expectColumns(recipeImportItems, {
             import_id: { type: 'uuid', notNull: true },
             ordinal: { type: 'integer', notNull: true },
+            // The recipe's title, kept beside the payload so the list can show it without reading the document, and so a saved
+            // item still names itself after the payload is shed and its draft deleted.
+            title: { type: 'text', notNull: true },
             payload: { type: 'jsonb', notNull: false },
             stage: { type: 'text', notNull: true },
             review: { type: 'text', notNull: true },
@@ -299,6 +302,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             ordinal: { type: 'integer', notNull: true },
             line_index: { type: 'integer', notNull: true },
             food_index: { type: 'integer', notNull: true },
+            // The line as the file stated it, kept so the wizard and the lists can show it after the payload is shed.
+            source_line: { type: 'text', notNull: true },
             line_digest: { type: 'text', notNull: true },
             judgement_digest: { type: 'text', notNull: true },
             phrase: { type: 'text', notNull: true },

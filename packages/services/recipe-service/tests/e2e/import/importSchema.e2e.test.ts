@@ -101,7 +101,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
 
     /** A legitimate received item: payload present, nothing else. */
     function receivedItem(importId: string, ordinal: number, extra: Columns = {}): Columns {
-        return { import_id: importId, ordinal, payload: JSON.stringify({ title: 'Soup' }), ...extra };
+        return { import_id: importId, ordinal, title: 'Soup', payload: JSON.stringify({ title: 'Soup' }), ...extra };
     }
 
     /** A legitimate matched item (paid, job attached). */
@@ -129,6 +129,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             ordinal,
             line_index: 0,
             food_index: 0,
+            source_line: '1 cup flour',
             line_digest: 'ld',
             judgement_digest: 'jd',
             phrase: 'flour',
@@ -195,6 +196,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 'source_kind',
                 'stage',
                 'statement_kind',
+                'title',
                 'updated_at',
                 'visibility',
             ]);
@@ -225,6 +227,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 'quantity_high',
                 'review',
                 'rung',
+                'source_line',
                 'stated_quantity',
                 'stated_quantity_high',
                 'stated_unit',
@@ -312,6 +315,8 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
         });
 
         it.each([
+            ['a blank title (a saved item whose draft was deleted still names itself)', { title: '   ' }],
+            ['an empty title', { title: '' }],
             ['an invented stage', { stage: 'done' }],
             ['`ready` as a stage (readiness is computed, never stored)', { stage: 'ready' }],
             ['an invented review mark', { review: 'liked' }],
@@ -321,6 +326,13 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             const importId = await newImport();
 
             await refused(insert('recipe_import_items', receivedItem(importId, 0, extra as Columns)), CHECK_VIOLATION);
+        });
+
+        it('requires a title: the list shows it without reading the payload, and it outlives the payload', async () => {
+            const importId = await newImport();
+            const { title: _title, ...withoutTitle } = receivedItem(importId, 0);
+
+            await refused(insert('recipe_import_items', withoutTitle), '23502');
         });
 
         it('refuses a negative ordinal', async () => {
@@ -342,7 +354,10 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             it('refuses a payload-less item that is not saved (before the save the server has nothing else)', async () => {
                 const importId = await newImport();
 
-                await refused(insert('recipe_import_items', { import_id: importId, ordinal: 0 }), CHECK_VIOLATION);
+                await refused(
+                    insert('recipe_import_items', { import_id: importId, ordinal: 0, title: 'Soup' }),
+                    CHECK_VIOLATION,
+                );
             });
 
             it('refuses `saved` without saved_at, and saved_at without `saved`', async () => {
@@ -364,6 +379,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 const row = await insert('recipe_import_items', {
                     import_id: importId,
                     ordinal: 0,
+                    title: 'Soup',
                     stage: 'saved',
                     allowance_spent_at: new Date(),
                     matched_at: new Date(),
@@ -422,6 +438,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                     insert('recipe_import_items', {
                         import_id: importId,
                         ordinal: 0,
+                        title: 'Soup',
                         stage: 'saved',
                         allowance_spent_at: new Date(),
                         matched_at: new Date(),
@@ -501,6 +518,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 const saved = (ordinal: number): Columns => ({
                     import_id: importId,
                     ordinal,
+                    title: 'Soup',
                     stage: 'saved',
                     allowance_spent_at: new Date(),
                     matched_at: new Date(),
@@ -557,6 +575,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 await insert('recipe_import_items', {
                     import_id: importId,
                     ordinal: 0,
+                    title: 'Soup',
                     stage: 'saved',
                     allowance_spent_at: new Date(),
                     matched_at: new Date(),
@@ -762,10 +781,18 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                     { quantity: 1, stated_quantity: 4, stated_quantity_high: 3, stated_unit: 'gill' },
                 ],
                 ['a blank preparation', { preparation: '  ' }],
+                ['a blank source line', { source_line: '  ' }],
             ])('refuses %s', async (_name, extra) => {
                 const importId = await withItem();
 
                 await refused(insert('recipe_import_lines', line(importId, 0, extra as Columns)), CHECK_VIOLATION);
+            });
+
+            it('requires the source line, the unit and the digests', async () => {
+                const importId = await withItem();
+                const { source_line: _line, ...withoutLine } = line(importId, 0);
+
+                await refused(insert('recipe_import_lines', withoutLine), '23502');
             });
 
             it('requires the unit (a line has one; unitless is the empty string)', async () => {

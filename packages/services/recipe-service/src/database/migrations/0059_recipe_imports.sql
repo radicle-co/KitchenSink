@@ -78,6 +78,9 @@ CREATE TABLE recipe_import_items (
     import_id uuid NOT NULL REFERENCES recipe_imports (id) ON DELETE CASCADE,
     -- The recipe's position in the file the client read. The client's identity for the item, stable across devices.
     ordinal integer NOT NULL CHECK (ordinal >= 0),
+    -- The recipe's title, kept beside the payload for two reasons: the item list shows it without reading every document,
+    -- and it outlives the payload (shed at save) and the draft (the cook may delete it), so a saved item still names itself.
+    title text NOT NULL CHECK (btrim(title) <> ''),
     -- The recipe as the client sent it (one structured recipe per item; the server never receives an archive). It is
     -- dropped once the recipe is saved, so a long import does not keep every recipe's text twice; hence NULL is allowed,
     -- but only for a saved item. Its SIZE is the contract's bound, not a CHECK: Postgres re-evaluates every CHECK on every
@@ -144,6 +147,9 @@ CREATE TABLE recipe_import_lines (
     -- Which line of the recipe, and which food of that line ("salt and pepper" names two).
     line_index integer NOT NULL CHECK (line_index >= 0),
     food_index integer NOT NULL CHECK (food_index >= 0),
+    -- The line as the file stated it. Kept here because the payload is shed at save, and the wizard and the flagged and
+    -- to-check lists show the line the cook's file actually said.
+    source_line text NOT NULL CHECK (btrim(source_line) <> ''),
     -- ── the snapshot of recipe_parse_job_matches (0057), keyed by the item's own line and food index (one job per item) ──────────────────────────────────────────────────────────────
     line_digest text NOT NULL,
     -- What the match was computed from: the line digest, the food's phrase and the measure.

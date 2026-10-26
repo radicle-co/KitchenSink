@@ -32,8 +32,8 @@
  *     tolerates a field a newer server adds.
  *  2. **The server receives recipes, not an archive.** The client reads the export file and sends one structured recipe per
  *     item, `1..{@link MAX_IMPORT_ITEMS_PER_REQUEST}` items per request (a larger file is several `PUT`s; the 100 kB body
- *     limit answers an oversized chunk with `413`). There is NO per-file cap (owner ruling, second round): the ordinal's
- *     ceiling, {@link MAX_IMPORT_ITEMS}, is an engineering bound that keeps it inside `int4`, not a product limit.
+ *     limit answers an oversized chunk with `413`, and one recipe is capped so a single-item request always fits). There is
+ *     NO per-file cap (owner ruling, second round): the ordinal's ceiling, {@link MAX_IMPORT_ITEMS}, is `int4`'s own.
  *  3. **The statement is four forms and nothing else** (ADR-0072 §9): "I wrote this" carries no citation; a public web page
  *     carries its URL; a book and a paid site carry a citation. The server derives the recipe's `sourceType` from it.
  *  4. **No food names are stored, so none are published from storage.** A name on the wire was resolved at read time, as
@@ -57,18 +57,26 @@ import { createRecipeRequestSchema, recipeStepInputSchema } from './recipes.sche
 // ── Bounds ───────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The most items one request may carry. The recipes are structured text and the JSON body limit is 100 kB, so this is a
- * ceiling a well-formed chunk stays under; a chunk over the byte limit is a `413`, which the client answers by sending
- * fewer items.
+ * The most items one request may carry. The recipes are structured text and the JSON body limit is 100 kB, so a chunk of
+ * this many can exceed the limit; that is a `413`, which the client answers by sending fewer items. It always has a
+ * remedy, because ONE recipe always fits ({@link MAX_IMPORT_RECIPE_BYTES}).
  */
 export const MAX_IMPORT_ITEMS_PER_REQUEST = 25;
 
 /**
- * One past the last item ordinal an import accepts. NOT a product cap on file size (owner ruling: a file of any size is
- * accepted and the allowance paces it): it keeps `ordinal` inside `int4` with room to spare, so a hostile ordinal is a
- * `400` and never a Postgres `22003`. 50 times the largest export the specs cite (2,000 recipes).
+ * The most bytes one imported recipe may serialize to. Under the service's 100 kB JSON body limit with room for the
+ * request envelope, so a request carrying a single recipe can never be a `413`: without this, one large recipe would be
+ * impossible to send at any chunk size. Counted in BYTES of the JSON the client sends, because the limit is bytes and a
+ * character count lets multi-byte text through at three times the size. Per-field character bounds still apply.
  */
-export const MAX_IMPORT_ITEMS = 100_000;
+export const MAX_IMPORT_RECIPE_BYTES = 90_000;
+
+/**
+ * One past the last item ordinal an import accepts: `int4`'s ceiling. There is NO product cap on file size (owner ruling:
+ * a file of any size is accepted and the allowance paces it), so the only bound is the column. A hostile ordinal is a
+ * `400` and never a Postgres `22003`. The cursor (`position == item count` means done) also fits `int4`.
+ */
+export const MAX_IMPORT_ITEMS = 2_147_483_647;
 
 /** The most steps one imported recipe may carry. */
 export const MAX_IMPORT_STEPS = 200;
@@ -101,6 +109,9 @@ const importLineIndexSchema = z
 /** Whether a string has a visible character. A blank citation is a second spelling of "none". */
 const hasText = (value: string): boolean => value.trim() !== '';
 
+/** The size of a value as the JSON a client sends, in bytes. */
+const jsonBytes = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
+
 /**
  * One recipe as the client read it from the export file.
  *
@@ -108,6 +119,8 @@ const hasText = (value: string): boolean => value.trim() !== '';
  * limit and `int4` ceiling is the one the create route enforces. The ingredients are RAW LINES: the server parses and
  * matches them (the file does not bind a food), and a line is bounded like a paste's. Servings and the three times may be
  * absent, because another app's export often states none; the save fills what is absent.
+ *
+ * Its serialized size is bounded ({@link MAX_IMPORT_RECIPE_BYTES}), so any one recipe fits one request.
  *
  * ⛔ No `source`, `sourceType`, `sourceUrl` or `visibility` here: provenance comes from the per-recipe STATEMENT, and
  * visibility from the choices (ADR-0072 §9), so a recipe cannot assert either itself.
@@ -135,6 +148,9 @@ export const importRecipeSchema = createRecipeRequestSchema
                 recipeStepInputSchema.extend({ instruction: recipeStepInstructionSchema.max(MAX_IMPORT_STEP_CHARS) }),
             )
             .max(MAX_IMPORT_STEPS),
+    })
+    .refine((recipe) => jsonBytes(recipe) <= MAX_IMPORT_RECIPE_BYTES, {
+        message: `a recipe may be at most ${String(MAX_IMPORT_RECIPE_BYTES)} bytes as JSON`,
     });
 
 /** One recipe as the client read it from the file. */

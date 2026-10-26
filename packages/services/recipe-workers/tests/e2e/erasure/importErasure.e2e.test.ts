@@ -74,13 +74,13 @@ describe('bulk import — erasure and purge (LOCAL e2e)', () => {
         const importId = created.rows[0]?.id ?? '';
 
         await db.execute(sql`
-            INSERT INTO recipe_import_items (import_id, ordinal, stage, allowance_spent_at, matched_at, saved_at, statement_kind, recipe_id)
-            VALUES (${importId}, 0, 'saved', now(), now(), now(), 'authored', ${recipeId})
+            INSERT INTO recipe_import_items (import_id, ordinal, title, stage, allowance_spent_at, matched_at, saved_at, statement_kind, recipe_id)
+            VALUES (${importId}, 0, 'Soup', 'saved', now(), now(), now(), 'authored', ${recipeId})
         `);
 
         const line = await db.execute<{ id: string }>(sql`
-            INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, line_digest, judgement_digest, phrase, unit)
-            VALUES (${importId}, 0, 0, 0, 'ld', 'jd', 'flour', 'cup') RETURNING id
+            INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit)
+            VALUES (${importId}, 0, 0, 0, '1 cup flour', 'ld', 'jd', 'flour', 'cup') RETURNING id
         `);
 
         await db.execute(sql`

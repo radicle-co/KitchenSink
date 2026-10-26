@@ -274,7 +274,7 @@ describe('createLexicalTier — the adapter', () => {
 
         const outcome = await tier.resolve(
             { key: 'flour' as never, phrase: 'flour' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(onUnrankedHits).toHaveBeenCalledWith(2);
@@ -289,7 +289,7 @@ describe('createLexicalTier — the adapter', () => {
 
         await createLexicalTier({ search } as never, { onUnrankedHits }).resolve(
             { key: 'flour' as never, phrase: 'flour' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(onUnrankedHits).not.toHaveBeenCalled();
@@ -304,7 +304,7 @@ describe('createLexicalTier — the adapter', () => {
 
         const outcome = await tier.resolve(
             { key: 'aubergine' as never, phrase: 'aubergine' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(search).toHaveBeenCalledTimes(2);
@@ -317,11 +317,27 @@ describe('createLexicalTier — the adapter', () => {
 
         const outcome = await tier.resolve(
             { key: 'flour' as never, phrase: 'flour' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(outcome).toMatchObject({ kind: 'resolved', food: { kind: 'root', id: 'F-FLOUR' } });
         expect(search).toHaveBeenCalledWith(CALLER, 'flour', expect.any(Number), { withNutrition: true });
+    });
+
+    it('⛔ hands the request deadline to BOTH passes, so neither search can outlive it (ADR-0071)', async () => {
+        const search = vi
+            .fn()
+            .mockResolvedValueOnce(outcomeOf([]))
+            .mockResolvedValueOnce(outcomeOf([{ foodId: 'F-EGGPLANT', name: 'Eggplant, raw', score: 0.9 }]));
+        const deadline = AbortSignal.timeout(60_000);
+
+        await createLexicalTier({ search } as never, NO_OBSERVER).resolve(
+            { key: 'aubergine' as never, phrase: 'aubergine' },
+            { userId: 'u1', caller: CALLER, signal: deadline },
+        );
+
+        expect(search).toHaveBeenCalledTimes(2);
+        expect(search.mock.calls.map((call) => call[3]?.signal)).toStrictEqual([deadline, deadline]);
     });
 
     it('retries ONCE through the synonym map on an empty first pass, and says so in the evidence', async () => {
@@ -333,7 +349,7 @@ describe('createLexicalTier — the adapter', () => {
 
         const outcome = await tier.resolve(
             { key: 'aubergine' as never, phrase: 'aubergine' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(outcome).toMatchObject({ kind: 'resolved', food: { kind: 'root', id: 'F-EGGPLANT' } });
@@ -347,7 +363,7 @@ describe('createLexicalTier — the adapter', () => {
 
         const outcome = await tier.resolve(
             { key: 'blorvik' as never, phrase: 'blorvik' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(outcome.kind).toBe('pass');
@@ -359,7 +375,10 @@ describe('createLexicalTier — the adapter', () => {
         const tier = createLexicalTier({ search } as never, NO_OBSERVER);
 
         await expect(
-            tier.resolve({ key: 'flour' as never, phrase: 'flour' }, { userId: 'u1', caller: CALLER }),
+            tier.resolve(
+                { key: 'flour' as never, phrase: 'flour' },
+                { userId: 'u1', caller: CALLER, signal: undefined },
+            ),
         ).rejects.toThrow(/unavailable/);
     });
 
@@ -369,7 +388,7 @@ describe('createLexicalTier — the adapter', () => {
 
         const outcome = await tier.resolve(
             { key: 'flour' as never, phrase: 'flour' },
-            { userId: 'u1', caller: CALLER },
+            { userId: 'u1', caller: CALLER, signal: undefined },
         );
 
         expect(outcome.kind).toBe('pass');
@@ -382,7 +401,10 @@ describe('createLexicalTier — the adapter', () => {
         const tier = createLexicalTier({ search } as never, NO_OBSERVER);
 
         await expect(
-            tier.resolve({ key: 'flour' as never, phrase: 'flour' }, { userId: undefined, caller: undefined }),
+            tier.resolve(
+                { key: 'flour' as never, phrase: 'flour' },
+                { userId: undefined, caller: undefined, signal: undefined },
+            ),
         ).rejects.toThrow();
     });
 });

@@ -63,7 +63,7 @@ import {
 /** The phrase every probe answers for. Deliberately synonym-free, so no reformulation retry is in play. */
 const PHRASE = 'plain flour';
 const QUERY: ResolutionQuery = { key: normalizedIngredientKey(PHRASE)!, phrase: PHRASE };
-const CONTEXT = { userId: '01JU10GUARD000000000AUTHOR', caller: undefined } as const;
+const CONTEXT = { userId: '01JU10GUARD000000000AUTHOR', caller: undefined, signal: undefined } as const;
 
 /** A distinct food per tier, so the answer names WHICH evidence was believed and not merely that one was. */
 const CURATED_FOOD = '01JU10GUARD000000CURATEDFD';

@@ -287,6 +287,28 @@ describe('FoodCatalogGateway', () => {
         });
     });
 
+    describe('the caller’s deadline signal (ADR-0071)', () => {
+        it('⛔ hands the signal to the food client, so the request ends with the caller’s deadline', async () => {
+            search.mockResolvedValue({ results: [] });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+            const deadline = AbortSignal.timeout(60_000);
+
+            await gateway.search(CALLER, 'egg', 5, { withNutrition: true, signal: deadline });
+
+            expect(search).toHaveBeenCalledWith('egg', true, { signal: deadline });
+        });
+
+        it('an aborted search degrades to `unavailable` and never throws', async () => {
+            search.mockRejectedValue(new FetchUnavailableError(undefined, 'aborted'));
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            await expect(gateway.search(CALLER, 'egg', 5, { signal: AbortSignal.abort() })).resolves.toStrictEqual({
+                hits: [],
+                availability: 'unavailable',
+            });
+        });
+    });
+
     describe('enabled — whether the operator has the blend switched on (ADR-0071)', () => {
         // The paste matcher asks before it proposes anything: a switched-off catalog cannot rank, and a proposal
         // stored then would read as "no match" for that line until the cook edits it.

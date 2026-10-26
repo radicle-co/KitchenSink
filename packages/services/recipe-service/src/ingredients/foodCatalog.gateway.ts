@@ -181,6 +181,8 @@ export class FoodCatalogGateway {
      *   substituted with another credential.
      * @param query - The (already trimmed) user query. Blank → no call, `ok` with no hits.
      * @param limit - Max hits to keep, applied AFTER ranking. Non-positive → no call.
+     * @param options - `withNutrition`: per-100g macros; `signal`: the caller's deadline (ADR-0071), which ends the request
+     *   as the transport timeout does, so an aborted search is `unavailable` like any other failure.
      * @returns The ranked hits plus whether the catalog contributed. Never throws.
      * @sideEffect Performs one authenticated, short-timeout food-service HTTP request (unless short-circuited).
      */
@@ -188,7 +190,7 @@ export class FoodCatalogGateway {
         caller: CallerToken | undefined,
         query: string,
         limit: number,
-        options: { readonly withNutrition?: boolean } = {},
+        options: { readonly withNutrition?: boolean; readonly signal?: AbortSignal | undefined } = {},
     ): Promise<CatalogSearchOutcome> {
         if (!this.options.enabled) {
             return { hits: [], availability: 'disabled' };
@@ -208,7 +210,13 @@ export class FoodCatalogGateway {
         }
 
         try {
-            const result = await this.clients.typeahead(caller).search(trimmed, options.withNutrition === true);
+            const result = await this.clients
+                .typeahead(caller)
+                .search(
+                    trimmed,
+                    options.withNutrition === true,
+                    ...(options.signal === undefined ? [] : [{ signal: options.signal }]),
+                );
 
             if (!Array.isArray(result?.results)) {
                 throw new TypeError('food-service search returned no `results` array');

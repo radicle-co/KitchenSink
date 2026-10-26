@@ -277,6 +277,7 @@ export function createLexicalTier(gateway: FoodCatalogGateway, observer: Lexical
         resolve: async (query, context) => {
             const first = await gateway.search(context.caller, query.phrase, LEXICAL_SHORTLIST_LIMIT, {
                 withNutrition: true,
+                signal: context.signal,
             });
 
             if (first.availability === 'disabled') {
@@ -301,6 +302,7 @@ export function createLexicalTier(gateway: FoodCatalogGateway, observer: Lexical
 
             const second = await gateway.search(context.caller, reformulated, LEXICAL_SHORTLIST_LIMIT, {
                 withNutrition: true,
+                signal: context.signal,
             });
 
             observe(second.hits);

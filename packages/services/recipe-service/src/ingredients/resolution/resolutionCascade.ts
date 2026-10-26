@@ -314,6 +314,15 @@ export interface ResolutionContext {
      * discipline `VerifiableLine.resolutionTier` applies (plan U2).
      */
     readonly caller: CallerToken | undefined;
+    /**
+     * The request deadline a tier's outbound calls must end with, or `undefined` when the request has none (by-name,
+     * the typeahead: each call is already bounded by its own transport timeout). The paste matcher's request has one
+     * (ADR-0071), so a catalog search cannot outlive it.
+     *
+     * ⛔ REQUIRED, not optional: like `caller`, every construction site decides, so a new site cannot silently run
+     * unbounded work under a deadline it forgot to forward.
+     */
+    readonly signal: AbortSignal | undefined;
 }
 
 /**

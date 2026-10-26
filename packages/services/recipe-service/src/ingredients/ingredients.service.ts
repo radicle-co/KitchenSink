@@ -690,7 +690,7 @@ export class IngredientsService {
         const outcome = await runResolutionCascade(
             this.resolutionTiers,
             { key, phrase: name },
-            { userId, caller },
+            { userId, caller, signal: undefined },
             {
                 onTierFailure: (tier, error) =>
                     this.logger.warn(

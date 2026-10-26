@@ -77,6 +77,10 @@
             "types": "./dist/resolution/verificationKey.d.ts",
             "default": "./dist/resolution/verificationKey.js"
         },
+        "./resolution/verification-delivery": {
+            "types": "./dist/resolution/verificationDelivery.d.ts",
+            "default": "./dist/resolution/verificationDelivery.js"
+        },
         "./resolution/confidence": {
             "types": "./dist/resolution/confidence.d.ts",
             "default": "./dist/resolution/confidence.js"

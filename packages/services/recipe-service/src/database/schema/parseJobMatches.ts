@@ -27,6 +27,9 @@ export const MATCH_PROPOSING_TIERS = ['curated', 'memo', 'lexical'] as const;
 /** One tier that may propose a food. */
 export type MatchProposingTier = (typeof MATCH_PROPOSING_TIERS)[number];
 
+/** Where a proposal's review stands, mirrored from the SQL CHECK. */
+export const MATCH_REVIEWS = ['owed', 'refused'] as const;
+
 export const recipeParseJobMatches = pgTable(
     'recipe_parse_job_matches',
     {
@@ -34,6 +37,7 @@ export const recipeParseJobMatches = pgTable(
         lineIndex: integer('line_index').notNull(),
         foodIndex: integer('food_index').notNull(),
         lineDigest: text('line_digest').notNull(),
+        judgementDigest: text('judgement_digest').notNull(),
         /** NULL: the chain found nothing. */
         matchedBy: text('matched_by'),
         foodId: text('food_id'),
@@ -45,6 +49,8 @@ export const recipeParseJobMatches = pgTable(
             .notNull()
             .default(sql`'[]'::jsonb`),
         verificationKey: text('verification_key'),
+        /** `owed` or `refused`; NULL: nothing to review. */
+        review: text('review'),
         enqueuedAt: timestamp('enqueued_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -64,6 +70,15 @@ export const recipeParseJobMatches = pgTable(
         check(
             'recipe_parse_job_matches_key_has_food',
             sql`${table.verificationKey} IS NULL OR num_nonnulls(${table.foodId}, ${table.foodVariantId}) = 1`,
+        ),
+        check('recipe_parse_job_matches_review_check', sql`${table.review} IN ('owed', 'refused')`),
+        check(
+            'recipe_parse_job_matches_key_iff_owed',
+            sql`(${table.review} IS NOT DISTINCT FROM 'owed') = (${table.verificationKey} IS NOT NULL)`,
+        ),
+        check(
+            'recipe_parse_job_matches_refusal_has_food',
+            sql`${table.review} IS DISTINCT FROM 'refused' OR num_nonnulls(${table.foodId}, ${table.foodVariantId}) = 1`,
         ),
         check(
             'recipe_parse_job_matches_enqueue_has_key',

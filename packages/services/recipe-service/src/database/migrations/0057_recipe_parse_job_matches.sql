@@ -15,11 +15,20 @@
 -- line the job does not have is refused, and deleting a job removes its matches through its lines. That cascade is
 -- also how account erasure reaches this table: the sweep deletes a cook's jobs, and nothing here names a person.
 --
--- ⚠️ line_digest is the line's digest WHEN MATCHED. A row whose digest no longer equals the line's is stale (the cook
--- edited the line) and is ignored and recomputed; the DAL replaces it in place.
+-- ⚠️ line_digest is the line's digest WHEN MATCHED, and judgement_digest is what the match was computed from (the line
+-- digest, the food's phrase, the measure the editor saves). A row is current only while the line's stored digest and
+-- its current parse still give both; otherwise it is ignored and recomputed, and the DAL replaces it in place. The
+-- write itself lands only while the line still has the row's line_digest, so a slow call cannot overwrite a newer row.
+--
+-- ⚠️ enqueued_at is a CLAIM, a lease: one caller wins it for one digest and key, only that caller's own claim is
+-- released, and a claim older than the verification queue's delivery bound that left no verdict and no attempt behind
+-- may be taken again (the request was lost). review records where the gate's review stands: 'owed' under the key, or
+-- 'refused' (the gate is never asked: an over-cap line, or a request the queue's contract refuses). NULL: nothing to
+-- review.
 --
 -- The CHECKs make bad rows unrepresentable: at most one food (0052's arc), a food only with the tier that proposed
--- it, a verification key only with a food, an enqueue only with a key, and at most five candidates.
+-- it, a verification key only with a food and exactly when a review is owed, a refusal only of a proposed food, an
+-- enqueue only with a key, and at most five candidates.
 --
 -- Additive and expand-only (ADR-0035): one new table, read and written only by this release's code.
 
@@ -29,6 +38,8 @@ CREATE TABLE recipe_parse_job_matches (
     -- Which food of the parsed line: one line can name several ("salt and pepper").
     food_index integer NOT NULL CHECK (food_index >= 0),
     line_digest text NOT NULL,
+    -- What the match was computed from: the line digest, the food's phrase and the saved measure (ADR-0071).
+    judgement_digest text NOT NULL,
     -- The tier that proposed the food. NULL means the chain found nothing (no match).
     matched_by text CHECK (matched_by IN ('curated', 'memo', 'lexical')),
     -- The proposed food: a root or a variant, never both. Both NULL means no match.
@@ -41,7 +52,9 @@ CREATE TABLE recipe_parse_job_matches (
     candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
     -- The key the gate's verdict for the proposal is stored under in recipe_ingredient_verifications.
     verification_key text,
-    -- When the verification request was claimed and sent. NULL means owed.
+    -- Where the gate's review stands: 'owed' (under verification_key) or 'refused' (never asked). NULL: nothing to review.
+    review text CHECK (review IN ('owed', 'refused')),
+    -- When the verification request was last claimed and sent. NULL means owed and unclaimed.
     enqueued_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (job_id, line_index, food_index),
@@ -51,6 +64,11 @@ CREATE TABLE recipe_parse_job_matches (
         CHECK ((matched_by IS NULL) = (num_nonnulls(food_id, food_variant_id) = 0)),
     CONSTRAINT recipe_parse_job_matches_key_has_food
         CHECK (verification_key IS NULL OR num_nonnulls(food_id, food_variant_id) = 1),
+    -- IS NOT DISTINCT FROM, never `=`: a NULL review would make `review = 'owed'` NULL, and a NULL CHECK passes.
+    CONSTRAINT recipe_parse_job_matches_key_iff_owed
+        CHECK ((review IS NOT DISTINCT FROM 'owed') = (verification_key IS NOT NULL)),
+    CONSTRAINT recipe_parse_job_matches_refusal_has_food
+        CHECK (review IS DISTINCT FROM 'refused' OR num_nonnulls(food_id, food_variant_id) = 1),
     CONSTRAINT recipe_parse_job_matches_enqueue_has_key CHECK (enqueued_at IS NULL OR verification_key IS NOT NULL),
     CONSTRAINT recipe_parse_job_matches_candidates_bounded
         CHECK (jsonb_typeof(candidates) = 'array' AND jsonb_array_length(candidates) <= 5)
@@ -60,5 +78,9 @@ COMMENT ON TABLE recipe_parse_job_matches IS
     'ADR-0071: one proposal per parsed (line, food) of a paste job. Binds nothing; stores no food names.';
 COMMENT ON COLUMN recipe_parse_job_matches.line_digest IS
     'The line digest when matched. A row whose digest differs from the line''s is stale and is recomputed.';
+COMMENT ON COLUMN recipe_parse_job_matches.judgement_digest IS
+    'What the match was computed from. A row whose judgement differs from the current parse''s is recomputed.';
+COMMENT ON COLUMN recipe_parse_job_matches.review IS
+    'owed: a review is owed under verification_key. refused: the gate is never asked. NULL: nothing to review.';
 COMMENT ON COLUMN recipe_parse_job_matches.enqueued_at IS
-    'When the verification request was claimed. Only one caller wins the claim; a failed send releases it.';
+    'A claim (lease): one caller wins it; only its own claim is released; a traceless claim past the delivery bound is retaken.';

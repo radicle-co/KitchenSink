@@ -7,8 +7,10 @@
  *
  * @pattern Value Object — the stored match, parsed once at the repository boundary
  */
+import type { LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
-import type { MatchProposingTier } from '../../database/schema/parseJobMatches.js';
+import type { MATCH_REVIEWS, MatchProposingTier } from '../../database/schema/parseJobMatches.js';
 
 /** Which (line, food) of a job a match is about. */
 export interface MatchSlot {
@@ -32,28 +34,77 @@ export interface MatchProposal {
     readonly margin: number | null;
 }
 
+/**
+ * Where the gate's review of a proposal stands, as the row records it (ADR-0071).
+ *
+ *  - `owed` — a review is owed under `verificationKey` (sent once `enqueuedAt` is set);
+ *  - `refused` — the gate will never be asked: the line is over the gate's cap, or the queue's contract refuses the
+ *    request. Persisted when the row is written, so the job view never re-runs the policy to find out.
+ *
+ * `null` means there is nothing to review: no proposal, or a proposal food could not name.
+ */
+export type MatchReview = (typeof MATCH_REVIEWS)[number];
+
 /** A match as written: the proposal (or none), the shortlist, and the verdict key. */
 export interface NewParseJobMatch extends MatchSlot {
-    /** The line's digest when it was matched; a row whose digest no longer equals the line's is stale. */
-    readonly lineDigest: string;
+    /** The line's stored digest when it was matched. The write only lands while the line still has it. */
+    readonly lineDigest: LineDigest;
+    /** What the match was computed from (`matchJudgementDigestOf`); a row is current only while it still matches. */
+    readonly judgementDigest: string;
     /** `null`: the chain found nothing for this food. */
     readonly proposal: MatchProposal | null;
     /** At most five, food's ranked order. Empty when the chain found nothing. */
     readonly candidates: readonly MatchCandidate[];
-    /** The key the gate's verdict for the proposal is stored under; `null` when nothing can be asked. */
+    /** The key the gate's verdict for the proposal is stored under; set exactly when `review` is `owed`. */
     readonly verificationKey: string | null;
+    /** Where the review stands; `null` when there is nothing to review. */
+    readonly review: MatchReview | null;
 }
 
-/** A stored match, with whether its verification request was sent. */
+/** A stored match, with whether its verification request was sent and the line's digest now. */
 export interface ParseJobMatch extends NewParseJobMatch {
     /** When the request was claimed and sent; `null` means it is owed. */
     readonly enqueuedAt: Date | null;
+    /** The line's stored digest NOW, read with the row: the job view compares it rather than recomputing one. */
+    readonly lineDigestNow: LineDigest;
+}
+
+/** A request to claim one owed review: the slot, the digest and the key it was computed for. */
+export interface EnqueueRequest extends MatchSlot {
+    readonly lineDigest: LineDigest;
+    readonly verificationKey: string;
+}
+
+/** A won claim: the request, and the claim's own timestamp, which only this claimant can release. */
+export interface EnqueueClaim extends EnqueueRequest {
+    readonly claimedAt: Date;
+}
+
+/**
+ * Whether a stored match is still the line's match: the line's STORED digest is the one it was matched under, and the
+ * current parse yields the same judgement. The ONE currency rule the matcher and the job view both apply. Pure.
+ *
+ * @param match - The stored row's digests.
+ * @param current - The line's stored digest now, and the judgement digest of its current parse for that food.
+ * @returns Whether the row is current.
+ */
+export function isCurrentMatch(
+    match: Pick<NewParseJobMatch, 'lineDigest' | 'judgementDigest'>,
+    current: { readonly lineDigest: LineDigest; readonly judgementDigest: string },
+): boolean {
+    return match.lineDigest === current.lineDigest && match.judgementDigest === current.judgementDigest;
+}
+
+/** The key a slot is held under in a map. Pure. */
+export function slotKey(slot: MatchSlot): string {
+    return `${String(slot.lineIndex)}:${String(slot.foodIndex)}`;
 }
 
 /** The SQL truth the matcher and the job view depend on. Implemented by `dal/parseJobMatches.dal.ts`. */
 export interface ParseJobMatchesPort {
     /**
-     * The OWNER's job's matches, every digest included (the caller compares digests).
+     * The OWNER's job's matches, every digest included, each with its line's stored digest now (the caller compares
+     * them with `isCurrentMatch`).
      *
      * @param ownerId - The caller; the owner filter IS the authorization.
      * @param jobId - The job.
@@ -61,8 +112,9 @@ export interface ParseJobMatchesPort {
      */
     findForJob(ownerId: string, jobId: string): Promise<readonly ParseJobMatch[]>;
     /**
-     * Store matches. A row for the same (line, food) and the SAME digest is left alone, so two concurrent writers
-     * agree on the first; a row for a DIFFERENT digest is replaced and its enqueue reset to owed.
+     * Store matches. A match is written only while its line's CURRENT stored digest is the digest it was computed
+     * under, so a slow call can never overwrite a newer row. A row for the same (line, food) and the SAME judgement is
+     * left alone, so two concurrent writers agree on the first; another judgement replaces it, its enqueue reset.
      *
      * ⚠️ Not owner-filtered: the caller has already read the job as its owner in this request.
      *
@@ -70,12 +122,25 @@ export interface ParseJobMatchesPort {
      */
     saveMatches(jobId: string, matches: readonly NewParseJobMatch[]): Promise<void>;
     /**
-     * Claim the verification enqueue for these slots: only rows with a key and no enqueue are claimed, and only one
-     * caller wins each.
+     * Claim the reviews these requests owe. A claim is a LEASE: a row is won only while it still has the request's
+     * digest and key and is owed, and when it is unclaimed, or its last claim is older than `staleAfterSeconds` and left
+     * no verdict and no attempt behind (the request was lost). Only one caller wins each.
      *
-     * @returns The slots this caller won. @sideEffect Writes `enqueued_at`.
+     * @param jobId - The job.
+     * @param requests - The reviews to claim.
+     * @param staleAfterSeconds - How long a claim may stand with no trace before it may be taken again.
+     * @returns The claims this caller won, each with its own timestamp. @sideEffect Writes `enqueued_at`.
      */
-    claimEnqueue(jobId: string, slots: readonly MatchSlot[]): Promise<readonly MatchSlot[]>;
-    /** Hand claims back after a failed send, so the next call retries. @sideEffect Writes. */
-    releaseEnqueue(jobId: string, slots: readonly MatchSlot[]): Promise<void>;
+    claimEnqueue(
+        jobId: string,
+        requests: readonly EnqueueRequest[],
+        staleAfterSeconds: number,
+    ): Promise<readonly EnqueueClaim[]>;
+    /**
+     * Hand back claims after a failed send, so the next call retries. Only a row still holding THIS claim (its digest,
+     * its key, its timestamp) is released, so one caller can never clear another's.
+     *
+     * @sideEffect Writes.
+     */
+    releaseEnqueue(jobId: string, claims: readonly EnqueueClaim[]): Promise<void>;
 }

@@ -14,7 +14,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { lineDigest, parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import { CallerToken } from '../../auth/CallerToken.js';
 import { sha256Hex } from '../../common/sha256.js';
@@ -23,6 +23,7 @@ import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
 import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
 import type { LineVerdictRow } from '../dal/lineVerifications.dal.js';
+import { matchJudgementDigestOf } from '../domain/matchProposal.js';
 import type { ParseJobMatch } from '../domain/parseJobMatch.js';
 import { ParseJobMatchView } from '../parseJobMatchView.js';
 import type { ParseJobResponse } from '../parseJobs.schema.js';
@@ -59,12 +60,28 @@ function viewOf(foods: readonly string[] = ['milk'], sourceLine = LINE): ParseJo
     };
 }
 
-/** A stored match for food 0 of line 0: a lexical proposal of F-whole with two candidates. */
+/** The judgement digest {@link viewOf}'s line yields for `milk`, under the given stored line digest. */
+function judgementOf(digest: LineDigest = DIGEST, sourceLine = LINE): string {
+    return matchJudgementDigestOf(
+        {
+            lineDigest: digest,
+            line: { sourceLine, quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure: '2 cups' },
+            foodIndex: 0,
+            phrase: 'milk',
+        },
+        sha256Hex,
+    );
+}
+
+/** A stored, current match for food 0 of line 0: a lexical proposal of F-whole with two candidates, review owed. */
 function matchOf(overrides: Partial<ParseJobMatch> = {}): ParseJobMatch {
     return {
         lineIndex: 0,
         foodIndex: 0,
         lineDigest: DIGEST,
+        judgementDigest: judgementOf(),
+        lineDigestNow: DIGEST,
+        review: 'owed',
         proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
         candidates: [
             { kind: 'root', id: 'F-whole', rung: 'head' },
@@ -251,7 +268,10 @@ describe('ParseJobMatchView.decorate', () => {
 
     it('⛔ drops a candidate food names with an EMPTY name, rather than failing the whole view', async () => {
         const { view } = setup({
-            answers: { ...NAMED, 'root:F-crackers': { ...found('x', 'F-crackers'), name: '' as never } },
+            answers: {
+                ...NAMED,
+                'root:F-crackers': { ...(found('x', 'F-crackers') as Extract<FoodRefAnswer, { outcome: 'found' }>), name: '' as never },
+            },
         });
 
         const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
@@ -269,22 +289,37 @@ describe('ParseJobMatchView.decorate', () => {
         });
     });
 
-    it('reads `needsChoice` for an over-cap line the gate cannot be asked about', async () => {
-        const long = `2 cups milk ${'x'.repeat(400)}`;
-        const { view } = setup({
-            matches: [matchOf({ lineDigest: lineDigest(long, sha256Hex), verificationKey: null })],
-        });
+    it('⛔ reads `needsChoice` for a row whose review was REFUSED — the persisted disposition, never a policy re-run', async () => {
+        // F10: the line here is SHORT, so re-running the gate policy would say "ask"; only the stored `refused` (an
+        // over-cap line, or a request the queue contract refused) can put it here.
+        const { view } = setup({ matches: [matchOf({ verificationKey: null, review: 'refused' })] });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf(['milk'], long)))).toMatchObject({
+        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toMatchObject({
             state: 'needsChoice',
             reason: 'reviewRefused',
         });
     });
 
     it('⛔ ignores a STALE row — a line edited since it was matched shows no match', async () => {
-        const { view } = setup({ matches: [matchOf({ lineDigest: 'v1:old' })] });
+        const { view } = setup({ matches: [matchOf({ lineDigest: parseStoredLineDigest('v1:old') })] });
 
         expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toBeNull();
+    });
+
+    it('⛔ ignores a row whose judgement the current parse no longer gives — the same text reparsed', async () => {
+        const { view } = setup({ matches: [matchOf({ judgementDigest: 'j1:another-parse' })] });
+
+        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toBeNull();
+    });
+
+    it('⛔ compares the line’s STORED digest, never one recomputed from the text it shows', async () => {
+        // One digest authority (item 8): the store returns the line's digest with the row; the view never re-derives it.
+        const stored = parseStoredLineDigest('v2:as-stored');
+        const { view } = setup({
+            matches: [matchOf({ lineDigest: stored, lineDigestNow: stored, judgementDigest: judgementOf(stored) })],
+        });
+
+        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.state).toBe('checking');
     });
 
     it('⛔ shows NO match for a food whose names food could not be asked for — never a nameless one', async () => {

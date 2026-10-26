@@ -17,6 +17,7 @@
  *     applies is never cut off, because whether one applies decides the line's state (`matchState.ts`).
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import type { LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { pastedLineMeasureOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import {
     decideProposalVerification,
@@ -87,6 +88,53 @@ export function matchJudgementOf(
         },
         foodRefId,
     );
+}
+
+/**
+ * The generation of {@link matchJudgementDigestOf}'s preimage. ⛔ Bump it whenever what the digest covers changes: every
+ * stored row then reads stale and is matched afresh, instead of keeping a key a newer derivation no longer produces.
+ */
+export const MATCH_JUDGEMENT_VERSION = 'j1';
+
+/** The low and high bound of a quantity in a digest's spelling. Pure. */
+function boundsOf(quantity: IngredientQuantity): readonly [number | null, number | null] {
+    switch (quantity.kind) {
+        case 'exact':
+            return [quantity.value, null];
+        case 'range':
+            return [quantity.low, quantity.high];
+        case 'absent':
+            return [null, null];
+    }
+}
+
+/**
+ * What a stored match for one food of a parsed line was COMPUTED FROM: the line's digest, the food's phrase (what the
+ * chain was asked), and the measure the editor saves for that food (what the verdict key covers).
+ *
+ * ⛔ A row is current only while the CURRENT parse yields the same digest (`isCurrentMatch`). The line digest alone
+ * cannot see a reparse of the same text that reads another food or another measure, and such a row would keep a
+ * proposal and a key the line no longer asks for.
+ *
+ * @param slot - The line's stored digest, its parse, which food, and that food's phrase.
+ * @param digest - The hex digest (`sha256Hex` in the service).
+ * @returns `{version}:{digest}`. Pure, given a pure digest.
+ */
+export function matchJudgementDigestOf(
+    slot: {
+        readonly lineDigest: LineDigest;
+        readonly line: ParsedLineMeasure;
+        readonly foodIndex: number;
+        readonly phrase: string;
+    },
+    digest: HexDigest,
+): string {
+    const measure = pastedLineMeasureOf(slot.line, slot.foodIndex);
+    const [low, high] = boundsOf(measure.quantity);
+
+    return `${MATCH_JUDGEMENT_VERSION}:${digest(
+        JSON.stringify([MATCH_JUDGEMENT_VERSION, slot.lineDigest, slot.foodIndex, slot.phrase, low, high, measure.unit]),
+    )}`;
 }
 
 /**

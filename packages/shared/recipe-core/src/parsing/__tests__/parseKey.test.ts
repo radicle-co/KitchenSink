@@ -22,6 +22,7 @@ import {
     lineDigestPreimage,
     parseKey,
     parseKeyPreimage,
+    parseStoredLineDigest,
     type ParseEngine,
     type ParsedLineIdentity,
 } from '../parseKey.js';
@@ -256,5 +257,22 @@ describe('parseGenerationOf', () => {
 
         expect(JSON.stringify(left)).not.toBe(JSON.stringify(right));
         expect(parseGenerationOf(left)).not.toBe(parseGenerationOf(right));
+    });
+});
+
+/**
+ * A digest READ BACK from storage (ADR-0071): the match store and the job view compare the line's stored digest, so
+ * the stored value is parsed at the boundary into the brand rather than cast. An empty value is the failure the brand
+ * exists to catch (one key shared by every line).
+ */
+describe('parseStoredLineDigest', () => {
+    it('brands a stored digest unchanged', () => {
+        const digest = lineDigest('2 cups milk', (input) => `h${String(input.length)}`);
+
+        expect(parseStoredLineDigest(String(digest))).toBe(digest);
+    });
+
+    it('⛔ refuses an empty stored digest', () => {
+        expect(() => parseStoredLineDigest('')).toThrow();
     });
 });

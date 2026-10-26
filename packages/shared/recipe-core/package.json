@@ -22,6 +22,7 @@
         "./resolution/verification-gate-policy": "./src/resolution/verificationGatePolicy.ts",
         "./resolution/verification-message": "./src/resolution/verificationMessage.ts",
         "./resolution/verification-key": "./src/resolution/verificationKey.ts",
+        "./resolution/verification-delivery": "./src/resolution/verificationDelivery.ts",
         "./resolution/confidence": "./src/resolution/confidence.ts",
         "./resolution/search-minimum": "./src/resolution/searchMinimum.ts",
         "./resolution/food-search-groups": "./src/resolution/foodSearchGroups.ts",

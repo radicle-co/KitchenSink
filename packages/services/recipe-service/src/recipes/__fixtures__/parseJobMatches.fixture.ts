@@ -1,21 +1,28 @@
 /**
- * Test fixtures for the paste matcher (ADR-0071): an in-memory {@link ParseJobMatchesPort} with the SAME three rules the
+ * Test fixtures for the paste matcher (ADR-0071): an in-memory {@link ParseJobMatchesPort} with the SAME rules the
  * real repository enforces in SQL, and a stored parse-job line.
  *
  * ⚠️ The rules are restated here so the unit and integration tiers can exercise the matcher against them; the LOCAL
  * e2e (`tests/e2e/parseJobs/parseJobMatches.e2e.test.ts`) is what proves the SQL keeps them. If the two ever
  * disagree, the e2e is the authority.
  */
-import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { lineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import { sha256Hex } from '../../common/sha256.js';
 import type { ParseJobLineRecord, ParseJobRecord } from '../parseJobs.service.js';
-import type { MatchSlot, NewParseJobMatch, ParseJobMatch, ParseJobMatchesPort } from '../domain/parseJobMatch.js';
+import type {
+    EnqueueClaim,
+    EnqueueRequest,
+    MatchSlot,
+    NewParseJobMatch,
+    ParseJobMatch,
+    ParseJobMatchesPort,
+} from '../domain/parseJobMatch.js';
 
 /** An in-memory matches repository, with the rows it holds exposed for assertions. */
 export interface InMemoryParseJobMatches extends ParseJobMatchesPort {
     /** Every row, by `jobId:line:food`. */
-    readonly rows: Map<string, ParseJobMatch & { readonly jobId: string }>;
+    readonly rows: Map<string, Omit<ParseJobMatch, 'lineDigestNow'> & { readonly jobId: string }>;
     /** The owner of each job, so `findForJob` can apply the owner filter. */
     readonly owners: Map<string, string>;
 }
@@ -24,14 +31,26 @@ const keyOf = (jobId: string, slot: MatchSlot): string =>
     `${jobId}:${String(slot.lineIndex)}:${String(slot.foodIndex)}`;
 
 /**
- * An in-memory {@link ParseJobMatchesPort}.
+ * An in-memory {@link ParseJobMatchesPort}, restating the repository's SQL rules (the LOCAL e2e is their authority):
+ * a write lands only for the line's current digest, the same judgement keeps the first writer and another replaces it,
+ * and a claim is a lease for one digest and key, released only by its own timestamp.
+ *
+ * ⚠️ The lost-request re-claim is restated on AGE alone: this double cannot see the verdict or attempts tables, which
+ * the real claim also requires to be empty.
  *
  * @param owners - Job id → owner, for the read's owner filter.
+ * @param lineDigestOf - The line's stored digest now, when a suite edits lines; absent, every row's own digest is
+ *     taken as current.
  * @returns The repository.
  */
-export function inMemoryParseJobMatches(owners: ReadonlyMap<string, string> = new Map()): InMemoryParseJobMatches {
-    const rows = new Map<string, ParseJobMatch & { readonly jobId: string }>();
+export function inMemoryParseJobMatches(
+    owners: ReadonlyMap<string, string> = new Map(),
+    lineDigestOf?: (jobId: string, lineIndex: number) => LineDigest | undefined,
+): InMemoryParseJobMatches {
+    const rows: InMemoryParseJobMatches['rows'] = new Map();
     const ownerMap = new Map(owners);
+    const digestNow = (jobId: string, lineIndex: number, fallback: LineDigest): LineDigest =>
+        lineDigestOf?.(jobId, lineIndex) ?? fallback;
 
     return {
         rows,
@@ -42,39 +61,63 @@ export function inMemoryParseJobMatches(owners: ReadonlyMap<string, string> = ne
                 : [...rows.values()]
                       .filter((row) => row.jobId === jobId)
                       .sort((a, b) => a.lineIndex - b.lineIndex || a.foodIndex - b.foodIndex)
-                      .map(({ jobId: _jobId, ...match }) => match),
+                      .map(({ jobId: _jobId, ...match }) => ({
+                          ...match,
+                          lineDigestNow: digestNow(jobId, match.lineIndex, match.lineDigest),
+                      })),
         saveMatches: async (jobId: string, matches: readonly NewParseJobMatch[]) => {
             for (const match of matches) {
+                // Rule 2: only for the line's current digest.
+                if (digestNow(jobId, match.lineIndex, match.lineDigest) !== match.lineDigest) {
+                    continue;
+                }
+
                 const key = keyOf(jobId, match);
                 const existing = rows.get(key);
 
-                // Rule 2: the same digest keeps the first writer; another digest replaces, enqueue reset.
-                if (existing === undefined || existing.lineDigest !== match.lineDigest) {
+                // Rule 3: the same judgement keeps the first writer; another replaces it, enqueue reset.
+                if (existing === undefined || existing.judgementDigest !== match.judgementDigest) {
                     rows.set(key, { ...match, jobId, enqueuedAt: null });
                 }
             }
         },
-        claimEnqueue: async (jobId: string, slots: readonly MatchSlot[]) => {
-            const won: MatchSlot[] = [];
+        claimEnqueue: async (jobId: string, requests: readonly EnqueueRequest[], staleAfterSeconds: number) => {
+            const won: EnqueueClaim[] = [];
+            const now = Date.now();
 
-            for (const slot of slots) {
-                const row = rows.get(keyOf(jobId, slot));
+            for (const request of requests) {
+                const row = rows.get(keyOf(jobId, request));
+                const lost = row?.enqueuedAt != null && row.enqueuedAt.getTime() < now - staleAfterSeconds * 1_000;
 
-                // Rule 3: only an owed row with a key is claimed, once.
-                if (row !== undefined && row.verificationKey !== null && row.enqueuedAt === null) {
-                    rows.set(keyOf(jobId, slot), { ...row, enqueuedAt: new Date() });
-                    won.push({ lineIndex: slot.lineIndex, foodIndex: slot.foodIndex });
+                // Rule 4: an owed row for the request's digest and key, unclaimed or lost, is claimed once.
+                if (
+                    row !== undefined &&
+                    row.review === 'owed' &&
+                    row.lineDigest === request.lineDigest &&
+                    row.verificationKey === request.verificationKey &&
+                    (row.enqueuedAt === null || lost)
+                ) {
+                    const claimedAt = new Date(now);
+
+                    rows.set(keyOf(jobId, request), { ...row, enqueuedAt: claimedAt });
+                    won.push({ ...request, claimedAt });
                 }
             }
 
             return won;
         },
-        releaseEnqueue: async (jobId: string, slots: readonly MatchSlot[]) => {
-            for (const slot of slots) {
-                const row = rows.get(keyOf(jobId, slot));
+        releaseEnqueue: async (jobId: string, claims: readonly EnqueueClaim[]) => {
+            for (const claim of claims) {
+                const row = rows.get(keyOf(jobId, claim));
 
-                if (row !== undefined) {
-                    rows.set(keyOf(jobId, slot), { ...row, enqueuedAt: null });
+                // Only THIS claim is released.
+                if (
+                    row !== undefined &&
+                    row.lineDigest === claim.lineDigest &&
+                    row.verificationKey === claim.verificationKey &&
+                    row.enqueuedAt?.getTime() === claim.claimedAt.getTime()
+                ) {
+                    rows.set(keyOf(jobId, claim), { ...row, enqueuedAt: null });
                 }
             }
         },

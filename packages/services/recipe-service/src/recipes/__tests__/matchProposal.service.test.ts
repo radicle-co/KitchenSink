@@ -14,7 +14,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { lineDigest, parseStoredLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { verificationDeliveryBoundSeconds } from '@kitchensink/recipe-core/resolution/verification-delivery';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import { verifiedLineIdentityOfMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
@@ -35,6 +36,7 @@ import {
 } from '../__fixtures__/parseJobMatches.fixture.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
+import { matchJudgementDigestOf } from '../domain/matchProposal.js';
 import { MatchProposalService, type MatchProposalLimits } from '../matchProposal.service.js';
 import type { ParseJobRecord } from '../parseJobs.service.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -116,6 +118,17 @@ function found(name: string, rootId: string, variantId?: string, isPrivate = fal
     };
 }
 
+/** A found answer, narrowed, so a case can override one of its fields. */
+function foundRecord(name: string, rootId: string): Extract<FoodRefAnswer, { outcome: 'found' }> {
+    const answer = found(name, rootId);
+
+    if (answer.outcome !== 'found') {
+        throw new Error('unreachable');
+    }
+
+    return answer;
+}
+
 /** A refs gateway answering from a table; unlisted refs are `absent`. */
 function refsAnswering(answers: Record<string, FoodRefAnswer>) {
     const resolve = vi.fn(async (_caller: unknown, refs: readonly FoodRef[]) => ({
@@ -144,7 +157,12 @@ interface Setup {
 
 function setup(options: Setup = {}) {
     const job = 'job' in options ? options.job : makeParseJobRecord();
-    const matches = inMemoryParseJobMatches(new Map([[JOB, OWNER]]));
+    // The store reads each line's digest NOW from the job record, so a suite that edits a line is seen as one.
+    const matches = inMemoryParseJobMatches(new Map([[JOB, OWNER]]), (_jobId, lineIndex) => {
+        const line = job?.lines.find((candidate) => candidate.lineIndex === lineIndex);
+
+        return line === undefined ? undefined : parseStoredLineDigest(line.lineDigest);
+    });
     const chain = tiersOver(options.world ?? { lexical: MILK_RANKED });
     const refs = refsAnswering(
         options.answers ?? {
@@ -184,6 +202,35 @@ const milkKey = (foodId: string): string =>
         },
         sha256Hex,
     );
+
+/** A stored, CURRENT row for the default job's one line: the judgement its parse yields now, its review owed. */
+function currentMilkRow() {
+    const digest = lineDigest('2 cups whole milk', sha256Hex);
+
+    return {
+        lineIndex: 0,
+        foodIndex: 0,
+        lineDigest: digest,
+        judgementDigest: matchJudgementDigestOf(
+            {
+                lineDigest: digest,
+                line: {
+                    sourceLine: '2 cups whole milk',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    statedMeasure: '2 cups',
+                },
+                foodIndex: 0,
+                phrase: 'whole milk',
+            },
+            sha256Hex,
+        ),
+        proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
+        candidates: [{ kind: 'root', id: 'F-whole', rung: 'head' }],
+        verificationKey: milkKey('F-whole'),
+        review: 'owed',
+    } as const;
+}
 
 describe('MatchProposalService.propose — whose job, and which jobs', () => {
     it('⛔ answers PARSE_JOB_NOT_FOUND for a stranger, and writes nothing', async () => {
@@ -414,6 +461,47 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
 
         expect(row?.proposal?.food.id).toBe('F-whole');
         expect(row?.verificationKey).toBeNull();
+        // F10: the refusal is PERSISTED, so the job view never re-runs the policy to find it.
+        expect(row?.review).toBe('refused');
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ persists `refused` for a request the queue CONTRACT refuses, sends nothing, and never tries again', async () => {
+        // A stated unit longer than the queue's 64-character bound: the editor saves it, the consumer refuses it. The
+        // request is undeliverable, so it is parked as refused (logged at error) rather than claimed, failed and
+        // released on every poll.
+        const unit = 'x'.repeat(70);
+        const { service, matches, queue } = setup({
+            job: makeParseJobRecord({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine: `2 ${unit} whole milk`,
+                        proposal: makeStoredProposal({ raw: `2 ${unit} whole milk`, statedMeasure: `2 ${unit}` }),
+                    }),
+                ],
+            }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row).toMatchObject({ review: 'refused', verificationKey: null, enqueuedAt: null });
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('stores nothing to review for a proposal food cannot name — no key, no review, and nothing sent', async () => {
+        const { service, matches, queue } = setup({
+            answers: {
+                'root:F-whole': { ...foundRecord('Milk, whole', 'F-whole'), name: undefined },
+                'root:F-crackers': found('Milk crackers', 'F-crackers'),
+            },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect([...matches.rows.values()][0]).toMatchObject({ verificationKey: null, review: null });
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
 });
@@ -466,16 +554,7 @@ describe('MatchProposalService.propose — the stored key is the key of the mess
     it('⛔ sends nothing for a stored row whose key is not the key of the message it would send', async () => {
         const { service, matches, queue } = setup();
 
-        await matches.saveMatches(JOB, [
-            {
-                lineIndex: 0,
-                foodIndex: 0,
-                lineDigest: lineDigest('2 cups whole milk', sha256Hex),
-                proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
-                candidates: [{ kind: 'root', id: 'F-whole', rung: 'head' }],
-                verificationKey: 'v2:not-the-message-key',
-            },
-        ]);
+        await matches.saveMatches(JOB, [{ ...currentMilkRow(), verificationKey: 'v2:not-the-message-key' }]);
 
         await service.propose(COOK, CALLER, JOB);
 
@@ -526,6 +605,75 @@ describe('MatchProposalService.propose — idempotent, and paid once', () => {
 
         expect(chain.lexical).toHaveBeenCalledTimes(1);
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ re-matches a line REPARSED with the same text into another food — the judgement moved', async () => {
+        const lines = [makeParseJobLine()];
+        const { service, chain, matches } = setup({ job: makeParseJobRecord({ lines }) });
+
+        await service.propose(COOK, CALLER, JOB);
+        // Same text, same digest; the parse now reads another food.
+        lines.splice(0, 1, makeParseJobLine({ proposal: makeStoredProposal({ foods: [{ name: 'skim milk', prep: null }] }) }));
+        chain.lexical.mockClear();
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).toHaveBeenCalledWith(expect.objectContaining({ phrase: 'skim milk' }), expect.anything());
+        expect(matches.rows.size).toBe(1);
+    });
+
+    it('⛔ claims each review for the digest and key it was computed for, under the queue’s delivery bound', async () => {
+        const { service, matches } = setup();
+        const claim = vi.spyOn(matches, 'claimEnqueue');
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(claim).toHaveBeenCalledWith(
+            JOB,
+            [
+                {
+                    lineIndex: 0,
+                    foodIndex: 0,
+                    lineDigest: lineDigest('2 cups whole milk', sha256Hex),
+                    verificationKey: milkKey('F-whole'),
+                },
+            ],
+            verificationDeliveryBoundSeconds(),
+        );
+    });
+
+    it('⛔ sends again a review claimed longer ago than the delivery bound — the request was lost', async () => {
+        const { service, matches, queue } = setup();
+
+        await matches.saveMatches(JOB, [currentMilkRow()]);
+        const [key, row] = [...matches.rows.entries()][0] ?? [];
+
+        if (key === undefined || row === undefined) {
+            throw new Error('no row');
+        }
+
+        matches.rows.set(key, {
+            ...row,
+            enqueuedAt: new Date(Date.now() - (verificationDeliveryBoundSeconds() + 60) * 1_000),
+        });
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends nothing for a review claimed inside the delivery bound — it is still in flight', async () => {
+        const { service, matches, queue } = setup();
+
+        await matches.saveMatches(JOB, [currentMilkRow()]);
+        const [key, row] = [...matches.rows.entries()][0] ?? [];
+
+        if (key === undefined || row === undefined) {
+            throw new Error('no row');
+        }
+
+        matches.rows.set(key, { ...row, enqueuedAt: new Date(Date.now() - 60_000) });
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
     it('⛔ asks NOTHING when a verdict for the proposal is already on record', async () => {

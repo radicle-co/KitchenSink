@@ -38,6 +38,7 @@ import { recipeQueueDlqName, recipeQueueName } from '@kitchensink/recipe-core/qu
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { consumerConcurrencyFor } from './consumerConcurrency.js';
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
+import { VERIFICATION_DELIVERY } from '@kitchensink/recipe-core/resolution/verification-delivery';
 import {
     BEDROCK_MODEL_REGISTRY,
     DEFAULT_MONTHLY_CEILING_MICROS,
@@ -262,11 +263,17 @@ const CLAIM_ATTEMPT_ALLOWANCE = 20;
  * The verification queue's visibility timeout — strictly longer than the worker's, as the archive and erasure
  * queues are. A message redelivered while its worker is still running would take a SECOND reservation and
  * make a SECOND billed call for one line.
+ *
+ * ⛔ From `VERIFICATION_DELIVERY` (recipe-core), with the receive count below: recipe-service's paste matcher re-sends a
+ * lost review only after this queue would have parked it (ADR-0071), so the two read one authority.
  */
-const VERIFICATION_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(90);
+const VERIFICATION_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(VERIFICATION_DELIVERY.visibilityTimeoutSeconds);
 
-/** Redeliveries the verification queue permits before it parks a message (R2, re-derived for ADR-0060). */
-const VERIFICATION_QUEUE_MAX_RECEIVES = receivesBeforeParking(VERIFICATION_QUEUE_VISIBILITY_TIMEOUT);
+/**
+ * Redeliveries the verification queue permits before it parks a message (R2, re-derived for ADR-0060): the shared
+ * constant's value, which `RecipeWorkersStack.test.ts` holds equal to {@link receivesBeforeParking} of the timeout.
+ */
+const VERIFICATION_QUEUE_MAX_RECEIVES = VERIFICATION_DELIVERY.maxReceiveCount;
 
 /**
  * How long the handle-sync worker may run: up to ten renames, each one short transaction.

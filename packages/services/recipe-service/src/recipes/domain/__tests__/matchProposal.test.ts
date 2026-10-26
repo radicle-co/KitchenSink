@@ -15,14 +15,19 @@ import { describe, expect, it } from 'vitest';
 
 import { ABSENT_QUANTITY, type IngredientQuantity } from '@kitchensink/recipe-core';
 
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+
 import {
     MAX_MATCH_CANDIDATES,
+    MATCH_JUDGEMENT_VERSION,
     candidatesFor,
     defaultApplies,
     isDefaultRung,
+    matchJudgementDigestOf,
     matchJudgementOf,
     proposalVerificationDecision,
 } from '../matchProposal.js';
+import { isCurrentMatch } from '../parseJobMatch.js';
 
 const EXACT_TWO: IngredientQuantity = { kind: 'exact', value: 2 };
 const LINE = { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cup' as string | null };
@@ -150,5 +155,65 @@ describe('candidatesFor — what the cook may choose from', () => {
         expect(candidatesFor(undefined, [{ food: { kind: 'variant', id: 'V' }, rung: undefined }])).toStrictEqual([
             { kind: 'variant', id: 'V', rung: null },
         ]);
+    });
+});
+
+/**
+ * The JUDGEMENT DIGEST a match row is stored under (ADR-0071 review): the line's digest, the food's phrase and the
+ * measure the editor would save for that food. A row is current only while the current parse produces the same digest,
+ * so a reparse of the SAME text that reads a different food or measure is matched afresh, which the line digest alone
+ * could never see.
+ */
+describe('matchJudgementDigestOf — what a stored match was computed from', () => {
+    /** An identity digest, so a case can read what was hashed. */
+    const echo = (input: string): string => input;
+    const DIGEST = lineDigest('2 cups whole milk', echo);
+    const slot = (overrides: Record<string, unknown> = {}) => ({
+        lineDigest: DIGEST,
+        line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cup', statedMeasure: '2 cups' },
+        foodIndex: 0,
+        phrase: 'whole milk',
+        ...overrides,
+    });
+
+    it('is versioned, and the same for the same inputs', () => {
+        expect(matchJudgementDigestOf(slot(), echo)).toBe(matchJudgementDigestOf(slot(), echo));
+        expect(matchJudgementDigestOf(slot(), echo).startsWith(`${MATCH_JUDGEMENT_VERSION}:`)).toBe(true);
+    });
+
+    it.each([
+        ['another phrase', { phrase: 'skim milk' }],
+        ['another amount', { line: { sourceLine: '2 cups whole milk', quantity: { kind: 'exact', value: 3 }, unit: 'cup', statedMeasure: '3 cups' } }],
+        ['another unit', { line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cup', statedMeasure: '2 mugs' } }],
+        ['another line', { lineDigest: lineDigest('2 cups milk', echo) }],
+        ['another food of the line', { foodIndex: 1 }],
+    ])('moves with %s', (_label, overrides) => {
+        expect(matchJudgementDigestOf(slot(overrides), echo)).not.toBe(matchJudgementDigestOf(slot(), echo));
+    });
+
+    it('does not move with a reparse that saves the same measure in the same words', () => {
+        const reparsed = slot({ line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cups', statedMeasure: '2 cups' } });
+
+        expect(matchJudgementDigestOf(reparsed, echo)).toBe(matchJudgementDigestOf(slot(), echo));
+    });
+});
+
+describe('isCurrentMatch — the one currency rule the matcher and the job view share', () => {
+    const echo = (input: string): string => input;
+    const DIGEST = lineDigest('2 cups whole milk', echo);
+    const row = { lineDigest: DIGEST, judgementDigest: 'j1:a' };
+
+    it('is current when the line’s STORED digest and the judgement both still match', () => {
+        expect(isCurrentMatch(row, { lineDigest: DIGEST, judgementDigest: 'j1:a' })).toBe(true);
+    });
+
+    it('⛔ is stale when the line was edited (its stored digest moved)', () => {
+        expect(isCurrentMatch(row, { lineDigest: lineDigest('3 cups whole milk', echo), judgementDigest: 'j1:a' })).toBe(
+            false,
+        );
+    });
+
+    it('⛔ is stale when the same text was reparsed into another judgement', () => {
+        expect(isCurrentMatch(row, { lineDigest: DIGEST, judgementDigest: 'j1:b' })).toBe(false);
     });
 });

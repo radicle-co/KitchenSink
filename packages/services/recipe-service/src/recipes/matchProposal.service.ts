@@ -15,21 +15,35 @@
  *     default applies to the phrase. A curated or memo answer does not make that fact go away: a default noun is never
  *     shown as confident (coordinator decision 1, `matchState.ts`).
  *  4. **An outage is never stored as "no match".** A tier that could not look, a proposal food could not be asked
- *     about, or a switched-off catalog writes NO row. A stored row for the same digest is never recomputed, so a
- *     transient failure stored would become a permanent fact about the line.
+ *     about, or a switched-off catalog writes NO row. A current row is never recomputed, so a transient failure stored
+ *     would become a permanent fact about the line.
  *  5. **One request per proposal, paid once.** A verdict already on record under the key sends nothing; a row already
- *     sent sends nothing; a send is CLAIMED so two concurrent calls cannot both send it, and a failed send releases
- *     its claim so the next call retries. Identity is always asked (no band, no curated skip).
- *  6. **Contained test principals send nothing** (ADR-0040): their proposals are stored, the review is not asked.
- *  7. **Bounded work.** Lines are matched in waves of {@link MatchProposalLimits.concurrency} until a time budget is
- *     spent. What is left waits for the client's next call, which the idempotency above makes safe.
+ *     sent sends nothing; a send is CLAIMED, as a LEASE, so two concurrent calls cannot both send it, and a failed send
+ *     releases only its own claim so the next call retries. A claim older than the queue's delivery bound that left no
+ *     verdict and no attempt behind was lost, and is taken again. Identity is always asked (no band, no curated skip).
+ *  6. **A row is current only while the line and its parse still give it** (`isCurrentMatch`): the line's stored digest,
+ *     and the judgement digest of the current parse for that food. An edited line, or the same text reparsed into
+ *     another food or measure, is matched afresh.
+ *  7. **A request the gate can never take is REFUSED, and that is persisted.** An over-cap line, or a request the
+ *     queue's contract refuses (logged at error), is stored as `refused` and never claimed, so it is not retried on
+ *     every poll and the job view reads the refusal rather than re-running the policy.
+ *  8. **Contained test principals send nothing** (ADR-0040): their proposals are stored, the review is not asked.
+ *  9. **Bounded work.** Lines are matched in waves of {@link MatchProposalLimits.concurrency} until a time budget is
+ *     spent. What is left waits for the client's next call, which the idempotency above makes safe. Food is asked about
+ *     every proposal in ONE batched read, before anything is stored.
  *
  * ⚠️ Residual risk, recorded rather than hidden: a message SQS accepted and then lost leaves its row claimed with no
- * verdict, so the line reads `checking` until the job expires. The worker's redelivery and DLQ are the only cover.
+ * verdict. The line reads `checking` until a matches call arrives after the queue's delivery bound (about nine hours),
+ * which re-claims and re-sends it; with no such call it reads `checking` until the job expires.
  */
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
-import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
+import { verificationDeliveryBoundSeconds } from '@kitchensink/recipe-core/resolution/verification-delivery';
+import {
+    verifyIngredientLineMessageSchema,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
@@ -51,11 +65,21 @@ import { PROPOSAL_TIERS } from '../ingredients/resolution/resolutionRegistry.js'
 import type { LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import {
     candidatesFor,
+    matchJudgementDigestOf,
     proposalKeyOf,
     proposalMessageOf,
+    proposalVerificationDecision,
     type ParsedLineMeasure,
 } from './domain/matchProposal.js';
-import type { MatchSlot, NewParseJobMatch, ParseJobMatch, ParseJobMatchesPort } from './domain/parseJobMatch.js';
+import {
+    isCurrentMatch,
+    slotKey,
+    type MatchReview,
+    type MatchSlot,
+    type NewParseJobMatch,
+    type ParseJobMatch,
+    type ParseJobMatchesPort,
+} from './domain/parseJobMatch.js';
 import {
     PARSE_JOBS_DAL,
     parseJobExpired,
@@ -87,17 +111,56 @@ export interface MatchProposalLimits {
  */
 const DEFAULT_LIMITS: MatchProposalLimits = { concurrency: 4, budgetMs: 4_000 };
 
-/** One (line, food) that needs a match: its slot, the line it belongs to, and the food's name. */
+/** One parsed line of the job: its index, its stored digest, the parse's measure and its foods' names. */
+interface ParsedLine extends ParsedLineMeasure {
+    readonly lineIndex: number;
+    readonly lineDigest: LineDigest;
+    readonly phrases: readonly string[];
+}
+
+/** One (line, food) that needs a match: its slot, the line it belongs to, the food's name and its judgement. */
 interface OwedSlot extends MatchSlot {
-    readonly line: ParsedLineMeasure & { readonly lineDigest: string };
+    readonly line: ParsedLine;
     readonly phrase: string;
+    readonly judgementDigest: string;
 }
 
 /** A computed match before food has been asked about its proposal. */
-type DraftMatch = Omit<NewParseJobMatch, 'verificationKey'>;
+type DraftMatch = Omit<NewParseJobMatch, 'verificationKey' | 'review'>;
 
-/** The slot key a match is held under. Pure. */
-const slotKey = (slot: MatchSlot): string => `${String(slot.lineIndex)}:${String(slot.foodIndex)}`;
+/**
+ * The judgement digest the CURRENT parse yields for one food of a line, or `undefined` when the line names no such food.
+ * Pure.
+ */
+function judgementNow(line: ParsedLine, foodIndex: number): string | undefined {
+    const phrase = line.phrases[foodIndex];
+
+    return phrase === undefined
+        ? undefined
+        : matchJudgementDigestOf({ lineDigest: line.lineDigest, line, foodIndex, phrase }, sha256Hex);
+}
+
+/** Whether a stored row is still its line's match (rule 6). Pure. */
+function isCurrentFor(lines: ReadonlyMap<number, ParsedLine>, match: ParseJobMatch): boolean {
+    const line = lines.get(match.lineIndex);
+    const judgementDigest = line === undefined ? undefined : judgementNow(line, match.foodIndex);
+
+    return (
+        line !== undefined &&
+        judgementDigest !== undefined &&
+        isCurrentMatch(match, { lineDigest: line.lineDigest, judgementDigest })
+    );
+}
+
+/** Whether a current row's review is owed and may be claimed now: unclaimed, or claimed past the delivery bound. */
+function isSendable(match: ParseJobMatch, nowMs: number): boolean {
+    return (
+        match.review === 'owed' &&
+        match.verificationKey !== null &&
+        match.proposal !== null &&
+        (match.enqueuedAt === null || match.enqueuedAt.getTime() < nowMs - verificationDeliveryBoundSeconds() * 1_000)
+    );
+}
 
 /** Whether a job's TTL has passed. Pure given its clock. */
 function isExpired(job: ParseJobRecord, now: Date): boolean {
@@ -156,23 +219,28 @@ export class MatchProposalService {
         }
 
         const lines = this.parsedLines(job);
-        const stored = new Map(
-            (await this.matches.findForJob(ownerId, jobId))
-                .filter((match) => lines.get(match.lineIndex)?.lineDigest === match.lineDigest)
-                .map((match) => [slotKey(match), match] as const),
+        const stored = await this.matches.findForJob(ownerId, jobId);
+        const current = new Map(
+            stored.filter((match) => isCurrentFor(lines, match)).map((match) => [slotKey(match), match] as const),
         );
         const owed = [...lines.values()].flatMap((line) =>
-            line.phrases.flatMap((phrase, foodIndex) =>
-                stored.has(slotKey({ lineIndex: line.lineIndex, foodIndex }))
+            line.phrases.flatMap((phrase, foodIndex) => {
+                const judgementDigest = judgementNow(line, foodIndex);
+
+                return current.has(slotKey({ lineIndex: line.lineIndex, foodIndex })) || judgementDigest === undefined
                     ? []
-                    : [{ lineIndex: line.lineIndex, foodIndex, line, phrase }],
-            ),
+                    : [{ lineIndex: line.lineIndex, foodIndex, line, phrase, judgementDigest }];
+            }),
         );
         const drafts = await this.matchWithinBudget(ownerId, caller, owed);
-        const answers = await this.askFoodAbout(
-            caller,
-            drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
-        );
+        // ONE batched refs read: the new proposals, and the stored ones this call may send (rule 9).
+        const nowMs = Date.now();
+        const answers = await this.askFoodAbout(caller, [
+            ...drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
+            ...[...current.values()].flatMap((match) =>
+                isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
+            ),
+        ]);
         const fresh = drafts.flatMap((draft) => this.withLiveProposal(jobId, draft, lines, answers));
         // A stored proposal is the LIVE end of what the chain named, so the message lookup is by that end too.
         const known = new Map(answers);
@@ -184,7 +252,7 @@ export class MatchProposalService {
         }
 
         await this.matches.saveMatches(jobId, fresh);
-        await this.sendOwed(acting, caller, jobId, lines, known);
+        await this.sendOwed(acting, jobId, lines, known);
     }
 
     /**
@@ -192,13 +260,8 @@ export class MatchProposalService {
      *
      * @throws On a stored proposal this build cannot read — the writer is our own worker, so that is a defect.
      */
-    private parsedLines(
-        job: ParseJobRecord,
-    ): ReadonlyMap<number, ParsedLineMeasure & { lineIndex: number; lineDigest: string; phrases: readonly string[] }> {
-        const parsed = new Map<
-            number,
-            ParsedLineMeasure & { lineIndex: number; lineDigest: string; phrases: readonly string[] }
-        >();
+    private parsedLines(job: ParseJobRecord): ReadonlyMap<number, ParsedLine> {
+        const parsed = new Map<number, ParsedLine>();
 
         for (const line of job.lines) {
             if (line.status !== 'parsed' || line.proposal === null) {
@@ -209,7 +272,7 @@ export class MatchProposalService {
 
             parsed.set(line.lineIndex, {
                 lineIndex: line.lineIndex,
-                lineDigest: line.lineDigest,
+                lineDigest: parseStoredLineDigest(line.lineDigest),
                 sourceLine: line.sourceLine,
                 quantity: proposal.quantity,
                 unit: proposal.unit,
@@ -261,7 +324,12 @@ export class MatchProposalService {
         caller: CallerToken | undefined,
         slot: OwedSlot,
     ): Promise<DraftMatch | undefined> {
-        const base = { lineIndex: slot.lineIndex, foodIndex: slot.foodIndex, lineDigest: slot.line.lineDigest };
+        const base = {
+            lineIndex: slot.lineIndex,
+            foodIndex: slot.foodIndex,
+            lineDigest: slot.line.lineDigest,
+            judgementDigest: slot.judgementDigest,
+        };
         const key = normalizedIngredientKey(slot.phrase);
 
         if (key === undefined) {
@@ -365,21 +433,21 @@ export class MatchProposalService {
     }
 
     /**
-     * Finish a draft with what food said about its proposal: moved to its live end and keyed, dropped when food no
-     * longer shows it, or not stored at all when food could not be asked (rule 4).
+     * Finish a draft with what food said about its proposal: moved to its live end, keyed, and its review disposition
+     * decided (rule 7); dropped when food no longer shows it; or not stored at all when food could not be asked (rule 4).
      *
-     * @returns Zero or one match. Pure given the answers.
+     * @returns Zero or one match. Pure given the answers, apart from the error log for a request the contract refuses.
      */
     private withLiveProposal(
         jobId: string,
         draft: DraftMatch,
-        lines: ReturnType<MatchProposalService['parsedLines']>,
+        lines: ReadonlyMap<number, ParsedLine>,
         answers: ReadonlyMap<string, FoodRefAnswer>,
     ): readonly NewParseJobMatch[] {
         const line = lines.get(draft.lineIndex);
 
         if (draft.proposal === null || line === undefined) {
-            return [{ ...draft, verificationKey: null }];
+            return [{ ...draft, verificationKey: null, review: null }];
         }
 
         const answer = answers.get(foodRefKey(draft.proposal.food)) ?? { outcome: 'unreachable' };
@@ -399,11 +467,13 @@ export class MatchProposalService {
                         (candidate) => candidate.kind !== gone.kind || candidate.id !== gone.id,
                     ),
                     verificationKey: null,
+                    review: null,
                 },
             ];
         }
 
         const food = liveEndOf(answer);
+        const proposal = { ...draft.proposal, food };
         // ⛔ The key is the key of the request this row will send: the worker writes the verdict under it.
         const message = proposalMessageOf({
             jobId,
@@ -414,13 +484,25 @@ export class MatchProposalService {
             requestedAt: new Date().toISOString(),
         });
 
-        return [
-            {
-                ...draft,
-                proposal: { ...draft.proposal, food },
-                verificationKey: message === undefined ? null : proposalKeyOf(message, sha256Hex),
-            },
-        ];
+        if (message === undefined) {
+            const review: MatchReview | null =
+                proposalVerificationDecision(line.sourceLine, food.kind).kind === 'reject' ? 'refused' : null;
+
+            return [{ ...draft, proposal, verificationKey: null, review }];
+        }
+
+        if (!verifyIngredientLineMessageSchema.safeParse(message).success) {
+            // ⛔ Undeliverable: the consumer's own contract refuses it, so sending would only fail. Refused and parked,
+            // never claimed and released on every poll. The line still holds its proposal.
+            this.logger.error(
+                `parse-job ${jobId}: the queue contract refuses the review of line ${String(draft.lineIndex)} food ` +
+                    `${String(draft.foodIndex)}; it is stored as refused and never sent`,
+            );
+
+            return [{ ...draft, proposal, verificationKey: null, review: 'refused' }];
+        }
+
+        return [{ ...draft, proposal, verificationKey: proposalKeyOf(message, sha256Hex), review: 'owed' }];
     }
 
     /**
@@ -428,27 +510,26 @@ export class MatchProposalService {
      *
      * ⛔ NOTHING for a CONTAINED test principal (ADR-0040), and that check is the FIRST statement. The review spends
      * ADR-0024's shared production pool, which a test principal is contained from, exactly as the save path's
-     * producer is (`RecipesService.requestVerification`). The proposals stay the cook's own rows; they read `checking`.
+     * producer is (`RecipesService.requestVerification`). The proposals stay the cook's own rows.
      *
-     * @sideEffect Reads the matches and the verdict table, claims, enqueues, and releases on failure.
+     * A row a concurrent call stored, whose food this call did not ask about, waits for the next call: food is asked
+     * once per call (rule 9).
+     *
+     * @sideEffect Reads the matches and the verdict table, claims, enqueues, and releases its own claims on failure.
      */
     private async sendOwed(
         subject: ContainmentSubject & Pick<ActingPrincipal, 'userId'>,
-        caller: CallerToken | undefined,
         jobId: string,
-        lines: ReturnType<MatchProposalService['parsedLines']>,
-        known: ReadonlyMap<string, FoodRefAnswer>,
+        lines: ReadonlyMap<number, ParsedLine>,
+        answers: ReadonlyMap<string, FoodRefAnswer>,
     ): Promise<void> {
         if (isContained(subject)) {
             return;
         }
 
+        const nowMs = Date.now();
         const owed = (await this.matches.findForJob(subject.userId, jobId)).filter(
-            (match) =>
-                match.verificationKey !== null &&
-                match.enqueuedAt === null &&
-                match.proposal !== null &&
-                lines.get(match.lineIndex)?.lineDigest === match.lineDigest,
+            (match) => isCurrentFor(lines, match) && isSendable(match, nowMs),
         );
 
         if (owed.length === 0) {
@@ -456,28 +537,28 @@ export class MatchProposalService {
         }
 
         const unjudged = await this.withoutVerdicts(jobId, owed);
-        const unasked = unjudged
-            .flatMap((match) => (match.proposal === null ? [] : [match.proposal.food]))
-            .filter((ref) => !known.has(foodRefKey(ref)));
-        const answers = new Map([...known, ...(await this.askFoodAbout(caller, unasked))]);
-        const messages = new Map<string, VerifyIngredientLineMessage>();
-
-        for (const match of unjudged) {
+        const requests = unjudged.flatMap((match) => {
             const message = this.messageFor(jobId, match, lines, answers);
 
-            if (message !== undefined) {
-                messages.set(slotKey(match), message);
-            }
-        }
-
+            return message === undefined || match.verificationKey === null
+                ? []
+                : [{ match, message, verificationKey: match.verificationKey }];
+        });
         const won = await this.matches.claimEnqueue(
             jobId,
-            unjudged.filter((match) => messages.has(slotKey(match))),
+            requests.map(({ match, verificationKey }) => ({
+                lineIndex: match.lineIndex,
+                foodIndex: match.foodIndex,
+                lineDigest: match.lineDigest,
+                verificationKey,
+            })),
+            verificationDeliveryBoundSeconds(),
         );
-        const toSend = won.flatMap((slot) => {
-            const message = messages.get(slotKey(slot));
+        const messages = new Map(requests.map(({ match, message }) => [slotKey(match), message] as const));
+        const toSend = won.flatMap((claim) => {
+            const message = messages.get(slotKey(claim));
 
-            return message === undefined ? [] : [{ slot, message }];
+            return message === undefined ? [] : [{ claim, message }];
         });
 
         if (toSend.length === 0) {
@@ -491,9 +572,9 @@ export class MatchProposalService {
                 ? error.undeliveredIndexes.flatMap((index) => {
                       const sent = toSend[index];
 
-                      return sent === undefined ? [] : [sent.slot];
+                      return sent === undefined ? [] : [sent.claim];
                   })
-                : toSend.map(({ slot }) => slot);
+                : toSend.map(({ claim }) => claim);
 
             this.logger.warn(
                 `parse-job ${jobId}: verification enqueue failed for ${String(lost.length)} of ` +
@@ -538,7 +619,7 @@ export class MatchProposalService {
     private messageFor(
         jobId: string,
         match: ParseJobMatch,
-        lines: ReturnType<MatchProposalService['parsedLines']>,
+        lines: ReadonlyMap<number, ParsedLine>,
         answers: ReadonlyMap<string, FoodRefAnswer>,
     ): VerifyIngredientLineMessage | undefined {
         const line = lines.get(match.lineIndex);

@@ -11,8 +11,9 @@
  *  1. **Names at read time, as the caller** (ADR-0045). The match store holds ids only; food names them on this read,
  *     so a food renamed, retired or made private since is shown as food says now: at its live end, or not at all.
  *  2. **A food that could not be asked shows NO match**, never a nameless or stale one. The client keeps polling.
- *  3. **A stale row is ignored.** The digest is recomputed from the line as the view shows it (`lineDigest`, the same
- *     function the line was stored with), and a row matched for other text is not this line's match.
+ *  3. **A stale row is ignored.** `isCurrentMatch`, the rule the matcher applies too: the line's STORED digest (read
+ *     with the row, never recomputed from the text) and the judgement digest of the parse this view shows. A row
+ *     matched for other text, or for another parse of the same text, is not this line's match.
  *  4. **Total.** An unreadable match store or verdict table degrades every food to `match: null` or to "no verdict
  *     yet", with a log line; a poll never fails on an auxiliary read (the assembler's posture).
  *
@@ -21,7 +22,6 @@
  * tally of mappings.
  */
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetricLine.js';
@@ -31,9 +31,9 @@ import type { FoodRefAnswer } from '../ingredients/domain/foodRefAnswer.js';
 import { FoodRefsGateway } from '../ingredients/foodRefs.gateway.js';
 import type { LineVerdictRow, LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { variantDisplayName } from './domain/lineVerification.js';
-import { isDefaultRung, proposalVerificationDecision } from './domain/matchProposal.js';
+import { isDefaultRung, matchJudgementDigestOf } from './domain/matchProposal.js';
 import { matchStateOf, proposalShownIn } from './domain/matchState.js';
-import type { ParseJobMatch, ParseJobMatchesPort } from './domain/parseJobMatch.js';
+import { isCurrentMatch, slotKey, type ParseJobMatch, type ParseJobMatchesPort } from './domain/parseJobMatch.js';
 import { PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
 import type { ParseJobResponse, ParseProposalCandidate, ParseProposalMatch } from './parseJobs.schema.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from './recipes.tokens.js';
@@ -129,14 +129,14 @@ export class ParseJobMatchView {
             this.namesFor(caller, [...current.values()]),
         ]);
 
-        return this.withMatches(view, (lineIndex, foodIndex, sourceLine) => {
-            const match = current.get(`${String(lineIndex)}:${String(foodIndex)}`);
+        return this.withMatches(view, (lineIndex, foodIndex) => {
+            const match = current.get(slotKey({ lineIndex, foodIndex }));
 
-            return match === undefined ? null : this.project(view.id, match, sourceLine, answers, verdicts, exhausted);
+            return match === undefined ? null : this.project(view.id, match, answers, verdicts, exhausted);
         });
     }
 
-    /** The matches whose digest still equals their line's, by slot. An unreadable store is no matches (rule 4). */
+    /** The matches that are still their line's (rule 3), by slot. An unreadable store is no matches (rule 4). */
     private async currentMatches(ownerId: string, view: ParseJobResponse): Promise<ReadonlyMap<string, ParseJobMatch>> {
         let stored: readonly ParseJobMatch[];
 
@@ -151,12 +151,32 @@ export class ParseJobMatchView {
             return new Map();
         }
 
-        const digests = new Map(view.lines.map((line) => [line.lineIndex, lineDigest(line.sourceLine, sha256Hex)]));
+        const lines = new Map(view.lines.map((line) => [line.lineIndex, line]));
 
         return new Map(
             stored
-                .filter((match) => digests.get(match.lineIndex) === match.lineDigest)
-                .map((match) => [`${String(match.lineIndex)}:${String(match.foodIndex)}`, match] as const),
+                .filter((match) => {
+                    const line = lines.get(match.lineIndex);
+                    const phrase = line?.proposal?.foods[match.foodIndex]?.name;
+
+                    if (line?.proposal === null || line?.proposal === undefined || phrase === undefined) {
+                        return false;
+                    }
+
+                    // ⛔ The STORED digest (item 8): the store read it with the row; nothing here re-derives one.
+                    const judgementDigest = matchJudgementDigestOf(
+                        {
+                            lineDigest: match.lineDigestNow,
+                            line: { sourceLine: line.sourceLine, ...line.proposal },
+                            foodIndex: match.foodIndex,
+                            phrase,
+                        },
+                        sha256Hex,
+                    );
+
+                    return isCurrentMatch(match, { lineDigest: match.lineDigestNow, judgementDigest });
+                })
+                .map((match) => [slotKey(match), match] as const),
         );
     }
 
@@ -207,7 +227,6 @@ export class ParseJobMatchView {
     private project(
         jobId: string,
         match: ParseJobMatch,
-        sourceLine: string,
         answers: ReadonlyMap<string, FoodRefAnswer>,
         verdicts: ReadonlyMap<string, LineVerdictRow>,
         exhausted: ReadonlySet<string>,
@@ -232,7 +251,7 @@ export class ParseJobMatchView {
             defaultApplies: candidates.some((candidate) => candidate.isDefault),
             verdict:
                 verdict === undefined ? undefined : { band: verdict.band, identityVerdict: verdict.identityVerdict },
-            review: this.reviewOf(match, sourceLine, proposed?.kind, exhausted),
+            review: this.reviewOf(match, exhausted),
         });
 
         if (answer.reviewNote === 'reviewDisagreed' && proposed !== null) {
@@ -276,20 +295,16 @@ export class ParseJobMatchView {
         ];
     }
 
-    /** Where the review stands when there is no verdict. Pure. */
-    private reviewOf(
-        match: ParseJobMatch,
-        sourceLine: string,
-        kind: FoodRef['kind'] | undefined,
-        exhausted: ReadonlySet<string>,
-    ): 'asked' | 'refused' | 'exhausted' {
-        if (match.verificationKey === null) {
-            return kind !== undefined && proposalVerificationDecision(sourceLine, kind).kind === 'reject'
-                ? 'refused'
-                : 'asked';
+    /**
+     * Where the review stands when there is no verdict: the row's PERSISTED disposition (F10), never the gate policy
+     * re-run here. Pure.
+     */
+    private reviewOf(match: ParseJobMatch, exhausted: ReadonlySet<string>): 'asked' | 'refused' | 'exhausted' {
+        if (match.review === 'refused') {
+            return 'refused';
         }
 
-        return exhausted.has(match.verificationKey) ? 'exhausted' : 'asked';
+        return match.verificationKey !== null && exhausted.has(match.verificationKey) ? 'exhausted' : 'asked';
     }
 
     /** Report a curated-but-contradicted proposal; the report never fails the read. */
@@ -305,7 +320,7 @@ export class ParseJobMatchView {
     /** The view with `match` set on every proposed food by `matchFor`. Pure. */
     private withMatches(
         view: ParseJobResponse,
-        matchFor: (lineIndex: number, foodIndex: number, sourceLine: string) => ParseProposalMatch | null,
+        matchFor: (lineIndex: number, foodIndex: number) => ParseProposalMatch | null,
     ): ParseJobResponse {
         return {
             ...view,
@@ -318,7 +333,7 @@ export class ParseJobMatchView {
                               ...line.proposal,
                               foods: line.proposal.foods.map((food, foodIndex) => ({
                                   ...food,
-                                  match: matchFor(line.lineIndex, foodIndex, line.sourceLine),
+                                  match: matchFor(line.lineIndex, foodIndex),
                               })),
                           },
                       },

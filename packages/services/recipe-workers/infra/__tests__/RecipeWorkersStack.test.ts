@@ -19,6 +19,7 @@ import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
+import { VERIFICATION_DELIVERY } from '@kitchensink/recipe-core/resolution/verification-delivery';
 import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
@@ -2514,6 +2515,30 @@ describe('RecipeWorkersStack — consumer concurrency (U8)', () => {
                 retentionOf(id),
             );
         }
+    });
+
+    it('⛔ builds the verification queue from VERIFICATION_DELIVERY, the numbers the paste matcher’s re-claim reads', () => {
+        // ADR-0071: recipe-service re-sends a claimed paste review only after the queue would have parked it
+        // (visibility × receives). The queue and that reading share one authority in recipe-core.
+        const queues = synth('sandbox').findResources('AWS::SQS::Queue');
+        const verification = Object.entries(queues).find(
+            ([id]) => id.includes('IngredientVerificationQueue') && !id.includes('Dlq') && !id.includes('DLQ'),
+        );
+
+        if (verification === undefined) {
+            throw new Error('the verification queue is missing from the template');
+        }
+
+        const [, queue] = verification;
+
+        expect(queue.Properties?.VisibilityTimeout).toBe(VERIFICATION_DELIVERY.visibilityTimeoutSeconds);
+        expect((queue.Properties?.RedrivePolicy as { maxReceiveCount: number }).maxReceiveCount).toBe(
+            VERIFICATION_DELIVERY.maxReceiveCount,
+        );
+        // The stated receive count is still the stack's own nine-hour parking rule, plus one.
+        expect(VERIFICATION_DELIVERY.maxReceiveCount).toBe(
+            Math.ceil((9 * 60 * 60) / VERIFICATION_DELIVERY.visibilityTimeoutSeconds) + 1,
+        );
     });
 
     it('the two queues tuned for a stopped database still ride out nine hours of it before parking', () => {

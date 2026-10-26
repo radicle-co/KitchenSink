@@ -17,8 +17,9 @@ SourceCheckRequested {
   recomputes the digest
   with the one `checkedContentDigest` function. A mismatch (the content changed since the send) ends the message with
   no spend: a newer message owns the new digest.
-- **Claim before reserve** (ADR-0024 layer 0a): one statement claims the work. Zero rows returned means another
-  delivery holds it, or an evidence set for this digest, rule set and model already exists. Either way, no spend.
+- **Claim before reserve, per part** (ADR-0024 layer 0a): for the text and for each photo, one statement claims that
+  part. Zero rows returned means another delivery holds it, or an evidence set for that part, rule set and model already
+  exists. Either way, that part costs nothing, and only the parts that changed are called.
 - Own queue, own DLQ, own Lambda, own reserved concurrency. A DLQ handler writes `unchecked` (`checkFailed`) so no
   recipe waits forever, and a sweeper enforces the 24-hour limit (spec FR-022). The sweeper's schedule ships disabled
   outside prod (ADR-0060).
@@ -79,7 +80,7 @@ Photo call:
 
 - Each text `quote` is NFKC-normalised, whitespace-collapsed and searched for in the same normalised field. Not found:
   dropped and counted. Found: stored as an item with its span.
-- A photo signal is stored with the photo's `content_sha256` and no span. It is never proven, and the outcome function
+- A photo signal is stored in that photo's own evidence set, keyed by its `content_sha256`, with no span. It is never proven, and the outcome function
   treats it as "for a person" whatever its kind (spec FR-006).
 - The photo output schema has no free-text field, so the model cannot return a style judgement (spec FR-006a).
 - The model cannot return `isbn` or `citedPaidSiteHost` for text. Only the rules produce those.

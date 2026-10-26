@@ -370,9 +370,10 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 - **FR-004**: The check MUST run for every way a recipe arrives: typed, pasted (`004-FR-052`), from a link
   (`004-FR-008`), from a photo (`011`), from a file and in bulk (ADR-0072). It runs on the recipe's content, not on the
   channel.
-- **FR-005**: Evidence MUST be stored once per digest of the checked content (text and photo bytes), rule set version
-  and model, and shared by every recipe with that content. The same content MUST NOT be sent to the model twice for the
-  same rules and model. The outcome is separate and per recipe, because it also depends on the recipe's label and
+- **FR-005**: Evidence MUST be stored **per part** of the checked content: once for the text and once for each photo,
+  each keyed by that part's digest, the rule set version and the model, and shared by every recipe with the same part.
+  The same part MUST NOT be sent to the model twice for the same rules and model, so a text edit re-checks the text
+  only and a new photo re-checks that photo only. The outcome is separate and per recipe, because it also depends on the recipe's label and
   citation (FR-010). A change that does not touch the checked content MUST NOT start a check.
 - **FR-006**: Photos are checked, in this release. The check reads every photo the cook uploaded to a recipe headed
   public. **Code cannot prove what a model reads in an image**, so every photo signal is unproven: it MUST make the
@@ -701,8 +702,8 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 - **SC-008**: Zero model calls receive the cook's statement, label, citation or rule-based results, checked
   structurally.
 - **SC-009**: Zero infringement strikes come from a hold, a person's hold or an appeal.
-- **SC-010**: Zero model calls are made for a recipe that stays private, and zero for content that already has
-  evidence under the same rules and model.
+- **SC-010**: Zero model calls are made for a recipe that stays private, and zero for a part (the text, or one photo)
+  that already has evidence under the same rules and model.
 - **SC-011**: Before blocking is switched on, the named reviewers' weekly hours cover the shadow-mode referral
   forecast at SC-007's targets, with at least 25% to spare. A month in which the budget runs out is shown separately.
 - **SC-012**: Zero recipes are made `detected` or `clear` by a photo signal alone, checked structurally.

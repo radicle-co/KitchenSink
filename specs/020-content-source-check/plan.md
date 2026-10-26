@@ -92,7 +92,7 @@ and the additions the owner's Q1/Q2 rulings required.
 | Unit                                  | Pattern                                                                                                                                                                                 |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Rule-based detectors                  | **Specification**: pure predicates in recipe-core, run synchronously at write time, so a rule-only `detected` and the spent-budget path need no async step                              |
-| Shared evidence rows                  | **Cache-Aside**, keyed by content digest, rule set and model, following `ingredient_parse_cache`                                                                                        |
+| Shared evidence rows                  | **Cache-Aside per part**: one set for the text and one per photo, each keyed by its own digest, rule set and model, following `ingredient_parse_cache`                                  |
 | `sourceCheckReadingOf`                | **One classifier, several mappings** (preserved from ADR-0071 and ADR-0072): it feeds the read rule, `importSourceFlagOf`, the owner's badge, the referral and the statement of reasons |
 | Evidence-kind table and outcome table | **Visitor**: an exhaustive switch over closed unions of evidence kind and label. Code owns it, never the model. Photo kinds have one weight only: "for a person"                        |
 | The hold                              | **Specification composed into the read rule**: a required field on `ViewableRecipeFields` and the same condition in the three SQL twins. Not a write-side policy                        |
@@ -255,6 +255,11 @@ Each slice is test-first in every tier it touches (CLAUDE.md, "TEST-FIRST IS LAW
 - **The model adds little to `detected`.** Every blocking kind is a list or pattern match code can do. The model's
   value is `possible`, which now means a person's time.
 - **One pool, shared.** A large import can use the month's pool, and every check after that is `unchecked`.
+- **The month-start re-check can spend the new pool.** After a budget month, every open `unchecked` referral is checked
+  again when the period starts (spec FR-021). That backlog lands on the new pool on day one, and it can use it up and
+  start the next flood. Decision: it drains at the function's reserved concurrency, oldest first, and stops at a
+  ceiling denial like any call. It gets no share of its own, because ADR-0024 §4c refuses a sub-budget per consumer.
+  The forecast (FR-039a) shows the backlog's expected cost.
 - **Non-prod is ungated.** The stated non-prod bound was measured wrong (pr-91), and photo calls add more. Reserved
   concurrency of 1 in non-prod is the bound.
 - **A reviewer's clearance is a judgement on record.** Counsel is asked what standard it needs (spec FR-041).
@@ -327,7 +332,7 @@ recipe-workers need the same digest and outcome function, and two copies would d
 
 No constitution violation needs justifying. Two deliberate additions are recorded so nobody "simplifies" them away:
 
-| Addition                                             | Why needed                                                                                            | Simpler alternative rejected because                                                     |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Per-recipe outcome over shared evidence (two levels) | The outcome depends on the label and citation, while the model's evidence depends only on the content | One per-digest outcome gives a wrong answer to a second cook whose label differs         |
-| One model call per photo                             | Each call needs its own worst-case reservation, and a denied photo call must not lose the text result | One call with all photos has a ten-photo worst case that one denial throws away entirely |
+| Addition                                          | Why needed                                                                                              | Simpler alternative rejected because                                                                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Per-recipe outcome over shared, per-part evidence | The outcome depends on the label and citation. Evidence depends only on one part: the text or one photo | One per-digest outcome gives a wrong answer to a second cook whose label differs. Evidence keyed by the whole content re-sends ten photos for a one-word text fix |
+| One model call per photo                          | Each call needs its own worst-case reservation, and a denied photo call must not lose the text result   | One call with all photos has a ten-photo worst case that one denial throws away entirely                                                                          |

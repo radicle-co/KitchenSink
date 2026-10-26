@@ -41,31 +41,35 @@ ALTER TABLE recipe_photos ADD COLUMN check_key text NULL;
   sends it to the model. NULL means the rendition failed, and the check then reads `unchecked` (`checkFailed`).
 - All three are NULL on rows written before the columns existed. Nothing is live, so no backfill is planned.
 
-## 2. `source_check_evidence_sets` and `source_check_evidence_items`: shared evidence
+## 2. `source_check_evidence_sets` and `source_check_evidence_items`: shared evidence, per part
 
-Evidence for one version of checked content, under one rule set and one model. Shared by every recipe with that
-content. **No user id, no recipe text and no photo.** Retained through erasure under a `RETAINED_BY_RULING` entry with
-its columns pinned (ADR-0027 precedent).
+Evidence is stored **per part** of the checked content: one set for the text, and one set for each photo. A set is
+keyed by its part's own digest, the rule set and the model. So a one-word fix to the text re-checks the text only, and
+a new photo re-checks that photo only (spec FR-005). Sets are shared by every recipe with the same part. **No user id,
+no recipe text and no photo.** Retained through erasure under a `RETAINED_BY_RULING` entry with its columns pinned
+(ADR-0027 precedent).
+
+- The **text digest** is part 1 of section 0's canonical form, hashed alone (`checkedTextDigest`, the same module).
+- A **photo's digest** is its `content_sha256`.
 
 ```sql
 CREATE TABLE source_check_evidence_sets (
     id                text        PRIMARY KEY,               -- ULID
-    content_digest    text        NOT NULL,
+    part_kind         text        NOT NULL,
+    part_digest       text        NOT NULL,                  -- the text digest, or the photo's content_sha256
     rule_set_version  text        NOT NULL,
-    model_id          text        NULL,                      -- NULL when the model did not run on all content
+    model_id          text        NULL,                      -- NULL when the model did not run on this part
     model_run         text        NOT NULL,
-    photo_count       integer     NOT NULL,
     created_at        timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT source_check_evidence_sets_part_kind_check CHECK (part_kind IN ('text', 'photo')),
     CONSTRAINT source_check_evidence_sets_model_run_check
         CHECK (model_run IN ('ran', 'budgetSpent', 'tooLong', 'failed')),
     CONSTRAINT source_check_evidence_sets_model_iff_ran
-        CHECK ((model_run = 'ran') = (model_id IS NOT NULL)),
-    CONSTRAINT source_check_evidence_sets_photo_count_range
-        CHECK (photo_count BETWEEN 0 AND 10)                     -- MAX_RECIPE_PHOTOS
+        CHECK ((model_run = 'ran') = (model_id IS NOT NULL))
 );
 
 CREATE UNIQUE INDEX source_check_evidence_sets_ran_key
-    ON source_check_evidence_sets (content_digest, rule_set_version, model_id)
+    ON source_check_evidence_sets (part_kind, part_digest, rule_set_version, model_id)
     WHERE model_run = 'ran';
 
 CREATE TABLE source_check_evidence_items (
@@ -76,7 +80,6 @@ CREATE TABLE source_check_evidence_items (
     field             text     NOT NULL,
     span_start        integer  NULL,
     span_end          integer  NULL,
-    photo_sha256      text     NULL,
     marker_text       text     NULL,                         -- a short marker that names no person (see below)
     PRIMARY KEY (evidence_set_id, ordinal),
     CONSTRAINT source_check_evidence_items_kind_check CHECK (kind IN (
@@ -89,7 +92,6 @@ CREATE TABLE source_check_evidence_items (
         'title', 'description', 'tags', 'ingredient', 'step', 'citation', 'photo')),
     CONSTRAINT source_check_evidence_items_photo_shape CHECK (
         (field = 'photo') = (kind LIKE 'photo%')
-        AND (field = 'photo') = (photo_sha256 IS NOT NULL)
         AND (field <> 'photo' OR (span_start IS NULL AND span_end IS NULL AND detector = 'model'))
         AND (field = 'photo' OR (span_start IS NOT NULL AND span_end > span_start AND span_start >= 0))),
     CONSTRAINT source_check_evidence_items_marker_length
@@ -106,10 +108,32 @@ CREATE TABLE source_check_evidence_items (
   comes from a list or a fixed pattern: an ISBN, a listed imprint, host or template, a page number. A copyright notice
   can name the cook ("© 2024 Jane Doe"), a model judgement quotes free text, and a photo can show anything, so for
   those kinds only the field and position are kept.
+- A photo item belongs to a `part_kind = 'photo'` set, which names the photo by its digest, so the item needs no photo
+  column. The outcome function rejects a photo kind in a text set and a text kind in a photo set, and a unit test pins
+  it.
+- The rules write their items into the **text** set. The rule set version is part of its key, so a rule change makes a
+  new text set and never touches a photo set.
 - `citedPaidSiteHost` has `field = 'citation'`. The citation is not checked content and is never sent to the model.
   The rules read it.
-- A set with `model_run <> 'ran'` is rule-only for at least part of the content, and nothing reuses it in place of a
-  full model run. The unique index admits only `ran` sets, so a later run after the budget returns writes a new set.
+- A set with `model_run <> 'ran'` was not read by the model, and nothing reuses it in place of a model run. The unique
+  index admits only `ran` sets, so a later run after the budget returns writes a new set for that part only.
+
+### `recipe_source_check_evidence`: which sets an outcome was judged on
+
+```sql
+CREATE TABLE recipe_source_check_evidence (
+    recipe_id        uuid  NOT NULL,
+    content_digest   text  NOT NULL,
+    evidence_set_id  text  NOT NULL REFERENCES source_check_evidence_sets (id),
+    PRIMARY KEY (recipe_id, content_digest, evidence_set_id),
+    FOREIGN KEY (recipe_id, content_digest)
+        REFERENCES recipe_source_checks (recipe_id, content_digest) ON DELETE CASCADE
+);
+```
+
+The migration creates it after `recipe_source_checks` (section 3), which it references. An outcome is judged on
+exactly one text set and one set per photo the content digest names. The worker writes these
+links in the same transaction as the outcome. Deleted with the recipe and with account erasure.
 
 ## 3. `recipe_source_checks`: the per-recipe outcome
 
@@ -119,7 +143,6 @@ One row per recipe and digest. The read rule asks for a row for the recipe's **c
 CREATE TABLE recipe_source_checks (
     recipe_id           uuid        NOT NULL REFERENCES recipes (id) ON DELETE CASCADE,
     content_digest      text        NOT NULL,
-    evidence_set_id     text        NULL REFERENCES source_check_evidence_sets (id),
     state               text        NOT NULL,
     outcome             text        NULL,
     reason              text        NULL,
@@ -138,7 +161,7 @@ CREATE TABLE recipe_source_checks (
     CONSTRAINT recipe_source_checks_reason_check
         CHECK (reason IS NULL OR reason IN ('budgetSpent', 'tooLong', 'checkFailed')),
     CONSTRAINT recipe_source_checks_decided_has_outcome
-        CHECK ((state = 'decided') = (outcome IS NOT NULL AND evidence_set_id IS NOT NULL AND decided_at IS NOT NULL)),
+        CHECK ((state = 'decided') = (outcome IS NOT NULL AND decided_at IS NOT NULL)),
     CONSTRAINT recipe_source_checks_reason_iff_unchecked
         CHECK ((outcome = 'unchecked') = (reason IS NOT NULL)),
     CONSTRAINT recipe_source_checks_cleared_by_check
@@ -357,6 +380,7 @@ The `EXISTS` is a primary-key lookup.
 | Table                              | On recipe delete | On account erasure                                | Retention                         |
 | ---------------------------------- | ---------------- | ------------------------------------------------- | --------------------------------- |
 | `recipe_source_checks`             | cascade          | deleted with the recipes                          | life of the recipe                |
+| `recipe_source_check_evidence`     | cascade          | deleted with the recipes                          | life of the recipe                |
 | `recipe_source_referrals`          | cascade          | deleted                                           | life of the recipe                |
 | `recipe_source_decisions`          | kept             | kept (evidence, `016-FR-052a`)                    | 3 years, then purged              |
 | `source_check_evidence_sets/items` | kept             | kept, `RETAINED_BY_RULING` (no user, text, photo) | life of the rule set, then pruned |

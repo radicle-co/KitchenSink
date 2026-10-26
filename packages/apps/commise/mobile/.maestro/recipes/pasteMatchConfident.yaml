@@ -1,0 +1,47 @@
+appId: ${APP_ID}
+---
+# A pasted line whose match is CONFIDENT arrives bound (ADR-0071; owner rulings 2026-10-25), on a device. Mobile mirror of
+# the web Playwright `pasteMatchConfident.spec.ts`. The line is an exact catalog name, so the service matches it by name:
+# it joins bound to the food, shows it with Change, and is drawn once.
+#
+# ⚠️ WRITTEN WITH THE SLICE AND NOT RUN (no device in this build). It depends on the stage's catalog holding the foundation
+# food named below; recorded in `KNOWN_UNRUN_FLOWS` (`maestroFlowSelection.test.ts`). Promote it to `FLOW_PLAN` in the PR
+# whose Maestro tier is watched.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
+- tapOn: 'Ingredient lines'
+- inputText: '1 Egg, whole, raw, fresh'
+- tapOn: 'Add 1 ingredient'
+- extendedWaitUntil:
+      notVisible: 'Ingredient lines'
+      timeout: 30000
+
+# The poll brings the parse, the app asks for the matches, and the line joins bound.
+- extendedWaitUntil:
+      visible:
+          text: 'Added 1 line'
+      timeout: 240000
+- assertVisible:
+      text: '.*[Ee]gg.*'
+# Bound on arrival: it can be changed, and it is not the cook's choice.
+- assertVisible:
+      text: 'Change the food for .*[Ee]gg.*'
+- assertNotVisible:
+      text: '.*your choice.*'
+
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          SETTLED: 'Saved on this device'

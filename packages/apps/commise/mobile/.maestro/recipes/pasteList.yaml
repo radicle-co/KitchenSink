@@ -6,7 +6,7 @@ appId: ${APP_ID}
 #
 # What only this tier proves: on a device the pasted lines go to the parse job, each line is a row reading at once, and
 # the POLL advances them into the recipe while the app is foregrounded (the parse worker answers; nothing is tapped
-# between). The field's own system paste menu is the native paste (Settled 34), so the flow types the lines.
+# between), where they are matched (ADR-0071). The field's own system paste menu is the native paste (Settled 34), so the flow types the lines.
 #
 # It discards its draft, so it leaves the library as it found it. It needs the parse worker running (the local
 # runner starts `recipe-workers`).
@@ -50,21 +50,28 @@ appId: ${APP_ID}
       visible:
           text: 'Added [0-2] of 2 lines.*'
       timeout: 30000
-# ⛔ REWRITTEN for owner ruling 2026-10-13 ("it takes as long as it takes"): there is no client stall bound any more, so
-# the lines join only when the parse worker answers. A stage whose worker cannot is the hand-run
-# `pasteListStalled.yaml`'s subject. The poll advances the rows on its own: nothing is tapped between.
+# ⛔ REWRITTEN for ADR-0071 (2026-10-26). The pasted lines used to join as ordinary rows ("Edit 2 cups flour") through a
+# by-name lookup, which bound a ranked guess. They are now MATCHED: the poll brings the parse, the app asks for the
+# matches, and the lines join in paste order as the paste list (a summary, then one row per line). Nothing is tapped
+# between. A stage whose worker cannot answer is the hand-run `pasteListStalled.yaml`'s subject.
 - extendedWaitUntil:
       visible:
-          text: 'Edit 2 .*[Ff]lour.*'
+          text: 'Added 2 lines'
       timeout: 240000
-      label: 'both pasted lines joined the recipe once the parse job answered'
+      label: 'both pasted lines joined the recipe once the parse job answered and the foods were matched'
 - assertNotVisible:
       text: 'Added [0-2] of 2 lines.*'
-# Both lines read as rows (build spec §7.5.1), each with the amount the cook pasted.
+# Each line is drawn once, with the words the cook pasted, as a row of the paste list...
 - assertVisible:
-      text: 'Edit 2 .*[Ff]lour.*'
+      text: '.*[Ff]lour.*'
 - assertVisible:
-      text: 'Edit 1 .*[Ss]alt.*'
+      text: '.*[Ss]alt.*'
+# ...and nothing was chosen for the cook (owner rulings 2026-10-25): "flour" and "salt" carry a seeded DEFAULT, which is
+# shown and never selected, so no line says "your choice" and the first open line offers a direct Search.
+- assertNotVisible:
+      text: '.*your choice.*'
+- assertVisible:
+      text: 'Search for a food.*'
 
 - runFlow:
       file: common/discardDraft.yaml

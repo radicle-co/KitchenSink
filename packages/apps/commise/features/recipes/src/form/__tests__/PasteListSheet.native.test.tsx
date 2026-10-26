@@ -26,6 +26,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { PARSE_JOB_LINE_MAX_CHARS } from '@kitchensink/recipe-core';
 
 import { editorMessages } from '../../editor/messages.js';
+import { makePasteIntoIngredients } from '../../__fixtures__/pasteMatching.js';
 import type { PasteIntoIngredients } from '../../editor/usePasteIntoIngredients.js';
 import { usePasteListSheet } from '../../editor/usePasteListSheet.js';
 import { pasteListFieldId } from '../fieldIds.js';
@@ -41,27 +42,7 @@ afterEach(() => {
 const t = editorMessages.en.ingredients;
 const form = recipeFormMessages.en;
 
-const fakePaste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => ({
-    available: true,
-    submit: vi.fn(),
-    submitting: false,
-    failed: false,
-    clearFailure: vi.fn(),
-    acceptedCount: 0,
-    reading: [],
-    progress: undefined,
-    retryLookup: vi.fn(),
-    retryParse: vi.fn(),
-    addAsWritten: vi.fn(),
-    addRestAsWritten: vi.fn(),
-    focusSignal: 0,
-    retryFailed: false,
-    focusRow: undefined,
-    onRowFocusHandled: vi.fn(),
-    announcement: undefined,
-    added: undefined,
-    ...over,
-});
+const fakePaste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => makePasteIntoIngredients(over);
 
 const Host: FC<{ readonly paste: PasteIntoIngredients }> = ({ paste }) => {
     const sheet = usePasteListSheet(paste, {

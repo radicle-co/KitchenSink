@@ -20,9 +20,17 @@ import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
-export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, onRetryPick, ...list }) => {
+export const PasteChoicePane: FC<PasteChoicePaneProps> = ({
+    view,
+    onPrevious,
+    onNext,
+    onRetryPick,
+    retry: hostRetry,
+    ...list
+}) => {
     const { colors } = useTheme();
-    const retry = useRetryFocus([view.open.send])(view.open.send.key);
+    const ownRetry = useRetryFocus([view.open.send])(view.open.send.key);
+    const retry = hostRetry ?? ownRetry;
 
     return (
         <View style={styles.pane}>

@@ -14,6 +14,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
 
@@ -22,6 +23,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
+import { controlFocusOf } from './flaggedFocus.js';
 import { flaggedRowViewOf } from './flaggedRowView.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
@@ -37,6 +39,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     onChooseAnother,
     onRetry,
     detail,
+    rowFocus,
+    headingFocusSignal = 0,
 }) => {
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
@@ -46,15 +50,23 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
         view: flaggedRowViewOf(line, { failed: failed.has(line.key), pending: pending.get(line.key) }, copy),
     }));
     const retryOf = useRetryFocus(rows.map((row) => row.view.send));
+    const heading = useFocusOnSignal<HTMLHeadingElement>(headingFocusSignal);
 
     return (
         <div className="flex flex-col gap-6 @wide/main:flex-row @wide/main:items-start">
             <div className="flex min-w-0 max-w-reading flex-1 flex-col gap-4">
-                <h1 className="font-display text-large-title text-ink">{pluralOf(f.title, total, locale)}</h1>
+                <h1 ref={heading} tabIndex={-1} className="font-display text-large-title text-ink outline-none">
+                    {pluralOf(f.title, total, locale)}
+                </h1>
                 <p className="text-body text-ink-muted">{pluralOf(f.intro, total, locale)}</p>
                 <ul className="flex flex-col divide-y divide-line-divider">
                     {rows.map(({ line, view }) => {
                         const retry = retryOf(line.key);
+                        const focusOf = (control: 'use' | 'chooseAnother') =>
+                            controlFocusOf(rowFocus, line.key, control, {
+                                landing: view.landing,
+                                focus: retry.landing,
+                            });
 
                         return (
                             <li key={line.key} className="flex flex-col gap-2 py-3">
@@ -75,8 +87,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                             })}
                                             busy={pending.get(line.key)?.kind === 'useProposal'}
                                             refused={pending.has(line.key)}
-                                            focusRequested={view.landing === 'use' && retry.landing.requested}
-                                            onFocusRequestHandled={retry.landing.onHandled}
+                                            focusRequested={focusOf('use').requested}
+                                            onFocusRequestHandled={focusOf('use').onHandled}
                                             onPress={() => onUseSuggestion(line.key)}
                                         >
                                             {fillTemplate(f.use, { food: line.suggestion.name })}
@@ -87,8 +99,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                         size="sm"
                                         accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
                                         refused={pending.has(line.key)}
-                                        focusRequested={view.landing === 'chooseAnother' && retry.landing.requested}
-                                        onFocusRequestHandled={retry.landing.onHandled}
+                                        focusRequested={focusOf('chooseAnother').requested}
+                                        onFocusRequestHandled={focusOf('chooseAnother').onHandled}
                                         onPress={() => onChooseAnother(line.key)}
                                     >
                                         {f.chooseAnother}

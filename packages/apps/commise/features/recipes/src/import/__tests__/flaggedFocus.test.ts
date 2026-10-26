@@ -7,9 +7,9 @@
  * check offered it no food. The search for the next row mirrors the matched list's `nextOpenLineKey`: the row after,
  * else the first row before, because a row above is still one the cook must settle. With no other row, the heading.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { flaggedFocusAfterSave } from '../flaggedFocus.js';
+import { controlFocusOf, flaggedFocusAfterSave } from '../flaggedFocus.js';
 import type { ImportFlaggedLineItem } from '../props.js';
 
 const row = (key: string, withUse = true): ImportFlaggedLineItem => ({
@@ -59,5 +59,43 @@ describe('flaggedFocusAfterSave', () => {
             key: 'a',
             landing: 'use',
         });
+    });
+});
+
+describe('controlFocusOf: one control, two sources of a request', () => {
+    const retry = (requested: boolean) => ({ requested, onHandled: vi.fn() });
+
+    it('requests nothing when neither the retry nor the host names this control', () => {
+        const focus = controlFocusOf(undefined, 'a', 'use', { landing: 'use', focus: retry(false) });
+
+        expect(focus.requested).toBe(false);
+    });
+
+    it('a retry request counts only on the row’s landing control', () => {
+        expect(controlFocusOf(undefined, 'a', 'use', { landing: 'use', focus: retry(true) }).requested).toBe(true);
+        expect(controlFocusOf(undefined, 'a', 'chooseAnother', { landing: 'use', focus: retry(true) }).requested).toBe(
+            false,
+        );
+    });
+
+    it('the host’s request counts only for its row AND its control', () => {
+        const rowFocus = { key: 'a', landing: 'use' as const, onHandled: vi.fn() };
+        const none = { landing: 'use' as const, focus: retry(false) };
+
+        expect(controlFocusOf(rowFocus, 'a', 'use', none).requested).toBe(true);
+        expect(controlFocusOf(rowFocus, 'a', 'chooseAnother', none).requested).toBe(false);
+        expect(controlFocusOf(rowFocus, 'b', 'use', none).requested).toBe(false);
+    });
+
+    it('taking the focus lowers the host’s request only when it was the host’s, and always the retry’s', () => {
+        const rowFocus = { key: 'a', landing: 'use' as const, onHandled: vi.fn() };
+        const own = retry(false);
+
+        controlFocusOf(rowFocus, 'a', 'use', { landing: 'use', focus: own }).onHandled();
+        expect(rowFocus.onHandled).toHaveBeenCalledTimes(1);
+        expect(own.onHandled).toHaveBeenCalledTimes(1);
+
+        controlFocusOf(rowFocus, 'b', 'use', { landing: 'use', focus: own }).onHandled();
+        expect(rowFocus.onHandled).toHaveBeenCalledTimes(1);
     });
 });

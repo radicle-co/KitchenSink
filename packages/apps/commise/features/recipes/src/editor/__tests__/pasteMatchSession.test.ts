@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { LineBinding } from '../../ingredientMatching/matchLine.js';
 import {
     draftKeyOf,
+    foodKeyOfDraft,
     emptyPasteMatchSession,
     joinStateOf,
     reducePasteMatchSession,
@@ -189,5 +190,54 @@ describe('expanded and paneMoved', () => {
         const session = run(ACCEPTED, JOINED_MILK, { type: 'expanded', key: '0:0' });
 
         expect(reducePasteMatchSession(session, { type: 'expanded', key: '0:0' })).toBe(session);
+    });
+});
+
+describe('bindingOffered: the review binds only a line nobody has bound', () => {
+    const REVIEW: LineBinding = { boundBy: 'review', pick: { kind: 'food', foodId: 'whole', name: 'Whole milk' } };
+
+    it('binds a joined line that holds no binding', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingOffered', key: '0:0', binding: REVIEW });
+
+        expect(session.bindings.get('0:0')).toEqual(REVIEW);
+    });
+
+    it('⛔ never replaces the cook’s pick (ADR-0071 section 9: a late verdict never replaces a pick)', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingSet', key: '0:0', binding: COOK });
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+
+    it('does not replace an earlier binding of any kind', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingOffered', key: '0:0', binding: SERVER });
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+
+    it('ignores a food that is not in the draft, as bindingSet does', () => {
+        const session = run(ACCEPTED);
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+
+    it('a removed food is never bound again', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'draftLineRemoved', draftKey: 'd-1' });
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+});
+
+describe('foodKeyOfDraft', () => {
+    it('finds the food a draft line belongs to, and nothing for a line the overlay does not own', () => {
+        const session = run(ACCEPTED, JOINED_MILK);
+
+        expect(foodKeyOfDraft(session, 'd-1')).toBe('0:0');
+        expect(foodKeyOfDraft(session, 'd-2')).toBeUndefined();
+    });
+
+    it('a removed food’s draft line is not owned any more', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'draftLineRemoved', draftKey: 'd-1' });
+
+        expect(foodKeyOfDraft(session, 'd-1')).toBeUndefined();
     });
 });

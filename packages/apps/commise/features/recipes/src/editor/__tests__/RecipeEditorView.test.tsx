@@ -232,6 +232,71 @@ describe('the action bar', () => {
         expect(publish).not.toHaveBeenCalled();
     });
 
+    describe('Publish asks about lines that have no food yet (R23)', () => {
+        const FACTS = { openNames: ['milk', 'bread'], checkingNames: ['cream'], counted: 7, total: 9 };
+
+        it('⛔ asks first, naming the open lines, and sends nothing until the cook says so', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            const sheet = screen.getByRole('dialog', { name: '2 ingredients have no food yet' });
+
+            expect(within(sheet).getByText(/milk and bread/u)).toBeTruthy();
+            expect(within(sheet).getByText(/7 of 9/u)).toBeTruthy();
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('Publish anyway publishes', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Publish anyway' }));
+
+            expect(publish).toHaveBeenCalledExactlyOnceWith('');
+        });
+
+        it('Choose now publishes nothing and opens the first open line', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            const chooseNow = vi.fn();
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Choose now' }));
+
+            expect(chooseNow).toHaveBeenCalledTimes(1);
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('does not ask when no line needs a pick', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: undefined, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            expect(screen.queryByRole('dialog')).toBeNull();
+            expect(publish).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it('a Publish passes the entry`s uncommitted text to the gate', () => {
         const publish = vi.fn(() => ({ kind: 'send' }) as const);
         render(view(makeEditorResult({ publish }), { pendingEntryText: 'flour' }));

@@ -173,6 +173,17 @@ export interface ImportFlaggedLineItem {
     readonly suggestion?: { readonly foodId: string; readonly name: string };
 }
 
+/**
+ * The host's request that focus land on one control of a flagged row: after a Use saves, the row leaves and the control
+ * that held focus unmounts with it, so the host names the next row (`flaggedFocusAfterSave`). A level, which the control
+ * lowers through {@link onHandled} once it has taken focus.
+ */
+export interface FlaggedRowFocus {
+    readonly key: string;
+    readonly landing: 'use' | 'chooseAnother';
+    readonly onHandled: () => void;
+}
+
 /** "N to check" (board FlaggedLine). */
 export interface ImportFlaggedListProps {
     /** Every doubted line (the count in the title); `lines` may be a page of them. */
@@ -208,6 +219,16 @@ export interface ImportFlaggedListProps {
     readonly onChooseAnother: (key: string) => void;
     /** The open line's options, drawn beside the list at the wide container class. */
     readonly detail?: ReactNode;
+    /**
+     * A Use saved and its row left: focus goes to the next row's control (`flaggedFocusAfterSave`). Apply it only when
+     * the cook is still on the saved line (`ownsFocus`); a host that has nothing to ask omits it.
+     */
+    readonly rowFocus?: FlaggedRowFocus;
+    /**
+     * A Use saved and no row is left: advance this counter and the page heading takes focus (web) or the screen-reader
+     * cursor (native). The heading is focusable but not a tab stop. Inert on mount.
+     */
+    readonly headingFocusSignal?: number;
 }
 
 /**

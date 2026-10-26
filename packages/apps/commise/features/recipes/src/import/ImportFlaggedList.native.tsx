@@ -13,6 +13,7 @@ import { Button } from '@commise/ui/button';
 import { useContainerClass } from '@commise/ui/layout';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
+import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -22,6 +23,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
+import { controlFocusOf } from './flaggedFocus.js';
 import { flaggedRowViewOf } from './flaggedRowView.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
@@ -40,6 +42,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     onChooseAnother,
     onRetry,
     detail,
+    rowFocus,
+    headingFocusSignal = 0,
 }) => {
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
@@ -49,19 +53,25 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
         view: flaggedRowViewOf(line, { failed: failed.has(line.key), pending: pending.get(line.key) }, copy),
     }));
     const retryOf = useRetryFocus(rows.map((row) => row.view.send));
+    const headingRef = useScreenReaderFocusOnSignal<Text>(headingFocusSignal);
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
 
     return (
         <View style={styles.layout}>
             <View style={styles.column}>
-                <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+                <Text ref={headingRef} accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                     {pluralOf(f.title, total, locale)}
                 </Text>
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{pluralOf(f.intro, total, locale)}</Text>
                 <View>
                     {rows.map(({ line, view }) => {
                         const retry = retryOf(line.key);
+                        const focusOf = (control: 'use' | 'chooseAnother') =>
+                            controlFocusOf(rowFocus, line.key, control, {
+                                landing: view.landing,
+                                focus: retry.landing,
+                            });
 
                         return (
                             <View key={line.key} style={[styles.row, { borderTopColor: colors.lineDivider }]}>
@@ -82,8 +92,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                             })}
                                             busy={pending.get(line.key)?.kind === 'useProposal'}
                                             refused={pending.has(line.key)}
-                                            focusRequested={view.landing === 'use' && retry.landing.requested}
-                                            onFocusRequestHandled={retry.landing.onHandled}
+                                            focusRequested={focusOf('use').requested}
+                                            onFocusRequestHandled={focusOf('use').onHandled}
                                             onPress={() => onUseSuggestion(line.key)}
                                         >
                                             {fillTemplate(f.use, { food: line.suggestion.name })}
@@ -94,8 +104,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                         size="sm"
                                         accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
                                         refused={pending.has(line.key)}
-                                        focusRequested={view.landing === 'chooseAnother' && retry.landing.requested}
-                                        onFocusRequestHandled={retry.landing.onHandled}
+                                        focusRequested={focusOf('chooseAnother').requested}
+                                        onFocusRequestHandled={focusOf('chooseAnother').onHandled}
                                         onPress={() => onChooseAnother(line.key)}
                                     >
                                         {f.chooseAnother}

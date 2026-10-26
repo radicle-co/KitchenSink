@@ -33,6 +33,7 @@ import {
 } from '../actions/privateGate.js';
 import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
+import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
 import type { DraftAction, ResolvedRecipeFormIngredient } from './draftAction.js';
 import {
     groupLabelOf,
@@ -45,6 +46,8 @@ import {
 import { withLineBinding } from './lineBinding.js';
 import type { IngredientLineKey } from './lineKey.js';
 import { settleIngredientLines, type LookupRetry } from './ingredientStatus.js';
+import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
+import type { PasteMatchNotice, PasteMatchSummaryView } from './pasteMatchView.js';
 import type { IngredientNutrition } from './nutritionLookup.js';
 import { resolutionStatusWordKey } from './statusWord.js';
 import { isResolvedIngredientId } from './validate.js';
@@ -298,8 +301,39 @@ export interface PasteProgress {
 /** What the paste's polite region may speak about: one of these changing, at most every few seconds. */
 export type PasteMilestone = 'started' | 'needsYou' | 'stalled' | 'resumed' | 'offline';
 
+/** The paste list for one container class: the matched lines, and the side pane beside them at the wide class. */
+export interface PasteMatchLayout {
+    /** The matched lines (`MatchLineList`'s props): the open line is the list's below the wide class, the pane's at it. */
+    readonly list: MatchLineListProps;
+    /** The pane (`PasteChoicePane`) at the wide class; `undefined` below it, and when no line is open to show. */
+    readonly pane: PasteChoicePaneProps | undefined;
+}
+
+/**
+ * The paste's MATCHED lines and what stands around them, for the Ingredients section (ADR-0071; owner rulings
+ * 2026-10-25). The section draws the overlay-owned draft lines through `MatchLineList`, every other line as an ordinary
+ * row, and no line twice.
+ */
+export interface PasteMatchingView {
+    /** The draft line keys the paste list draws: the ordinary rows leave them out. */
+    readonly ownedKeys: ReadonlySet<string>;
+    /** "Added 8 lines" and the counts; `undefined` while no line has joined. */
+    readonly summary: PasteMatchSummaryView | undefined;
+    /** Moves when the summary should take focus (a pick left no open line); the section lowers nothing. */
+    readonly summaryFocusSignal: number;
+    /** Offline, or the daily limit: matching cannot run. */
+    readonly notice: PasteMatchNotice | undefined;
+    /**
+     * The list for the container class (`wide`: the pane stands beside it). The handlers inside carry the cook's attention
+     * (`noteAttention`) and the focus rules. `undefined` while no line is drawn.
+     */
+    readonly layoutFor: (wide: boolean) => PasteMatchLayout | undefined;
+}
+
 /** What the field group draws of a paste (build spec §7.5.1 "Reading", §7.5.4). */
 export interface IngredientsPasteView {
+    /** The paste's matched lines, the summary and the notice; `undefined` where a host draws none. */
+    readonly matching?: PasteMatchingView;
     /** The pasted lines not in the recipe yet, in paste order: rows after the list's own. */
     readonly reading: readonly PasteReadingRow[];
     /** The progress block over them, while a paste is unfinished. */

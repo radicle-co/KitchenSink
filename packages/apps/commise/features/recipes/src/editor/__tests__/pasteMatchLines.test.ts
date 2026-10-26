@@ -314,6 +314,16 @@ describe('pasteMatchLinesOf - the late review note', () => {
         });
     });
 
+    it('⛔ no note on a line the cook kept as written: the note is "Our check suggested {food}", for a FOOD pick', () => {
+        const asWritten: LineBinding = { boundBy: 'cook', pick: { kind: 'asWritten' }, reviewNote: undefined };
+
+        expect(only(linesOf(jobWith(confident()), { session: picked(asWritten) })).binding).toEqual({
+            boundBy: 'cook',
+            pick: { kind: 'asWritten' },
+            reviewNote: undefined,
+        });
+    });
+
     it('no note while the line is still checking, or when the verdict is not confident', () => {
         const checking: WireMatch = { state: 'checking', reason: 'awaitingReview', proposed: SKIM, candidates: [SKIM] };
         const needs: WireMatch = {

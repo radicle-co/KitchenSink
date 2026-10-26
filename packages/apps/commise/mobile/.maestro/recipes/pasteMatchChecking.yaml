@@ -1,0 +1,51 @@
+appId: ${APP_ID}
+---
+# A pasted line that is still being CHECKED when it joins (ADR-0071 section 9; owner rulings 2026-10-25), on a device. Mobile
+# mirror of the web Playwright `pasteMatchChecking.spec.ts`: it shows the food under review with a Checking tag, Use this
+# and a one-tap Search; the cook's pick binds as theirs, and a late verdict never replaces it.
+#
+# ⚠️ WRITTEN WITH THE SLICE AND NOT RUN (no device in this build), and it needs a stage whose review gate answers late
+# (a line whose lexical proposal awaits review); recorded in `KNOWN_UNRUN_FLOWS`. Promote it to `FLOW_PLAN` in the PR
+# whose Maestro tier is watched.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
+- tapOn: 'Ingredient lines'
+- inputText: '1/2 cup heavy cream'
+- tapOn: 'Add 1 ingredient'
+- extendedWaitUntil:
+      notVisible: 'Ingredient lines'
+      timeout: 30000
+
+- extendedWaitUntil:
+      visible: 'Checking'
+      timeout: 240000
+# A checking line reaches Search in one tap, and offers the food under review.
+- assertVisible: 'Search for a food for .*cream.*'
+- assertVisible:
+      text: 'Use this: .*'
+- tapOn:
+      text: 'Use this: .*'
+- extendedWaitUntil:
+      visible:
+          text: '.*your choice.*'
+      timeout: 40000
+# The pick is the cook's: whatever the review says later, the line keeps it.
+- assertVisible:
+      text: '.*your choice.*'
+
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          SETTLED: 'Saved on this device'

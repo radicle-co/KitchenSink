@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 
 import type { UseRecipeEditorResult } from '../hooks/useRecipeEditor.js';
 import type { GateOutcome } from './gate.js';
+import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import type { DraftKeep } from './saveStatus.js';
 import type { EditorSectionId } from './sections.js';
 
@@ -127,6 +128,11 @@ export interface RecipeEditorViewProps {
     readonly pendingEntryFieldId: string | undefined;
     /** A paste is being sent, or its lines are still joining the recipe: Publish waits (`useIngredientsPaste`). */
     readonly pastePending?: boolean;
+    /**
+     * The paste's lines that have no food yet (R23): Publish asks first. `facts` is `undefined` while no line needs a pick,
+     * and Publish goes straight through; `chooseNow` opens the first of them.
+     */
+    readonly openChoices?: { readonly facts: OpenChoicesFacts | undefined; readonly chooseNow: () => void };
     /** Each section's body. */
     readonly sections: Readonly<Record<EditorSectionId, ReactNode>>;
     /** Controls in a section's heading row (Paste steps; slice 8's Paste a list). */

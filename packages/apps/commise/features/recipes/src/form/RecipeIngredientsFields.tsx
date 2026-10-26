@@ -41,12 +41,14 @@ import { IngredientsNutritionTotal } from './IngredientsNutritionTotal.js';
 import { recipeFormMessages } from './messages.js';
 import { MoveToGroupSheet } from './MoveToGroupSheet.js';
 import { PastedReadingRow } from './PastedReadingRow.js';
+import { PasteMatchedBlock } from './PasteMatchedBlock.js';
 import { PasteProgressBlock } from './PasteProgressBlock.js';
 import { pasteAnnouncementTextOf } from './pasteStatusCopy.js';
 import type { RecipeIngredientsFieldsProps } from './props.js';
 import { withRefusalFocus } from './refusalFocus.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
+import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
@@ -137,7 +139,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             </Button>
         ) : null;
     const pasteBesideField = pasteButton !== null && addFieldHere && inline;
-    const rows = model.sections.flatMap((section) => section.rows);
+    // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
+    const { wide, sections, matching } = usePasteLayout(model.sections, paste);
+    const rows = sections.flatMap((section) => section.rows);
     // PLATFORM-FORK: the row a pick just added is shown with the add field by the page's scroll host; native asks its
     // field reveal host through the combobox (`ingredientArrival.md`). It never calls `focus()`: the cook keeps typing.
     const scrollHost = useOptionalScrollHost();
@@ -160,7 +164,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <IngredientRowPanelBody row={row} m={m} nutrition={nutrition} close={close} />
         );
     const detailsOf = (row: IngredientRowView): ReactNode => panelOf(row)(row.lineEditor.onToggleDetails);
-    const empty = model.sections.length === 0 && reading.length === 0;
+    const empty = model.sections.length === 0 && reading.length === 0 && matching === undefined;
 
     const rowOf = (row: IngredientRowView): ReactNode => (
         <IngredientRow
@@ -196,7 +200,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
         />
     );
 
-    // The paste's lines not in the recipe yet: ONE progress block, then their own list (UX spec, plan 2026-10-15-011).
+    // The paste's matched lines, their summary and the notice (ADR-0071), then the lines not in the recipe yet: ONE
+    // progress block, then their own list (UX spec, plan 2026-10-15-011).
+    const matchedLines = matching === undefined ? null : <PasteMatchedBlock matching={matching} wide={wide} />;
     const pastedLines =
         paste === undefined || reading.length === 0 ? null : (
             <>
@@ -254,7 +260,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 <p className="text-body-sm text-ink-muted">{m.noIngredients}</p>
             ) : (
                 <>
-                    {model.sections.map((section, at) => {
+                    {sections.map((section, at) => {
                         const headingId = `${section.key}-heading`;
 
                         return (
@@ -262,21 +268,25 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                                 {section.group !== undefined && (
                                     <IngredientGroupHeading id={headingId} group={section.group} />
                                 )}
-                                <ul
-                                    {...(section.group === undefined
-                                        ? { 'aria-label': index.sections.ingredients }
-                                        : { 'aria-labelledby': headingId })}
-                                    className="flex flex-col"
-                                >
-                                    {section.rows.map(rowOf)}
-                                </ul>
-                                {/* Pasted lines being read follow the list's own rows (§7.5.4), under their block. */}
-                                {at === model.sections.length - 1 && pastedLines}
+                                {section.rows.length === 0 ? null : (
+                                    <ul
+                                        {...(section.group === undefined
+                                            ? { 'aria-label': index.sections.ingredients }
+                                            : { 'aria-labelledby': headingId })}
+                                        className="flex flex-col"
+                                    >
+                                        {section.rows.map(rowOf)}
+                                    </ul>
+                                )}
+                                {/* The matched lines, then the pasted lines being read, follow the list's own rows (§7.5.4). */}
+                                {at === sections.length - 1 && matchedLines}
+                                {at === sections.length - 1 && pastedLines}
                                 <GroupFoot add={section.addHere} model={model} />
                             </div>
                         );
                     })}
-                    {model.sections.length === 0 && pastedLines}
+                    {sections.length === 0 && matchedLines}
+                    {sections.length === 0 && pastedLines}
                 </>
             )}
             {model.emptyGroups.map((group) => (

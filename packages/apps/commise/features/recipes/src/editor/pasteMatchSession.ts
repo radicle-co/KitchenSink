@@ -42,6 +42,8 @@ export type PasteMatchEvent =
     | { readonly type: 'lineJoined'; readonly key: string; readonly draftKey: string }
     | { readonly type: 'lineJoinFailed'; readonly key: string }
     | { readonly type: 'bindingSet'; readonly key: string; readonly binding: LineBinding }
+    /** A binding the SERVER or the review offers (a checking line that read confident): taken only by a line with none. */
+    | { readonly type: 'bindingOffered'; readonly key: string; readonly binding: LineBinding }
     | { readonly type: 'draftLineRemoved'; readonly draftKey: string }
     | { readonly type: 'expanded'; readonly key: string | undefined }
     | { readonly type: 'paneMoved'; readonly key: string | undefined };
@@ -77,6 +79,17 @@ export function draftKeyOf(session: PasteMatchSession, key: string): string | un
     const join = session.joins.get(key);
 
     return join?.status === 'joined' ? join.draftKey : undefined;
+}
+
+/**
+ * The food a draft line belongs to. Pure.
+ *
+ * @param session - The session.
+ * @param draftKey - A draft line's key.
+ * @returns The food's key, or `undefined` when the overlay does not own the line.
+ */
+export function foodKeyOfDraft(session: PasteMatchSession, draftKey: string): string | undefined {
+    return [...session.joins].find(([, join]) => join.status === 'joined' && join.draftKey === draftKey)?.[0];
 }
 
 /** A copy of a map with one entry set. Pure. */
@@ -119,6 +132,11 @@ export function reducePasteMatchSession(session: PasteMatchSession, event: Paste
 
         case 'bindingSet':
             return draftKeyOf(session, event.key) === undefined
+                ? session
+                : { ...session, bindings: withEntry(session.bindings, event.key, event.binding) };
+
+        case 'bindingOffered':
+            return draftKeyOf(session, event.key) === undefined || session.bindings.has(event.key)
                 ? session
                 : { ...session, bindings: withEntry(session.bindings, event.key, event.binding) };
 

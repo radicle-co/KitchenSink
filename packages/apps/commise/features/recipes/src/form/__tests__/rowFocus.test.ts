@@ -72,6 +72,10 @@ describe('settledFocusOf (where focus goes when a commit settles, §2d, item 1)'
 
     it.each<[string, SettledRowCommit | undefined]>([
         ['nothing settled', undefined],
+        [
+            'a paste pick (the paste list owns where focus goes next: pickFocusOf)',
+            settled({ origin: { kind: 'paste' } }),
+        ],
         ['a details pick (its dialog returns focus to ⋮)', settled({ origin: { kind: 'details', mode: 'add' } })],
         ['a pick that failed', settled({ outcome: { kind: 'failed' } })],
         ['a trailing pick that failed (focus is still in its field)', onTrailing({ outcome: { kind: 'failed' } })],

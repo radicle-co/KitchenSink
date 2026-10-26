@@ -28,6 +28,7 @@ export const MatchLineList: FC<MatchLineListProps> = ({
     failed,
     announcement,
     focus,
+    retryFocus,
     ...handlers
 }) => {
     const copy = useMatchCopy();
@@ -47,7 +48,9 @@ export const MatchLineList: FC<MatchLineListProps> = ({
             locale,
         ),
     );
-    const retryOf = useRetryFocus(sendsOf(rows));
+    // The host's memory when it holds one (so it can say where the cook is); else the list's own.
+    const ownRetryOf = useRetryFocus(sendsOf(rows));
+    const retryOf = retryFocus ?? ownRetryOf;
 
     return (
         <View>

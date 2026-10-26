@@ -363,6 +363,7 @@ export const makeIngredientRowEditor = (over: Partial<IngredientRowEditor> = {})
     },
     limitRefusals: 0,
     pickFromShortlist: () => Promise.resolve({ kind: 'failed' }),
+    pickFromPaste: () => Promise.resolve({ kind: 'failed' }),
     settled: undefined,
     movedPast: false,
     moveOn: () => undefined,

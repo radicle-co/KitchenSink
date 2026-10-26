@@ -283,3 +283,70 @@ describe('PasteChoicePane (web): Try again keeps focus (WCAG 2.4.3)', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
     });
 });
+
+/**
+ * The host owns the retry memory (host gap rule 1): the pane takes the shown line's `LineRetryFocus` as a prop, so a
+ * retry the cook has left (they went to another line) takes no focus, and the pane and the list share one memory.
+ */
+describe('PasteChoicePane (web): the host’s retry memory', () => {
+    it('⛔ a landing request from the host lands focus on the option being retried, and is lowered once', () => {
+        const onLanded = vi.fn();
+        const handlers = {
+            onSearch: vi.fn(),
+            onPick: vi.fn(),
+            onPrevious: vi.fn(),
+            onNext: vi.fn(),
+            onRetryPick: vi.fn(),
+        };
+        const pending: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+
+        render(
+            <PasteChoicePane
+                view={pasteMatchPaneViewOf(
+                    { lines: RECIPE, shownKey: 'milk', sending: NOTHING_SENT },
+                    { online: true, pending, failed: true },
+                    m,
+                    lineCopy,
+                )}
+                focus={{ requested: false, onHandled: vi.fn() }}
+                retry={{
+                    landing: { requested: true, onHandled: onLanded },
+                    tryAgain: { requested: false, onHandled: vi.fn() },
+                }}
+                {...handlers}
+            />,
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Skim milk' }));
+        expect(onLanded).toHaveBeenCalledTimes(1);
+    });
+
+    it('a request that is NOT raised takes no focus: the cook left the line', () => {
+        const handlers = {
+            onSearch: vi.fn(),
+            onPick: vi.fn(),
+            onPrevious: vi.fn(),
+            onNext: vi.fn(),
+            onRetryPick: vi.fn(),
+        };
+
+        render(
+            <PasteChoicePane
+                view={pasteMatchPaneViewOf(
+                    { lines: RECIPE, shownKey: 'milk', sending: NOTHING_SENT },
+                    { online: true, pending: undefined, failed: true },
+                    m,
+                    lineCopy,
+                )}
+                focus={{ requested: false, onHandled: vi.fn() }}
+                retry={{
+                    landing: { requested: false, onHandled: vi.fn() },
+                    tryAgain: { requested: false, onHandled: vi.fn() },
+                }}
+                {...handlers}
+            />,
+        );
+
+        expect(document.activeElement).toBe(document.body);
+    });
+});

@@ -258,3 +258,48 @@ describe('PasteChoicePane (native): Try again keeps the screen-reader cursor (WC
         expect(focusMoved).not.toHaveBeenCalled();
     });
 });
+
+/** The host owns the retry memory (host gap rule 1): the pane takes the shown line's `LineRetryFocus` as a prop. */
+describe('PasteChoicePane (native): the host’s retry memory', () => {
+    const handlers = {
+        onSearch: vi.fn(),
+        onPick: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onRetryPick: vi.fn(),
+    };
+    const pending: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+    const paneWith = (requested: boolean, onLanded = vi.fn()) => (
+        <PasteChoicePane
+            view={pasteMatchPaneViewOf(
+                { lines: RECIPE, shownKey: 'milk', sending: NOTHING_SENT },
+                { online: true, pending, failed: true },
+                m,
+                lineCopy,
+            )}
+            focus={{ requested: false, onHandled: vi.fn() }}
+            retry={{
+                landing: { requested, onHandled: onLanded },
+                tryAgain: { requested: false, onHandled: vi.fn() },
+            }}
+            {...handlers}
+        />
+    );
+
+    it('⛔ a landing request from the host moves the cursor to the option being retried, and is lowered once', () => {
+        const onLanded = vi.fn();
+
+        focusMoved.mockClear();
+        render(paneWith(true, onLanded));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: 'Skim milk' }), 'focus');
+        expect(onLanded).toHaveBeenCalledTimes(1);
+    });
+
+    it('a request that is not raised moves the cursor nowhere: the cook left the line', () => {
+        focusMoved.mockClear();
+        render(paneWith(false));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+    });
+});

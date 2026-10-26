@@ -3,6 +3,7 @@
  * that steps through the open lines at 1194 and on web.
  */
 import type { FoodChoiceListProps } from '../ingredientMatching/foodChoiceListProps.js';
+import type { LineRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { PasteMatchPaneView } from './pasteMatchView.js';
 
 /** Props for `PasteChoicePane`: the pane's view, its line's list controls, and the two steps. */
@@ -19,4 +20,9 @@ export interface PasteChoicePaneProps extends Omit<FoodChoiceListProps, 'view' |
      * (`useRetryFocus`), which must still be on screen.
      */
     readonly onRetryPick: () => void;
+    /**
+     * The shown line's retry focus, when the HOST holds the retry memory (`useRetryFocus` over the list's and the pane's
+     * sends together). Omitted, the pane holds its own.
+     */
+    readonly retry?: LineRetryFocus;
 }

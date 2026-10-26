@@ -63,7 +63,7 @@ const REVIEW_REASONS: ReadonlySet<string> = new Set(['rememberedMatch', 'reviewV
  * @param reason - The wire `reason` key.
  * @returns `review` for a remembered or verified match, else `server` (exact name, curated mapping, or unknown).
  */
-function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
+export function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
     return REVIEW_REASONS.has(reason) ? 'review' : 'server';
 }
 
@@ -117,9 +117,13 @@ function reviewNoteOf(
     match: WireMatch,
     reviewReasonOf: (reason: string) => string,
 ): ReviewNote | undefined {
-    const pickedId = held.pick.kind === 'food' ? held.pick.foodId : undefined;
+    // The note reads "Our check suggested {food}. Your choice stays.": it belongs to a pick of a FOOD. A line the cook
+    // kept as written chose no food, so there is no choice for the suggestion to sit beside (owner design).
+    if (held.pick.kind !== 'food') {
+        return undefined;
+    }
 
-    return match.state === 'confident' && match.proposed !== null && match.proposed.id !== pickedId
+    return match.state === 'confident' && match.proposed !== null && match.proposed.id !== held.pick.foodId
         ? { suggestedFood: match.proposed.name, reason: reviewReasonOf(match.reason) }
         : undefined;
 }

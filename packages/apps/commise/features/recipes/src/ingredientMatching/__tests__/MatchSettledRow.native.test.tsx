@@ -25,7 +25,7 @@ import {
     makeOptionsFailedLine,
     MILKS,
 } from '../__fixtures__/matchLines.js';
-import type { MatchLine } from '../matchLine.js';
+import type { MatchLine, PendingSend } from '../matchLine.js';
 import { lineRowOf } from '../matchLineView.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MatchSettledRow } from '../MatchSettledRow.native.js';
@@ -36,10 +36,10 @@ afterEach(cleanup);
 const copy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
 const WHOLE = MILKS[1] ?? MILKS[0];
 
-function renderRow(line: MatchLine, online = true) {
+function renderRow(line: MatchLine, online = true, pending: PendingSend | undefined = undefined) {
     const onAction = vi.fn();
     const onSeeWhy = vi.fn();
-    const row = lineRowOf(line, { expanded: false, current: false, online, pending: undefined }, copy, 'en');
+    const row = lineRowOf(line, { expanded: false, current: false, online, pending }, copy, 'en');
 
     if (row.kind !== 'settled') {
         throw new Error(`expected a settled row, got ${row.kind}`);
@@ -177,5 +177,17 @@ describe('MatchSettledRow (native)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Change the food for 1 tsp spice mix' }));
         expect(onAction).toHaveBeenCalledExactlyOnceWith('change');
+    });
+
+    it('⛔ Use this in flight reads busy, and neither it nor Search sends again', () => {
+        const { onAction } = renderRow(makeCheckingLine(), true, { kind: 'useProposal' });
+
+        const useThis = screen.getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' });
+
+        expect(useThis.getAttribute('aria-busy')).toBe('true');
+        fireEvent.click(useThis);
+        fireEvent.click(screen.getByRole('button', { name: 'Search for a food for 1/2 cup heavy cream' }));
+
+        expect(onAction).not.toHaveBeenCalled();
     });
 });

@@ -12,7 +12,8 @@
  * - Every line kept as written offers Change (staff-ux 2026-10-25, ruling I1), whoever kept it.
  * - The short "Keep as written" action is named "Keep as written: {line}" — every action's name starts with its label
  *   (WCAG 2.5.3), asserted over every settled kind × online.
- * - A pick in flight: its row reads busy and every row of the list refuses a second press.
+ * - A send in flight: its control reads busy and the line refuses a second press, in the list (a pick) and on a
+ *   settled row (Use this, Keep as written) alike — the staff-architect review found the settled row had no busy state.
  * - A late review note carries its reason, for See why.
  */
 import { describe, expect, it } from 'vitest';
@@ -54,7 +55,14 @@ function rowOf<K extends LineRow['kind']>(
 }
 
 const listOf = (line: MatchLine, options: { online?: boolean; pending?: LinePick } = {}) =>
-    choiceListViewOf(line, { online: options.online ?? true, pending: options.pending }, copy);
+    choiceListViewOf(
+        line,
+        {
+            online: options.online ?? true,
+            pending: options.pending === undefined ? undefined : { kind: 'pick', pick: options.pending },
+        },
+        copy,
+    );
 
 describe('lineRowOf — which row a line is', () => {
     it('an open line not expanded is a collapsed row naming its need', () => {
@@ -263,6 +271,7 @@ describe('a settled line', () => {
             label: 'Change',
             name: 'Change the food for eggs',
             icon: 'pencilLine',
+            busy: false,
         });
         expect(view.actions).toEqual([]);
         expect(view.note).toBeUndefined();
@@ -321,12 +330,14 @@ describe('a settled line', () => {
                 label: 'Use this',
                 name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream',
                 icon: 'check',
+                busy: false,
             },
             {
                 kind: 'search',
                 label: 'Search for a food',
                 name: 'Search for a food for 1/2 cup heavy cream',
                 icon: 'search',
+                busy: false,
             },
         ]);
     });
@@ -346,6 +357,7 @@ describe('a settled line', () => {
             label: 'Keep as written',
             name: 'Keep as written: 1/2 cup heavy cream',
             icon: 'listPlus',
+            busy: false,
         });
     });
 
@@ -375,6 +387,39 @@ describe('a settled line', () => {
         expect(view.status).toEqual({ kind: 'text', text: 'Kept as written\u00A0· no nutrition yet', tone: 'muted' });
         expect(view.trailing?.kind).toBe('change');
         expect(view.actions).toEqual([]);
+    });
+});
+
+describe('a settled line’s send in flight', () => {
+    it('⛔ Use this in flight: it reads busy, and the row refuses a second press of anything', () => {
+        const { view } = rowOf('settled', makeCheckingLine(), { pending: { kind: 'useProposal' } });
+
+        expect(view.refusing).toBe(true);
+        expect(view.actions.map((action) => (action.kind === 'unavailable' ? undefined : action.busy))).toEqual([
+            true,
+            false,
+        ]);
+    });
+
+    it('Keep as written in flight on a checking line offline: the keep reads busy', () => {
+        const { view } = rowOf('settled', makeCheckingLine(), {
+            online: false,
+            pending: { kind: 'pick', pick: { kind: 'asWritten' } },
+        });
+
+        expect(view.refusing).toBe(true);
+        expect(view.actions.map((action) => (action.kind === 'unavailable' ? undefined : action.busy))).toEqual([
+            false,
+            undefined,
+            true,
+        ]);
+    });
+
+    it('nothing in flight: no action is busy and the row takes a press', () => {
+        const { view } = rowOf('settled', makeCheckingLine());
+
+        expect(view.refusing).toBe(false);
+        expect(view.actions.some((action) => action.kind !== 'unavailable' && action.busy)).toBe(false);
     });
 });
 

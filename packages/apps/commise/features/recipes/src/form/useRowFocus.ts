@@ -17,7 +17,7 @@
 import { useState } from 'react';
 
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
-import type { ControlFocus } from './controlFocus.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { IngredientLineKey } from './lineKey.js';
 import {
     isFocusRequested,

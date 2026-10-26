@@ -120,10 +120,23 @@ describe('MatchLineList (web)', () => {
         expect(screen.queryByRole('button', { name: 'Search for a food for 6 slices day-old bread' })).toBeNull();
     });
 
-    it('a pick in flight applies to the expanded line only', () => {
-        renderList({ pending: { kind: 'food', foodId: 'skim', name: 'Skim milk' } });
+    it('a pick in flight on the expanded line reads busy there', () => {
+        renderList({
+            pending: { key: 'milk', send: { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } } },
+        });
 
         expect(screen.getByRole('button', { name: 'Skim milk' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('⛔ a send in flight belongs to ITS line: Use this on the checking line reads busy, and no other line refuses', () => {
+        renderList({ pending: { key: 'cream', send: { kind: 'useProposal' } } });
+
+        expect(
+            screen
+                .getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' })
+                .getAttribute('aria-busy'),
+        ).toBe('true');
+        expect(screen.getByRole('button', { name: 'Skim milk' }).getAttribute('aria-disabled')).not.toBe('true');
     });
 
     it('the line the side pane shows is marked current', () => {

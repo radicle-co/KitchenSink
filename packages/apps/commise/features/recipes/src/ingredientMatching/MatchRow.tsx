@@ -17,8 +17,43 @@ import type { FC, ReactElement } from 'react';
 
 import { MatchClosedRow } from './MatchClosedRow.js';
 import { MatchOpenRow } from './MatchOpenRow.js';
-import { runSettledAction, type MatchRowProps } from './matchRowProps.js';
+import type { SettledAction } from './matchLineView.js';
+import type { MatchRowHandlers, MatchRowProps } from './matchRowProps.js';
 import { MatchSettledRow } from './MatchSettledRow.js';
+
+/**
+ * Carry a settled row's control to the host. An exhaustive switch over the action kinds with no default branch, so a
+ * new kind is a compile error here.
+ *
+ * @param action - The control pressed.
+ * @param key - Its line.
+ * @param handlers - The host's handlers.
+ * @sideEffect Calls the one handler the action maps to.
+ */
+function runSettledAction(action: SettledAction['kind'], key: string, handlers: MatchRowHandlers): void {
+    switch (action) {
+        case 'change':
+            handlers.onOpen(key);
+
+            return;
+        case 'useThis':
+            handlers.onUseProposal(key);
+
+            return;
+        case 'search':
+            handlers.onSearch(key);
+
+            return;
+        case 'keepAsWritten':
+            handlers.onPick(key, { kind: 'asWritten' });
+
+            return;
+        case 'retry':
+            handlers.onRetry(key);
+
+            return;
+    }
+}
 
 /** The leaf a row kind names. */
 const leafOf = ({ row, searchFocus, ...handlers }: MatchRowProps): ReactElement => {

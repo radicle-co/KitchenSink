@@ -33,10 +33,14 @@ export const MatchLineList: FC<MatchLineListProps> = ({
     return (
         <ul className="flex flex-col gap-1">
             {lines.map((line) => {
-                const expanded = line.key === expandedKey;
                 const row = lineRowOf(
                     line,
-                    { expanded, current: line.key === currentKey, online, pending: expanded ? pending : undefined },
+                    {
+                        expanded: line.key === expandedKey,
+                        current: line.key === currentKey,
+                        online,
+                        pending: pending?.key === line.key ? pending.send : undefined,
+                    },
                     copy,
                     locale,
                 );

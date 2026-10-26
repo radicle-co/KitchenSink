@@ -2,8 +2,8 @@
  * @module @commise/features-recipes/ingredientMatching — the contract `MatchLineList`'s web and native leaves share: a
  * recipe's matched lines, in either flow.
  */
-import type { ControlFocus } from '../form/controlFocus.js';
-import type { LinePick, MatchLine } from './matchLine.js';
+import type { ControlFocus } from '../common/controlFocus.js';
+import type { MatchLine, PendingSend } from './matchLine.js';
 import type { MatchRowHandlers } from './matchRowProps.js';
 
 /** Props for `MatchLineList`. Controlled: which line is open, and what a pick does, are the host's. */
@@ -16,8 +16,8 @@ export interface MatchLineListProps extends MatchRowHandlers {
     readonly currentKey: string | undefined;
     /** Whether search and the review can run. */
     readonly online: boolean;
-    /** The pick in flight for the open line, if any. */
-    readonly pending: LinePick | undefined;
+    /** What the host is sending, and for which line: it reads busy on that line alone. */
+    readonly pending: { readonly key: string; readonly send: PendingSend } | undefined;
     /** A request that the open line's Search take focus (after the pick on the line before; `pickFocusOf`). */
     readonly searchFocus: ControlFocus;
 }

@@ -11,6 +11,8 @@
  *   `PastedReadingRow` does, never a spinner the editor would keep turning.
  * - A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.
  * - Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).
+ * - While a send for the line is in flight (Use this, Keep as written) that control reads busy and the others refuse a
+ *   press, so a double tap cannot send two.
  *
  * Presentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is
  * `./MatchSettledRow.native.tsx`.
@@ -74,6 +76,8 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                         size="sm"
                         icon={trailing.icon}
                         accessibilityLabel={trailing.name}
+                        busy={trailing.busy}
+                        disabled={view.refusing && !trailing.busy}
                         onPress={() => onAction(trailing.kind)}
                     >
                         {trailing.label}
@@ -94,6 +98,8 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                                 size="sm"
                                 icon={action.icon}
                                 accessibilityLabel={action.name}
+                                busy={action.busy}
+                                disabled={view.refusing && !action.busy}
                                 onPress={() => onAction(action.kind)}
                             >
                                 {action.label}

@@ -17,6 +17,7 @@
         "./collections": "./src/collections/index.ts",
         "./versions": "./src/versions/index.ts",
         "./import": "./src/import/index.ts",
+        "./ingredient-matching": "./src/ingredientMatching/index.ts",
         "./widget/web": "./src/widget/RecipeHomeWidget.tsx",
         "./widget/mobile": "./src/widget/RecipeHomeWidget.native.tsx",
         "./data-sources/mobile": "./src/dataSources/mobileEntry.ts"

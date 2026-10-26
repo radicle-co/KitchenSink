@@ -44,7 +44,14 @@ function renderList(line: MatchLine, options: { online?: boolean; pending?: Line
 
     render(
         <FoodChoiceList
-            view={choiceListViewOf(line, { online: options.online ?? true, pending: options.pending }, copy)}
+            view={choiceListViewOf(
+                line,
+                {
+                    online: options.online ?? true,
+                    pending: options.pending === undefined ? undefined : { kind: 'pick', pick: options.pending },
+                },
+                copy,
+            )}
             onSearch={handlers.onSearch}
             onPick={handlers.onPick}
             searchFocus={{ requested: options.focusRequested ?? false, onHandled: handlers.onHandled }}

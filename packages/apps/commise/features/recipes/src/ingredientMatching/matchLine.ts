@@ -55,6 +55,13 @@ export interface ReviewNote {
     readonly reason: string;
 }
 
+/**
+ * What the host is sending for ONE line: a pick (a food, or the line kept as written), or Use this on a line still being
+ * checked. While it is in flight its control reads busy and the line refuses a second press, so a double tap cannot send
+ * two.
+ */
+export type PendingSend = { readonly kind: 'pick'; readonly pick: LinePick } | { readonly kind: 'useProposal' };
+
 /** Who bound a line: the cook, the server (an exact name, a curated mapping, or a bulk default), or the review. */
 export type BoundBy = 'cook' | 'server' | 'review';
 
@@ -183,9 +190,9 @@ export function matchCountsOf(lines: readonly MatchLine[]): MatchCounts {
 }
 
 /**
- * Whether a recipe has nothing to fix (board WizardStates): every line arrived matched and still names a food — bound
- * on arrival, or changed by the cook to another food. A line kept as written is not matched, and a recipe whose open
- * lines the cook picked one by one is a recipe the cook fixed, not one with nothing to fix. Pure.
+ * Whether a set of lines has nothing to fix: every line arrived matched and still names a food — bound on arrival, or
+ * changed by the cook to another food. A line kept as written is not matched, and lines the cook picked one by one were
+ * fixed, not "nothing to fix". Bulk import's wizard says so for a recipe (board WizardStates). Pure.
  *
  * @param lines - The recipe's lines.
  * @returns `true` for a non-empty recipe of confident lines that each name a food.

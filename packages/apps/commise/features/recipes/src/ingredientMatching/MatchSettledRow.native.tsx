@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-recipes/ingredientMatching — `MatchSettledRow` (native): the React Native leaf of
  * `./MatchSettledRow.tsx`, on the same props and the same words (`matchLineView.ts`). The controls sit on their own line under the status and wrap,
- * so no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. Painted from
+ * so no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. While a send
+ * for the line is in flight that control reads busy and the others refuse a press. Painted from
  * the theme's roles, so it reads in both themes (D15).
  *
  * @pattern Visitor — an exhaustive switch with no default branch over the status union
@@ -74,6 +75,8 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                         size="sm"
                         icon={trailing.icon}
                         accessibilityLabel={trailing.name}
+                        busy={trailing.busy}
+                        disabled={view.refusing && !trailing.busy}
                         onPress={() => onAction(trailing.kind)}
                     >
                         {trailing.label}
@@ -94,6 +97,8 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                                 size="sm"
                                 icon={action.icon}
                                 accessibilityLabel={action.name}
+                                busy={action.busy}
+                                disabled={view.refusing && !action.busy}
                                 onPress={() => onAction(action.kind)}
                             >
                                 {action.label}

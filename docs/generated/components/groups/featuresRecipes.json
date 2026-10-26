@@ -19292,11 +19292,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight for the open line, if any.",
+                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -19425,11 +19425,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight for the open line, if any.",
+                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -19523,11 +19523,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "PendingSend | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight, if any.",
+                            "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19611,11 +19611,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "PendingSend | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight, if any.",
+                            "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19736,11 +19736,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "PendingSend | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight, if any.",
+                            "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19842,11 +19842,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "PendingSend | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight, if any.",
+                            "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -21557,11 +21557,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight for the open line, if any.",
+                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -21690,11 +21690,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "LinePick | undefined",
+                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The pick in flight for the open line, if any.",
+                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -22107,7 +22107,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchSettledRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (web): a matched line that needs nothing from\nthe cook now, in either flow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line as the\ncook wrote it, then its status — a bound food said whole with a check (and the Default tag on a default nobody but the\nserver chose), a proposal under review with its tag, or a sentence — then, on their own line, the controls its state\nallows, and a late review result's one quiet sentence with See why.\n\n- Nothing moves (WCAG 2.2.2): a line under review shows a still clock glyph and its \"Checking\" tag, as\n  `PastedReadingRow` does, never a spinner the editor would keep turning.\n- A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.\n- Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./MatchSettledRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (web): a matched line that needs nothing from\nthe cook now, in either flow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line as the\ncook wrote it, then its status — a bound food said whole with a check (and the Default tag on a default nobody but the\nserver chose), a proposal under review with its tag, or a sentence — then, on their own line, the controls its state\nallows, and a late review result's one quiet sentence with See why.\n\n- Nothing moves (WCAG 2.2.2): a line under review shows a still clock glyph and its \"Checking\" tag, as\n  `PastedReadingRow` does, never a spinner the editor would keep turning.\n- A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.\n- Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).\n- While a send for the line is in flight (Use this, Keep as written) that control reads busy and the others refuse a\n  press, so a double tap cannot send two.\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./MatchSettledRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -22172,7 +22172,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchSettledRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (native): the React Native leaf of\n`./MatchSettledRow.tsx`, on the same props and the same words (`matchLineView.ts`). The controls sit on their own line under the status and wrap,\nso no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. Painted from\nthe theme's roles, so it reads in both themes (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (native): the React Native leaf of\n`./MatchSettledRow.tsx`, on the same props and the same words (`matchLineView.ts`). The controls sit on their own line under the status and wrap,\nso no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. While a send\nfor the line is in flight that control reads busy and the others refuse a press. Painted from\nthe theme's roles, so it reads in both themes (D15).",
                     "moduleTags": [
                         {
                             "name": "module",

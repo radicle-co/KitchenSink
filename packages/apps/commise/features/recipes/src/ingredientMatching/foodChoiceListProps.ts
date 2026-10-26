@@ -3,7 +3,7 @@
  * the ONE list a line's food is chosen from, in both flows — inline on the open line (phone and 834), the side pane
  * (1194 and web), and a flagged line's sheet and pane.
  */
-import type { ControlFocus } from '../form/controlFocus.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { LinePick } from './matchLine.js';
 import type { FoodChoiceListView } from './matchLineView.js';
 

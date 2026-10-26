@@ -6,8 +6,8 @@
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
- * @pattern Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of
- *     options so the tagged label is drawn once
+ * @pattern Facade — one label over `StatusBadge` and `VariantPartsLine`, so every list of options draws a tagged,
+ *     parted name the same way
  */
 import type { FC } from 'react';
 

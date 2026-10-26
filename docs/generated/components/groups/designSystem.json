@@ -7720,7 +7720,7 @@
             "dir": "packages/apps/commise/ui/src/optionLabel",
             "kind": "presentational",
             "patterns": [
-                "Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of\n    options so the tagged label is drawn once"
+                "Facade — one label over `StatusBadge` and `VariantPartsLine`, so every list of options draws a tagged,\n    parted name the same way"
             ],
             "platforms": [
                 "web",
@@ -7743,7 +7743,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of\n    options so the tagged label is drawn once"
+                            "text": "Facade — one label over `StatusBadge` and `VariantPartsLine`, so every list of options draws a tagged,\n    parted name the same way"
                         }
                     ],
                     "description": "The web option label.",
@@ -7811,7 +7811,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of\n    options so the tagged label is drawn once"
+                            "text": "Facade — one label over `StatusBadge` and `VariantPartsLine`, so every list of options draws a tagged,\n    parted name the same way"
                         }
                     ],
                     "description": "The native option label.",

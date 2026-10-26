@@ -1,10 +1,10 @@
 /**
- * @module @commise/features-recipes/ingredientMatching — the contract `MatchRow`'s web and native leaves share, and the
- * one way a settled row's control reaches the host: every control reports with its line's key.
+ * @module @commise/features-recipes/ingredientMatching — the contract of `MatchRow`, the one dispatch from a line's row to
+ * the leaf that draws it: every control reports to the host with its line's key.
  */
-import type { ControlFocus } from '../form/controlFocus.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { LinePick } from './matchLine.js';
-import type { LineRow, SettledAction } from './matchLineView.js';
+import type { LineRow } from './matchLineView.js';
 
 /** What a line's controls ask of the host, each with the line's key. */
 export interface MatchRowHandlers {
@@ -28,38 +28,4 @@ export interface MatchRowProps extends MatchRowHandlers {
     readonly row: LineRow;
     /** A request that the open row's Search take focus. Only an open row has a Search to take it. */
     readonly searchFocus: ControlFocus;
-}
-
-/**
- * Carry a settled row's control to the host. An exhaustive switch over the action kinds with no default branch, so a
- * new kind is a compile error here.
- *
- * @param action - The control pressed.
- * @param key - Its line.
- * @param handlers - The host's handlers.
- * @sideEffect Calls the one handler the action maps to.
- */
-export function runSettledAction(action: SettledAction['kind'], key: string, handlers: MatchRowHandlers): void {
-    switch (action) {
-        case 'change':
-            handlers.onOpen(key);
-
-            return;
-        case 'useThis':
-            handlers.onUseProposal(key);
-
-            return;
-        case 'search':
-            handlers.onSearch(key);
-
-            return;
-        case 'keepAsWritten':
-            handlers.onPick(key, { kind: 'asWritten' });
-
-            return;
-        case 'retry':
-            handlers.onRetry(key);
-
-            return;
-    }
 }

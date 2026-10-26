@@ -7,9 +7,9 @@
  */
 import type { ReactNode } from 'react';
 
-import type { ControlFocus } from '../form/controlFocus.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { FoodChoiceListProps } from '../ingredientMatching/foodChoiceListProps.js';
-import type { LinePick, MatchLine } from '../ingredientMatching/matchLine.js';
+import type { MatchLine, PendingSend } from '../ingredientMatching/matchLine.js';
 import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
 import type { ImportMatchMode } from './importMode.js';
 
@@ -196,8 +196,8 @@ export interface ImportLineOptionsProps extends Omit<FoodChoiceListProps, 'view'
     readonly line: MatchLine;
     /** Whether search can run. */
     readonly online: boolean;
-    /** The pick in flight, if any. */
-    readonly pending: LinePick | undefined;
+    /** The pick in flight for this line, if any. */
+    readonly pending: PendingSend | undefined;
 }
 
 /** A flagged line's options in a sheet (phone and 834). */

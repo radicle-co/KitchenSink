@@ -206,7 +206,7 @@ export interface ImportFlaggedListProps {
  * A flagged line's options: the ONE shared food-choice list (`FoodChoiceList`), search first, built from the line the
  * way every matched line's list is (`choiceListViewOf`).
  */
-export interface ImportLineOptionsProps extends Omit<FoodChoiceListProps, 'view'> {
+export interface ImportLineOptionsProps extends Omit<FoodChoiceListProps, 'view' | 'landing'> {
     /** The line whose options are shown. */
     readonly line: MatchLine;
     /** Whether search can run. */

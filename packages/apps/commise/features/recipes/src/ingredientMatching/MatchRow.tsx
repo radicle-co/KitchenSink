@@ -56,7 +56,7 @@ function runSettledAction(action: SettledAction['kind'], key: string, handlers: 
 }
 
 /** The leaf a row kind names. */
-const leafOf = ({ row, focus, ...handlers }: MatchRowProps): ReactElement => {
+const leafOf = ({ row, focus, retry, ...handlers }: MatchRowProps): ReactElement => {
     switch (row.kind) {
         case 'open':
             return (
@@ -64,6 +64,7 @@ const leafOf = ({ row, focus, ...handlers }: MatchRowProps): ReactElement => {
                     line={row.line}
                     view={row.view}
                     focus={focus}
+                    retry={retry}
                     onSearch={() => {
                         handlers.onSearch(row.key);
                     }}
@@ -93,6 +94,7 @@ const leafOf = ({ row, focus, ...handlers }: MatchRowProps): ReactElement => {
                 <MatchSettledRow
                     line={row.line}
                     view={row.view}
+                    retry={retry}
                     onAction={(action) => {
                         runSettledAction(action, row.key, handlers);
                     }}

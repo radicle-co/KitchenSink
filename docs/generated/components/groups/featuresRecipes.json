@@ -6,11 +6,11 @@
     "coverage": {
         "components": 178,
         "implementations": 307,
-        "props": 1600,
+        "props": 1609,
         "documentedComponents": 178,
         "implementationsWithModuleDoc": 307,
         "implementationsWithComponentDoc": 200,
-        "documentedProps": 1321,
+        "documentedProps": 1330,
         "classifiedComponents": 158,
         "componentsWithPatternTag": 81,
         "crossPlatformComponents": 129
@@ -19144,7 +19144,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside\nthe list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite\nlive region (M6, U9).",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside\nthe list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite\nlive region (M6, U9). Try again keeps the screen-reader cursor (WCAG 2.4.3): while the retry is in flight it lands on\nthe row's Use, or Choose another when the row has no Use (`flaggedLandingOf`), and returns to the new Try again if the\nretry fails again (`useRetryFocus`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21387,7 +21387,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/FoodChoiceList.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (web): the ONE list a line's food is chosen\nfrom, in both flows (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner rulings\n2026-10-25). Search for a food first (ruling I1), at its own width so its words start at the rows' edge (U5); then ONE\nbordered box on the raised paper (U2) holding the options in the server's order, the default with its quiet Default\ntag (`OptionLabel`), and \"Keep “line” as written · no nutrition\" as its last row in the quiet ink (U6), rules between\nthe rows. Offline, the words \"Search needs the network\" stand where search was.\n\n- ⛔ Each option is a BUTTON (`ChoiceRow`), and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group\n  would check the option the arrow keys land on, so moving through the list would pick a food and carry the cook to\n  the next line (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook.\n- Nothing is drawn chosen until the cook has chosen: the bound food of a reopened line draws a check and its name ends\n  \", chosen\", so the state never rests on colour (1.4.1). No `aria-current` as well: it would say the state twice.\n- While a send is in flight the control that started it spins and reads busy — the row, or Search for a food found\n  through it — and every other control is refused: focusable, the press cancelled, dimmed (2.4.3). None is ever\n  natively disabled, because any of them may hold focus when the send starts.\n- A focus request lands on the view's `focusTarget`: Search, else the first option, else Keep, so it is always taken.\n- Rows are 48 px at least, in the 14 px `list` role; long names wrap and never truncate, so nothing scrolls sideways\n  at 320 px.\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./FoodChoiceList.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (web): the ONE list a line's food is chosen\nfrom, in both flows (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner rulings\n2026-10-25). Search for a food first (ruling I1), at its own width so its words start at the rows' edge (U5); then ONE\nbordered box on the raised paper (U2) holding the options in the server's order, the default with its quiet Default\ntag (`OptionLabel`), and \"Keep “line” as written · no nutrition\" as its last row in the quiet ink (U6), rules between\nthe rows. Offline, the words \"Search needs the network\" stand where search was.\n\n- ⛔ Each option is a BUTTON (`ChoiceRow`), and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group\n  would check the option the arrow keys land on, so moving through the list would pick a food and carry the cook to\n  the next line (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook.\n- Nothing is drawn chosen until the cook has chosen: the bound food of a reopened line draws a check and its name ends\n  \", chosen\", so the state never rests on colour (1.4.1). No `aria-current` as well: it would say the state twice.\n- While a send is in flight the control that started it spins and reads busy — the row, or Search for a food found\n  through it — and every other control is refused: focusable, the press cancelled, dimmed (2.4.3). None is ever\n  natively disabled, because any of them may hold focus when the send starts.\n- A focus request lands on the view's `focusTarget`: Search, else the first option, else Keep, so it is always taken.\n- When Try again unmounts because a retry started, focus lands on the view's `landing`: the control that send made busy\n  (still drawn, refused, never natively disabled), so focus is never dropped to the page (2.4.3).\n- Rows are 48 px at least, in the 14 px `list` role; long names wrap and never truncate, so nothing scrolls sideways\n  at 320 px.\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./FoodChoiceList.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21406,6 +21406,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "landing",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus because Try again just unmounted (a retry started): it lands on the control the\nsend made busy (`FoodChoiceListView.landing`), which the list still draws, refused and never natively disabled.\nThe surface that owns the failure line raises it (`useRetryFocus`); a host never does.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21448,7 +21457,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/FoodChoiceList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (native): the React Native leaf of\n`./FoodChoiceList.tsx`, on the same props and the same words (`matchLineView.ts`). Search for a food first, at its own\nwidth (U5); then ONE bordered box on the raised paper (U2) holding the options in the server's order, the default\ntagged (`OptionLabel`), and \"Keep “line” as written · no nutrition\" as its last row in the quiet ink (U6), hairlines\nbetween the rows.\n\nEach option is a `ChoiceRow`, a `button` (staff-ux ruling 2026-10-25): VoiceOver and TalkBack read a radio as \"not\nselected\", which implies a confirm step that does not exist. The bound food draws a check and its name ends\n\", chosen\"; no `selected` state as well, which would say it twice. While a send is in flight the control that started\nit spins and reads busy, and every other control is disabled and dimmed (a disabled `Pressable` keeps screen-reader\nfocus on device). The box is a `list` named for its line, its rows `listitem`s, so the name is announced with the\ncount and marks where this line's list starts (U12; `docs/design/nativeContainerNames.md` N1 rules 4 and 5); the list\nkeeps its native node for that role. A focus request moves the screen-reader cursor to the view's `focusTarget`.\nRows keep the native touch floor and every name wraps, so nothing is cut off or scrolls sideways at 320 pt. Painted\nfrom the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (native): the React Native leaf of\n`./FoodChoiceList.tsx`, on the same props and the same words (`matchLineView.ts`). Search for a food first, at its own\nwidth (U5); then ONE bordered box on the raised paper (U2) holding the options in the server's order, the default\ntagged (`OptionLabel`), and \"Keep “line” as written · no nutrition\" as its last row in the quiet ink (U6), hairlines\nbetween the rows.\n\nEach option is a `ChoiceRow`, a `button` (staff-ux ruling 2026-10-25): VoiceOver and TalkBack read a radio as \"not\nselected\", which implies a confirm step that does not exist. The bound food draws a check and its name ends\n\", chosen\"; no `selected` state as well, which would say it twice. While a send is in flight the control that started\nit spins and reads busy, and every other control is disabled and dimmed (a disabled `Pressable` keeps screen-reader\nfocus on device). The box is a `list` named for its line, its rows `listitem`s, so the name is announced with the\ncount and marks where this line's list starts (U12; `docs/design/nativeContainerNames.md` N1 rules 4 and 5); the list\nkeeps its native node for that role. A focus request moves the screen-reader cursor to the view's `focusTarget`; a retry that\nstarts moves it to the view's `landing`, the control that send made busy.\nRows keep the native touch floor and every name wraps, so nothing is cut off or scrolls sideways at 320 pt. Painted\nfrom the theme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21467,6 +21476,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "landing",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus because Try again just unmounted (a retry started): it lands on the control the\nsend made busy (`FoodChoiceListView.landing`), which the list still draws, refused and never natively disabled.\nThe surface that owns the failure line raises it (`useRetryFocus`); a host never does.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21705,7 +21723,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchFailureLine.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (web): a matched line's choice that did not\nsave (review M6), on the expanded line, a settled line and the side pane alike: the warning glyph and one short\nattention sentence (\"We couldn’t save that choice.\"), then Try again, named for its line. The line does not silently\nrevert: this line says why it is still open. The glyph carries the state with the colour (WCAG 1.4.1). Not live: the\nlist's one polite region says the failure (`lineAnnouncement.ts`), so it is spoken once.\n\nPresentational: props in, markup out. The native leaf is `./MatchFailureLine.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (web): a matched line's choice that did not\nsave (review M6), on the expanded line, a settled line and the side pane alike: the warning glyph and one short\nattention sentence (\"We couldn’t save that choice.\"), then Try again, named for its line. The line does not silently\nrevert: this line says why it is still open. The glyph carries the state with the colour (WCAG 1.4.1). Not live: the\nlist's one polite region says the failure (`lineAnnouncement.ts`), so it is spoken once. A retry in flight hides this\nline, so when the retry fails again and Try again comes back it takes focus if asked (`focus`, `useRetryFocus`):\nfocus is never left on a button that is gone (WCAG 2.4.3).\n\nPresentational: props in, markup out. The native leaf is `./MatchFailureLine.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21724,6 +21742,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The failure's sentence and Try again's words (`PickFailureView`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
+                        },
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that Try again take focus: raised when a retry fails again and this button comes back after the one\nthat held focus unmounted (`useRetryFocus`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
                         },
                         {
@@ -21748,7 +21775,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchFailureLine.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (native): the React Native leaf of\n`./MatchFailureLine.tsx`, on the same props: the warning glyph, the attention sentence in the 14 px `list` role, then\nTry again, wrapping under it rather than squeezing at 320 pt. Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (native): the React Native leaf of\n`./MatchFailureLine.tsx`, on the same props: the warning glyph, the attention sentence in the 14 px `list` role, then\nTry again, wrapping under it rather than squeezing at 320 pt. A retry in flight hides this line, so when the retry\nfails again and Try again comes back it takes the screen-reader cursor if asked (`focus`, `useRetryFocus`). Painted\nfrom the theme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21767,6 +21794,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The failure's sentence and Try again's words (`PickFailureView`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
+                        },
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that Try again take focus: raised when a retry fails again and this button comes back after the one\nthat held focus unmounted (`useRetryFocus`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
                         },
                         {
@@ -22294,6 +22330,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
+                            "name": "retry",
+                            "type": "LineRetryFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where focus goes when Try again is pressed and when its retry fails again (`useRetryFocus`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchOpenRowProps.ts"
+                        },
+                        {
                             "name": "view",
                             "type": "OpenLineView",
                             "typeDetail": null,
@@ -22371,6 +22416,15 @@
                             "defaultValue": null,
                             "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "retry",
+                            "type": "LineRetryFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where focus goes when Try again is pressed and when its retry fails again (`useRetryFocus`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchOpenRowProps.ts"
                         },
                         {
                             "name": "view",
@@ -22503,6 +22557,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
+                            "name": "retry",
+                            "type": "LineRetryFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where focus goes when the line's Try again is pressed and when its retry fails again (`useRetryFocus`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
                             "name": "row",
                             "type": "LineRow",
                             "typeDetail": null,
@@ -22598,6 +22661,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
                         },
                         {
+                            "name": "retry",
+                            "type": "LineRetryFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where focus goes when Try again is pressed and when its retry fails again (`useRetryFocus`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
+                        },
+                        {
                             "name": "view",
                             "type": "SettledLineView",
                             "typeDetail": null,
@@ -22669,6 +22741,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "See why, after a late review result.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
+                        },
+                        {
+                            "name": "retry",
+                            "type": "LineRetryFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where focus goes when Try again is pressed and when its retry fails again (`useRetryFocus`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
                         },
                         {

@@ -9,17 +9,21 @@ import { Text } from 'react-native';
 
 const windowWidth = vi.hoisted(() => ({ current: 390 }));
 
+const focusMoved = vi.hoisted(() => vi.fn());
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focusMoved },
         useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: windowWidth.current }),
     };
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { ImportFlaggedList } from '../ImportFlaggedList.native.js';
+import type { PendingSend } from '../../ingredientMatching/matchLine.js';
 import type { ImportFlaggedListProps } from '../props.js';
 
 afterEach(() => {
@@ -129,5 +133,101 @@ describe('ImportFlaggedList (native)', () => {
         renderList({ announcement: { text: 'We couldn’t save the choice for 1 1/4 cups milk.', occurrence: 1 } });
 
         expect(screen.getAllByText('We couldn’t save the choice for 1 1/4 cups milk.')).toHaveLength(1);
+    });
+});
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order), native: the flagged list's Try again unmounts while its retry is in flight, so the
+ * screen-reader cursor must not be lost. It moves to the row's Use (busy), or to Choose another when the row has no
+ * Use, and back to the new Try again if the retry fails again. A first failure moves nothing.
+ */
+describe('ImportFlaggedList (native): Try again keeps the screen-reader cursor (WCAG 2.4.3)', () => {
+    const MILK_RETRY = 'Try again to save the choice for 1 1/4 cups milk';
+    const USE_MILK = 'Use Whole milk for 1 1/4 cups milk';
+    const USING: PendingSend = { kind: 'useProposal' };
+    const LINES = [
+        {
+            key: 'milk',
+            text: '1 1/4 cups milk',
+            recipeTitle: 'Pancakes',
+            matchedFood: 'milk crackers',
+            suggestion: { foodId: 'f-whole', name: 'Whole milk' },
+        },
+        { key: 'spice', text: '1 tsp mixed spice', recipeTitle: 'Hot cross buns', matchedFood: 'Spice cake' },
+    ];
+
+    const listWith = (props: Partial<ImportFlaggedListProps>) => (
+        <ImportFlaggedList
+            total={2}
+            lines={LINES}
+            pending={new Map()}
+            failed={new Set()}
+            announcement={{ text: '', occurrence: 0 }}
+            onUseSuggestion={vi.fn()}
+            onChooseAnother={vi.fn()}
+            {...props}
+        />
+    );
+
+    it('⛔ pressing Try again moves the cursor to the Use being retried, shown busy', () => {
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        focusMoved.mockClear();
+        rerender(listWith({ failed, pending: new Map([['milk', USING]]) }));
+
+        const use = screen.getByRole('button', { name: USE_MILK });
+
+        expect(screen.queryByRole('button', { name: MILK_RETRY })).toBeNull();
+        expect(use.getAttribute('aria-busy')).toBe('true');
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(use, 'focus');
+    });
+
+    it('⛔ a retry that fails again moves the cursor back to the new Try again', () => {
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed, pending: new Map([['milk', USING]]) }));
+        focusMoved.mockClear();
+        rerender(listWith({ failed }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: MILK_RETRY }), 'focus');
+    });
+
+    it('a retry that succeeds moves the cursor nowhere else', () => {
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed, pending: new Map([['milk', USING]]) }));
+        focusMoved.mockClear();
+        rerender(listWith({}));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+    });
+
+    it('a row with no Use moves the cursor to its Choose another', () => {
+        const failed = new Set(['spice']);
+        const { rerender } = render(listWith({ failed }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 1 tsp mixed spice' }));
+        focusMoved.mockClear();
+        rerender(listWith({ failed, pending: new Map([['spice', USING]]) }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('button', { name: 'Choose another food for 1 tsp mixed spice' }),
+            'focus',
+        );
+    });
+
+    it('a first failure does not move the cursor', () => {
+        const { rerender } = render(listWith({ pending: new Map([['milk', USING]]) }));
+
+        focusMoved.mockClear();
+        rerender(listWith({ failed: new Set(['milk']) }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
     });
 });

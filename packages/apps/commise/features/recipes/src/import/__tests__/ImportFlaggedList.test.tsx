@@ -247,3 +247,115 @@ describe('ImportFlaggedList (web)', () => {
         expect(screen.queryByRole('region')).toBeNull();
     });
 });
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order): the flagged list's Try again unmounts while its retry is in flight. Focus lands on
+ * the row's Use (busy, refused, never natively disabled), or on Choose another when the row has no Use, and returns to
+ * the new Try again if the retry fails again. A first failure moves nothing.
+ */
+describe('ImportFlaggedList (web): Try again keeps focus (WCAG 2.4.3)', () => {
+    const MILK_RETRY = 'Try again to save the choice for 1 1/4 cups milk';
+    const SPICE_RETRY = 'Try again to save the choice for 1 tsp mixed spice';
+    const USE_MILK = 'Use Whole milk for 1 1/4 cups milk';
+    const USING: PendingSend = { kind: 'useProposal' };
+
+    const listWith = (props: Partial<ImportFlaggedListProps>) => (
+        <>
+            <button type="button">Elsewhere</button>
+            <ImportFlaggedList
+                total={2}
+                lines={[MILK, SPICE]}
+                pending={new Map()}
+                failed={new Set()}
+                announcement={{ text: '', occurrence: 0 }}
+                onUseSuggestion={vi.fn()}
+                onChooseAnother={vi.fn()}
+                {...props}
+            />
+        </>
+    );
+
+    it('⛔ pressing Try again lands focus on the Use being retried, busy and not natively disabled', async () => {
+        const user = userEvent.setup();
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed, pending: new Map([['milk', USING]]) }));
+
+        const use = screen.getByRole('button', { name: USE_MILK });
+
+        expect(screen.queryByRole('button', { name: MILK_RETRY })).toBeNull();
+        expect(document.activeElement).toBe(use);
+        expect(use.getAttribute('aria-busy')).toBe('true');
+        expect(use.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('⛔ a retry that fails again returns focus to the new Try again', async () => {
+        const user = userEvent.setup();
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed, pending: new Map([['milk', USING]]) }));
+        rerender(listWith({ failed }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: MILK_RETRY }));
+    });
+
+    it('a retry that succeeds leaves focus on the Use, where a successful first Use leaves it', async () => {
+        const user = userEvent.setup();
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed, pending: new Map([['milk', USING]]) }));
+        rerender(listWith({}));
+
+        expect(screen.queryByRole('button', { name: MILK_RETRY })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: USE_MILK }));
+    });
+
+    it('a row with no Use lands on its Choose another: refused, not natively disabled', async () => {
+        const user = userEvent.setup();
+        const failed = new Set(['spice']);
+        const { rerender } = render(listWith({ failed }));
+
+        await user.click(screen.getByRole('button', { name: SPICE_RETRY }));
+        rerender(listWith({ failed, pending: new Map([['spice', USING]]) }));
+
+        const another = screen.getByRole('button', { name: 'Choose another food for 1 tsp mixed spice' });
+
+        expect(document.activeElement).toBe(another);
+        expect(another.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('a first failure does not pull focus from where the cook has gone', () => {
+        const { rerender } = render(listWith({ pending: new Map([['milk', USING]]) }));
+        const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+
+        elsewhere.focus();
+        rerender(listWith({ failed: new Set(['milk']) }));
+
+        expect(document.activeElement).toBe(elsewhere);
+    });
+
+    it('a retry on one row leaves another row’s first send alone', async () => {
+        const user = userEvent.setup();
+        const failed = new Set(['milk']);
+        const { rerender } = render(listWith({ failed }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(
+            listWith({
+                failed,
+                pending: new Map<string, PendingSend>([
+                    ['milk', USING],
+                    ['spice', USING],
+                ]),
+            }),
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: USE_MILK }));
+    });
+});

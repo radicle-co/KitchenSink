@@ -19,9 +19,10 @@ import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
 
 import type { MatchLineListProps } from './matchLineListProps.js';
-import { lineRowOf } from './matchLineView.js';
+import { lineRowOf, sendsOf } from './matchLineView.js';
 import { MatchRow } from './MatchRow.js';
 import { useMatchCopy } from './useMatchCopy.js';
+import { useRetryFocus } from './useRetryFocus.js';
 
 /** A recipe's matched lines. */
 export const MatchLineList: FC<MatchLineListProps> = ({
@@ -37,26 +38,28 @@ export const MatchLineList: FC<MatchLineListProps> = ({
 }) => {
     const copy = useMatchCopy();
     const locale = useLocale();
+    const rows = lines.map((line) =>
+        lineRowOf(
+            line,
+            {
+                expanded: line.key === expandedKey,
+                current: line.key === currentKey,
+                online,
+                pending: pending.get(line.key),
+                failed: failed.has(line.key),
+            },
+            copy,
+            locale,
+        ),
+    );
+    const retryOf = useRetryFocus(sendsOf(rows));
 
     return (
         <div className="flex flex-col">
             <ul className="flex flex-col">
-                {lines.map((line) => {
-                    const row = lineRowOf(
-                        line,
-                        {
-                            expanded: line.key === expandedKey,
-                            current: line.key === currentKey,
-                            online,
-                            pending: pending.get(line.key),
-                            failed: failed.has(line.key),
-                        },
-                        copy,
-                        locale,
-                    );
-
-                    return <MatchRow key={line.key} row={row} focus={focus} {...handlers} />;
-                })}
+                {rows.map((row) => (
+                    <MatchRow key={row.key} row={row} focus={focus} retry={retryOf(row.key)} {...handlers} />
+                ))}
             </ul>
             <LiveRegion politeness="polite" occurrence={announcement.occurrence} visuallyHidden>
                 {announcement.text}

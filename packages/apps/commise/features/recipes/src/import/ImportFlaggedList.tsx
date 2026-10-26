@@ -20,8 +20,10 @@ import type { FC } from 'react';
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
-import { pickFailureViewOf } from '../ingredientMatching/matchLineView.js';
+import { lineFailureOf, sendStateOf } from '../ingredientMatching/matchLineView.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
+import { flaggedLandingOf } from './flaggedLanding.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -39,6 +41,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
     const copy = useMatchCopy();
+    const placeOf = (key: string) => ({ failed: failed.has(key), pending: pending.get(key) });
+    const retryOf = useRetryFocus(lines.map((line) => sendStateOf(line.key, placeOf(line.key))));
 
     return (
         <div className="flex flex-col gap-6 @wide/main:flex-row @wide/main:items-start">
@@ -46,48 +50,60 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                 <h1 className="font-display text-large-title text-ink">{pluralOf(f.title, total, locale)}</h1>
                 <p className="text-body text-ink-muted">{pluralOf(f.intro, total, locale)}</p>
                 <ul className="flex flex-col divide-y divide-line-divider">
-                    {lines.map((line) => (
-                        <li key={line.key} className="flex flex-col gap-2 py-3">
-                            <span className="break-words text-body font-semibold text-ink">
-                                {fillTemplate(f.lineContext, { line: line.text, recipe: line.recipeTitle })}
-                            </span>
-                            <span className="break-words text-meta text-ink-muted">
-                                {fillTemplate(f.doubt, { food: line.matchedFood })}
-                            </span>
-                            <span className="flex flex-wrap items-center gap-3">
-                                {line.suggestion === undefined ? null : (
+                    {lines.map((line) => {
+                        const retry = retryOf(line.key);
+                        const failure = lineFailureOf(line.text, placeOf(line.key), copy);
+
+                        return (
+                            <li key={line.key} className="flex flex-col gap-2 py-3">
+                                <span className="break-words text-body font-semibold text-ink">
+                                    {fillTemplate(f.lineContext, { line: line.text, recipe: line.recipeTitle })}
+                                </span>
+                                <span className="break-words text-meta text-ink-muted">
+                                    {fillTemplate(f.doubt, { food: line.matchedFood })}
+                                </span>
+                                <span className="flex flex-wrap items-center gap-3">
+                                    {line.suggestion === undefined ? null : (
+                                        <Button
+                                            variant="secondary"
+                                            icon="check"
+                                            accessibilityLabel={fillTemplate(f.useName, {
+                                                food: line.suggestion.name,
+                                                line: line.text,
+                                            })}
+                                            busy={pending.get(line.key)?.kind === 'useProposal'}
+                                            refused={pending.has(line.key)}
+                                            focusRequested={retry.landing.requested}
+                                            onFocusRequestHandled={retry.landing.onHandled}
+                                            onPress={() => onUseSuggestion(line.key)}
+                                        >
+                                            {fillTemplate(f.use, { food: line.suggestion.name })}
+                                        </Button>
+                                    )}
                                     <Button
-                                        variant="secondary"
-                                        icon="check"
-                                        accessibilityLabel={fillTemplate(f.useName, {
-                                            food: line.suggestion.name,
-                                            line: line.text,
-                                        })}
-                                        busy={pending.get(line.key)?.kind === 'useProposal'}
+                                        variant="ghost"
+                                        size="sm"
+                                        accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
                                         refused={pending.has(line.key)}
-                                        onPress={() => onUseSuggestion(line.key)}
+                                        focusRequested={
+                                            flaggedLandingOf(line) === 'chooseAnother' && retry.landing.requested
+                                        }
+                                        onFocusRequestHandled={retry.landing.onHandled}
+                                        onPress={() => onChooseAnother(line.key)}
                                     >
-                                        {fillTemplate(f.use, { food: line.suggestion.name })}
+                                        {f.chooseAnother}
                                     </Button>
+                                </span>
+                                {failure === undefined ? null : (
+                                    <MatchFailureLine
+                                        failure={failure}
+                                        onRetry={() => onUseSuggestion(line.key)}
+                                        focus={retry.tryAgain}
+                                    />
                                 )}
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
-                                    refused={pending.has(line.key)}
-                                    onPress={() => onChooseAnother(line.key)}
-                                >
-                                    {f.chooseAnother}
-                                </Button>
-                            </span>
-                            {failed.has(line.key) && !pending.has(line.key) ? (
-                                <MatchFailureLine
-                                    failure={pickFailureViewOf(line.text, copy)}
-                                    onRetry={() => onUseSuggestion(line.key)}
-                                />
-                            ) : null}
-                        </li>
-                    ))}
+                            </li>
+                        );
+                    })}
                 </ul>
                 <p className="text-meta text-ink-muted">
                     {fillTemplate(f.footer, { title: pluralOf(f.title, total, locale) })}

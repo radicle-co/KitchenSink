@@ -17,6 +17,7 @@ import type { FC, ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { MatchFailureLine } from './MatchFailureLine.native.js';
+import { settledControlFocusOf } from './listControlFocus.js';
 import { MatchLineText } from './MatchLineText.native.js';
 import type { SettledStatus } from './matchLineView.js';
 import type { MatchSettledRowProps } from './matchSettledRowProps.js';
@@ -62,7 +63,7 @@ const statusOf = (status: SettledStatus, colors: StatusColors): ReactElement => 
 };
 
 /** One settled line. */
-export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction, onSeeWhy, onRetryPick }) => {
+export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction, onSeeWhy, onRetryPick, retry }) => {
     const { colors } = useTheme();
     const { trailing } = view;
 
@@ -79,6 +80,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                         accessibilityLabel={trailing.name}
                         busy={trailing.busy}
                         refused={view.refusing && !trailing.busy}
+                        {...settledControlFocusOf(view, trailing.kind, retry.landing)}
                         onPress={() => onAction(trailing.kind)}
                     >
                         {trailing.label}
@@ -101,6 +103,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                                 accessibilityLabel={action.name}
                                 busy={action.busy}
                                 refused={view.refusing && !action.busy}
+                                {...settledControlFocusOf(view, action.kind, retry.landing)}
                                 onPress={() => onAction(action.kind)}
                             >
                                 {action.label}
@@ -109,7 +112,9 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                     )}
                 </View>
             )}
-            {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
+            {view.failure === undefined ? null : (
+                <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+            )}
             {view.note === undefined ? null : (
                 <View style={styles.note}>
                     <Text style={[styles.noteText, { color: colors.inkMuted }]}>{view.note.sentence}</Text>

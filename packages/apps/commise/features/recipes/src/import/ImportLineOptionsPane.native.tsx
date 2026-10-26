@@ -12,6 +12,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
 import { useOpenLineView } from '../ingredientMatching/useOpenLineView.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { ImportLineOptionsPaneProps } from './props.js';
 
 /** A flagged line's options, as a pane. */
@@ -25,6 +26,7 @@ export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({
     ...list
 }) => {
     const view = useOpenLineView(line, { online, pending, failed });
+    const retry = useRetryFocus([view.send])(view.send.key);
     const { colors } = useTheme();
 
     return (
@@ -32,8 +34,10 @@ export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({
             <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                 {title}
             </Text>
-            {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
-            <FoodChoiceList view={view.list} {...list} />
+            {view.failure === undefined ? null : (
+                <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+            )}
+            <FoodChoiceList view={view.list} landing={retry.landing} {...list} />
         </View>
     );
 };

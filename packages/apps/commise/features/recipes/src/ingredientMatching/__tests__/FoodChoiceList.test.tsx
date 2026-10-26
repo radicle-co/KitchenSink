@@ -47,6 +47,7 @@ function renderList(
             onSearch={handlers.onSearch}
             onPick={handlers.onPick}
             focus={{ requested: options.focusRequested ?? false, onHandled: handlers.onHandled }}
+            landing={{ requested: false, onHandled: vi.fn() }}
         />,
     );
 

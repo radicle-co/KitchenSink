@@ -50,7 +50,15 @@ function renderRow(line: MatchLine, place: Partial<LinePlace> = {}) {
 
     render(
         <ul>
-            <MatchRow row={row} focus={{ requested: false, onHandled: vi.fn() }} {...handlers} />
+            <MatchRow
+                row={row}
+                focus={{ requested: false, onHandled: vi.fn() }}
+                retry={{
+                    landing: { requested: false, onHandled: vi.fn() },
+                    tryAgain: { requested: false, onHandled: vi.fn() },
+                }}
+                {...handlers}
+            />
         </ul>,
     );
 

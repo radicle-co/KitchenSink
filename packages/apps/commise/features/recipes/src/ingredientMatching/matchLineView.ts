@@ -21,7 +21,9 @@
  *   the line refuses a press, in its list, on its settled row and on its collapsed row alike, so a double press cannot
  *   send two.
  * - A food bound through Search that is not a candidate is drawn first, chosen, when the line is reopened.
- * - A send that failed says so in one attention sentence with Try again, until a retry is in flight.
+ * - A send that failed says so in one attention sentence with Try again, until a retry is in flight. The view also
+ *   names the control a retry lands focus on (`landing`) and carries the line's send state (`send`), so a surface can
+ *   keep focus through Try again (`retryFocus.ts`).
  * - A focus request on a line's list always lands: on Search, else the first option, else Keep as written.
  *
  * Pure and platform-agnostic.
@@ -47,6 +49,7 @@ import {
     type PendingSend,
 } from './matchLine.js';
 import type { MatchLineMessages } from './messages.js';
+import type { SendState } from './retryFocus.js';
 
 /** The copy the view reads: the line's, and the picker's words for a food's parts (one naming rule). */
 export interface MatchCopy {
@@ -128,6 +131,11 @@ export interface FoodChoiceListView {
     readonly refusing: boolean;
     /** Where a focus request lands. Always a control the list draws, so the request is always taken. */
     readonly focusTarget: ListFocusTarget;
+    /**
+     * Where focus lands when a retry starts and Try again unmounts: the control the send made busy, else the
+     * `focusTarget`. Always a control the list draws, and never natively disabled, so the request is always taken.
+     */
+    readonly landing: ListFocusTarget;
 }
 
 /** A send that failed: the attention sentence, and Try again. */
@@ -145,6 +153,8 @@ export interface OpenLineView {
     readonly prompt: string | undefined;
     /** The line's last send failed. */
     readonly failure: PickFailureView | undefined;
+    /** Whether the last send failed and whether one is in flight: what tells a retry from a first attempt. */
+    readonly send: SendState;
     readonly list: FoodChoiceListView;
 }
 
@@ -190,6 +200,13 @@ export interface SettledLineView {
     readonly note: ReviewNoteView | undefined;
     /** The line's last send failed. */
     readonly failure: PickFailureView | undefined;
+    /** Whether the last send failed and whether one is in flight: what tells a retry from a first attempt. */
+    readonly send: SendState;
+    /**
+     * The control focus lands on when a retry starts and Try again unmounts: the one the send made busy, else Change,
+     * else the first action. The line always draws it, and it is never natively disabled.
+     */
+    readonly landing: SettledAction['kind'];
     /**
      * A send for this line is in flight: every control refuses a press. The control that started it reads busy, and it
      * refuses a press too.
@@ -288,6 +305,29 @@ const focusTargetOf = (search: SearchView, rows: readonly FoodChoiceRow[]): List
 };
 
 /**
+ * Where focus lands when a retry starts: the control the send made busy, which the list still draws, else where a focus
+ * request lands. Pure.
+ */
+const listLandingOf = (
+    search: SearchView,
+    rows: readonly FoodChoiceRow[],
+    keep: KeepRow,
+    focusTarget: ListFocusTarget,
+): ListFocusTarget => {
+    if (search.kind === 'available' && search.busy) {
+        return { kind: 'search' };
+    }
+
+    const busyRow = rows.find((row) => row.busy);
+
+    if (busyRow !== undefined) {
+        return { kind: 'row', id: busyRow.id };
+    }
+
+    return keep.busy ? { kind: 'keep' } : focusTarget;
+};
+
+/**
  * What a line's food-choice list shows: Search for a food first, then the options in the server's order, then Keep as
  * written. The same list wherever a line is chosen for: inline on phone and 834, the side pane at 1194 and on web, and
  * the flagged line's sheet and pane. Pure.
@@ -307,21 +347,24 @@ export function choiceListViewOf(line: MatchLine, place: ListPlace, copy: MatchC
     const keepChosen = keepId === boundId;
     const search = searchOf(text, place, copy);
     const rows = listedFoodsOf(line).map((food) => foodRowOf(food, boundId, pendingId, copy));
+    const keep: KeepRow = {
+        id: keepId,
+        pick: keepPick,
+        label: keepLabel,
+        name: keepChosen ? fillTemplate(copy.line.chosenName, { food: keepLabel }) : keepLabel,
+        chosen: keepChosen,
+        busy: keepId === pendingId,
+    };
+    const focusTarget = focusTargetOf(search, rows);
 
     return {
         search,
         optionsName: fillTemplate(copy.line.optionsName, { line: text }),
         rows,
-        keep: {
-            id: keepId,
-            pick: keepPick,
-            label: keepLabel,
-            name: keepChosen ? fillTemplate(copy.line.chosenName, { food: keepLabel }) : keepLabel,
-            chosen: keepChosen,
-            busy: keepId === pendingId,
-        },
+        keep,
         refusing: place.pending !== undefined,
-        focusTarget: focusTargetOf(search, rows),
+        focusTarget,
+        landing: listLandingOf(search, rows, keep, focusTarget),
     };
 }
 
@@ -345,7 +388,7 @@ export function isFocusTarget(target: ListFocusTarget, control: ListFocusTarget)
 
 /**
  * A failed send, worded for one line: the attention sentence and Try again named for the line. The ONE place the words
- * are put together, for a matched line (`failureOf`) and for a surface that holds the line only as text (the flagged
+ * are put together, for a matched line (`lineFailureOf`) and for a surface that holds the line only as text (the flagged
  * list's rows). Pure.
  *
  * @param text - The line as the cook wrote it.
@@ -359,9 +402,34 @@ export function pickFailureViewOf(text: string, copy: MatchCopy): PickFailureVie
     };
 }
 
-/** A send's failure, shown until a retry is in flight. Pure. */
-const failureOf = (text: string, place: OpenPlace, copy: MatchCopy): PickFailureView | undefined =>
-    place.failed && place.pending === undefined ? pickFailureViewOf(text, copy) : undefined;
+/**
+ * A send's failure, shown until a retry is in flight. The ONE place the hide-while-retrying rule lives, for a matched
+ * line and for a surface that holds the line only as text (the flagged list's rows). Pure.
+ *
+ * @param text - The line as the cook wrote it.
+ * @param place - Whether the line's last send failed, and the send in flight.
+ * @param copy - The localised copy.
+ * @returns The failure to draw, or `undefined` when the line did not fail or a retry is in flight.
+ */
+export function lineFailureOf(
+    text: string,
+    place: Pick<OpenPlace, 'failed' | 'pending'>,
+    copy: MatchCopy,
+): PickFailureView | undefined {
+    return place.failed && place.pending === undefined ? pickFailureViewOf(text, copy) : undefined;
+}
+
+/**
+ * A line's send state: whether its last send failed and whether one is in flight. What a surface needs to tell a retry
+ * (`failed` and `sending`) from a first attempt, so Try again can keep focus (`retryFocus.ts`). Pure.
+ *
+ * @param key - The line.
+ * @param place - Whether the line's last send failed, and the send in flight.
+ * @returns The line's send state.
+ */
+export function sendStateOf(key: string, place: Pick<OpenPlace, 'failed' | 'pending'>): SendState {
+    return { key, failed: place.failed, sending: place.pending !== undefined };
+}
 
 /** The muted prompt over an open line, by its state; none once something is bound (a Change). Pure. */
 const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
@@ -396,7 +464,8 @@ const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
 export function openLineViewOf(line: MatchLine, place: OpenPlace, copy: MatchCopy): OpenLineView {
     return {
         prompt: promptOf(line, copy),
-        failure: failureOf(lineTextOf(line.line), place, copy),
+        failure: lineFailureOf(lineTextOf(line.line), place, copy),
+        send: sendStateOf(line.key, place),
         list: choiceListViewOf(line, place, copy),
     };
 }
@@ -417,7 +486,7 @@ const closedRowOf = (line: MatchLine, need: string, place: LinePlace, copy: Matc
     need,
     current: place.current,
     refusing: place.pending !== undefined,
-    failure: failureOf(lineTextOf(line.line), place, copy)?.text,
+    failure: lineFailureOf(lineTextOf(line.line), place, copy)?.text,
 });
 
 /** Change, beside a bound line. Pure. */
@@ -447,6 +516,16 @@ const keepActionOf = (text: string, pending: PendingSend | undefined, copy: Matc
     busy: pending?.kind === 'pick' && pending.pick.kind === 'asWritten',
 });
 
+/**
+ * The control a retry lands on when it starts: the one the send made busy, else the line's first control (Change on a
+ * bound line), which the row always draws and which only refuses a press. Pure.
+ */
+const settledLandingOf = (first: SettledAction, items: readonly SettledActionItem[]): SettledAction['kind'] => {
+    const controls = [first, ...items.filter((item): item is SettledAction => item.kind !== 'unavailable')];
+
+    return (controls.find((control) => control.busy) ?? first).kind;
+};
+
 /** Whether the bound food is the line's default, so a binding not the cook's keeps the Default tag. Pure. */
 const isDefaultFood = (line: MatchLine, foodId: string): boolean =>
     candidatesOf(line).some((food) => food.id === foodId && food.isDefault);
@@ -469,13 +548,15 @@ const boundRowOf = (line: MatchLine, binding: LineBinding, place: LinePlace, cop
         status = { kind: 'text', text: copy.line.keptAsWritten, tone: 'muted' };
     }
 
+    const change = changeOf(text, copy);
+
     return {
         kind: 'settled',
         key: line.key,
         line: line.line,
         view: {
             status,
-            trailing: changeOf(text, copy),
+            trailing: change,
             actions: [],
             note:
                 note === undefined
@@ -486,7 +567,9 @@ const boundRowOf = (line: MatchLine, binding: LineBinding, place: LinePlace, cop
                           seeWhy: copy.line.seeWhy,
                           seeWhyName: fillTemplate(copy.line.seeWhyName, { food: note.suggestedFood, line: text }),
                       },
-            failure: failureOf(text, place, copy),
+            failure: lineFailureOf(text, place, copy),
+            send: sendStateOf(line.key, place),
+            landing: settledLandingOf(change, []),
             refusing: place.pending !== undefined,
         },
     };
@@ -504,6 +587,10 @@ const checkingRowOf = (line: MatchLine, proposal: string, place: LinePlace, copy
         busy: pending?.kind === 'useProposal',
     };
 
+    const actions: readonly SettledActionItem[] = online
+        ? [useThis, searchActionOf(text, place, copy)]
+        : [useThis, searchActionOf(text, place, copy), keepActionOf(text, pending, copy)];
+
     return {
         kind: 'settled',
         key: line.key,
@@ -518,11 +605,11 @@ const checkingRowOf = (line: MatchLine, proposal: string, place: LinePlace, copy
             trailing: undefined,
             // Online the review is still deciding, so the line offers what a cook needs now: take the proposal, or
             // search. Offline nothing will decide, so keeping the line as written is offered too (the board).
-            actions: online
-                ? [useThis, searchActionOf(text, place, copy)]
-                : [useThis, searchActionOf(text, place, copy), keepActionOf(text, pending, copy)],
+            actions,
             note: undefined,
-            failure: failureOf(text, place, copy),
+            failure: lineFailureOf(text, place, copy),
+            send: sendStateOf(line.key, place),
+            landing: settledLandingOf(useThis, actions),
             refusing: pending !== undefined,
         },
     };
@@ -532,6 +619,18 @@ const checkingRowOf = (line: MatchLine, proposal: string, place: LinePlace, copy
 const failedRowOf = (line: MatchLine, place: LinePlace, copy: MatchCopy): LineRow => {
     const text = lineTextOf(line.line);
     const { pending } = place;
+    const retry: SettledAction = {
+        kind: 'retry',
+        label: copy.line.retry,
+        name: fillTemplate(copy.line.retryName, { line: text }),
+        icon: 'refreshCw',
+        busy: false,
+    };
+    const actions: readonly SettledActionItem[] = [
+        retry,
+        searchActionOf(text, place, copy),
+        keepActionOf(text, pending, copy),
+    ];
 
     return {
         kind: 'settled',
@@ -540,23 +639,26 @@ const failedRowOf = (line: MatchLine, place: LinePlace, copy: MatchCopy): LineRo
         view: {
             status: { kind: 'text', text: copy.line.optionsError, tone: 'attention' },
             trailing: undefined,
-            actions: [
-                {
-                    kind: 'retry',
-                    label: copy.line.retry,
-                    name: fillTemplate(copy.line.retryName, { line: text }),
-                    icon: 'refreshCw',
-                    busy: false,
-                },
-                searchActionOf(text, place, copy),
-                keepActionOf(text, pending, copy),
-            ],
+            actions,
             note: undefined,
-            failure: failureOf(text, place, copy),
+            failure: lineFailureOf(text, place, copy),
+            send: sendStateOf(line.key, place),
+            landing: settledLandingOf(retry, actions),
             refusing: pending !== undefined,
         },
     };
 };
+
+/**
+ * The send state of each row that draws a Try again or a control a retry lands on (an open or a settled row), for the
+ * list's `useRetryFocus`. A collapsed row has neither: its Try again is in the side pane. Pure.
+ *
+ * @param rows - The list's rows.
+ * @returns The send states, in the rows' order.
+ */
+export function sendsOf(rows: readonly LineRow[]): readonly SendState[] {
+    return rows.flatMap((row) => (row.kind === 'closed' ? [] : [row.view.send]));
+}
 
 /**
  * One line's row: open when the host expands it (and it has a list to show), a collapsed row while an open line waits

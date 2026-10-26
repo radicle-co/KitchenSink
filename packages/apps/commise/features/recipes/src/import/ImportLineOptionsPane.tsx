@@ -13,6 +13,7 @@ import { useId, type FC } from 'react';
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
 import { useOpenLineView } from '../ingredientMatching/useOpenLineView.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { ImportLineOptionsPaneProps } from './props.js';
 
 /** A flagged line's options, as a pane. */
@@ -26,6 +27,7 @@ export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({
     ...list
 }) => {
     const view = useOpenLineView(line, { online, pending, failed });
+    const retry = useRetryFocus([view.send])(view.send.key);
     const headingId = useId();
 
     return (
@@ -36,8 +38,10 @@ export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({
             <h2 id={headingId} className="break-words text-section-title text-ink">
                 {title}
             </h2>
-            {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
-            <FoodChoiceList view={view.list} {...list} />
+            {view.failure === undefined ? null : (
+                <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+            )}
+            <FoodChoiceList view={view.list} landing={retry.landing} {...list} />
         </section>
     );
 };

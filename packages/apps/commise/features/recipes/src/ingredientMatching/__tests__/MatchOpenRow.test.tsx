@@ -56,6 +56,10 @@ function renderRow(line: MatchLine, online = true, failed = false) {
                 onPick={handlers.onPick}
                 focus={{ requested: false, onHandled: handlers.onHandled }}
                 onRetryPick={handlers.onRetryPick}
+                retry={{
+                    landing: { requested: false, onHandled: vi.fn() },
+                    tryAgain: { requested: false, onHandled: vi.fn() },
+                }}
             />
         </ul>,
     );

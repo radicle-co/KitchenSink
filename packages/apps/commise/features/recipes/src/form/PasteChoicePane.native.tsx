@@ -16,11 +16,13 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
 export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, onRetryPick, ...list }) => {
     const { colors } = useTheme();
+    const retry = useRetryFocus([view.open.send])(view.open.send.key);
 
     return (
         <View style={styles.pane}>
@@ -33,10 +35,10 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, on
                     <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.open.prompt}</Text>
                 )}
                 {view.open.failure === undefined ? null : (
-                    <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} />
+                    <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
                 )}
             </View>
-            <FoodChoiceList view={view.open.list} {...list} />
+            <FoodChoiceList view={view.open.list} landing={retry.landing} {...list} />
             <View style={styles.steps}>
                 <Button variant="ghost" icon="chevronLeft" refused={view.previous.disabled} onPress={onPrevious}>
                     {view.previous.label}

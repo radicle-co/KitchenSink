@@ -11,7 +11,8 @@
  * it spins and reads busy, and every other control is disabled and dimmed (a disabled `Pressable` keeps screen-reader
  * focus on device). The box is a `list` named for its line, its rows `listitem`s, so the name is announced with the
  * count and marks where this line's list starts (U12; `docs/design/nativeContainerNames.md` N1 rules 4 and 5); the list
- * keeps its native node for that role. A focus request moves the screen-reader cursor to the view's `focusTarget`.
+ * keeps its native node for that role. A focus request moves the screen-reader cursor to the view's `focusTarget`; a retry that
+ * starts moves it to the view's `landing`, the control that send made busy.
  * Rows keep the native touch floor and every name wraps, so nothing is cut off or scrolls sideways at 320 pt. Painted
  * from the theme's roles (D15).
  */
@@ -24,14 +25,14 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { FoodChoiceListProps } from './foodChoiceListProps.js';
-import { isFocusTarget, type ListFocusTarget } from './matchLineView.js';
+import { listControlFocusOf } from './listControlFocus.js';
+import type { ListFocusTarget } from './matchLineView.js';
 
 /** A line's food-choice list: search, then the options and Keep as written in one box. */
-export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick, focus }) => {
+export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick, focus, landing }) => {
     const { colors } = useTheme();
     const { search, keep } = view;
-    const requested = (control: ListFocusTarget): boolean =>
-        focus.requested && isFocusTarget(view.focusTarget, control);
+    const focusOf = (control: ListFocusTarget) => listControlFocusOf(view, control, { focus, landing });
     const divided = { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.lineDivider };
 
     return (
@@ -44,8 +45,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                         accessibilityLabel={search.name}
                         busy={search.busy}
                         refused={view.refusing && !search.busy}
-                        focusRequested={requested({ kind: 'search' })}
-                        onFocusRequestHandled={focus.onHandled}
+                        {...focusOf({ kind: 'search' })}
                         onPress={onSearch}
                     >
                         {search.label}
@@ -67,8 +67,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                             chosen={row.chosen}
                             busy={row.busy}
                             refused={view.refusing && !row.busy}
-                            focusRequested={requested({ kind: 'row', id: row.id })}
-                            onFocusRequestHandled={focus.onHandled}
+                            {...focusOf({ kind: 'row', id: row.id })}
                             onPress={() => {
                                 onPick(row.pick);
                             }}
@@ -88,8 +87,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                         chosen={keep.chosen}
                         busy={keep.busy}
                         refused={view.refusing && !keep.busy}
-                        focusRequested={requested({ kind: 'keep' })}
-                        onFocusRequestHandled={focus.onHandled}
+                        {...focusOf({ kind: 'keep' })}
                         onPress={() => {
                             onPick(keep.pick);
                         }}

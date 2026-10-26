@@ -10,13 +10,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+const focusMoved = vi.hoisted(() => vi.fn());
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focusMoved } };
 });
 
 import { makeDefaultLine, makeFoodChoice } from '../../ingredientMatching/__fixtures__/matchLines.js';
+import type { PendingSend } from '../../ingredientMatching/matchLine.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map them to the `.native.tsx` leaves.
 import { ImportLineOptionsPane } from '../ImportLineOptionsPane.native.js';
 import { ImportLineOptionsSheet } from '../ImportLineOptionsSheet.native.js';
@@ -165,5 +168,98 @@ describe('ImportLineOptionsPane (native)', () => {
         expect(
             screen.getByRole('button', { name: 'Keep “1 1/4 cups milk” as written\u00A0· no nutrition' }),
         ).toBeTruthy();
+    });
+});
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order), native: Try again unmounts while its retry is in flight, so the screen-reader cursor
+ * must not be lost. On the sheet AND the pane it moves to the option being retried, back to the new Try again if the
+ * retry fails again, and a first failure moves nothing.
+ */
+describe.each([
+    [
+        'ImportLineOptionsSheet',
+        (props: Partial<ImportLineOptionsSheetProps & ImportLineOptionsPaneProps>) => (
+            <ImportLineOptionsSheet
+                open
+                onOpenChange={vi.fn()}
+                title="1 1/4 cups milk · Pancakes"
+                line={MILK_LINE}
+                online
+                pending={undefined}
+                failed={false}
+                announcement={{ text: '', occurrence: 0 }}
+                focus={NO_FOCUS}
+                onPick={vi.fn()}
+                onSearch={vi.fn()}
+                onRetryPick={vi.fn()}
+                {...props}
+            />
+        ),
+    ],
+    [
+        'ImportLineOptionsPane',
+        (props: Partial<ImportLineOptionsPaneProps>) => (
+            <ImportLineOptionsPane
+                title="1 1/4 cups milk · Pancakes"
+                line={MILK_LINE}
+                online
+                pending={undefined}
+                failed={false}
+                focus={NO_FOCUS}
+                onPick={vi.fn()}
+                onSearch={vi.fn()}
+                onRetryPick={vi.fn()}
+                {...props}
+            />
+        ),
+    ],
+])('%s (native): Try again keeps the screen-reader cursor (WCAG 2.4.3)', (_name, surface) => {
+    const RETRY = `Try again to save the choice for ${LINE}`;
+    const WHOLE_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'f-whole', name: 'Whole milk' } };
+
+    it('⛔ pressing Try again moves the cursor to the option being retried, shown busy', () => {
+        const { rerender } = render(surface({ failed: true }));
+
+        fireEvent.click(screen.getByRole('button', { name: RETRY }));
+        focusMoved.mockClear();
+        rerender(surface({ failed: true, pending: WHOLE_PENDING }));
+
+        const whole = screen.getByRole('button', { name: 'Whole milk, Default' });
+
+        expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+        expect(whole.getAttribute('aria-busy')).toBe('true');
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(whole, 'focus');
+    });
+
+    it('⛔ a retry that fails again moves the cursor back to the new Try again', () => {
+        const { rerender } = render(surface({ failed: true }));
+
+        fireEvent.click(screen.getByRole('button', { name: RETRY }));
+        rerender(surface({ failed: true, pending: WHOLE_PENDING }));
+        focusMoved.mockClear();
+        rerender(surface({ failed: true }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: RETRY }), 'focus');
+    });
+
+    it('a retry that succeeds moves the cursor nowhere else', () => {
+        const { rerender } = render(surface({ failed: true }));
+
+        fireEvent.click(screen.getByRole('button', { name: RETRY }));
+        rerender(surface({ failed: true, pending: WHOLE_PENDING }));
+        focusMoved.mockClear();
+        rerender(surface({ failed: false }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+    });
+
+    it('a first failure does not move the cursor', () => {
+        const { rerender } = render(surface({ pending: WHOLE_PENDING }));
+
+        focusMoved.mockClear();
+        rerender(surface({ failed: true }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
     });
 });

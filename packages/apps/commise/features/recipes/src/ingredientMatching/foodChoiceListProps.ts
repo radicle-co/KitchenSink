@@ -24,4 +24,10 @@ export interface FoodChoiceListProps {
      * so it is always taken and acknowledged, offline too.
      */
     readonly focus: ControlFocus;
+    /**
+     * A request that the list take focus because Try again just unmounted (a retry started): it lands on the control the
+     * send made busy (`FoodChoiceListView.landing`), which the list still draws, refused and never natively disabled.
+     * The surface that owns the failure line raises it (`useRetryFocus`); a host never does.
+     */
+    readonly landing: ControlFocus;
 }

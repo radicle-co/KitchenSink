@@ -16,6 +16,7 @@ import { lineTextOf } from '../ingredientMatching/matchLine.js';
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
 import { useOpenLineView } from '../ingredientMatching/useOpenLineView.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import { importMessages } from './messages.js';
 import type { ImportLineOptionsSheetProps } from './props.js';
 
@@ -33,6 +34,7 @@ export const ImportLineOptionsSheet: FC<ImportLineOptionsSheetProps> = ({
     ...list
 }) => {
     const view = useOpenLineView(line, { online, pending, failed });
+    const retry = useRetryFocus([view.send])(view.send.key);
     const { flagged: f } = useMessages(importMessages);
 
     return (
@@ -44,8 +46,10 @@ export const ImportLineOptionsSheet: FC<ImportLineOptionsSheetProps> = ({
             size="content"
         >
             <View style={styles.column}>
-                {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
-                <FoodChoiceList view={view.list} {...list} />
+                {view.failure === undefined ? null : (
+                    <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+                )}
+                <FoodChoiceList view={view.list} landing={retry.landing} {...list} />
                 <LiveRegion politeness="polite" occurrence={announcement.occurrence} visuallyHidden>
                     {announcement.text}
                 </LiveRegion>

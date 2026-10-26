@@ -6,7 +6,7 @@ import type { FoodChoiceListProps } from '../ingredientMatching/foodChoiceListPr
 import type { PasteMatchPaneView } from './pasteMatchView.js';
 
 /** Props for `PasteChoicePane`: the pane's view, its line's list controls, and the two steps. */
-export interface PasteChoicePaneProps extends Omit<FoodChoiceListProps, 'view'> {
+export interface PasteChoicePaneProps extends Omit<FoodChoiceListProps, 'view' | 'landing'> {
     /** What the pane shows (`pasteMatchPaneViewOf`). */
     readonly view: PasteMatchPaneView;
     /** Previous was pressed: show the open line before this one (`paneStepsOf`'s `previousKey`). */

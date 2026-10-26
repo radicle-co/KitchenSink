@@ -4,6 +4,7 @@
  */
 import type { LineText } from './matchLine.js';
 import type { SettledAction, SettledLineView } from './matchLineView.js';
+import type { LineRetryFocus } from './useRetryFocus.js';
 
 /** Props for `MatchSettledRow`. */
 export interface MatchSettledRowProps {
@@ -17,4 +18,6 @@ export interface MatchSettledRowProps {
     readonly onSeeWhy: () => void;
     /** Try again, after a send that did not save. */
     readonly onRetryPick: () => void;
+    /** Where focus goes when Try again is pressed and when its retry fails again (`useRetryFocus`). */
+    readonly retry: LineRetryFocus;
 }

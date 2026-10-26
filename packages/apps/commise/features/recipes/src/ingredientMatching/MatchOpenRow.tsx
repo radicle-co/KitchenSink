@@ -20,13 +20,15 @@ import { MatchLineText } from './MatchLineText.js';
 import type { MatchOpenRowProps } from './matchOpenRowProps.js';
 
 /** The expanded line. */
-export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, ...list }) => (
+export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, retry, ...list }) => (
     <li className="flex flex-col gap-2 border-t border-line-divider py-3">
         <div className="flex flex-col gap-1">
             <MatchLineText line={line} />
             {view.prompt === undefined ? null : <p className="break-words text-list text-ink-muted">{view.prompt}</p>}
-            {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
+            {view.failure === undefined ? null : (
+                <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+            )}
         </div>
-        <FoodChoiceList view={view.list} {...list} />
+        <FoodChoiceList view={view.list} landing={retry.landing} {...list} />
     </li>
 );

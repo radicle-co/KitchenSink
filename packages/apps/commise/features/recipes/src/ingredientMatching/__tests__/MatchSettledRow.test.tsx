@@ -56,6 +56,10 @@ function renderRow(line: MatchLine, online = true, pending: PendingSend | undefi
                 onAction={onAction}
                 onSeeWhy={onSeeWhy}
                 onRetryPick={onRetryPick}
+                retry={{
+                    landing: { requested: false, onHandled: vi.fn() },
+                    tryAgain: { requested: false, onHandled: vi.fn() },
+                }}
             />
         </ul>,
     );

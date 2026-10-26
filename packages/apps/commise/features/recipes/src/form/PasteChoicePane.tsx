@@ -18,35 +18,40 @@ import type { FC } from 'react';
 
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
-export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, onRetryPick, ...list }) => (
-    <aside aria-label={view.label} className="flex flex-col gap-3 p-4">
-        <div className="flex flex-col gap-1">
-            <p className="text-list text-ink-muted">{view.position}</p>
-            <h2 className="break-words text-card-title text-ink">{view.heading}</h2>
-            {view.open.prompt === undefined ? null : (
-                <p className="break-words text-list text-ink-muted">{view.open.prompt}</p>
-            )}
-            {view.open.failure === undefined ? null : (
-                <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} />
-            )}
-        </div>
-        <FoodChoiceList view={view.open.list} {...list} />
-        <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" icon="chevronLeft" refused={view.previous.disabled} onPress={onPrevious}>
-                {view.previous.label}
-            </Button>
-            <Button
-                variant="ghost"
-                icon="chevronRight"
-                iconPlacement="end"
-                refused={view.next.disabled}
-                onPress={onNext}
-            >
-                {view.next.label}
-            </Button>
-        </div>
-    </aside>
-);
+export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, onRetryPick, ...list }) => {
+    const retry = useRetryFocus([view.open.send])(view.open.send.key);
+
+    return (
+        <aside aria-label={view.label} className="flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-1">
+                <p className="text-list text-ink-muted">{view.position}</p>
+                <h2 className="break-words text-card-title text-ink">{view.heading}</h2>
+                {view.open.prompt === undefined ? null : (
+                    <p className="break-words text-list text-ink-muted">{view.open.prompt}</p>
+                )}
+                {view.open.failure === undefined ? null : (
+                    <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+                )}
+            </div>
+            <FoodChoiceList view={view.open.list} landing={retry.landing} {...list} />
+            <div className="flex items-center justify-between gap-2">
+                <Button variant="ghost" icon="chevronLeft" refused={view.previous.disabled} onPress={onPrevious}>
+                    {view.previous.label}
+                </Button>
+                <Button
+                    variant="ghost"
+                    icon="chevronRight"
+                    iconPlacement="end"
+                    refused={view.next.disabled}
+                    onPress={onNext}
+                >
+                    {view.next.label}
+                </Button>
+            </div>
+        </aside>
+    );
+};

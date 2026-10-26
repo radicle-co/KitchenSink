@@ -13,9 +13,10 @@ import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { MatchLineListProps } from './matchLineListProps.js';
-import { lineRowOf } from './matchLineView.js';
+import { lineRowOf, sendsOf } from './matchLineView.js';
 import { MatchRow } from './MatchRow.js';
 import { useMatchCopy } from './useMatchCopy.js';
+import { useRetryFocus } from './useRetryFocus.js';
 
 /** A recipe's matched lines. */
 export const MatchLineList: FC<MatchLineListProps> = ({
@@ -32,35 +33,35 @@ export const MatchLineList: FC<MatchLineListProps> = ({
     const copy = useMatchCopy();
     const locale = useLocale();
     const { colors } = useTheme();
+    const rows = lines.map((line) =>
+        lineRowOf(
+            line,
+            {
+                expanded: line.key === expandedKey,
+                current: line.key === currentKey,
+                online,
+                pending: pending.get(line.key),
+                failed: failed.has(line.key),
+            },
+            copy,
+            locale,
+        ),
+    );
+    const retryOf = useRetryFocus(sendsOf(rows));
 
     return (
         <View>
             <View collapsable={false} role="list">
-                {lines.map((line) => {
-                    const row = lineRowOf(
-                        line,
-                        {
-                            expanded: line.key === expandedKey,
-                            current: line.key === currentKey,
-                            online,
-                            pending: pending.get(line.key),
-                            failed: failed.has(line.key),
-                        },
-                        copy,
-                        locale,
-                    );
-
-                    return (
-                        <View
-                            key={line.key}
-                            collapsable={false}
-                            role="listitem"
-                            style={[styles.line, { borderTopColor: colors.lineDivider }]}
-                        >
-                            <MatchRow row={row} focus={focus} {...handlers} />
-                        </View>
-                    );
-                })}
+                {rows.map((row) => (
+                    <View
+                        key={row.key}
+                        collapsable={false}
+                        role="listitem"
+                        style={[styles.line, { borderTopColor: colors.lineDivider }]}
+                    >
+                        <MatchRow row={row} focus={focus} retry={retryOf(row.key)} {...handlers} />
+                    </View>
+                ))}
             </View>
             <LiveRegion politeness="polite" occurrence={announcement.occurrence} visuallyHidden>
                 {announcement.text}

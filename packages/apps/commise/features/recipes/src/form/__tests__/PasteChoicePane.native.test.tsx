@@ -30,7 +30,7 @@ import {
     makeNeedsChoiceLine,
     makeNoMatchLine,
 } from '../../ingredientMatching/__fixtures__/matchLines.js';
-import type { MatchLine } from '../../ingredientMatching/matchLine.js';
+import type { MatchLine, PendingSend } from '../../ingredientMatching/matchLine.js';
 import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeFormMessages } from '../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -173,5 +173,88 @@ describe('PasteChoicePane (native)', () => {
             'focus',
         );
         expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order), native: Try again unmounts while its retry is in flight, so the screen-reader cursor
+ * must not be lost. The pane tells a retry from a first attempt from its view alone.
+ */
+describe('PasteChoicePane (native): Try again keeps the screen-reader cursor (WCAG 2.4.3)', () => {
+    const RETRY = 'Try again to save the choice for 2 cups milk';
+    const SKIM_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+    const handlers = {
+        onSearch: vi.fn(),
+        onPick: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onRetryPick: vi.fn(),
+    };
+
+    const paneWith = (shownKey: string, place: { failed: boolean; pending: PendingSend | undefined }) => (
+        <PasteChoicePane
+            view={pasteMatchPaneViewOf(
+                { lines: RECIPE, shownKey, sending: NOTHING_SENT },
+                { online: true, ...place },
+                m,
+                lineCopy,
+            )}
+            focus={{ requested: false, onHandled: vi.fn() }}
+            {...handlers}
+        />
+    );
+
+    it('⛔ pressing Try again moves the cursor to the option being retried, shown busy', () => {
+        const { rerender } = render(paneWith('milk', { failed: true, pending: undefined }));
+
+        fireEvent.click(screen.getByRole('button', { name: RETRY }));
+        focusMoved.mockClear();
+        rerender(paneWith('milk', { failed: true, pending: SKIM_PENDING }));
+
+        const skim = screen.getByRole('button', { name: 'Skim milk' });
+
+        expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+        expect(skim.getAttribute('aria-busy')).toBe('true');
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(skim, 'focus');
+    });
+
+    it('⛔ a retry that fails again moves the cursor back to the new Try again', () => {
+        const { rerender } = render(paneWith('milk', { failed: true, pending: undefined }));
+
+        fireEvent.click(screen.getByRole('button', { name: RETRY }));
+        rerender(paneWith('milk', { failed: true, pending: SKIM_PENDING }));
+        focusMoved.mockClear();
+        rerender(paneWith('milk', { failed: true, pending: undefined }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: RETRY }), 'focus');
+    });
+
+    it('a retry that succeeds moves the cursor nowhere else: the row is where a successful first pick leaves it', () => {
+        const { rerender } = render(paneWith('milk', { failed: true, pending: undefined }));
+
+        fireEvent.click(screen.getByRole('button', { name: RETRY }));
+        rerender(paneWith('milk', { failed: true, pending: SKIM_PENDING }));
+        focusMoved.mockClear();
+        rerender(paneWith('milk', { failed: false, pending: undefined }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+    });
+
+    it('a first failure does not move the cursor', () => {
+        const { rerender } = render(paneWith('milk', { failed: false, pending: SKIM_PENDING }));
+
+        focusMoved.mockClear();
+        rerender(paneWith('milk', { failed: true, pending: undefined }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+    });
+
+    it('stepping to another failed line while one is retrying is not a retry of the new line', () => {
+        const { rerender } = render(paneWith('milk', { failed: true, pending: SKIM_PENDING }));
+
+        focusMoved.mockClear();
+        rerender(paneWith('bread', { failed: true, pending: undefined }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
     });
 });

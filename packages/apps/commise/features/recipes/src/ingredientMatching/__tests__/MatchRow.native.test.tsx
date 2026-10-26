@@ -49,7 +49,17 @@ function renderRow(line: MatchLine, place: Partial<LinePlace> = {}) {
         'en',
     );
 
-    render(<MatchRow row={row} focus={{ requested: false, onHandled: vi.fn() }} {...handlers} />);
+    render(
+        <MatchRow
+            row={row}
+            focus={{ requested: false, onHandled: vi.fn() }}
+            retry={{
+                landing: { requested: false, onHandled: vi.fn() },
+                tryAgain: { requested: false, onHandled: vi.fn() },
+            }}
+            {...handlers}
+        />,
+    );
 
     return handlers;
 }

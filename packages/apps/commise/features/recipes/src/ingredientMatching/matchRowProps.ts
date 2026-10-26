@@ -5,6 +5,7 @@
 import type { ControlFocus } from '../common/controlFocus.js';
 import type { LinePick } from './matchLine.js';
 import type { LineRow } from './matchLineView.js';
+import type { LineRetryFocus } from './useRetryFocus.js';
 
 /** What a line's controls ask of the host, each with the line's key. */
 export interface MatchRowHandlers {
@@ -30,4 +31,6 @@ export interface MatchRowProps extends MatchRowHandlers {
     readonly row: LineRow;
     /** A request that the open row's list take focus. Only an open row has a list to take it. */
     readonly focus: ControlFocus;
+    /** Where focus goes when the line's Try again is pressed and when its retry fails again (`useRetryFocus`). */
+    readonly retry: LineRetryFocus;
 }

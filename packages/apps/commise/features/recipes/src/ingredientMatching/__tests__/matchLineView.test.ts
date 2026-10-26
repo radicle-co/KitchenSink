@@ -624,3 +624,100 @@ describe('⛔ every control’s accessible name starts with its visible label (W
         expect(list.search.kind === 'available' && list.search.name.startsWith(list.search.label)).toBe(true);
     });
 });
+
+describe('where a retry lands (WCAG 2.4.3): the view names the control the retry made busy', () => {
+    const retrying = (pending: PendingSend): Partial<LinePlace> => ({ failed: true, pending });
+
+    it('an open line carries its send state, so a surface can tell a retry from a first attempt', () => {
+        const line = makeDefaultLine();
+
+        expect(rowOf('open', line, { expanded: true }).view.send).toEqual({
+            key: 'milk',
+            failed: false,
+            sending: false,
+        });
+        expect(rowOf('open', line, { expanded: true, failed: true }).view.send).toEqual({
+            key: 'milk',
+            failed: true,
+            sending: false,
+        });
+        expect(
+            rowOf('open', line, { expanded: true, ...retrying(pickPending('skim', 'Skim milk')) }).view.send,
+        ).toEqual({
+            key: 'milk',
+            failed: true,
+            sending: true,
+        });
+    });
+
+    it('a list lands on the option row being sent, which stays in the list', () => {
+        const { view } = rowOf('open', makeDefaultLine(), {
+            expanded: true,
+            ...retrying(pickPending('skim', 'Skim milk')),
+        });
+
+        expect(view.list.landing).toEqual({ kind: 'row', id: 'food:skim' });
+    });
+
+    it('a list lands on Keep as written when that is the pick being sent', () => {
+        const { view } = rowOf('open', makeDefaultLine(), {
+            expanded: true,
+            ...retrying({ kind: 'pick', pick: { kind: 'asWritten' } }),
+        });
+
+        expect(view.list.landing).toEqual({ kind: 'keep' });
+    });
+
+    it('a list lands on Search when a food found through Search is being sent', () => {
+        const { view } = rowOf('open', makeDefaultLine(), { expanded: true, ...retrying({ kind: 'searchPick' }) });
+
+        expect(view.list.landing).toEqual({ kind: 'search' });
+    });
+
+    it('a list with nothing busy lands where a focus request always lands, so the target always exists', () => {
+        const { view } = rowOf('open', makeDefaultLine(), { expanded: true, failed: true });
+
+        expect(view.list.landing).toEqual(view.list.focusTarget);
+    });
+
+    it('a list lands on its first option when Search cannot run and a Search pick is in flight', () => {
+        const { view } = rowOf('open', makeDefaultLine(), {
+            expanded: true,
+            online: false,
+            ...retrying({ kind: 'searchPick' }),
+        });
+
+        expect(view.list.landing).toEqual({ kind: 'row', id: 'food:skim' });
+    });
+
+    it('a settled line lands on Use this when that is the send in flight', () => {
+        const { view } = rowOf('settled', makeCheckingLine(), retrying({ kind: 'useProposal' }));
+
+        expect(view.landing).toBe('useThis');
+        expect(view.send).toEqual({ key: 'cream', failed: true, sending: true });
+    });
+
+    it('a settled line lands on Keep as written when that is the send in flight', () => {
+        const { view } = rowOf('settled', makeCheckingLine(), {
+            online: false,
+            ...retrying({ kind: 'pick', pick: { kind: 'asWritten' } }),
+        });
+
+        expect(view.landing).toBe('keepAsWritten');
+    });
+
+    it('a bound settled line, which has no busy control, lands on Change: it exists and only refuses a press', () => {
+        const { view } = rowOf('settled', makeConfidentLine(), retrying(pickPending('skim', 'Skim milk')));
+
+        expect(view.landing).toBe('change');
+        expect(view.trailing?.busy).toBe(false);
+    });
+
+    it('a line whose options failed lands on the send it is making', () => {
+        const { view } = rowOf('settled', makeOptionsFailedLine(), {
+            ...retrying({ kind: 'pick', pick: { kind: 'asWritten' } }),
+        });
+
+        expect(view.landing).toBe('keepAsWritten');
+    });
+});

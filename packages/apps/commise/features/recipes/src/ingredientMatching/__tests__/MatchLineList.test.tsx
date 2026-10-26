@@ -246,3 +246,176 @@ describe('MatchLineList (web)', () => {
         expect(document.activeElement).toBe(firstBread);
     });
 });
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order): Try again unmounts while its retry is in flight, so the press that started the retry
+ * must not drop focus to the page. Focus lands on the control the retry made busy (refused, never natively disabled),
+ * returns to the new Try again if the retry fails again, and after a success follows the host's `pickFocusOf` exactly as
+ * after a first pick. A host moves between these states by new props, so each test re-renders; a harness button would
+ * steal the focus under test.
+ */
+describe('MatchLineList (web): Try again keeps focus (WCAG 2.4.3)', () => {
+    const MILK_RETRY = 'Try again to save the choice for 2 cups milk';
+    const CREAM_RETRY = 'Try again to save the choice for 1/2 cup heavy cream';
+    const SKIM_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+    const FAILED_MILK: ReadonlySet<string> = new Set(['milk']);
+    const SENDING = (key: string, send: PendingSend): ReadonlyMap<string, PendingSend> => new Map([[key, send]]);
+
+    const listWith = (props: Partial<MatchLineListProps>) => (
+        <>
+            <button type="button">Elsewhere</button>
+            <MatchLineList
+                lines={LINES}
+                expandedKey="milk"
+                currentKey={undefined}
+                online
+                pending={NOTHING_SENT}
+                failed={NONE_FAILED}
+                announcement={SILENT}
+                focus={{ requested: false, onHandled: vi.fn() }}
+                {...handlers()}
+                {...props}
+            />
+        </>
+    );
+
+    it('⛔ pressing Try again on the open line lands focus on the option being retried, busy and not natively disabled', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+
+        const skim = screen.getByRole('button', { name: 'Skim milk' });
+
+        expect(screen.queryByRole('button', { name: MILK_RETRY })).toBeNull();
+        expect(document.activeElement).toBe(skim);
+        expect(skim.getAttribute('aria-busy')).toBe('true');
+        expect(skim.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('⛔ a retry that fails again returns focus to the new Try again', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+        rerender(listWith({ failed: FAILED_MILK }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: MILK_RETRY }));
+    });
+
+    it('⛔ a retry that succeeds leaves focus where a successful first pick leaves it: on the next open line’s Search', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+
+        const next = LINES.map((line) =>
+            line.key === 'milk' && line.state === 'default'
+                ? { ...line, binding: { boundBy: 'cook' as const, pick: SKIM_PENDING.pick, reviewNote: undefined } }
+                : line,
+        );
+        const focus = pickFocusOf(next, 'milk', NOTHING_SENT);
+
+        rerender(
+            listWith({
+                lines: next,
+                expandedKey: focus.kind === 'line' ? focus.key : undefined,
+                focus: { requested: focus.kind === 'line', onHandled: vi.fn() },
+            }),
+        );
+
+        expect(screen.queryByRole('button', { name: MILK_RETRY })).toBeNull();
+        expect(document.activeElement).toBe(
+            screen.getByRole('button', { name: 'Search for a food for 6 slices day-old bread' }),
+        );
+    });
+
+    it('a first failure does not pull focus from where the cook has gone', () => {
+        const { rerender } = render(listWith({ pending: SENDING('milk', SKIM_PENDING) }));
+        const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+
+        elsewhere.focus();
+        rerender(listWith({ failed: FAILED_MILK }));
+
+        expect(document.activeElement).toBe(elsewhere);
+    });
+
+    it('an unrelated render during the retry does not take focus back from the cook', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+
+        const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+
+        elsewhere.focus();
+        rerender(
+            listWith({
+                failed: FAILED_MILK,
+                pending: SENDING('milk', SKIM_PENDING),
+                announcement: { text: 'Check finished.', occurrence: 1 },
+            }),
+        );
+
+        expect(document.activeElement).toBe(elsewhere);
+    });
+
+    it('⛔ a settled line lands on the Use this that its retry made busy, and returns to Try again if it fails again', async () => {
+        const user = userEvent.setup();
+        const failed: ReadonlySet<string> = new Set(['cream']);
+        const useThis = { kind: 'useProposal' } as const;
+        const { rerender } = render(listWith({ expandedKey: undefined, failed }));
+
+        await user.click(screen.getByRole('button', { name: CREAM_RETRY }));
+        rerender(listWith({ expandedKey: undefined, failed, pending: SENDING('cream', useThis) }));
+
+        const use = screen.getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' });
+
+        expect(document.activeElement).toBe(use);
+        expect(use.getAttribute('aria-busy')).toBe('true');
+        expect(use.hasAttribute('disabled')).toBe(false);
+
+        rerender(listWith({ expandedKey: undefined, failed }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: CREAM_RETRY }));
+    });
+
+    it('a bound settled line, with no busy control of its own, lands on its Change: refused, not natively disabled', async () => {
+        const user = userEvent.setup();
+        const eggs = makeConfidentLine();
+        const failed: ReadonlySet<string> = new Set(['eggs']);
+        const { rerender } = render(listWith({ lines: [eggs], expandedKey: undefined, failed }));
+
+        await user.click(screen.getByRole('button', { name: 'Try again to save the choice for eggs' }));
+        rerender(listWith({ lines: [eggs], expandedKey: undefined, failed, pending: SENDING('eggs', SKIM_PENDING) }));
+
+        const change = screen.getByRole('button', { name: 'Change the food for eggs' });
+
+        expect(document.activeElement).toBe(change);
+        expect(change.getAttribute('aria-disabled')).toBe('true');
+        expect(change.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('⛔ a retry on one line leaves another line’s first send alone', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+        const both = new Map<string, PendingSend>([
+            ['milk', SKIM_PENDING],
+            ['cream', { kind: 'useProposal' }],
+        ]);
+
+        await user.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: both }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Skim milk' }));
+        expect(
+            screen
+                .getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' })
+                .matches(':focus'),
+        ).toBe(false);
+    });
+});

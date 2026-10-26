@@ -244,3 +244,163 @@ describe('MatchLineList (native)', () => {
         expect(focus.moved).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order), native: Try again unmounts while its retry is in flight, so the screen-reader cursor
+ * must not be lost. It moves to the control the retry made busy, returns to the new Try again if the retry fails again,
+ * and after a success follows the host's `pickFocusOf` as after a first pick. The cursor moves are the
+ * `sendAccessibilityEvent` calls the focus-request mechanism makes.
+ */
+describe('MatchLineList (native): Try again keeps the screen-reader cursor (WCAG 2.4.3)', () => {
+    const MILK_RETRY = 'Try again to save the choice for 2 cups milk';
+    const CREAM_RETRY = 'Try again to save the choice for 1/2 cup heavy cream';
+    const SKIM_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+    const FAILED_MILK: ReadonlySet<string> = new Set(['milk']);
+    const SENDING = (key: string, send: PendingSend): ReadonlyMap<string, PendingSend> => new Map([[key, send]]);
+
+    const listWith = (props: Partial<MatchLineListProps>) => (
+        <MatchLineList
+            lines={LINES}
+            expandedKey="milk"
+            currentKey={undefined}
+            online
+            pending={NOTHING_SENT}
+            failed={NONE_FAILED}
+            announcement={SILENT}
+            focus={{ requested: false, onHandled: vi.fn() }}
+            {...handlers()}
+            {...props}
+        />
+    );
+
+    it('⛔ pressing Try again on the open line moves the cursor to the option being retried, shown busy', () => {
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        focus.moved.mockClear();
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+
+        const skim = screen.getByRole('button', { name: 'Skim milk' });
+
+        expect(screen.queryByRole('button', { name: MILK_RETRY })).toBeNull();
+        expect(skim.getAttribute('aria-busy')).toBe('true');
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(skim, 'focus');
+    });
+
+    it('⛔ a retry that fails again moves the cursor back to the new Try again', () => {
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+        focus.moved.mockClear();
+        rerender(listWith({ failed: FAILED_MILK }));
+
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: MILK_RETRY }), 'focus');
+    });
+
+    it('⛔ a retry that succeeds moves the cursor as a successful first pick does: to the next open line’s Search', () => {
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+        focus.moved.mockClear();
+
+        const next = LINES.map((line) =>
+            line.key === 'milk' && line.state === 'default'
+                ? { ...line, binding: { boundBy: 'cook' as const, pick: SKIM_PENDING.pick, reviewNote: undefined } }
+                : line,
+        );
+        const request = pickFocusOf(next, 'milk', NOTHING_SENT);
+
+        rerender(
+            listWith({
+                lines: next,
+                expandedKey: request.kind === 'line' ? request.key : undefined,
+                focus: { requested: request.kind === 'line', onHandled: vi.fn() },
+            }),
+        );
+
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('button', { name: 'Search for a food for 6 slices day-old bread' }),
+            'focus',
+        );
+    });
+
+    it('a first failure does not move the cursor', () => {
+        const { rerender } = render(listWith({ pending: SENDING('milk', SKIM_PENDING) }));
+
+        focus.moved.mockClear();
+        rerender(listWith({ failed: FAILED_MILK }));
+
+        expect(focus.moved).not.toHaveBeenCalled();
+    });
+
+    it('an unrelated render during the retry does not move the cursor again', () => {
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        rerender(listWith({ failed: FAILED_MILK, pending: SENDING('milk', SKIM_PENDING) }));
+        focus.moved.mockClear();
+        rerender(
+            listWith({
+                failed: FAILED_MILK,
+                pending: SENDING('milk', SKIM_PENDING),
+                announcement: { text: 'Check finished.', occurrence: 1 },
+            }),
+        );
+
+        expect(focus.moved).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a settled line moves the cursor to the Use this its retry made busy, and back to Try again on a second failure', () => {
+        const failed: ReadonlySet<string> = new Set(['cream']);
+        const { rerender } = render(listWith({ expandedKey: undefined, failed }));
+
+        fireEvent.click(screen.getByRole('button', { name: CREAM_RETRY }));
+        focus.moved.mockClear();
+        rerender(listWith({ expandedKey: undefined, failed, pending: SENDING('cream', { kind: 'useProposal' }) }));
+
+        const use = screen.getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' });
+
+        expect(use.getAttribute('aria-busy')).toBe('true');
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(use, 'focus');
+
+        focus.moved.mockClear();
+        rerender(listWith({ expandedKey: undefined, failed }));
+
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: CREAM_RETRY }), 'focus');
+    });
+
+    it('a bound settled line, with no busy control of its own, moves the cursor to its Change', () => {
+        const eggs = makeConfidentLine();
+        const failed: ReadonlySet<string> = new Set(['eggs']);
+        const { rerender } = render(listWith({ lines: [eggs], expandedKey: undefined, failed }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for eggs' }));
+        focus.moved.mockClear();
+        rerender(listWith({ lines: [eggs], expandedKey: undefined, failed, pending: SENDING('eggs', SKIM_PENDING) }));
+
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(
+            screen.getByRole('button', { name: 'Change the food for eggs' }),
+            'focus',
+        );
+    });
+
+    it('⛔ a retry on one line leaves another line’s first send alone', () => {
+        const { rerender } = render(listWith({ failed: FAILED_MILK }));
+
+        fireEvent.click(screen.getByRole('button', { name: MILK_RETRY }));
+        focus.moved.mockClear();
+        rerender(
+            listWith({
+                failed: FAILED_MILK,
+                pending: new Map<string, PendingSend>([
+                    ['milk', SKIM_PENDING],
+                    ['cream', { kind: 'useProposal' }],
+                ]),
+            }),
+        );
+
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: 'Skim milk' }), 'focus');
+    });
+});

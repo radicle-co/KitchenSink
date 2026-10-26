@@ -14,6 +14,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { makeDefaultLine, makeFoodChoice } from '../../ingredientMatching/__fixtures__/matchLines.js';
+import type { PendingSend } from '../../ingredientMatching/matchLine.js';
 import { ImportLineOptionsPane } from '../ImportLineOptionsPane.js';
 import { ImportLineOptionsSheet } from '../ImportLineOptionsSheet.js';
 import type { ImportLineOptionsPaneProps, ImportLineOptionsSheetProps } from '../props.js';
@@ -190,5 +191,100 @@ describe('ImportLineOptionsPane (web)', () => {
         expect(within(pane).getByRole('button', { name: `Search for a food for ${LINE}` })).toBeTruthy();
         expect(within(pane).queryByRole('button', { name: /, chosen$/ })).toBeNull();
         expect(within(within(pane).getByRole('list')).getAllByRole('button')).toHaveLength(4);
+    });
+});
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order): Try again unmounts while its retry is in flight. On the sheet AND the pane focus lands
+ * on the option being retried (busy, refused, never natively disabled), and returns to the new Try again if the retry
+ * fails again. A first failure moves nothing.
+ */
+describe.each([
+    [
+        'ImportLineOptionsSheet',
+        (props: Partial<ImportLineOptionsSheetProps & ImportLineOptionsPaneProps>) => (
+            <ImportLineOptionsSheet
+                open
+                onOpenChange={vi.fn()}
+                title="1 1/4 cups milk · Pancakes"
+                line={MILK_LINE}
+                online
+                pending={undefined}
+                failed={false}
+                announcement={{ text: '', occurrence: 0 }}
+                focus={NO_FOCUS}
+                onPick={vi.fn()}
+                onSearch={vi.fn()}
+                onRetryPick={vi.fn()}
+                {...props}
+            />
+        ),
+    ],
+    [
+        'ImportLineOptionsPane',
+        (props: Partial<ImportLineOptionsPaneProps>) => (
+            <ImportLineOptionsPane
+                title="1 1/4 cups milk · Pancakes"
+                line={MILK_LINE}
+                online
+                pending={undefined}
+                failed={false}
+                focus={NO_FOCUS}
+                onPick={vi.fn()}
+                onSearch={vi.fn()}
+                onRetryPick={vi.fn()}
+                {...props}
+            />
+        ),
+    ],
+])('%s (web): Try again keeps focus (WCAG 2.4.3)', (_name, surface) => {
+    const RETRY = `Try again to save the choice for ${LINE}`;
+    const WHOLE_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'f-whole', name: 'Whole milk' } };
+
+    it('⛔ pressing Try again lands focus on the option being retried, busy and not natively disabled', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(surface({ failed: true }));
+
+        await user.click(screen.getByRole('button', { name: RETRY }));
+        rerender(surface({ failed: true, pending: WHOLE_PENDING }));
+
+        const whole = screen.getByRole('button', { name: 'Whole milk, Default' });
+
+        expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+        expect(document.activeElement).toBe(whole);
+        expect(whole.getAttribute('aria-busy')).toBe('true');
+        expect(whole.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('⛔ a retry that fails again returns focus to the new Try again', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(surface({ failed: true }));
+
+        await user.click(screen.getByRole('button', { name: RETRY }));
+        rerender(surface({ failed: true, pending: WHOLE_PENDING }));
+        rerender(surface({ failed: true }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: RETRY }));
+    });
+
+    it('a retry that succeeds leaves focus on the row, where a successful first pick leaves it', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(surface({ failed: true }));
+
+        await user.click(screen.getByRole('button', { name: RETRY }));
+        rerender(surface({ failed: true, pending: WHOLE_PENDING }));
+        rerender(surface({ failed: false }));
+
+        expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Whole milk, Default' }));
+    });
+
+    it('a first failure does not move focus', () => {
+        const { rerender } = render(surface({ pending: WHOLE_PENDING }));
+        const before = document.activeElement;
+
+        rerender(surface({ failed: true }));
+
+        expect(document.activeElement).toBe(before);
     });
 });

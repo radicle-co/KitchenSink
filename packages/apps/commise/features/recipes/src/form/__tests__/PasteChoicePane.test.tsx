@@ -14,6 +14,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { recipeMessages } from '../../messages.js';
 import {
@@ -24,7 +25,7 @@ import {
     makeNeedsChoiceLine,
     makeNoMatchLine,
 } from '../../ingredientMatching/__fixtures__/matchLines.js';
-import type { MatchLine } from '../../ingredientMatching/matchLine.js';
+import type { MatchLine, PendingSend } from '../../ingredientMatching/matchLine.js';
 import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeFormMessages } from '../messages.js';
 import { PasteChoicePane } from '../PasteChoicePane.js';
@@ -173,5 +174,112 @@ describe('PasteChoicePane (web)', () => {
         expect(next.getAttribute('aria-disabled')).toBe('true');
         expect(next.hasAttribute('disabled')).toBe(false);
         expect(document.activeElement).toBe(next);
+    });
+});
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order): Try again unmounts while its retry is in flight. The pane gets the retry only as a
+ * new view, so it must tell a retry from a first attempt from the view alone: focus lands on the option being retried
+ * (busy, refused, never natively disabled), returns to the new Try again if the retry fails again, and a first failure
+ * moves nothing.
+ */
+describe('PasteChoicePane (web): Try again keeps focus (WCAG 2.4.3)', () => {
+    const RETRY = 'Try again to save the choice for 2 cups milk';
+    const SKIM_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+    const handlers = {
+        onSearch: vi.fn(),
+        onPick: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onRetryPick: vi.fn(),
+    };
+
+    const paneWith = (place: { failed: boolean; pending: PendingSend | undefined }) => (
+        <>
+            <button type="button">Elsewhere</button>
+            <PasteChoicePane
+                view={pasteMatchPaneViewOf(
+                    { lines: RECIPE, shownKey: 'milk', sending: NOTHING_SENT },
+                    { online: true, ...place },
+                    m,
+                    lineCopy,
+                )}
+                focus={{ requested: false, onHandled: vi.fn() }}
+                {...handlers}
+            />
+        </>
+    );
+
+    it('⛔ pressing Try again lands focus on the option being retried, busy and not natively disabled', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(paneWith({ failed: true, pending: undefined }));
+
+        await user.click(screen.getByRole('button', { name: RETRY }));
+        rerender(paneWith({ failed: true, pending: SKIM_PENDING }));
+
+        const skim = screen.getByRole('button', { name: 'Skim milk' });
+
+        expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+        expect(document.activeElement).toBe(skim);
+        expect(skim.getAttribute('aria-busy')).toBe('true');
+        expect(skim.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('⛔ a retry that fails again returns focus to the new Try again', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(paneWith({ failed: true, pending: undefined }));
+
+        await user.click(screen.getByRole('button', { name: RETRY }));
+        rerender(paneWith({ failed: true, pending: SKIM_PENDING }));
+        rerender(paneWith({ failed: true, pending: undefined }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: RETRY }));
+    });
+
+    it('a retry that succeeds leaves focus on the row, where a successful first pick leaves it', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(paneWith({ failed: true, pending: undefined }));
+
+        await user.click(screen.getByRole('button', { name: RETRY }));
+        rerender(paneWith({ failed: true, pending: SKIM_PENDING }));
+        rerender(paneWith({ failed: false, pending: undefined }));
+
+        expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Skim milk' }));
+    });
+
+    it('a first failure does not pull focus from where the cook has gone', () => {
+        const { rerender } = render(paneWith({ failed: false, pending: SKIM_PENDING }));
+        const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+
+        elsewhere.focus();
+        rerender(paneWith({ failed: true, pending: undefined }));
+
+        expect(document.activeElement).toBe(elsewhere);
+    });
+
+    it('stepping to another failed line while one is retrying is not a retry of the new line', async () => {
+        const user = userEvent.setup();
+        const paneFor = (shownKey: string, place: { failed: boolean; pending: PendingSend | undefined }) => (
+            <>
+                <button type="button">Elsewhere</button>
+                <PasteChoicePane
+                    view={pasteMatchPaneViewOf(
+                        { lines: RECIPE, shownKey, sending: NOTHING_SENT },
+                        { online: true, ...place },
+                        m,
+                        lineCopy,
+                    )}
+                    focus={{ requested: false, onHandled: vi.fn() }}
+                    {...handlers}
+                />
+            </>
+        );
+        const { rerender } = render(paneFor('milk', { failed: true, pending: SKIM_PENDING }));
+
+        await user.click(screen.getByRole('button', { name: 'Elsewhere' }));
+        rerender(paneFor('bread', { failed: true, pending: undefined }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
     });
 });

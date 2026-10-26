@@ -16,7 +16,7 @@ import { MatchLineText } from './MatchLineText.native.js';
 import type { MatchOpenRowProps } from './matchOpenRowProps.js';
 
 /** The expanded line. */
-export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, ...list }) => {
+export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, retry, ...list }) => {
     const { colors } = useTheme();
 
     return (
@@ -26,9 +26,11 @@ export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, .
                 {view.prompt === undefined ? null : (
                     <Text style={[styles.prompt, { color: colors.inkMuted }]}>{view.prompt}</Text>
                 )}
-                {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
+                {view.failure === undefined ? null : (
+                    <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
+                )}
             </View>
-            <FoodChoiceList view={view.list} {...list} />
+            <FoodChoiceList view={view.list} landing={retry.landing} {...list} />
         </View>
     );
 };

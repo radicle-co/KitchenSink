@@ -4,7 +4,9 @@
  * rather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the
  * wide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside
  * the list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite
- * live region (M6, U9).
+ * live region (M6, U9). Try again keeps the screen-reader cursor (WCAG 2.4.3): while the retry is in flight it lands on
+ * the row's Use, or Choose another when the row has no Use (`flaggedLandingOf`), and returns to the new Try again if the
+ * retry fails again (`useRetryFocus`).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -18,8 +20,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
-import { pickFailureViewOf } from '../ingredientMatching/matchLineView.js';
+import { lineFailureOf, sendStateOf } from '../ingredientMatching/matchLineView.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
+import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
+import { flaggedLandingOf } from './flaggedLanding.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -40,6 +44,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
     const copy = useMatchCopy();
+    const placeOf = (key: string) => ({ failed: failed.has(key), pending: pending.get(key) });
+    const retryOf = useRetryFocus(lines.map((line) => sendStateOf(line.key, placeOf(line.key))));
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
 
@@ -51,48 +57,60 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                 </Text>
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{pluralOf(f.intro, total, locale)}</Text>
                 <View>
-                    {lines.map((line) => (
-                        <View key={line.key} style={[styles.row, { borderTopColor: colors.lineDivider }]}>
-                            <Text style={[styles.line, { color: colors.ink }]}>
-                                {fillTemplate(f.lineContext, { line: line.text, recipe: line.recipeTitle })}
-                            </Text>
-                            <Text style={[styles.meta, { color: colors.inkMuted }]}>
-                                {fillTemplate(f.doubt, { food: line.matchedFood })}
-                            </Text>
-                            <View style={styles.actions}>
-                                {line.suggestion === undefined ? null : (
+                    {lines.map((line) => {
+                        const retry = retryOf(line.key);
+                        const failure = lineFailureOf(line.text, placeOf(line.key), copy);
+
+                        return (
+                            <View key={line.key} style={[styles.row, { borderTopColor: colors.lineDivider }]}>
+                                <Text style={[styles.line, { color: colors.ink }]}>
+                                    {fillTemplate(f.lineContext, { line: line.text, recipe: line.recipeTitle })}
+                                </Text>
+                                <Text style={[styles.meta, { color: colors.inkMuted }]}>
+                                    {fillTemplate(f.doubt, { food: line.matchedFood })}
+                                </Text>
+                                <View style={styles.actions}>
+                                    {line.suggestion === undefined ? null : (
+                                        <Button
+                                            variant="secondary"
+                                            icon="check"
+                                            accessibilityLabel={fillTemplate(f.useName, {
+                                                food: line.suggestion.name,
+                                                line: line.text,
+                                            })}
+                                            busy={pending.get(line.key)?.kind === 'useProposal'}
+                                            refused={pending.has(line.key)}
+                                            focusRequested={retry.landing.requested}
+                                            onFocusRequestHandled={retry.landing.onHandled}
+                                            onPress={() => onUseSuggestion(line.key)}
+                                        >
+                                            {fillTemplate(f.use, { food: line.suggestion.name })}
+                                        </Button>
+                                    )}
                                     <Button
-                                        variant="secondary"
-                                        icon="check"
-                                        accessibilityLabel={fillTemplate(f.useName, {
-                                            food: line.suggestion.name,
-                                            line: line.text,
-                                        })}
-                                        busy={pending.get(line.key)?.kind === 'useProposal'}
+                                        variant="ghost"
+                                        size="sm"
+                                        accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
                                         refused={pending.has(line.key)}
-                                        onPress={() => onUseSuggestion(line.key)}
+                                        focusRequested={
+                                            flaggedLandingOf(line) === 'chooseAnother' && retry.landing.requested
+                                        }
+                                        onFocusRequestHandled={retry.landing.onHandled}
+                                        onPress={() => onChooseAnother(line.key)}
                                     >
-                                        {fillTemplate(f.use, { food: line.suggestion.name })}
+                                        {f.chooseAnother}
                                     </Button>
+                                </View>
+                                {failure === undefined ? null : (
+                                    <MatchFailureLine
+                                        failure={failure}
+                                        onRetry={() => onUseSuggestion(line.key)}
+                                        focus={retry.tryAgain}
+                                    />
                                 )}
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
-                                    refused={pending.has(line.key)}
-                                    onPress={() => onChooseAnother(line.key)}
-                                >
-                                    {f.chooseAnother}
-                                </Button>
                             </View>
-                            {failed.has(line.key) && !pending.has(line.key) ? (
-                                <MatchFailureLine
-                                    failure={pickFailureViewOf(line.text, copy)}
-                                    onRetry={() => onUseSuggestion(line.key)}
-                                />
-                            ) : null}
-                        </View>
-                    ))}
+                        );
+                    })}
                 </View>
                 <Text style={[styles.meta, { color: colors.inkMuted }]}>
                     {fillTemplate(f.footer, { title: pluralOf(f.title, total, locale) })}

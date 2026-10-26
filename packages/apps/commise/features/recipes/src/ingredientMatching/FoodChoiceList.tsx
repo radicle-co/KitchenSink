@@ -17,6 +17,8 @@
  *   through it — and every other control is refused: focusable, the press cancelled, dimmed (2.4.3). None is ever
  *   natively disabled, because any of them may hold focus when the send starts.
  * - A focus request lands on the view's `focusTarget`: Search, else the first option, else Keep, so it is always taken.
+ * - When Try again unmounts because a retry started, focus lands on the view's `landing`: the control that send made busy
+ *   (still drawn, refused, never natively disabled), so focus is never dropped to the page (2.4.3).
  * - Rows are 48 px at least, in the 14 px `list` role; long names wrap and never truncate, so nothing scrolls sideways
  *   at 320 px.
  *
@@ -29,13 +31,13 @@ import { OptionLabel } from '@commise/ui/option-label';
 import type { FC } from 'react';
 
 import type { FoodChoiceListProps } from './foodChoiceListProps.js';
-import { isFocusTarget, type ListFocusTarget } from './matchLineView.js';
+import { listControlFocusOf } from './listControlFocus.js';
+import type { ListFocusTarget } from './matchLineView.js';
 
 /** A line's food-choice list: search, then the options and Keep as written in one box. */
-export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick, focus }) => {
+export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick, focus, landing }) => {
     const { search, keep } = view;
-    const requested = (control: ListFocusTarget): boolean =>
-        focus.requested && isFocusTarget(view.focusTarget, control);
+    const focusOf = (control: ListFocusTarget) => listControlFocusOf(view, control, { focus, landing });
 
     return (
         <div className="flex flex-col gap-2">
@@ -47,8 +49,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                         accessibilityLabel={search.name}
                         busy={search.busy}
                         refused={view.refusing && !search.busy}
-                        focusRequested={requested({ kind: 'search' })}
-                        onFocusRequestHandled={focus.onHandled}
+                        {...focusOf({ kind: 'search' })}
                         onPress={onSearch}
                     >
                         {search.label}
@@ -68,8 +69,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                             chosen={row.chosen}
                             busy={row.busy}
                             refused={view.refusing && !row.busy}
-                            focusRequested={requested({ kind: 'row', id: row.id })}
-                            onFocusRequestHandled={focus.onHandled}
+                            {...focusOf({ kind: 'row', id: row.id })}
                             onPress={() => {
                                 onPick(row.pick);
                             }}
@@ -89,8 +89,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                         chosen={keep.chosen}
                         busy={keep.busy}
                         refused={view.refusing && !keep.busy}
-                        focusRequested={requested({ kind: 'keep' })}
-                        onFocusRequestHandled={focus.onHandled}
+                        {...focusOf({ kind: 'keep' })}
                         onPress={() => {
                             onPick(keep.pick);
                         }}

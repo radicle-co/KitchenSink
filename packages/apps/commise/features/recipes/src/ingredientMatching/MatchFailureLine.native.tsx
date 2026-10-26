@@ -1,7 +1,9 @@
 /**
  * @module @commise/features-recipes/ingredientMatching — `MatchFailureLine` (native): the React Native leaf of
  * `./MatchFailureLine.tsx`, on the same props: the warning glyph, the attention sentence in the 14 px `list` role, then
- * Try again, wrapping under it rather than squeezing at 320 pt. Painted from the theme's roles (D15).
+ * Try again, wrapping under it rather than squeezing at 320 pt. A retry in flight hides this line, so when the retry
+ * fails again and Try again comes back it takes the screen-reader cursor if asked (`focus`, `useRetryFocus`). Painted
+ * from the theme's roles (D15).
  */
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
@@ -13,7 +15,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { MatchFailureLineProps } from './matchFailureLineProps.js';
 
 /** A send that did not save, and Try again. */
-export const MatchFailureLine: FC<MatchFailureLineProps> = ({ failure, onRetry }) => {
+export const MatchFailureLine: FC<MatchFailureLineProps> = ({ failure, onRetry, focus }) => {
     const { colors } = useTheme();
 
     return (
@@ -27,6 +29,8 @@ export const MatchFailureLine: FC<MatchFailureLineProps> = ({ failure, onRetry }
                 size="sm"
                 icon="refreshCw"
                 accessibilityLabel={failure.retry.name}
+                focusRequested={focus.requested}
+                onFocusRequestHandled={focus.onHandled}
                 onPress={onRetry}
             >
                 {failure.retry.label}

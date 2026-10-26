@@ -35,8 +35,12 @@
   Q2: a person decides the unsure case.
 - A second round of owner answers (2026-10-26) confirmed that a spent budget waits for a person, overruled the curator
   grant, generalised the skip rule to "every part green", dropped review time targets for now, and made reviewers
-  employees. A third ruling added the lookup in our own database (section J). Its default readings are listed in the
-  plan for the owner to confirm.
+  employees. A third ruling added the lookup in our own database (section J). A fourth round answered the
+  staff-architect REVIEW's four questions (match precedence, the same-items rule, private-recipe non-disclosure, and
+  donation at erasure). Every High and Medium finding of that REVIEW is applied, and ADR-0074 records the decision.
+- Three items stay open for the owner or counsel, and none blocks planning: the strict "model raised nothing" reading
+  of a green text, the held-recipe slot gap (ADR-0073's open question), and the donation deadline's length.
 - Some names of existing artefacts appear because the spec amends them: `004-FR-014a`, `016-FR-018`,
-  `visibilityPolicy.ts`, `isRecipeViewableBy`, ADR-0024's grantee rule, ADR-0073's slots, `pg_trgm`. They name the
-  contract being changed or reused, not a free design choice, so they are kept.
+  `visibilityPolicy.ts`, `isRecipeViewableBy`, ADR-0024's grantee rule, ADR-0073's slots, `pg_trgm`,
+  `normalize-url`, `lambda:SourceFunctionArn`, `first_published_at` and `cloned_from_id`. They name the contract being
+  changed or reused, or a library the library-first rule requires, not a free design choice, so they are kept.

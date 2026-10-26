@@ -6,7 +6,10 @@ Each section states the decision, why, and what was rejected. The owner answered
 **Q1**, photos are in scope and anything the AI cannot decide goes to a person; **Q2**, a person decides the unsure
 case. A second round the same day ruled on four readings: a spent budget waits for a person; a curator's grant is not
 a review; a recipe skips review only when every part is green; and review time targets wait ("we can deal with
-SLO/SLA later"), with reviewers always employees. A third ruling added the lookup in our own database (R-17).
+SLO/SLA later"), with reviewers always employees. A third ruling added the lookup in our own database (R-17). A fourth
+round answered the staff-architect REVIEW's four questions: match precedence, the same-items rule, private-recipe
+non-disclosure, and donation at erasure (R-17, R-18, R-19). The decision is recorded in
+[ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md).
 
 ## R-01. Where the model call runs, and under which grant
 
@@ -21,24 +24,34 @@ after, like the five call sites already there.
   4b), and `llmSpendGuards.test.ts` fails a second grantee by design.
 - ADR-0024 §4c says a new consumer reopens the call-site list, not the pool. One $100 pool, attributed by call site.
 - It is the sixth call site, not the fifth. The list already holds `verification-gate`, `ingredient-parse`,
-  `foodness-validator`, `measurement-validator` and `paste-match-review`.
+  `foodness-validator`, `measurement-validator` and `paste-match-review`. `SPEND_CALL_SITES` is the authority for the
+  list, and ADR-0024 §4c now names it rather than a count.
 
 **It is its own function on the shared role.** Same role is not same function. The check gets its own Lambda, its own
 SQS queue with a DLQ, and its own reserved concurrency from `consumerConcurrency.ts`. It does not share the verifier's
 concurrency. `verificationRole` already backs two functions, so this is a known shape.
 
-**Three guards move with it**:
+**Five guards move with it**:
 
 - `llmSpendGuards.test.ts` pins layer 2 on one named function (`VERIFIER_FUNCTION`). It is extended to find every
   function on the grantee role, so a new function cannot escape the concurrency check.
 - The function connects to the recipe database, so it is VPC-attached and adds a row to ADR-0004's NAT consumer table.
   `natEgressConsumers.test.ts` asserts that table in both directions.
-- ADR-0024 §4c's amendment still says four call sites. It is corrected to six.
+- ADR-0024 §4c's roster said four call sites. It now names `SPEND_CALL_SITES` as the authority.
+- **The photo read is scoped to this function** (review H9). Same role is not same function, and a grant on the role
+  reaches every function on it. So the read of the check renditions carries a `lambda:SourceFunctionArn` condition
+  naming this function. AWS documents that Lambda adds this key to every AWS call function code makes, and that it
+  works in identity policies ([AWS](https://docs.aws.amazon.com/lambda/latest/dg/permissions-source-function-arn.html)).
+  The statement sits in its own `iam.Policy` with the ARN built from the fixed function name, which avoids a CDK
+  dependency cycle. An infra guard asserts the condition. The media bucket uses S3-managed keys, so no KMS grant is
+  owed.
+- **The model is pinned to an in-region registry entry** for this call site (spec FR-033), by a guard, so a parameter
+  change cannot route cooks' photos to another region.
 
 **Consequences accepted**:
 
-- The check is asynchronous. A publish cannot wait on it inside the request, so the cook sees a "checking" state
-  (spec FR-001, SC-005).
+- The model check is asynchronous. A publish cannot wait on it inside the request, so the cook sees a "checking"
+  state (spec FR-001, SC-005). A rule-only `detected` is the exception: it is decided in the save (R-03).
 - It shares the one $100 pool with five other call sites. A large bulk import can use up the pool, and every
   check after that is `unchecked`. Attribution by call site shows who used it. It does not prevent it.
 - Non-prod calls the provider ungated (ADR-0024 §3), and the stated non-prod bound was measured wrong (pr-91 spent
@@ -70,6 +83,19 @@ shared per digest; the outcome is not.
 **Flip condition**: if search p95 with the extra `EXISTS` exceeds budget under k6, move to a fence column
 (`recipes.cleared_digest`), at the cost of the worker writing `recipes`.
 
+**The hold condition is written once** (review H6). It is a Specification with two forms in
+`recipe-core/src/sourceCheck/holdSpecification.ts`: a TypeScript predicate for `isRecipeViewableBy`, and an exported
+SQL text for the three SQL twins and for account erasure. `recipe-core` already exports SQL text that both deployables
+import (`PARSE_JOB_AGGREGATE_SQL`), so this needs no new package and no drizzle in `recipe-core`. A parity test holds
+the two forms equal, and a guard fails a fifth hand-written copy. Before this, erasure's `ownerOnly` predicate
+(`accountErasureWorker.ts`) treated a held recipe as truly public and would have donated it.
+
+**The enforcement mode is stamped per outcome, not read per query** (review H5). If the read rule read the latest
+ledger row, a return to `shadow` would publish every held recipe at once, `detected` ones included. So each outcome
+row gets `enforced` once, at its first public moment, from the mode then. The read rule reads the stamp. That gives
+`paused` its meaning (new outcomes hold nothing, old holds stay), and it gives spec FR-019's "never hides at once"
+for free. Rejected: a one-way switch with no pause, because an operator then has no rollback short of a release.
+
 **Rejected**:
 
 - **A new `RecipeStatus` value such as `pending_check`**: the status is a closed wire enum that installed clients
@@ -95,9 +121,18 @@ shared per digest; the outcome is not.
 | Paid-site template   | Exact match against template strings on the rightsholder list (for example a site's own "Subscribe to read" or print footer)                                       |
 | Cited paid-site host | The WHATWG `URL` parser reads the cited URL. `tldts`, already in the tree, gives its registrable domain. That domain is matched against the list's hosts. No fetch |
 
-**Rationale**: library-first for the two parts that are easy to get wrong. ISBN checksums have two schemes and edge
-cases (`X` check digit, 978/979 prefixes). Registrable-domain matching needs the public suffix list. The phrase and
-regex detectors are small, pure and table-tested.
+**Rationale**: library-first for the parts that are easy to get wrong. ISBN checksums have two schemes and edge cases
+(`X` check digit, 978/979 prefixes). Registrable-domain matching needs the public suffix list. URL normalisation has
+many edge cases, so the page key uses `normalize-url` (R-17). The phrase and regex detectors are small, pure and
+table-tested.
+
+**Two dependencies were wrongly described as already present.** `tldts` is in the tree only through `jsdom`, a test
+dependency, and `normalize-url` only through other packages. Both are declared directly in `recipe-core`, at their
+current major.
+
+**Only these detectors block** (review H4). Every blocking kind is a list or pattern match code can test. A model's
+choice of what to quote is neither, so a model item, even one whose quote code finds, only sends a recipe to a person.
+That also makes `detected` known in the save, with no wait and no spend.
 
 **Rejected**: a model-only check. A model's confidence is not calibrated, and a block that rests on it cannot be
 explained or tested. Code-verifiable evidence is what makes `detected` defensible (spec FR-009, FR-010).
@@ -115,15 +150,20 @@ explained or tested. Code-verifiable evidence is what makes `detected` defensibl
 - **Photo output**: a strict JSON object holding at most five signals from the closed set in spec FR-006a, and no free
   text. A style judgement cannot be expressed.
 - **Verification**: each text quote is normalised (Unicode NFKC, whitespace collapsed) and searched for in the same
-  normalised checked text. A quote that is not found is dropped and counted in a metric. A photo signal cannot be
-  verified, so it is stored as unproven and can only send the recipe to a person.
+  normalised checked text. A quote that is not found is dropped and counted in a metric. A quote that is found is kept
+  as a span, and still only sends the recipe to a person. A photo signal cannot be verified, so it is stored as
+  unproven and can only send the recipe to a person.
+- **Keying**: a finished model run is shared under a key of the part, the model, the prompt's SHA-256, the output
+  schema version and, for a photo, the rendition version (review M3). Rule evidence is not shared: it depends on the
+  citation, the label and the live list, and it costs nothing to work out again.
 - **Caps**: explicit `maxTokens` and a hard input cap on every call. Content over the cap is not sent (ADR-0024:
   reject, never truncate). Its outcome is `unchecked` (`tooLong`), unless the rule-based detectors found blocking
   evidence.
 
 **Rationale**: the model widens recall. It can point at a publisher name not yet on the list, a headnote in a
-publisher's voice, or a photographed book page. Every text quote is either proven or discarded, and every photo signal
-goes to a person. Prompt injection can at worst hide evidence. It can never create a block or clear a photo.
+publisher's voice, or a photographed book page. Every text quote is either proven or discarded, and everything the
+model finds goes to a person. Prompt injection can at worst hide evidence. It can never create a block or clear a
+photo.
 
 **Rejected**: showing the model the cook's statement "for context". It is the claim under test. A model that sees it
 agrees with it more often, and that bias looks like accuracy.
@@ -184,7 +224,7 @@ own (spec FR-006).
 | Cost                                            | Handling                                                                                                                                                                    |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Image tokens are not bounded by a text byte cap | The check rendition has a fixed maximum size, so each photo has a token ceiling. Reserve the ceiling (spec FR-023a, workerAndModel.md)                                      |
-| The worker needs the photo bytes                | A read grant on the check renditions in the photo bucket, and nothing else                                                                                                  |
+| The worker needs the photo bytes                | A read grant on the check renditions in the photo bucket, and nothing else, scoped to the source-check function by `lambda:SourceFunctionArn` (R-01)                        |
 | CloudFront serves photos as-is                  | A held recipe's photos are not on any public surface. If a recipe that was public becomes held, its photo paths are invalidated through `cdnInvalidation.ts` (spec FR-018b) |
 | Reviewers must see photos they do not own       | Short-lived signed URLs on the scoped reviewer read                                                                                                                         |
 | Most photos are food photos with no signal      | The closed signal set has no "looks professional". A plain dish photo returns no signal and costs a person nothing                                                          |
@@ -297,13 +337,18 @@ evidence, and counsel cannot approve it in advance. Counsel can approve a templa
 **Decision**:
 
 - **Ceiling denial**: the rule-based detectors have already run. With no blocking evidence, the outcome is
-  `unchecked` (`budgetSpent`), and a published recipe goes to a person (spec FR-020). This reads the Q1 ruling ("If the
+  `unchecked` (`budgetSpent`), and a published recipe goes to a person (spec FR-020). **The denial is not retried**
+  (review M6). A retry would only sit in the queue until the month ends, and the person already has the case. That
+  makes this call site the second path in ADR-0024 §3 that does not retry a denial, after the parse-job line, and §3
+  records it. The period is captured at reserve and stored with the denial, so `budgetSpent` reads as spent only
+  while its period is current. This reads the Q1 ruling ("If the
   AI can't figure out … raise it to a human") onto the spent-budget case. It replaces, for this feature only, the
   general ruling that the cook is asked (ADR-0072 §10 keeps that ruling for matching). The owner confirmed this reading
   on 2026-10-26.
-- **Next period**: at the change of period, every open referral with `unchecked` (`budgetSpent`) is checked again
-  (spec FR-021). A `clear` result closes the referral with no person needed, which drains most of a budget month's
-  queue on its own. The period key is captured at reserve, as ADR-0024 requires.
+- **Next period**: once its period has passed, every `unchecked` (`budgetSpent`) outcome that no person cleared is
+  checked again (spec FR-021). A `clear` result closes the referral with no person needed, which drains most of a
+  budget month's queue on its own. The re-check locks the referral row first and changes the outcome only by a
+  compare-and-set that requires `cleared_at IS NULL`, so it cannot overwrite a reviewer (R-20).
 - **Unreadable counter**: transient, fails closed, retried under the queue's `maxReceiveCount`. When retries are
   spent, the DLQ handler writes `unchecked` (`checkFailed`) so no recipe waits in "checking" forever (spec FR-022). The
   DLQ has an active watcher.
@@ -332,6 +377,12 @@ forecast (R-10) and the duplicate-detection measurement (R-17). Turning blocking
 append-only ledger, allowed only when the evaluation passes (spec FR-019: SC-001, SC-002 and SC-015) and 016's
 statement delivery and queue exist. The forecast is shown with it and gates nothing.
 
+**The switch cannot undo holds** (review H5). The modes are `shadow`, `blocking` and `paused`. The legal moves are
+`shadow` → `blocking`, `blocking` → `paused` and `paused` → `blocking`, enforced by a trigger under a lock, because a
+CHECK cannot see the previous row. Each outcome carries the mode stamped at its first public moment (R-02), so
+`paused` stops new holds and keeps existing ones. The ledger is a `dictionary` table under ADR-0039's table policy:
+the service role holds SELECT and INSERT only.
+
 ## R-15. Who can see a held recipe, and private slots
 
 **Decision**: a held recipe is visible only to its owner. ADR-0073 counts a slot as a recipe with
@@ -340,7 +391,7 @@ same as a public draft.
 
 **Risk recorded**: held and drafted recipes are owner-only and unmetered. A free cook can keep book recipes that way
 without a slot. ADR-0073 accepted this for public drafts when it counted only `visibility = 'private'`. 020 adds no new
-kind of gap, but more recipes now sit held while a person decides. Raised with the owner as a question on ADR-0073.
+kind of gap, but more recipes now sit held while a person decides. It is recorded as the open question in ADR-0073.
 
 ## R-16. The curated public-domain corpus
 
@@ -362,61 +413,168 @@ else's (spec FR-003a). The earlier reading, that the grant counted as a person's
 ## R-17. Same recipe and same source in our own database
 
 Owner, 2026-10-26: "As part of the review we should also check our own database to see if same recipe already exists
-and was approved/passed or if recipes from the same source was approved/passed."
+and was approved/passed or if recipes from the same source was approved/passed." The fourth round of rulings (spec
+Clarifications) settled how a match counts.
+
+**Where it runs** (review M1, owner ruling 3). recipe-service writes the fingerprint and source keys in the content
+transaction, and does no lookup in the request. The worker runs the lookup after it re-derives the digest and before
+it claims or reserves anything. So a lookup costs no AI budget, runs in a budget month, adds no latency to a save, and
+leaves nothing a cook can time.
 
 **Same recipe, library-first.**
 
 - **Exact copies**: SHA-256 over the normalised match text (ingredient lines and steps, NFKC, lower-cased, numbers and
-  whitespace collapsed). An index lookup.
-- **Near copies**: Postgres **`pg_trgm`** finds candidates. It is maintained, ships with RDS, and is already installed
-  in the recipe database (`0001_initial.sql`), so it adds no dependency. A GIN `gin_trgm_ops` index on the match text
-  serves the `%` operator.
+  whitespace collapsed), versioned `v1:`. An index lookup.
+- **Near copies, this release**: Postgres **`pg_trgm`** finds candidates. It is maintained, ships with RDS, and is
+  already installed in the recipe database (`0001_initial.sql`), so it adds no dependency. A GIN `gin_trgm_ops` index on
+  the match text serves the `%` operator. The lookup's transaction opens with `SET LOCAL pg_trgm.similarity_threshold`,
+  so it never depends on a session default.
 - **Confirmation**: trigram similarity over a whole recipe is pulled up by shared cooking words ("preheat the oven",
   "salt and pepper"), so a trigram score alone over-matches different recipes for the same dish. Each candidate is
-  confirmed with Jaccard similarity over word 5-shingles of the two match texts, a set comparison of a few lines in
-  code.
-- **MinHash/SimHash considered and not chosen now**: they pay off when comparing against millions of documents
-  without an index. Here the database already has the index, and the candidate set is small. If the corpus outgrows
-  the GIN index, a maintained MinHash library is the next step, and this section reopens.
-- **Thresholds are measured, not guessed**: the trigram candidate threshold and the shingle-Jaccard threshold are set
-  in shadow mode on a labeled set of recipe pairs: exact copies, lightly edited copies (reordered steps, changed
-  amounts, fixed typos), and different recipes for the same dish. They are chosen to meet SC-015 (at least 95%
-  precision, at least 90% recall). No starting number is written here, on purpose.
+  confirmed with Jaccard similarity over word 5-shingles of the two match texts.
+- **At scale, MinHash with LSH bands.** A GIN trigram index over long documents returns more candidates as the corpus
+  grows, because common trigrams match nearly everything. MinHash signatures with an LSH band table bound the
+  candidate set by design. So the plan requires a LOCAL e2e benchmark of the lookup at the projected corpus size before
+  blocking is switched on, and flips the candidate source to a `recipe_match_bands` table if it fails its budget.
+  Shingle Jaccard still confirms. Both are derived indexes rebuilt from `match_text`, so the flip changes no stored
+  user data.
+- **Why not MinHash now.** A search on 2026-10-26 found no JavaScript MinHash library whose maintenance could be
+  confirmed (the `minhash` package is at 0.0.9, and others showed no recent releases). The library-first rule forbids
+  hand-rolling it without that check, and `pg_trgm` is maintained and already installed. The library is chosen at the
+  flip, after a fresh check.
+- **Thresholds are measured, not guessed**: both thresholds are set in shadow mode on a labeled set of recipe pairs:
+  exact copies, lightly edited copies (reordered steps, changed amounts, fixed typos), and different recipes for the
+  same dish. They are chosen to meet SC-015. No starting number is written here, on purpose.
+- **The projected corpus size** is recorded in the plan at BLUEPRINT. Until then the benchmark runs at one million
+  fingerprint rows, a planning figure chosen to sit well past launch, not a forecast.
 
 **Same source.** A recipe's source keys are normalised once, on write:
 
-| Key    | From                                                 | Normalisation                                                               |
-| ------ | ---------------------------------------------------- | --------------------------------------------------------------------------- |
-| `page` | the cited link                                       | WHATWG `URL`; lower-case host; drop `www.`, query, fragment, trailing slash |
-| `host` | the cited link                                       | registrable domain via `tldts`                                              |
-| `isbn` | the citation, or an ISBN the rules found in the text | ISBN-13 via `isbn3`                                                         |
+| Key    | From                                                 | Normalisation                                                                                               |
+| ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `page` | the cited link                                       | `normalize-url`, options pinned in one place: lower-case host, drop `www.`, query, fragment, trailing slash |
+| `host` | the cited link                                       | registrable domain via `tldts`                                                                              |
+| `isbn` | the citation, or an ISBN the rules found in the text | ISBN-13 via `isbn3`                                                                                         |
 
-**How a match counts.** Spec FR-047's table, decided by one pure function (`matchEffectOf`). Only a person's decision
-on the matched recipe or source counts, so automated results never pass each other along. A match can turn a part
-green, never a proven `detected`. A not-green match wins over a green one.
+**Which candidates count** (review H3, M7):
 
-**Defaults chosen here, for the owner to confirm** (plan, open questions):
+- The recipe itself, and its whole clone tree, are left out: ancestors through the `cloned_from_id` chain to the root,
+  and every recipe with the same root. Two clones of one public recipe are near each other because of the recipe they
+  share, not because one copied the other. The walk is a recursive CTE with a depth cap and a `CYCLE` clause.
+- A candidate can send a recipe to a person only if it was first published before it (`first_published_at`, which the
+  `recipes_first_published_at_ratchet` trigger sets once). A recipe never published is never such a candidate.
+- Every private recipe is searched (owner ruling 3). A never-published private draft can therefore have no effect.
+
+**How a match counts.** Spec FR-047 is an ordered decision table: the first row that applies decides. It replaces the
+earlier table, whose rows overlapped (review H1): "near copy of an approved recipe from the same source" and "near copy
+of another cook's public recipe" were both true of the same case, with opposite effects. Owner ruling 1 settles it: a
+shared cited page or ISBN key, on a candidate that is not `user_created`, makes it an approved match. Per part, effects
+combine in one order, `notGreen` over `green` over `none`.
+
+**What a match may green** (review H2, owner ruling 2):
+
+- **The same-items rule.** The copy may carry no evidence item the approved version lacked. Two items are the same
+  when they share a kind and a normalised marker. Free-text kinds (a copyright holder, a model quote) are compared by a
+  digest of the normalised text, kept on the recipe's own judged items and erased with it. Without the digest, a copy
+  with a different copyright holder would have matched on kind alone.
+- **No passing along.** The approval must be a person's own latest decision on the matched content digest. A recipe
+  that is allowed only because a match greened it gives nothing to a third recipe.
+
+**Private recipes** (owner ruling 3): see R-19.
+
+**Defaults that still stand from the third round**:
 
 - Clearing or holding one recipe never approves or blocks its whole source. A source decision is a separate, explicit
   staff act (spec FR-050). Otherwise one reviewer's clearance of a single blog post would approve the whole blog.
-- A near-duplicate of the cook's **own** recipe that a person approved counts as approved. A cook copying their own
-  recipe is not an internal copy.
-- An exact photo match on a person-approved recipe of the same cook or source makes that photo green.
-- A clone's match to the recipe it was cloned from is ignored, neither a pass nor a flag.
-
-**Private recipes.** They are searched as candidates, because a recipe a person held and its cook then made private
-still carries that decision. A private recipe's content is never shown to anyone but staff, and staff see only its
-decision, never its content (spec FR-049, FR-051). The cook whose recipe matched learns only that a person will check
-where it came from.
+- Retiring or reversing a source decision changes no outcome already produced and undoes no person's past decision. It
+  changes only what later checks find. We agree with the review's recommendation, so this is decided, not open.
+- A near copy of the cook's **own** recipe that a person approved counts as approved, under the same-items rule.
+- A near copy of a recipe the check held (`detected`) and no person overturned goes to a person. That closes the
+  "strip the ISBN and publish again" route.
+- The label of a private candidate is never used as evidence (spec FR-055). A near copy of another cook's private book
+  recipe goes to a person like any private match. It never becomes `detected` and never names a book, because that
+  would let one cook's private library shape another cook's outcome beyond sending it to a person.
 
 **Is the stored data personal data?** The match text is a normalised copy of the cook's recipe text, which can hold a
 family name or a story. ADR-0027 kept an ingredient phrase after erasure because a phrase alone says nothing about a
 person. That reasoning does not reach a whole recipe. So the match text, its fingerprint and the source keys are the
-cook's data: deleted with the recipe and with account erasure. A person's decision record keeps only the exact
-fingerprint (a hash, no text) for its retention period, as part of the evidence of that decision (`016-FR-052a`).
+cook's data: removed at a tombstone, a hard purge and account erasure. A **hold** decision keeps only the exact
+fingerprint (a versioned hash, no text) for its retention period, so it can still send an exact copy of a held recipe
+to a person. A clearance keeps no hash, so a kept hash can never green anything (review M4).
 
-**Where it runs.** In recipe-service at write time, with the rule-based detectors (spec FR-053). It needs no model and
-no AI budget, so a match against a blocked recipe holds a recipe even in a budget month.
+## R-18. Donation at account erasure (owner ruling 4)
 
-**Cost.** The GIN trigram index grows with the corpus and slows writes a little. The match text is capped in length.
-k6 measures the write and lookup latency before blocking is switched on (quickstart).
+**The defect** (review H6). Erasure's `ownerOnly` predicate (`accountErasureWorker.ts`) keeps every recipe that is
+`public AND published`. A held recipe is exactly that, so erasure kept it as truly public, and the donation flip made
+any elected recipe public with no check.
+
+**Decision**:
+
+- The erasure worker uses the hold Specification's SQL text (R-02). "Truly public" becomes `public AND published AND
+allowed`.
+- At election, each elected recipe that is not already allowed is checked, like any recipe headed public. All green:
+  donatable. Not green: a `donation` referral.
+- If any donation referral exists, the erasure job waits for its recipe phase until every one is decided or the
+  **donation deadline** passes. The account is closed meanwhile. Then the existing transaction runs. A recipe the hold
+  Specification does not allow is deleted with no extra logic: a held public recipe, an elected recipe a person held,
+  and one still undecided.
+- The cook is told all this at election, before they confirm. The election screen is in the account closure plan
+  (U3b), and spec FR-044a lists its amendment.
+
+**The deadline.** GDPR Art. 12(3) gives one month from the request. The deadline must leave the whole erasure inside
+it, so the identity half and the Clerk deletion still complete in time. Neither the closure plan nor 016 sets a number
+for this, so the plan sets it with counsel (spec FR-041). We do not invent one here.
+
+**Rejected**:
+
+- **Erase at once and keep the pending recipes, pseudonymised, until a person decides.** It removes the wait, but it
+  needs a second recipe phase, a second scoped object sweep and a second removed-set capture, and it keeps the cook's
+  content after their account is gone. Kept as the fallback if counsel calls the wait undue delay.
+- **Wait for staff without a deadline.** The owner ruled that erasure does not wait forever.
+- **Never donate a private recipe.** The owner ruled that one that passes may be donated.
+
+**A statement for an erased cook.** A person's hold during the wait can be emailed while the account still exists.
+After the identity record is scrubbed there is nobody to deliver to, so the decision row records
+`statement_undeliverable`. Counsel confirms that this is enough (spec FR-041).
+
+## R-19. Another cook's private recipe is never disclosed (owner ruling 3)
+
+**Decision**: private recipes are candidates, and nothing a cook sees depends on whether a match was private.
+
+- **One note, not a part reason.** Every effect of a match or a source decision reaches the cook as one outcome-level
+  note, "A person will check where this came from". It is never attached to a part, so a recipe match and a source
+  decision look the same. There is no `greenBy` field.
+- **The same steps every time.** The lookup runs in the worker. The worker never skips or shortens a model call
+  because of a match, and writes the outcome only once every part is read. So the time to an outcome does not depend
+  on a match.
+- **A closed ground and a generic fact.** A reviewer chooses the cook-facing ground from a closed set, and a match is
+  always stated as the one generic fact. The reviewer's own words are an internal note. So a reviewer cannot disclose
+  the match by typing it. Counsel is asked whether the generic fact satisfies DSA Art. 17(3)(b) (spec FR-041).
+- **A private recipe with no person decision only routes.** It can send the new recipe to a person and never makes
+  anything green (FR-047 row 4).
+- **Staff see the match and its earlier decision**, never a private recipe's content.
+
+**What is left, and why it is accepted.** A cook can still learn two coarse facts: that something sent an otherwise
+green recipe to a person, or that a recipe with an item was allowed. They cannot tell whether the cause was a public
+recipe, a private recipe or a source decision. Closing even that would need cover traffic, such as sending a random
+sample of all-green recipes to a person, which costs staff time the owner has not asked to spend. It is recorded in
+ADR-0074 as a residual risk and an option.
+
+## R-20. Races and shared parts
+
+**A reviewer and a re-check on one outcome** (review H7). A reviewer could clear an `unchecked` outcome while the
+next-period re-check replaced it with a fresh `possible`, and the stale clearance would then allow content no person
+saw. So:
+
+- A clearance stores the outcome and the evidence reference it cleared, and allows only while both still hold.
+- The re-check runs only on an outcome no person cleared (`cleared_at IS NULL`).
+- Both writers lock the referral row, then the outcome row, and change the outcome only by a compare-and-set.
+- A referral is created only once an outcome is decided.
+
+**Two recipes that share a photo** (review M2). With one claim per part, the second recipe's worker found the photo
+claimed and stopped, and nothing ever finished its outcome. So:
+
+- A claim has a lease, so a dead worker's claim can be taken over.
+- Each outcome lists the parts it waits on. When a part's evidence lands, the same transaction works out every
+  outcome that was waiting on it. That is the fan-in.
+- The sweeper re-drives anything the fan-in missed, inside the 24-hour limit.

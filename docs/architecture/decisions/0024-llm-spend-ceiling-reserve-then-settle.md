@@ -284,6 +284,14 @@ path's verification of a saved recipe still retries a denial. An unreadable coun
 closed, on every path. And the counter, the reservation and the one pool are untouched. This changes the effect of a
 denial, not the moment of one.
 
+⛔ **A second path does not retry a ceiling denial: the content source check** (owner ruling, 2026-10-26; ADR-0074
+§10, spec 020 FR-020). Its worker records the denial on that part, with the period captured at reserve, and
+acknowledges the message. The recipe's outcome is `unchecked` (`budgetSpent`), and a staff reviewer decides, because
+the owner ruled that a case the AI could not read goes to a person. A retry would only hold the message until the month
+ends, while the person already has the case. The part reads as spent only while its period is current. Once the period
+has ended, the next-period re-check reads it again. The same three things do not change: an unreadable counter is
+still transient and fails closed, and the counter, the reservation and the one pool are untouched.
+
 ⛔ **Layer 0's `maxReceiveCount` is DERIVED from the nightly stop, not a flat number.** A consumer whose
 database is stopped fails every delivery and each failure spends a receive, so a queue whose redrive count
 is shorter than ADR-0007's nine-hour non-prod shutdown dead-letters perfectly healthy messages because the
@@ -457,6 +465,15 @@ of that model in us-west-2 — reach nothing in the registry asked for. The stat
 profile cannot borrow another's regions. No wildcard is emitted: the registry is compile-time, so every
 profile ARN is enumerable.
 
+⚠️ **The shared role carries one non-Bedrock grant that only one function can use** (ADR-0074 §10). The content
+source check reads each photo's check rendition from the media bucket. A grant on `verificationRole` would reach every
+function on that role, so the statement carries `ArnEquals: { 'lambda:SourceFunctionArn': <the source-check
+function> }`, is read-only on the check-rendition prefix, and sits in its own `iam.Policy` with the ARN built from the
+function's fixed name, which keeps the role's default policy free of a dependency on the function. Lambda adds that key
+to every AWS call function code makes. An infra guard asserts the condition and refuses any other statement on the role
+that reads the bucket. Layer 4b's invariant is over Bedrock grantees and actions, and this changes neither: one role,
+`bedrock:InvokeModel` only. It records that on a shared role, a capability is scoped by function, not by role.
+
 ⚠️ **Two statements on one role is not a layer-4b breach.** That control's invariant is over GRANTEES and
 ACTIONS, never statement count — `llmSpendGuards.test.ts` records that an earlier `grants.length === 1`
 assertion was three defects in one line and was "what blocked adopting AWS's documented least-privilege shape
@@ -501,14 +518,17 @@ single grantee admits. Before this, §4c budgeted for three consumers while the 
 `bedrock:InvokeModel` to one role; **the budget and the grant now agree.** The deletion closed that
 inconsistency rather than creating one.
 
-⚠️ **The pool now has FOUR call sites**, not one: `verification-gate`, `ingredient-parse`,
-`foodness-validator` and `measurement-validator` (`SPEND_CALL_SITES`, `spendArithmetic.ts`). Layer 4b is
-unbroken — all four run under the one `verificationRole`, so the single-grantee rule and the one-pool ruling
-still agree, and `CallSite` is what tells them apart when the pool empties.
+⚠️ **The pool's call sites are the members of `SPEND_CALL_SITES` (`spendArithmetic.ts`), and that array is the one
+authority for the list.** This section does not restate their number, because a count copied here rotted once already.
+They include `verification-gate`, `ingredient-parse`, `foodness-validator`, `measurement-validator` and
+`paste-match-review` (ADR-0071), and ADR-0074 adds `source-check`. Layer 4b is unbroken: every one runs under the one
+`verificationRole`, so the single-grantee rule and the one-pool ruling still agree, and `CallSite` is what tells them
+apart when the pool empties. A new call site is a new member of that array, under that role, with its own Lambda and
+its own reserved concurrency.
 
 ⚠️ **ONLY THE ENUMERATION IS DEPRECATED — the ruling it sits under is untouched and still binds.** The
 $100/month remains ONE pool, first come first served, and it is still NOT sub-divided per consumer (item 10
-of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged, and it now reads **one of four values** rather than one —
+of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged, and it now reads **one of the `SPEND_CALL_SITES` values** rather than one —
 the second-consumer moment this mechanism was built for has arrived. Nothing about
 reserve-then-settle, the ceiling figure, the prod-only ruling or layer 4b moves.
 
@@ -521,7 +541,7 @@ and the parse inherits the verifier's concurrency), or it adds a second grantee 
 
 ⛔ **Not capping per consumer makes attribution MORE important, not less.** When the pool empties, the first
 question is "who burned it", and a dimensionless `VerificationSpendMicros` cannot answer it. So the spend
-metric carries a `CallSite` **EMF dimension** (one of four values — see the amendment below), and nothing
+metric carries a `CallSite` **EMF dimension** (one of the `SPEND_CALL_SITES` values), and nothing
 else changes: the
 counter row stays keyed on the period alone, and no call site reaches `planReservation`, the headroom, or
 either SQL statement. Attribution, not partitioning — asserted directly, by pinning the full field set of the
@@ -726,10 +746,10 @@ never to establish a fact.
   which reproduces the $0.27/month figure exactly.
 - Nova Micro's prompt-cache minimum token threshold.
 
-## Amendment — four call sites, one attribution falsehood corrected, still ONE pool
+## Amendment — the parse-loop call sites, one attribution falsehood corrected, still ONE pool
 
-The pool's consumer roster is now FOUR call sites on the one $100 ceiling — attribution, never
-partitioning, exactly as §4c's deprecation note demanded:
+This amendment added the parse loop's call sites to the one $100 ceiling, by attribution, never by partitioning,
+exactly as §4c's deprecation note demanded. The full roster is `SPEND_CALL_SITES`, which §4c names as the authority:
 
 - `verification-gate` — the original consumer, unchanged.
 - `ingredient-parse` — the revived parse leg (plan U8), inside the verification gate's role per §4b's

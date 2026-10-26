@@ -164,6 +164,12 @@ written". A confident match binds in every mode. A skipped item keeps its open l
   open line on it, or the cook closed the wizard with Save and leave. Save and leave binds defaults only on items the
   cook never went through.
 
+**An item headed public also waits for the source check's rule-based detectors, and for nothing else of it** (owner
+rulings, 2026-10-26; spec 020 FR-024, ADR-0074 §2). They run inside `advance`. A `detected` item is not saved. It waits
+for the cook to keep it private (with a free slot), skip it, or stop the import. Every other item is saved as a draft,
+and its AI check and the lookup in our own database run after the save, keyed by the saved recipe. Readiness never
+waits for the model or the lookup, because neither can block, and the lookup never runs in a request.
+
 The builder made three choices where the blueprint was silent. They are recorded so nobody re-decides them by accident:
 
 - **The wait for a `checking` line is a parameter.** `isReadyToSave` takes `checkingWaitMs`. The blueprint named `CHECKING_WAIT`

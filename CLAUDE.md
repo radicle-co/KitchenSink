@@ -393,6 +393,7 @@ Some choices look like bugs to "fix" but are intentional. Before reverting one, 
 - **Paste matches are PROPOSALS: matched in recipe-service as the cook, reviewed once, bound only by the cook (ADR-0071).** The paste matcher binds nothing; it stores a proposal with candidates and no food names. The review gate asks identity for every paste proposal, and the state is derived at read time by `matchStateOf` over the one classifier `identityReadingOf`. ⛔ A late verdict never replaces a pick the cook made — that rule lives in the client. Do not move matching into the parse worker (it holds no caller credential) and do not read provenance from a shared binding row. Read **`docs/architecture/decisions/0071-paste-matches-are-proposals.md`**.
 - **Bulk import lives at `/api/v1/import`, and the CLIENT drives it — nothing matches or binds in the background (ADR-0072).** Each `advance` call does a bounded step as the cook, because food search runs as the caller or not at all (ADR-0071 §1). Each recipe is saved once as a draft. Its match lines are snapshotted, because a parse job lives one day. `ingredients.bound_by` records who bound each line, carried forward by food identity. "Flagged" is derived from `identityReadingOf` and never stored. Bulk import has its OWN allowance, 1,000 recipes a rolling day, separate from paste's 200, in the `import_allowance_events` ledger. ⛔ Each recipe carries its own statement: "I wrote this", or "From a source" with a citation. The statement sets the label, `imported_public` included. That is the one exception to ADR-0023's curator grant, for this route only. Read **`docs/architecture/decisions/0072-bulk-recipe-import.md`**.
 - **A free cook holds up to 50 private recipes, counted LIVE, under a per-user lock; Premium has no limit (ADR-0073, owner ruling 2026-10-26).** Every recipe a free cook holds as private uses a slot, from any route, book and paid-site recipes (`imported_physical`, `imported_paid`) included. A slot is a private, undeleted recipe, counted with `COUNT(*)` and never a stored counter. The check runs only on a move to private, under a per-user advisory lock in the same transaction as the write. ⛔ Do not add a counter column, a CHECK or a counting trigger, and do not compute the slot fact outside the transaction. On a downgrade every private recipe stays private, and new private recipes are refused until the cook is under the limit. A book or paid-site recipe never goes public, so a free cook out of slots cannot keep a new one, and bulk import pauses. `imported_public` still goes private only with Premium and a substantive edit. 015's earned slots add to the 50 later. Read **`docs/architecture/decisions/0073-free-tier-private-slots.md`**.
+- **A recipe goes public only when every part of it is green or a staff reviewer clears it, and the hold lives in the READ rule (ADR-0074, owner rulings 2026-10-26).** The hold is ONE exported Specification in `recipe-core` (`holdSpecification.ts`): a TypeScript form for `isRecipeViewableBy` and SQL text (`SOURCE_CHECK_ALLOWS_SQL`) that the three SQL twins AND account erasure use. ⛔ Do not hand-write a fifth copy: erasure's own predicate treats every public, published recipe as truly public, which is how the first design would have donated a held recipe. Only the RULE-BASED detectors block, so `detected` is decided in the save; a model item, even one whose quote code finds, only sends a recipe to a person. The enforcement mode is STAMPED on each outcome, never read per query, and the switch never returns to `shadow` (`paused` is the rollback). A match counts only through a person's own latest decision on the matched content, under an ordered table, the same-items rule and no passing along. Another cook's private recipe is never disclosed: the lookup runs in the worker, the worker runs the same steps whatever it finds, and the cook sees one generic note. Read **`docs/architecture/decisions/0074-content-source-check.md`**.
 
 ## ⛔⛔ TEST-FIRST IS LAW — TDD from the SPEC and the PLAN, before any code exists
 
@@ -486,23 +487,26 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 Before a recipe becomes publicly visible, an automated check reads its text, its uploaded photos and its cited source,
 and looks in our own database for the same recipe or source. A recipe skips review ONLY when every part is green;
-anything else waits for a staff reviewer (owner rulings, 2026-10-26). It is not a legal shield. Four rules that are
-easy to get wrong:
+anything else waits for a staff reviewer (owner rulings, 2026-10-26). It is not a legal shield. The decision is
+ADR-0074. Five rules that are easy to get wrong:
 
-- **The hold is part of the READ rule, never a write-side refusal and never a new label.** It joins
-  `isRecipeViewableBy` (as a required field) and its SQL twins. A save or publish never fails because of it, erasure
-  donation cannot go around it, and relabelling to `imported_paid` would make a false positive permanent.
-- **`clear` is the conjunction of green parts: the text, EACH photo, and the source reference.** Only evidence code
-  proves in the text blocks on its own. Code cannot prove what a model reads in an image, so a photo signal never
-  blocks and never clears. A part the AI did not read, or a quote it could not show, is not green. Neither the cook,
-  a timer, nor a curator's grant lifts a hold; only a staff reviewer does. The model never sees the cook's statement.
-- **A match in our own database counts only through a PERSON's earlier decision.** A near-duplicate of a recipe staff
-  approved, from the same source, can make the text green; an earlier automated `clear` counts for nothing, so results
-  never launder each other. A copy of another cook's public recipe outside the clone flow goes to staff. Private
-  recipes are candidates, but nobody except staff sees anything about them, and staff see only the decision.
-- **It is the sixth `SPEND_CALL_SITES` entry under the ONE verification role**, with its own Lambda, queue and DLQ, and
-  one call per part, reserved at its ceiling. Reviewers are employees, never users. There is no review time target
-  yet; the shadow-mode load forecast is information and gates nothing.
+- **The hold is part of the READ rule, written once.** One exported Specification, used by `isRecipeViewableBy`, its
+  SQL twins and account erasure. A save or publish never fails because of it, and relabelling to `imported_paid` would
+  make a false positive permanent. At erasure, an elected private recipe is donated only if it passes; one a person
+  has not cleared by the donation deadline is deleted.
+- **Only the rule-based detectors block**, in the save's own transaction. The model, and every photo signal, only sends
+  a recipe to a person. A part the AI did not read, or a quote it could not show, is not green. Neither the cook, a
+  timer, nor a curator's grant lifts a hold. The model never sees the cook's statement.
+- **A match counts only through a PERSON's own latest decision on the matched content**, by an ordered decision table.
+  A copy greens only if it adds no new evidence, and a green is never passed along. A copy of another cook's recipe
+  with no shared cited page or ISBN goes to staff. Private recipes are candidates, but no cook ever learns anything
+  about another cook's private recipe: one generic note, the same timing, and staff see only the decision.
+- **The switch never returns to `shadow`.** The mode is stamped on each outcome, so `paused` keeps old holds and stops
+  new ones. A reviewer's clearance names the outcome and evidence it cleared, so a re-check cannot race it.
+- **It is a new `SPEND_CALL_SITES` entry under the ONE verification role**, with its own Lambda, queue and DLQ. Its
+  ceiling denial is not retried, and its photo read is scoped to its own function by `lambda:SourceFunctionArn`.
+  Reviewers are employees, never users. There is no review time target yet; the shadow-mode load forecast is
+  information and gates nothing.
 
 ---
 

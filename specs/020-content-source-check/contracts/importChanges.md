@@ -8,10 +8,10 @@ Each item in `GET /api/v1/import/{importId}` gains:
 
 ```text
 sourceFlag: 'notNeeded'   // the item is headed private, or its label is private-only
-          | 'checking'
+          | 'checking'    // saved as a draft; the AI check runs after the save
           | 'clear'
-          | 'forAPerson'  // possible or unchecked: saved as a draft; a person decides when the cook publishes it
-          | 'detected'    // cannot be public; choices below
+          | 'forAPerson'  // possible or unchecked: a draft; a person decides when the cook publishes it
+          | 'detected'    // the rules blocked it before the save; cannot be public; choices below
 sourceChoices: Array<'keepPrivate' | 'skip'>   // empty unless the item is detected
 ```
 
@@ -24,11 +24,18 @@ sourceChoices: Array<'keepPrivate' | 'skip'>   // empty unless the item is detec
 
 ## Readiness (amends ADR-0072 §7)
 
-An item whose chosen visibility is public is **not ready to save** until its source flag is known.
+An item whose chosen visibility is public is **not ready to save** until the rule-based detectors have run on it.
+That is all it waits for (spec FR-024, review H8). The rules run inside `advance`, so in practice an item is never
+held back by the check, only by its own lines.
 
-- `clear`: saved as ADR-0072 saves it.
-- `forAPerson`: saved as a draft with its outcome. No referral is created until the cook publishes it (spec FR-016b).
+- Not `detected`: saved as a draft, as ADR-0072 saves it. Its flag reads `checking` until the AI check lands, then
+  `clear` or `forAPerson`. No referral is created until the cook publishes it (spec FR-016b).
 - `detected`: never saved as public. It waits for the cook's choice.
+
+⚠️ **The lookup in our own database is not part of readiness.** A match can never make an item `detected` (spec FR-010,
+FR-047), so it cannot change whether an item may be saved. It runs in the worker with the model, after the save, keyed
+by the saved recipe's id (spec FR-053). This is also what owner ruling 3 needs: the lookup never runs in a request.
+The review's H8 wording ("rules plus the lookup") predates that ruling, and the ruling wins.
 
 ## Recording the cook's choice
 
@@ -45,10 +52,11 @@ An item whose chosen visibility is public is **not ready to save** until its sou
 
 The cook stops an import by not calling `advance` (ADR-0072 §2): items already saved stay saved. No new route.
 
-## The check is requested by `advance`
+## The check is requested after the save
 
-`advance` computes the digest of each item headed public and requests a check for it, through the same worker
-message as the editor path ([workerAndModel.md](workerAndModel.md)). The rule-based detectors run inside `advance`
-itself, so a rule-only `detected` is known before the model answers. A bulk-imported recipe carries no uploaded photos
-at import time (the client sends recipes, ADR-0072 §1), so its first check is text only. Photos the cook adds later
-change the digest and start a new check.
+`advance` runs the rule-based detectors on each item headed public. A `detected` item is not saved and waits for the
+cook. Every other item is saved as a draft, and in the same transaction recipe-service writes its check row, its
+match fingerprint and source keys, and sends the worker message keyed by the **saved recipe's id**, as the editor path
+does ([workerAndModel.md](workerAndModel.md)). A bulk-imported recipe carries no uploaded photos at import time (the
+client sends recipes, ADR-0072 §1), so its first check is text only. Photos the cook adds later change the digest and
+start a new check.

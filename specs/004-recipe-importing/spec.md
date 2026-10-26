@@ -366,10 +366,13 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > site or another published source, the recipe does not go public. A recipe skips review only when its text, each
     > photo and its source reference all pass green. Anything else waits for a staff reviewer before it goes public
     > (owner rulings, 2026-10-26). Feature 020 amends the heuristic sentence above: blocking evidence that
-    > code proves in the text can prevent publication, by a publication hold. The hold does not change the label, never
+    > the rule-based detectors find in the text can prevent publication, by a publication hold. Only those detectors
+    > block. What an AI model finds only sends the recipe to a person. The hold does not change the label, never
     > blocks a save, and a person can lift it. A heuristic still never reclassifies a recipe. The attestation and
-    > citation stay the controlling record. See [020 spec](../020-content-source-check/spec.md) FR-014, FR-016 and
-    > FR-040.
+    > citation stay the controlling record. In a bulk import, an item headed public waits only for the rule-based
+    > detectors, and the rest of the check runs after its draft is saved. See
+    > [020 spec](../020-content-source-check/spec.md) FR-010, FR-014, FR-016, FR-024 and FR-040, and
+    > [ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md).
 
 **Failure handling and lifecycle**
 

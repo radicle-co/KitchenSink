@@ -407,6 +407,12 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   counter. A downgraded cook keeps every private recipe but cannot add one until under the limit. A book or paid-site
   recipe never goes public, so a free cook out of slots cannot keep a new one, and bulk import pauses. 015's earned
   slots add to the 50 later.
+- **ADR-0074 — a recipe goes public only when every part is green or a staff reviewer clears it.** The hold lives in
+  the READ rule as one exported Specification (`holdSpecification.ts`), used by `isRecipeViewableBy`, its SQL twins and
+  account erasure; never hand-write another copy. Only the rule-based detectors block, so `detected` is decided in the
+  save; a model item or photo signal only sends a recipe to a person. The enforcement mode is stamped per outcome and
+  never returns to `shadow`. A match counts only through a person's own latest decision, by an ordered table, the
+  same-items rule and no passing along. Another cook's private recipe is never disclosed to a cook.
 - **ADR-0032 — an END-TO-END TEST TARGETS A DEPLOYED ENVIRONMENT, and SKIPS when the PR's sandbox is not
   running (owner ruling 2026-09-05, superseding the 2026-09-04 two-tier answer).** Verbatim: _"all end to end
   tests (playwright, e2e, maestro, etc) - which should be hitting remote services - should be skipped if the

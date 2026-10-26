@@ -215,6 +215,15 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
 - **The count runs inside the write transaction.** It reads one cook's rows through an existing index. If a cook ever
   holds very many recipes this is the read to watch.
 
+## Open question for the owner
+
+- **A held recipe uses no slot.** A slot counts `visibility = 'private'` only. A recipe the content source check holds
+  (ADR-0074) is a public recipe that is hidden, like a public draft, so it is owner-only and uses no slot. A free cook
+  out of slots can therefore keep a book recipe held, or as a public draft, without a slot. The gap exists for public
+  drafts already, and spec 020 adds no new kind of it, but more recipes now sit held while a person decides. Whether a
+  held recipe, or a public draft, should count against the 50 is the owner's call. Counting either changes what a
+  cook already holds, which the One-way doors section above names.
+
 ## Code owed (builder work, not this ADR's)
 
 1. **The policy.** `visibilityPolicy.ts` gains the required `hasAvailablePrivateSlot` and the matrix in §6, with its

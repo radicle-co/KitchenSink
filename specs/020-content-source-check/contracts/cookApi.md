@@ -20,7 +20,8 @@ sourceCheck: null                         // no check owed: private, or a privat
                reason: 'budgetSpent' | 'tooLong' | 'checkFailed' | null          // set iff outcome is 'unchecked'
                publiclyVisible: boolean   // the read rule's answer for this recipe now
                clearedBy: 'reviewer' | null
-               parts: {                   // spec FR-013a: the recipe skips review only when every part is green
+               note: 'needsSourceCheck' | null   // "A person will check where this came from" (spec FR-051)
+               parts: {                   // spec FR-013a, over the cook's OWN content only (spec FR-016c)
                  text:   PartResult
                  photos: Array<PartResult & { photoId: string }>
                  source: PartResult       // the cook's source reference; green when none was given
@@ -40,6 +41,7 @@ sourceCheck: null                         // no check owed: private, or a privat
                referral: null | {
                  origin: 'check' | 'appeal'
                  state: 'open' | 'cleared' | 'held' | 'withdrawn' | 'superseded' | 'resolvedByCheck'
+                                          // a deferred referral (spec FR-030b) reads 'open': the cook sees no cap
                  createdAt: string        // ISO 8601. No decision time is promised (spec FR-030)
                  decidedAt: string | null
                }
@@ -56,20 +58,30 @@ PartResult: {
     | 'photoSignal'
     | 'notRead' | 'overCap' | 'budgetSpent' | 'checkFailed'      // the part was not read
     | 'citationInvalid' | 'citationHostListed' | 'rightsCheckNotPublic'
-    | 'needsSourceCheck'                                         // a match in our database needs a person (FR-047)
   >
-  greenBy: 'check' | 'personEarlier' | null   // personEarlier: a person approved the same recipe or source
 }
 ```
 
-- `needsSourceCheck` is the only reason a match ever produces on this API. It never says which recipe matched, or whose
-  (spec FR-054, SC-017).
+- **Non-disclosure (owner ruling 3, spec FR-051).** Every effect of a match or a source decision reaches the cook only
+  as `note: 'needsSourceCheck'`, never as a part reason. The note is the same for a public match, a private match and a
+  source decision. It never says which recipe matched, whose, or whether a recipe matched at all (spec FR-054).
+- There is **no field that says why a part is green**. `PartResult` carries no `greenBy`, and a match never changes a
+  part, so the response never says that an earlier approval made anything green.
+- `parts` reflect the cook's own content: what the rules and the model found in their text, photos and citation. A
+  match changes the outcome and the note, never a part.
+- A contract test runs the same case against a public and a private earlier recipe and asserts byte-equal responses,
+  apart from ids and times (SC-017).
+- **Timing.** At save the response is `checking`, or `decided` with `detected` when a rule blocked (rules read only the
+  cook's own content). The lookup runs later, in the worker, and the worker always runs every step before it writes
+  the outcome. So nothing the cook can time depends on a match.
 - The evidence is a discriminated union on `field`. A photo item has no span and `weight` is the literal
-  `'forAPerson'`, so a client cannot render a photo signal as a block.
+  `'forAPerson'`, so a client cannot render a photo signal as a block. A text item the model found also has `weight`
+  `'forAPerson'`. Only a rule item can be `'blocking'` (spec FR-010).
 - The response carries no marker text the owner does not need, and never the shared `shadow` referral state.
 - Every enum is closed. A new value is a contract change and a new localisation key, so the sets are one-way doors.
 - `publiclyVisible` lets the client say "Public", "Checking before it goes public" or "A person will check this"
-  without re-deriving the rule.
+  without re-deriving the rule. It is the hold Specification's answer (spec FR-018), so it already includes the
+  outcome's enforcement stamp.
 
 ## 2. Appeal a hold
 
@@ -103,7 +115,8 @@ request:  {
 ```
 
 - The label and the visibility change in one transaction, under ADR-0073's per-user lock. The new label is
-  private-only, so no check is owed, and an open referral closes as `withdrawn`.
+  private-only, so no check is owed, and an open referral closes as `withdrawn`. The source statement is part of the
+  content digest (spec FR-005a), so the digest changes in the same transaction.
 - The new statement and citation are recorded as the recipe's attestation (`004-FR-014a`).
 - This route needs ADR-0023 amended first (spec FR-044). Nothing else can change a label after a save.
 

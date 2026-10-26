@@ -132,6 +132,26 @@ public web page) or private (a book or a paid site). The import sets the label f
   cook brings the file and states each source. Counsel confirms the statement's wording before launch
   (016-`FR-050`).
 
+### 1b. The one route that changes provenance after a save: a one-way downgrade
+
+Owner rulings, 2026-10-26, spec 020 FR-015a and ADR-0074. When the content source check holds a recipe back, one of
+the cook's choices is to change their statement to "From a source", naming a book or a paid site. Until now provenance
+could not change after a save at all, because `source` lives on the create schema only.
+
+- **The route is `POST /api/v1/recipes/{id}/source-statement`.** Its body is a strict union of two members,
+  `imported_physical` and `imported_paid`, each with a required citation. Nothing else is representable, so no caller
+  can move a label upward, to `imported_public`, or to `user_created`.
+- **It is a downgrade only.** The current label must be `user_created` or `imported_public`. A recipe already
+  private-only answers `SOURCE_STATEMENT_NOT_DOWNGRADE`.
+- **The recipe becomes private in the same transaction**, under ADR-0073's per-user lock, and it needs a free private
+  slot. With none, it answers ADR-0073's code and changes nothing.
+- **The new statement and citation are the recipe's attestation** (004-`FR-014a`), which is what these two labels have
+  always needed and `POST /api/v1/recipes` does not carry.
+- **`source` stays off the update schema.** §1's reason holds: `PATCH /api/v1/recipes/{id}` must never re-classify a
+  recipe. The downgrade is its own route with its own schema.
+- **The source statement is part of the content check's digest** (ADR-0074 §1), so the digest moves in the same
+  transaction. The new label is private-only, so no check is owed, and an open referral closes as withdrawn.
+
 ### 2. The corpus is an OPERATOR-DOWNLOADED file. Nothing we deploy fetches Project Gutenberg. ⚠️ looks wrong, isn't
 
 Verified 2026-08-19 against the live site:

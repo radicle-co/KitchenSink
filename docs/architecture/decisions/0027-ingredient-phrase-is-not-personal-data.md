@@ -187,6 +187,35 @@ standing rule that fires the day such a statement returns; the parser-breakage d
 three fake-driven cases that assert the parser's EXACT output structure rather than a count — strictly
 stronger than a floor, on that one axis.
 
+### 6a. A third map: time-boxed legal retention, for decisions about content
+
+Owner rulings, 2026-10-26, spec 020 and ADR-0074 §9. The content source check keeps a **decision record** for each hold
+and each person's decision on a recipe, as spec 016 requires evidence of a moderation decision to be kept
+(`016-FR-052a`). That record holds the opaque owner id, a reviewer's note, the cook's appeal reason, and for a hold
+only, a versioned hash of the recipe's normalised text. It survives the recipe and the account, for 016's period, and
+then it is purged.
+
+Neither existing map fits it, and stretching one would give it a second meaning, which §6 forbids:
+
+- It is not **retained by ruling**. That map claims the content is not personal, which a reviewer's note or an appeal
+  reason can be, and that claim has no end date.
+- It is not **exempt**. Erasure does not reach it by another mechanism. A legal duty keeps it.
+
+So the gate gains a **third map**, `RETAINED_FOR_LEGAL_PERIOD`. Its claim is "kept for a fixed legal period, then
+purged". It is checked mechanically: the table must carry a NOT NULL `purge_after` column, the retention sweep must
+honour it, and the entry's reason must cite an ADR that exists on disk. A table whose personal data is kept with no
+end date cannot enter this map.
+
+What may sit in it is bounded on purpose:
+
+- The text hash is kept on a **hold** decision only, never on a clearance. So after erasure it can only ever send an
+  exact copy of a held recipe to a person. It can never make anything green, and it holds no text.
+- The hash carries its version (`v1:`), so a later change of normalisation cannot silently match the wrong thing.
+- The reviewer's note and the appeal reason are kept as strings, the same type at the request and in the row. They
+  are never shown to another user.
+
+The rule of this ADR is unchanged: an ingredient phrase is still not personal data, and nothing here sweeps it.
+
 ### 7. `ownerId` is removed from the verification queue contract
 
 Its only consumer was `verifyLine.ts` feeding the memo writer. It is removed rather than deprecated because

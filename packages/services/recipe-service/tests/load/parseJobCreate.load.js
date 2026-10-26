@@ -55,8 +55,9 @@ import {
     whenSubstrate,
     PACE_SECONDS,
     iterationPause,
+    freshBearer,
+    loadSessionHandles,
 } from './lib/common.js';
-import { freshBearer, loadSessionHandles } from '../../../../tools/loadtest/k6/session.js';
 
 const createTrend = new Trend('parse_job_create_duration', true);
 const pollTrend = new Trend('parse_job_poll_duration', true);

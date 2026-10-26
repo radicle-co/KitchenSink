@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 75,
-        "implementations": 131,
-        "props": 737,
-        "documentedComponents": 75,
-        "implementationsWithModuleDoc": 131,
-        "implementationsWithComponentDoc": 123,
-        "documentedProps": 702,
-        "classifiedComponents": 68,
-        "componentsWithPatternTag": 75,
-        "crossPlatformComponents": 56
+        "components": 76,
+        "implementations": 133,
+        "props": 753,
+        "documentedComponents": 76,
+        "implementationsWithModuleDoc": 133,
+        "implementationsWithComponentDoc": 125,
+        "documentedProps": 718,
+        "classifiedComponents": 69,
+        "componentsWithPatternTag": 76,
+        "crossPlatformComponents": 57
     },
     "components": [
         {
@@ -908,6 +908,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
                         },
                         {
+                            "name": "refused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Refuses the press because a SIBLING's send is in flight (a list of foods while one is sent). Unlike\n{@link disabled} it may be raised while the button holds focus, so on WEB the button stays FOCUSABLE —\n`aria-disabled`, the click cancelled, no busy claim and no spinner (see `busyControlProps`); on NATIVE the\n`Pressable` is disabled, which keeps screen-reader focus on device. It dims as a disabled button does. It\nyields to {@link busy} and wins over {@link disabled}.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
                             "name": "size",
                             "type": "enum",
                             "typeDetail": [
@@ -1142,6 +1151,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Tap / click handler.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "refused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Refuses the press because a SIBLING's send is in flight (a list of foods while one is sent). Unlike\n{@link disabled} it may be raised while the button holds focus, so on WEB the button stays FOCUSABLE —\n`aria-disabled`, the click cancelled, no busy claim and no spinner (see `busyControlProps`); on NATIVE the\n`Pressable` is disabled, which keeps screen-reader focus on device. It dims as a disabled button does. It\nyields to {@link busy} and wins over {@link disabled}.",
                             "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
                         },
                         {
@@ -1798,6 +1816,243 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/choiceRow/ChoiceRow",
+            "name": "ChoiceRow",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/choiceRow",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken; `.focus()` has no\n    declarative form",
+                "Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the row\n    (`moveScreenReaderFocus`), which has no declarative form",
+                "Slot — the caller hands in the label, so a tagged food and the quiet keep row share one row"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ChoiceRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/choiceRow/ChoiceRow.tsx",
+                    "dir": "packages/apps/commise/ui/src/choiceRow",
+                    "moduleDoc": "@commise/ui/choice-row — the web design-system {@link ChoiceRow}: a 48 px button across its list, its words\nstarting at the edge, then a check when it is chosen, or a spinner while its send is in flight.\n\n- ⛔ A BUTTON, never a radio: its press is the choice, and the arrow keys do nothing (WCAG 3.2.2).\n- Busy and refused rows stay FOCUSABLE: `aria-disabled` with the click cancelled, never native `disabled`, because\n  the row just pressed holds focus and a browser drops focus from a disabled control (2.4.3). Both take the house\n  dim (`BUSY_CONTROL_CLASS`); only the busy row says so (`aria-busy`) and spins, as `Button` does — inside a control\n  the spin is the only busy cue, so it spins under reduced motion too.\n- The check never carries the state alone: the caller's name says \", chosen\" (1.4.1).\n- The row draws no edge of its own: the list it sits in draws its box and the dividers between rows.\n\nPresentational: props → JSX; the focus request is the one effect, and the one reason this leaf holds a ref. The\nnative leaf is `./ChoiceRow.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/choice-row — the web design-system {@link ChoiceRow}: a 48 px button across its list, its words"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — the caller hands in the label, so a tagged food and the quiet keep row share one row"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken; `.focus()` has no\n    declarative form"
+                        }
+                    ],
+                    "description": "The web choice row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The accessible name. It must start with the visible label (WCAG 2.5.3) and say \", chosen\" when chosen.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "This row's send is in flight: a spinner replaces the check, it reads busy, and its press is refused.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's label: an `OptionLabel`, or the caller's own text. Display only; the row owns the press.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "chosen",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row holds the current choice: a check is drawn after the label.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A host asks for focus on the row: keyboard focus on web, the screen-reader cursor on native. A LEVEL, as on\n`Button`: it stands until {@link onFocusRequestHandled} acknowledges it.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the row has taken a requested focus; the host clears its request here.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row was pressed. Never called while busy or refused.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "refused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Another row's send is in flight: its press is refused, and it stays focusable on web.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ChoiceRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/choiceRow/ChoiceRow.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/choiceRow",
+                    "moduleDoc": "@commise/ui/choice-row — the native design-system {@link ChoiceRow}: the React Native leaf of\n`./ChoiceRow.tsx`, on the same props. A `button`-role `Pressable` at the native touch floor, its label then a check\nwhen it is chosen, or a spinner while its send is in flight.\n\nBusy and refused rows are disabled — a disabled `Pressable` keeps the screen-reader cursor on device — and dimmed to\nthe Combobox's busy option's 60 % (web's `BUSY_CONTROL_CLASS`); only the busy row reads busy. The chosen row takes the\nselected fill; a pressed row the muted surface. Colours come from the theme at render.\n\nPresentational: props → JSX; the focus request is the one effect, and the one reason this leaf holds a ref.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/choice-row — the native design-system {@link ChoiceRow}: the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — the caller hands in the label, so a tagged food and the quiet keep row share one row"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the row\n    (`moveScreenReaderFocus`), which has no declarative form"
+                        }
+                    ],
+                    "description": "The native choice row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The accessible name. It must start with the visible label (WCAG 2.5.3) and say \", chosen\" when chosen.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "This row's send is in flight: a spinner replaces the check, it reads busy, and its press is refused.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's label: an `OptionLabel`, or the caller's own text. Display only; the row owns the press.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "chosen",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row holds the current choice: a check is drawn after the label.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A host asks for focus on the row: keyboard focus on web, the screen-reader cursor on native. A LEVEL, as on\n`Button`: it stands until {@link onFocusRequestHandled} acknowledges it.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the row has taken a requested focus; the host clears its request here.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row was pressed. Never called while busy or refused.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        },
+                        {
+                            "name": "refused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Another row's send is in flight: its press is refused, and it stays focusable on web.",
+                            "declaredIn": "packages/apps/commise/ui/src/choiceRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -9158,8 +9413,7 @@
             "dir": "packages/apps/commise/ui/src/radioList",
             "kind": "presentational",
             "patterns": [
-                "Adapter over `@radix-ui/react-radio-group` — the house option list on the library's radio group, which owns\n    the roving focus and the keyboard",
-                "Registry consumer — `look` picks its group, row and label styles from one closed `LOOK` record; the structure\n    is shared, so the semantics cannot differ between the looks"
+                "Adapter over `@radix-ui/react-radio-group` — the house option list on the library's radio group, which owns\n    the roving focus and the keyboard"
             ],
             "platforms": [
                 "web",
@@ -9197,18 +9451,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The group's accessible name (\"How to match ingredients\").",
-                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
-                        },
-                        {
-                            "name": "look",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"rows\"",
-                                "\"cards\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "How the rows are drawn.",
                             "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
                         },
                         {
@@ -9251,15 +9493,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/radioList/RadioList.native.tsx",
                     "dir": "packages/apps/commise/ui/src/radioList",
-                    "moduleDoc": "@commise/ui/radio-list — the native design-system {@link RadioList}.\n\nA `radiogroup` of whole-row `Pressable` radios with `aria-checked`. Each row is named by its label and hands its hint\nto the platform as `accessibilityHint`, read after the name as the web leaf's `aria-describedby` is. Each row keeps\nthe native touch floor: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action` ring when checked), the\nlabel that wraps, then the hint under it. A pressed row takes the theme's press wash, as `ChipRow` does. Colours come\nfrom the theme at render, so it repaints in the dark scheme. Nothing animates.\n\nControlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/radio-list — the native design-system {@link RadioList}.\n\nA `radiogroup` of whole-row `Pressable` radios with `aria-checked`. Each row is named by its label and hands its hint\nto the platform as `accessibilityHint`, read after the name as the web leaf's `aria-describedby` is. Each row keeps\nthe native touch floor and is its own bordered card: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action` ring when checked), the\nlabel that wraps, then the hint under it. A pressed row takes the theme's press wash, as `ChipRow` does. Colours come\nfrom the theme at render, so it repaints in the dark scheme. Nothing animates.\n\nControlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/ui/radio-list — the native design-system {@link RadioList}."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Registry consumer — `look` picks its group, row and label styles from one closed `LOOK` record; the structure\n    is shared, so the semantics cannot differ between the looks"
                         }
                     ],
                     "description": "The native design-system option list.",
@@ -9274,18 +9512,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The group's accessible name (\"How to match ingredients\").",
-                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
-                        },
-                        {
-                            "name": "look",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"rows\"",
-                                "\"cards\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "How the rows are drawn.",
                             "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
                         },
                         {

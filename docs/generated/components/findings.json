@@ -7,7 +7,7 @@
         "missing-component-doc": 156,
         "missing-module-doc": 21,
         "platform-singleton": 69,
-        "ref-api": 13,
+        "ref-api": 15,
         "unclassified-layer": 92,
         "undocumented-prop": 175
     },
@@ -148,6 +148,26 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "mode"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/choiceRow/ChoiceRow",
+            "sourcePath": "packages/apps/commise/ui/src/choiceRow/ChoiceRow.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/choiceRow/ChoiceRow",
+            "sourcePath": "packages/apps/commise/ui/src/choiceRow/ChoiceRow.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
             ]
         },
         {

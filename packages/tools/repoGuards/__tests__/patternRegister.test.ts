@@ -156,6 +156,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the button, for a host focus request: `.focus()` on web and the screen-reader cursor (`moveScreenReaderFocus`) on native, neither of which has a declarative form. The same level-triggered request Combobox and Popover take.',
     },
+    'designSystem/choiceRow/ChoiceRow': {
+        verdict: 'sanctioned',
+        why: "One node handle, the row, for a host focus request (focus lands on a line's first option when search cannot run offline): `.focus()` on web and the screen-reader cursor (`moveScreenReaderFocus`) on native, neither of which has a declarative form. The same level-triggered request Button takes.",
+    },
     'designSystem/combobox/Combobox': {
         verdict: 'sanctioned',
         why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf holds the input node in state through a callback ref (as floating-ui holds its reference node) rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal. The same node is the screen-reader cursor's target when the screen names the field (`moveScreenReaderFocus`).",

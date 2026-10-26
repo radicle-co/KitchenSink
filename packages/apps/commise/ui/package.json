@@ -68,6 +68,7 @@
         "./screen-reader-focus": "./src/screenReaderFocus/index.ts",
         "./offline-notice": "./src/offlineNotice/index.ts",
         "./option-label": "./src/optionLabel/index.ts",
+        "./choice-row": "./src/choiceRow/index.ts",
         "./sync-notice": "./src/syncNotice/index.ts",
         "./popover": "./src/popover/index.ts",
         "./popup-insets": "./src/popupInsets/index.ts",

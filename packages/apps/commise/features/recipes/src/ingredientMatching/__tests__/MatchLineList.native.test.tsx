@@ -14,6 +14,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Pressable, Text } from 'react-native';
 import { useState, type FC } from 'react';
 
 const focus = vi.hoisted(() => ({ moved: vi.fn() }));
@@ -33,7 +34,9 @@ import {
 } from '../__fixtures__/matchLines.js';
 import { pickFocusOf, type LinePick, type MatchLine, type PendingSend } from '../matchLine.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { sendStateOf } from '../matchLineView.js';
 import { MatchLineList } from '../MatchLineList.native.js';
+import { useRetryFocus } from '../useRetryFocus.js';
 import type { MatchLineListProps } from '../matchLineListProps.js';
 
 afterEach(cleanup);
@@ -402,5 +405,71 @@ describe('MatchLineList (native): Try again keeps the screen-reader cursor (WCAG
         );
 
         expect(focus.moved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: 'Skim milk' }), 'focus');
+    });
+});
+
+/**
+ * The host owns the retry memory (host gap rule 1): the list takes it as a prop, so the HOST can say the cook has gone
+ * to another line (`noteAttention`) and a retry that finishes after that moves the cursor nowhere.
+ */
+describe('MatchLineList (native): the host’s retry memory', () => {
+    const SKIM_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+
+    const Host: FC<{ readonly failed: ReadonlySet<string>; readonly pending: ReadonlyMap<string, PendingSend> }> = ({
+        failed,
+        pending,
+    }) => {
+        const retryFocus = useRetryFocus(
+            LINES.map((line) =>
+                sendStateOf(line.key, { failed: failed.has(line.key), pending: pending.get(line.key) }),
+            ),
+        );
+
+        return (
+            <>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Go to another line"
+                    onPress={() => retryFocus.noteAttention('cream')}
+                >
+                    <Text>Go</Text>
+                </Pressable>
+                <MatchLineList
+                    lines={LINES}
+                    expandedKey="milk"
+                    currentKey={undefined}
+                    online
+                    pending={pending}
+                    failed={failed}
+                    announcement={SILENT}
+                    focus={{ requested: false, onHandled: vi.fn() }}
+                    retryFocus={retryFocus}
+                    {...handlers()}
+                />
+            </>
+        );
+    };
+
+    const failed: ReadonlySet<string> = new Set(['milk']);
+    const sending: ReadonlyMap<string, PendingSend> = new Map([['milk', SKIM_PENDING]]);
+
+    it('a retry still moves the cursor to the busy control while the cook has not left the line', () => {
+        const { rerender } = render(<Host failed={failed} pending={NOTHING_SENT} />);
+
+        focus.moved.mockClear();
+        rerender(<Host failed={failed} pending={sending} />);
+
+        expect(focus.moved).toHaveBeenCalledExactlyOnceWith(screen.getByRole('button', { name: 'Skim milk' }), 'focus');
+    });
+
+    it('⛔ a retry that fails again after the cook went to another line moves the cursor nowhere', () => {
+        const { rerender } = render(<Host failed={failed} pending={NOTHING_SENT} />);
+
+        rerender(<Host failed={failed} pending={sending} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Go to another line' }));
+        focus.moved.mockClear();
+        rerender(<Host failed={failed} pending={NOTHING_SENT} />);
+
+        expect(focus.moved).not.toHaveBeenCalled();
     });
 });

@@ -5,6 +5,7 @@
 import type { ControlFocus } from '../common/controlFocus.js';
 import type { MatchLine, PendingSend } from './matchLine.js';
 import type { MatchRowHandlers } from './matchRowProps.js';
+import type { RetryFocusOf } from './useRetryFocus.js';
 
 /** What the list's ONE polite live region says: the host words it (`lineChangesOf` plus its counts). */
 export interface ListAnnouncement {
@@ -38,4 +39,10 @@ export interface MatchLineListProps extends MatchRowHandlers {
     readonly announcement: ListAnnouncement;
     /** A request that the open line's list take focus (after the pick on the line before; `pickFocusOf`). */
     readonly focus: ControlFocus;
+    /**
+     * The retry memory, when the HOST holds it (`useRetryFocus` over the list's and the pane's sends together): the host
+     * says where the cook is (`noteAttention`) so a retry that finishes after they left the line takes no focus, and asks
+     * `ownsFocus` before its own move after a successful retry. Omitted, the list holds its own.
+     */
+    readonly retryFocus?: RetryFocusOf;
 }

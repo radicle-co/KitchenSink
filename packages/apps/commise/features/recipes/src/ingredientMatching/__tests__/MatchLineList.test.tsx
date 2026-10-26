@@ -27,7 +27,9 @@ import {
     makeNoMatchLine,
 } from '../__fixtures__/matchLines.js';
 import { pickFocusOf, type LinePick, type MatchLine } from '../matchLine.js';
+import { sendStateOf } from '../matchLineView.js';
 import { MatchLineList } from '../MatchLineList.js';
+import { useRetryFocus } from '../useRetryFocus.js';
 import type { MatchLineListProps } from '../matchLineListProps.js';
 
 afterEach(cleanup);
@@ -417,5 +419,71 @@ describe('MatchLineList (web): Try again keeps focus (WCAG 2.4.3)', () => {
                 .getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' })
                 .matches(':focus'),
         ).toBe(false);
+    });
+});
+
+/**
+ * The host owns the retry memory (host gap rule 1): the list takes it as a prop, so the HOST can say the cook has gone
+ * to another line (`noteAttention`) and a retry that finishes after that must not pull focus back.
+ */
+describe('MatchLineList (web): the host’s retry memory', () => {
+    const MILK_RETRY = 'Try again to save the choice for 2 cups milk';
+    const SKIM_PENDING: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
+
+    const Host: FC<{
+        readonly failed: ReadonlySet<string>;
+        readonly pending: ReadonlyMap<string, PendingSend>;
+        readonly attend?: string;
+    }> = ({ failed, pending, attend }) => {
+        const retryFocus = useRetryFocus(
+            LINES.map((line) =>
+                sendStateOf(line.key, { failed: failed.has(line.key), pending: pending.get(line.key) }),
+            ),
+        );
+
+        return (
+            <>
+                <button type="button" onClick={() => retryFocus.noteAttention(attend ?? '')}>
+                    Go to another line
+                </button>
+                <MatchLineList
+                    lines={LINES}
+                    expandedKey="milk"
+                    currentKey={undefined}
+                    online
+                    pending={pending}
+                    failed={failed}
+                    announcement={SILENT}
+                    focus={{ requested: false, onHandled: vi.fn() }}
+                    retryFocus={retryFocus}
+                    {...handlers()}
+                />
+            </>
+        );
+    };
+
+    const failed: ReadonlySet<string> = new Set(['milk']);
+    const sending: ReadonlyMap<string, PendingSend> = new Map([['milk', SKIM_PENDING]]);
+
+    it('a retry still lands focus on the busy control while the cook has not left the line', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(<Host failed={failed} pending={NOTHING_SENT} attend="milk" />);
+
+        await user.click(screen.getByRole('button', { name: 'Go to another line' }));
+        rerender(<Host failed={failed} pending={sending} attend="milk" />);
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Skim milk' }));
+    });
+
+    it('⛔ a retry that fails again after the cook went to another line does not pull focus back', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(<Host failed={failed} pending={NOTHING_SENT} attend="cream" />);
+
+        rerender(<Host failed={failed} pending={sending} attend="cream" />);
+        await user.click(screen.getByRole('button', { name: 'Go to another line' }));
+        rerender(<Host failed={failed} pending={NOTHING_SENT} attend="cream" />);
+
+        expect(screen.getByRole('button', { name: MILK_RETRY })).toBeTruthy();
+        expect(document.activeElement).not.toBe(screen.getByRole('button', { name: MILK_RETRY }));
     });
 });

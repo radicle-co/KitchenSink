@@ -238,10 +238,8 @@ buys nothing that `details.requiredScope` does not already make actionable.
 - **`imported_physical` and `imported_paid` are deliberately NOT declarable**, which **narrows** `FR-025`
   rather than implementing it. Both are private-only classes, and `FR-014a`'s attestation and citation, which
   must travel with them, do not exist on this route yet. Once 004 builds that, they join the union, and adding a
-  member is additive. This ADR first gave a second reason: 004-`FR-028` put a Premium gate on those labels.
-  ADR-0073 removed that gate (owner ruling, 2026-10-26). A free cook now holds them within 50 private slots, so
-  only the missing attestation keeps them out of the union. The bulk import route sets them from the
-  cook's statement instead (§1a), and a free cook keeps them private within their slots (ADR-0073).
+  member is additive. 004-`FR-028` puts no Premium gate on these labels (ADR-0073): a free cook holds them
+  within 50 private slots. The bulk import route sets them from the cook's statement instead (§1a).
 - **The corpus is an operator responsibility.** Refreshing it is a manual, out-of-band step with no automation
   behind it, and no job will notice if it goes stale.
 - **A curator token is a real credential.** It must be minted with the grant inside the signed

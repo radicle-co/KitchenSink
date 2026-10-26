@@ -118,7 +118,10 @@ compile until it decides what the fact is. With a default, a site can keep the o
 
 - A refusal for want of a slot is a denial of its own kind, not the generic `INVALID_VISIBILITY`. The client must tell
   the cook why, show how many slots they use, and offer the choices in §8. The wire carries the code
-  `PRIVATE_SLOTS_FULL` with HTTP 409, and the body carries `used` and `limit`.
+  `PRIVATE_SLOTS_FULL` with HTTP 403, and the body carries `used` and `limit`.
+- The status is 403, not 409. The recipe client maps any 409 code it does not know to a version conflict
+  (`client.ts`, the `case 409` fallback). An installed build that predates this code then opens the conflict
+  view for a slot refusal. A 403 reaches those builds as a plain refusal, and newer builds branch on the code.
 - `imported_public` keeps today's rule. A free cook is refused for want of Premium before slots are looked at, so a
   slot never makes an imported public-web recipe private.
 - `defaultCloneVisibility` stops being a side door. Today it defaults a clone of a book or paid-site recipe, and
@@ -215,7 +218,7 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
 ## Code owed (builder work, not this ADR's)
 
 1. **The policy.** `visibilityPolicy.ts` gains the required `hasAvailablePrivateSlot` and the matrix in §6, with its
-   docstring updated in the same commit. A distinct `privateSlots` denial maps to `PRIVATE_SLOTS_FULL` (409) with
+   docstring updated in the same commit. A distinct `privateSlots` denial maps to `PRIVATE_SLOTS_FULL` (403) with
    `used` and `limit`. The 50 lives in one pure module beside it.
 2. **The lock and the count.** A new `ADVISORY_LOCK_CLASSES` entry. A DAL method that takes the lock and returns the
    live count, inside the caller's transaction.
@@ -234,9 +237,12 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
    an out-of-slots pause board for bulk import. The board offers stop, make the rest public with a confirmation per
    recipe, and skip for book and paid-site items. It must also add the editor's Private refusal. Both are drawn on
    phone, tablet and desktop.
-9. **Tests, every tier.** Unit tests over the full matrix in §6. An integration test that races two private writes at
-   49 and proves only one lands. A downgrade case: 60 private recipes are kept, and a new private one is refused. The
-   import pause, Playwright and Maestro included.
+9. **The editor outbox** (ADR-0057). A queued private create or set-visibility that meets `PRIVATE_SLOTS_FULL` is
+   final. The sender parks it for the cook to resolve and never re-sends it. Offline mode (019) makes this path
+   common, because a cook can queue private writes while another device uses the last slot.
+10. **Tests, every tier.** Unit tests over the full matrix in §6. An integration test that races two private writes at
+    49 and proves only one lands. A downgrade case: 60 private recipes are kept, and a new private one is refused. The
+    import pause, Playwright and Maestro included.
 
 ## Alternatives
 

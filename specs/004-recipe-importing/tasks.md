@@ -535,6 +535,13 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 
 **Priority** P1 · **Effort** S · **Depends on** T-006, T-011 · **Implements** REQ-035 · _(D-014)_ · **Mitigates** HAZ-061
 
+> ⚠️ **Superseded in substance, 2026-10-26 (owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).**
+> `FR-028` and D-014 no longer gate these channels on premium. Do not build the checklist below as written. A free
+> cook may use every channel, and each recipe that must be private uses one of their 50 private slots. The refusal is
+> `PRIVATE_SLOTS_FULL` (`403`, with `used` and `limit`), decided by the C-004 policy under the slot lock, and the
+> channels stay advertised. REQ-035, ATP-035-A/B and HAZ-061 in `v-model/` still describe the premium gate and are
+> owed a rewrite before this task is built.
+
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-035-A, ATP-035-B`
 
 - [ ] `ProvenancePolicy` reports whether a classification is non-public by policy (`imported_physical` / `imported_paid`)

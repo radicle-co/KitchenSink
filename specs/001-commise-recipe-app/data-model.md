@@ -359,23 +359,24 @@ from, and they cost no migration and no write path.
 The PRO badge means **"this recipe uses a capability only a premium user has"**. It is **derived, never
 stored**: there is no `is_pro` column, no entitlement model, and no overlap with feature 010.
 
-The **only** premium-gated recipe capability today is **choosing** private visibility. The naive rule
-`visibility === 'private'` is **wrong**, and this is the trap to avoid:
+Since the owner ruling of 2026-10-26 ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)),
+the **only** premium-gated recipe capability is making an `imported_public` recipe private. A free-tier user holds
+up to 50 private recipes of every other kind. The naive rule `visibility === 'private'` is **wrong**, and this is
+the trap to avoid:
 
-| Condition                    | Private allowed?                    | Premium capability used? |
-| ---------------------------- | ----------------------------------- | ------------------------ |
-| `user_created`, private      | premium only                        | **yes**                  |
-| `imported_public`, private   | premium only (+ substantive edit)   | **yes**                  |
-| `imported_physical`, private | **any tier** — private is forced    | **no**                   |
-| `imported_paid`, private     | **any tier** — private is permanent | **no**                   |
+| Condition                    | Private allowed?                              | Premium capability used? |
+| ---------------------------- | --------------------------------------------- | ------------------------ |
+| `user_created`, private      | premium, or a free private slot               | **no**                   |
+| `imported_public`, private   | premium only (+ substantive edit)             | **yes**                  |
+| `imported_physical`, private | premium, or a free private slot; never public | **no**                   |
+| `imported_paid`, private     | premium, or a free private slot; never public | **no**                   |
 
-Per C-004, `imported_physical` and `imported_paid` recipes are private **regardless of tier**, so a
-free-tier user can hold private recipes. `visibility === 'private'` alone would brand those with a PRO
-badge they did not earn. The correct rule is therefore:
+`visibility === 'private'` alone would brand free-tier recipes with a PRO badge they did not earn. The correct
+rule is therefore:
 
 ```
 usesPremiumCapability = visibility === 'private'
-                        AND source_type IN ('user_created', 'imported_public')
+                        AND source_type = 'imported_public'
 ```
 
 This is only latent today (004 has not shipped, so every row is `user_created`), which is exactly why it
@@ -725,14 +726,18 @@ If 0 rows returned → conflict detected → return HTTP 409 with both the clien
 
 ## Visibility Enforcement Rules (C-004)
 
-| Condition                    | Allowed visibility                                    |
-| ---------------------------- | ----------------------------------------------------- |
-| Free-tier user, user_created | `public` only                                         |
-| Premium user, user_created   | `public` or `private`                                 |
-| Any user, imported_public    | `public` or `private` — see the clone amendment below |
-| Any user, imported_physical  | `private` only                                        |
-| Any user, imported_paid      | `private` only (permanent)                            |
-| Premium lapse                | No new private; existing private stay private         |
+| Condition                    | Allowed visibility                                                |
+| ---------------------------- | ----------------------------------------------------------------- |
+| Free-tier user, user_created | `public`, or `private` while a private slot is free (ADR-0073)    |
+| Premium user, user_created   | `public` or `private`                                             |
+| Any user, imported_public    | `public` or `private` — see the clone amendment below             |
+| Free-tier, imported_physical | `private` only, and only while a private slot is free             |
+| Free-tier, imported_paid     | `private` only (permanent), and only while a private slot is free |
+| Premium, physical or paid    | `private` only                                                    |
+| Premium lapse                | Existing private stay private; no new private until under 50      |
+
+A free-tier user's private slots: up to 50 private, undeleted recipes, every source type counted, counted live under a
+per-user lock in the same transaction as the write (`001-FR-003`, ADR-0073).
 
 Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constraint level (visibility rules are business logic, not schema invariants).
 

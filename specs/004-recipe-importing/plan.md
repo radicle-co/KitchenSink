@@ -310,20 +310,20 @@ the boundary parse is not hygiene here, it is the feature's primary control surf
 
 ### Error codes — added to `RecipeErrorCode`, mapped in `ApiExceptionFilter`
 
-| Code                          | HTTP  | Meaning                                                                                                                       |
-| ----------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `IMPORT_SOURCE_BLOCKED`       | `422` | Domain on the paywalled blocklist                                                                                             |
-| `IMPORT_SOURCE_UNREACHABLE`   | `422` | DNS/TLS/timeout/4xx/5xx from the source                                                                                       |
-| `IMPORT_NO_RECIPE_FOUND`      | `422` | Fetched successfully, no recognisable recipe                                                                                  |
-| `IMPORT_NO_CAPTION`           | `422` | Instagram post has no recipe text in caption                                                                                  |
-| `IMPORT_UNSUPPORTED_FORMAT`   | `415` | File magic bytes are not JSON/YAML/Markdown                                                                                   |
-| `IMPORT_PAYLOAD_TOO_LARGE`    | `413` | Response or upload exceeded its bound                                                                                         |
-| `IMPORT_TEXT_UNPARSEABLE`     | `422` | A pasted body contained no recognisable recipe content (`FR-052`). _(`IMPORT_OCR_FAILED` transfers to 011 with the channel.)_ |
-| `IMPORT_PROVIDER_UNAVAILABLE` | `503` | Circuit open / provider down — retryable                                                                                      |
-| `IMPORT_DRAFT_INCOMPLETE`     | `422` | Confirm attempted with missing required fields                                                                                |
-| `IMPORT_DRAFT_EXPIRED`        | `410` | Draft passed `expires_at`                                                                                                     |
-| `IMPORT_QUOTA_EXCEEDED`       | `429` | Daily import allowance exhausted; carries `resetsAt`                                                                          |
-| `IMPORT_REQUIRES_PREMIUM`     | `403` | Channel produces a non-public recipe and the caller has no entitlement (D-014)                                                |
+| Code                          | HTTP  | Meaning                                                                                                                                                 |
+| ----------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IMPORT_SOURCE_BLOCKED`       | `422` | Domain on the paywalled blocklist                                                                                                                       |
+| `IMPORT_SOURCE_UNREACHABLE`   | `422` | DNS/TLS/timeout/4xx/5xx from the source                                                                                                                 |
+| `IMPORT_NO_RECIPE_FOUND`      | `422` | Fetched successfully, no recognisable recipe                                                                                                            |
+| `IMPORT_NO_CAPTION`           | `422` | Instagram post has no recipe text in caption                                                                                                            |
+| `IMPORT_UNSUPPORTED_FORMAT`   | `415` | File magic bytes are not JSON/YAML/Markdown                                                                                                             |
+| `IMPORT_PAYLOAD_TOO_LARGE`    | `413` | Response or upload exceeded its bound                                                                                                                   |
+| `IMPORT_TEXT_UNPARSEABLE`     | `422` | A pasted body contained no recognisable recipe content (`FR-052`). _(`IMPORT_OCR_FAILED` transfers to 011 with the channel.)_                           |
+| `IMPORT_PROVIDER_UNAVAILABLE` | `503` | Circuit open / provider down — retryable                                                                                                                |
+| `IMPORT_DRAFT_INCOMPLETE`     | `422` | Confirm attempted with missing required fields                                                                                                          |
+| `IMPORT_DRAFT_EXPIRED`        | `410` | Draft passed `expires_at`                                                                                                                               |
+| `IMPORT_QUOTA_EXCEEDED`       | `429` | Daily import allowance exhausted; carries `resetsAt`                                                                                                    |
+| `PRIVATE_SLOTS_FULL`          | `403` | A free cook has no free private slot for a recipe that must be private (004-FR-028 as amended 2026-10-26, ADR-0073). Replaces `IMPORT_REQUIRES_PREMIUM` |
 
 `422` (not `400`) for policy and extraction failures: the request is well-formed but semantically
 unprocessable — the meaning `ENGINEERING_EXCELLENCE.md §1` assigns it. The previous revision used `400` in

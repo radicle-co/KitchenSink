@@ -351,7 +351,8 @@ const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly c
  * 0040 gave `ingredients` its `food_owner_id`, 9 → 11 on 2026-09-04 for `recipe_parse_jobs.owner_id`
  * (0039) and `analytics_events.user_id` (0043), and 11 → 13 on 2026-09-13 for ADR-0040's
  * `test_principals.user_id` (0044) and `test_reset_jobs.user_id` (0045) — measured at 13 by this assertion going
- * red on those two migrations before the number moved, not transcribed from the design.
+ * red on those two migrations before the number moved, not transcribed from the design, and 14 → 15 on 2026-10-26 for
+ * `recipe_imports.user_id` (0059, ADR-0072: its items and lines reach erasure by cascade and carry no user key).
  *
  * ⛔ COMPARED WITH `toBe`, NOT `toBeGreaterThanOrEqual`, AND THAT IS THE WHOLE POINT. Those last two
  * migrations landed WITHOUT raising the number, and under a `>=` comparison nothing said so: the count was
@@ -366,7 +367,7 @@ const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly c
  * is already caught by the coverage assertion below, which names the table. This pin catches the opposite
  * failure, where discovery quietly finds FEWER tables than the schema has.
  */
-const EXPECTED_OWNER_BEARING_TABLES = 14;
+const EXPECTED_OWNER_BEARING_TABLES = 15;
 
 /**
  * The fewest handle-bearing `table.column` locations a working discovery must find.

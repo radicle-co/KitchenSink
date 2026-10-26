@@ -92,6 +92,8 @@ export const EXPECTED_TABLES = [
     'food_lookups',
     'unresolved_foods',
     'recipe_impact_signals',
+    // Bulk recipe import (ADR-0072, 0059): the sweep and the purge delete the header, and items and lines follow by cascade.
+    'recipe_imports',
     // The band tables (0036): the gate's band feedback and the revocation drain write and read them through
     // recipe-core's `BandAuthorityStore`, and `pasteOrigin.e2e.test.ts` reads them to prove a verdict names no band.
     'resolution_band_authority',

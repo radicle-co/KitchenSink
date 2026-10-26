@@ -740,7 +740,8 @@ bind.
       appeal. In the same transaction as that decision it becomes the cook's **private** recipe. It is never
       published with that content and never deleted by us. A free cook with no free slot still gets it as private, and
       is then over the limit: no new private recipe until under 50 (ADR-0073's downgrade rule). The one exception is
-      the save itself: a `detected` save with no free slot is refused (FR-018), because nothing has been saved yet.
+      the save itself: a `detected` save with no free slot is refused with `403 SOURCE_DETECTED_NO_PRIVATE_SLOT`
+      (FR-018), because nothing has been saved yet.
     - A person's decision always ends review. The same unchanged content cannot enter review again (FR-018).
     - So review cannot become a free private store: a recipe leaves review only by approval (public), by a decision
       (private, using a slot), by the cook's own move to Private (using a slot) or Draft, or by deletion.
@@ -789,12 +790,15 @@ bind.
   write-side refusals are these three, and no other:
     - bulk import's, for a `detected` item (FR-025);
     - a `detected` save by a free cook with no free private slot, the editor's twin of FR-025 and of ADR-0073's
-      refusal of a book recipe with no slot. Without it, stating "I wrote this" over a book recipe would buy more
+      refusal of a book recipe with no slot. It answers `403 SOURCE_DETECTED_NO_PRIVATE_SLOT` with ADR-0073's `used`
+      and `limit`. Without it, stating "I wrote this" over a book recipe would buy more
       private storage than stating the truth;
-    - a change to public of content whose review ended without approval (FR-014a). Editing the content first is
-      always allowed.
+    - a change to public of content whose review ended without approval (FR-014a). It answers
+      `403 SOURCE_CHECK_NOT_APPROVED`. Editing the content first is always allowed.
 
-    All three apply only while blocking is on, for outcomes stamped `enforced` (FR-019).
+    All three apply only while blocking is on, for outcomes stamped `enforced` (FR-019). Each is `403`, never `409`:
+    the recipe client treats any unknown `409` as a version conflict, so an older installed app would open the conflict
+    view (ADR-0073 chose `403` for `PRIVATE_SLOTS_FULL` for the same reason).
 
 - **FR-018a**: Every path that makes a recipe public and published, including account erasure's donation of recipes,
   MUST be subject to FR-002. Because the hold lives in the read rule, no path can go around it. At account erasure
@@ -1269,8 +1273,11 @@ bind.
   counted live. 020 does not own it and only reads it.
 - **A recipe in review uses no slot, and a not-approved one does** (owner ruling, 2026-10-26). ADR-0073 counts
   `visibility = 'private'` only. A recipe in review keeps its stored `public` visibility and is hidden by the read rule,
-  so it uses no slot. A decision moves it to `private`, so it counts. A public draft stays owner-only and unmetered, as
-  ADR-0073 already accepted.
+  so it uses no slot. A decision moves it to `private`, so it counts.
+- **Open, for the owner: the Draft path.** A cook can move a recipe from In review back to Draft and keep it there,
+  owner-only and using no slot, with no time limit. ADR-0073 counts only `visibility = 'private'`, so a public draft
+  is unmetered. Counting public drafts would close it, but it changes what a slot means, which ADR-0073 calls a
+  one-way door.
 - **Nothing is live.** At launch there is no public corpus to check.
 - **016 is planned and not built.** The statement of reasons, the reviewer dashboard and the email channel come from 016. Blocking stays in shadow mode until they exist (FR-019).
 - **The reviewer dashboard inherits 016's open decision A-11** on `002`'s "no admin UI" exclusion.

@@ -309,7 +309,11 @@ A fifth round the same day answered the rest (spec Clarifications):
 - **No random sampling of green recipes for now.** The residual is accepted.
 - **The strict text rule stands.**
 
-**Still open**: only the counsel items of spec FR-041.
+**Still open**:
+
+- **The Draft path**, for the owner. A recipe moved from In review back to Draft is owner-only and uses no slot, with
+  no time limit. Counting public drafts as slots would close it, and it changes what a slot means (research R-15).
+- The counsel items of spec FR-041.
 
 ## What the rulings make infeasible, or costly
 

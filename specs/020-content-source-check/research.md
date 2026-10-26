@@ -408,9 +408,9 @@ been approved. While it's in review it is labeled as such."
 - **No stretching.** A recipe keeps the queue place it had when it first entered review, across edits and trips
   through Draft. So review always reaches a person's decision, and it cannot become a free private store.
 
-**Accepted, unchanged**: a public **draft** is owner-only and uses no slot. ADR-0073 accepted that when it counted only
-`visibility = 'private'`, and the owner's answer let a cook move a recipe in review back to Draft. Drafts were never a
-review state, so this feature adds nothing to that gap.
+**Open, for the owner: the Draft path.** A public draft is owner-only and uses no slot, because ADR-0073 counts only
+`visibility = 'private'`. A cook may move a recipe from In review back to Draft, so a recipe can leave review and sit
+there with no time limit and no slot. Whether a public draft should count against the private limit is OPEN, for the owner: counting it changes what a slot means, which ADR-0073 calls a one-way door.
 
 **Rejected**:
 

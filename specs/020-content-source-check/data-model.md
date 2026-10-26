@@ -205,9 +205,9 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
   and an `appealUpheld` each set `recipes.visibility = 'private'` in the same transaction as the decision, under
   ADR-0073's per-user lock. For a person's decision the move never refuses: with no free slot, the cook is over the
   limit, as after a downgrade (ADR-0073 §4). For a `detected` save, no free slot refuses the save
-  (`SOURCE_DETECTED_NO_PRIVATE_SLOT`), because nothing is saved yet. An overturned appeal moves it back to `public`.
+  (`403 SOURCE_DETECTED_NO_PRIVATE_SLOT`, with ADR-0073's `used` and `limit`), because nothing is saved yet. An overturned appeal moves it back to `public`.
 - **A decided content cannot re-enter review.** A change to public on a recipe whose current digest's latest decision
-  is a non-approval is refused (`SOURCE_CHECK_NOT_APPROVED`). Edited content has a new digest, so it gets a new check.
+  is a non-approval is refused (`403 SOURCE_CHECK_NOT_APPROVED`). Edited content has a new digest, so it gets a new check.
 - These moves and refusals apply only to outcomes stamped `enforced = true` (spec FR-019).
 - **`enforced` is written once.** recipe-service sets it, from the latest enforcement event, at the first moment its
   recipe is headed for public view with this digest (spec FR-001): `true` while the mode is `blocking`, `false` while

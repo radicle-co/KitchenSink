@@ -192,11 +192,15 @@ some recipes for a person to review.
   recipe, it moves to `private` in the same transaction, under this ADR's lock. A person's decision never refuses: a
   free cook with no free slot is then over the limit, exactly as after a downgrade (§4). They keep every recipe and
   cannot make a new one private until under the limit.
-- **A blocked save with no free slot is refused**, with its own code, as §7 refuses a book recipe with no slot. Nothing
-  is saved yet. Otherwise "I wrote this" over a book recipe would buy more private storage than the honest statement.
+- **A blocked save with no free slot is refused**, as §7 refuses a book recipe with no slot. Nothing is saved yet. It
+  answers `403 SOURCE_DETECTED_NO_PRIVATE_SLOT` with the same `used` and `limit` as `PRIVATE_SLOTS_FULL`. It is `403`
+  for the reason `PRIVATE_SLOTS_FULL` is: the recipe client treats any unknown `409` as a version conflict, so an
+  older installed app would open the conflict view. Otherwise "I wrote this" over a book recipe would buy more private storage than the honest statement.
 - **Leaving review for Private is an ordinary move to private.** It needs a free slot, as §3 requires.
 - So review is never a free private store: a person's decision always ends it, the same content cannot enter it again,
-  and a recipe keeps its queue place across edits. A public draft is still owner-only and uses no slot, as before.
+  and a recipe keeps its queue place across edits.
+- **Open, for the owner.** A public draft is still owner-only and uses no slot, and a cook may move a recipe from review
+  back to Draft. Whether a public draft should count against the private limit is OPEN, for the owner: counting it changes what a slot means, which this ADR calls a one-way door.
 
 ## Consequences
 

@@ -61,12 +61,16 @@ false`, whatever the worker has written (spec FR-051's timing floor). A rule-onl
 ### Refusals the cook can meet (spec FR-018)
 
 ```text
-409 SOURCE_DETECTED_NO_PRIVATE_SLOT   a save the rules block, by a free cook with no free private slot. Carries the
+403 SOURCE_DETECTED_NO_PRIVATE_SLOT   a save the rules block, by a free cook with no free private slot. Carries the
                                       evidence and ADR-0073's used and limit. Nothing is saved.
-409 SOURCE_CHECK_NOT_APPROVED         a change to public of content whose review ended without approval
+403 SOURCE_CHECK_NOT_APPROVED         a change to public of content whose review ended without approval
 403 PRIVATE_SLOTS_FULL                a move from In review to Private with no free slot (ADR-0073 owns this code)
 ```
 
+- **All three are `403`, never `409`.** These refusals reach the existing recipe and visibility routes, which
+  installed apps already call. The recipe client treats any unknown `409` as a version conflict, so an older app would
+  open the conflict view. ADR-0073 chose `403` for `PRIVATE_SLOTS_FULL` for the same reason. An older app shows its
+  generic refusal; a new one reads the code.
 - All three apply only while blocking is on. The editor outbox treats each as final and parks the record for the
   cook (ADR-0057, ADR-0073's owed outbox rule), never re-sending it.
 - Saving a change to the text, photos or source of a recipe in review is never refused. It starts a new check and

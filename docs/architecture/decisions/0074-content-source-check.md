@@ -109,16 +109,21 @@ owner's rulings, as the coordinator relayed them the same day.
     - bulk import's, for a `detected` item;
     - a `detected` save by a free cook with no free slot. Nothing is saved yet, and it matches ADR-0073's refusal of a
       book recipe with no slot. Without it, "I wrote this" over a book recipe would buy unlimited private storage,
-      while the honest statement is refused;
+      while the honest statement is refused. It answers `403 SOURCE_DETECTED_NO_PRIVATE_SLOT`, with ADR-0073's `used`
+      and `limit`;
     - a change to public of content whose review ended without approval. A person's decision always ends review, and
-      the same unchanged content cannot enter it again.
+      the same unchanged content cannot enter it again. It answers `403 SOURCE_CHECK_NOT_APPROVED`.
+- **Each refusal is `403`, never `409`.** These refusals reach routes that installed apps already call, and the recipe
+  client treats any unknown `409` as a version conflict, so an older app would open the conflict view. ADR-0073 chose
+  `403` for `PRIVATE_SLOTS_FULL` for the same reason.
 - **While in review the cook may** switch to Private (a free slot is needed, and the referral is withdrawn), go back to
   Draft (the referral is withdrawn), edit it (a new check replaces the referral, and the editor warns first), or
   delete it. A recipe keeps the queue place it had when it first entered review, so edits and trips through Draft
   never push it back.
 
 So a recipe leaves review only by approval, by a decision that makes it private and costs a slot, by the cook's own
-move to Private or Draft, or by deletion. A public draft stays owner-only and unmetered, as ADR-0073 already accepted.
+move to Private or Draft, or by deletion. A public draft is owner-only and unmetered under ADR-0073, so the Draft exit
+is not closed. Whether to count public drafts as slots is open for the owner (ADR-0073 §11).
 
 ### 4. Evidence is stored per part: model evidence shared by content, rule evidence per check
 

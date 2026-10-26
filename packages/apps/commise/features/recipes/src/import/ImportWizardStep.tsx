@@ -9,6 +9,9 @@
  * stays within thumb reach however long the recipe; at it (1194 and web) the bar sits in flow under the lines and the
  * recipe rail stands beside the step. Back is absent on the first recipe, and named for the recipe it returns to.
  *
+ * When a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to
+ * the top of the page (staff-ux 2026-10-25).
+ *
  * Presentational: the host decides what each action does. The native leaf is `./ImportWizardStep.native.tsx`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -33,6 +36,7 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
     onSkip,
     onNext,
     onSaveAndLeave,
+    nextFocus,
 }) => {
     const { wizard: w } = useMessages(importMessages);
     const locale = useLocale();
@@ -74,7 +78,13 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
                         {w.skip}
                     </Button>
                     <span className="flex-1" />
-                    <Button icon="chevronRight" iconPlacement="end" onPress={onNext}>
+                    <Button
+                        icon="chevronRight"
+                        iconPlacement="end"
+                        focusRequested={nextFocus.requested}
+                        onFocusRequestHandled={nextFocus.onHandled}
+                        onPress={onNext}
+                    >
                         {w.next}
                     </Button>
                 </div>

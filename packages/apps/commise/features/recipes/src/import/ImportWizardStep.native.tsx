@@ -8,6 +8,9 @@
  * last item instead (`usePinnedFooter`, `docs/design/compactHeightLayout.md` §3.1), the house rule the Sheet and the
  * recipe wizard share.
  *
+ * When a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to
+ * the top of the page (staff-ux 2026-10-25).
+ *
  * Presentational: the host decides what each action does.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -39,6 +42,7 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
     onSkip,
     onNext,
     onSaveAndLeave,
+    nextFocus,
 }) => {
     const { wizard: w } = useMessages(importMessages);
     const locale = useLocale();
@@ -69,7 +73,13 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
                 {w.skip}
             </Button>
             <View style={styles.grow} />
-            <Button icon="chevronRight" iconPlacement="end" onPress={onNext}>
+            <Button
+                icon="chevronRight"
+                iconPlacement="end"
+                focusRequested={nextFocus.requested}
+                onFocusRequestHandled={nextFocus.onHandled}
+                onPress={onNext}
+            >
                 {w.next}
             </Button>
         </View>

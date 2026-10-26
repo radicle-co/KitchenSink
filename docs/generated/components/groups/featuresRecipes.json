@@ -6,11 +6,11 @@
     "coverage": {
         "components": 177,
         "implementations": 305,
-        "props": 1553,
+        "props": 1555,
         "documentedComponents": 177,
         "implementationsWithModuleDoc": 305,
         "implementationsWithComponentDoc": 198,
-        "documentedProps": 1274,
+        "documentedProps": 1276,
         "classifiedComponents": 157,
         "componentsWithPatternTag": 81,
         "crossPlatformComponents": 128
@@ -20886,7 +20886,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardStep.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardStep` (web): one step of the bulk import review (board\nWizardStep). Save and leave at the top; the recipe as the page's heading; \"Recipe 14 of 309 · 3 lines to choose\" in\nwords and as a progress bar; the recipe's lines (the host's `ImportLineList`); then Back, Skip and Next recipe.\n\nBelow the wide container class the action bar is pinned to the bottom of the viewport, so the step's primary action\nstays within thumb reach however long the recipe; at it (1194 and web) the bar sits in flow under the lines and the\nrecipe rail stands beside the step. Back is absent on the first recipe, and named for the recipe it returns to.\n\nPresentational: the host decides what each action does. The native leaf is `./ImportWizardStep.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardStep` (web): one step of the bulk import review (board\nWizardStep). Save and leave at the top; the recipe as the page's heading; \"Recipe 14 of 309 · 3 lines to choose\" in\nwords and as a progress bar; the recipe's lines (the host's `ImportLineList`); then Back, Skip and Next recipe.\n\nBelow the wide container class the action bar is pinned to the bottom of the viewport, so the step's primary action\nstays within thumb reach however long the recipe; at it (1194 and web) the bar sits in flow under the lines and the\nrecipe rail stands beside the step. Back is absent on the first recipe, and named for the recipe it returns to.\n\nWhen a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to\nthe top of the page (staff-ux 2026-10-25).\n\nPresentational: the host decides what each action does. The native leaf is `./ImportWizardStep.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -20905,6 +20905,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The recipe's line list.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "nextFocus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that Next recipe take focus: raised by the host when a pick leaves nothing open (`pickFocusOf` answers\n`done`; staff-ux 2026-10-25).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -21001,7 +21010,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardStep.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardStep` (native): the React Native leaf of\n`./ImportWizardStep.tsx`, on the same props and words (`wizardCopy.ts`). A frame of its own: Save and leave, the\nrecipe heading, the progress and the lines scroll; Back, Skip and Next recipe sit in a bar OUTSIDE the scroll region,\nat the bottom, within thumb reach. At the wide container class (1194) the recipe rail stands beside the step.\n\nAt large text or on a short screen the bar would take the frame: past half of it the bar becomes the scroll region's\nlast item instead (`usePinnedFooter`, `docs/design/compactHeightLayout.md` §3.1), the house rule the Sheet and the\nrecipe wizard share.\n\nPresentational: the host decides what each action does.",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportWizardStep` (native): the React Native leaf of\n`./ImportWizardStep.tsx`, on the same props and words (`wizardCopy.ts`). A frame of its own: Save and leave, the\nrecipe heading, the progress and the lines scroll; Back, Skip and Next recipe sit in a bar OUTSIDE the scroll region,\nat the bottom, within thumb reach. At the wide container class (1194) the recipe rail stands beside the step.\n\nAt large text or on a short screen the bar would take the frame: past half of it the bar becomes the scroll region's\nlast item instead (`usePinnedFooter`, `docs/design/compactHeightLayout.md` §3.1), the house rule the Sheet and the\nrecipe wizard share.\n\nWhen a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to\nthe top of the page (staff-ux 2026-10-25).\n\nPresentational: the host decides what each action does.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21020,6 +21029,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The recipe's line list.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
+                            "name": "nextFocus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that Next recipe take focus: raised by the host when a pick leaves nothing open (`pickFocusOf` answers\n`done`; staff-ux 2026-10-25).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {

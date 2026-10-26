@@ -2,7 +2,8 @@
  * Native component tests for `ImportWizardStep`, rendered through react-native-web under jsdom. Mirrors
  * `ImportWizardStep.test.tsx` — the recipe heading, the progress in words and as a bar, Save and leave, Back (absent on
  * the first recipe), Skip and Next — plus the native layout's rules: the action bar outside the scroll region (thumb
- * reach), and the recipe rail only at the wide container class.
+ * reach), and the recipe rail only at the wide container class. The focus case is new (review finding M4): when nothing
+ * is left open, the host's request moves the screen reader to Next recipe.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -10,6 +11,7 @@ import { fireEvent } from '@testing-library/dom';
 import { Text } from 'react-native';
 
 const windowWidth = vi.hoisted(() => ({ current: 390 }));
+const focus = vi.hoisted(() => ({ moved: vi.fn() }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
@@ -17,6 +19,7 @@ vi.mock('react-native', async (importOriginal) => {
     return {
         ...actual,
         useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: windowWidth.current }),
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focus.moved },
     };
 });
 
@@ -30,6 +33,7 @@ const w = importMessages.en.wizard;
 afterEach(() => {
     cleanup();
     windowWidth.current = 390;
+    focus.moved.mockClear();
 });
 
 function renderStep(overrides: Partial<ImportWizardStepProps> = {}) {
@@ -40,6 +44,7 @@ function renderStep(overrides: Partial<ImportWizardStepProps> = {}) {
             position={14}
             total={309}
             openLines={3}
+            nextFocus={{ requested: false, onHandled: vi.fn() }}
             {...handlers}
             {...overrides}
         >
@@ -113,5 +118,20 @@ describe('ImportWizardStep (native)', () => {
         windowWidth.current = 1194;
         renderStep({ rail: <Text>the rail</Text> });
         expect(screen.getByText('the rail')).toBeTruthy();
+    });
+
+    it('⛔ a focus request moves the screen reader to Next recipe, and is acknowledged', () => {
+        const onHandled = vi.fn();
+
+        renderStep({ nextFocus: { requested: true, onHandled } });
+
+        expect(focus.moved).toHaveBeenCalledTimes(1);
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves nothing while no focus is asked for', () => {
+        renderStep();
+
+        expect(focus.moved).not.toHaveBeenCalled();
     });
 });

@@ -7,6 +7,7 @@
  */
 import type { ReactNode } from 'react';
 
+import type { ControlFocus } from '../form/controlFocus.js';
 import type { FoodChoiceListProps } from '../ingredientMatching/foodChoiceListProps.js';
 import type { LinePick, MatchLine } from '../ingredientMatching/matchLine.js';
 import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
@@ -56,6 +57,11 @@ export interface ImportWizardStepProps {
     readonly onSkip: () => void;
     /** Move to the next recipe with an open line. */
     readonly onNext: () => void;
+    /**
+     * A request that Next recipe take focus: raised by the host when a pick leaves nothing open (`pickFocusOf` answers
+     * `done`; staff-ux 2026-10-25).
+     */
+    readonly nextFocus: ControlFocus;
     /** Ask to save and leave (the host opens `ImportWizardLeave`). */
     readonly onSaveAndLeave: () => void;
 }

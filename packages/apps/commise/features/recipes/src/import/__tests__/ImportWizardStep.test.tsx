@@ -3,6 +3,9 @@
  * Component tests for the web `ImportWizardStep` (board WizardStep): the recipe as the page's heading, "Recipe N of M ·
  * K lines to choose" in words and as a progress bar, Save and leave, the recipe's lines, and Back, Skip and Next in the
  * step's action bar — pinned to the bottom below the wide class (thumb reach), in flow beside the rail at it.
+ *
+ * The focus case is new (review finding M4, staff-ux 2026-10-25): when the cook's pick leaves nothing open, the host
+ * sends focus to Next recipe (`pickFocusOf` answers `done`), through the house `ControlFocus`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -24,6 +27,7 @@ function renderStep(overrides: Partial<ImportWizardStepProps> = {}) {
             position={14}
             total={309}
             openLines={3}
+            nextFocus={{ requested: false, onHandled: vi.fn() }}
             {...handlers}
             {...overrides}
         >
@@ -118,5 +122,20 @@ describe('ImportWizardStep (web)', () => {
 
         renderStep();
         expect(screen.queryByRole('navigation')).toBeNull();
+    });
+
+    it('⛔ a focus request moves focus to Next recipe, and is acknowledged', () => {
+        const onHandled = vi.fn();
+
+        renderStep({ nextFocus: { requested: true, onHandled } });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: w.next }));
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes no focus while none is asked for', () => {
+        renderStep();
+
+        expect(document.activeElement).toBe(document.body);
     });
 });

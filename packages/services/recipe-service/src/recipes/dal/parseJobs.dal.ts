@@ -205,6 +205,12 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 if (outcome.kind === 'refused') {
                     return outcome;
                 }
+
+                if (outcome.kind === 'partial') {
+                    // A job is one unit and the policy cannot admit "part of one". Throwing rolls the transaction back,
+                    // so a defect here spends nothing rather than charging a job that is then refused.
+                    throw new Error('the allowance admitted part of a single-unit parse job');
+                }
             }
 
             const [job] = await tx.insert(recipeParseJobs).values({ ownerId, expiresAt, status }).returning();

@@ -15,17 +15,25 @@
  *  2. **One clock, read AFTER the lock.** `clock_timestamp()`, not `now()` (the transaction's start, stale by however long
  *     the lock wait took) and not the application clock (another machine's). The same reading decides and is written as
  *     `created_at`, so a decision and its record agree.
- *  3. **The policy decides, the SQL fetches.** This module reads the user's events newer than the window edge and hands
- *     them to {@link evaluateImportAllowance}; it never re-states the 200 or the 24 h.
- *  4. **Expired units are deleted under the same lock.** An event past the window can never count again, so keeping it is
- *     only storage and personal data held for no purpose. The delete uses the policy's own edge. It runs on the user's next
- *     admission, so a user who never pastes again keeps their last day of rows until account erasure (a bounded, small tail).
+ *  3. **The policy decides, the SQL fetches.** This module reads ALL of the user's events inside their channel's window
+ *     and hands them, channel and all, to {@link evaluateImportAllowance}; it never re-states a limit or the 24 h, and the
+ *     rule "a channel counts only its own rows" lives in the policy alone (ADR-0072 §8).
+ *  4. **Expired units are deleted under the same lock.** An event past ITS CHANNEL'S window can never count again, so
+ *     keeping it is only storage and personal data held for no purpose. The delete uses the policy's own edge per channel.
+ *     It runs on the user's next admission, so a user who never imports again keeps their last day of rows until account
+ *     erasure (a bounded, small tail).
+ *  5. **Admit what fits.** The policy may admit fewer units than asked (a bulk file larger than the room left). Only the
+ *     units admitted are written, as ONE row, so the ledger never holds a unit the caller was not given.
  */
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
-import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, lte, or, sql } from 'drizzle-orm';
 
 import type { Writer } from '../../database/unitOfWork.js';
-import { importAllowanceEvents, type ImportAllowanceChannel } from '../../database/schema/importAllowanceEvents.js';
+import {
+    IMPORT_ALLOWANCE_CHANNELS,
+    importAllowanceEvents,
+    type ImportAllowanceChannel,
+} from '../../database/schema/importAllowanceEvents.js';
 import {
     evaluateImportAllowance,
     importAllowanceWindowStart,
@@ -36,14 +44,40 @@ import {
 export interface AdmitRequest {
     /** What is spending the unit. */
     readonly channel: ImportAllowanceChannel;
-    /** How many units: a positive integer within the daily limit (the policy throws otherwise). */
+    /** How many units: a positive integer (the policy throws otherwise). More than the room left is admitted in part. */
     readonly units: number;
     /** The caller's tier. */
     readonly tier: ImportAllowanceTier;
 }
 
-/** The outcome of an admission. A refusal wrote no ledger row (the user's expired rows may still have been pruned). */
-export type AdmitOutcome = { readonly kind: 'admitted' } | { readonly kind: 'refused'; readonly resetsAt: Date };
+/**
+ * The outcome of an admission. A refusal wrote no ledger row (the user's expired rows may still have been pruned).
+ *
+ *  - `admitted`: all the requested units were spent.
+ *  - `partial`: only `units` (fewer than asked, at least one) were spent; the rest waits until `resetsAt`.
+ *  - `refused`: nothing was spent; more room opens at `resetsAt`.
+ */
+export type AdmitOutcome =
+    | { readonly kind: 'admitted'; readonly units: number }
+    | { readonly kind: 'partial'; readonly units: number; readonly resetsAt: Date }
+    | { readonly kind: 'refused'; readonly resetsAt: Date };
+
+/**
+ * Narrow a stored channel to the vocabulary. The CHECK keeps any other value out of the table, so a stranger here is a
+ * schema/vocabulary drift, and it is thrown rather than counted against no channel.
+ *
+ * @param stored - The `channel` column.
+ * @returns The same value, typed. Pure.
+ */
+function channelOf(stored: string): ImportAllowanceChannel {
+    const known = IMPORT_ALLOWANCE_CHANNELS.find((channel) => channel === stored);
+
+    if (known === undefined) {
+        throw new Error(`the allowance ledger holds an unknown channel: ${stored}`);
+    }
+
+    return known;
+}
 
 export class ImportAllowanceDal {
     /**
@@ -54,8 +88,9 @@ export class ImportAllowanceDal {
      * @param tx - The open transaction (the lock lives and dies with it).
      * @param userId - The verified app-user ULID, never a request field.
      * @param request - The channel, the units and the tier.
-     * @returns `admitted` (the unit is on the ledger inside `tx`), or `refused` with the instant the allowance reopens.
-     * @throws {RangeError} when the units are not a positive integer within the limit (a caller defect).
+     * @returns `admitted` (the units are on the ledger inside `tx`), `partial` (only the units that fit are), or `refused`
+     *   with the instant the allowance reopens.
+     * @throws {RangeError} when the units are not a positive integer (a caller defect).
      * @sideEffect Takes a transaction-scoped advisory lock; deletes the user's expired events; inserts one event.
      */
     public async admit(tx: Writer, userId: string, request: AdmitRequest): Promise<AdmitOutcome> {
@@ -64,19 +99,39 @@ export class ImportAllowanceDal {
         );
 
         const now = await this.readClock(tx);
-        const windowStart = importAllowanceWindowStart(now);
+        // Each channel's rows are cut at THAT channel's edge.
+        const outsideWindow = or(
+            ...IMPORT_ALLOWANCE_CHANNELS.map((channel) =>
+                and(
+                    eq(importAllowanceEvents.channel, channel),
+                    lte(importAllowanceEvents.createdAt, importAllowanceWindowStart(channel, now)),
+                ),
+            ),
+        );
+        const insideWindow = or(
+            ...IMPORT_ALLOWANCE_CHANNELS.map((channel) =>
+                and(
+                    eq(importAllowanceEvents.channel, channel),
+                    gt(importAllowanceEvents.createdAt, importAllowanceWindowStart(channel, now)),
+                ),
+            ),
+        );
 
-        await tx
-            .delete(importAllowanceEvents)
-            .where(and(eq(importAllowanceEvents.userId, userId), lte(importAllowanceEvents.createdAt, windowStart)));
+        await tx.delete(importAllowanceEvents).where(and(eq(importAllowanceEvents.userId, userId), outsideWindow));
 
-        const windowEvents = await tx
-            .select({ units: importAllowanceEvents.units, createdAt: importAllowanceEvents.createdAt })
+        const rows = await tx
+            .select({
+                channel: importAllowanceEvents.channel,
+                units: importAllowanceEvents.units,
+                createdAt: importAllowanceEvents.createdAt,
+            })
             .from(importAllowanceEvents)
-            .where(and(eq(importAllowanceEvents.userId, userId), gt(importAllowanceEvents.createdAt, windowStart)))
+            .where(and(eq(importAllowanceEvents.userId, userId), insideWindow))
             .orderBy(asc(importAllowanceEvents.createdAt));
+        const windowEvents = rows.map((row) => ({ ...row, channel: channelOf(row.channel) }));
 
         const decision = evaluateImportAllowance({
+            channel: request.channel,
             tier: request.tier,
             windowEvents,
             requestedUnits: request.units,
@@ -89,9 +144,11 @@ export class ImportAllowanceDal {
 
         await tx
             .insert(importAllowanceEvents)
-            .values({ userId, channel: request.channel, units: request.units, createdAt: now });
+            .values({ userId, channel: request.channel, units: decision.units, createdAt: now });
 
-        return { kind: 'admitted' };
+        return decision.kind === 'admit'
+            ? { kind: 'admitted', units: decision.units }
+            : { kind: 'partial', units: decision.units, resetsAt: decision.resetsAt };
     }
 
     /**

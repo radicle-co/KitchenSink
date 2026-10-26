@@ -14,7 +14,8 @@ import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 import type { RecipeDrizzle } from '../../../database/client.js';
 import { makeFakeDrizzle, methodsOf, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
-import { IMPORT_ALLOWANCE_DAILY_LIMIT, IMPORT_ALLOWANCE_WINDOW_MS } from '../../importAllowancePolicy.js';
+import { IMPORT_ALLOWANCE_LIMITS, IMPORT_ALLOWANCE_WINDOW_MS } from '../../importAllowancePolicy.js';
+import type { ImportAllowanceChannel } from '../../../database/schema/importAllowanceEvents.js';
 import { ImportAllowanceDal } from '../importAllowance.dal.js';
 
 const USER = '01JIMPORTALLOWANCEUSER0001';
@@ -39,7 +40,7 @@ let control: FakeDrizzle<RecipeDrizzle>;
 let dal: ImportAllowanceDal;
 
 /** Queue the reads in the order `admit` issues them: the clock, the prune, the window. */
-function queueReads(windowRows: readonly { units: number; createdAt: Date }[]): void {
+function queueReads(windowRows: readonly { channel: ImportAllowanceChannel; units: number; createdAt: Date }[]): void {
     control.enqueue([{ epochMs: NOW.getTime() }], undefined, windowRows, undefined);
 }
 
@@ -70,17 +71,18 @@ describe('ImportAllowanceDal.admit', () => {
 
         const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
 
-        expect(outcome).toEqual({ kind: 'admitted' });
+        expect(outcome).toEqual({ kind: 'admitted', units: 1 });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'paste', units: 1, createdAt: NOW }]);
     });
 
     it('refuses at the limit, names when the oldest unit leaves, and writes nothing', async () => {
         const oldest = new Date(NOW.getTime() - 20 * 3_600_000);
-        const rest = Array.from({ length: IMPORT_ALLOWANCE_DAILY_LIMIT - 1 }, () => ({
+        const rest = Array.from({ length: IMPORT_ALLOWANCE_LIMITS.paste - 1 }, () => ({
+            channel: 'paste' as const,
             units: 1,
             createdAt: new Date(NOW.getTime() - 3_600_000),
         }));
-        queueReads([{ units: 1, createdAt: oldest }, ...rest]);
+        queueReads([{ channel: 'paste', units: 1, createdAt: oldest }, ...rest]);
 
         const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
 
@@ -111,24 +113,58 @@ describe('ImportAllowanceDal.admit', () => {
         expect(lock.params).toEqual([ADVISORY_LOCK_CLASSES.recipeImportAllowance, USER]);
     });
 
-    it("⛔ prunes ONLY this user's rows at or before the window edge, and reads ONLY this user's rows after it", async () => {
+    it("⛔ prunes ONLY this user's rows at or before EACH CHANNEL's window edge, and reads ONLY this user's rows after it", async () => {
         queueReads([]);
 
         await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
 
-        const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_WINDOW_MS);
+        const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_WINDOW_MS).toISOString();
         const wheres = control.calls.filter((call) => call.method === 'where').map((call) => rendered(call.args[0]));
+        const perChannel = (operator: '<=' | '>'): string =>
+            [
+                '(("import_allowance_events"."channel" = $2 and "import_allowance_events"."created_at" ' +
+                    operator +
+                    ' $3)',
+                'or ("import_allowance_events"."channel" = $4 and "import_allowance_events"."created_at" ' +
+                    operator +
+                    ' $5))',
+            ].join(' ');
 
         // The delete's predicate and the window read's predicate, in that order. Dropping the user filter would spend one
-        // user's window against everyone's; flipping an operator would move the edge the policy defines.
+        // user's window against everyone's; flipping an operator would move the edge the policy defines; dropping the
+        // channel from the edge would prune one channel's rows by another's window.
         expect(wheres).toHaveLength(2);
-        expect(wheres[0]?.text).toBe(
-            '("import_allowance_events"."user_id" = $1 and "import_allowance_events"."created_at" <= $2)',
+        expect(wheres[0]?.text).toBe('("import_allowance_events"."user_id" = $1 and ' + perChannel('<=') + ')');
+        expect(wheres[0]?.params).toEqual([USER, 'paste', edge, 'bulk', edge]);
+        expect(wheres[1]?.text).toBe('("import_allowance_events"."user_id" = $1 and ' + perChannel('>') + ')');
+        expect(wheres[1]?.params).toEqual([USER, 'paste', edge, 'bulk', edge]);
+    });
+
+    it('⛔ asks the policy for the REQUESTED channel: a full paste allowance does not stop a bulk admission', async () => {
+        queueReads(
+            Array.from({ length: IMPORT_ALLOWANCE_LIMITS.paste }, () => ({
+                channel: 'paste' as const,
+                units: 1,
+                createdAt: new Date(NOW.getTime() - 3_600_000),
+            })),
         );
-        expect(wheres[0]?.params).toEqual([USER, edge.toISOString()]);
-        expect(wheres[1]?.text).toBe(
-            '("import_allowance_events"."user_id" = $1 and "import_allowance_events"."created_at" > $2)',
-        );
-        expect(wheres[1]?.params).toEqual([USER, edge.toISOString()]);
+
+        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 5, tier: FREE });
+
+        expect(outcome).toEqual({ kind: 'admitted', units: 5 });
+        expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 5, createdAt: NOW }]);
+    });
+
+    it('⛔ writes ONLY the units that fit, and answers partial with when more opens', async () => {
+        queueReads([{ channel: 'bulk', units: 990, createdAt: new Date(NOW.getTime() - 3_600_000) }]);
+
+        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 50, tier: FREE });
+
+        expect(outcome).toEqual({
+            kind: 'partial',
+            units: 10,
+            resetsAt: new Date(NOW.getTime() - 3_600_000 + IMPORT_ALLOWANCE_WINDOW_MS),
+        });
+        expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 10, createdAt: NOW }]);
     });
 });

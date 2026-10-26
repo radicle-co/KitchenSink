@@ -1,9 +1,14 @@
 /**
- * The daily import allowance (004 FR-022), judged by one pure function.
+ * The daily import allowance (004 FR-022, ADR-0072 §8), judged by one pure function.
  *
- * Written from the spec and plan, before the policy existed: 200 imports a day per user across all channels, a
- * trailing 24 hours (plan.md §5, "Rate limiting and backpressure"), a refusal that names the moment the allowance
- * reopens (FR-022), and the tier as a parameter that today changes nothing (the 010 seam).
+ * REWRITTEN for ADR-0072 §8 (owner ruling, 2026-10-26). The first version pinned ONE limit of 200 summed across every
+ * channel, and "a bulk file is one unit". Both are wrong under the ruling, so those assertions are replaced, not
+ * edited to compile: each channel now has its OWN limit and window (paste 200 a day, bulk 1,000 recipes a day), counts
+ * ONLY its own rows, and a request larger than the room left is ADMITTED IN PART ("admit what fits"), because a file of
+ * any size is accepted and the rest waits.
+ *
+ * Still pinned from the spec: a trailing 24 hours (plan.md §5), a refusal that names the moment more room opens
+ * (FR-022), and the tier as a parameter that today changes nothing (the 010 seam).
  *
  * The edge rule is stated once in the policy and pinned from BOTH sides here: an event 24 h minus 1 ms old still
  * counts, an event exactly 24 h old does not.
@@ -11,188 +16,224 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    IMPORT_ALLOWANCE_DAILY_LIMIT,
+    IMPORT_ALLOWANCE_LIMITS,
     IMPORT_ALLOWANCE_WINDOW_MS,
     evaluateImportAllowance,
     importAllowanceWindowStart,
     type AllowanceEvent,
 } from '../importAllowancePolicy.js';
+import type { ImportAllowanceChannel } from '../../database/schema/importAllowanceEvents.js';
 
 const NOW = new Date('2026-10-26T12:00:00.000Z');
 const FREE = { isPremium: false } as const;
 const PREMIUM = { isPremium: true } as const;
+const HOUR = 3_600_000;
 
-/** An event `ageMs` before NOW, spending `units`. */
-function eventAged(ageMs: number, units = 1): AllowanceEvent {
-    return { units, createdAt: new Date(NOW.getTime() - ageMs) };
+/** An event on `channel`, `ageMs` before NOW, spending `units`. */
+function eventAged(ageMs: number, units = 1, channel: ImportAllowanceChannel = 'paste'): AllowanceEvent {
+    return { channel, units, createdAt: new Date(NOW.getTime() - ageMs) };
 }
 
-/** `count` single-unit events, `ageMs` apart starting `firstAgeMs` before NOW (oldest last in time order). */
-function spread(count: number, firstAgeMs: number, stepMs: number): AllowanceEvent[] {
-    return Array.from({ length: count }, (_unused, index) => eventAged(firstAgeMs - index * stepMs));
+/** `count` single-unit events on `channel`, `stepMs` apart starting `firstAgeMs` before NOW. */
+function spread(count: number, firstAgeMs: number, stepMs: number, channel: ImportAllowanceChannel = 'paste') {
+    return Array.from({ length: count }, (_unused, index) => eventAged(firstAgeMs - index * stepMs, 1, channel));
 }
 
-describe('the allowance numbers (004 FR-022, plan.md §5)', () => {
-    it('is 200 a day over a trailing 24 hours', () => {
-        expect(IMPORT_ALLOWANCE_DAILY_LIMIT).toBe(200);
-        expect(IMPORT_ALLOWANCE_WINDOW_MS).toBe(24 * 60 * 60 * 1000);
+function decide(
+    channel: ImportAllowanceChannel,
+    windowEvents: readonly AllowanceEvent[],
+    requestedUnits: number,
+    now: Date = NOW,
+    tier: { readonly isPremium: boolean } = FREE,
+) {
+    return evaluateImportAllowance({ channel, tier, windowEvents, requestedUnits, now });
+}
+
+describe('the allowance numbers (ADR-0072 §8; 004 FR-022 and plan.md §5)', () => {
+    it('is 200 a rolling day for paste and 1,000 recipes a rolling day for bulk import', () => {
+        expect(IMPORT_ALLOWANCE_LIMITS).toEqual({ paste: 200, bulk: 1000 });
+        expect(IMPORT_ALLOWANCE_WINDOW_MS).toBe(24 * HOUR);
     });
 });
 
-describe('evaluateImportAllowance', () => {
-    it('admits a first import', () => {
-        expect(evaluateImportAllowance({ tier: FREE, windowEvents: [], requestedUnits: 1, now: NOW })).toEqual({
-            kind: 'admit',
-        });
+describe('evaluateImportAllowance — paste', () => {
+    it('admits a first paste', () => {
+        expect(decide('paste', [], 1)).toEqual({ kind: 'admit', units: 1 });
     });
 
-    it('admits the 200th unit and refuses the 201st', () => {
-        const spent199 = spread(199, 3_600_000, 1000);
-        const spent200 = spread(200, 3_600_000, 1000);
-
-        expect(evaluateImportAllowance({ tier: FREE, windowEvents: spent199, requestedUnits: 1, now: NOW })).toEqual({
-            kind: 'admit',
-        });
-        expect(evaluateImportAllowance({ tier: FREE, windowEvents: spent200, requestedUnits: 1, now: NOW }).kind).toBe(
-            'refuse',
-        );
+    it('admits the 200th paste and refuses the 201st', () => {
+        expect(decide('paste', spread(199, HOUR, 1000), 1)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('paste', spread(200, HOUR, 1000), 1).kind).toBe('refuse');
     });
 
     it('counts every event by its units, not by its row', () => {
-        // One bulk file is ONE unit (D-013), but a multi-unit row must weigh what it says.
         const events = [eventAged(1000, 150), eventAged(2000, 49)];
 
-        expect(evaluateImportAllowance({ tier: FREE, windowEvents: events, requestedUnits: 1, now: NOW }).kind).toBe(
-            'admit',
-        );
-        expect(evaluateImportAllowance({ tier: FREE, windowEvents: events, requestedUnits: 2, now: NOW }).kind).toBe(
-            'refuse',
-        );
+        expect(decide('paste', events, 1).kind).toBe('admit');
+        // Two units asked, one left: admit what fits.
+        expect(decide('paste', events, 2)).toMatchObject({ kind: 'partial', units: 1 });
+    });
+});
+
+describe('evaluateImportAllowance — each channel counts only its own rows (ADR-0072 §8)', () => {
+    it('does not charge a full paste allowance against bulk import', () => {
+        expect(decide('bulk', spread(200, HOUR, 1000, 'paste'), 1)).toEqual({ kind: 'admit', units: 1 });
     });
 
-    describe('the window edge', () => {
-        it('counts an event 24 h minus 1 ms old', () => {
-            const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS - 1, IMPORT_ALLOWANCE_DAILY_LIMIT)];
-
-            expect(evaluateImportAllowance({ tier: FREE, windowEvents: full, requestedUnits: 1, now: NOW }).kind).toBe(
-                'refuse',
-            );
-        });
-
-        it('does not count an event exactly 24 h old', () => {
-            const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS, IMPORT_ALLOWANCE_DAILY_LIMIT)];
-
-            expect(evaluateImportAllowance({ tier: FREE, windowEvents: full, requestedUnits: 1, now: NOW })).toEqual({
-                kind: 'admit',
-            });
-        });
-
-        it('does not count an event older than 24 h', () => {
-            const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS + 1, IMPORT_ALLOWANCE_DAILY_LIMIT)];
-
-            expect(evaluateImportAllowance({ tier: FREE, windowEvents: full, requestedUnits: 1, now: NOW })).toEqual({
-                kind: 'admit',
-            });
-        });
-
-        it('exposes the same edge to the DAL as the moment an event stops counting', () => {
-            expect(importAllowanceWindowStart(NOW).getTime()).toBe(NOW.getTime() - IMPORT_ALLOWANCE_WINDOW_MS);
-        });
+    it('does not charge a full bulk allowance against paste', () => {
+        expect(decide('paste', [eventAged(HOUR, 1000, 'bulk')], 1)).toEqual({ kind: 'admit', units: 1 });
     });
 
-    describe('resetsAt', () => {
-        it('is the oldest counted event plus 24 h when one unit must free up', () => {
-            // 200 units spent; the oldest was 20 h ago, so it leaves the window 4 h from now.
-            const events = [eventAged(20 * 3_600_000), ...spread(199, 3_600_000, 1000)];
-            const decision = evaluateImportAllowance({ tier: FREE, windowEvents: events, requestedUnits: 1, now: NOW });
+    it('does not let bulk rows shrink the paste room, or paste rows shrink the bulk room', () => {
+        const mixed = [eventAged(HOUR, 199, 'paste'), eventAged(HOUR, 999, 'bulk')];
 
-            expect(decision).toEqual({
-                kind: 'refuse',
-                resetsAt: new Date(NOW.getTime() + 4 * 3_600_000),
-            });
-        });
+        expect(decide('paste', mixed, 1)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('bulk', mixed, 1)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('paste', mixed, 2)).toMatchObject({ kind: 'partial', units: 1 });
+        expect(decide('bulk', mixed, 2)).toMatchObject({ kind: 'partial', units: 1 });
+    });
 
-        it('does not depend on the order the events arrive in', () => {
-            const events = [eventAged(20 * 3_600_000), ...spread(199, 3_600_000, 1000)];
-            const forward = evaluateImportAllowance({ tier: FREE, windowEvents: events, requestedUnits: 1, now: NOW });
-            const reversed = evaluateImportAllowance({
-                tier: FREE,
-                windowEvents: [...events].reverse(),
-                requestedUnits: 1,
-                now: NOW,
-            });
+    it('takes resetsAt from its own channel only', () => {
+        // Paste is full with its oldest unit 20 h old. A very old bulk row must not become the reset instant.
+        const events = [eventAged(23 * HOUR, 1, 'bulk'), eventAged(20 * HOUR, 1, 'paste'), ...spread(199, HOUR, 1000)];
 
-            expect(reversed).toEqual(forward);
-        });
+        expect(decide('paste', events, 1)).toEqual({ kind: 'refuse', resetsAt: new Date(NOW.getTime() + 4 * HOUR) });
+    });
+});
 
-        it('waits for enough units to leave, not merely the first event', () => {
-            // Two units on the books at 20 h and 10 h; limit consumed by a 198-unit event 1 h ago. A request for 2 needs
-            // BOTH old units to leave, so the allowance reopens when the 10 h-old one does, not the 20 h-old one.
-            const events = [eventAged(20 * 3_600_000, 1), eventAged(10 * 3_600_000, 1), eventAged(3_600_000, 198)];
-            const decision = evaluateImportAllowance({ tier: FREE, windowEvents: events, requestedUnits: 2, now: NOW });
+describe('evaluateImportAllowance — bulk admits what fits (ADR-0072 §8)', () => {
+    it('admits a file that fits, whole', () => {
+        expect(decide('bulk', [], 1000)).toEqual({ kind: 'admit', units: 1000 });
+        expect(decide('bulk', [eventAged(HOUR, 400, 'bulk')], 600)).toEqual({ kind: 'admit', units: 600 });
+    });
 
-            expect(decision).toEqual({
-                kind: 'refuse',
-                resetsAt: new Date(NOW.getTime() + 14 * 3_600_000),
-            });
-        });
-
-        it('is strictly after now, and the allowance really is open at that moment', () => {
-            const events = [eventAged(20 * 3_600_000), ...spread(199, 3_600_000, 1000)];
-            const decision = evaluateImportAllowance({ tier: FREE, windowEvents: events, requestedUnits: 1, now: NOW });
-
-            if (decision.kind !== 'refuse') {
-                throw new Error('expected a refusal');
-            }
-
-            expect(decision.resetsAt.getTime()).toBeGreaterThan(NOW.getTime());
-            expect(
-                evaluateImportAllowance({
-                    tier: FREE,
-                    windowEvents: events,
-                    requestedUnits: 1,
-                    now: decision.resetsAt,
-                }),
-            ).toEqual({ kind: 'admit' });
-            expect(
-                evaluateImportAllowance({
-                    tier: FREE,
-                    windowEvents: events,
-                    requestedUnits: 1,
-                    now: new Date(decision.resetsAt.getTime() - 1),
-                }).kind,
-            ).toBe('refuse');
+    it('accepts a file of any size: a 2,000-recipe export admits 1,000 and waits for the rest', () => {
+        expect(decide('bulk', [], 2000)).toEqual({
+            kind: 'partial',
+            units: 1000,
+            // The units admitted NOW are on the ledger at NOW, so the next room opens a day from now.
+            resetsAt: new Date(NOW.getTime() + 24 * HOUR),
         });
     });
 
-    describe('the tier parameter (the 010 seam)', () => {
-        it.each([
-            ['free', FREE],
-            ['premium', PREMIUM],
-        ])('gives a %s caller the same allowance today', (_name, tier) => {
-            const spent200 = spread(200, 3_600_000, 1000);
+    it('admits the room that is left today and names when more opens', () => {
+        const events = [eventAged(20 * HOUR, 300, 'bulk'), eventAged(2 * HOUR, 500, 'bulk')];
 
-            expect(
-                evaluateImportAllowance({
-                    tier,
-                    windowEvents: spread(199, 3_600_000, 1000),
-                    requestedUnits: 1,
-                    now: NOW,
-                }),
-            ).toEqual({
-                kind: 'admit',
-            });
-            expect(evaluateImportAllowance({ tier, windowEvents: spent200, requestedUnits: 1, now: NOW }).kind).toBe(
-                'refuse',
-            );
+        expect(decide('bulk', events, 500)).toEqual({
+            kind: 'partial',
+            units: 200,
+            // The oldest counted rows (300 units, 20 h old) leave in 4 h. The 200 admitted now do not matter.
+            resetsAt: new Date(NOW.getTime() + 4 * HOUR),
         });
     });
 
-    describe('a request that can never be admitted is a programmer error, not a refusal', () => {
-        it.each([0, -1, 1.5, IMPORT_ALLOWANCE_DAILY_LIMIT + 1])('throws for requestedUnits = %s', (requestedUnits) => {
-            expect(() => evaluateImportAllowance({ tier: FREE, windowEvents: [], requestedUnits, now: NOW })).toThrow(
-                RangeError,
-            );
-        });
+    it('names resetsAt over the ledger PLUS the units being admitted now', () => {
+        // The window is empty, 1,500 asked: 1,000 are written at NOW, so nothing frees before NOW + 24 h. Reading
+        // resetsAt off the old ledger alone would find no event to wait for.
+        const decision = decide('bulk', [], 1500);
+
+        expect(decision).toMatchObject({ kind: 'partial', units: 1000 });
+
+        if (decision.kind !== 'partial') {
+            throw new Error('expected a partial admission');
+        }
+
+        expect(decision.resetsAt.getTime()).toBeGreaterThan(NOW.getTime());
+    });
+
+    it('refuses when no room is left, and names the first unit to leave', () => {
+        const events = [eventAged(20 * HOUR, 1, 'bulk'), eventAged(HOUR, 999, 'bulk')];
+
+        expect(decide('bulk', events, 700)).toEqual({ kind: 'refuse', resetsAt: new Date(NOW.getTime() + 4 * HOUR) });
+    });
+
+    it('does not make a request wait for enough units to leave: ONE freed unit reopens the allowance', () => {
+        // ADR-0072 §8 admits what fits, so the allowance "reopens" the moment any unit frees, not when the whole
+        // request would fit. (The old all-or-nothing rule waited for the whole request.)
+        const events = [eventAged(20 * HOUR, 1, 'bulk'), eventAged(10 * HOUR, 1, 'bulk'), eventAged(HOUR, 998, 'bulk')];
+
+        expect(decide('bulk', events, 700)).toEqual({ kind: 'refuse', resetsAt: new Date(NOW.getTime() + 4 * HOUR) });
+    });
+
+    it('is open at resetsAt and closed a millisecond before it', () => {
+        const events = [eventAged(20 * HOUR, 1, 'bulk'), eventAged(HOUR, 999, 'bulk')];
+        const decision = decide('bulk', events, 5);
+
+        if (decision.kind !== 'refuse') {
+            throw new Error('expected a refusal');
+        }
+
+        expect(decide('bulk', events, 5, decision.resetsAt)).toMatchObject({ kind: 'partial', units: 1 });
+        expect(decide('bulk', events, 5, new Date(decision.resetsAt.getTime() - 1)).kind).toBe('refuse');
+    });
+
+    it('does not depend on the order the events arrive in', () => {
+        const events = [eventAged(20 * HOUR, 1, 'bulk'), eventAged(10 * HOUR, 5, 'bulk'), eventAged(HOUR, 994, 'bulk')];
+
+        expect(decide('bulk', [...events].reverse(), 7)).toEqual(decide('bulk', events, 7));
+    });
+});
+
+describe('the window edge', () => {
+    it.each(['paste', 'bulk'] as const)('%s: counts an event 24 h minus 1 ms old', (channel) => {
+        const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS - 1, IMPORT_ALLOWANCE_LIMITS[channel], channel)];
+
+        expect(decide(channel, full, 1).kind).toBe('refuse');
+    });
+
+    it.each(['paste', 'bulk'] as const)('%s: does not count an event exactly 24 h old', (channel) => {
+        const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS, IMPORT_ALLOWANCE_LIMITS[channel], channel)];
+
+        expect(decide(channel, full, 1)).toEqual({ kind: 'admit', units: 1 });
+    });
+
+    it.each(['paste', 'bulk'] as const)('%s: does not count an event older than 24 h', (channel) => {
+        const full = [eventAged(IMPORT_ALLOWANCE_WINDOW_MS + 1, IMPORT_ALLOWANCE_LIMITS[channel], channel)];
+
+        expect(decide(channel, full, 1)).toEqual({ kind: 'admit', units: 1 });
+    });
+
+    it.each(['paste', 'bulk'] as const)('%s: exposes the same edge to the DAL', (channel) => {
+        expect(importAllowanceWindowStart(channel, NOW).getTime()).toBe(NOW.getTime() - IMPORT_ALLOWANCE_WINDOW_MS);
+    });
+});
+
+describe('resetsAt (paste)', () => {
+    it('is the oldest counted event plus 24 h when the allowance is full', () => {
+        const events = [eventAged(20 * HOUR), ...spread(199, HOUR, 1000)];
+
+        expect(decide('paste', events, 1)).toEqual({ kind: 'refuse', resetsAt: new Date(NOW.getTime() + 4 * HOUR) });
+    });
+
+    it('is strictly after now, and the allowance really is open at that moment', () => {
+        const events = [eventAged(20 * HOUR), ...spread(199, HOUR, 1000)];
+        const decision = decide('paste', events, 1);
+
+        if (decision.kind !== 'refuse') {
+            throw new Error('expected a refusal');
+        }
+
+        expect(decision.resetsAt.getTime()).toBeGreaterThan(NOW.getTime());
+        expect(decide('paste', events, 1, decision.resetsAt)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('paste', events, 1, new Date(decision.resetsAt.getTime() - 1)).kind).toBe('refuse');
+    });
+});
+
+describe('the tier parameter (the 010 seam)', () => {
+    it.each([
+        ['free', FREE],
+        ['premium', PREMIUM],
+    ])('gives a %s caller the same allowance today, on both channels', (_name, tier) => {
+        expect(decide('paste', spread(199, HOUR, 1000), 1, NOW, tier)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('paste', spread(200, HOUR, 1000), 1, NOW, tier).kind).toBe('refuse');
+        expect(decide('bulk', [eventAged(HOUR, 999, 'bulk')], 1, NOW, tier)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('bulk', [eventAged(HOUR, 1000, 'bulk')], 1, NOW, tier).kind).toBe('refuse');
+    });
+});
+
+describe('a request that is not a positive integer is a programmer error, not a refusal', () => {
+    it.each([0, -1, 1.5, Number.NaN])('throws for requestedUnits = %s', (requestedUnits) => {
+        expect(() => decide('bulk', [], requestedUnits)).toThrow(RangeError);
+        expect(() => decide('paste', [], requestedUnits)).toThrow(RangeError);
     });
 });

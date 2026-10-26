@@ -74,6 +74,7 @@ export class LineVerificationsDal {
                 band: recipeIngredientVerifications.band,
                 certainty: recipeIngredientVerifications.certainty,
                 identityVerdict: recipeIngredientVerifications.identityVerdict,
+                aspects: recipeIngredientVerifications.aspects,
             })
             .from(recipeIngredientVerifications)
             .where(inArray(recipeIngredientVerifications.verificationKey, unique));
@@ -86,6 +87,7 @@ export class LineVerificationsDal {
                     band: row.band,
                     certainty: row.certainty,
                     identityVerdict: row.identityVerdict,
+                    aspects: row.aspects,
                 });
             }
         }
@@ -94,11 +96,16 @@ export class LineVerificationsDal {
     }
 
     /**
-     * Which of these verdict keys already have a verdict row (ADR-0071) — the save path's dedup read.
+     * Which of these verdict keys already have a verdict row that ASKED IDENTITY (ADR-0071) — the dedup read of the
+     * save path's producer and the paste matcher.
      *
      * ⛔ ANY band counts, including one this build cannot interpret. Unlike {@link findBandsByKeys}, the question is
      * not "how should this line publish" but "has the gate already been paid to judge this", and a row the worker
      * wrote under a newer band is still a judgement on record.
+     *
+     * ⛔ But only a judgement of the FOOD counts: both producers always ask identity now, and a verdict that asked
+     * quantity alone (the retired curated skip) says nothing about the food. Counting it would skip the request and
+     * leave the line unjudged; the worker's claim refuses it as an answer for the same reason.
      *
      * @param keys - The keys the producer is about to ask about; duplicates are collapsed.
      * @returns The keys that have a row.
@@ -112,11 +119,14 @@ export class LineVerificationsDal {
         }
 
         const rows = await this.db
-            .select({ verificationKey: recipeIngredientVerifications.verificationKey })
+            .select({
+                verificationKey: recipeIngredientVerifications.verificationKey,
+                aspects: recipeIngredientVerifications.aspects,
+            })
             .from(recipeIngredientVerifications)
             .where(inArray(recipeIngredientVerifications.verificationKey, unique));
 
-        return new Set(rows.map((row) => row.verificationKey));
+        return new Set(rows.filter((row) => row.aspects.includes('identity')).map((row) => row.verificationKey));
     }
 
     /**
@@ -156,4 +166,6 @@ export interface LineVerdictRow {
     readonly band: VerificationBand;
     readonly certainty: string;
     readonly identityVerdict: string | null;
+    /** The aspects the gate asked (ADR-0071): `identityReadingOf` reads a verdict that never asked identity as none. */
+    readonly aspects: readonly string[];
 }

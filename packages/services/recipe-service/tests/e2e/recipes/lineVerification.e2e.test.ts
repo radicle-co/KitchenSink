@@ -450,11 +450,22 @@ describe('U14 — a verification verdict reaches the cook (integration)', () => 
         },
     ];
 
-    it('ADR-0071: an INCONCLUSIVE verdict publishes quietly, whatever shortlist sits on the shared binding', async () => {
-        // REWRITTEN (ADR-0071). U13 badged this AMBIGUOUS from the spread of a shortlist stored on the binding's
-        // latest event, which another cook's add may have written. That read is gone; an abstention publishes.
+    it('ADR-0071: an IDENTITY abstention badges the line AMBIGUOUS and still publishes, whatever the shared binding holds', async () => {
+        // REWRITTEN twice. U13 badged this AMBIGUOUS from the spread of a shortlist stored on the binding's latest
+        // event, which another cook's add may have written; ADR-0071 removed that read. The owner then ruled
+        // (2026-10-25) that an abstention on the line's IDENTITY keeps the badge, read off THIS line's verdict alone.
         await recordLexicalEvent(1, null, SPREAD_SHORTLIST);
-        await recordVerdict('inconclusive');
+        await recordVerdict('inconclusive', 'abstain');
+
+        const detail = await askDetail();
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe('AMBIGUOUS');
+        expect((await askBatch()).nutrition[RECIPE_ID]?.state).toBe('known');
+    });
+
+    it('ADR-0071: a QUANTITY-only abstention publishes quietly — identity agreed, so there is no food to re-pick', async () => {
+        await recordLexicalEvent(1, null, SPREAD_SHORTLIST);
+        await recordVerdict('inconclusive', 'agree');
 
         const detail = await askDetail();
 

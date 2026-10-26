@@ -115,13 +115,23 @@ export interface VerdictStore {
      * made by an older model must NOT suppress re-verification under the current one, which is precisely
      * what `recordVerdict`'s `DO UPDATE` exists to allow.
      *
+     * ⛔ AND ON THE ASPECTS (ADR-0071): a verdict answers this delivery only when it asked EVERY aspect this delivery
+     * asks. A quantity-only judgement under the same key says nothing about the food, and answering `already-verified`
+     * from it would leave an identity review owed forever.
+     *
      * @param key - The verification key.
      * @param modelId - The model this delivery would call.
      * @param leaseSeconds - How long a claim holds, before another delivery may take it.
+     * @param aspects - What this delivery asks the model about.
      * @returns What this delivery found.
      * @sideEffect Upserts `recipe_verification_attempts`; reads `recipe_ingredient_verifications`.
      */
-    claimVerification(key: string, modelId: string, leaseSeconds: number): Promise<VerificationClaim>;
+    claimVerification(
+        key: string,
+        modelId: string,
+        leaseSeconds: number,
+        aspects: readonly string[],
+    ): Promise<VerificationClaim>;
 
     /**
      * Stop trying: record why, and leave the line to publish unverified.
@@ -175,14 +185,19 @@ function arcColumnsOf(food: VerificationFood): {
  */
 export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): VerdictStore {
     return {
-        async claimVerification(key: string, modelId: string, leaseSeconds: number): Promise<VerificationClaim> {
+        async claimVerification(
+            key: string,
+            modelId: string,
+            leaseSeconds: number,
+            aspects: readonly string[],
+        ): Promise<VerificationClaim> {
             // ⛔ THE VERDICT READ COMES FIRST AND IS FREE. Every input to `key` comes from the MESSAGE, so it
             // has always been computable before the reservation — it simply was not computed until after the
             // model had answered, which is why a duplicate delivery paid Bedrock to reach a judgement already
             // stored under the same key.
             const verdict = await db.execute(sql`
                 SELECT 1 FROM recipe_ingredient_verifications
-                 WHERE verification_key = ${key} AND model_id = ${modelId}
+                 WHERE verification_key = ${key} AND model_id = ${modelId} AND aspects @> ${textArray(aspects)}
                  LIMIT 1
             `);
 

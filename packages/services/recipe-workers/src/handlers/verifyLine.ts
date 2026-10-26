@@ -628,7 +628,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     //     to spend — inflating a counter whose only job is to bound real attempts, and doing so on the two
     //     branches (unpriced, residency-refused) that are deterministic in the model rather than the line.
     const key = keyFor(message);
-    const claim = await deps.store.claimVerification(key, plan.modelId, deps.claimLeaseSeconds);
+    const claim = await deps.store.claimVerification(key, plan.modelId, deps.claimLeaseSeconds, decision.aspects);
 
     if (claim.kind === 'already-verified') {
         logger.info('verification already recorded for this key and model; nothing was spent', { food });

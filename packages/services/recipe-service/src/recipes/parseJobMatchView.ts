@@ -24,6 +24,8 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import type { CallerToken } from '../auth/CallerToken.js';
+import type { ActingPrincipal } from '../auth/principal.js';
+import { isContained } from '../common/containmentPolicy.js';
 import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetricLine.js';
 import { sha256Hex } from '../common/sha256.js';
 import { foodRefKey, type FoodRef } from '../database/schema/foodLookupArm.js';
@@ -103,18 +105,19 @@ export class ParseJobMatchView {
     /**
      * The view with `match` on every proposed food: the derived match, or `null` when there is none to show.
      *
-     * @param ownerId - The caller; only their job's matches are read.
+     * @param acting - The verified caller: only their job's matches are read, and a CONTAINED test principal's reviews,
+     *   which are never sent (ADR-0040), read `needsChoice` instead of `checking` forever.
      * @param caller - The caller's credential, forwarded to food for names.
      * @param view - The job view.
      * @returns The decorated view. Never throws for an auxiliary read.
      * @sideEffect Reads the match store and the verdict tables, and food's refs as the caller.
      */
     public async decorate(
-        ownerId: string,
+        acting: ActingPrincipal,
         caller: CallerToken | undefined,
         view: ParseJobResponse,
     ): Promise<ParseJobResponse> {
-        const current = await this.currentMatches(ownerId, view);
+        const current = await this.currentMatches(acting.userId, view);
 
         if (current.size === 0) {
             return this.withMatches(view, () => null);
@@ -129,10 +132,14 @@ export class ParseJobMatchView {
             this.namesFor(caller, [...current.values()]),
         ]);
 
+        const contained = isContained(acting);
+
         return this.withMatches(view, (lineIndex, foodIndex) => {
             const match = current.get(slotKey({ lineIndex, foodIndex }));
 
-            return match === undefined ? null : this.project(view.id, match, answers, verdicts, exhausted);
+            return match === undefined
+                ? null
+                : this.project(view.id, match, { answers, verdicts, exhausted, contained });
         });
     }
 
@@ -227,10 +234,14 @@ export class ParseJobMatchView {
     private project(
         jobId: string,
         match: ParseJobMatch,
-        answers: ReadonlyMap<string, FoodRefAnswer>,
-        verdicts: ReadonlyMap<string, LineVerdictRow>,
-        exhausted: ReadonlySet<string>,
+        read: {
+            readonly answers: ReadonlyMap<string, FoodRefAnswer>;
+            readonly verdicts: ReadonlyMap<string, LineVerdictRow>;
+            readonly exhausted: ReadonlySet<string>;
+            readonly contained: boolean;
+        },
     ): ParseProposalMatch | null {
+        const { answers, verdicts } = read;
         const answerOf = (ref: FoodRef): FoodRefAnswer => answers.get(foodRefKey(ref)) ?? { outcome: 'unreachable' };
         const asked = [...(match.proposal === null ? [] : [match.proposal.food]), ...match.candidates];
 
@@ -250,8 +261,10 @@ export class ParseJobMatchView {
             candidateCount: candidates.length,
             defaultApplies: candidates.some((candidate) => candidate.isDefault),
             verdict:
-                verdict === undefined ? undefined : { band: verdict.band, identityVerdict: verdict.identityVerdict },
-            review: this.reviewOf(match, exhausted),
+                verdict === undefined
+                    ? undefined
+                    : { band: verdict.band, identityVerdict: verdict.identityVerdict, aspects: verdict.aspects },
+            review: this.reviewOf(match, read.exhausted, read.contained),
         });
 
         if (answer.reviewNote === 'reviewDisagreed' && proposed !== null) {
@@ -297,14 +310,22 @@ export class ParseJobMatchView {
 
     /**
      * Where the review stands when there is no verdict: the row's PERSISTED disposition (F10), never the gate policy
-     * re-run here. Pure.
+     * re-run here; and for a contained test principal, whose review is never sent (ADR-0040), `notAsked`. Pure.
      */
-    private reviewOf(match: ParseJobMatch, exhausted: ReadonlySet<string>): 'asked' | 'refused' | 'exhausted' {
+    private reviewOf(
+        match: ParseJobMatch,
+        exhausted: ReadonlySet<string>,
+        contained: boolean,
+    ): 'asked' | 'refused' | 'exhausted' | 'notAsked' {
         if (match.review === 'refused') {
             return 'refused';
         }
 
-        return match.verificationKey !== null && exhausted.has(match.verificationKey) ? 'exhausted' : 'asked';
+        if (match.verificationKey !== null && exhausted.has(match.verificationKey)) {
+            return 'exhausted';
+        }
+
+        return contained ? 'notAsked' : 'asked';
     }
 
     /** Report a curated-but-contradicted proposal; the report never fails the read. */

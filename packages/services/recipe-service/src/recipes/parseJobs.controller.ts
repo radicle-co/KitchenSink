@@ -1,8 +1,9 @@
 /**
  * The `/api/v1/recipe-parse-jobs` REST surface (plan U9, origin D9/R13).
  *
- * Thin controller over {@link ParseJobsService}, the `RecipesController` shape: `@OwnerId()` reads the
- * authenticated app-user ULID from `req.principal` (fail-closed `AuthMiddleware`), the controller-scoped
+ * Thin controller over {@link ParseJobsService}, the `RecipesController` shape: `@CurrentPrincipal()` reads the
+ * verified principal from `req.principal` (fail-closed `AuthMiddleware`): its app-user ULID owns the job, and its
+ * acting slice tells the match projection whether the caller is a contained test principal. The controller-scoped
  * `ZodValidationPipe` enforces the AUTHORED wire DTOs (⚠️ load-bearing — the DTOs carry no
  * `class-validator` metadata, so Nest's own `ValidationPipe` would validate NOTHING), and every domain
  * failure is thrown as a `RecipeDomainError` for the global `ApiExceptionFilter`.
@@ -43,7 +44,7 @@ import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
-import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
 import { actingPrincipalOf, type Principal } from '../auth/principal.js';
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
@@ -66,21 +67,21 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async create(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: CreateParseJobDto,
     ): Promise<ParseJobResponse> {
-        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.create(ownerId, body.text));
+        return this.matchView.decorate(actingPrincipalOf(principal), caller, await this.parseJobsService.create(principal.userId, body.text));
     }
 
     /** `GET /api/v1/recipe-parse-jobs/:id` — poll the owner's job. A stranger gets `404`. */
     @Get(':id')
     public async getById(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.get(ownerId, id));
+        return this.matchView.decorate(actingPrincipalOf(principal), caller, await this.parseJobsService.get(principal.userId, id));
     }
 
     /** `POST /api/v1/recipe-parse-jobs/:id/retry` — re-drive exactly the `failed_retryable` lines. */
@@ -88,11 +89,11 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async retry(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.retry(ownerId, id));
+        return this.matchView.decorate(actingPrincipalOf(principal), caller, await this.parseJobsService.retry(principal.userId, id));
     }
 
     /**
@@ -104,16 +105,16 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async editLine(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Param('lineIndex', ParseIntPipe) lineIndex: number,
         @Body() body: EditParseJobLineDto,
     ): Promise<ParseJobResponse> {
         return this.matchView.decorate(
-            ownerId,
+            actingPrincipalOf(principal),
             caller,
-            await this.parseJobsService.editLine(ownerId, id, lineIndex, body.sourceLine),
+            await this.parseJobsService.editLine(principal.userId, id, lineIndex, body.sourceLine),
         );
     }
 
@@ -125,15 +126,15 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.OK)
     @WriteRateLimit()
     public async withdrawLines(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Body() body: WithdrawParseJobLinesDto,
     ): Promise<ParseJobResponse> {
         return this.matchView.decorate(
-            ownerId,
+            actingPrincipalOf(principal),
             caller,
-            await this.parseJobsService.withdrawLines(ownerId, id, body.lineIndexes),
+            await this.parseJobsService.withdrawLines(principal.userId, id, body.lineIndexes),
         );
     }
 
@@ -153,8 +154,10 @@ export class ParseJobsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        await this.matchProposals.propose(actingPrincipalOf(principal), caller, id);
+        const acting = actingPrincipalOf(principal);
 
-        return this.matchView.decorate(principal.userId, caller, await this.parseJobsService.get(principal.userId, id));
+        await this.matchProposals.propose(acting, caller, id);
+
+        return this.matchView.decorate(acting, caller, await this.parseJobsService.get(principal.userId, id));
     }
 }

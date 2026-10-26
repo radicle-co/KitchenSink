@@ -5,8 +5,8 @@
  * Every row is a rule from the owner's rulings of 2026-10-25 or the coordinator's decisions, and the order of the rows
  * is the precedence:
  *
- *  1. Nothing proposed: `noMatch` with no candidates, `needsChoice` with some.
- *  2. A default applies to the phrase: `default`, WHATEVER answered and whatever the gate said. A default is shown,
+ *  1. A default applies to the phrase: `default`, WHATEVER answered (or nothing did) and whatever the gate said.
+ *  2. Nothing proposed: `noMatch` with no candidates, `needsChoice` with some. A default is shown,
  *     never selected (ruling 2), and a curated or memo answer for a default noun must not smuggle it in as confident.
  *  3. A curated mapping: `confident`. A gate contradiction keeps it confident (a person decided; the model has an
  *     error rate) but adds a review note.
@@ -35,9 +35,14 @@ const facts = (overrides: Partial<MatchFacts> = {}): MatchFacts => ({
     ...overrides,
 });
 
-const CONTRADICTED = { band: 'contradicted', identityVerdict: 'disagree' } as const;
-const VERIFIED = { band: 'verified', identityVerdict: 'agree' } as const;
-const ABSTAINED = { band: 'inconclusive', identityVerdict: 'abstain' } as const;
+/** Both aspects asked, as every paste review asks them. */
+const ASKED = ['identity', 'quantity'] as const;
+const CONTRADICTED = { band: 'contradicted', identityVerdict: 'disagree', aspects: ASKED } as const;
+const VERIFIED = { band: 'verified', identityVerdict: 'agree', aspects: ASKED } as const;
+const ABSTAINED = { band: 'inconclusive', identityVerdict: 'abstain', aspects: ASKED } as const;
+/** A verdict on record under the key that asked QUANTITY only: it says nothing about the food. */
+const QUANTITY_ONLY_AGREE = { band: 'verified', identityVerdict: null, aspects: ['quantity'] } as const;
+const QUANTITY_ONLY_DISAGREE = { band: 'contradicted', identityVerdict: null, aspects: ['quantity'] } as const;
 
 describe('matchStateOf — the truth table', () => {
     it.each<[string, MatchFacts, ReturnType<typeof matchStateOf>]>([
@@ -51,6 +56,11 @@ describe('matchStateOf — the truth table', () => {
             'no proposal, some candidates',
             facts({ proposal: undefined }),
             { state: 'needsChoice', reason: 'noProposal' },
+        ],
+        [
+            '⛔ no proposal, but a DEFAULT among the candidates — the default is still shown first, never selected',
+            facts({ proposal: undefined, defaultApplies: true }),
+            { state: 'default', reason: 'defaultApplies' },
         ],
         // 2. A default applies — before every answer and every verdict.
         [
@@ -118,12 +128,12 @@ describe('matchStateOf — the truth table', () => {
         ],
         [
             '⛔ a quantity-only dispute (identity agreed) is confident',
-            facts({ verdict: { band: 'contradicted', identityVerdict: 'agree' } }),
+            facts({ verdict: { band: 'contradicted', identityVerdict: 'agree', aspects: ASKED } }),
             { state: 'confident', reason: 'reviewVerified' },
         ],
         [
             'a joint verified verdict with no itemized identity is confident',
-            facts({ verdict: { band: 'verified', identityVerdict: null } }),
+            facts({ verdict: { band: 'verified', identityVerdict: null, aspects: ASKED } }),
             { state: 'confident', reason: 'reviewVerified' },
         ],
         [
@@ -133,7 +143,7 @@ describe('matchStateOf — the truth table', () => {
         ],
         [
             'a joint contradiction with no itemized identity needs a choice',
-            facts({ verdict: { band: 'contradicted', identityVerdict: null } }),
+            facts({ verdict: { band: 'contradicted', identityVerdict: null, aspects: ASKED } }),
             { state: 'needsChoice', reason: 'reviewContradicted' },
         ],
         [
@@ -143,7 +153,7 @@ describe('matchStateOf — the truth table', () => {
         ],
         [
             'a joint inconclusive verdict with no itemized identity needs a choice',
-            facts({ verdict: { band: 'inconclusive', identityVerdict: null } }),
+            facts({ verdict: { band: 'inconclusive', identityVerdict: null, aspects: ASKED } }),
             { state: 'needsChoice', reason: 'reviewAbstained' },
         ],
         [
@@ -173,6 +183,43 @@ describe('matchStateOf — the truth table', () => {
             { state: 'confident', reason: 'exactName' },
         ],
         ['a lexical proposal awaiting the gate is checking', facts(), { state: 'checking', reason: 'awaitingReview' }],
+        // A verdict that never asked IDENTITY is not trusted (item 7): it is read as no verdict at all.
+        [
+            '⛔ an AGREE from a verdict that never asked identity is not trusted — still checking',
+            facts({ verdict: QUANTITY_ONLY_AGREE }),
+            { state: 'checking', reason: 'awaitingReview' },
+        ],
+        [
+            '⛔ a CONTRADICTION from a verdict that never asked identity does not reject the food',
+            facts({ verdict: QUANTITY_ONLY_DISAGREE }),
+            { state: 'checking', reason: 'awaitingReview' },
+        ],
+        [
+            'a memo with a verdict that never asked identity stays a remembered match',
+            facts({ proposal: { matchedBy: 'memo', rung: null }, verdict: QUANTITY_ONLY_DISAGREE }),
+            { state: 'confident', reason: 'rememberedMatch' },
+        ],
+        [
+            'a curated mapping with a contradiction that never asked identity carries no review note',
+            facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: QUANTITY_ONLY_DISAGREE }),
+            { state: 'confident', reason: 'curatedMapping' },
+        ],
+        // A contained test principal's review is never sent (ADR-0040; item 12): never `checking` forever.
+        [
+            '⛔ a contained principal’s lexical proposal, never sent for review, needs a choice',
+            facts({ review: 'notAsked' }),
+            { state: 'needsChoice', reason: 'reviewNotAsked' },
+        ],
+        [
+            'a contained principal’s EXACT-name proposal is still confident — no review was needed for it',
+            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' }, review: 'notAsked' }),
+            { state: 'confident', reason: 'exactName' },
+        ],
+        [
+            'a contained principal’s proposal the gate already judged reads the verdict',
+            facts({ review: 'notAsked', verdict: VERIFIED }),
+            { state: 'confident', reason: 'reviewVerified' },
+        ],
         [
             'a lexical proposal with no rung awaiting the gate is checking',
             facts({ proposal: { matchedBy: 'lexical', rung: null } }),

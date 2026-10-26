@@ -69,16 +69,28 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
     it('projects the rows into a key → band map', async () => {
         const control = createFakeDb();
         control.enqueue([
-            { verificationKey: KEY_A, band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' },
-            { verificationKey: KEY_B, band: 'verified', certainty: 'medium', identityVerdict: null },
+            {
+                verificationKey: KEY_A,
+                band: 'contradicted',
+                certainty: 'high',
+                identityVerdict: 'disagree',
+                aspects: ['identity', 'quantity'],
+            },
+            { verificationKey: KEY_B, band: 'verified', certainty: 'medium', identityVerdict: null, aspects: ['quantity'] },
         ]);
 
         const bands = await new LineVerificationsDal(control.db).findBandsByKeys([KEY_A, KEY_B]);
 
         // Migration 0042: the row carries the per-aspect identity verdict beside the band, because the
-        // U13 re-pick door (`identityContradictedOf`) reads all three fields off one row.
-        expect(bands.get(KEY_A)).toEqual({ band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' });
-        expect(bands.get(KEY_B)).toEqual({ band: 'verified', certainty: 'medium', identityVerdict: null });
+        // U13 re-pick door (`identityContradictedOf`) reads all three fields off one row. ADR-0071 (item 7): and the
+        // aspects asked, because a verdict that never asked identity says nothing about the food.
+        expect(bands.get(KEY_A)).toEqual({
+            band: 'contradicted',
+            certainty: 'high',
+            identityVerdict: 'disagree',
+            aspects: ['identity', 'quantity'],
+        });
+        expect(bands.get(KEY_B)).toEqual({ band: 'verified', certainty: 'medium', identityVerdict: null, aspects: ['quantity'] });
     });
 
     it('⛔ issues NO query for an empty key set', async () => {
@@ -130,11 +142,28 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
 describe('LineVerificationsDal.findExistingKeys — the save path’s dedup read (ADR-0071)', () => {
     it('answers every key that has a verdict row, WHATEVER its band — a band this build cannot read is still on record', async () => {
         const control = createFakeDb();
-        control.enqueue([{ verificationKey: KEY_A }, { verificationKey: KEY_B }]);
+        control.enqueue([
+            { verificationKey: KEY_A, aspects: ['identity', 'quantity'] },
+            { verificationKey: KEY_B, aspects: ['identity'] },
+        ]);
 
         const existing = await new LineVerificationsDal(control.db).findExistingKeys([KEY_A, KEY_B, 'v2:cccc']);
 
         expect([...existing].sort()).toEqual([KEY_A, KEY_B]);
+    });
+
+    it('⛔ answers ONLY keys whose verdict asked IDENTITY — a quantity-only verdict leaves the food unjudged', async () => {
+        // ADR-0071 (item 7): both producers always ask identity now. Counting a quantity-only verdict as on record would
+        // skip the request, the gate would never judge the food, and the paste proposal would read `checking` forever.
+        const control = createFakeDb();
+        control.enqueue([
+            { verificationKey: KEY_A, aspects: ['quantity'] },
+            { verificationKey: KEY_B, aspects: ['identity', 'quantity'] },
+        ]);
+
+        const existing = await new LineVerificationsDal(control.db).findExistingKeys([KEY_A, KEY_B]);
+
+        expect([...existing]).toEqual([KEY_B]);
     });
 
     it('issues NO query for an empty key list — `in ()` is a Postgres syntax error', async () => {

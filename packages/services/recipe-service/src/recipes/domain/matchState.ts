@@ -7,27 +7,29 @@
  *
  * ## The precedence, from the owner's rulings of 2026-10-25 and the coordinator's decisions
  *
- *  1. **Nothing proposed**: `noMatch` with no candidates, `needsChoice` with some.
- *  2. **A default applies to the phrase**: `default`, whatever answered and whatever the gate said. A default is shown
- *     first, never selected (ruling 2). It outranks a curated or memo answer on purpose: a cook who keeps the default
- *     and saves can teach the memo tier "salt → table salt", and a confident memo would then select it for the next cook.
+ *  1. **A default applies to the phrase**: `default`, whatever answered (or nothing did) and whatever the gate said. A
+ *     default is shown first, never selected (ruling 2). It outranks a curated or memo answer on purpose: a cook who
+ *     keeps the default and saves can teach the memo tier "salt → table salt", and a confident memo would then select it
+ *     for the next cook.
+ *  2. **Nothing proposed**: `noMatch` with no candidates, `needsChoice` with some.
  *  3. **A curated mapping**: `confident`. A gate contradiction keeps it confident, because a person decided and the model
  *     has an error rate, and adds the review note `reviewDisagreed` so curation can be reviewed.
  *  4. **A memo or lexical proposal the gate contradicted on IDENTITY**: `needsChoice`.
  *  5. **A memo**: `confident`.
  *  6. **A lexical proposal**: `confident` once the gate verified identity, `needsChoice` when it abstained. With no
- *     verdict: an exact-name rung is `confident` (ruling 3); a review the gate could not take (`refused`, an over-cap
- *     line) or gave up on (`exhausted`) is `needsChoice`; otherwise `checking`.
+ *     verdict: an exact-name rung is `confident` (ruling 3); a review the gate could not take (`refused`), gave up on
+ *     (`exhausted`) or was never sent for a contained test principal (`notAsked`, ADR-0040) is `needsChoice`; otherwise
+ *     `checking`.
  *
- * ⛔ IDENTITY, not the joint verdict. A joint `contradicted` beside an itemized identity `agree` is a quantity dispute,
- * which a different food cannot fix. The joint band is read only when the verdict carries no itemized identity (the
- * pre-0042 population), as `identityContradictedOf` does.
+ * ⛔ IDENTITY, not the joint verdict, read through `identityReadingOf` — the one reading a saved line's status shares. A
+ * joint `contradicted` beside an itemized identity `agree` is a quantity dispute, which a different food cannot fix, and
+ * a verdict that never ASKED identity is read as no verdict at all: it neither confirms nor rejects the food.
  *
  * ⛔ `state` is a closed enum on the wire and a ONE-WAY DOOR for installed clients: a new fact becomes a new field or a
  * new `reason` key, never a sixth state. `reason` and `reviewNote` are opaque display keys the clients localize.
  */
 import type { MatchProposingTier } from '../../database/schema/parseJobMatches.js';
-import type { VerificationBand } from './lineVerification.js';
+import { identityReadingOf, type VerificationBand } from './lineVerification.js';
 
 /** The five states a proposal can be in. */
 export const MATCH_STATES = ['checking', 'confident', 'default', 'needsChoice', 'noMatch'] as const;
@@ -48,6 +50,7 @@ export type MatchReason =
     | 'reviewAbstained'
     | 'reviewRefused'
     | 'reviewUnchecked'
+    | 'reviewNotAsked'
     | 'awaitingReview';
 
 /** A note that rides beside a state without changing it. */
@@ -58,6 +61,8 @@ export interface MatchVerdict {
     readonly band: VerificationBand;
     /** The model's itemized identity verdict (0042), or `null` when it gave none. */
     readonly identityVerdict: string | null;
+    /** The aspects the gate asked; a verdict that never asked `identity` says nothing about the food. */
+    readonly aspects: readonly string[];
 }
 
 /** The facts one proposal's state is derived from. */
@@ -71,10 +76,11 @@ export interface MatchFacts {
     /** The gate's verdict on the proposal, or `undefined` when there is none yet. */
     readonly verdict: MatchVerdict | undefined;
     /**
-     * Where the review stands when there is no verdict: `asked` (sent or owed), `refused` (the gate cannot be asked,
-     * an over-cap line), or `exhausted` (the gate gave up after its attempts).
+     * Where the review stands when there is no verdict: `asked` (sent or owed), `refused` (the gate is never asked:
+     * an over-cap line, or a request the queue contract refuses), `exhausted` (the gate gave up after its attempts), or
+     * `notAsked` (a contained test principal's review, which is never sent; ADR-0040).
      */
-    readonly review: 'asked' | 'refused' | 'exhausted';
+    readonly review: 'asked' | 'refused' | 'exhausted' | 'notAsked';
 }
 
 /** A derived state, its reason, and a note when one applies. */
@@ -82,26 +88,6 @@ export interface MatchStateAnswer {
     readonly state: MatchState;
     readonly reason: MatchReason;
     readonly reviewNote?: MatchReviewNote;
-}
-
-/** The identity the gate concluded, read through the itemized verdict first. Pure. */
-function identityOf(verdict: MatchVerdict): 'agree' | 'disagree' | 'abstain' {
-    if (verdict.identityVerdict === 'agree' || verdict.identityVerdict === 'disagree') {
-        return verdict.identityVerdict;
-    }
-
-    if (verdict.identityVerdict === 'abstain') {
-        return 'abstain';
-    }
-
-    switch (verdict.band) {
-        case 'verified':
-            return 'agree';
-        case 'contradicted':
-            return 'disagree';
-        case 'inconclusive':
-            return 'abstain';
-    }
 }
 
 /**
@@ -113,17 +99,19 @@ function identityOf(verdict: MatchVerdict): 'agree' | 'disagree' | 'abstain' {
 export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
     const { proposal, verdict } = facts;
 
+    if (facts.defaultApplies) {
+        return { state: 'default', reason: 'defaultApplies' };
+    }
+
     if (proposal === undefined) {
         return facts.candidateCount === 0
             ? { state: 'noMatch', reason: 'noCandidates' }
             : { state: 'needsChoice', reason: 'noProposal' };
     }
 
-    if (facts.defaultApplies) {
-        return { state: 'default', reason: 'defaultApplies' };
-    }
-
-    const identity = verdict === undefined ? undefined : identityOf(verdict);
+    const reading = verdict === undefined ? 'unasked' : identityReadingOf(verdict);
+    // ⛔ A verdict that never asked identity is no verdict about the food (item 7).
+    const identity = reading === 'unasked' ? undefined : reading;
 
     if (proposal.matchedBy === 'curated') {
         return identity === 'disagree'
@@ -156,6 +144,8 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
             return { state: 'needsChoice', reason: 'reviewRefused' };
         case 'exhausted':
             return { state: 'needsChoice', reason: 'reviewUnchecked' };
+        case 'notAsked':
+            return { state: 'needsChoice', reason: 'reviewNotAsked' };
         case 'asked':
             return { state: 'checking', reason: 'awaitingReview' };
     }

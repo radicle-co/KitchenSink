@@ -36,12 +36,16 @@ export function fakeLineVerificationsDal(
                         .filter(([key]) => keys.includes(key))
                         // Migration 0042: the DAL answers full rows. Callers of this fixture speak in
                         // bands; the row's per-aspect halves default to the pre-0042 population (null),
-                        // which keeps every existing treatment.
-                        .map(([key, band]) => [key, { band, certainty: 'high', identityVerdict: null }]),
+                        // which keeps every existing treatment. ADR-0071: the verdict asked both aspects,
+                        // as every producer now asks them.
+                        .map(([key, band]) => [
+                            key,
+                            { band, certainty: 'high', identityVerdict: null, aspects: ['identity', 'quantity'] },
+                        ]),
                 ),
             ),
         ),
-        // ADR-0071: the save path's dedup read. A verdict of ANY band counts as on record.
+        // ADR-0071: the save path's dedup read. A verdict of ANY band counts as on record (each of these asked identity).
         findExistingKeys: vi
             .fn()
             .mockImplementation((keys: readonly string[]) =>

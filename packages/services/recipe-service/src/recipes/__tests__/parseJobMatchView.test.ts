@@ -29,6 +29,10 @@ import { ParseJobMatchView } from '../parseJobMatchView.js';
 import type { ParseJobResponse } from '../parseJobs.schema.js';
 
 const OWNER = '01JMATCHVIEWOWNER000000001';
+/** The cook, as the controller hands the acting principal over. */
+const COOK = { userId: OWNER, principalKind: 'real', containment: 'enforce' } as const;
+/** A contained test principal (ADR-0040): its reviews are never sent. */
+const CONTAINED = { userId: OWNER, principalKind: 'test', containment: 'enforce' } as const;
 const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
 const LINE = '2 cups milk';
@@ -157,7 +161,7 @@ describe('ParseJobMatchView.decorate', () => {
     it('gives every proposed food `match: null` when nothing is matched yet, and asks food nothing', async () => {
         const { view, resolve } = setup({ matches: [] });
 
-        const decorated = await view.decorate(OWNER, CALLER, viewOf(['salt', 'pepper']));
+        const decorated = await view.decorate(COOK, CALLER, viewOf(['salt', 'pepper']));
 
         expect(decorated.lines[0]?.proposal?.foods.map((food) => food.match)).toStrictEqual([null, null]);
         expect(resolve).not.toHaveBeenCalled();
@@ -166,7 +170,7 @@ describe('ParseJobMatchView.decorate', () => {
     it('names the proposal and candidates at READ time, as the caller, and reads `checking` before a verdict', async () => {
         const { view, resolve } = setup();
 
-        const decorated = await view.decorate(OWNER, CALLER, viewOf());
+        const decorated = await view.decorate(COOK, CALLER, viewOf());
 
         expect(resolve).toHaveBeenCalledWith(CALLER, expect.any(Array), 'read');
         expect(firstMatch(decorated)).toStrictEqual({
@@ -192,7 +196,7 @@ describe('ParseJobMatchView.decorate', () => {
             ],
         });
 
-        const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
 
         expect(match?.state).toBe('default');
         expect(match?.candidates.map((candidate) => [candidate.id, candidate.isDefault])).toStrictEqual([
@@ -203,10 +207,10 @@ describe('ParseJobMatchView.decorate', () => {
 
     it('reads `confident` once the gate verified identity', async () => {
         const { view } = setup({
-            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree' }]]),
+            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] }]]),
         });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.state).toBe('confident');
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
     });
 
     it('⛔ keeps a CURATED proposal the gate contradicted confident, notes it, and counts it for curation review', async () => {
@@ -216,23 +220,23 @@ describe('ParseJobMatchView.decorate', () => {
                     proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
                 }),
             ],
-            verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' }]]),
+            verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity', 'quantity'] }]]),
         });
 
-        const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
 
         expect(match).toMatchObject({ state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' });
         expect(metric).toHaveBeenCalledTimes(1);
     });
 
     it.each([
-        ['the gate contradicted it', { verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' }]]) }],
-        ['the gate abstained', { verdicts: new Map([['v2:milk', { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain' }]]) }],
+        ['the gate contradicted it', { verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity', 'quantity'] }]]) }],
+        ['the gate abstained', { verdicts: new Map([['v2:milk', { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: ['identity', 'quantity'] }]]) }],
         ['the gate gave up', { exhausted: new Set(['v2:milk']) }],
     ] as const)('⛔ shows NO proposal in `needsChoice` (%s) — the food stays a candidate', async (_label, options) => {
         const { view } = setup(options as Setup);
 
-        const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
 
         expect(match?.state).toBe('needsChoice');
         expect(match?.proposed).toBeNull();
@@ -251,15 +255,15 @@ describe('ParseJobMatchView.decorate', () => {
             ],
         });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.proposed).toBeNull();
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toBeNull();
     });
 
     it('shows the proposal once it is `confident`', async () => {
         const { view } = setup({
-            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree' }]]),
+            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] }]]),
         });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.proposed).toStrictEqual({
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toStrictEqual({
             kind: 'root',
             id: 'F-whole',
             name: 'Milk, whole',
@@ -274,16 +278,34 @@ describe('ParseJobMatchView.decorate', () => {
             },
         });
 
-        const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
 
         expect(match?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-whole']);
         expect(match?.candidates.every((candidate) => candidate.name.length > 0)).toBe(true);
     });
 
+    it('⛔ does not trust an AGREE from a verdict that never asked identity — the proposal still reads `checking`', async () => {
+        const { view } = setup({
+            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: null, aspects: ['quantity'] }]]),
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('checking');
+    });
+
+    it('⛔ reads `needsChoice` (reviewNotAsked) for a CONTAINED principal, whose review is never sent — never `checking`', async () => {
+        const { view } = setup();
+
+        expect(firstMatch(await view.decorate(CONTAINED, CALLER, viewOf()))).toMatchObject({
+            state: 'needsChoice',
+            reason: 'reviewNotAsked',
+            proposed: null,
+        });
+    });
+
     it('reads `needsChoice` when the gate gave up on the key', async () => {
         const { view } = setup({ exhausted: new Set(['v2:milk']) });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toMatchObject({
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
             state: 'needsChoice',
             reason: 'reviewUnchecked',
         });
@@ -294,7 +316,7 @@ describe('ParseJobMatchView.decorate', () => {
         // over-cap line, or a request the queue contract refused) can put it here.
         const { view } = setup({ matches: [matchOf({ verificationKey: null, review: 'refused' })] });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toMatchObject({
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
             state: 'needsChoice',
             reason: 'reviewRefused',
         });
@@ -303,13 +325,13 @@ describe('ParseJobMatchView.decorate', () => {
     it('⛔ ignores a STALE row — a line edited since it was matched shows no match', async () => {
         const { view } = setup({ matches: [matchOf({ lineDigest: parseStoredLineDigest('v1:old') })] });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toBeNull();
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
     });
 
     it('⛔ ignores a row whose judgement the current parse no longer gives — the same text reparsed', async () => {
         const { view } = setup({ matches: [matchOf({ judgementDigest: 'j1:another-parse' })] });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toBeNull();
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
     });
 
     it('⛔ compares the line’s STORED digest, never one recomputed from the text it shows', async () => {
@@ -319,19 +341,19 @@ describe('ParseJobMatchView.decorate', () => {
             matches: [matchOf({ lineDigest: stored, lineDigestNow: stored, judgementDigest: judgementOf(stored) })],
         });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.state).toBe('checking');
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('checking');
     });
 
     it('⛔ shows NO match for a food whose names food could not be asked for — never a nameless one', async () => {
         const { view } = setup({ answers: { ...NAMED, 'root:F-whole': { outcome: 'unreachable' } } });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toBeNull();
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
     });
 
     it('drops a proposal food no longer shows the cook, and asks for a choice among the rest', async () => {
         const { view } = setup({ answers: { 'root:F-crackers': found('Milk crackers', 'F-crackers') } });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toStrictEqual({
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toStrictEqual({
             state: 'needsChoice',
             reason: 'noProposal',
             proposed: null,
@@ -342,7 +364,7 @@ describe('ParseJobMatchView.decorate', () => {
     it('shows a forwarded food at its LIVE end, a variant by its parts', async () => {
         const { view } = setup({ answers: { ...NAMED, 'root:F-whole': found('Beef brisket', 'R-brisket', 'V-flat') } });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.proposed).toStrictEqual({
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toStrictEqual({
             kind: 'variant',
             id: 'V-flat',
             name: 'Beef brisket (flat)',
@@ -352,6 +374,6 @@ describe('ParseJobMatchView.decorate', () => {
     it('⛔ stays TOTAL when the match store cannot be read: every food reads `match: null`', async () => {
         const { view } = setup({ matches: new Error('connection reset') });
 
-        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))).toBeNull();
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
     });
 });

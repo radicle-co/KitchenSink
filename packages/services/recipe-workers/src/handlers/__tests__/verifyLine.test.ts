@@ -259,7 +259,7 @@ describe('the verification claim (U7)', () => {
 
         await processVerification(d, MESSAGE);
 
-        expect(d.spies.claimVerification).toHaveBeenCalledWith(expect.any(String), SETTINGS.modelId, 60);
+        expect(d.spies.claimVerification).toHaveBeenCalledWith(expect.any(String), SETTINGS.modelId, 60, expect.any(Array));
     });
 
     /**
@@ -1048,6 +1048,25 @@ describe('a line whose measure was RESTATED', () => {
  * band up from the food's latest lexical resolution event, a row every cook shares. One cook's verdict moved a band
  * another cook was ranked in. They now prove the opposite default: no key on the message, no observation, no read.
  */
+/**
+ * The claim answers `already-verified` only for a verdict that asked every aspect this delivery asks (ADR-0071, item 7).
+ * A quantity-only verdict under the same key says nothing about the food; trusting it would leave a line whose identity
+ * is owed a review un-asked forever.
+ */
+describe('the claim names the aspects this delivery asks', () => {
+    it('passes the decision’s aspects to the claim', async () => {
+        const d = deps();
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.claimVerification).toHaveBeenCalledWith(
+            expect.any(String),
+            'amazon.nova-micro-v1:0',
+            60,
+            ['identity', 'quantity'],
+        );
+    });
+});
+
 describe('band feedback (plan U3) — only from the band the message names', () => {
     it('⛔ an unattributed, recipe-origin, identity-verified verdict writes no band observation and reads no authority', async () => {
         const d = deps();

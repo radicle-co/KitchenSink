@@ -484,23 +484,25 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 **020 Content Source Check** — plan: [`specs/020-content-source-check/plan.md`](specs/020-content-source-check/plan.md)
 
-Before a recipe becomes publicly visible, an automated check reads its text and uploaded photos for signs it came from
-a book or a paid site. When code can tell, the recipe stays saved but hidden. When the AI cannot tell, a person decides
-before it goes public (owner rulings, 2026-10-26). It is not a legal shield. Four rules that are easy to get wrong:
+Before a recipe becomes publicly visible, an automated check reads its text, its uploaded photos and its cited source,
+and looks in our own database for the same recipe or source. A recipe skips review ONLY when every part is green;
+anything else waits for a staff reviewer (owner rulings, 2026-10-26). It is not a legal shield. Four rules that are
+easy to get wrong:
 
 - **The hold is part of the READ rule, never a write-side refusal and never a new label.** It joins
   `isRecipeViewableBy` (as a required field) and its SQL twins. A save or publish never fails because of it, erasure
   donation cannot go around it, and relabelling to `imported_paid` would make a false positive permanent.
-- **Only evidence code proves in the TEXT blocks; a PHOTO signal only ever goes to a person.** A valid ISBN, a listed
-  publisher, a paid-site template or host blocks. Code cannot prove what a model reads in an image, so a photo signal
-  never blocks and never clears. `possible` and `unchecked` are held for a reviewer, and neither the cook nor a
-  timer can lift that. The model never sees the cook's statement.
-- **It is the sixth `SPEND_CALL_SITES` entry under the ONE verification role**, with its own Lambda, queue and DLQ. Not
-  a second Bedrock grantee. Each photo is a separate call, reserved at a ceiling set by its fixed-size check rendition.
-  Reviewer time is a capacity limit: blocking switches on only when named reviewers' hours cover the shadow-mode
-  forecast.
-- **Evidence is shared per text digest, but the outcome is per recipe**, because it depends on the label and citation.
-  Clearance points at the outcome produced, so a model or rule change never hides the public corpus.
+- **`clear` is the conjunction of green parts: the text, EACH photo, and the source reference.** Only evidence code
+  proves in the text blocks on its own. Code cannot prove what a model reads in an image, so a photo signal never
+  blocks and never clears. A part the AI did not read, or a quote it could not show, is not green. Neither the cook,
+  a timer, nor a curator's grant lifts a hold; only a staff reviewer does. The model never sees the cook's statement.
+- **A match in our own database counts only through a PERSON's earlier decision.** A near-duplicate of a recipe staff
+  approved, from the same source, can make the text green; an earlier automated `clear` counts for nothing, so results
+  never launder each other. A copy of another cook's public recipe outside the clone flow goes to staff. Private
+  recipes are candidates, but nobody except staff sees anything about them, and staff see only the decision.
+- **It is the sixth `SPEND_CALL_SITES` entry under the ONE verification role**, with its own Lambda, queue and DLQ, and
+  one call per part, reserved at its ceiling. Reviewers are employees, never users. There is no review time target
+  yet; the shadow-mode load forecast is information and gates nothing.
 
 ---
 

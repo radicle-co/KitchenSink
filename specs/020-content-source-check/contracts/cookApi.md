@@ -19,7 +19,12 @@ sourceCheck: null                         // no check owed: private, or a privat
                outcome: 'clear' | 'possible' | 'detected' | 'unchecked' | null   // null while checking
                reason: 'budgetSpent' | 'tooLong' | 'checkFailed' | null          // set iff outcome is 'unchecked'
                publiclyVisible: boolean   // the read rule's answer for this recipe now
-               clearedBy: 'reviewer' | 'curatorGrant' | null
+               clearedBy: 'reviewer' | null
+               parts: {                   // spec FR-013a: the recipe skips review only when every part is green
+                 text:   PartResult
+                 photos: Array<PartResult & { photoId: string }>
+                 source: PartResult       // the cook's source reference; green when none was given
+               }
                evidence: Array<
                  | { field: 'title' | 'description' | 'tags' | 'ingredient' | 'step' | 'citation'
                      kind: 'isbn' | 'publisherImprint' | 'copyrightNotice' | 'pageReference'
@@ -35,7 +40,7 @@ sourceCheck: null                         // no check owed: private, or a privat
                referral: null | {
                  origin: 'check' | 'appeal'
                  state: 'open' | 'cleared' | 'held' | 'withdrawn' | 'superseded' | 'resolvedByCheck'
-                 dueAt: string            // ISO 8601: the expected wait the cook is shown (spec FR-016c)
+                 createdAt: string        // ISO 8601. No decision time is promised (spec FR-030)
                  decidedAt: string | null
                }
                canAppeal: boolean         // detected, or held by a person, and no appeal used for this digest
@@ -43,6 +48,22 @@ sourceCheck: null                         // no check owed: private, or a privat
              }
 ```
 
+```text
+PartResult: {
+  green: boolean
+  reasons: Array<                        // empty when green
+    | 'ruleItem' | 'modelItem' | 'unprovenQuote'                 // something was raised
+    | 'photoSignal'
+    | 'notRead' | 'overCap' | 'budgetSpent' | 'checkFailed'      // the part was not read
+    | 'citationInvalid' | 'citationHostListed' | 'rightsCheckNotPublic'
+    | 'needsSourceCheck'                                         // a match in our database needs a person (FR-047)
+  >
+  greenBy: 'check' | 'personEarlier' | null   // personEarlier: a person approved the same recipe or source
+}
+```
+
+- `needsSourceCheck` is the only reason a match ever produces on this API. It never says which recipe matched, or whose
+  (spec FR-054, SC-017).
 - The evidence is a discriminated union on `field`. A photo item has no span and `weight` is the literal
   `'forAPerson'`, so a client cannot render a photo signal as a block.
 - The response carries no marker text the owner does not need, and never the shared `shadow` referral state.

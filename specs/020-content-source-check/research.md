@@ -4,7 +4,9 @@
 
 Each section states the decision, why, and what was rejected. The owner answered both spec questions on 2026-10-26:
 **Q1**, photos are in scope and anything the AI cannot decide goes to a person; **Q2**, a person decides the unsure
-case. The sections below are written to those answers. R-07 and R-10 carry what the rulings changed.
+case. A second round the same day ruled on four readings: a spent budget waits for a person; a curator's grant is not
+a review; a recipe skips review only when every part is green; and review time targets wait ("we can deal with
+SLO/SLA later"), with reviewers always employees. A third ruling added the lookup in our own database (R-17).
 
 ## R-01. Where the model call runs, and under which grant
 
@@ -207,6 +209,8 @@ sizes it.
     - the share of own and public items that would go to a person. This is the false-alarm cost in reviewer time,
       and it feeds the forecast (R-10)
 - **Minutes per referral**: measured by timing reviewers on a sample of shadow referrals, not assumed.
+- **Duplicate pairs**: a second labeled set of recipe pairs measures the same-recipe lookup (R-17, SC-015): at least
+  95% precision and 90% recall at the chosen thresholds.
 - **Shadow mode first** (spec FR-019): the check records outcomes and holds nothing until the evaluation passes.
   Switching blocking on is a recorded operator act.
 - **In production**: the appeal overturn rate is the live precision signal for `detected`, and the clear rate of
@@ -239,45 +243,46 @@ These shape the design. Counsel confirms them (spec FR-041). This is not legal a
 - **The check is not a shield** (016, finding 2). A `clear` outcome, or a person's clearance, is never evidence that a
   recipe is lawful.
 
-## R-10. Review load and staffing
+## R-10. Review load, as information
 
-The owner's rulings move every case the AI cannot decide to a person. That makes reviewer time a capacity limit of
-the product, not a support cost. The plan treats it as one.
+The owner's rulings move every case the AI cannot decide to a person, and only an all-green recipe skips review. That
+makes staff time the real limit on how fast unsure recipes go public. The owner ruled that targets wait ("we can deal
+with SLO/SLA later"), so the plan measures the load and gates nothing on it.
 
 **What makes a referral** (spec FR-016b: only on publish, never for a draft):
 
-| Source                  | When                                                | Expected share                              |
-| ----------------------- | --------------------------------------------------- | ------------------------------------------- |
-| `possible` from text    | page references, unlisted notices, model judgements | measured in shadow mode                     |
-| `possible` from a photo | any photo signal                                    | measured in shadow mode                     |
-| `unchecked`             | budget spent, content too long, check failed        | near zero, except after the budget runs out |
-| appeal                  | the cook asks                                       | a fraction of holds                         |
+| Source                     | When                                                                 | Expected share                              |
+| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------- |
+| `possible` from text       | page references, unlisted notices, model judgements, unproven quotes | measured in shadow mode                     |
+| `possible` from a photo    | any photo signal                                                     | measured in shadow mode                     |
+| `possible` from the source | an unreadable citation, a rights check that did not say public       | measured in shadow mode                     |
+| `possible` from a match    | a near-duplicate of a blocked recipe, an internal copy               | measured in shadow mode                     |
+| `unchecked`                | budget spent, content too long, check failed                         | near zero, except after the budget runs out |
+| appeal                     | the cook asks                                                        | a fraction of holds                         |
 
 **The forecast** (spec FR-039a): referrals per day = publishes per day × measured referral share + appeals per day.
-Reviewer time = referrals × measured minutes per referral. No figure is assumed here: shadow mode measures both.
+Staff time = referrals × measured minutes per referral. No figure is assumed: shadow mode measures both. Three cases
+are shown apart:
 
-**The budget month**: when the $100 pool runs out, every publish without rule evidence becomes `unchecked`, and every
-one of them becomes a referral until the period ends (spec FR-020). That is the worst load the queue will see. The
-forecast shows it separately, and SC-011 holds staffing to it.
+- **Ordinary publishing.**
+- **A budget month.** When the $100 pool runs out, every publish without rule evidence becomes `unchecked` and a
+  referral until the period ends (spec FR-020, confirmed by the owner). That is the worst steady load.
+- **A curated book.** Curated recipes are reviewed like everyone else's (owner, 2026-10-26). Old cookbooks are full
+  of page references, so close to every recipe in an imported book becomes a referral, at once. That is a one-time
+  backlog per book (R-16).
 
-**Targets** (spec FR-030):
+**What lowers the load**, none of which publishes without a person:
 
-- A referral made by the check: decided within **72 hours**. The cook waits for it, so it is shorter than the appeal
-  target. It is our default, set for one part-time reviewer, and the owner can change it.
-- An appeal: within **7 days**, 016's target for non-copyright grounds.
-- Overdue work raises an alert and never publishes anything.
+- Same-recipe and same-source matches to a person's earlier approval (R-17). A second copy of an approved recipe from
+  the same page needs no new review.
+- A staff source decision (spec FR-050): approving a public-domain book or an openly licensed site once makes its
+  recipes' source reference green.
+- Raising the AI budget, which keeps a spent month from flooding the queue.
+- Adding markers to the rightsholder list, so more cases become proven `detected` and fewer go to a person.
+- Grouping one cook's, one import's or one book's referrals, so a reviewer decides them in one sitting (spec FR-030a).
 
-**Staffing** (spec FR-039b, SC-011): blocking switches on only when the owner names the reviewers and their weekly
-hours, and those hours cover the forecast at the targets with 25% to spare.
-
-**Levers when the queue outgrows the people**, none of which publishes without a person:
-
-- Add reviewers, or hours.
-- Raise the AI budget, which keeps a spent month from flooding the queue.
-- Add markers to the rightsholder list, so more cases become proven `detected` and fewer go to a person.
-- Group one cook's or one import's referrals, so a reviewer decides them in one sitting (spec FR-030a).
-
-**Not a lever**: auto-clearing old referrals, or letting the cook clear their own. Both break the owner's ruling.
+**Not a lever**: auto-clearing old referrals, letting the cook clear their own, or counting an automated `clear` as
+an approval. Each breaks the owner's rulings.
 
 ## R-11. Statement of reasons
 
@@ -294,8 +299,8 @@ evidence, and counsel cannot approve it in advance. Counsel can approve a templa
 - **Ceiling denial**: the rule-based detectors have already run. With no blocking evidence, the outcome is
   `unchecked` (`budgetSpent`), and a published recipe goes to a person (spec FR-020). This reads the Q1 ruling ("If the
   AI can't figure out … raise it to a human") onto the spent-budget case. It replaces, for this feature only, the
-  general ruling that the cook is asked (ADR-0072 §10 keeps that ruling for matching). It is flagged to the owner,
-  because it is a reading and not the words.
+  general ruling that the cook is asked (ADR-0072 §10 keeps that ruling for matching). The owner confirmed this reading
+  on 2026-10-26.
 - **Next period**: at the change of period, every open referral with `unchecked` (`budgetSpent`) is checked again
   (spec FR-021). A `clear` result closes the referral with no person needed, which drains most of a budget month's
   queue on its own. The period key is captured at reserve, as ADR-0024 requires.
@@ -322,10 +327,10 @@ new, gated by 016's review scope (`016-FR-053g`), and audited (`016-FR-053f`).
 ## R-14. Shadow mode first
 
 **Decision**: the first slice records outcomes and the referrals it would make (state `shadow`), and holds nothing.
-It needs no 016 at all: no hold, so no statement of reasons, and no reviewer is asked. Its main product is the referral
-forecast (R-10). Turning blocking on is a recorded operator act in an append-only ledger, allowed only when the
-evaluation passes, the staffing covers the forecast (spec FR-019, SC-011), and 016's statement delivery and queue
-exist.
+It needs no 016 at all: no hold, so no statement of reasons, and no reviewer is asked. It produces the referral
+forecast (R-10) and the duplicate-detection measurement (R-17). Turning blocking on is a recorded operator act in an
+append-only ledger, allowed only when the evaluation passes (spec FR-019: SC-001, SC-002 and SC-015) and 016's
+statement delivery and queue exist. The forecast is shown with it and gates nothing.
 
 ## R-15. Who can see a held recipe, and private slots
 
@@ -339,18 +344,79 @@ kind of gap, but more recipes now sit held while a person decides. Raised with t
 
 ## R-16. The curated public-domain corpus
 
-**Finding**: the curator path (ADR-0023 §1) publishes recipes from a 1919 cookbook on purpose. Old cookbooks carry
-page references, and a model judgement lands on most of them, so most would read `possible`. Under Q2 every one would
-go to a person, and the queue would fill with recipes an administrator already chose.
+**Owner ruling, 2026-10-26: a curator's grant is NOT a review.** Curated recipes are checked and reviewed like everyone
+else's (spec FR-003a). The earlier reading, that the grant counted as a person's decision, is withdrawn.
 
-**Decision**: the curator's grant counts as a person's clearance of `possible` and `unchecked` (spec FR-003a). A
-curator is a person with an administrator grant, choosing public-domain books on purpose, so the grant is a person's
-decision, made in advance. `detected` still holds, and a reviewer decides. The rule keys on the recorded grant or
-channel (`016-FR-028`), never on the `imported_public` label, because a cook's bulk statement sets the same label
-(ADR-0072 §9) with a weaker control.
+**What follows**:
 
-**Rejected**: exempting the curated corpus from the check entirely. A curator can still make a mistake (a modern
-reprint with a listed imprint), and the check costs one call per recipe once.
+- Old cookbooks carry page references, and a model judgement lands on most of them, so close to every curated recipe
+  goes to staff. A whole book becomes a one-time backlog, and the book stays hidden until staff decide it.
+- The forecast shows that backlog as its own case (spec FR-039a).
+- Two things make it cheaper without breaking the ruling:
+    - A staff **source decision** approving the book (its Gutenberg page or its ISBN) makes the source reference of
+      every recipe from it green (spec FR-050). The text still needs to be green or decided.
+    - The queue groups a book's referrals so one reviewer works through it in one sitting (spec FR-030a).
+- The curated import tool has no production use today (its README says so), so this backlog lands only when a book is
+  imported to production on purpose.
 
-**Flag**: this reads "a person decides" as satisfied by a person's standing grant. The owner can rule otherwise, at the
-cost of the queue load above.
+## R-17. Same recipe and same source in our own database
+
+Owner, 2026-10-26: "As part of the review we should also check our own database to see if same recipe already exists
+and was approved/passed or if recipes from the same source was approved/passed."
+
+**Same recipe, library-first.**
+
+- **Exact copies**: SHA-256 over the normalised match text (ingredient lines and steps, NFKC, lower-cased, numbers and
+  whitespace collapsed). An index lookup.
+- **Near copies**: Postgres **`pg_trgm`** finds candidates. It is maintained, ships with RDS, and is already installed
+  in the recipe database (`0001_initial.sql`), so it adds no dependency. A GIN `gin_trgm_ops` index on the match text
+  serves the `%` operator.
+- **Confirmation**: trigram similarity over a whole recipe is pulled up by shared cooking words ("preheat the oven",
+  "salt and pepper"), so a trigram score alone over-matches different recipes for the same dish. Each candidate is
+  confirmed with Jaccard similarity over word 5-shingles of the two match texts, a set comparison of a few lines in
+  code.
+- **MinHash/SimHash considered and not chosen now**: they pay off when comparing against millions of documents
+  without an index. Here the database already has the index, and the candidate set is small. If the corpus outgrows
+  the GIN index, a maintained MinHash library is the next step, and this section reopens.
+- **Thresholds are measured, not guessed**: the trigram candidate threshold and the shingle-Jaccard threshold are set
+  in shadow mode on a labeled set of recipe pairs: exact copies, lightly edited copies (reordered steps, changed
+  amounts, fixed typos), and different recipes for the same dish. They are chosen to meet SC-015 (at least 95%
+  precision, at least 90% recall). No starting number is written here, on purpose.
+
+**Same source.** A recipe's source keys are normalised once, on write:
+
+| Key    | From                                                 | Normalisation                                                               |
+| ------ | ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| `page` | the cited link                                       | WHATWG `URL`; lower-case host; drop `www.`, query, fragment, trailing slash |
+| `host` | the cited link                                       | registrable domain via `tldts`                                              |
+| `isbn` | the citation, or an ISBN the rules found in the text | ISBN-13 via `isbn3`                                                         |
+
+**How a match counts.** Spec FR-047's table, decided by one pure function (`matchEffectOf`). Only a person's decision
+on the matched recipe or source counts, so automated results never pass each other along. A match can turn a part
+green, never a proven `detected`. A not-green match wins over a green one.
+
+**Defaults chosen here, for the owner to confirm** (plan, open questions):
+
+- Clearing or holding one recipe never approves or blocks its whole source. A source decision is a separate, explicit
+  staff act (spec FR-050). Otherwise one reviewer's clearance of a single blog post would approve the whole blog.
+- A near-duplicate of the cook's **own** recipe that a person approved counts as approved. A cook copying their own
+  recipe is not an internal copy.
+- An exact photo match on a person-approved recipe of the same cook or source makes that photo green.
+- A clone's match to the recipe it was cloned from is ignored, neither a pass nor a flag.
+
+**Private recipes.** They are searched as candidates, because a recipe a person held and its cook then made private
+still carries that decision. A private recipe's content is never shown to anyone but staff, and staff see only its
+decision, never its content (spec FR-049, FR-051). The cook whose recipe matched learns only that a person will check
+where it came from.
+
+**Is the stored data personal data?** The match text is a normalised copy of the cook's recipe text, which can hold a
+family name or a story. ADR-0027 kept an ingredient phrase after erasure because a phrase alone says nothing about a
+person. That reasoning does not reach a whole recipe. So the match text, its fingerprint and the source keys are the
+cook's data: deleted with the recipe and with account erasure. A person's decision record keeps only the exact
+fingerprint (a hash, no text) for its retention period, as part of the evidence of that decision (`016-FR-052a`).
+
+**Where it runs.** In recipe-service at write time, with the rule-based detectors (spec FR-053). It needs no model and
+no AI budget, so a match against a blocked recipe holds a recipe even in a budget month.
+
+**Cost.** The GIN trigram index grows with the corpus and slows writes a little. The match text is capped in length.
+k6 measures the write and lookup latency before blocking is switched on (quickstart).

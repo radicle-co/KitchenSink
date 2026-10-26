@@ -60,8 +60,11 @@ CREATE TABLE source_check_evidence_sets (
     rule_set_version  text        NOT NULL,
     model_id          text        NULL,                      -- NULL when the model did not run on this part
     model_run         text        NOT NULL,
+    unproven_quotes   integer     NOT NULL DEFAULT 0,        -- model quotes code could not find (text sets only)
     created_at        timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT source_check_evidence_sets_part_kind_check CHECK (part_kind IN ('text', 'photo')),
+    CONSTRAINT source_check_evidence_sets_unproven_text_only
+        CHECK (unproven_quotes = 0 OR part_kind = 'text'),
     CONSTRAINT source_check_evidence_sets_model_run_check
         CHECK (model_run IN ('ran', 'budgetSpent', 'tooLong', 'failed')),
     CONSTRAINT source_check_evidence_sets_model_iff_ran
@@ -154,6 +157,7 @@ CREATE TABLE recipe_source_checks (
     allows              boolean     NOT NULL DEFAULT false,
     checking_since      timestamptz NOT NULL DEFAULT now(),
     decided_at          timestamptz NULL,
+    part_results        jsonb       NULL,                       -- each part green or not, with why (spec FR-013a)
     PRIMARY KEY (recipe_id, content_digest),
     CONSTRAINT recipe_source_checks_state_check CHECK (state IN ('checking', 'decided')),
     CONSTRAINT recipe_source_checks_outcome_check
@@ -165,15 +169,13 @@ CREATE TABLE recipe_source_checks (
     CONSTRAINT recipe_source_checks_reason_iff_unchecked
         CHECK ((outcome = 'unchecked') = (reason IS NOT NULL)),
     CONSTRAINT recipe_source_checks_cleared_by_check
-        CHECK (cleared_by IS NULL OR cleared_by IN ('reviewer', 'curatorGrant')),
+        CHECK (cleared_by IS NULL OR cleared_by = 'reviewer'),
     CONSTRAINT recipe_source_checks_clearance_complete
         CHECK ((cleared_at IS NULL) = (cleared_by IS NULL)),
     CONSTRAINT recipe_source_checks_reviewer_clearance_cites_decision
         CHECK ((cleared_by = 'reviewer') = (cleared_decision_id IS NOT NULL)),
     CONSTRAINT recipe_source_checks_clearance_only_held
         CHECK (cleared_at IS NULL OR outcome IN ('possible', 'detected', 'unchecked')),
-    CONSTRAINT recipe_source_checks_curator_not_detected
-        CHECK (cleared_by IS DISTINCT FROM 'curatorGrant' OR outcome IN ('possible', 'unchecked')),
     CONSTRAINT recipe_source_checks_source_type_check
         CHECK (judged_source_type IN ('user_created', 'imported_public'))
 );
@@ -185,18 +187,23 @@ CREATE INDEX recipe_source_checks_checking ON recipe_source_checks (checking_sin
 
 `allowsPublication(outcome, clearedBy)` in `recipe-core` is the only author of `allows`:
 
-| Outcome     | `allows` is true when                                               |
-| ----------- | ------------------------------------------------------------------- |
-| `clear`     | always                                                              |
-| `possible`  | `cleared_by` is `reviewer` or `curatorGrant` (spec FR-016, FR-003a) |
-| `unchecked` | `cleared_by` is `reviewer` or `curatorGrant` (spec FR-020, FR-003a) |
-| `detected`  | `cleared_by` is `reviewer` (an appeal overturned it)                |
-| none yet    | never (`state = 'checking'`)                                        |
+| Outcome     | `allows` is true when                                |
+| ----------- | ---------------------------------------------------- |
+| `clear`     | always                                               |
+| `possible`  | `cleared_by` is `reviewer` (spec FR-016)             |
+| `unchecked` | `cleared_by` is `reviewer` (spec FR-020)             |
+| `detected`  | `cleared_by` is `reviewer` (an appeal overturned it) |
+
+`clear` itself is computed only when every part is green (spec FR-013a). A part is green **directly** (the text set
+has no item, `unproven_quotes = 0` and `model_run = 'ran'`; a photo set has no item and `model_run = 'ran'`; the source
+reference passes the rules) or **by a match** to a person's earlier approval (section 10). A part with a proven
+blocking item is never green, and any not-green match from section 10 makes its part not green. A curator grant clears nothing
+(owner ruling, 2026-10-26).
+| none yet | never (`state = 'checking'`) |
 
 There is no cook confirmation. Nothing the cook does sets `allows` (owner ruling, 2026-10-26).
 
-Four writes change an input: the worker's outcome, a reviewer's decision, the curator-grant clearance, and the
-next-period re-check. Each recomputes `allows` in the same statement, with a compare-and-set on `(recipe_id,
+Three writes change an input: the worker's outcome, a reviewer's decision, and the next-period re-check. Each recomputes `allows` in the same statement, with a compare-and-set on `(recipe_id,
 content_digest, state)`. Two writers touch this row (recipe-service and the worker), and the digest key keeps either
 from writing a stale verdict onto new content.
 
@@ -208,7 +215,6 @@ from writing a stale verdict onto new content.
                                          └──24 h, retries spent──▶ decided (unchecked / checkFailed)
 
 decided: reviewer clears (possible | unchecked | detected on appeal) ─▶ allows
-         curator grant   (possible | unchecked)                       ─▶ allows
          re-check        (unchecked only)                             ─▶ decided again, new evidence set (spec FR-021)
          content changes                                              ─▶ a NEW row for the new digest; this one is history
 ```
@@ -230,10 +236,11 @@ CREATE TABLE recipe_source_decisions (
     recipe_id            uuid         NOT NULL,                  -- opaque: no FK, it survives the recipe
     owner_id             varchar(255) NOT NULL,                  -- opaque app user id, as recipes.owner_id
     content_digest       text         NOT NULL,
+    text_fingerprint     text         NULL,                      -- exact match hash, no text (spec FR-052)
     kind                 text         NOT NULL,
     automated_detection  boolean      NOT NULL,                  -- the evidence was found by automated means
     automated_decision   boolean      NOT NULL,                  -- the decision itself was automated
-    decided_by           text         NULL,                      -- operator identity; NULL only when automated
+    decided_by           text         NULL,                      -- staff identity; NULL only when automated
     ground               text         NOT NULL,
     facts                jsonb        NOT NULL,                  -- evidence kinds, fields and marker text
     decided_at           timestamptz  NOT NULL,
@@ -274,7 +281,6 @@ CREATE TABLE recipe_source_referrals (
     excluded_reviewer text       NULL,                            -- who made the hold being appealed (spec FR-026a)
     state            text        NOT NULL,
     created_at       timestamptz NOT NULL DEFAULT now(),
-    due_at           timestamptz NOT NULL,
     decision_id      text        NULL REFERENCES recipe_source_decisions (id),
     FOREIGN KEY (recipe_id, content_digest)
         REFERENCES recipe_source_checks (recipe_id, content_digest) ON DELETE CASCADE,
@@ -293,11 +299,11 @@ CREATE UNIQUE INDEX recipe_source_referrals_one_open
     ON recipe_source_referrals (recipe_id, content_digest) WHERE state = 'open';
 CREATE UNIQUE INDEX recipe_source_referrals_one_appeal
     ON recipe_source_referrals (recipe_id, content_digest) WHERE origin = 'appeal';
-CREATE INDEX recipe_source_referrals_queue ON recipe_source_referrals (due_at) WHERE state = 'open';
+CREATE INDEX recipe_source_referrals_queue ON recipe_source_referrals (created_at) WHERE state = 'open';
 ```
 
-- `due_at` is `created_at + 72 hours` for `origin = 'check'` and `+ 7 days` for `origin = 'appeal'` (spec FR-030).
-  It is stored, not recomputed, so a later change of the target never moves an existing promise.
+- There is no due time. The owner set no decision target in this release ("we can deal with SLO/SLA later"). The
+  queue orders by `created_at`, oldest first (spec FR-030). A target, when set, is a new column then.
 - `one_appeal` enforces spec FR-026a's "once per version of the content".
 - `superseded`: the content changed while the referral was open. `withdrawn`: the cook set the recipe to draft or
   private, downgraded the label, or deleted it. `resolvedByCheck`: the next-period re-check returned `clear`.
@@ -345,11 +351,10 @@ CREATE TABLE source_check_enforcement_events (
     actor           text        NOT NULL,
     reason          text        NOT NULL,
     evaluation_ref  text        NULL,                          -- the evaluation run that met SC-001 and SC-002
-    staffing_ref    text        NULL,                          -- the named reviewers and hours that meet SC-011
     created_at      timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT source_check_enforcement_events_mode_check CHECK (mode IN ('shadow', 'blocking')),
     CONSTRAINT source_check_enforcement_events_blocking_cites_evidence
-        CHECK (mode <> 'blocking' OR (evaluation_ref IS NOT NULL AND staffing_ref IS NOT NULL))
+        CHECK (mode <> 'blocking' OR evaluation_ref IS NOT NULL)
 );
 ```
 
@@ -386,7 +391,117 @@ The `EXISTS` is a primary-key lookup.
 | `source_check_evidence_sets/items` | kept             | kept, `RETAINED_BY_RULING` (no user, text, photo) | life of the rule set, then pruned |
 | `content_source_markers`           | n/a              | n/a                                               | permanent, retired not deleted    |
 | `source_check_enforcement_events`  | n/a              | n/a                                               | permanent                         |
+| `recipe_match_fingerprints`        | cascade          | deleted with the recipes (the cook's data)        | life of the recipe                |
+| `recipe_source_keys`               | cascade          | deleted with the recipes                          | life of the recipe                |
+| `recipe_source_check_matches`      | cascade          | deleted with the recipes                          | life of the recipe                |
+| `content_source_decisions`         | n/a              | n/a (keys a source, not a person)                 | permanent, retired not deleted    |
 
 `erasureSweepCoverage.test.ts` must list each new table in one of its two maps. `recipe_photos.content_sha256` is a
 hash of the cook's own photo and is deleted with the photo row. The check rendition sits under the owner erasure
 prefix, so the existing object sweep deletes it.
+
+## 10. Same recipe and same source (spec section J)
+
+### `recipe_match_fingerprints`: what makes the lookup fast
+
+```sql
+CREATE TABLE recipe_match_fingerprints (
+    recipe_id         uuid        PRIMARY KEY REFERENCES recipes (id) ON DELETE CASCADE,
+    content_digest    text        NOT NULL,                  -- the version this was computed for
+    text_fingerprint  text        NOT NULL,                  -- SHA-256 of match_text: exact copies
+    match_text        text        NOT NULL,                  -- normalised ingredients and steps, capped in length
+    updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX recipe_match_fingerprints_exact ON recipe_match_fingerprints (text_fingerprint);
+CREATE INDEX recipe_match_fingerprints_trgm ON recipe_match_fingerprints USING gin (match_text gin_trgm_ops);
+```
+
+- One row per recipe, for its **current** version, written by recipe-service in the same transaction as the content.
+- `match_text` is the ingredient lines and steps, NFKC-normalised, lower-cased, with numbers and whitespace collapsed,
+  capped at a fixed length. Title and description are left out on purpose: two cooks' titles for the same dish differ,
+  and the method is what a copy keeps.
+- `pg_trgm` is already installed in the recipe database (migration `0001_initial.sql`). The GIN index finds candidates
+  with the `%` operator. Code then confirms each candidate with word-shingle Jaccard (research R-17).
+- **This is the cook's data.** It is a normalised copy of their recipe text, so it is deleted with the recipe and with
+  account erasure, and it is never a `RETAINED_BY_RULING` table. ADR-0027 kept an ingredient phrase because a phrase
+  alone says nothing about a person. A whole recipe can (a family name, a story), so the same reasoning does not apply.
+
+### `recipe_source_keys`: normalised sources
+
+```sql
+CREATE TABLE recipe_source_keys (
+    recipe_id   uuid  NOT NULL REFERENCES recipes (id) ON DELETE CASCADE,
+    key_kind    text  NOT NULL,
+    key_value   text  NOT NULL,
+    PRIMARY KEY (recipe_id, key_kind, key_value),
+    CONSTRAINT recipe_source_keys_kind_check CHECK (key_kind IN ('page', 'host', 'isbn'))
+);
+
+CREATE INDEX recipe_source_keys_lookup ON recipe_source_keys (key_kind, key_value);
+```
+
+- `page`: the cited link's host and path, lower-cased host, `www.` dropped, query and fragment dropped, trailing slash
+  dropped. Parsed with the WHATWG `URL` parser.
+- `host`: the registrable domain, from `tldts`.
+- `isbn`: the ISBN-13 form, from `isbn3`, read from the citation or found in the text by the rules.
+
+### `content_source_decisions`: a person's decision about a source
+
+```sql
+CREATE TABLE content_source_decisions (
+    id              text        PRIMARY KEY,                 -- ULID
+    key_kind        text        NOT NULL,
+    key_value       text        NOT NULL,
+    decision        text        NOT NULL,
+    decided_by      text        NOT NULL,                    -- staff identity
+    reason          text        NOT NULL,
+    decided_at      timestamptz NOT NULL DEFAULT now(),
+    retired_by      text        NULL,
+    retired_at      timestamptz NULL,
+    CONSTRAINT content_source_decisions_kind_check CHECK (key_kind IN ('page', 'host', 'isbn')),
+    CONSTRAINT content_source_decisions_decision_check CHECK (decision IN ('approve', 'block')),
+    CONSTRAINT content_source_decisions_reason_present CHECK (char_length(btrim(reason)) > 0),
+    CONSTRAINT content_source_decisions_retire_complete CHECK ((retired_at IS NULL) = (retired_by IS NULL))
+);
+
+CREATE UNIQUE INDEX content_source_decisions_live ON content_source_decisions (key_kind, key_value)
+    WHERE retired_at IS NULL;
+```
+
+- Only a staff reviewer writes it, explicitly (spec FR-050). Clearing one recipe never approves its whole source.
+- It keys a source, not a person, so it is not erased with an account.
+- It is separate from `content_source_markers`. A marker **blocks automatically**. A source decision feeds the
+  green rule: `approve` can make the source reference green, `block` sends the recipe to a person.
+
+### `recipe_source_check_matches`: what the reviewer sees
+
+```sql
+CREATE TABLE recipe_source_check_matches (
+    recipe_id           uuid        NOT NULL,
+    content_digest      text        NOT NULL,
+    ordinal             integer     NOT NULL,
+    match_kind          text        NOT NULL,
+    matched_recipe_id   uuid        NULL,                    -- opaque: the matched recipe can be deleted later
+    matched_private     boolean     NOT NULL,                -- the reviewer sees its decision only (spec FR-049)
+    source_key_kind     text        NULL,
+    source_key_value    text        NULL,
+    similarity          real        NULL,
+    relation            text        NOT NULL,
+    earlier_decision_id text        NULL,                    -- recipe_source_decisions.id or content_source_decisions.id
+    PRIMARY KEY (recipe_id, content_digest, ordinal),
+    FOREIGN KEY (recipe_id, content_digest)
+        REFERENCES recipe_source_checks (recipe_id, content_digest) ON DELETE CASCADE,
+    CONSTRAINT recipe_source_check_matches_kind_check
+        CHECK (match_kind IN ('exactText', 'nearText', 'exactPhoto', 'sameSource')),
+    CONSTRAINT recipe_source_check_matches_relation_check CHECK (relation IN (
+        'personApprovedSameSource', 'personApprovedSameCook', 'sourceApproved',
+        'personBlocked', 'sourceBlocked', 'internalCopy', 'cloneLineage', 'automatedOnly'))
+);
+```
+
+- `relation` is decided by one pure function (`matchEffectOf`) from the match and the earlier decision, an exhaustive
+  switch over the table in spec FR-047. `cloneLineage` and `automatedOnly` have no effect and are kept for the
+  reviewer's context.
+- The cook's API never returns a row of this table (spec FR-054). The reviewer's API returns it, with the matched
+  recipe's content only when `matched_private` is false.

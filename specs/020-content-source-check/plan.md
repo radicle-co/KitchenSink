@@ -1,7 +1,7 @@
 # Implementation Plan: Content Source Check
 
 **Branch**: `docs/im-spec020` (single-branch directive. Spec Kit ran with `SPECIFY_FEATURE=020-content-source-check`.) |
-**Date**: 2026-10-26, revised the same day for the owner's Q1 and Q2 rulings | **Spec**: [spec.md](spec.md)
+**Date**: 2026-10-26, revised the same day for three rounds of owner rulings | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `specs/020-content-source-check/spec.md`
 
 ## Summary
@@ -16,13 +16,19 @@ for evidence that it came from a book, a paid site or another published source.
   the existing verification role. A text quote counts only if code finds it in the text. A photo signal can never be
   proven by code, so it only ever sends the recipe to a person.
 - **Owner rulings, 2026-10-26.** Q1: "We should check everything we can. If the AI can't figure out if it's valid or a
-  violation, then we need to raise it to a human to check." Q2: "A person decides." So every `possible` and
-  `unchecked` outcome is held until a reviewer clears or holds it. Nothing automatic, and nothing the cook does,
-  publishes an unsure recipe.
+  violation, then we need to raise it to a human to check." Q2: "A person decides." Then: "The only time we don't
+  mark a recipe as needing review is if the photo AND the text and any source reference that was provided passes
+  green." So a recipe goes public with no person only when every part is green. Every other recipe is held until a
+  staff reviewer clears or holds it. Nothing automatic, and nothing the cook does, publishes it.
+- **Our own database** is searched for the same recipe and the same source, and for what a person decided about them
+  (owner: "we should also check our own database to see if same recipe already exists and was approved/passed or if
+  recipes from the same source was approved/passed"). Only a person's earlier approval can turn a part green.
+- **Reviewers are employees**, never users (owner: "the person reviewing these recipes are employees - not users").
 
 The hold lives in the one read rule for who can see a recipe. So no save ever fails, and no write path can go around
-it. Blocking starts in shadow mode, which also forecasts how many recipes people will have to decide. It is switched
-on only when the labeled-set evaluation passes and named reviewers' hours cover that forecast.
+it. Blocking starts in shadow mode, which also forecasts how many recipes staff will have to decide. It is switched
+on only when the labeled-set evaluation and the duplicate-detection measurement pass. The forecast is information:
+review time targets wait (owner: "we can deal with SLO/SLA later").
 
 ## Technical Context
 
@@ -47,8 +53,8 @@ read path (manual dispatch only). The tier for each scenario is in [quickstart.m
 mobile (Expo 57).
 **Project Type**: backend services plus web and mobile surfaces, plus a web-only reviewer queue in 016's dashboard.
 **Performance Goals**: 95% of checks reach an outcome within 60 seconds of a publish, and none stays "checking" past
-24 hours (SC-005). 95% of check referrals decided by a person within 72 hours and appeals within 7 days (SC-007).
-Public read and search latency does not regress measurably with the extra `EXISTS` (k6).
+24 hours (SC-005). No review time target in this release. Public read and search latency does not regress
+measurably with the extra `EXISTS`, and write latency holds with the trigram index (k6).
 
 **Constraints**:
 
@@ -57,7 +63,8 @@ Public read and search latency does not regress measurably with the extra `EXIST
   has a token ceiling.
 - The model sees the checked content only.
 - A photo signal never blocks and never clears.
-- No fetch of any link, no reverse image search.
+- No fetch of any link, no reverse image search. The duplicate lookup reads our own database only.
+- A private recipe's content is shown to nobody but staff, and to staff only as its decision.
 - No recipe text or photo in a queue message or a shared evidence row.
 - Every cook-facing string localised, and web and mobile in lockstep.
 
@@ -85,7 +92,7 @@ and keeps every cook surface on both platforms.
 ## Pattern register
 
 From the staff-architect's PLANNING pass (2026-10-26), with the corrections it made to the first draft of the spec,
-and the additions the owner's Q1/Q2 rulings required.
+and the additions the owner's three rounds of rulings required.
 
 ### Prescribed
 
@@ -99,10 +106,13 @@ and the additions the owner's Q1/Q2 rulings required.
 | The two prompt builders               | **Information hiding enforced by the type**: `Exact<Parameters<…>, [CheckedText]>` and `[CheckedPhoto]`, each branded, ADR-0026's rule                                                  |
 | The check request                     | **Command over a queue**, with a claim before reserve (ADR-0024 layer 0a) and a DLQ that ends in a terminal outcome                                                                     |
 | The photo call's reservation          | **Bounded resource**: resize to a fixed maximum, so the worst case is known before the call                                                                                             |
-| `recipe_source_checks.state`          | **State machine**: `checking → decided`, with a reviewer's clearance, the curator grant and the next-period re-check as guarded inputs to `allows`                                      |
-| The referral queue                    | **State machine plus work queue**: `shadow \| open → cleared \| held \| withdrawn \| superseded \| resolvedByCheck`, ordered by `due_at`, one open per recipe and digest                |
+| `recipe_source_checks.state`          | **State machine**: `checking → decided`, with a staff reviewer's clearance and the next-period re-check as guarded inputs to `allows`                                                   |
+| The referral queue                    | **State machine plus work queue**: `shadow \| open → cleared \| held \| withdrawn \| superseded \| resolvedByCheck`, oldest first, one open per recipe and digest                       |
+| The part results                      | **Composite of Specifications**: one green predicate per part (text, each photo, source reference), and `clear` is their conjunction (spec FR-013a)                                     |
+| `matchEffectOf`                       | **Visitor** over the match relation (spec FR-047): an exhaustive switch whose only green arms need a person's decision                                                                  |
+| Match fingerprints and source keys    | **Derived index** (a materialised view kept by the writer): one row per recipe, rewritten in the content transaction                                                                    |
 | `allowsPublication`                   | **Policy** as a pure function, the only author of `allows`. It takes no cook input                                                                                                      |
-| The blocking switch and staffing      | **Append-only event ledger**: the latest row is the mode, and blocking must cite both an evaluation and a staffing record                                                               |
+| The blocking switch                   | **Append-only event ledger**: the latest row is the mode, and blocking must cite an evaluation run                                                                                      |
 
 ### Preserved, on purpose
 
@@ -128,7 +138,8 @@ and the additions the owner's Q1/Q2 rulings required.
 ```text
 cook saves (public intent) ──▶ recipe-service
                                  ├─ computes checked_content_digest (text + sorted photo hashes, one function)
-                                 ├─ runs the rule-based detectors on the text (sync, no model)
+                                 ├─ runs the rule-based detectors on the text and the source reference (sync)
+                                 ├─ writes match fingerprints + source keys; looks up same recipe / same source
                                  ├─ upserts recipe_source_checks (checking, or decided if a rule blocks)
                                  └─ sends SourceCheckRequested {recipeId, digest, ruleSetVersion}  (no content)
                                                      │
@@ -137,10 +148,11 @@ cook saves (public intent) ──▶ recipe-service
                                            ├─ reads text and photos, re-derives digest (stale → stop, no spend)
                                            ├─ text: reserve → call → settle; quotes proven or dropped
                                            ├─ each photo: read its check rendition → reserve ceiling → call → settle
-                                           ├─ writes evidence set + items
-                                           └─ writes outcome + allows (compare-and-set on digest)
+                                           ├─ writes evidence sets + items per part
+                                           ├─ part results: text, each photo, source (+ matches) → green or not
+                                           └─ writes outcome + allows (compare-and-set on digest); clear only if all green
                                                      │
-                            possible / unchecked on a published recipe ──▶ referral (due in 72 h) ──▶ a person
+                            possible / unchecked on a published recipe ──▶ referral (oldest first) ──▶ staff reviewer
                                                                                        clear │ hold
                                                                                              ▼
                                                                            decision + statement of reasons
@@ -173,27 +185,44 @@ come from a closed set of five, with no free text. Every signal is unproven and 
 engine is added: under the ruling it would decide nothing. A recipe that was public and becomes held has its photo
 paths removed from the CDN cache.
 
+### Same recipe and same source
+
+Research R-17. At write time, beside the rule-based detectors, recipe-service looks in our own database:
+
+- **Same recipe**: an exact fingerprint (SHA-256 of the normalised match text), and near copies found by `pg_trgm`
+  (already installed) through a GIN index, confirmed by word-shingle Jaccard. Thresholds come from a labeled pairs set
+  (SC-015).
+- **Same source**: normalised `page`, `host` and `isbn` keys, and any staff **source decision** on them.
+- **Effect**: `matchEffectOf` (spec FR-047). Only a person's earlier decision counts. A match can make a part green,
+  never a proven `detected`, and a not-green match wins.
+- **Privacy**: private recipes are candidates. Staff see a private match's decision only. The cook sees only
+  `needsSourceCheck`.
+- **Data**: match text, fingerprint and source keys are the cook's data, erased with the recipe. A decision row keeps
+  only the hash.
+
 ### People and load
 
-Research R-10. Referrals are created only when a cook publishes, never for a draft. The forecast in shadow mode gives
-referrals per day and reviewer time, including a month in which the AI budget runs out and every publish without rule
-evidence goes to a person. Blocking needs named reviewers whose hours cover that forecast with 25% to spare (SC-011).
+Research R-10. Referrals are created only when a cook publishes, never for a draft. Reviewers are employees: 016's
+review scope is granted to staff accounts only, and a staff read of a cook's held recipe needs a security review. The
+forecast in shadow mode gives referrals per day and staff time for ordinary publishing, a budget-spent month and a
+curated book backlog. It is information, and gates nothing (owner: "we can deal with SLO/SLA later").
 
 ### Boundaries
 
-| With     | Decision                                                                                                                                                                                                                            |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 004      | `004-FR-014a` amended (spec FR-040). 020 builds the rightsholder list first, as the one table 004's D-004 blocklist also uses                                                                                                       |
-| 016      | Decision and referral rows live in the recipe database (research R-13). 016's statement **delivery** is generalised to take a 020 decision. Its `notice_decisions` table is not. Out of Scope and Assumptions amended (spec FR-041) |
-| ADR-0072 | Readiness gains the source flag for items headed public (spec FR-043). Unsure items save as drafts. The import still never publishes                                                                                                |
-| ADR-0073 | Read only. `keepPrivate` and the downgrade are offered only with a slot free. A held recipe is public but hidden, so it uses no slot (research R-15)                                                                                |
-| ADR-0024 | New call site, same pool, same grantee, layer-2 guard widened, worst-case reservation for photos                                                                                                                                    |
-| ADR-0004 | One new NAT consumer row                                                                                                                                                                                                            |
+| With     | Decision                                                                                                                                                                                                                                                                                                                                                                    |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 004      | `004-FR-014a` amended (spec FR-040). 020 builds the rightsholder list first, as the one table 004's D-004 blocklist also uses                                                                                                                                                                                                                                               |
+| 016      | Decision and referral rows live in the recipe database (research R-13). Referrals appear in 016's reviewer queue (`016-FR-053a`), reached only through its review scope (`016-FR-053g`), granted to staff only. 016's statement **delivery** is generalised to take a 020 decision. Its `notice_decisions` table is not. Out of Scope and Assumptions amended (spec FR-041) |
+| ADR-0072 | Readiness gains the source flag for items headed public (spec FR-043). Unsure items save as drafts. The import still never publishes                                                                                                                                                                                                                                        |
+| ADR-0073 | Read only. `keepPrivate` and the downgrade are offered only with a slot free. A held recipe is public but hidden, so it uses no slot (research R-15)                                                                                                                                                                                                                        |
+| ADR-0024 | New call site, same pool, same grantee, layer-2 guard widened, worst-case reservation for photos                                                                                                                                                                                                                                                                            |
+| ADR-0004 | One new NAT consumer row                                                                                                                                                                                                                                                                                                                                                    |
 
 ### A new ADR is owed
 
 The hold-in-the-read-rule decision, the per-recipe outcome over shared evidence, the photo rule (unproven, so a person
-decides), the referral queue with its staffing gate, and the sixth call site are each hard to reverse. They are
+decides), the all-green skip rule, the referral queue, the duplicate lookup and what a match may decide, and the
+sixth call site are each hard to reverse. They are
 recorded in a new ADR before the first build slice, numbered when written.
 
 Two existing ADRs are amended with it:
@@ -207,46 +236,64 @@ Two existing ADRs are amended with it:
 
 Each slice is test-first in every tier it touches (CLAUDE.md, "TEST-FIRST IS LAW").
 
-| Slice | Delivers                                                                                                                                                                           | Depends on                                    |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| S0    | The ADR; `staff-ux-engineer` SPECIFY for the checking, detected, "a person will check" and appeal states on web and mobile, and the reviewer queue                                 | none                                          |
-| S1    | recipe-core: digest, detectors, evidence table, outcome function, `allowsPublication`. Pure, unit-tested                                                                           | S0                                            |
-| S2    | Migration and tables; `content_sha256` and the check rendition on photo confirm; rightsholder list with admin routes; `checked_content_digest` on every write                      | S1                                            |
-| S3    | Shadow mode end to end: rule detectors, the worker's text and photo calls with worst-case reservation, evidence and outcomes, `shadow` referrals, the forecast, metrics and alerts | S2                                            |
-| S4    | Evaluation harness over the labeled set (outside the repo), photos included; bake-off confirms the model; reviewer timing on a shadow sample                                       | S3; counsel on the labeled set                |
-| S5    | Read rule and cook surfaces: required field, SQL twins, `sourceCheck` on the response, appeal and downgrade routes, CDN removal, web and mobile states                             | S3                                            |
-| S6    | Bulk import integration: source flag, readiness, choices                                                                                                                           | S5; ADR-0073 shipped                          |
-| S7    | Referral queue, reviewer decisions, scoped read with signed photo URLs, statements through 016, staffing ledger, the blocking switch                                               | S5; 016's delivery and queue; security review |
-| S8    | Switch blocking on                                                                                                                                                                 | S4 passes SC-001/SC-002; SC-011 met; S7       |
+| Slice | Delivers                                                                                                                                                                                                                                                 | Depends on                                    |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| S0    | The ADR; `staff-ux-engineer` SPECIFY for the checking, detected, "a person will check" and appeal states on web and mobile, and the reviewer queue                                                                                                       | none                                          |
+| S1    | recipe-core: digest, detectors, evidence table, outcome function, `allowsPublication`. Pure, unit-tested                                                                                                                                                 | S0                                            |
+| S2    | Migration and tables; `content_sha256` and the check rendition on photo confirm; rightsholder list with admin routes; `checked_content_digest` on every write                                                                                            | S1                                            |
+| S3    | Shadow mode end to end: rule detectors, the duplicate lookup with fingerprints and source keys, the worker's text and photo calls with worst-case reservation, part results, evidence and outcomes, `shadow` referrals, the forecast, metrics and alerts | S2                                            |
+| S4    | Evaluation harness over the labeled set (outside the repo), photos included, and the labeled pairs set for duplicates; bake-off confirms the model; thresholds set from measurement; reviewer timing on a shadow sample                                  | S3; counsel on the labeled set                |
+| S5    | Read rule and cook surfaces: required field, SQL twins, `sourceCheck` on the response, appeal and downgrade routes, CDN removal, web and mobile states                                                                                                   | S3                                            |
+| S6    | Bulk import integration: source flag, readiness, choices                                                                                                                                                                                                 | S5; ADR-0073 shipped                          |
+| S7    | Referral queue (staff only), reviewer decisions with matches shown, source decisions, scoped read with signed photo URLs, statements through 016, the blocking switch                                                                                    | S5; 016's delivery and queue; security review |
+| S8    | Switch blocking on                                                                                                                                                                                                                                       | S4 passes SC-001, SC-002 and SC-015; S7       |
 
-## Open questions for the owner
+## Owner answers so far, and what is still open
 
-1. **`unchecked` goes to a person** (spec Clarifications, FR-020). The Q1 ruling's words cover "the AI can't figure it
-   out". A spent budget means the AI never looked, which this plan reads as the same case. That replaces, for this
-   feature, the earlier ruling that the cook is asked when the budget is spent. The cost is a referral flood in a month
-   the pool runs out. Confirm, or rule that the cook is asked there instead.
-2. **The curator grant counts as a person's decision** (FR-003a, research R-16). Otherwise the public-domain corpus
-   fills the queue. Confirm.
-3. **The 72-hour target for check referrals** (FR-030) is our default, sized for one part-time reviewer. Confirm or
-   change it.
-4. **Held recipes use no private slot** (research R-15). A held recipe is public but hidden, so ADR-0073 does not
-   count it. That is a question on ADR-0073, raised here because more recipes now sit held.
+Answered on 2026-10-26: a spent budget waits for a person (confirmed); a curator's grant is not a review (overruled);
+a recipe skips review only when every part is green (generalised); review time targets wait (dropped for now);
+reviewers are employees.
+
+**Defaults chosen for the same-recipe lookup, to confirm** (research R-17, spec FR-047):
+
+1. A near-duplicate of a recipe a person approved, from the same cited source, makes the text green.
+2. A source a person approved, as an explicit source decision, makes the source reference green. Clearing one recipe
+   never approves its whole source.
+3. A near-duplicate of a recipe a person held, or a recipe from a source a person blocked, goes to a person, who sees
+   the earlier decision.
+4. A near-duplicate of another cook's public recipe that did not come through the clone flow is an internal copy and
+   goes to a person.
+5. A near-duplicate of the cook's **own** person-approved recipe counts as approved, not as an internal copy.
+6. An exact photo match on a person-approved recipe of the same cook or source makes that photo green.
+7. A clone's match to the recipe it was cloned from is ignored.
+8. Private recipes are searched as candidates. Staff see only their decision. The cook sees nothing about them.
+
+**Still open**:
+
+- **"Green" for the text includes "the model raised nothing at all"**, even a quote code could not find (spec
+  FR-013a). That is the strict reading of the skip rule. It sends hallucinated quotes to a person.
+- **Held recipes use no private slot** (research R-15), a question on ADR-0073.
 
 ## What the rulings make infeasible, or costly
 
 - **No photo can be blocked by code, and no photo with a signal can go public without a person.** Code cannot prove
-  what a model reads in an image. So "check everything we can" for photos means "every photo signal is a person's
-  work". A photographed cookbook page, which is the clearest copy there is, still waits for a reviewer.
-- **The queue is a hard capacity limit.** Nothing may publish an unsure recipe without a person, so an under-staffed
-  queue means cooks wait, with no automatic way out. With the owner as the only reviewer, a busy week or a spent AI
-  budget can break the 72-hour target. SC-011 makes this visible before launch. It cannot make it go away.
-- **A spent AI budget floods the queue** under open question 1, until the period ends and the re-check drains it.
-- **"A different reviewer" for an appeal of a person's hold** (FR-026a) needs two reviewers. With one, the same person
-  decides the appeal, and the record says so.
-- **Bulk imports at scale.** 300 imported recipes made public can create many referrals once the cook publishes them.
-  Grouping by import helps a reviewer, but every recipe still needs its own decision.
-- **Photo cost.** Up to ten photo calls per recipe on a dearer, image-capable model shrinks how far the $100 pool goes,
-  and a pool that runs out sooner feeds the queue sooner.
+  what a model reads in an image. A photographed cookbook page, the clearest copy there is, still waits for staff.
+- **Only an all-green recipe skips review.** Any one grey part (a photo the budget did not cover, an unreadable
+  citation, one unproven quote) sends the whole recipe to staff. That is the ruling's intent, and its cost is staff
+  time.
+- **The queue has no automatic way out.** With no time target and no automatic release, a backlog means cooks wait.
+  With the owner as the only reviewer, a busy week, a spent AI budget or one curated book can hold recipes for a long
+  time. The forecast shows this before launch. Nothing in the design can make it go away.
+- **A curated book is a one-time backlog of close to all its recipes.** Old cookbooks carry page references. A staff
+  source decision approving the book makes its source reference green, but each recipe's text still needs a person
+  unless it is all green.
+- **"A different reviewer" for an appeal of a person's hold** (FR-026a) needs two staff reviewers. With one, the same
+  person decides, and the record says so.
+- **The duplicate lookup can only see what we keep.** An erased cook's recipes are gone with their match text, so a
+  copy of a recipe a person approved for an erased cook is judged afresh. A blocked recipe that was erased can still be
+  caught as an exact copy, by the hash kept on its decision, but not as a near copy.
+- **Photo cost.** Up to ten photo calls per recipe on an image-capable model shrinks how far the $100 pool goes, and a
+  pool that runs out sooner feeds the queue sooner.
 
 ## Residual risks
 
@@ -265,8 +312,11 @@ Each slice is test-first in every tier it touches (CLAUDE.md, "TEST-FIRST IS LAW
 - **A reviewer's clearance is a judgement on record.** Counsel is asked what standard it needs (spec FR-041).
 - **016 is unbuilt.** Blocking cannot switch on until 016's statement delivery and queue exist. Until then the feature
   runs in shadow mode.
-- **Reviewer access to someone else's held recipe and photos** is a new authorization shape. It needs a security review
-  (`sec-aud-1`) before S7.
+- **Staff access to a cook's held recipe and photos**, and to the decision on another cook's private match, is a new
+  authorization shape. Reviewers are employees, which narrows who can reach it, not what it exposes. It needs a
+  security review (`sec-aud-1`) before S7.
+- **The duplicate lookup is new and not yet reviewed by the staff-architect.** The PLANNING pass predates it. The
+  BLUEPRINT pass must review the trigram index cost, the match-effect table and the private-candidate rule.
 - **Fields the check does not read.** A copy hidden in a field the check does not read can still pass. The checked
   content list is versioned with the digest, so adding a field is a deliberate change.
 
@@ -299,6 +349,11 @@ packages/shared/recipe-core/src/sourceCheck/
 ├── sourceCheckReading.ts       # outcome function, one classifier
 ├── allowsPublication.ts        # Policy
 ├── photoTokenCeiling.ts        # the resize bound and its token ceiling
+├── partResults.ts              # green per part, and clear as their conjunction
+├── matchText.ts                # normalised match text and its fingerprint
+├── shingleSimilarity.ts        # word-shingle Jaccard over two match texts
+├── sourceKeys.ts               # page, host and isbn keys
+├── matchEffect.ts              # matchEffectOf (Visitor over the relation)
 └── __tests__/
 
 packages/services/recipe-service/src/recipes/sourceCheck/
@@ -307,7 +362,8 @@ packages/services/recipe-service/src/recipes/sourceCheck/
 ├── sourceCheck.service.ts
 ├── sourceCheck.dal.ts
 ├── referrals/                  # reviewer queue, decisions, scoped read
-├── forecast/                   # referral forecast and staffing ledger
+├── forecast/                   # referral forecast (information only)
+├── matching/                   # fingerprints, source keys, the pg_trgm lookup, source decisions
 ├── markers/                    # rightsholder list
 └── enforcement/                # blocking switch ledger
 packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts   # gains the required field

@@ -87,18 +87,23 @@ Photo call:
 
 ## 3. The outcome function
 
-`sourceCheckReadingOf(evidence, judgedSourceType, modelRun)` in `recipe-core`, pure, an exhaustive switch over the
-closed unions:
+`sourceCheckReadingOf(parts, judgedSourceType, matches)` in `recipe-core`, pure, an exhaustive switch over the closed
+unions.
 
-| Input                                                   | Outcome                             |
-| ------------------------------------------------------- | ----------------------------------- |
-| any blocking text item                                  | `detected` (whatever the model run) |
-| no blocking item, any item for a person (text or photo) | `possible` (whatever the model run) |
-| no item at all, model run `ran` on text and every photo | `clear`                             |
-| no item at all, model run `budgetSpent`                 | `unchecked` (`budgetSpent`)         |
-| no item at all, model run `tooLong`                     | `unchecked` (`tooLong`)             |
-| no item at all, model run `failed`                      | `unchecked` (`checkFailed`)         |
+Each part is first judged green or not (spec FR-013a). For the text, a model quote that code could not find
+(`unproven_quotes > 0`) makes it not green. The source reference is judged by the rules only. Section J's matches
+(`matchEffectOf`, spec FR-047) can then make a part green by a person's earlier approval, or not green. Then:
 
+| Input                                                                                                                   | Outcome                       |
+| ----------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| any proven blocking text item, or a cited host on the paid-site list                                                    | `detected`                    |
+| every part green, directly or by a person's earlier approval                                                            | `clear`                       |
+| some part not green because something was raised (an item, an unproven quote, a photo signal, a source reason, a match) | `possible`                    |
+| otherwise a part was not read: budget denied, over the cap, or failed                                                   | `unchecked` (with the reason) |
+
+- "Any item for a person" includes an unproven quote, a not-green source reference, and a not-green match.
+- `clear` needs every part green, directly or by a person's earlier approval. A property test over every combination
+  of part results asserts it (SC-013).
 - A photo item can only ever reach the second row. A unit test asserts that no input whose only items are photo items
   yields `detected` or `clear` (SC-012).
 - `possible` and `unchecked` both create a referral when the recipe is published (spec FR-016, FR-020).

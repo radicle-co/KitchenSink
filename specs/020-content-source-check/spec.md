@@ -41,7 +41,14 @@ The owner's rulings set what happens next:
 - **When the AI cannot tell** whether a recipe is fine or a copy, a person decides before it goes public. Owner,
   2026-10-26: "We should check everything we can. If the AI can't figure out if it's valid or a violation, then we need
   to raise it to a human to check." And for the unsure case: "A person decides."
-- **When nothing is found**, the cook's statement stands, as today.
+- **Only when every part passes green** does the recipe go public with no person: the text, each photo, and any source
+  reference the cook gave. Owner, 2026-10-26: "The only time we don't mark a recipe as needing review is if the photo
+  AND the text and any source reference that was provided passes green." Then the cook's statement stands, as today.
+- **We also look in our own database** for the same recipe, or recipes from the same source, and at what a person
+  decided about them. Owner, 2026-10-26: "As part of the review we should also check our own database to see if same
+  recipe already exists and was approved/passed or if recipes from the same source was approved/passed."
+- **The people who decide are employees**, never users or the community. Owner, 2026-10-26: "the person reviewing
+  these recipes are employees - not users".
 
 ### What the check does
 
@@ -156,8 +163,7 @@ ones are saved as drafts and are sent to a person only when the cook publishes t
 
 A cook publishes a recipe as public. The check finds only weak signs: the text says "see page 112", or a photo looks
 like a photographed cookbook page. The AI cannot tell whether this is fine or a copy. The recipe is saved and stays
-hidden. The cook sees "A person will check this before it goes public", with what made the check unsure and when to
-expect an answer. A reviewer looks at the recipe, its photos and the signals, and decides. The cook is told.
+hidden. The cook sees "A person will check this before it goes public", with what made the check unsure. A reviewer looks at the recipe, its photos and the signals, and decides. The cook is told.
 
 **Why this priority**: This is the owner's ruling for the unsure case: "A person decides." It is also where the AI is
 most likely to be wrong, in both directions, and photos can only ever land here.
@@ -173,13 +179,16 @@ the cook is told. Repeat and hold it: the cook receives a statement of reasons.
 2. **Given** a recipe with any signal in a photo, **When** the check finishes, **Then** the outcome is `possible`,
    whatever the photo signal is (FR-006).
 3. **Given** a `possible` outcome on a recipe the cook published as public, **When** it is recorded, **Then** a
-   referral is created, the recipe stays hidden, and the cook sees the expected wait.
+   referral is created, the recipe stays hidden, and the cook is told a person will decide. No time is promised.
 4. **Given** a referral, **When** a reviewer clears it, **Then** the hold is lifted, the recipe becomes publicly
    visible, and the decision records who decided, when and why.
 5. **Given** a referral, **When** a reviewer holds it, **Then** the cook receives a statement of reasons that names
    the signals and says an automated check flagged it and a person decided.
-6. **Given** a referral past its target time, **When** nobody has decided it, **Then** it shows as overdue and raises an
-   alert, and the recipe still stays hidden.
+6. **Given** a referral nobody has decided yet, however old, **When** anyone reads the recipe, **Then** it is still
+   hidden. Age never publishes a recipe.
+7. **Given** a recipe whose text and source reference pass green and whose one photo the AI saw nothing in, **When** the
+   check finishes, **Then** the outcome is `clear`. If any one of those parts is not green, the outcome is not `clear`
+   (FR-013a).
 
 ---
 
@@ -263,18 +272,18 @@ the recipe from the moment the edit is saved, and the cook sees the outcome. Rep
 
 ---
 
-### User Story 7 - The operator can show how good the check is, and that people can keep up (Priority: P3)
+### User Story 7 - The operator can show how good the check is, and how much work it makes (Priority: P3)
 
 The operator runs the check over a labeled set of recipes and sees its precision and recall. In shadow mode the
-operator also sees how many recipes would go to a person each day. Only when both are good enough can the check hold
-anything back.
+operator also sees how many recipes would go to a person each day. The accuracy decides whether the check may hold
+anything back. The workload is information for planning staff.
 
 **Why this priority**: A check that holds back honest cooks' recipes, or misses most copies while we claim it works,
-is worse than no check. A check that sends more recipes to people than people can decide leaves cooks waiting. The
-numbers decide whether blocking is switched on.
+is worse than no check. Under the owner's rulings most unsure cases become staff work, so the owner needs to see that
+work before switching blocking on.
 
 **Independent Test**: Run the evaluation over the labeled set and read the shadow-mode referral forecast. While
-SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
+SC-001 or SC-002 is not met, blocking cannot be turned on. The forecast is shown either way and gates nothing.
 
 **Acceptance Scenarios**:
 
@@ -282,8 +291,44 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
    recall on items with explicit markers, recall on items with none, and the share of items that would go to a person.
 2. **Given** shadow mode in production or a rehearsal, **When** the operator looks, **Then** they see the forecast
    referrals per day and the reviewer time that forecast needs.
-3. **Given** results below SC-001, SC-002 or SC-011, **When** someone tries to turn blocking on, **Then** it stays in
-   shadow mode.
+3. **Given** results below SC-001 or SC-002, **When** someone tries to turn blocking on, **Then** it stays in shadow
+   mode.
+
+---
+
+### User Story 8 - The check looks for the same recipe and the same source in our own database (Priority: P2)
+
+A cook publishes a recipe from a public web page. Another cook published the same recipe, from the same page, last
+month, and a staff reviewer approved it then. The text has page references, so on its own it would go to a person. The
+check finds the earlier recipe and its approval, and the same cited page. That makes the text and the source reference
+green. With a green photo, the recipe goes public with no new review.
+
+A different cook pastes a recipe that matches another cook's public recipe almost word for word, and says "I wrote
+this". It did not come through the clone button. The check treats it as an internal copy and sends it to a person, who
+sees the match.
+
+**Why this priority**: The owner asked for it. It saves staff from deciding the same recipe twice, and it catches
+copies from inside Commise that no outside marker would show.
+
+**Independent Test**: Approve a recipe from a cited page as a reviewer. Publish a near-duplicate from the same page as
+another cook: it is `clear` with no referral. Publish a near-duplicate of a recipe a reviewer held: it goes to a person,
+who sees the earlier decision. Paste a near-duplicate of another cook's public recipe with "I wrote this": it goes to a
+person as an internal copy.
+
+**Acceptance Scenarios**:
+
+1. **Given** a recipe a staff reviewer approved, **When** a near-duplicate from the same cited source is published,
+   **Then** its text is green on that ground, and the reviewer screen would show the match (FR-049).
+2. **Given** a source a staff reviewer approved as a source, **When** a recipe citing it is published, **Then** its
+   source reference is green.
+3. **Given** a recipe or a source a staff reviewer blocked, **When** a near-duplicate or a recipe from that source is
+   published, **Then** it goes to a person, whatever its other parts are, and the reviewer sees the earlier decision.
+4. **Given** another cook's public recipe, **When** a near-duplicate that did not come through the clone flow is
+   published, **Then** it goes to a person as an internal copy, even if the original passed.
+5. **Given** a match against a recipe that only an automated check cleared, **When** the new recipe is checked,
+   **Then** the match makes nothing green (FR-047).
+6. **Given** a match against another cook's private recipe, **When** the cook sees the outcome, **Then** they are told
+   only that a person will check where the recipe came from. Nothing about the other recipe is shown to them.
 
 ---
 
@@ -322,10 +367,19 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 - **A cook erases their account and their public recipes are donated.** Donation makes recipes public and published
   without the editor. A held recipe is not donated. It is deleted with the account, like a private recipe, because
   nobody is left to appeal it (FR-018a).
-- **A curated public-domain import.** The curator path (ADR-0023 §1) imports old cookbooks on purpose, and they are
-  full of page references. A curator is a person with an administrator grant, so the grant counts as a person's
-  clearance of `possible` and `unchecked` (FR-003a). A `detected` outcome still holds the recipe and goes to a
-  reviewer.
+- **A curated public-domain import.** The curator path (ADR-0023 §1) imports old cookbooks on purpose. Its recipes are
+  checked and reviewed like everyone else's (FR-003a). Old cookbooks are full of page references, so most of a curated
+  book will go to staff, and the whole book stays hidden until they decide.
+- **The model raises a quote that is not in the text.** It never counts as evidence (FR-009). But the AI raised
+  something it could not show, so the text is not green, and a person decides (FR-013a).
+- **The cook publishes a copy of their own recipe.** A near-duplicate of the same cook's own recipe that a person
+  approved is not an internal copy. It counts like a match from the same source (FR-047).
+- **The earlier recipe was erased.** Its text and fingerprint go with it, so nothing matches it any more. Only a hash
+  kept on a person's decision record can still match an exact copy, for the decision's retention period (FR-052).
+- **A clone, edited and published.** It is near the recipe it was cloned from by design. That match is neither a pass
+  nor a flag (FR-048).
+- **A source reference that cannot be read.** A citation that is not a valid link, for a recipe stated to be from a
+  public web page, is not green, and a person decides.
 - **The cook deletes the recipe or erases their account while a referral is open.** The referral closes as withdrawn.
   The decision records 016 requires are kept for their period (FR-036).
 - **The cook withdraws a publish while a person has not decided.** The cook can set the recipe back to draft. The
@@ -343,7 +397,37 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   recipe stays hidden until a reviewer clears or holds it. The cook is not asked to confirm (FR-016).
 - **Applied from the same ruling: `unchecked` also goes to a person.** A recipe the AI could not read is a case the AI
   could not decide. This replaces, for this feature only, the general budget ruling that the cook is asked when the AI
-  budget is spent (FR-020). Raised with the owner, because it is a reading of the ruling, not its words.
+  budget is spent (FR-020).
+
+### Session 2026-10-26 (second round: the owner's answers to four readings)
+
+- **Budget spent → confirmed.** When the AI budget is spent, the recipe waits for a person (FR-020).
+- **Curators → overruled.** A curator's grant does NOT count as a person's review. Curated recipes are reviewed like
+  everyone else's (FR-003a, research R-16).
+- **Photos → overruled and generalised.** Owner, verbatim: "The only time we don't mark a recipe as needing review is
+  if the photo AND the text and any source reference that was provided passes green." A recipe skips review only when
+  every part is green: each photo, the text, and the cook's source reference. Any part that is not green, including
+  one that went unchecked, was unsure, or was not read because the budget was spent, sends the recipe to a person.
+  "Green" is defined for each part in FR-013a.
+- **Review time → dropped for now.** Owner, verbatim: "we can deal with SLO/SLA later." No decision target is set, and
+  no staffing gates the blocking switch. The queue-load forecast stays, as information (FR-030, FR-039a).
+- **Who reviews.** Owner, verbatim: "the person reviewing these recipes are employees - not users". Reviewers are
+  staff, never users or the community (FR-026b).
+
+### Session 2026-10-26 (third round: our own database)
+
+- **Look in our own database.** Owner, verbatim: "As part of the review we should also check our own database to see
+  if same recipe already exists and was approved/passed or if recipes from the same source was approved/passed." This
+  became section J (FR-045 to FR-054). How a match counts uses default readings the coordinator set out, which are
+  listed in the plan for the owner to confirm:
+    - A near-duplicate of a recipe a person approved, from the same cited source, makes the text green.
+    - A source a person approved before makes the source reference green.
+    - A near-duplicate of a recipe a person blocked, or a recipe from a source a person blocked, goes to a person, who
+      sees the earlier decision.
+    - A near-duplicate of another cook's public recipe that did not come through the clone flow is an internal copy,
+      and goes to a person.
+    - A pass only ever comes from a person's decision, never from an earlier automated green.
+    - The skip rule still holds: a recipe skips review only when photos, text and source reference are all green.
 
 ## Requirements _(mandatory)_
 
@@ -363,10 +447,9 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   of model or rules MUST NOT, on its own, hide a recipe that already has an allowing outcome.
 - **FR-003**: The check MUST NOT run on a recipe that stays private, or on a recipe whose label is `imported_paid` or
   `imported_physical`, because those can never be public.
-- **FR-003a**: For a recipe whose provenance was declared under the curator grant (ADR-0023 §1), the grant MUST count as
-  a person's clearance of a `possible` or `unchecked` outcome. A `detected` outcome still holds it and goes to a
-  reviewer. This MUST be keyed on the recorded grant or channel (`016-FR-028`), never on the `imported_public` label,
-  because a cook's bulk statement also sets that label (ADR-0072 §9).
+- **FR-003a**: A recipe whose provenance was declared under the curator grant (ADR-0023 §1) MUST be checked and
+  reviewed like any other. The grant MUST NOT count as a person's review, and MUST NOT clear any outcome (owner ruling,
+  2026-10-26).
 - **FR-004**: The check MUST run for every way a recipe arrives: typed, pasted (`004-FR-052`), from a link
   (`004-FR-008`), from a photo (`011`), from a file and in bulk (ADR-0072). It runs on the recipe's content, not on the
   channel.
@@ -407,7 +490,8 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   the model sees it, the model leans towards agreeing with it. ADR-0026 states this rule for parse engines, and it
   applies here.
 - **FR-009**: Code MUST find every quote the model returns in the checked text. A quote that cannot be found MUST be
-  discarded. Text evidence is never taken on the model's word. Photo evidence cannot be found by code at all, which is
+  discarded as evidence, and MUST still be counted, because it makes the text not green (FR-013a). Text evidence is
+  never taken on the model's word. Photo evidence cannot be found by code at all, which is
   why it can only send a recipe to a person (FR-006).
 - **FR-010**: Each evidence kind MUST be **blocking**, **for a person**, or **not evidence**, decided by a fixed table in
   code, never by the model. At minimum:
@@ -441,11 +525,27 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
       evidence. The reason is one of `budgetSpent`, `tooLong` or `checkFailed`. Holds publication back until a person
       decides (FR-020).
 
-    An outcome MUST NOT be `clear` unless the model ran on the text and on every photo.
+    An outcome MUST be `clear` only when every part is green (FR-013a).
+
+- **FR-013a**: A recipe skips review only when **every part passes green** (owner ruling, 2026-10-26). The parts, and
+  what green means for each, are:
+
+    | Part                     | Green when ALL of these hold                                                                                                                                                                                                                                                                                                             |
+    | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | **The text**             | The rule-based detectors found no item of any kind in it. The model read the whole text: it was not over the cap, not denied by the budget, and did not fail. The model returned no evidence item at all, including a quote code could not find                                                                                          |
+    | **Each photo**           | It has its fixed-size check copy. The model read that copy: not denied by the budget, and did not fail. The model returned no signal                                                                                                                                                                                                     |
+    | **The source reference** | Either the cook gave none, because the statement is "I wrote this". Or the recipe is stated to be from a public web page and: its citation is a valid web link; the link's registrable host is not on the rightsholder list; and, if the link came through the URL import, the server's rights check allowed it as public (`004-FR-008`) |
+
+    Section J can also make a part green, or not green, from what a person decided about the same recipe or source in
+    our own database (FR-047).
+
+    Any part that is not green makes the recipe not `clear`. A proven blocking item makes it `detected`. Otherwise it is
+    `possible` when any part raised an item, and `unchecked` when a part was not read, and a person decides. The model
+    never reads the source reference (FR-008). Only the rules do.
 
 - **FR-014**: A `detected`, `possible` or `unchecked` outcome MUST create a **publication hold** on the recipe. The hold
   MUST NOT change the recipe's label, MUST NOT delete the recipe, MUST NOT block a save, and MUST be liftable only by a
-  person's decision (FR-016, FR-026) or by FR-003a's curator grant.
+  person's decision (FR-016, FR-026).
     > **Why the boundary is a hold, not a new label.** We weighed three options.
     >
     > 1. **Reclassify the recipe to `imported_paid`.** Rejected. That label can never be public, so a false positive is
@@ -474,13 +574,13 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   The recipe MUST stay hidden until a person decides. The person MUST either **clear** it, which lifts the hold, or
   **hold** it, which keeps the hold and gives the cook a statement of reasons (FR-028). The cook MUST NOT be able to
   lift it themselves, and nothing automatic MUST lift it (owner ruling, 2026-10-26: "A person decides").
-- **FR-016a**: An outcome allows publication when it is `clear`, or when a person cleared it, or when FR-003a's grant
-  applies. Nothing else allows it.
+- **FR-016a**: An outcome allows publication when it is `clear`, or when a person cleared it. Nothing else allows it.
 - **FR-016b**: A referral MUST be created only when the recipe is actually headed for public view: on publish, or on a
   change to public. A draft, including a bulk-imported draft, records its outcome and creates no referral until the
   cook publishes it (FR-024a). This keeps people's time for recipes a cook wants public.
-- **FR-016c**: The cook MUST be told, for a `possible` or `unchecked` hold, what made the check unsure, that a person
-  will decide, and the expected wait (FR-030). They MUST NOT be asked to confirm their statement instead.
+- **FR-016c**: The cook MUST be told, for a `possible` or `unchecked` hold, which parts were not green and why, and
+  that a person will decide. No decision time is promised (FR-030). They MUST NOT be asked to confirm their statement
+  instead.
 - **FR-017**: A person's decision on a referral, and the cook's appeal reason, MUST be recorded with its time, the
   outcome it answered and the evidence shown. They are part of the per-item attestation record (`004-FR-014a`).
 - **FR-018**: The hold MUST be part of the one rule for who can see a recipe (`isRecipeViewableBy` and its SQL
@@ -494,8 +594,8 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 - **FR-018b**: A held recipe's photos MUST NOT be reachable through any public recipe surface. When a recipe that was
   public becomes held, its photos MUST be removed from the content delivery cache, using the existing invalidation path.
 - **FR-019**: Blocking MUST start in **shadow mode**: outcomes and the referrals that would be made are recorded, and
-  no recipe is held back. Blocking MUST be switched on only after the evaluation meets SC-001 and SC-002 and the
-  staffing check meets SC-011, and switching it on MUST be a recorded operator act. Shadow mode runs **before launch**.
+  no recipe is held back. Blocking MUST be switched on only after the evaluation meets SC-001 and SC-002, and switching
+  it on MUST be a recorded operator act. The workload forecast (FR-039a) is shown with it, as information. Shadow mode runs **before launch**.
   If blocking is ever switched on while public recipes exist, it MUST NOT hide any of them at once: each recipe it
   would hide first gets its cook-facing step (a statement of reasons, or a referral notice). That transition needs its
   own plan before it is used.
@@ -537,14 +637,19 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 #### F. People, referrals, appeals and statements of reasons
 
 - **FR-026**: A cook MUST be able to appeal a `detected` hold, with an optional reason. The appeal is a referral, and
-  MUST appear in 016's reviewer queue (`016-FR-053a`). A person holding 016's review scope (`016-FR-053g`) MUST decide
-  it: overturn, which lifts the hold, or uphold, which keeps it.
+  MUST appear in 016's reviewer queue (`016-FR-053a`). A staff reviewer holding 016's review scope (`016-FR-053g`) MUST
+  decide it: overturn, which lifts the hold, or uphold, which keeps it.
 - **FR-026a**: A cook MUST be able to appeal a hold a person made, once per version of the content. The appeal MUST go
   to a different reviewer when one is available. With one reviewer, the same person decides it, and the record says so.
+- **FR-026b**: Every reviewer MUST be an **employee** of the operator, never a user or a member of the community (owner
+  ruling, 2026-10-26). 016's review scope (`016-FR-053g`) MUST be granted only to staff accounts. No user-facing role,
+  reputation or volunteer path MAY lead to it. Every action is attributed to the individual employee
+  (`016-FR-053f`). A staff reviewer's read of a cook's held recipe and its photos is new access to another person's
+  content. It MUST pass a security review before it ships, and every read MUST be logged.
 - **FR-027**: Every person's decision MUST record who decided, when, the ground and the facts relied on, and MUST NOT
   be saved without them (`016-FR-017`, `016-FR-053b`). No referral is ever decided by the check.
-- **FR-027a**: The reviewer MUST see the recipe's text and photos, each signal and where it is, and the cook's statement
-  and citation. Only the model is kept from the statement (FR-008). A person is not.
+- **FR-027a**: The reviewer MUST see the recipe's text and photos, each part's green or not-green result, each signal
+  and where it is, and the cook's statement and citation. Only the model is kept from the statement (FR-008). A person is not.
 - **FR-028**: A `detected` hold, and a person's hold, MUST each give the cook a **statement of reasons** through 016's
   mechanism (`016-FR-018`, `016-FR-018a`). It MUST name:
     - the action: publication withheld
@@ -554,12 +659,12 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
     - the redress: keep private, change the statement (FR-015a), or appeal.
 - **FR-029**: The statement MUST be built from a fixed template filled with the evidence kinds and locations, and, for
   a person's hold, the ground the person chose. It MUST NOT be prose written by the model.
-- **FR-030**: Referrals made by the check MUST be decided within **72 hours** of being made, and appeals within
-  **7 days**, the target `016-FR-017a` sets for grounds other than copyright notices. A referral past its target MUST
-  show as overdue and raise an alert. An overdue referral still MUST NOT publish the recipe.
-- **FR-030a**: The reviewer queue MUST order referrals by time left before their target, and MUST let a reviewer see
-  every open referral from one cook or one import together, so a large import is decided in one sitting. Each recipe
-  still gets its own decision.
+- **FR-030**: No decision time target is set in this release (owner, 2026-10-26: "we can deal with SLO/SLA later").
+  The queue MUST show each referral's age. However old a referral is, it MUST NOT publish the recipe. A target, when
+  the owner sets one, is added then.
+- **FR-030a**: The reviewer queue MUST order referrals oldest first, and MUST let a reviewer see every open referral
+  from one cook or one import together, so a large import or a curated book is decided in one sitting. Each recipe still
+  gets its own decision.
 - **FR-031**: A hold, a person's hold and an upheld appeal MUST NOT add an infringement strike (`016-FR-020`).
   Strikes come only from actioned notices.
 - **FR-032**: A reviewer can open a sample of `clear` public recipes for audit. A finding from that audit that restricts
@@ -581,26 +686,26 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   records them as retained by ruling. A decision record that is evidence of a hold or a person's decision MUST be kept
   for 016's period (`016-FR-052a`). It keeps only the short marker text it relied on, for example the ISBN, and never
   the recipe or a photo.
-- **FR-037**: The cook MUST be able to see, for their own recipe, its current outcome, the evidence, any open referral
-  and its expected wait, and any decision.
+- **FR-037**: The cook MUST be able to see, for their own recipe, its current outcome, each part's result, the evidence,
+  any open referral, and any decision.
 
-#### H. Measurement, staffing and operation
+#### H. Measurement and operation
 
 - **FR-038**: There MUST be an evaluation that runs the check over a labeled set and reports precision and recall for
   `detected`, recall on third-party items that carry an explicit marker, recall on those that carry none, and the share
   of items that would go to a person. The labeled set MUST include photos: dish photos, photographed book pages and
   screenshots of paid sites. It MUST be kept outside the repository, with access limited to the operator, because it
   holds excerpts of copyrighted works (FR-041).
-- **FR-039**: The check MUST report outcome counts by outcome and reason, referral counts by origin, open and overdue
-  referrals, time to decision, the overturn rate, time to outcome, and the number of recipes held in "checking". A
-  recipe held past FR-022's limit, and a referral past FR-030's target, MUST raise an alert.
+- **FR-039**: The check MUST report outcome counts by outcome and reason, which parts were not green and why,
+  referral counts by origin, open referrals and the age of the oldest, time to decision, the overturn rate, time to
+  outcome, and the number of recipes held in "checking". A recipe held past FR-022's limit MUST raise an alert.
     > Inspection is not user evidence. The labeled set measures detection. It says nothing about whether cooks find the
     > check fair or the copy clear. Any claim about that needs a study.
-- **FR-039a**: Shadow mode MUST produce a **referral forecast**: referrals per day by origin, and the reviewer time they
-  need at a measured minutes-per-referral. The forecast MUST also cover a month in which the AI budget runs out, when
-  every publish without rule evidence becomes a referral (FR-020).
-- **FR-039b**: The owner MUST name the reviewers and their weekly hours before blocking is switched on. That staffing,
-  against the forecast, is SC-011.
+- **FR-039a**: Shadow mode MUST produce a **referral forecast**, as information: referrals per day by origin and by the
+  part that was not green, and the staff time they need at a measured minutes-per-referral. It MUST show three cases
+  apart: ordinary publishing, a month in which the AI budget runs out (every publish becomes a referral, FR-020), and
+  the one-time backlog of a curated book import (FR-003a). It gates nothing.
+- **FR-039b**: _Removed (owner, 2026-10-26)._ Staffing no longer gates the blocking switch.
 
 #### I. Changes to other specs
 
@@ -641,6 +746,58 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 - **FR-044**: ADR-0023 MUST be amended for FR-015a: a one-way downgrade of provenance after a save, to a private-only
   label with a citation, and nothing else.
 
+#### J. Same recipe and same source in our own database
+
+- **FR-045**: The check MUST look in **our own** recipe database for the same or nearly the same recipe, and for
+  recipes from the same source, and MUST read what a person decided about them. It MUST NOT crawl, fetch or search
+  anything outside our database (FR-012).
+- **FR-046**: **Same-recipe lookup.** The check MUST find recipes whose text is the same (an exact fingerprint of the
+  normalised text) or nearly the same (a near-duplicate measure). The measure MUST come from a maintained library or
+  extension, not a hand-rolled one: Postgres `pg_trgm` trigram similarity to find candidates, already installed in the
+  recipe database, and word-shingle Jaccard to confirm them (research R-17). Its thresholds MUST be set from
+  measurement on a labeled set of recipe pairs (SC-015), never guessed.
+- **FR-046a**: **Same-source lookup.** The check MUST find recipes with the same cited source, by a normalised source
+  key: a web link's host and path; a site's registrable host; or a book's ISBN, read from the text or the citation. It
+  MUST also find a person's explicit decision about that source (FR-050).
+- **FR-047**: Matches MUST count like this. Only a **person's** decision on the matched recipe or source ever counts.
+  An earlier automated `clear` counts for nothing, so automated results never pass each other along.
+
+    | Match                                                                                             | Effect                                                     |
+    | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+    | Near-duplicate of a recipe a person approved, with the same source key                            | The text is green on that ground                           |
+    | Near-duplicate of the same cook's own recipe that a person approved                               | The text is green on that ground                           |
+    | Exact photo match (same `content_sha256`) on a recipe a person approved, same cook or same source | That photo is green on that ground                         |
+    | A source a person approved as a source                                                            | The source reference is green on that ground               |
+    | Near-duplicate of a recipe a person held or blocked                                               | Not green. A person decides, and sees the earlier decision |
+    | A recipe from a source a person blocked                                                           | Not green. A person decides, and sees the earlier decision |
+    | Near-duplicate of another cook's public recipe, not through the clone flow                        | Not green: an internal copy. A person decides              |
+    | Near-duplicate of a recipe that only an automated check cleared                                   | No effect                                                  |
+
+    A match can make a part green that would otherwise go to a person. It can never turn a proven blocking item
+    (`detected`) into green. A "not green" match wins over a green one. The skip rule of FR-013a still holds: a recipe
+    skips review only when every part is green.
+
+- **FR-048**: A recipe's match to the recipe it was cloned from (its clone lineage) MUST be ignored: neither a pass nor
+  a flag. Cloning is the sanctioned way to build on another cook's public recipe (`001-FR-005`, `GR-014`).
+- **FR-049**: The reviewer screen MUST show every match found: the kind (same recipe or same source), the similarity,
+  and the earlier decision with its ground and date. For a match against another cook's **private** recipe, it MUST
+  show the earlier decision only, never that recipe's content.
+- **FR-050**: A staff reviewer MUST be able to record a decision about a **source**, apart from any one recipe:
+  approve or block a source key, with a reason. Clearing or holding one recipe MUST NOT, by itself, approve or block
+  its whole source.
+- **FR-051**: Private recipes MUST be searched as candidates, because a held recipe that its cook later made private
+  still carries a person's decision. A private recipe's content MUST NEVER be shown to anyone but a staff reviewer, and
+  to a reviewer only when FR-049 allows. The cook whose recipe matched another cook's recipe MUST be told only that a
+  person will check where it came from.
+- **FR-052**: What is stored for the lookup MUST be kept per recipe, for its current version: the normalised match
+  text, its exact fingerprint, and its source keys. These are derived from the cook's content, so they are the cook's
+  data like the recipe itself (research R-17): they are deleted with the recipe and with account erasure. A person's
+  decision record MAY keep the exact fingerprint (a hash, no text) for its retention period (`016-FR-052a`), so an exact
+  copy of a recipe a person blocked is still caught after that recipe is gone.
+- **FR-053**: The lookup MUST run in recipe-service at write time, with the rule-based detectors, so a match against a
+  blocked recipe is known before the model answers. It needs no model and no AI budget.
+- **FR-054**: The cook-facing reasons MUST NOT say which other recipe matched, or whose (FR-051).
+
 ### Non-Functional Requirements _(constitution-derived)_
 
 - **NFR-001**: All TypeScript MUST compile with `strict: true`, with no `any` outside marked test doubles. Outcome,
@@ -671,15 +828,21 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   every recipe with the same content. Holds no user id, no recipe text and no photo.
 - **Evidence Item**: one piece of evidence in a set: kind, field, position or photo, proven or not, which detector
   found it, and the short marker text.
-- **Source Check Outcome**: the result for one recipe and one digest: outcome, reason, the label and cited host it was
-  judged under, whether a person or a curator grant cleared it, and times.
+- **Part Result**: green or not green for one part (the text, one photo, or the source reference), with why.
+- **Source Check Outcome**: the result for one recipe and one digest: outcome, reason, each part's result, the label
+  and cited host it was judged under, whether a person cleared it, and times.
 - **Publication Hold**: the fact that a recipe cannot be publicly visible now. It is derived from the recipe's current
   content and its outcome. A person's clearance lifts it.
-- **Referral**: a recipe sent to a person: its origin (the check, or the cook's appeal), its target time, and its
+- **Referral**: a recipe sent to a staff reviewer: its origin (the check, or the cook's appeal), its age, and its
   decision.
 - **Decision**: what a person decided, or what the check decided for `detected`, with ground, facts and statement
   delivery. Kept as evidence for 016's period.
 - **Rightsholder List**: publishers, imprints, paid-site hosts and template strings, with an audit trail.
+- **Match Fingerprint**: per recipe, the normalised match text and its exact fingerprint. The cook's data.
+- **Source Key**: a recipe's normalised cited source: link host and path, registrable host, or ISBN.
+- **Source Decision**: a staff reviewer's approval or block of a source key, with a reason.
+- **Match**: a candidate the lookup found for one check: the matched recipe or source, the kind, the similarity and
+  the earlier decision.
 
 ## Success Criteria _(mandatory)_
 
@@ -698,15 +861,27 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
   more than 24 hours.
 - **SC-006**: 100% of holds that need one have a statement of reasons that says automated means were used, delivered
   on both of 016's channels.
-- **SC-007**: 95% of referrals made by the check are decided within 72 hours, and 95% of appeals within 7 days.
+- **SC-007**: _Removed (owner, 2026-10-26: "we can deal with SLO/SLA later")._ Decision times are reported (FR-039),
+  not targeted.
 - **SC-008**: Zero model calls receive the cook's statement, label, citation or rule-based results, checked
   structurally.
 - **SC-009**: Zero infringement strikes come from a hold, a person's hold or an appeal.
 - **SC-010**: Zero model calls are made for a recipe that stays private, and zero for a part (the text, or one photo)
   that already has evidence under the same rules and model.
-- **SC-011**: Before blocking is switched on, the named reviewers' weekly hours cover the shadow-mode referral
-  forecast at SC-007's targets, with at least 25% to spare. A month in which the budget runs out is shown separately.
+- **SC-011**: Before blocking is switched on, the shadow-mode forecast (FR-039a) has been produced and shown to the owner,
+  with its three cases. It is information, not a gate.
 - **SC-012**: Zero recipes are made `detected` or `clear` by a photo signal alone, checked structurally.
+- **SC-013**: Zero recipes are `clear` while any part is not green, checked by a property test over every combination of
+  part results.
+- **SC-014**: Zero reviewer actions come from an account that is not a staff account, checked against the review
+  scope's grant list.
+- **SC-015**: On a labeled set of recipe pairs (exact copies, lightly edited copies, and different recipes for the same
+  dish), the near-duplicate measure reaches at least 95% precision and at least 90% recall at its chosen thresholds,
+  in shadow mode, before blocking is switched on. The pairs set holds at least 300 duplicate pairs and 300 non-duplicate
+  pairs.
+- **SC-016**: Zero matches make a part green unless a person decided the matched recipe or source, checked
+  structurally.
+- **SC-017**: Zero cook-facing responses carry any detail of another cook's recipe, checked by a contract test.
 
 ## Assumptions
 
@@ -720,8 +895,8 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 - **The reviewer dashboard inherits 016's open decision A-11** on `002`'s "no admin UI" exclusion.
 - **The model is one already in ADR-0024's registry** that takes images and stays in the deploy region. The plan
   chooses it, under FR-033.
-- **At launch the owner may be the only reviewer.** SC-011 decides whether that is enough. A second reviewer is also
-  what makes FR-026a's "a different person" possible.
+- **Reviewers are employees** (FR-026b). At launch the owner may be the only one. A second staff reviewer is what makes
+  FR-026a's "a different person" possible.
 - **Rule-based detectors come first.** We expect most `detected` outcomes to come from them. The model widens what is
   found. It never decides what blocks, and it never clears a photo signal.
 - **Bulk import does not publish** (ADR-0072 §3). "Headed public" means the cook chose public visibility for the item.
@@ -735,7 +910,8 @@ SC-001, SC-002 or SC-011 is not met, blocking cannot be turned on.
 
 - Deciding whether any recipe is lawful. The check finds evidence of a source. It does not judge copyright.
 - Checking private recipes, or recipes labelled `imported_paid` or `imported_physical`.
-- Fetching, crawling or comparing against sources, including cited links and reverse image search.
+- Fetching, crawling or comparing against outside sources, including cited links and reverse image search. The
+  same-recipe lookup reads our own database only.
 - Takedown after a notice, strikes and account termination (016).
 - A re-check of the public corpus after a change of model or rules. That is a separate operator act.
 - Telling the cook which published work their recipe matches. The check reports markers, not matches.

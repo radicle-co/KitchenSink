@@ -263,7 +263,7 @@ export type TierOutcome =
           readonly rung?: string | undefined;
           /**
            * ADR-0071: the ranked foods a cook may choose from, each with its own rung — what the paste matcher shows
-           * and marks the default in. Ranking tiers only; the scored {@link shortlist} above ranks root ids alone.
+           * and marks the default in. Ranking tiers only; the scored `shortlist` above ranks root ids alone.
            */
           readonly candidates?: readonly RankedCandidate[] | undefined;
           /**

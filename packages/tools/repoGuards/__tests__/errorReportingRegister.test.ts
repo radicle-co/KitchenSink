@@ -167,9 +167,9 @@ const DELIBERATE_SILENCE: ReadonlyMap<string, string> = new Map([
             'resolution it is observing, the same reason `resolutionCascade.ts#report` gives',
     ],
     [
-        'packages/services/recipe-service/src/recipes/parseJobMatchView.ts#reportQuietly',
-        'counts a curated mapping the review gate contradicted on a paste line (ADR-0071); a metric or log sink ' +
-            'that throws must not fail the job view a cook is polling',
+        'packages/services/recipe-service/src/recipes/verdictDedup.ts#withoutVerdictsOnRecord',
+        'the shared dedup read FAILS OPEN by design (ADR-0071): the error is handed to the caller’s ' +
+            '`onReadFailure`, which logs it with its own job or recipe context, and every item is asked about',
     ],
     [
         'packages/services/recipe-service/src/photos/photos.service.ts#detectImageContentType',

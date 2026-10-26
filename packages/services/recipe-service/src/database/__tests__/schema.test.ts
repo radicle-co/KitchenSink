@@ -36,6 +36,9 @@ import {
     analyticsEvents,
     recipeImpactSignals,
     ANALYTICS_EVENT_TYPES,
+    recipeImports,
+    recipeImportItems,
+    recipeImportLines,
 } from '../schema/index.js';
 import type {
     RecipeRow,
@@ -239,11 +242,86 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // NULLABLE, and `NULL` is the ONLY spelling of absent: a CHECK refuses `''` and whitespace-only.
             preparation: { type: 'text', notNull: false },
             group_label: { type: 'text', notNull: false },
+            // ADR-0072 §5 / migration 0060 — who bound the line (a closed set, parity-tested against the SQL CHECK in
+            // `importSchemaParity.test.ts`) and the bulk-import snapshot line it came from. Both NULLABLE: NULL is "no
+            // recorded origin", and a recipe outlives its import.
+            bound_by: { type: 'text', notNull: false },
+            import_line_id: { type: 'uuid', notNull: false },
             sort_order: { type: 'integer', notNull: true },
             user_calories: { type: 'numeric(8,2)', notNull: false },
             user_protein_g: { type: 'numeric(8,2)', notNull: false },
             user_carbs_g: { type: 'numeric(8,2)', notNull: false },
             user_fat_g: { type: 'numeric(8,2)', notNull: false },
+        });
+    });
+
+    it('recipe_imports — the bulk import header (0059, ADR-0072)', () => {
+        expect(getTableName(recipeImports)).toBe('recipe_imports');
+        expectColumns(recipeImports, {
+            id: { type: 'uuid', notNull: true },
+            user_id: { type: 'varchar(255)', notNull: true },
+            match_mode: { type: 'text', notNull: true },
+            visibility: { type: 'text', notNull: true },
+            cursor_ordinal: { type: 'integer', notNull: true },
+            review_closed_at: { type: 'timestampwithtimezone', notNull: false },
+            created_at: { type: 'timestampwithtimezone', notNull: true },
+            updated_at: { type: 'timestampwithtimezone', notNull: true },
+        });
+    });
+
+    it('recipe_import_items — one recipe of an import (0059)', () => {
+        expect(getTableName(recipeImportItems)).toBe('recipe_import_items');
+        expectColumns(recipeImportItems, {
+            import_id: { type: 'uuid', notNull: true },
+            ordinal: { type: 'integer', notNull: true },
+            payload: { type: 'jsonb', notNull: false },
+            stage: { type: 'text', notNull: true },
+            review: { type: 'text', notNull: true },
+            parse_job_id: { type: 'uuid', notNull: false },
+            allowance_spent_at: { type: 'timestampwithtimezone', notNull: false },
+            matched_at: { type: 'timestampwithtimezone', notNull: false },
+            saved_at: { type: 'timestampwithtimezone', notNull: false },
+            recipe_id: { type: 'uuid', notNull: false },
+            statement_kind: { type: 'text', notNull: false },
+            citation: { type: 'text', notNull: false },
+            source_kind: { type: 'text', notNull: false },
+            visibility: { type: 'text', notNull: false },
+            created_at: { type: 'timestampwithtimezone', notNull: true },
+            updated_at: { type: 'timestampwithtimezone', notNull: true },
+        });
+    });
+
+    it('recipe_import_lines — the snapshot of a match, with NO food name, NO verdict and NO bound_by (0059)', () => {
+        expect(getTableName(recipeImportLines)).toBe('recipe_import_lines');
+        expectColumns(recipeImportLines, {
+            id: { type: 'uuid', notNull: true },
+            import_id: { type: 'uuid', notNull: true },
+            ordinal: { type: 'integer', notNull: true },
+            line_index: { type: 'integer', notNull: true },
+            food_index: { type: 'integer', notNull: true },
+            line_digest: { type: 'text', notNull: true },
+            judgement_digest: { type: 'text', notNull: true },
+            phrase: { type: 'text', notNull: true },
+            quantity: { type: 'numeric(10,3)', notNull: false },
+            quantity_high: { type: 'numeric(10,3)', notNull: false },
+            unit: { type: 'text', notNull: true },
+            stated_quantity: { type: 'numeric(10,3)', notNull: false },
+            stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
+            stated_unit: { type: 'text', notNull: false },
+            preparation: { type: 'text', notNull: false },
+            matched_by: { type: 'text', notNull: false },
+            food_id: { type: 'text', notNull: false },
+            food_variant_id: { type: 'text', notNull: false },
+            rung: { type: 'text', notNull: false },
+            margin: { type: 'double precision', notNull: false },
+            candidates: { type: 'jsonb', notNull: true },
+            verification_key: { type: 'text', notNull: false },
+            review: { type: 'text', notNull: false },
+            picked_food_id: { type: 'text', notNull: false },
+            picked_food_variant_id: { type: 'text', notNull: false },
+            picked_as_written: { type: 'boolean', notNull: true },
+            picked_against_digest: { type: 'text', notNull: false },
+            created_at: { type: 'timestampwithtimezone', notNull: true },
         });
     });
 

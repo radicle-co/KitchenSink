@@ -121,6 +121,17 @@ owner's rulings, as the coordinator relayed them the same day.
   delete it. A recipe keeps the queue place it had when it first entered review, so edits and trips through Draft
   never push it back.
 
+**Bulk imports are checked whatever their visibility** (owner ruling, 2026-10-26, ADR-0072 §3). After the cook's match
+review, each imported recipe is saved published with the visibility the cook chose. It goes straight to that
+visibility when every part is green, and waits in review for a person otherwise, private ones included. A recipe in
+review, of either visibility, uses no slot and has a draft's restrictions (spec 001 FR-003b). On approval a private
+one takes its slot. "In review" is therefore defined by the check row, not by the stored visibility, and it is one
+exported predicate, `IN_REVIEW_SQL`, beside `SOURCE_CHECK_ALLOWS_SQL`. ADR-0073's slot count, the import's slot
+claims and every feature gate read it. An imported recipe stays subject to review until its content is first
+approved, so switching visibility or a trip through Draft cannot skip it. Recipes a cook makes private in the editor
+are still not checked. A book or paid-site import goes straight to private, with no check, because its statement
+already names the source and it can never be public; that reading is flagged for the owner.
+
 So a recipe leaves review only by approval, by a decision that makes it private and costs a slot, by the cook's own
 move to Private or Draft, or by deletion. A draft uses no slot, but it can be used for nothing except editing (owner
 ruling, 2026-10-26, ADR-0073 §12), so the Draft exit is not a free private store either. The rule-blocked publish
@@ -252,9 +263,9 @@ recipe that is already public.
 
 ## Consequences
 
-- No save ever fails because of the check, and no write path can go around the hold.
+- A save fails because of the check only in the three refusals of §3a, and no write path can go around the hold.
 - A `detected` recipe is known when the save returns. Bulk import waits only for the rules (ADR-0072 §7), and every
-  other item is saved as a draft and checked after.
+  other item is saved published and checked after, public or private.
 - Most unsure cases become staff work. Shadow mode forecasts that load as information, and it gates nothing.
 - A copy of a recipe a person approved, from the same page or book, goes public without a second review, unless it
   adds evidence.

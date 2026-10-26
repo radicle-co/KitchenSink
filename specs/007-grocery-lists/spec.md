@@ -8,13 +8,14 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                               |
-| ----------------------------------------------------------- | ---------------------------------------------------------- |
-| [006-meal-planning](../006-meal-planning/spec.md)           | **Required** — grocery lists are generated from meal plans |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — ingredient data comes from Recipe entities  |
-| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — ingredient identity and unit normalization  |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all grocery features require authentication |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a premium feature      |
+| Spec                                                        | Relationship                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [006-meal-planning](../006-meal-planning/spec.md)           | **Required** — grocery lists are generated from meal plans                                                                                                                                                                                                                               |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — ingredient data comes from Recipe entities                                                                                                                                                                                                                                |
+| [001-FR-003b](../001-commise-recipe-app/spec.md)            | **Required** — a draft, or a recipe in review ([020](../020-content-source-check/spec.md) FR-014a), cannot send its ingredients to a list and is hidden, with no note, in the list picker. Items a recipe already put on a list stay, as plain ingredients, when it is set back to draft |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — ingredient identity and unit normalization                                                                                                                                                                                                                                |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all grocery features require authentication                                                                                                                                                                                                                               |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a premium feature                                                                                                                                                                                                                                    |
 
 ## User Scenarios & Testing _(mandatory)_
 

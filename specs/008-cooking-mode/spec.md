@@ -7,10 +7,11 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                     |
-| ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — cooking mode renders Recipe instructions from 001 |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication               |
+| Spec                                                        | Relationship                                                                                                                                                         |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — cooking mode renders Recipe instructions from 001                                                                                                     |
+| [001-FR-003b](../001-commise-recipe-app/spec.md)            | **Required** — cooking mode cannot start on a draft, or on a recipe in review ([020](../020-content-source-check/spec.md) FR-014a). Opening a draft opens the editor |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication                                                                                                                   |
 
 ## User Scenarios & Testing _(mandatory)_
 

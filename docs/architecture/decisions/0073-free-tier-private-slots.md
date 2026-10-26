@@ -53,6 +53,10 @@ while the cook had Premium. **Status matters: a draft holds no slot** (owner rul
 condition holds for every used slot: `status = 'published'`. The existing index serves it, because a cook's own rows
 are few.
 
+**A recipe in review holds no slot either** (owner ruling, 2026-10-26, §11). A private recipe from a bulk import is
+published but waits in review until approved, so a fifth condition holds: the recipe is not in review. That is the
+content source check's `IN_REVIEW_SQL` (ADR-0074 §1), the one exported definition of "in review", never a second copy.
+
 **The count is a live `COUNT(*)` over those rows.** It is never a stored counter. A counter is a second copy of a
 fact that the `recipes` table already holds. Each path that writes a recipe must then keep the counter in step: create,
 delete, erase, purge, clone and every change of visibility. One missed path makes it drift for good. The existing partial index on `owner_id`
@@ -64,8 +68,10 @@ The slot fact matters only on a move **to** private. These are the moves:
 
 - A new recipe created private and published, by the editor, a paste, a photo import or a URL import.
 - A published recipe set to private by the set-visibility endpoint.
-- A private draft published, which is how a private clone, an owner's own copy and a bulk import item come to hold a
-  slot (§12). Saving any of them as a draft never checks slots.
+- A private draft published, which is how a private clone or an owner's own copy comes to hold a slot (§12). Saving
+  either as a draft never checks slots.
+- A private bulk-import recipe approved after review (§8, §11). The import's own count already left room for it, and
+  if a slot was used meanwhile the approval never refuses: the cook is over the limit, as after a downgrade (§4).
 
 Editing a recipe that is already private never checks slots. Making a recipe public never checks slots. It frees one.
 When the live count is below the limit, a free cook has a free slot.
@@ -144,22 +150,29 @@ compile until it decides what the fact is. With a default, a site can keep the o
 
 This extends ADR-0072 §9.
 
-⚠️ **Owner ruling, 2026-10-26 (§12): a draft holds no slot, and bulk import saves every item as a draft** (ADR-0072
-§3). So `advance` never takes a slot, and there is nothing for this pause to count at import time. The slot is taken
-when the cook publishes a private item, and that publish is refused with `PRIVATE_SLOTS_FULL` when no slot is free.
-Whether the import should still warn ahead of time is for the owner to confirm. The rules below describe the pause as
-first ruled.
+Owner ruling, 2026-10-26: bulk import saves every recipe **published**, with the visibility the cook chose, and each
+waits in review until it is approved (ADR-0072 §3). A private recipe in review holds no slot (§2), and takes one on
+approval. So the import counts slots differently from everywhere else, so that an approval never pushes a free cook
+past 50.
 
-- When `advance` reaches an item the cook chose to keep private, it counts slots under the lock (§5). If the cook has
-  no free slot, it does not save that item or any later private item. It still saves items chosen public.
+**Default reading, recorded for the owner to confirm** (relayed by the coordinator):
+
+- When `advance` reaches an item the cook chose to keep private, it counts under the lock (§5): the cook's private
+  recipes that hold a slot, **plus** their private recipes still in review, which are claims on a slot. If that count
+  leaves no free slot, it does not save that item or any later private item. It still saves items chosen public.
 - The import view reports the pause, with `used` and `limit`. The pause is **derived** from the live count on each
   read, never stored. If the cook frees slots (by deleting a recipe or making one public), the next `advance` goes on.
 - The cook chooses:
     - **Stop here.** The import ends. Items already saved stay. The rest are not saved.
     - **Make the rest public.** Only items whose label allows public (`user_created` and `imported_public`). The cook
-      confirms each recipe's own statement before it goes public. One confirmation for the whole set does not count,
-      for the same reason one statement per file does not (004 FR-014a, 016 FR-014).
+      sees one list of those recipes, each with its own statement, and confirms once. Each recipe still carries its
+      own statement from the upload, so the per-recipe attestation of 004 FR-014a stands. (The first ruling asked for
+      one confirmation per recipe. The coordinator's reading is one list and one confirmation, and the owner
+      confirms which.)
     - **Skip.** For a book or paid-site item. It can never go public, so the only choices for it are skip or stop.
+- **If approval still finds no free slot**, because the cook used one meanwhile in the editor, the recipe becomes
+  private anyway and the cook is over the limit, as after a downgrade (§4). The claim count is used only by the
+  import, so the editor can still use a slot that an import is counting on.
 - The cook's choice is stored on the item, the way the wizard's choices are, so `advance` stays safe to repeat.
 - A Premium cook never pauses for slots.
 - This pause is separate from the daily allowance pause (`IMPORT_QUOTA_EXCEEDED`, ADR-0072 §8). An import can be in
@@ -192,8 +205,10 @@ Owner ruling, 2026-10-26: "The review process does not take a slot and doesn't b
 until it's been approved. While it's in review it is labeled as such." The content source check (ADR-0074 §3a) holds
 some recipes for a person to review.
 
-- **In review uses no slot.** Its stored visibility stays `public`, the read rule hides it, and the count in §2 reads
-  `visibility = 'private'` only. Nothing in §2 changes.
+- **In review uses no slot.** For a public recipe its stored visibility stays `public` and the read rule hides it. For
+  a private bulk-import recipe in review, §2's fifth condition leaves it out of the count. On approval it takes its
+  slot. A recipe in review has the same restrictions as a draft (§12): no collections, meal plans, cooking mode,
+  shopping lists or AI assistant.
 - **Not approved becomes private, and uses a slot.** When the rules block a save, or a person does not approve a
   recipe, it moves to `private` in the same transaction, under this ADR's lock. A person's decision never refuses: a
   free cook with no free slot is then over the limit, exactly as after a downgrade (§4). They keep every recipe and
@@ -215,6 +230,8 @@ Owner ruling, 2026-10-26, recorded in spec 001 FR-003b:
 - A draft (status `draft`, any visibility) uses no private slot.
 - It cannot be used in meal planning, collections, the planned AI assistant, cooking mode, or sending its ingredients
   to a shopping list. Opening a draft always opens the editor.
+- Setting a published recipe back to draft removes it from its meal plans and collections, after a confirmation that
+  names the counts. Items it already put on a shopping list stay, as plain ingredients.
 - Drafts are hidden, with no note, in the plan, collection and shopping-list pickers.
 - "AI features" means the planned AI assistant only. Parsing and the ingredient-match review keep working on drafts.
 

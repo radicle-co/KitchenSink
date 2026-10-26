@@ -8,11 +8,12 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                     |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — AI-generated recipes are stored as Recipe entities defined in 001                 |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all AI features require authentication; external agent OAuth builds on auth layer |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — AI generation and instruction optimization are premium features                 |
+| Spec                                                        | Relationship                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — AI-generated recipes are stored as Recipe entities defined in 001                                                                                                                                                                          |
+| [001-FR-003b](../001-commise-recipe-app/spec.md)            | **Required** — the planned AI assistant never reads or uses a draft, or a recipe in review ([020](../020-content-source-check/spec.md) FR-014a). Ingredient parsing and the ingredient-match review are not "the AI assistant" and keep working on drafts |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all AI features require authentication; external agent OAuth builds on auth layer                                                                                                                                                          |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — AI generation and instruction optimization are premium features                                                                                                                                                                          |
 
 ## User Scenarios & Testing _(mandatory)_
 

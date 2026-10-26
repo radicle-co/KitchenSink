@@ -309,15 +309,20 @@ A fifth round the same day answered the rest (spec Clarifications):
 - **No random sampling of green recipes for now.** The residual is accepted.
 - **The strict text rule stands.**
 
-A sixth round the same day: a person's rejection now tells the cook why, from a fixed list of five reasons, with
+A seventh round the same day: bulk import publishes every recipe with its chosen visibility, and every imported
+recipe, public or private, is checked and waits in review until approved (spec FR-003b, ADR-0072 §3). A sixth round
+the same day: a person's rejection now tells the cook why, from a fixed list of five reasons, with
 `notYours` offered only for a public match (spec FR-027); and a draft uses no slot and can be used for nothing but
 editing (`001-FR-003b`), which closes the Draft path.
 
 **Still open**:
 
-- **The bulk import slot pause** (ADR-0073 §8), for the owner. Every import item is saved as a draft, and a draft now
-  uses no slot, so the pause has nothing to count at import time. The slot is taken when the cook publishes a private
-  item. Whether the import should still warn ahead of time is the owner's call.
+- **The bulk import slot pause** (ADR-0073 §8), for the owner. The default reading counts private recipes in review
+  as claims, and pauses with stop or "make the rest public after one list and one confirmation". The first ruling
+  asked for one confirmation per recipe, so the owner confirms which.
+- **Book and paid-site imports skip the check**, a reading of the owner's ruling, for the owner to confirm (spec
+  FR-003b).
+- **Reviewing private imports costs model spend and staff time** on content nobody else sees (research R-15).
 - The counsel items of spec FR-041.
 
 ## What the rulings make infeasible, or costly

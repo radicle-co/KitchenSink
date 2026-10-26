@@ -14,6 +14,7 @@
   tables, their grants and their expand-first migrations.
   [ADR-0014](0014-service-owned-api-contracts.md): the service owns the wire contract.
   [ADR-0073](0073-free-tier-private-slots.md): a free cook's 50 private slots, and the import's out-of-slots pause.
+  [ADR-0074](0074-content-source-check.md): every imported recipe is checked and sits in review until approved.
 
 ## Context
 
@@ -82,15 +83,30 @@ matches request.
 - The parse job an import creates admits no paste allowance unit (`createPrepaid` in the blueprint). The import pays
   for its items under its own channel (§8).
 
-### 3. Each recipe is saved once, as a draft, with its full transcription
+### 3. Each recipe is saved once, published, and sits in review until it is approved
 
-When an item is ready (`isReadyToSave`), the server saves its recipe one time, as a draft. Every line keeps what the
-source said: the raw source line, the measure the source printed and the ingredient phrase, the three facts
+Owner ruling, 2026-10-26: "Users upload, they review food matching, then the recipes are published according to the
+private or public setting the user chose when they started the upload and sits in review and not visible (except to
+the user) until they are approved (while review is private it is not a private slot since users can't share or add
+private recipes to collections or use the recipe with meal planning, cooking mode, shopping lists, and all other
+features - like drafts)."
+
+When an item is ready (`isReadyToSave`), which is after the cook's match review, the server saves its recipe one time,
+**published**, with the visibility the cook chose (§9). It is never saved as a draft. Every line keeps what the source
+said: the raw source line, the measure the source printed and the ingredient phrase, the three facts
 `transcriptionCarryForward.ts` carries. Each line is bound or kept as written by `bindingOf` (§7). The item records the
 recipe it created, so a repeated `advance` sees the item as done.
 
-- A never-published draft records no version (ADR-0058), so the import's save does not grow version history.
-- The import never publishes. The cook publishes from the editor, where the usual publish rules apply.
+- **Every imported recipe is checked, public or private** (ADR-0074 §3a). It shows "Checking" to the cook. If every
+  part is green it goes straight to the visibility the cook chose; otherwise it waits "In review" for a person. Not
+  every import waits for a person (owner confirmation, 2026-10-26). Until it is approved it is
+  visible only to the cook, uses no private slot, and has the same restrictions as a draft (spec 001 FR-003b): no
+  collections, meal plans, cooking mode, shopping lists or AI assistant.
+- **On approval**, a public recipe becomes public, and a private one becomes private and takes its slot (ADR-0073
+  §8, §11).
+- Because the save publishes, the recipe records its first version then (ADR-0058).
+- The import still binds nothing in the background and never chooses a visibility for the cook.
+- **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
 
 ### 4. Match lines are snapshotted, because parse jobs expire
 
@@ -166,9 +182,10 @@ written". A confident match binds in every mode. A skipped item keeps its open l
 
 **An item headed public also waits for the source check's rule-based detectors, and for nothing else of it** (spec 020
 FR-024, ADR-0074 §2). It follows from two facts: ADR-0074 lets only the rule-based detectors block, and the owner
-ruled (2026-10-26) that the lookup in our own database never runs in a request. They run inside `advance`. A `detected` item is not saved. It waits
-for the cook to keep it private (with a free slot), skip it, or stop the import. Every other item is saved as a draft,
-and its AI check and the lookup in our own database run after the save, keyed by the saved recipe. Readiness never
+ruled (2026-10-26) that the lookup in our own database never runs in a request. They run inside `advance`. A
+`detected` item is not saved. It waits for the cook to keep it private (it is then "not approved", and needs a free
+slot), skip it, or stop the import. Every other item is saved published (§3), and its AI check and the lookup in our
+own database run after the save, keyed by the saved recipe. Readiness never
 waits for the model or the lookup, because neither can block, and the lookup never runs in a request.
 
 The builder made three choices where the blueprint was silent. They are recorded so nobody re-decides them by accident:
@@ -208,6 +225,10 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   "From a source" needs a citation. With it, the cook says whether the source is public (a public web page) or
   private (a book, or a paid site). One statement for a whole file is not the per-item attestation of 004 FR-014a
   and 016 FR-014. 017's portability contract already says bulk import is not a side door around it.
+- **A recipe without its statement stays in the import, not in the library** (owner ruling, 2026-10-26). It is listed
+  under "Needs your statement", uses no slot, and cannot be published until the cook gives the statement. It is kept
+  as long as the import's working data: purged 30 days after the import's last `advance`, which covers an import the
+  cook finished and one they abandoned.
 - **The import sets the provenance label from the statement:**
 
     | Statement                            | `sourceType`        | Visibility the policy allows                         |
@@ -230,10 +251,12 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   paid-site recipes included. A Premium cook has no limit. A free cook keeps a book or paid-site recipe private only
   while a slot is free. An `imported_public` recipe still goes private only with Premium and a substantive edit, so
   slots never apply to it.
-- **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). It saves no more private items and warns
-  the cook. The cook chooses to stop there, or to make the rest public. Making an item public needs that recipe's own
-  statement confirmed again, one recipe at a time. A book or paid-site item can never go public, so for it the choice
-  is skip or stop. The pause is derived from the live count, and the cook's choice is stored on the item.
+- **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). The count includes the cook's private
+  recipes still in review, as claims on a slot, so an approval never pushes a free cook past 50. When the private
+  items left exceed the free slots, it saves no more private items and warns the cook. The cook chooses to stop
+  there, or to make the rest public after one list and one confirmation. A book or paid-site item can never go
+  public, so for it the choice is skip or stop. The pause is derived from the live count, and the cook's choice is
+  stored on the item.
 - **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
 - **A cook who chooses Private for a public web recipe is refused on a fresh import.** `imported_public` goes
   private only with Premium and after a substantive edit. The import keeps that recipe public, or lets the cook
@@ -278,8 +301,8 @@ is reached, this path does not wait for the budget to return.
 
 - A bulk import moves only while a client is calling `advance`. Progress lives in the server's rows, so any device the
   cook signs in on can resume it.
-- A draft saved by the import is an ordinary draft. The editor opens it, the cook edits and publishes it, and
-  `bound_by` follows the food through every later save.
+- A recipe saved by the import is published and in review until approved (§3). The cook can still open and edit it,
+  and `bound_by` follows the food through every later save.
 - One read model, three mappings. The paste view, a saved line's badge and the import flag all read the one
   classifier, so the three surfaces cannot disagree about what a verdict means.
 - The allowance now has two channels in one table. Paste and bulk import never borrow from each other.
@@ -328,7 +351,8 @@ is reached, this path does not wait for the budget to return.
 - Set the provenance label from the per-recipe statement (§9), and store the statement and citation with the
   recipe.
 - Give `bindingOf` a budget input and build the "to check" list (§10).
-- Build the out-of-slots pause and take the slot lock on each private save (§9, ADR-0073 §5 and §8).
+- Build the out-of-slots pause, counting private recipes in review as claims, and take the slot lock on each private
+  save (§9, ADR-0073 §5 and §8). Save every item published, never as a draft (§3).
 
 ## Related work
 

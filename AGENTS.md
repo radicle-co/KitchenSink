@@ -396,7 +396,8 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   asks identity for every paste proposal, and `matchStateOf` derives the state at read time from `identityReadingOf`.
   A late verdict never replaces a cook's pick; the client keeps it. Do not match in the parse worker.
 - **ADR-0072 — bulk import lives at `/api/v1/import`, and the client drives it.** Each `advance` call does a bounded
-  step as the cook; nothing matches or binds in the background. Each recipe is saved once as a draft, and
+  step as the cook; nothing matches or binds in the background. Each recipe is saved once, published with the cook's chosen visibility, and checked
+  whatever its visibility; it waits in review, using no slot, unless all green (ADR-0074).
   `ingredients.bound_by` records who bound each line. Bulk import has its own allowance of 1,000 recipes a rolling day,
   separate from paste's 200. Each recipe carries its own statement ("I wrote this", or "From a source" with a
   citation), and the statement sets the label, `imported_public` included, as the one exception to ADR-0023's curator

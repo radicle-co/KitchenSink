@@ -157,6 +157,7 @@ CREATE TABLE recipe_source_checks (
     cleared_decision_id   text        NULL,
     cleared_outcome       text        NULL,      -- the outcome the person cleared
     cleared_evidence_ref  text        NULL,      -- the evidence the person saw
+    review_ended_at       timestamptz NULL,      -- set by the decision that ends review (detected, approved, not approved)
     allows                boolean     NOT NULL DEFAULT false,
     checking_since        timestamptz NOT NULL DEFAULT now(),
     decided_at            timestamptz NULL,
@@ -197,10 +198,12 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
   floor is one constant, set from the measured time of an uncached check.
 - **The cook-facing state is derived, never stored** (spec FR-014a). The classifier reads the stored visibility and
   status, the current digest's row, `reveal_at` and the latest decision, and answers `checking`, `public`, `inReview`
-  or `notApproved` (or `draft` and `private` as today). "In review" is a recipe with stored `visibility = 'public'` and
-  `status = 'published'` that the hold Specification does not allow, and that no decision has ended. It needs no new
-  visibility value: the stored value is what the cook asked for, the read rule hides it, and ADR-0073's count, which
-  reads `visibility = 'private'` only, gives it no slot (owner ruling: review does not take a slot).
+  or `notApproved` (or `draft` and `private` as today). "In review" is a published recipe whose current digest has an
+  `enforced = true` row that does not allow it and that no decision has ended (`review_ended_at IS NULL`). Its stored
+  visibility is what the cook asked for: `public`, or `private` for a bulk-import recipe (spec FR-003b). It needs no new
+  visibility value. A public one is hidden by the read rule. A private one is owner-only anyway, and ADR-0073 §2 leaves
+  it out of the slot count through `IN_REVIEW_SQL` (section 8). Either way it uses no slot (owner ruling: review does
+  not take a slot), and it has the same restrictions as a draft (`001-FR-003b`).
 - **Not approved moves the recipe to private.** A `detected` save (with a free slot), a reviewer's `referralNotApproved`
   and an `appealUpheld` each set `recipes.visibility = 'private'` in the same transaction as the decision, under
   ADR-0073's per-user lock. For a person's decision the move never refuses: with no free slot, the cook is over the
@@ -577,8 +580,21 @@ EXISTS (SELECT 1 FROM recipe_source_checks rsc
 - An outcome stamped `enforced = false` (shadow or paused) never holds anything. An outcome stamped `true` holds until
   it `allows`. `enforced IS NULL` means the recipe was never headed public with this digest, and the recipe is then not
   published, so the clause is never what decides.
+- **`IN_REVIEW_SQL`**, exported beside it, is the one definition of "in review" (owner ruling, 2026-10-26):
+
+    ```sql
+    EXISTS (SELECT 1 FROM recipe_source_checks rsc
+            WHERE rsc.recipe_id = r.id
+              AND rsc.content_digest = r.checked_content_digest
+              AND rsc.enforced = true AND NOT rsc.allows AND rsc.review_ended_at IS NULL)
+    ```
+
+    ADR-0073's slot count uses `NOT IN_REVIEW_SQL`, the bulk import's slot claim count uses it without the `NOT`, and
+    the cook-facing classifier, the pickers and the feature gates (`001-FR-003b`) use it to treat a recipe in review like
+    a draft.
+
 - A repo guard fails any SQL text outside `holdSpecification.ts` and the writers that reads `recipe_source_checks`
-  with `allows` or `enforced`, so a fifth hand-written copy cannot appear (review H6).
+  with `allows`, `enforced` or `review_ended_at`, so a fifth hand-written copy cannot appear (review H6).
 
 ## 9. Erasure, deletion and retention
 

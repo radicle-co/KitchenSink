@@ -408,6 +408,12 @@ been approved. While it's in review it is labeled as such."
 - **No stretching.** A recipe keeps the queue place it had when it first entered review, across edits and trips
   through Draft. So review always reaches a person's decision, and it cannot become a free private store.
 
+**Private bulk imports are reviewed too** (owner ruling, 2026-10-26). Every imported recipe, public or private, is
+saved published and checked. A private one in review is defined by its check row, not its visibility, so ADR-0073's
+count leaves it out through `IN_REVIEW_SQL`. The cost is real and accepted by the ruling: private recipes now reach
+the model and, when not green, a person, which 016 finding 1 had avoided for the editor path. Editor-made private
+recipes are still not checked.
+
 **The Draft path is closed** (owner ruling, 2026-10-26, `001-FR-003b`, ADR-0073 §12). A draft uses no slot, and a
 cook may move a recipe from In review back to Draft. But a draft cannot be used in meal planning, collections, the
 planned AI assistant, cooking mode or a shopping list, and opening it opens the editor. So a draft is somewhere to

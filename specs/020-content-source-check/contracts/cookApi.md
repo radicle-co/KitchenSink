@@ -41,7 +41,7 @@ sourceCheck: null                         // only when the current digest has no
 
 - **`sourceCheck` is present whenever the current digest has a check row**: a recipe checking, in review, public after
   a check, not approved (which is private, and still carries `cookState: 'notApproved'`, `canAppeal` and
-  `statementId`), or a bulk-imported draft whose check has run (spec FR-024a). It is `null` only for a recipe never
+  `statementId`), or a bulk-imported recipe, public or private, whose check has run (spec FR-003b). It is `null` only for a recipe never
   headed public, such as a plain private recipe or a draft the cook never meant to publish.
 - **One message for every cause while in review** (owner ruling, 2026-10-26, spec FR-016c). For `inReview` the response carries no
   outcome value, no reason, no part results and no evidence. Every cause, from a page reference to a photo signal, a

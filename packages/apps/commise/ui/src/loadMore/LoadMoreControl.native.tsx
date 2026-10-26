@@ -53,7 +53,7 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
 
 const styles = StyleSheet.create({
     footer: { alignItems: 'center', gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[2] },
-    message: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
+    message: { ...nativeTokens.type.meta, textAlign: 'center' },
     button: {
         borderRadius: nativeTokens.radius.full,
         paddingVertical: 10,
@@ -62,5 +62,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     busy: { opacity: 0.6 },
-    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
+    label: { ...nativeTokens.type.label },
 });

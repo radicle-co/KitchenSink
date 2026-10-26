@@ -144,6 +144,6 @@ const styles = StyleSheet.create({
         padding: nativeTokens.spacing[5],
         gap: nativeTokens.spacing[2],
     },
-    title: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600' },
-    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
+    title: { ...nativeTokens.type.sectionTitle },
+    body: { ...nativeTokens.type.meta, textAlign: 'center' },
 });

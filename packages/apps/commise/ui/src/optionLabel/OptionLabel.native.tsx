@@ -50,5 +50,5 @@ const styles = StyleSheet.create({
 /** Each size's text style. */
 const SIZE_STYLE: Readonly<Record<OptionLabelSize, TextStyle>> = StyleSheet.create({
     list: nativeTokens.type.list,
-    bodyMd: { fontSize: nativeTokens.fontSize.bodyMd },
+    bodyMd: { ...nativeTokens.type.body },
 });

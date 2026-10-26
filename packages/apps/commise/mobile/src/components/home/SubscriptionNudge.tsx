@@ -86,7 +86,7 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
 }
 
 const styles = StyleSheet.create({
-    body: { fontSize: nativeTokens.fontSize.bodySm },
+    body: { ...nativeTokens.type.meta },
     // `flexWrap`: at a large font scale the two actions take a line each, full width, before a label wraps.
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
     action: { flexGrow: 1 },

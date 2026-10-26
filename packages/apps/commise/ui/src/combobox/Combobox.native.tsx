@@ -480,8 +480,7 @@ const styles = StyleSheet.create({
     groupLabel: {
         paddingHorizontal: nativeTokens.spacing[3],
         paddingTop: nativeTokens.spacing[2],
-        fontSize: nativeTokens.fontSize.caption,
-        fontWeight: '600',
+        ...nativeTokens.type.label,
     },
     iconButton: { minWidth: TARGET_DP, minHeight: TARGET_DP, alignItems: 'center', justifyContent: 'center' },
     leadingIcon: { position: 'absolute', start: FIELD_PADDING, zIndex: 1 },
@@ -494,7 +493,7 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.full,
     },
     error: nativeTokens.type.label,
-    textButtonLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500' },
+    textButtonLabel: { ...nativeTokens.type.caption },
     option: {
         minHeight: TARGET_DP,
         flexDirection: 'row',
@@ -510,7 +509,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    statusText: { fontSize: nativeTokens.fontSize.bodySm },
+    statusText: { ...nativeTokens.type.meta },
     loadingLine: { flexDirection: 'row', alignItems: 'center' },
     // `minWidth: 0` and `flexShrink: 1`: the label wraps beside its glyph rather than pushing the row past 320 px.
     loadingLabel: { flexShrink: 1, minWidth: 0 },

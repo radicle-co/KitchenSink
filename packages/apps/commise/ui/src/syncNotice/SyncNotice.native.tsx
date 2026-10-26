@@ -45,6 +45,6 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         gap: nativeTokens.spacing[1],
     },
-    title: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
-    body: { fontSize: nativeTokens.fontSize.bodySm },
+    title: { ...nativeTokens.type.label },
+    body: { ...nativeTokens.type.meta },
 });

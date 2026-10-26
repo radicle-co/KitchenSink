@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
         paddingVertical: nativeTokens.spacing[2],
     },
-    message: { flexShrink: 1, fontSize: nativeTokens.fontSize.bodySm },
+    message: { flexShrink: 1, ...nativeTokens.type.meta },
     button: {
         // A `lineDivider` hairline, as on web: the `canvas` fill is ~1:1 against the `surfaceMuted` row.
         borderWidth: StyleSheet.hairlineWidth,
@@ -78,5 +78,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     busy: { opacity: 0.6 },
-    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
+    label: { ...nativeTokens.type.label },
 });

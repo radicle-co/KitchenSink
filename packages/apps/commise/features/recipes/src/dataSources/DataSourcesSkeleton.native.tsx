@@ -42,7 +42,7 @@ export const DataSourcesSkeleton: FC = () => {
 
 const styles = StyleSheet.create({
     column: { gap: nativeTokens.spacing[3] },
-    caption: { fontSize: nativeTokens.fontSize.caption },
+    caption: { ...nativeTokens.type.meta },
     // About as tall as a five-line card, so the sheet does not jump when the list lands.
     placeholder: { height: 160, borderRadius: nativeTokens.radius.lg },
 });

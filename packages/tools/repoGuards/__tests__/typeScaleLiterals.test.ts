@@ -1,11 +1,16 @@
 /**
  * No app writes a font size or a line height as a number (owner ruling, type scale, 2026-10-25; `typeScaleSpec` §4.B).
  * A screen names a type role (`nativeTokens.type.body`, `text-body`), so the one scale in
- * `packages/apps/commise/ui/src/tokens` stays the only place a size lives. Three shapes are refused in app source:
+ * `packages/apps/commise/ui/src/tokens` stays the only place a size lives. Four shapes are refused in app source:
  *
  *  - a `fontSize:` or `lineHeight:` property whose value is a number literal (`{ fontSize: 13 }`);
  *  - a `fontSize={13}` or `lineHeight={22}` JSX attribute;
- *  - a Tailwind arbitrary size class, `text-[13px]` or `text-[0.8rem]`, in a string, template or JSX text.
+ *  - a Tailwind arbitrary size class, `text-[13px]` or `text-[0.8rem]`, in a string, template or JSX text;
+ *  - a read of the raw size ramp, `nativeTokens.fontSize.bodySm` (or `scale.fontSize`, `nativeTokens['fontSize']`, or
+ *    `const { fontSize } = nativeTokens`). A size taken from the ramp has no leading, so React Native sets its own,
+ *    off the 4 px grid. A role carries both (`nativeTokens.type.meta`); read a size off the role if one is needed as a
+ *    measure (`nativeTokens.type.body.fontSize`). This is the AST form of "a style that sets `fontSize` from a token
+ *    without the role spread": the ramp is not reachable from app source at all, so there is nothing to except.
  *
  * ⛔ THERE IS NO BASELINE AND NO ALLOW-LIST FOR APP FILES. The scale drifted because 67 native styles each spelled a
  * number; a token test cannot see those, and an exemption list is how they would have stayed.
@@ -37,6 +42,19 @@ import { repoRoot } from './serviceSources.js';
 const ARBITRARY_TEXT_SIZE = /(?:^|[\s"'`:])text-\[\d*\.?\d+(?:px|rem)\]/u;
 
 const SIZE_PROPERTIES: ReadonlySet<string> = new Set(['fontSize', 'lineHeight']);
+
+/** The objects that hold the raw size ramp: the native token bundle and the scale module's namespace. */
+const RAMP_OWNERS: ReadonlySet<string> = new Set(['nativeTokens', 'scale']);
+
+/** The raw size ramp's key on those objects. */
+const RAMP_KEY = 'fontSize';
+
+/** Whether an expression is exactly `nativeTokens` or `scale`, through parentheses. */
+function isRampOwner(expression: ts.Expression): boolean {
+    return ts.isParenthesizedExpression(expression)
+        ? isRampOwner(expression.expression)
+        : ts.isIdentifier(expression) && RAMP_OWNERS.has(expression.text);
+}
 
 /** The number literal an initializer states, through parentheses, `as`, `satisfies` and a leading minus. */
 function numericLiteralOf(expression: ts.Expression): ts.NumericLiteral | undefined {
@@ -92,6 +110,24 @@ export function typeScaleLiterals(
             if (literal !== undefined) {
                 report(node, `${key ?? ''}: ${node.initializer.getText(file)}`);
             }
+        } else if (ts.isPropertyAccessExpression(node) && node.name.text === RAMP_KEY && isRampOwner(node.expression)) {
+            report(node, node.getText(file));
+        } else if (
+            ts.isElementAccessExpression(node) &&
+            ts.isStringLiteralLike(node.argumentExpression) &&
+            node.argumentExpression.text === RAMP_KEY &&
+            isRampOwner(node.expression)
+        ) {
+            report(node, node.getText(file));
+        } else if (
+            ts.isBindingElement(node) &&
+            ts.isObjectBindingPattern(node.parent) &&
+            (node.propertyName ?? node.name).getText(file) === RAMP_KEY &&
+            ts.isVariableDeclaration(node.parent.parent) &&
+            node.parent.parent.initializer !== undefined &&
+            isRampOwner(node.parent.parent.initializer)
+        ) {
+            report(node, node.parent.parent.getText(file));
         } else if (ts.isJsxAttribute(node) && node.initializer !== undefined && ts.isJsxExpression(node.initializer)) {
             const key = nameOf(node.name);
             const literal =
@@ -147,7 +183,30 @@ describe('the type-scale literal reader', () => {
             source: `const e = <p className="text-[12px]">x</p>;`,
             found: ['text-[12px]'],
         },
-        { shape: 'a token size', source: `const s = { fontSize: nativeTokens.fontSize.bodySm };`, found: [] },
+        {
+            shape: 'a raw ramp size (was accepted before the 4 px leading rule)',
+            source: `const s = { fontSize: nativeTokens.fontSize.bodySm };`,
+            found: ['nativeTokens.fontSize'],
+        },
+        {
+            shape: 'a raw ramp size used as a measure',
+            source: `const w = 4 * nativeTokens.fontSize.bodyMd;`,
+            found: ['nativeTokens.fontSize'],
+        },
+        { shape: 'the scale namespace ramp', source: `const n = scale.fontSize.caption;`, found: ['scale.fontSize'] },
+        {
+            shape: 'an element-access ramp',
+            source: `const n = nativeTokens['fontSize'].caption;`,
+            found: [`nativeTokens['fontSize']`],
+        },
+        {
+            shape: 'a destructured ramp',
+            source: `const { fontSize } = nativeTokens;`,
+            found: ['{ fontSize } = nativeTokens'],
+        },
+        { shape: 'a size read off a role', source: `const m = nativeTokens.type.body.fontSize;`, found: [] },
+        { shape: 'a destructure of something else', source: `const { fontSize } = props;`, found: [] },
+        { shape: 'another key of the bundle', source: `const g = nativeTokens.spacing[3];`, found: [] },
         { shape: 'a role spread', source: `const s = { ...nativeTokens.type.meta };`, found: [] },
         { shape: 'a computed size', source: `const s = { fontSize: base * 2 };`, found: [] },
         {

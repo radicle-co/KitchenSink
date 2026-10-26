@@ -51,5 +51,5 @@ const styles = StyleSheet.create({
     },
     // Colours come from the theme at render: neutral is an `inkMuted` edge and label on `paper`; caution is the
     // `attention` edge on the `attentionTint` fill under an `ink` label (the tint is a FILL, never a text colour).
-    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', flexShrink: 1 },
+    label: { ...nativeTokens.type.caption, flexShrink: 1 },
 });

@@ -65,7 +65,7 @@ export const VariantOption: FC<VariantOptionProps> = ({
                 <View
                     style={[
                         styles.parts,
-                        { flexBasis: PARTS_BASIS_IN_BODY_SIZES * nativeTokens.fontSize.bodyMd * fontScale },
+                        { flexBasis: PARTS_BASIS_IN_BODY_SIZES * nativeTokens.type.body.fontSize * fontScale },
                     ]}
                 >
                     <VariantPartsLine parts={parts} tone="primary" />
@@ -95,10 +95,10 @@ const styles = StyleSheet.create({
         columnGap: nativeTokens.spacing[3],
     },
     parts: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    currentTag: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600' },
+    currentTag: { ...nativeTokens.type.label },
     calories: {
         marginStart: 'auto',
-        fontSize: nativeTokens.fontSize.bodySm,
+        ...nativeTokens.type.meta,
         fontVariant: ['tabular-nums'],
     },
 });

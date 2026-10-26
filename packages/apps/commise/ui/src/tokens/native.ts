@@ -91,21 +91,29 @@ function perClass(spec: TypeRoleSpec, sizes: PerContainerClass<number>): PerCont
     ) as PerContainerClass<NativeTypeStyle>;
 }
 
-/** Every role with a single size, projected once. */
-type FixedTypeRole = Exclude<TypeRole, 'largeTitle'>;
+/** A role with a size and a leading of its own: every role but the large title (per class) and inline figures. */
+export interface SizedNativeTypeStyle extends NativeTypeStyle {
+    readonly fontSize: number;
+    readonly lineHeight: number;
+}
 
-const fixedTypeRoles = Object.fromEntries(
+/** Every role with a single size of its own, projected once. */
+type SizedTypeRole = Exclude<TypeRole, 'largeTitle' | 'figureInline'>;
+
+const sizedTypeRoles = Object.fromEntries(
     (Object.entries(typeRole) as [TypeRole, TypeRoleSpec][]).flatMap(([name, spec]) =>
-        typeof spec.size === 'object' ? [] : [[name, toNativeTypeStyle(spec, spec.size)] as const],
+        typeof spec.size === 'number' ? [[name, toNativeTypeStyle(spec, spec.size)] as const] : [],
     ),
-) as Readonly<Record<FixedTypeRole, NativeTypeStyle>>;
+) as Readonly<Record<SizedTypeRole, SizedNativeTypeStyle>>;
 
 /**
  * The native projection of the type roles. Every role is one style, except `largeTitle`, which has one per container
  * class (`type.largeTitle[containerClass]`, the class from `useContainerClass`).
  */
 const nativeType = {
-    ...fixedTypeRoles,
+    ...sizedTypeRoles,
+    // Takes the size and leading of the line it sits in, so it has neither of its own.
+    figureInline: toNativeTypeStyle(typeRole.figureInline, 'inherit'),
     largeTitle: perClass(typeRole.largeTitle, typeRole.largeTitle.size),
 } as const;
 

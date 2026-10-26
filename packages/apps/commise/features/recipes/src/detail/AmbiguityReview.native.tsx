@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
         minHeight: TARGET_DP,
         paddingHorizontal: nativeTokens.spacing[3],
     },
-    candidateLabel: { fontSize: nativeTokens.fontSize.bodySm },
+    candidateLabel: { ...nativeTokens.type.meta },
     disabled: { opacity: 0.6 },
     failedRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
     muted: { ...nativeTokens.type.meta },

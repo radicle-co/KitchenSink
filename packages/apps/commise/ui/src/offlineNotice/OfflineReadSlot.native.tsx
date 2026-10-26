@@ -36,6 +36,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
         paddingVertical: nativeTokens.spacing[8],
         textAlign: 'center',
-        fontSize: nativeTokens.fontSize.bodySm,
+        ...nativeTokens.type.meta,
     },
 });

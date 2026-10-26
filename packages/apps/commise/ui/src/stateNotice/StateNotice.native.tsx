@@ -49,10 +49,9 @@ const styles = StyleSheet.create({
     screen: { flex: 1, justifyContent: 'space-between', padding: 24 },
     message: { flex: 2, alignItems: 'center', justifyContent: 'center', gap: 8 },
     title: {
-        fontSize: nativeTokens.fontSize.headingSm,
-        fontWeight: '600',
+        ...nativeTokens.type.sectionTitle,
         textAlign: 'center',
     },
-    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
+    body: { ...nativeTokens.type.meta, textAlign: 'center' },
     actions: { flex: 1, justifyContent: 'flex-end', gap: 12, alignSelf: 'stretch', maxWidth: 480, width: '100%' },
 });

@@ -127,11 +127,10 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
 
 const styles = StyleSheet.create({
     panel: { gap: nativeTokens.spacing[2] },
-    text: { fontSize: nativeTokens.fontSize.bodySm },
-    hint: { fontSize: nativeTokens.fontSize.caption },
+    text: { ...nativeTokens.type.meta },
+    hint: { ...nativeTokens.type.meta },
     heading: {
-        fontSize: nativeTokens.fontSize.caption,
-        fontWeight: '600',
+        ...nativeTokens.type.label,
         paddingHorizontal: nativeTokens.spacing[3],
         paddingTop: nativeTokens.spacing[2],
     },

@@ -38,7 +38,7 @@ export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ 
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    note: { fontSize: nativeTokens.fontSize.bodySm },
+    note: { ...nativeTokens.type.meta },
     retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
-    retryLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
+    retryLabel: { ...nativeTokens.type.label },
 });

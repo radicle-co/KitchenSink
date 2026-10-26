@@ -8,8 +8,8 @@
  *
  * ## The transient/terminal split, stated once
  *
- *  - **TRANSIENT (throw → SQS redelivery):** anything an ENGINE throws — a ceiling denial or a Bedrock
- *    transport failure in the gated leg, and a CRF invocation that produced no engine answer at all (the
+ *  - **TRANSIENT (throw → SQS redelivery):** anything an ENGINE throws — a Bedrock transport failure in the gated leg
+ *    (a ceiling denial too, EXCEPT as the ONE ruled exception below), and a CRF invocation that produced no engine answer at all (the
  *    function is gone, the grant does not cover it, it crashed at import, it broke the engine contract).
  *    ADR-0026's 2026-08-31 update names all four, on one ground: none of them is evidence about the
  *    ingredient, and "recording any of them as an outcome would turn an outage into a permanent fact about
@@ -18,6 +18,9 @@
  *    the redelivered message re-reads `ingredient_parse_cache` first and re-pays only the uncached attempts
  *    (asserted in this handler's suite). ⚠️ So a CRF outage costs ONE re-invoke of the CRF per redelivery,
  *    not a second billed Bedrock call: whichever engine answered is already remembered.
+ *  - **TERMINAL (landed) EXCEPTION:** a ceiling denial of the LLM leg (owner ruling 2026-10-26, ADR-0024 §3): the line
+ *    lands the CRF reading alone as `single-engine`, because the cook is waiting and a retry would hold the paste
+ *    until the month ends.
  *  - **TERMINAL (landed):** a parse (`parsed` + the proposal), the validator loop's exhaustion
  *    (`unparseable` — R6's recorded state; the line is saved, nothing binds), or both engines absent with
  *    no transient failure (`failed_retryable` — U9's per-line retry re-runs exactly these).
@@ -53,6 +56,7 @@ import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { getRecipeDb, getRecipePool } from '../common/db.js';
 import { createSpendLedger } from '../common/verificationSpend.js';
 import { isResidencyRefusedError } from '../common/residencyRefused.js';
+import { isSpendCeilingDeniedError } from '../common/spendCeilingDenied.js';
 import { createSsmSettingsLoader, createVerificationSettings } from '../verification/settings.js';
 import { createParseCachePort, createParseCorrectionsPort, type ParseQueryable } from '../parsing/parsePorts.js';
 import { acquireParseLease, realSleep, releaseParseLease } from '../parsing/parseLease.js';
@@ -508,7 +512,7 @@ async function parseAndLand(deps: ParseLineDeps, message: ParseLineJobMessage, r
         {
             onTierFailure: (tier, error) => {
                 // The pipeline contains throws (KTD-12); the handler decides transience. Everything an
-                // ENGINE throws is transient by construction — the gated leg rejects on a denial, a throttle
+                // ENGINE throws is transient by construction — the gated leg rejects on a throttle (a ceiling denial is the one exception, below)
                 // or a 5xx, and `crfInvoke` rejects only when the invocation produced no engine answer at
                 // all; both return absence for a deterministic per-line outcome instead. So a captured
                 // engine failure re-throws after the run.
@@ -525,7 +529,20 @@ async function parseAndLand(deps: ParseLineDeps, message: ParseLineJobMessage, r
                 // is the cook's own word and outranks every engine; a line that lands over a failed
                 // corrections read makes the machine parse permanent while a correction may exist. Only the
                 // CACHE is contained: a miss costs one call, never the cook's authority.
-                if (tier !== 'cache') {
+                //
+                // ⛔ ONE EXCEPTION, BY NAME: a CEILING DENIAL of the LLM engine is final for a parse-job line (ADR-0024 §3,
+                // ADR-0026 §3 as amended; owner ruling 2026-10-26). The cook is waiting on this paste, and a retry would
+                // hold it until the month ends, so the denial is not collected: the pipeline has already contained the
+                // throw as the LLM's ABSENCE, the line lands the CRF reading alone as `single-engine` (never `differ`),
+                // and the LLM's absence is not cached. Keyed on tier `llm` AND the typed error, so a CRF outage, a
+                // transport failure and an unreadable counter (`SpendLedgerError`) all stay transient.
+                if (tier === 'llm' && isSpendCeilingDeniedError(error)) {
+                    logger.warn('parse-line ceiling denied the LLM leg; the line lands the CRF reading alone', {
+                        jobId: message.jobId,
+                        lineIndex: message.lineIndex,
+                        period: error.period,
+                    });
+                } else if (tier !== 'cache') {
                     transientFailures.push(error);
                 }
 

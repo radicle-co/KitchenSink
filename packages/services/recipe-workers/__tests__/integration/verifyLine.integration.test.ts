@@ -21,7 +21,9 @@ import type { SQL } from 'drizzle-orm';
  */
 const dialect = new PgDialect();
 
-const { statements, poolQueries, converseRequests, answer } = vi.hoisted(() => ({
+const { statements, poolQueries, converseRequests, answer, spend } = vi.hoisted(() => ({
+    /** `denied`: the counter row's conditional write returns no row, which IS the ceiling denial (ADR-0024 §2). */
+    spend: { denied: false },
     statements: [] as { text: string; params: unknown[] }[],
     poolQueries: [] as string[],
     converseRequests: [] as unknown[],
@@ -41,7 +43,7 @@ vi.mock('../../src/common/db.js', () => ({
             }
 
             if (text.includes('insert into verification_spend')) {
-                return Promise.resolve({ rows: [{ reserved_micros: '116' }] });
+                return Promise.resolve({ rows: spend.denied ? [] : [{ reserved_micros: '116' }] });
             }
 
             if (text.includes('update verification_spend')) {
@@ -152,6 +154,7 @@ beforeEach(() => {
     poolQueries.length = 0;
     converseRequests.length = 0;
     answer.text = '{"verdict":"agree","certainty":"high","reason":"matches"}';
+    spend.denied = false;
     stdout = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 });
 
@@ -210,6 +213,40 @@ describe('the verification gate — a paste-job origin, queue body to verdict ro
         await runHandler(event({ ...CONTENT, origin: { ...PASTE_ORIGIN.origin, lineIndex: -1 } }));
 
         expect(converseRequests).toHaveLength(0);
+        expect(verdictInsert()).toBeUndefined();
+    });
+});
+
+/**
+ * A CEILING DENIAL, through the real ledger's SQL (ADR-0024 §3; owner ruling 2026-10-26). The counter's conditional write
+ * returns no row, which is the denial. The paste origin records `budgetSpent` under the key with the captured period and
+ * COMPLETES (the handler resolves, so SQS deletes the message); the saved-recipe origin still throws, so the queue retries.
+ */
+describe('the verification gate: a ceiling denial (queue body to recorded fact)', () => {
+    beforeEach(() => {
+        spend.denied = true;
+    });
+
+    it('⛔ a paste origin resolves, calls no model, writes NO verdict, and records budget spent for the captured period', async () => {
+        await expect(runHandler(event({ ...CONTENT, ...PASTE_ORIGIN }))).resolves.toBeUndefined();
+
+        expect(converseRequests).toHaveLength(0);
+        expect(verdictInsert()).toBeUndefined();
+
+        const recorded = issued('budget_spent_period');
+
+        expect(recorded).toHaveLength(1);
+        expect(recorded[0]?.text).toContain('insert into recipe_verification_attempts');
+        // The period is the clock's at reserve time, in the `YYYY-MM` the counter row is keyed on.
+        expect(recorded[0]?.params).toContainEqual(expect.stringMatching(/^\d{4}-(0[1-9]|1[0-2])$/u));
+        // Nothing was reserved, so nothing is settled.
+        expect(issued('update verification_spend')).toHaveLength(0);
+    });
+
+    it('⛔ the saved-recipe origin STILL throws, so the queue retries it, and records nothing', async () => {
+        await expect(runHandler(event({ ...CONTENT, recipeId: RECIPE_ID }))).rejects.toThrow(/ceiling reached/u);
+
+        expect(issued('budget_spent_period')).toHaveLength(0);
         expect(verdictInsert()).toBeUndefined();
     });
 });

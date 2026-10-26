@@ -144,6 +144,19 @@ export interface VerdictStore {
     recordAttemptFailure(key: string, modelId: string, failureCode: string): Promise<void>;
 
     /**
+     * Record that the spend ceiling refused this paste-match review (ADR-0024 §3, owner ruling 2026-10-26).
+     *
+     * ⛔ NOT A VERDICT and not a failure code: it sets only the attempt row's `budget_spent_period`, which the service
+     * reads as "spent" while that period is current. The period is the one the RESERVE captured. Idempotent.
+     *
+     * @param key - The verification key.
+     * @param modelId - The model the call would have used.
+     * @param period - The spend period (`YYYY-MM`) the denial was captured in.
+     * @sideEffect Updates `recipe_verification_attempts` (the claim has already created the row).
+     */
+    recordBudgetSpent(key: string, modelId: string, period: string): Promise<void>;
+
+    /**
      * Record what the gate concluded about one line, and retire its attempt bookkeeping with it.
      *
      * @param row - The verdict.
@@ -227,6 +240,17 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
             await db.execute(sql`
                 UPDATE recipe_verification_attempts SET failure_code = ${failureCode}
                  WHERE verification_key = ${key} AND model_id = ${modelId}
+            `);
+        },
+
+        async recordBudgetSpent(key: string, modelId: string, period: string): Promise<void> {
+            // An UPSERT, not a bare UPDATE: the claim wrote the row before the reservation, but a row the claim's
+            // lease refused to touch, or one an operator cleaned up, must not turn the fact into a silent no-op.
+            await db.execute(sql`
+                INSERT INTO recipe_verification_attempts (verification_key, model_id, attempts, budget_spent_period)
+                VALUES (${key}, ${modelId}, 0, ${period})
+                ON CONFLICT (verification_key, model_id) DO UPDATE
+                   SET budget_spent_period = EXCLUDED.budget_spent_period
             `);
         },
 

@@ -179,6 +179,12 @@ export const parseProposalMatchSchema = z.object({
     candidates: z.array(parseProposalCandidateSchema),
     /** A note that rides beside the state without changing it (`reviewDisagreed`) — an opaque key. */
     reviewNote: z.string().min(1).optional(),
+    /**
+     * When the AI check comes back, as an ISO 8601 instant: the end of the spend period in which the ceiling refused
+     * the review (ADR-0024 §3). Present ONLY with the reason `reviewBudgetSpent`; the paste notice ("the check comes
+     * back on {date}") reads it. Additive and optional, so a client that predates it ignores it.
+     */
+    reviewResetsAt: z.string().min(1).optional(),
 });
 
 export type ParseProposalMatch = z.infer<typeof parseProposalMatchSchema>;

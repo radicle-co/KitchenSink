@@ -24,7 +24,7 @@
  *
  * @sideEffect Reads `recipe_ingredient_verifications`.
  */
-import { and, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeIngredientVerifications } from '../../database/schema/lineVerifications.js';
@@ -149,6 +149,38 @@ export class LineVerificationsDal {
             .from(verificationAttempts)
             .where(
                 and(inArray(verificationAttempts.verificationKey, unique), isNotNull(verificationAttempts.failureCode)),
+            );
+
+        return new Set(rows.map((row) => row.verificationKey));
+    }
+
+    /**
+     * The keys whose paste-match review the spend ceiling refused in THIS period (ADR-0024 §3, ADR-0071 §9).
+     *
+     * ⛔ THE PERIOD IS THE FILTER, so "spent" lasts exactly as long as the period the worker captured at reserve: a
+     * fact from an earlier month matches nothing, and a new month (or a raised ceiling) leaves no line stuck as spent.
+     * This is not a verdict and is never read as one.
+     *
+     * @param keys - The verification keys to look up.
+     * @param period - The current spend period (`YYYY-MM`), from recipe-core's `periodKey`.
+     * @returns The keys refused in that period.
+     * @sideEffect One `recipe_verification_attempts` read.
+     */
+    public async findBudgetSpentKeys(keys: readonly string[], period: string): Promise<ReadonlySet<string>> {
+        const unique = [...new Set(keys)];
+
+        if (unique.length === 0) {
+            return new Set();
+        }
+
+        const rows = await this.db
+            .select({ verificationKey: verificationAttempts.verificationKey })
+            .from(verificationAttempts)
+            .where(
+                and(
+                    inArray(verificationAttempts.verificationKey, unique),
+                    eq(verificationAttempts.budgetSpentPeriod, period),
+                ),
             );
 
         return new Set(rows.map((row) => row.verificationKey));

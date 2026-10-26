@@ -214,9 +214,17 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         }
     };
 
-    // R23: only a PUBLISH asks. It asks from here, where every route to it passes, so none can skip the question.
+    const readyLine = readyLineOf(
+        { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
+        m,
+        locale,
+    );
+
+    // R23: only a PUBLISH asks, and only one the gate would accept: a recipe it would refuse (no title) is refused first,
+    // so the cook is not asked to confirm a publish that cannot happen. It asks from here, where every route to Publish
+    // passes, so none can skip the question.
     const finish = (): void => {
-        if (chrome.primary.action === 'publish' && openChoices?.facts !== undefined) {
+        if (chrome.primary.action === 'publish' && readyLine?.kind === 'ready' && openChoices?.facts !== undefined) {
             setAsking(true);
 
             return;
@@ -252,11 +260,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             m,
             locale,
         ),
-        readyLine: readyLineOf(
-            { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
-            m,
-            locale,
-        ),
+        readyLine,
         goToSection: scrollToSection,
         entries,
         current,

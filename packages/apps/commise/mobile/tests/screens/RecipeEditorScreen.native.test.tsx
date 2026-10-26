@@ -16,7 +16,7 @@ import { recipeSender } from '@commise/query/recipe-sender';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { createMemoryOutboxStore, loadOutbox } from '@kitchensink/sync';
-import { onlineManager } from '@tanstack/react-query';
+import { focusManager, onlineManager } from '@tanstack/react-query';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { ParseJobResponse, ParseProposalMatch } from '@kitchensink/schema-recipe';
 import { recipeFormMessages } from '@commise/features-recipes';
@@ -604,6 +604,117 @@ describe('RecipeEditorScreen (native) — Paste a list', () => {
         await waitFor(() => expect(byFood).toHaveBeenCalledWith('food_flour'));
         expect(byName).not.toHaveBeenCalled();
         expect(await screen.findByText('Plain flour')).toBeTruthy();
+    });
+
+    /**
+     * ⛔ THE PASTE LIST MEETS THE REAL EDITOR LIFECYCLE, on the phone as on the web (`RecipeEditorContainer.test.tsx`): the
+     * recipe is CREATED on the server once the paste's lines have joined, the create STORES the joined line, and the
+     * cook's pick on that stored line is the REBIND COMMAND at its stored position (ADR-0045). If the create re-keyed the
+     * draft, the paste list would read its lines as deleted (removal is terminal) and vanish.
+     */
+    it('keeps the paste list through the server create and a pick on the stored line (the rebind command)', async () => {
+        const client = createFakeRecipeServiceClient();
+        const base = {
+            id: '00000000-0000-4000-8000-00000000e202',
+            createdAt: '2026-10-09T10:00:00.000Z',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+        };
+        const lineWith = (match?: ParseProposalMatch): ParseJobResponse['lines'][number] => ({
+            lineIndex: 0,
+            sourceLine: '2 cups milk',
+            status: 'parsed',
+            progress: null,
+            proposal: {
+                raw: '2 cups milk',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'cup',
+                statedMeasure: '2 cups',
+                foods: [{ name: 'milk', prep: null, ...(match === undefined ? {} : { match }) }],
+                reviewReasons: [],
+            },
+        });
+        const parsed: ParseJobResponse = { ...base, status: 'complete', lines: [lineWith()] };
+        const matched: ParseJobResponse = {
+            ...base,
+            status: 'complete',
+            lines: [
+                lineWith({
+                    state: 'default',
+                    reason: 'defaultApplies',
+                    proposed: null,
+                    candidates: [
+                        { kind: 'root', id: 'food_whole', name: 'Whole milk', isDefault: true },
+                        { kind: 'root', id: 'food_skim', name: 'Skim milk', isDefault: false },
+                    ],
+                }),
+            ],
+        };
+        // The service keeps the matches it wrote: a read after the matches call answers them.
+        let held = parsed;
+
+        vi.spyOn(client, 'createParseJob').mockResolvedValue({ ...parsed, status: 'running' });
+        vi.spyOn(client, 'getParseJob').mockImplementation(() => Promise.resolve(held));
+        vi.spyOn(client, 'proposeParseJobMatches').mockImplementation(() => {
+            held = matched;
+
+            return Promise.resolve(matched);
+        });
+        vi.spyOn(client, 'createIngredient').mockResolvedValue({
+            id: '00000000-0000-4000-8000-0000000000f2',
+            name: 'milk',
+            isUserEntered: true,
+        } as Awaited<ReturnType<RecipeServiceClient['createIngredient']>>);
+        const milkView = {
+            ingredientId: '00000000-0000-4000-8000-0000000000f2',
+            name: 'milk',
+            quantity: { kind: 'exact' as const, value: 2 },
+            unit: 'cups',
+            isUserEntered: true,
+        };
+        const skimView = {
+            ingredientId: '00000000-0000-4000-8000-0000000000f3',
+            name: 'Skim milk',
+            foodId: 'food_skim',
+            quantity: { kind: 'exact' as const, value: 2 },
+            unit: 'cups',
+            isUserEntered: false,
+        };
+        const draftRecipe = (version: number, ingredients: RecipeDetail['ingredients']) =>
+            makeRecipeDetail({
+                id: 'rec_new',
+                title: 'Pudding',
+                status: RecipeStatus.DRAFT,
+                currentVersion: version,
+                ingredients,
+            });
+        const create = vi.spyOn(client, 'createRecipe').mockResolvedValue(draftRecipe(1, [milkView]));
+        const rebind = vi.spyOn(client, 'rebindIngredientLine').mockResolvedValue(draftRecipe(2, [skimView]));
+        renderScreen(client);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Paste a list' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Ingredient lines' }), {
+            target: { value: '2 cups milk' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Add 1 ingredient' }));
+        expect(await screen.findByText('Choose the milk you use')).toBeTruthy();
+
+        // The recipe is CREATED with the line in it: the app going to the background is a checkpoint.
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Pudding' } });
+        act(() => focusManager.setFocused(false));
+        await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+        act(() => focusManager.setFocused(true));
+        expect(create.mock.calls[0]?.[0].ingredients).toHaveLength(1);
+        // The create's answer re-keyed nothing: the paste list still draws the line, still asking.
+        expect(screen.getByText('Choose the milk you use')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Skim milk' }));
+
+        await waitFor(() => expect(rebind).toHaveBeenCalledTimes(1));
+        expect(rebind.mock.calls[0]?.[0]).toBe('rec_new');
+        expect(rebind.mock.calls[0]?.[1]).toBe(0);
+        expect(rebind.mock.calls[0]?.[2]).toMatchObject({ target: { kind: 'catalogFood', foodId: 'food_skim' } });
+        expect(await screen.findByText(/Skim milk\s+· your choice/u)).toBeTruthy();
+        expect(screen.queryByText('Choose the milk you use')).toBeNull();
     });
 
     it('opens with the sheet up when Home’s first-run Paste ingredients asks for it', () => {

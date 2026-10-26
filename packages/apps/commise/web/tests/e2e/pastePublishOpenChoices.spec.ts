@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockCandidate, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { addStep, chooseCuisine, openNewRecipe } from './utils/recipeEditor';
-import { pasteList } from './utils/pasteList';
+import { paragraphWith, pasteList } from './utils/pasteList';
 
 /**
  * Publishing with lines that have no food yet is ALLOWED, but the cook is asked first (R23; `ingredientMatching.md`,
@@ -63,7 +63,7 @@ for (const colorScheme of SCHEMES) {
             await chooseCuisine(page);
             await addStep(page, 'Soak the bread.');
             const ingredients = await pasteList(page, '2 cups milk\n3 bread');
-            await expect(ingredients.getByText('Choose the milk you use')).toBeVisible({
+            await expect(paragraphWith(ingredients, 'Choose the milk you use')).toBeVisible({
                 timeout: POLL_SETTLE_TIMEOUT_MS,
             });
 
@@ -82,7 +82,7 @@ for (const colorScheme of SCHEMES) {
             const sheet = page.getByRole('dialog', { name: '2 ingredients have no food yet' });
 
             await expect(sheet).toBeVisible();
-            await expect(sheet.getByText(/milk and bread/u)).toBeVisible();
+            await expect(paragraphWith(sheet, /milk and bread/u)).toBeVisible();
             expect(writes.filter((body) => body.includes('"status":"published"'))).toEqual([]);
 
             await sheet.getByRole('button', { name: 'Choose now' }).click();

@@ -191,7 +191,11 @@ describe('the native editor', () => {
 
         it('⛔ asks first, naming the open lines, and sends nothing until the cook says so', () => {
             const publish = vi.fn(() => ({ kind: 'send' }) as const);
-            render(view(makeEditorResult({ publish }), { openChoices: { facts: FACTS, chooseNow: vi.fn() } }));
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow: vi.fn() },
+                }),
+            );
 
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
@@ -201,11 +205,10 @@ describe('the native editor', () => {
             expect(publish).not.toHaveBeenCalled();
         });
 
-        it('Publish anyway publishes, with the entry`s uncommitted text', () => {
+        it('Publish anyway publishes', () => {
             const publish = vi.fn(() => ({ kind: 'send' }) as const);
             render(
-                view(makeEditorResult({ publish }), {
-                    pendingEntryText: 'flour',
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
                     openChoices: { facts: FACTS, chooseNow: vi.fn() },
                 }),
             );
@@ -213,13 +216,17 @@ describe('the native editor', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
             fireEvent.click(screen.getByRole('button', { name: 'Publish anyway' }));
 
-            expect(publish).toHaveBeenCalledExactlyOnceWith('flour');
+            expect(publish).toHaveBeenCalledExactlyOnceWith('');
         });
 
         it('Choose now publishes nothing and opens the first open line', () => {
             const publish = vi.fn(() => ({ kind: 'send' }) as const);
             const chooseNow = vi.fn();
-            render(view(makeEditorResult({ publish }), { openChoices: { facts: FACTS, chooseNow } }));
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow },
+                }),
+            );
 
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
             fireEvent.click(screen.getByRole('button', { name: 'Choose now' }));
@@ -230,7 +237,11 @@ describe('the native editor', () => {
 
         it('does not ask when no line needs a pick', () => {
             const publish = vi.fn(() => ({ kind: 'send' }) as const);
-            render(view(makeEditorResult({ publish }), { openChoices: { facts: undefined, chooseNow: vi.fn() } }));
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: undefined, chooseNow: vi.fn() },
+                }),
+            );
 
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 

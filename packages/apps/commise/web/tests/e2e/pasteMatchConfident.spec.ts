@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockCandidate, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { editorSection, openNewRecipe } from './utils/recipeEditor';
-import { pasteList, recordRequests } from './utils/pasteList';
+import { matchedLine, paragraphWith, pasteList, recordRequests } from './utils/pasteList';
 
 /**
  * A pasted list whose lines the service matches CONFIDENTLY (ADR-0071; owner rulings 2026-10-25): they arrive bound to
@@ -53,16 +53,18 @@ for (const colorScheme of SCHEMES) {
             const ingredients = await pasteList(page, '2 cups milk\n3 eggs');
 
             // ⛔ THE POLL AND THE MATCH, not a click: the lines arrive matched and bound.
-            await expect(ingredients.getByText('Whole milk')).toBeVisible({ timeout: POLL_SETTLE_TIMEOUT_MS });
-            await expect(ingredients.getByText('Egg, whole, raw')).toBeVisible();
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText('Whole milk', {
+                timeout: POLL_SETTLE_TIMEOUT_MS,
+            });
+            await expect(matchedLine(ingredients, '3 eggs')).toContainText('Egg, whole, raw');
             await expect(ingredients.getByRole('button', { name: 'Change the food for 2 cups milk' })).toBeVisible();
             await expect(ingredients.getByRole('button', { name: 'Change the food for 3 eggs' })).toBeVisible();
-            await expect(ingredients.getByText('Added 2 lines')).toBeVisible();
-            await expect(ingredients.getByText(/2 matched/u)).toBeVisible();
+            await expect(paragraphWith(ingredients, 'Added 2 lines')).toBeVisible();
+            await expect(paragraphWith(ingredients, /2 matched/u)).toBeVisible();
 
             // No line twice: the ordinary list is not drawn for lines the matched list owns.
             await expect(ingredients.getByRole('list', { name: 'Ingredients' })).toHaveCount(0);
-            await expect(ingredients.getByText('Whole milk')).toHaveCount(1);
+            await expect(matchedLine(ingredients, 'Whole milk')).toHaveCount(1);
 
             expect(sent.routes().filter((route) => route.includes('/matches'))).toEqual([
                 expect.stringContaining('POST'),
@@ -90,7 +92,9 @@ for (const colorScheme of SCHEMES) {
             await openNewRecipe(page);
             const ingredients = await pasteList(page, '2 cups milk');
 
-            await expect(ingredients.getByText('Whole milk')).toBeVisible({ timeout: POLL_SETTLE_TIMEOUT_MS });
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText('Whole milk', {
+                timeout: POLL_SETTLE_TIMEOUT_MS,
+            });
 
             const created = page.waitForRequest(
                 (request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/v1/recipes'),
@@ -107,7 +111,7 @@ for (const colorScheme of SCHEMES) {
             expect(body.ingredients.map((line) => [line.sourceLine, line.sourcePhrase])).toEqual([
                 ['2 cups milk', 'milk'],
             ]);
-            await expect(editorSection(page, 'Ingredients').getByText('Whole milk')).toHaveCount(1);
+            await expect(matchedLine(editorSection(page, 'Ingredients'), 'Whole milk')).toHaveCount(1);
         });
     });
 }

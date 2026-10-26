@@ -13,6 +13,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
+import { RecipeStatus } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -225,12 +226,14 @@ describe('RecipeEditorSurface — an error about the ingredient entry', () => {
 
 describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R23)', () => {
     const FACTS = { openNames: ['milk'], checkingNames: [], counted: 3, total: 4 };
+    // A stored draft that would publish: the ask comes only for a publish the gate would accept.
+    const DRAFT_SEED: EditorSeed = { recipe: makeRecipeDetail({ status: RecipeStatus.DRAFT, cuisine: 'Italian' }) };
 
     it('⛔ hands the paste’s open lines to the editor, so Publish asks before it saves them as written', async () => {
         const user = userEvent.setup();
         const chooseNow = vi.fn();
 
-        mount({ openChoices: { facts: FACTS, chooseNow } });
+        mount({ seed: DRAFT_SEED, openChoices: { facts: FACTS, chooseNow } });
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(screen.getByRole('dialog', { name: '1 ingredient has no food yet' })).toBeTruthy();
@@ -243,7 +246,7 @@ describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R
     it('does not ask while no line needs a pick', async () => {
         const user = userEvent.setup();
 
-        mount({ openChoices: { facts: undefined, chooseNow: vi.fn() } });
+        mount({ seed: DRAFT_SEED, openChoices: { facts: undefined, chooseNow: vi.fn() } });
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(screen.queryByRole('dialog', { name: /have no food yet|has no food yet/u })).toBeNull();

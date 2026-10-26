@@ -12,6 +12,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
+import { makeFilledRecipeFormValues } from '../../__fixtures__/index.js';
 import type { ReportedTrigger } from '../../hooks/useRecipeEditor.js';
 import type { RecipeFormErrors } from '../../form/validate.js';
 import { EDITOR_SECTIONS, firstSectionWithErrors } from '../sections.js';
@@ -263,6 +264,8 @@ describe('useEditorPage — Publish asks about lines that have no food yet (R23)
         readonly publish?: () => { kind: 'send' };
         readonly saveChanges?: () => { kind: 'send' };
         readonly chooseNow?: () => void;
+        /** The draft: complete, so the gate would accept the publish, unless a case says otherwise. */
+        readonly values?: ReturnType<typeof makeFilledRecipeFormValues>;
     }) {
         const publish = over.publish ?? vi.fn(() => ({ kind: 'send' as const }));
         const saveChanges = over.saveChanges ?? vi.fn(() => ({ kind: 'send' as const }));
@@ -274,6 +277,7 @@ describe('useEditorPage — Publish asks about lines that have no food yet (R23)
                     publish,
                     saveChanges,
                     lifecycle: over.lifecycle ?? 'unsaved',
+                    values: over.values ?? makeFilledRecipeFormValues({ cuisine: 'Italian' }),
                 }),
                 mode: 'create',
                 keep: 'tabSession',
@@ -336,6 +340,15 @@ describe('useEditorPage — Publish asks about lines that have no food yet (R23)
 
         expect(view.publish).not.toHaveBeenCalled();
         expect(screen.getAllByRole('status')[0]?.textContent).toBe('asking');
+    });
+
+    it('⛔ asks only about a publish the gate would accept: a recipe it would refuse is refused first', () => {
+        const view = renderAsking({ values: makeFilledRecipeFormValues({ title: '', cuisine: 'Italian' }) });
+
+        view.press();
+
+        expect(view.publish).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByRole('status')[0]?.textContent).toBe('quiet');
     });
 
     it('publishes at once when no line needs a pick', () => {

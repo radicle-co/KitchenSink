@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockCandidate, mockRecipeApi, readViewerAppId, type MockFoodMatch } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { openNewRecipe } from './utils/recipeEditor';
-import { pasteList } from './utils/pasteList';
+import { paragraphWith, pasteList } from './utils/pasteList';
 
 /**
  * The side pane at the wide container class (ADR-0071; `ingredientMatching.md`, owner rulings 2026-10-25): from 960 px of
@@ -44,20 +44,20 @@ for (const colorScheme of SCHEMES) {
             const ingredients = await pasteList(page, '2 cups milk\n3 bread');
             const pane = ingredients.getByRole('complementary', { name: 'Choose a food' });
 
-            await expect(pane.getByText('Line 1 of 2')).toBeVisible({ timeout: POLL_SETTLE_TIMEOUT_MS });
+            await expect(paragraphWith(pane, 'Line 1 of 2')).toBeVisible({ timeout: POLL_SETTLE_TIMEOUT_MS });
             await expect(pane.getByRole('heading', { name: '2 cups milk' })).toBeVisible();
             await expect(pane.getByRole('button', { name: 'Whole milk, Default' })).toBeVisible();
 
             await pane.getByRole('button', { name: 'Skim milk' }).click();
             await expect(pane.getByRole('button', { name: 'Skim milk, chosen' })).toBeVisible();
             // A pick in the pane does not move on by itself: Next does.
-            await expect(pane.getByText('Line 1 of 2')).toBeVisible();
+            await expect(paragraphWith(pane, 'Line 1 of 2')).toBeVisible();
 
             await pane.getByRole('button', { name: 'Next open line' }).click();
-            await expect(pane.getByText('Line 2 of 2')).toBeVisible();
+            await expect(paragraphWith(pane, 'Line 2 of 2')).toBeVisible();
             await expect(pane.getByRole('heading', { name: '3 bread' })).toBeVisible();
             await pane.getByRole('button', { name: 'Previous' }).click();
-            await expect(pane.getByText('Line 1 of 2')).toBeVisible();
+            await expect(paragraphWith(pane, 'Line 1 of 2')).toBeVisible();
         });
 
         test('below the wide class there is no pane: the open line is expanded in the list', async ({ page }) => {
@@ -67,7 +67,7 @@ for (const colorScheme of SCHEMES) {
             await openNewRecipe(page);
             const ingredients = await pasteList(page, '2 cups milk\n3 bread');
 
-            await expect(ingredients.getByText('Choose the milk you use')).toBeVisible({
+            await expect(paragraphWith(ingredients, 'Choose the milk you use')).toBeVisible({
                 timeout: POLL_SETTLE_TIMEOUT_MS,
             });
             await expect(ingredients.getByRole('complementary', { name: 'Choose a food' })).toHaveCount(0);

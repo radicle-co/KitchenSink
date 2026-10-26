@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { paragraphWith } from './utils/pasteList';
 import { editorSection, openNewRecipe } from './utils/recipeEditor';
 
 /**
@@ -63,8 +64,8 @@ for (const colorScheme of SCHEMES) {
             // names no match), so both join AS WRITTEN and ask the cook; nothing is chosen for them.
             await expect(pasted).toHaveCount(0, { timeout: POLL_SETTLE_TIMEOUT_MS });
             await expect(page.getByRole('status').filter({ hasText: 'Added 2 ingredients.' })).toHaveCount(1);
-            await expect(ingredients.getByText('Added 2 lines')).toBeVisible();
-            await expect(ingredients.getByText(/2 to choose/u)).toBeVisible();
+            await expect(paragraphWith(ingredients, 'Added 2 lines')).toBeVisible();
+            await expect(paragraphWith(ingredients, /2 to choose/u)).toBeVisible();
             // Paste is offered once more, now in the section's heading row.
             await expect(ingredients.getByRole('button', { name: 'Paste a list' })).toBeVisible();
         });
@@ -83,7 +84,7 @@ for (const colorScheme of SCHEMES) {
             await expect(page.getByRole('status').filter({ hasText: 'Added 1 ingredient.' })).toHaveCount(1, {
                 timeout: POLL_SETTLE_TIMEOUT_MS,
             });
-            await expect(ingredients.getByText('No food found for this')).toBeVisible();
+            await expect(paragraphWith(ingredients, 'No food found for this').first()).toBeVisible();
 
             // The recipe has no server row yet: its first checkpoint after a title (a section change, A3) creates it.
             const created = page.waitForRequest(

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockCandidate, mockRecipeApi, readViewerAppId, type MockFoodMatch } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { openNewRecipe } from './utils/recipeEditor';
-import { pasteList, recordRequests } from './utils/pasteList';
+import { matchedLine, pasteList, recordRequests } from './utils/pasteList';
 
 /**
  * A pasted line that is still being CHECKED when it joins (ADR-0071 section 9; owner rulings 2026-10-25): it shows the
@@ -50,14 +50,16 @@ for (const colorScheme of SCHEMES) {
             await openNewRecipe(page);
             const ingredients = await pasteList(page, '2 cups milk');
 
-            await expect(ingredients.getByText('Checking')).toBeVisible({ timeout: 20_000 });
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText('Checking', { timeout: 20_000 });
             await expect(ingredients.getByRole('button', { name: /^Use this: Oat milk/u })).toBeVisible();
             await expect(ingredients.getByRole('button', { name: 'Search for a food for 2 cups milk' })).toBeVisible();
             expect(sent.bodiesOf('/api/v1/ingredients/by-food')).toEqual([]);
 
             // ⛔ THE REVIEW, not a click: the poll brings the verdict, and the line binds to the food it confirmed.
-            await expect(ingredients.getByText('Whole milk')).toBeVisible({ timeout: REVIEW_TIMEOUT_MS });
-            await expect(ingredients.getByText(/your choice/u)).toHaveCount(0);
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText('Whole milk', {
+                timeout: REVIEW_TIMEOUT_MS,
+            });
+            await expect(matchedLine(ingredients, '2 cups milk')).not.toContainText('your choice');
             expect(sent.bodiesOf('/api/v1/ingredients/by-food')).toEqual([{ foodId: 'food_whole' }]);
         });
 
@@ -75,16 +77,22 @@ for (const colorScheme of SCHEMES) {
             const ingredients = await pasteList(page, '2 cups milk');
 
             await ingredients.getByRole('button', { name: /^Use this: Oat milk/u }).click({ timeout: 20_000 });
-            await expect(ingredients.getByText(/Oat milk\s+· your choice/u)).toBeVisible();
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText(/Oat milk\s+· your choice/u);
 
-            await expect(ingredients.getByText('Our check suggested Whole milk. Your choice stays.')).toBeVisible({
-                timeout: REVIEW_TIMEOUT_MS,
-            });
-            await expect(ingredients.getByText(/Oat milk\s+· your choice/u)).toBeVisible();
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText(
+                'Our check suggested Whole milk. Your choice stays.',
+                {
+                    timeout: REVIEW_TIMEOUT_MS,
+                },
+            );
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText(/Oat milk\s+· your choice/u);
             await ingredients.getByRole('button', { name: /^See why our check suggested Whole milk/u }).click();
+            // The reason is spoken in the list's one polite region.
             await expect(
-                ingredients.getByText('Our check read the line and agreed that this is the food.'),
-            ).toBeVisible();
+                page
+                    .getByRole('status')
+                    .filter({ hasText: 'Our check read the line and agreed that this is the food.' }),
+            ).toHaveCount(1);
             // The pick is the only food that was ever admitted: the verdict bound nothing.
             expect(sent.bodiesOf('/api/v1/ingredients/by-food')).toEqual([{ foodId: 'food_oat' }]);
         });

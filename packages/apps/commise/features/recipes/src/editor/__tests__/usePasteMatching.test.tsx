@@ -93,6 +93,8 @@ function setup(job: ParseJobResponse, over: Partial<UsePasteMatchingOptions> = {
         lineKeys: [] as string[],
         // The paste's session ends with its last line; the job, and the cook's sends on it, go on.
         sessionEnded: false,
+        matchesGone: false,
+        settled: undefined as UsePasteMatchingOptions['settled'],
     };
 
     pickOnLine.mockResolvedValue({
@@ -111,7 +113,7 @@ function setup(job: ParseJobResponse, over: Partial<UsePasteMatchingOptions> = {
             ),
             joined: state.joined,
             failedAt: state.failedAt,
-            matchesGone: false,
+            matchesGone: state.matchesGone,
             markJoined: (key, lineIndex, rows) => {
                 markJoined(key, lineIndex, rows);
                 state.joined = new Set([...state.joined, lineIndex]);
@@ -130,7 +132,7 @@ function setup(job: ParseJobResponse, over: Partial<UsePasteMatchingOptions> = {
         lineKeys: state.lineKeys,
         autoBind: true,
         searching: new Set(),
-        settled: undefined,
+        settled: state.settled,
         beginSearch: vi.fn(),
         reviewReasonOf: (reason) => `because ${reason}`,
         ...over,
@@ -589,6 +591,81 @@ describe('usePasteMatching — after the paste’s session has ended', () => {
 
         expect(hook.pickOnLine).toHaveBeenCalledTimes(1);
         expect(hook.result.current.lines[0]?.binding).toMatchObject({ boundBy: 'cook', pick: { foodId: 'oat' } });
+    });
+});
+
+describe('usePasteMatching — the job can no longer match', () => {
+    it('⛔ a food with no match joins as written and offers Try again, Search and Keep as written, not a dead Use this', async () => {
+        const hook = setup(jobOf(milkLine(undefined)));
+
+        // The job expires after its first read asked for the matches (that call is not what this is about).
+        mocks.propose.mockClear();
+        hook.state.matchesGone = true;
+        hook.rerender();
+        await settle();
+
+        expect(mocks.create).toHaveBeenCalledWith('milk');
+        expect(hook.result.current.lines.map((line) => line.state)).toEqual(['optionsFailed']);
+        // The request is not made for a job that can no longer match.
+        expect(mocks.propose).not.toHaveBeenCalled();
+    });
+});
+
+describe('usePasteMatching — a food found through the one picker', () => {
+    const NEEDS = () => milkLine(makeParseMatch({ state: 'needsChoice', proposed: null, candidates: [OAT] }));
+    const committed = (draftKey: string, binding: object): UsePasteMatchingOptions['settled'] => ({
+        origin: { kind: 'entry' },
+        target: { kind: 'line', key: draftKey as never },
+        pick: { kind: 'catalogFood', foodId: 'food_x', name: 'x' },
+        outcome: { kind: 'committed', key: draftKey as never, binding: binding as never },
+    });
+
+    it('binds the line as the cook’s food, by the wire’s food id', async () => {
+        const hook = setup(jobOf(NEEDS()));
+        await settle();
+        const [draftKey] = hook.state.lineKeys;
+
+        hook.state.settled = committed(draftKey as string, {
+            ingredientId: 'ing',
+            isUserEntered: false,
+            name: 'Skim milk',
+            foodId: 'food_skim',
+        });
+        hook.rerender();
+
+        expect(hook.result.current.lines[0]?.binding).toMatchObject({
+            boundBy: 'cook',
+            pick: { kind: 'food', foodId: 'food_skim', name: 'Skim milk' },
+        });
+    });
+
+    it('⛔ a line the picker kept AS WRITTEN names no food: it is kept as written, not matched', async () => {
+        const hook = setup(jobOf(NEEDS()));
+        await settle();
+        const [draftKey] = hook.state.lineKeys;
+
+        hook.state.settled = committed(draftKey as string, { ingredientId: 'ing', isUserEntered: true, name: 'milk' });
+        hook.rerender();
+
+        expect(hook.result.current.lines[0]?.binding).toMatchObject({ boundBy: 'cook', pick: { kind: 'asWritten' } });
+    });
+
+    it('ignores a commit from another surface, a failed one, and one on a line the paste does not own', async () => {
+        const hook = setup(jobOf(NEEDS()));
+        await settle();
+        const [draftKey] = hook.state.lineKeys;
+        const food = { ingredientId: 'ing', isUserEntered: false, name: 'Skim milk', foodId: 'food_skim' };
+
+        for (const settled of [
+            { ...committed(draftKey as string, food), origin: { kind: 'shortlist' } },
+            { ...committed(draftKey as string, food), outcome: { kind: 'failed' } },
+            committed('n:somewhere-else', food),
+        ] as UsePasteMatchingOptions['settled'][]) {
+            hook.state.settled = settled;
+            hook.rerender();
+        }
+
+        expect(hook.result.current.lines[0]?.binding).toBeUndefined();
     });
 });
 

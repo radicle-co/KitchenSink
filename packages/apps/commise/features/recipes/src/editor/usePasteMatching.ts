@@ -225,11 +225,11 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
                     key: food,
                     binding: {
                         boundBy: 'cook',
-                        pick: {
-                            kind: 'food',
-                            foodId: binding.foodId ?? binding.ingredientId,
-                            name: binding.name ?? '',
-                        },
+                        // A line the picker kept AS WRITTEN names no food: it is not matched and counts no nutrition.
+                        pick:
+                            binding.foodId === undefined
+                                ? { kind: 'asWritten' }
+                                : { kind: 'food', foodId: binding.foodId, name: binding.name ?? '' },
                         reviewNote: undefined,
                     },
                 },
@@ -237,10 +237,14 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
         }
     }
 
-    const optionsFailed = matchRequestFailures(requests);
+    // Foods whose options will not come: their request failed, or the job can no longer match (expired, unreadable). Both
+    // draw the failed-options line (Try again, Search, Keep as written), never a "Use this" with nothing to use.
+    const unmatched = job === undefined ? [] : unmatchedFoodRefsOf(job);
+    const optionsFailed: ReadonlySet<string> = paste.matchesGone
+        ? new Set([...matchRequestFailures(requests), ...unmatched.map((food) => food.key)])
+        : matchRequestFailures(requests);
 
     // ── Asking for matches ──────────────────────────────────────────────────────────────────────────────────────
-    const unmatched = job === undefined ? [] : unmatchedFoodRefsOf(job);
     const wantsMatches =
         jobId !== undefined &&
         host.jobId === jobId &&

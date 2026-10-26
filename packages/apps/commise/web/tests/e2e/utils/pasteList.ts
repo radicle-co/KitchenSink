@@ -57,3 +57,26 @@ export function recordRequests(page: Page): RecordedRequests {
                 .map((request) => request.postDataJSON() as unknown),
     };
 }
+
+/**
+ * A line of the paste list (a matched line), by the words on it. A list item, found by role and filtered by its text, so
+ * a spec asserts what the line SAYS without a text-only selector.
+ *
+ * @param scope - The Ingredients section, or any locator inside it.
+ * @param words - Words the line shows (a string, or a pattern).
+ * @returns The line.
+ */
+export function matchedLine(scope: Locator, words: string | RegExp): Locator {
+    return scope.getByRole('listitem').filter({ hasText: words });
+}
+
+/**
+ * A paragraph by its words: the summary's counts, a line's prompt, the pane's place. Found by role and filtered by text.
+ *
+ * @param scope - The Ingredients section, the pane or the sheet.
+ * @param words - Words the paragraph shows (a string, or a pattern).
+ * @returns The paragraph.
+ */
+export function paragraphWith(scope: Locator, words: string | RegExp): Locator {
+    return scope.getByRole('paragraph').filter({ hasText: words });
+}

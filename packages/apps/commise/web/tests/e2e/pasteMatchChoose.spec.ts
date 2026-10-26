@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockCandidate, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { openNewRecipe } from './utils/recipeEditor';
-import { pasteList, recordRequests } from './utils/pasteList';
+import { matchedLine, paragraphWith, pasteList, recordRequests } from './utils/pasteList';
 
 /**
  * A pasted list with lines that NEED THE COOK (ADR-0071; ADR-0070 section 5; owner rulings 2026-10-25), through the real
@@ -70,12 +70,12 @@ for (const colorScheme of SCHEMES) {
             const ingredients = await pasteList(page, '2 cups milk\n3 bread\n1 tsp spice mix');
 
             // The first open line is expanded: its prompt, the Default tag, and nothing chosen.
-            await expect(ingredients.getByText('Choose the milk you use')).toBeVisible({
+            await expect(paragraphWith(ingredients, 'Choose the milk you use')).toBeVisible({
                 timeout: POLL_SETTLE_TIMEOUT_MS,
             });
             await expect(ingredients.getByRole('button', { name: 'Whole milk, Default' })).toBeVisible();
             await expect(ingredients.getByRole('button', { name: /, chosen$/u })).toHaveCount(0);
-            await expect(ingredients.getByText(/3 to choose/u)).toBeVisible();
+            await expect(paragraphWith(ingredients, /3 to choose/u)).toBeVisible();
             // The other open lines are collapsed rows that name what they need.
             await expect(ingredients.getByRole('button', { name: /^Choose a food\s+· 2 options/u })).toBeVisible();
             await expect(
@@ -88,13 +88,13 @@ for (const colorScheme of SCHEMES) {
 
             await ingredients.getByRole('button', { name: 'Skim milk' }).click();
 
-            await expect(ingredients.getByText(/Skim milk\s+· your choice/u)).toBeVisible();
+            await expect(matchedLine(ingredients, '2 cups milk')).toContainText(/Skim milk\s+· your choice/u);
             expect(sent.bodiesOf('/api/v1/ingredients/by-food')).toEqual([{ foodId: 'food_skim' }]);
             // Choosing opened the next open line, and its Search took focus.
             await expect(ingredients.getByRole('button', { name: 'Search for a food for 3 bread' })).toBeFocused();
 
             await ingredients.getByRole('button', { name: /^Keep .*3 bread.* as written/u }).click();
-            await expect(ingredients.getByText('Kept as written · no nutrition yet').first()).toBeVisible();
+            await expect(matchedLine(ingredients, '3 bread')).toContainText('Kept as written');
             await expect(
                 ingredients.getByRole('button', { name: 'Search for a food for 1 tsp spice mix' }),
             ).toBeFocused();
@@ -102,7 +102,7 @@ for (const colorScheme of SCHEMES) {
             await ingredients.getByRole('button', { name: /^Keep .*spice mix.* as written/u }).click();
 
             // Nothing is open: the summary takes focus and counts what is matched.
-            await expect(ingredients.getByText(/1 matched/u)).toBeVisible();
+            await expect(paragraphWith(ingredients, /1 matched/u)).toBeVisible();
             expect(sent.routes()).not.toContain('POST /api/v1/ingredients/by-name');
         });
 

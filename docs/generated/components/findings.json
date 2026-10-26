@@ -9,7 +9,7 @@
         "platform-singleton": 69,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 175
+        "undocumented-prop": 176
     },
     "findings": [
         {
@@ -1039,6 +1039,18 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionMakePublicDialog",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionMakePublicDialog.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onConfirm",
+                "onKeep",
+                "open"
             ]
         },
         {

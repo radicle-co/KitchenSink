@@ -6,11 +6,11 @@
     "coverage": {
         "components": 179,
         "implementations": 309,
-        "props": 1627,
+        "props": 1631,
         "documentedComponents": 179,
         "implementationsWithModuleDoc": 309,
         "implementationsWithComponentDoc": 202,
-        "documentedProps": 1348,
+        "documentedProps": 1349,
         "classifiedComponents": 159,
         "componentsWithPatternTag": 82,
         "crossPlatformComponents": 130
@@ -151,7 +151,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeMakePublicDialog.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe, and this cook cannot simply make it private again — so the primitive is used as it is: the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
+                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe — so the primitive is used as it is (public is NOT final, owner ruling 2026-10-26, and the body never says it\nis): the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -180,13 +180,12 @@
                             "name": "consequence",
                             "type": "enum",
                             "typeDetail": [
-                                "\"final\"",
-                                "\"premium\"",
-                                "\"unknown\""
+                                "\"frees\"",
+                                "\"premium\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here).",
+                            "description": "Why going public costs the cook something: the body's words (`recipeMakePublicConsequence`, never `none` here).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         },
                         {
@@ -2336,14 +2335,14 @@
                             "name": "consequence",
                             "type": "enum",
                             "typeDetail": [
-                                "\"final\"",
                                 "\"premium\"",
-                                "\"unknown\""
+                                "\"unknown\"",
+                                "\"final\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                            "description": "Why going public costs the cook something (`makePublicConsequence`, never `none` here). A collection's privacy is\nstill a Premium feature, so unlike a recipe's (ADR-0073) it keeps all three reasons.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
                             "name": "onConfirm",
@@ -2351,8 +2350,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Make public: the cook accepted the cost.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
                             "name": "onKeep",
@@ -2360,8 +2359,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Keep private, Escape, and the Android Back button.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
                             "name": "open",
@@ -2369,8 +2368,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -13635,6 +13634,18 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
+                            "name": "privateRule",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"premium\"",
+                                "\"slots\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which rule the recipe's Private is under (`useRecipePrivate`): the cook's slots, or (an imported public-web recipe) Premium.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
                             "name": "renderPhotos",
                             "type": "(target: PhotoUploaderTarget) => ReactNode",
                             "typeDetail": null,
@@ -13659,6 +13670,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The session the container mounted (`useRecipeEditorSession`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "slotStanding",
+                            "type": "SlotStanding",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where the cook stands on private slots (`useRecipePrivate`), from the server's read.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         }
                     ],
@@ -18705,7 +18725,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nThe host renders it only when Private is offered (`offersPrivate`); otherwise `RecipeVisibilityStatement`. Under\n`upsell`, Private carries the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value:\nthe upsell decides, and nothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays\nprivate and shows so. For a downgraded owner, choosing Public on it calls `onConfirmPublic` instead — the confirm\ndecides — and the Public card says beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nThe host renders it only when Private is offered (`recipeOffersPrivate`); otherwise `RecipeVisibilityStatement`. Private\nworks within the cook's private slots (ADR-0073): the card says how many are left, and with none left it is refused\nwith three ways forward (`slotsFull`). Under the premium rule's `upsell` (an imported public-web recipe), Private carries\nthe Premium badge and choosing it calls `onPremiumRequired` instead of changing the value: the upsell decides, and\nnothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays private and shows so.\nChoosing Public on it calls `onConfirmPublic` where that costs something worth saying (it frees a slot) — the confirm\ndecides — and the Public card says beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -18721,6 +18741,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "facts",
+                            "type": "RecipePrivateFacts",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state. Under the premium rule's `upsell`, Private carries the Premium badge.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
                         {
                             "name": "heldVisibility",
                             "type": "enum",
@@ -18748,7 +18777,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Choosing Public when it costs the cook something (`makePublicConsequence`): open the make-public confirm. The value\nnever changes for it. REQUIRED, so no host can let a downgraded owner leave Private unasked.",
+                            "description": "Choosing Public when it costs the cook something (`recipeMakePublicConsequence`): open the make-public confirm. The\nvalue never changes for it. REQUIRED, so no host can let a cook leave a held Private unasked.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "onFreeASlot",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Make a private recipe public\" and \"Delete a private recipe\" from the full refusal: take the cook to their recipes,\nwhere either frees a slot. REQUIRED, so no host can ship the refusal's ways forward as dead rows.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -18757,21 +18795,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Choosing Private under `upsell`: open the upsell. The value never changes for it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        },
-                        {
-                            "name": "paidFeatures",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"hidden\"",
-                                "\"loading\"",
-                                "\"granted\"",
-                                "\"upsell\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge.",
+                            "description": "Choosing Private under `upsell`, and the full refusal's \"Get Premium\": open the upsell. The value never changes for it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -18779,8 +18803,9 @@
                             "type": "enum",
                             "typeDetail": [
                                 "undefined",
+                                "\"premium\"",
                                 "\"final\"",
-                                "\"premium\""
+                                "\"slots\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -18826,6 +18851,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "facts",
+                            "type": "RecipePrivateFacts",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state. Under the premium rule's `upsell`, Private carries the Premium badge.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "heldVisibility",
                             "type": "enum",
                             "typeDetail": [
@@ -18852,7 +18886,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Choosing Public when it costs the cook something (`makePublicConsequence`): open the make-public confirm. The value\nnever changes for it. REQUIRED, so no host can let a downgraded owner leave Private unasked.",
+                            "description": "Choosing Public when it costs the cook something (`recipeMakePublicConsequence`): open the make-public confirm. The\nvalue never changes for it. REQUIRED, so no host can let a cook leave a held Private unasked.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "onFreeASlot",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Make a private recipe public\" and \"Delete a private recipe\" from the full refusal: take the cook to their recipes,\nwhere either frees a slot. REQUIRED, so no host can ship the refusal's ways forward as dead rows.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -18861,21 +18904,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Choosing Private under `upsell`: open the upsell. The value never changes for it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        },
-                        {
-                            "name": "paidFeatures",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"hidden\"",
-                                "\"loading\"",
-                                "\"granted\"",
-                                "\"upsell\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge.",
+                            "description": "Choosing Private under `upsell`, and the full refusal's \"Get Premium\": open the upsell. The value never changes for it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -18883,8 +18912,9 @@
                             "type": "enum",
                             "typeDetail": [
                                 "undefined",
+                                "\"premium\"",
                                 "\"final\"",
-                                "\"premium\""
+                                "\"slots\""
                             ],
                             "required": true,
                             "defaultValue": null,

@@ -51,6 +51,8 @@ export {
     SourceUnavailableError,
     ForbiddenError,
     GoneError,
+    ImportCursorMovedError,
+    ImportItemAlreadySavedError,
     // ⚠️ NOT previously on the barrel, which left the one failure a caller can FIX unnameable outside this
     // package: `InvalidRequestError` means the body this client was handed is illegal per the published
     // contract and NO request went out — a caller bug, distinct from the server's `400`, and the only one
@@ -71,6 +73,8 @@ export {
     isSourceUnavailableError,
     isForbiddenError,
     isGoneError,
+    isImportCursorMovedError,
+    isImportItemAlreadySavedError,
     isImportQuotaExceededError,
     isInvalidRequestError,
     isNotFoundError,

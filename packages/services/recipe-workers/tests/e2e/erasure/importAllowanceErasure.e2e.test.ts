@@ -40,7 +40,7 @@ describe('import allowance ledger — erasure and purge (LOCAL e2e)', () => {
     async function seed(): Promise<void> {
         await db.execute(sql`
             INSERT INTO import_allowance_events (user_id, channel, units)
-            VALUES (${USER_ERASED}, 'paste', 1), (${USER_ERASED}, 'migration', 1), (${USER_BYSTANDER}, 'paste', 1)
+            VALUES (${USER_ERASED}, 'paste', 1), (${USER_ERASED}, 'bulk', 1), (${USER_BYSTANDER}, 'paste', 1)
         `);
     }
 

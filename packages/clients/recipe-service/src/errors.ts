@@ -313,6 +313,53 @@ export class ImportQuotaExceededError extends RecipeServiceClientError {
     }
 }
 
+/**
+ * `409 IMPORT_CURSOR_MOVED` — the bulk-import wizard's cursor is not where this request said it was (ADR-0072): another
+ * device moved it. NOTHING was changed.
+ *
+ * ITS OWN TYPE, because the remedy is not a retry: the surface adopts `cursorOrdinal` (where the cursor is now, `null`
+ * when it is past the last item) and shows that item, and repeating the same request would be refused the same way.
+ */
+export class ImportCursorMovedError extends RecipeServiceClientError {
+    /** The item ordinal the cursor is on now, or `null` when it is done. */
+    public readonly cursorOrdinal: number | null;
+
+    public constructor(cursorOrdinal: number | null, message = 'The import has moved on') {
+        super(message, 409, 'IMPORT_CURSOR_MOVED');
+        this.name = 'ImportCursorMovedError';
+        this.cursorOrdinal = cursorOrdinal;
+        Object.setPrototypeOf(this, ImportCursorMovedError.prototype);
+    }
+}
+
+/** Type guard for {@link ImportCursorMovedError}. */
+export function isImportCursorMovedError(error: unknown): error is ImportCursorMovedError {
+    return error instanceof ImportCursorMovedError;
+}
+
+/**
+ * `409 IMPORT_ITEM_ALREADY_SAVED` — the item's recipe was already saved (ADR-0072). An item is saved once.
+ *
+ * ITS OWN TYPE: for a client that retried a save it means the first request landed (treat the item as done), and for
+ * one that tried to change a saved item it means the edit belongs in the recipe editor now. Neither is a retry.
+ */
+export class ImportItemAlreadySavedError extends RecipeServiceClientError {
+    /** The item that is already saved. */
+    public readonly ordinal: number;
+
+    public constructor(ordinal: number, message = 'This import item has already been saved') {
+        super(message, 409, 'IMPORT_ITEM_ALREADY_SAVED');
+        this.name = 'ImportItemAlreadySavedError';
+        this.ordinal = ordinal;
+        Object.setPrototypeOf(this, ImportItemAlreadySavedError.prototype);
+    }
+}
+
+/** Type guard for {@link ImportItemAlreadySavedError}. */
+export function isImportItemAlreadySavedError(error: unknown): error is ImportItemAlreadySavedError {
+    return error instanceof ImportItemAlreadySavedError;
+}
+
 /** Type guard for {@link ImportQuotaExceededError}. */
 export function isImportQuotaExceededError(error: unknown): error is ImportQuotaExceededError {
     return error instanceof ImportQuotaExceededError;

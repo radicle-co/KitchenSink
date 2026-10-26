@@ -59,6 +59,8 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     VERSION_LINE_UNRESTORABLE: { positions: [2] },
     PUBLISH_REQUIREMENTS_UNMET: { missing: ['cuisine'] },
     IMPORT_QUOTA_EXCEEDED: { resetsAt: '2026-10-27T03:30:00.000Z' },
+    IMPORT_CURSOR_MOVED: { cursorOrdinal: 4 },
+    IMPORT_ITEM_ALREADY_SAVED: { ordinal: 4 },
 };
 
 /** A minimal valid body for a published code. */
@@ -287,5 +289,57 @@ describe('codeForStatus — the code for a failure that arrived with none', () =
     it('is deterministic and leaks nothing for a status it has never seen', () => {
         expect(codeForStatus(418)).toBe('HTTP_418');
         expect(codeForStatus(599)).toBe('HTTP_599');
+    });
+});
+
+describe('the bulk import codes (ADR-0072)', () => {
+    const body = (code: string, details?: unknown) => ({
+        code,
+        message: 'a message',
+        ...(details === undefined ? {} : { details }),
+    });
+
+    it("IMPORT_NOT_FOUND is a 404, a bare code: a stranger's import and a missing one are ONE answer", () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_NOT_FOUND).toBe(404);
+        expect(recipeApiErrorSchema.safeParse(body('IMPORT_NOT_FOUND')).success).toBe(true);
+    });
+
+    describe('IMPORT_CURSOR_MOVED — another device moved the wizard', () => {
+        it('is a 409', () => {
+            expect(RECIPE_ERROR_STATUS.IMPORT_CURSOR_MOVED).toBe(409);
+        });
+
+        it('REQUIRES details.cursorOrdinal: where the cursor is now, or null when it is done', () => {
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: 7 })).success).toBe(
+                true,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: null })).success).toBe(
+                true,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED')).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', {})).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: -1 })).success).toBe(
+                false,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: 1.5 })).success).toBe(
+                false,
+            );
+        });
+    });
+
+    describe('IMPORT_ITEM_ALREADY_SAVED — the recipe was saved once and is not saved again', () => {
+        it('is a 409', () => {
+            expect(RECIPE_ERROR_STATUS.IMPORT_ITEM_ALREADY_SAVED).toBe(409);
+        });
+
+        it('REQUIRES details.ordinal, the item that is already saved', () => {
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED', { ordinal: 0 })).success).toBe(
+                true,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED')).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED', { ordinal: null })).success).toBe(
+                false,
+            );
+        });
     });
 });

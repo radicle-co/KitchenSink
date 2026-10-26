@@ -185,7 +185,7 @@ export function findDuplicateModuleNames(schemas: readonly AuthoredSchema[]): st
  * @returns The text with every relative `*.schema.js` specifier reduced to its flat basename. Pure.
  */
 export function flattenSiblingImports(source: string): string {
-    return source.replace(/(['"])(\.\.?\/[^'"]*?\/)?([a-z0-9][a-z0-9-]*\.schema\.js)\1/gu, '$1./$3$1');
+    return source.replace(/(['"])(\.\.?\/[^'"]*?\/)?([a-zA-Z0-9][a-zA-Z0-9-]*\.schema\.js)\1/gu, '$1./$3$1');
 }
 
 /**

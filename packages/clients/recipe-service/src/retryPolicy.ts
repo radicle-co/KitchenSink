@@ -59,6 +59,8 @@ import {
     isFetchUnavailableError,
     isForbiddenError,
     isGoneError,
+    isImportCursorMovedError,
+    isImportItemAlreadySavedError,
     isImportQuotaExceededError,
     isInvalidRequestError,
     isNotFoundError,
@@ -139,6 +141,9 @@ export function shouldRetryRecipeServiceFailure(error: unknown): boolean {
         // ⛔ A 429 that is NOT a throttle: the daily allowance stays spent until `resetsAt`, hours away, so a backoff retry
         // only hammers the server and hides the quota notice (004 FR-022). Checked before any status rule can see a 429.
         isImportQuotaExceededError(error) ||
+        // ADR-0072: two 409s whose remedy is to adopt the server's state (move the cursor, treat the item as done), never to resend.
+        isImportCursorMovedError(error) ||
+        isImportItemAlreadySavedError(error) ||
         isVersionLineUnrestorableError(error)
     ) {
         return false;

@@ -71,6 +71,10 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     // ── The daily import allowance (004 FR-022): a 429 like the throttler's, with a code of its own — a burst limit
     //    clears in seconds and is worth retrying, a spent allowance stays spent for hours and is not ──
     IMPORT_QUOTA_EXCEEDED: HttpStatus.TOO_MANY_REQUESTS,
+    // ── Bulk import (ADR-0072): a missing import is a 404 like a missing parse job; the other two are state conflicts ──
+    IMPORT_NOT_FOUND: HttpStatus.NOT_FOUND,
+    IMPORT_CURSOR_MOVED: HttpStatus.CONFLICT,
+    IMPORT_ITEM_ALREADY_SAVED: HttpStatus.CONFLICT,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

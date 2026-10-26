@@ -3,9 +3,9 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { backItem, nextItem, openItem, skipItem, startCursor, type MigrationCursor } from '../migrationCursor.js';
+import { backItem, nextItem, openItem, skipItem, startCursor, type ImportCursor } from '../importCursor.js';
 
-const at = (index: number, reviews: MigrationCursor['reviews']): MigrationCursor => ({
+const at = (index: number, reviews: ImportCursor['reviews']): ImportCursor => ({
     position: { kind: 'at', index },
     reviews,
 });

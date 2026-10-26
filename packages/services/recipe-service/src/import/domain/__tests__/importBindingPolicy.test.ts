@@ -1,5 +1,5 @@
 /**
- * Truth table for what a migration binds: every mode x review state x line state, with the owner rulings
+ * Truth table for what a bulk import binds: every mode x review state x line state, with the owner rulings
  * (defaults for imports only; a cook's pick or "keep as written" is never replaced) as named cases.
  */
 import { describe, expect, it } from 'vitest';
@@ -14,7 +14,7 @@ import {
     type LineBinding,
     type LineFacts,
     type MatchMode,
-} from '../migrationBindingPolicy.js';
+} from '../importBindingPolicy.js';
 
 const cand = (foodId: string, isDefault = false) => ({ foodId, isDefault });
 

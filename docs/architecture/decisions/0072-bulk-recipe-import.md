@@ -51,8 +51,8 @@ The owner chose the singular `/api/v1/import`. The resources are:
 | `POST` | `/api/v1/import/{importId}/advance`     | Do the next bounded step of work, as the cook              |
 | `POST` | `/api/v1/import/{importId}/items/{ord}` | Record the cook's choices on one item (wizard and flagged) |
 
-- `importId` is a ULID and is parsed as one at the boundary. Spec 004's task list names
-  `/api/v1/import/{url,instagram,text}` for its single-recipe channels. None of those words can parse as a ULID, so a
+- `importId` is a UUID (every recipe-service id is) and is parsed as one at the boundary. Spec 004's task list names
+  `/api/v1/import/{url,instagram,text}` for its single-recipe channels. None of those words can parse as a UUID, so a
   later channel route and the import read can never shadow each other.
 - The server receives recipes, not an archive. The client reads the export file and sends one structured recipe per
   item. The contract is zod in recipe-service (ADR-0014).
@@ -114,7 +114,8 @@ open.
 ### 5. Who bound a line is stored: `ingredients.bound_by`
 
 A new nullable column on `ingredients` records who bound each line. Its values are a closed set, owned by
-`BOUND_BY_VALUES` in `recipes/domain/bindingOriginCarryForward.ts`:
+`BOUND_BY_VALUES`. It is declared once in `@kitchensink/recipe-core`, because the wire schema is built from it, and
+`recipes/domain/bindingOriginCarryForward.ts` re-exports it for the carry-forward rule:
 
 | Value      | The line was bound by                                                                  |
 | ---------- | -------------------------------------------------------------------------------------- |
@@ -153,7 +154,7 @@ derived at read time and never stored.
 
 ### 7. The three modes, and when an item is ready
 
-`bindingOf` (`migrationBindingPolicy.ts`) decides each line. A cook's decision always wins, including "keep this as
+`bindingOf` (`importBindingPolicy.ts`) decides each line. A cook's decision always wins, including "keep this as
 written". A confident match binds in every mode. A skipped item keeps its open lines as written.
 
 - **`keepAsWritten`** (Save lines as written). Open lines are kept as written, and a `default` line binds its default
@@ -278,7 +279,7 @@ is reached, this path does not wait for the budget to return.
 - With the budget spent, a bulk import keeps working. Its lines are saved as written and wait under "to check" for
   the cook. Nothing waits for the next month.
 - The `/api/v1/import` prefix now holds a resource, so a later single-recipe channel under it must be a literal word
-  that is not a ULID.
+  that is not a UUID.
 
 ## One-way doors
 

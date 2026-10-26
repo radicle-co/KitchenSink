@@ -38,6 +38,12 @@ import {
 import type { ColumnAccount } from '@kitchensink/contract-gen';
 import { recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
 import { setRatingRequestSchema } from '../../ratings/ratings.schema.js';
+import {
+    createImportRequestSchema,
+    importCursorRequestSchema,
+    importItemInputSchema,
+    importPickRequestSchema,
+} from '../../recipes/import.schema.js';
 
 import * as schema from '../schema/index.js';
 import {
@@ -47,6 +53,8 @@ import {
     updateRecipeRequestSchema,
 } from '../../recipes/recipes.schema.js';
 
+/** `open`'s move: the one member of the cursor request whose target a client supplies. */
+const openMove = importCursorRequestSchema.shape.move.options[3];
 const create = createRecipeRequestSchema.shape;
 const update = updateRecipeRequestSchema.shape;
 const line = recipeIngredientInputSchema.shape;
@@ -329,8 +337,63 @@ const accounts: readonly ColumnAccount[] = [
     {
         table: 'import_allowance_events',
         column: 'units',
-        why: 'Written by the service (1 for a paste, one per file for a migration, D-013) and held positive by a CHECK; no wire field sets it, and the policy refuses a request above the daily limit.',
+        why: "Written by the service (1 for a paste; the number of recipes admitted for a bulk import, ADR-0072 §8) and held positive by a CHECK; no wire field sets it, and the policy admits only what fits the channel's limit.",
     },
+
+    // ── bulk recipe import (ADR-0072, 0059) ───────────────────────────────────────────────────────
+    { table: 'recipe_imports', column: 'user_id', why: PRINCIPAL_DERIVED },
+    {
+        table: 'recipe_imports',
+        column: 'cursor_ordinal',
+        // The cursor moves by the reducer; the one client-supplied position is `open`'s target, and `from` is COMPARED
+        // against it (`WHERE cursor_ordinal = $1`), which fails with the same 22003 as an INSERT would.
+        fields: [
+            { field: 'ImportCursorRequest.move.to', schema: openMove.shape.to },
+            { field: 'ImportCursorRequest.from (WHERE comparison)', schema: importCursorRequestSchema.shape.from },
+        ],
+    },
+    {
+        table: 'recipe_imports',
+        column: 'expected_total',
+        fields: [{ field: 'CreateImportRequest.expectedTotal', schema: createImportRequestSchema.shape.expectedTotal }],
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'ordinal',
+        fields: [{ field: 'ImportItemInput.ordinal', schema: importItemInputSchema.shape.ordinal }],
+    },
+    {
+        table: 'recipe_import_lines',
+        column: 'ordinal',
+        why: 'Copied from the item the line belongs to (the composite FK holds it to an existing item); no wire field sets it.',
+    },
+    {
+        table: 'recipe_import_lines',
+        column: 'line_index',
+        // Never written from the wire (the snapshot copies the parse job's line), but the pick request ADDRESSES a line
+        // by it in a WHERE, and an out-of-range parameter fails that comparison with 22003.
+        fields: [
+            {
+                field: 'ImportPickRequest.lineIndex (WHERE comparison)',
+                schema: importPickRequestSchema.shape.lineIndex,
+            },
+        ],
+    },
+    {
+        table: 'recipe_import_lines',
+        column: 'food_index',
+        fields: [
+            {
+                field: 'ImportPickRequest.foodIndex (WHERE comparison)',
+                schema: importPickRequestSchema.shape.foodIndex,
+            },
+        ],
+    },
+    ...['quantity', 'quantity_high', 'stated_quantity', 'stated_quantity_high'].map((column) => ({
+        table: 'recipe_import_lines',
+        column,
+        why: "Copied from the parse job's own output, which is bounded by the same recipe-core quantity schema the ingredient columns take; no wire field sets it.",
+    })),
 
     // ── band authority (plan U3, 0036) ────────────────────────────────────────────────────────────
     {

@@ -775,6 +775,23 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(control.txStatements().filter((s) => /import_allowance_events/i.test(s.text))).toHaveLength(1);
     });
 
+    it('⛔ DELETES the erasing user’s bulk imports, in the erasure transaction, keyed on the owner (ADR-0072 §4)', async () => {
+        // `recipe_imports.user_id` is the only user key of the three import tables. Its items and snapshot lines go with
+        // it by cascade, and the recipes the import saved are swept as recipes; each ingredient's `import_line_id` is
+        // SET NULL by the database. So ONE statement, and no hand-delete of items or lines.
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const imports = control.statements().filter((s) => /recipe_import/i.test(s.text));
+
+        expect(imports).toHaveLength(1);
+        expect(imports[0]?.text).toMatch(/^delete from recipe_imports where user_id = \$\d$/i);
+        expect(imports[0]?.params).toEqual([OWNER]);
+        expect(control.txStatements().filter((s) => /recipe_import/i.test(s.text))).toHaveLength(1);
+    });
+
     it('does not hand-delete rows the FK cascade already removes', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -782,7 +799,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         await eraseRecipeRows(control.db, OWNER, []);
 
         const cascaded =
-            /delete from (recipe_steps|ingredients|recipe_photos|recipe_versions|recipe_collections|recipe_version_pending_archives)/i;
+            /delete from (recipe_steps|ingredients|recipe_photos|recipe_versions|recipe_collections|recipe_version_pending_archives|recipe_import_items|recipe_import_lines)/i;
 
         for (const statement of control.statements()) {
             expect(statement.text).not.toMatch(cascaded);
@@ -1564,6 +1581,15 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
         expect(ledger).toHaveLength(1);
         expect(ledger[0]?.text).toMatch(/^delete from import_allowance_events where user_id = \$\d$/i);
         expect(ledger[0]?.params).toEqual([OWNER]);
+    });
+
+    it('⛔ deletes the principal’s bulk imports, so a reset principal starts a run with no half-finished import', async () => {
+        const control = await purge();
+        const imports = control.statements().filter((s) => /recipe_import/i.test(s.text));
+
+        expect(imports).toHaveLength(1);
+        expect(imports[0]?.text).toMatch(/^delete from recipe_imports where user_id = \$\d$/i);
+        expect(imports[0]?.params).toEqual([OWNER]);
     });
 
     it('deletes the principal’s private-food bindings ONLY when unreferenced, and only AFTER its own recipes go', async () => {

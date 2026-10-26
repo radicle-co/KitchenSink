@@ -846,6 +846,15 @@ export const eraseRecipeRows = async (
         //     the ones that have not yet.
         await tx.execute(sql`DELETE FROM import_allowance_events WHERE user_id = ${ownerId}`);
 
+        // 17. Bulk recipe imports (ADR-0072, migration 0059) — DELETED. `recipe_imports.user_id` is the only user key of the
+        //     three import tables: the header holds the cook's choices and wizard position, its items hold the recipes the
+        //     cook sent and what they said about each (a citation is theirs), and its snapshot lines hold ids and the
+        //     source's own words. ONE delete reaches all three by cascade, so items and lines are NOT hand-deleted here.
+        //     The recipes an import saved are swept as recipes above (a public, published one is kept like any other);
+        //     the database sets each kept ingredient's `import_line_id` to NULL, so the ingredient and its `bound_by`
+        //     survive the import without pointing at a snapshot that no longer exists.
+        await tx.execute(sql`DELETE FROM recipe_imports WHERE user_id = ${ownerId}`);
+
         return { removedRecipeIds };
     });
 };
@@ -981,6 +990,10 @@ export const purgeTestPrincipalRows = async (
         //     ledger outlives a run by up to 24 h, so a purge that left it would make a reset principal (the k6 pool, a
         //     deployed fixture user) hit `429 IMPORT_QUOTA_EXCEEDED` on a repeat run within the day.
         await tx.execute(sql`DELETE FROM import_allowance_events WHERE user_id = ${ownerId}`);
+
+        // 8c. Bulk recipe imports (ADR-0072). The same ONE delete as the erasure sweep: items and snapshot lines go by
+        //     cascade. A principal reset mid-import must not wake to a half-finished import it never started.
+        await tx.execute(sql`DELETE FROM recipe_imports WHERE user_id = ${ownerId}`);
 
         // 9. The correction tiers: null successor pointers into the doomed set, then delete the set.
         await tx.execute(sql`

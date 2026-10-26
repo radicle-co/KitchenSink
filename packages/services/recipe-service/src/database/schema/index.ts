@@ -191,5 +191,31 @@ export type {
     NewImportAllowanceEventRow,
 } from './importAllowanceEvents.js';
 
+// ── recipe_imports, recipe_import_items, recipe_import_lines (ADR-0072, 0059) — bulk recipe import ──
+export {
+    recipeImports,
+    recipeImportItems,
+    recipeImportLines,
+    IMPORT_MATCH_MODES,
+    IMPORT_VISIBILITIES,
+    IMPORT_STAGES,
+    IMPORT_ITEM_REVIEWS,
+    IMPORT_STATEMENT_KINDS,
+    IMPORT_SOURCE_KINDS,
+    IMPORT_MATCHED_BY,
+    IMPORT_LINE_REVIEWS,
+} from './recipeImports.js';
+export type {
+    ImportStage,
+    ImportStatementKind,
+    ImportSourceKind,
+    RecipeImportRow,
+    NewRecipeImportRow,
+    RecipeImportItemRow,
+    NewRecipeImportItemRow,
+    RecipeImportLineRow,
+    NewRecipeImportLineRow,
+} from './recipeImports.js';
+
 // ── convenience re-exports ────────────────────────────────────────────────────────────────────────
 export type { InferInsertModel, InferSelectModel } from 'drizzle-orm';

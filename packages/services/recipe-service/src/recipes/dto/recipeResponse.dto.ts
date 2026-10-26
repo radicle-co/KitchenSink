@@ -9,6 +9,7 @@
  * ISO 8601 strings, and `version` is the row's `currentVersion`.
  */
 import type {
+    BoundBy,
     RecipeImpact,
     IngredientQuantity,
     IngredientVariant,
@@ -55,6 +56,8 @@ export interface RecipeIngredientResponse {
     isUserEntered: boolean;
     /** How the line's food link stands, after every overlay. */
     resolutionStatus?: LineResolutionStatus;
+    /** Who bound the line to its food (ADR-0072 §5). Absent: no recorded origin. Never accepted on a request. */
+    boundBy?: BoundBy;
 }
 
 /**

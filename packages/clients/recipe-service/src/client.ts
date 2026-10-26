@@ -56,6 +56,8 @@ import {
     GoneError,
     InvalidRequestError,
     NotFoundError,
+    ImportCursorMovedError,
+    ImportItemAlreadySavedError,
     ImportQuotaExceededError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
@@ -1677,6 +1679,7 @@ export class RecipeServiceClient {
             case 'RECIPE_NOT_FOUND':
             case 'NOT_FOUND':
             case 'PARSE_JOB_NOT_FOUND': // Plan U9: a stranger's job and a missing one are ONE answer on purpose.
+            case 'IMPORT_NOT_FOUND': // ADR-0072: likewise a stranger's bulk import.
                 return new NotFoundError(body.message, body.code);
             case 'NOT_OWNER':
             case 'CANNOT_RATE_OWN_RECIPE':
@@ -1711,6 +1714,11 @@ export class RecipeServiceClient {
             // retry policy classifies terminal. Mapped here, off the code, so no surface string-compares `.code`.
             case 'IMPORT_QUOTA_EXCEEDED':
                 return new ImportQuotaExceededError(body.details.resetsAt, body.message);
+            // ADR-0072 — two 409s a bulk-import surface acts on differently from any other conflict, so each is its own class.
+            case 'IMPORT_CURSOR_MOVED':
+                return new ImportCursorMovedError(body.details.cursorOrdinal, body.message);
+            case 'IMPORT_ITEM_ALREADY_SAVED':
+                return new ImportItemAlreadySavedError(body.details.ordinal, body.message);
             // Plan 002 R52 — a restore that would drop lines. Its own class for the reason the conflict has one:
             // the surface names the lines and offers a different remedy.
             case 'VERSION_LINE_UNRESTORABLE':

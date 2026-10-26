@@ -482,6 +482,26 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 ## Active Spec Kit features
 
+**020 Content Source Check** — plan: [`specs/020-content-source-check/plan.md`](specs/020-content-source-check/plan.md)
+
+Before a recipe becomes publicly visible, an automated check looks for signs it came from a book or a paid site. When
+it can tell, the recipe stays saved but hidden (owner ruling, 2026-10-26). It is not a legal shield. Four rules that
+are easy to get wrong:
+
+- **The hold is part of the READ rule, never a write-side refusal and never a new label.** It joins
+  `isRecipeViewableBy` (as a required field) and its SQL twins. A save or publish never fails because of it, erasure
+  donation cannot go around it, and relabelling to `imported_paid` would make a false positive permanent.
+- **Only evidence code can find in the text blocks.** A valid ISBN, a listed publisher, a paid-site template or host.
+  The model sees the recipe text alone, never the cook's statement, and every quote it returns is searched for in the
+  text. Style alone is `possible`, never `detected`.
+- **It is the sixth `SPEND_CALL_SITES` entry under the ONE verification role**, with its own Lambda, queue and DLQ. Not
+  a second Bedrock grantee. When the budget is spent the rule detectors still run, and the outcome is `unchecked`,
+  never `clear`: the cook is asked.
+- **Evidence is shared per text digest, but the outcome is per recipe**, because it depends on the label and citation.
+  Clearance points at the outcome produced, so a model or rule change never hides the public corpus.
+
+---
+
 **019 Offline Mode** — plan: [`specs/019-offline-mode/plan.md`](specs/019-offline-mode/plan.md)
 
 Turns offline mode on in full, and ADR-0069's three conditions are its exit gate. Three rules that are easy to get wrong:

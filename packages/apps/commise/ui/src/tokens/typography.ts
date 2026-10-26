@@ -83,7 +83,7 @@ export interface TypeRoleSpec {
  *   per-element exception); `figureStat`'s leading is 1.2 (the spec says "as its line", and a stat stands alone).
  */
 export const typeRole = {
-    largeTitle: { face: 'display', size: { narrow: 28, regular: 34, wide: 40 }, weight: 'bold', lineHeight: 1.15 },
+    largeTitle: { face: 'display', size: { narrow: 28, regular: 28, wide: 28 }, weight: 'semibold', lineHeight: 1.15 },
     barTitle: { face: 'body', size: 17, weight: 'semibold', lineHeight: 1.2 },
     sectionTitle: { face: 'body', size: 18, weight: 'semibold', lineHeight: 1.25 },
     cardTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 1.3 },

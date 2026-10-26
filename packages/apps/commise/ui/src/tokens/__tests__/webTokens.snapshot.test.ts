@@ -252,9 +252,9 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-scrim: rgba(45, 52, 54, 0.4);
               --color-on-action: #FFFFFF;
               --color-action-pressed: #2A6B65;
-              --text-large-title: clamp(1.75rem, 1.5rem + 1.6667cqi, 2.5rem);
+              --text-large-title: clamp(1.75rem, 1.75rem + 0cqi, 1.75rem);
               --text-large-title--line-height: 1.15;
-              --text-large-title--font-weight: 700;
+              --text-large-title--font-weight: 600;
               --text-bar-title: 1.0625rem;
               --text-bar-title--line-height: 1.2;
               --text-bar-title--font-weight: 600;

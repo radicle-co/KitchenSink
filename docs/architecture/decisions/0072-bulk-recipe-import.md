@@ -13,6 +13,7 @@
   [ADR-0039](0039-database-role-split.md) and [ADR-0035](0035-schema-stacks-decoupled-from-service-deploys.md): new
   tables, their grants and their expand-first migrations.
   [ADR-0014](0014-service-owned-api-contracts.md): the service owns the wire contract.
+  [ADR-0073](0073-free-tier-private-slots.md): a free cook's 50 private slots, and the import's out-of-slots pause.
 
 ## Context
 
@@ -203,10 +204,10 @@ The owner ruled that bulk import has an allowance of its own, separate from past
 
     | Statement                            | `sourceType`        | Visibility the policy allows                         |
     | ------------------------------------ | ------------------- | ---------------------------------------------------- |
-    | I wrote this                         | `user_created`      | Public. Private needs Premium (015's D4a is open).   |
+    | I wrote this                         | `user_created`      | Public. Private needs Premium or a free slot.        |
     | From a public web page, with its URL | `imported_public`   | Public. Private needs Premium and a substantive edit |
-    | From a book, with a citation         | `imported_physical` | Private only. No Premium needed.                     |
-    | From a paid site, with a citation    | `imported_paid`     | Private only. No Premium needed.                     |
+    | From a book, with a citation         | `imported_physical` | Private only. Needs Premium or a free slot.          |
+    | From a paid site, with a citation    | `imported_paid`     | Private only. Needs Premium or a free slot.          |
 
 - **This is an exception to ADR-0023's curator-only rule for `imported_public`, for this route only.** On
   `POST /api/v1/recipes` only a principal holding the curator grant can declare `imported_public`. On the bulk import
@@ -217,16 +218,20 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   can change it per recipe, the way the editor's visibility field does. The visibility policy (`visibilityPolicy.ts`)
   decides whether each choice is allowed for that recipe's label, as the table shows. A recipe whose source is not a
   public web page cannot be public. That is FR-014a's own rule.
-- **A free cook can keep a book or paid-site recipe private.** The policy admits `imported_paid` and
-  `imported_physical` to private without Premium. Only `user_created` and `imported_public` need Premium for
-  private.
+- **A free cook has 50 private slots** (ADR-0073). Every recipe a free cook holds as private uses one, book and
+  paid-site recipes included. A Premium cook has no limit. A free cook keeps a book or paid-site recipe private only
+  while a slot is free. An `imported_public` recipe still goes private only with Premium and a substantive edit, so
+  slots never apply to it.
+- **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). It saves no more private items and warns
+  the cook. The cook chooses to stop there, or to make the rest public. Making an item public needs that recipe's own
+  statement confirmed again, one recipe at a time. A book or paid-site item can never go public, so for it the choice
+  is skip or stop. The pause is derived from the live count, and the cook's choice is stored on the item.
 - **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
-- **Two interactions are recorded, not resolved.**
-    - A cook who chooses Private for a public web recipe is refused on a fresh import. `imported_public` goes private
-      only with Premium and after a substantive edit. The import keeps that recipe public, or lets the cook change the
-      choice, and never edits the recipe to get round the rule.
-    - 004 FR-028 asks for Premium on the `imported_paid` channel of a single paste. This ruling lets a free cook keep
-      a bulk-imported paid-site recipe private. Whether FR-028's gate still stands for the single paste is open.
+- **A cook who chooses Private for a public web recipe is refused on a fresh import.** `imported_public` goes
+  private only with Premium and after a substantive edit. The import keeps that recipe public, or lets the cook
+  change the choice, and never edits the recipe to get round the rule.
+- **004 FR-028 no longer asks for Premium** on any route (owner ruling, 2026-10-26, ADR-0073 §7). A free cook brings
+  in book and paid-site recipes by any route, within their slots.
 
 ### 10. When the spend ceiling is reached, matching goes on without the LLM
 
@@ -315,13 +320,15 @@ is reached, this path does not wait for the budget to return.
 - Set the provenance label from the per-recipe statement (§9), and store the statement and citation with the
   recipe.
 - Give `bindingOf` a budget input and build the "to check" list (§10).
+- Build the out-of-slots pause and take the slot lock on each private save (§9, ADR-0073 §5 and §8).
 
 ## Related work
 
 - **URL import is a separate flow** (004, owner ruling, second round). Before it imports a page, the server checks the
   source page's copyright or licence and decides public, private, or block. An allowed-public link is stored as
   `imported_public`. A link allowed only as private is stored as `imported_paid`, private-only on every plan. A
-  free cook keeps it private with no Premium and no edit. A blocked link is not imported. 004's spec records the
+  free cook keeps it private with no Premium and no edit, within their 50 slots (ADR-0073). A blocked link is not
+  imported. 004's spec records the
   ruling near FR-008.
   This ADR does not design that check, and bulk import does not use it: in bulk import, the cook's statement sets the
   label (§9).

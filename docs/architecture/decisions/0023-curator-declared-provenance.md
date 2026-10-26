@@ -24,6 +24,7 @@
   fetched by anything we deploy;
   [ADR-0012](0012-mcp-agent-credential-bridge.md) — the same posture it records: Clerk proves identity, **we**
   own the grant;
+  [ADR-0073](0073-free-tier-private-slots.md) — free private slots, which removed 004-`FR-028`'s Premium gate;
   [ADR-0072](0072-bulk-recipe-import.md) — the bulk import route, the one place a cook's own per-recipe statement
   sets `imported_public` without the grant (§1a).
 
@@ -35,9 +36,8 @@
 2. **Do not make the importer fetch `gutenberg.org` at runtime.** `robots.txt` permits the path; the site's
    Terms do not permit the access. See Decision §2 — this is the "looks wrong, isn't".
 3. **Do not add `imported_physical` or `imported_paid` to the declarable union** "for symmetry". Both are
-   private-only under C-004 and `evaluateVisibility` admits either to `private` with **no premium check**, so
-   admitting them hands a free-tier caller exactly the private recipe 004-`FR-028` says must be
-   entitlement-gated. See Consequences. The bulk import route sets both labels from the cook's per-recipe
+   private-only under C-004, and each carries a source the caller must attest and cite (004-`FR-014a`). That
+   attestation and citation are not built on this route. See Consequences. The bulk import route sets both labels from the cook's per-recipe
    statement (§1a, ADR-0072 §9). That is a separate route, not a member of this union.
 
 ## Context
@@ -236,12 +236,12 @@ buys nothing that `details.requiredScope` does not already make actionable.
   treat any hash in prose as a timestamp). Once mobile ships against it this is a **one-way door** — removing
   or reshaping `source` breaks installed clients that cannot be redeployed.
 - **`imported_physical` and `imported_paid` are deliberately NOT declarable**, which **narrows** `FR-025`
-  rather than implementing it. Both are private-only classes, and `evaluateVisibility` admits either to
-  `private` with **no premium check** (`visibilityPolicy.ts`) — so admitting them would hand a free-tier
-  caller exactly the private recipe 004-`FR-028` says must be entitlement-gated, and `FR-014a`'s
-  attestation + citation machinery that is supposed to travel with them does not exist yet. They join the
-  union when 004 builds that gate; adding a member is additive. The bulk import route sets them from the
-  cook's statement instead (§1a), and there the owner ruled that a free cook can keep them private.
+  rather than implementing it. Both are private-only classes, and `FR-014a`'s attestation and citation, which
+  must travel with them, do not exist on this route yet. Once 004 builds that, they join the union, and adding a
+  member is additive. This ADR first gave a second reason: 004-`FR-028` put a Premium gate on those labels.
+  ADR-0073 removed that gate (owner ruling, 2026-10-26). A free cook now holds them within 50 private slots, so
+  only the missing attestation keeps them out of the union. The bulk import route sets them from the
+  cook's statement instead (§1a), and a free cook keeps them private within their slots (ADR-0073).
 - **The corpus is an operator responsibility.** Refreshing it is a manual, out-of-band step with no automation
   behind it, and no job will notice if it goes stale.
 - **A curator token is a real credential.** It must be minted with the grant inside the signed

@@ -18,6 +18,12 @@
  * takes focus back. The memory this needs is one value per line (`RetryMemory`), changed only by the two pure functions
  * here; `useRetryFocus` holds it.
  *
+ * ATTENTION. A retry's focus is a promise to the cook who pressed it. Once the cook has acted on ANOTHER line (a row's
+ * handler, the pane's Previous or Next, the picker opening, focus entering a line) the promise is void: the memory notes
+ * the line they are on (`noteAttention`), drops every standing request that belongs to any other line, and raises none
+ * for a line they have left. `ownsFocus` is the same fact for the host's own move after a successful retry
+ * (`pickFocusOf`): it may move focus only when the cook is still on that line, or has not acted on any line yet.
+ *
  * Pure and platform-agnostic.
  *
  * @pattern Reducer — a pure transition over a line's before and after send state, with the hook as its only holder
@@ -40,6 +46,8 @@ export type RetryFocus = 'landing' | 'tryAgain';
 export interface RetryMemory {
     readonly seen: ReadonlyMap<string, SendState>;
     readonly requests: ReadonlyMap<string, RetryFocus>;
+    /** The line the cook last acted on, or `undefined` before they have acted on any (then every line owns focus). */
+    readonly attention: string | undefined;
 }
 
 /**
@@ -85,12 +93,13 @@ const sameRequests = (a: ReadonlyMap<string, RetryFocus>, b: ReadonlyMap<string,
  * @returns The memory.
  */
 export function startRetryMemory(sends: readonly SendState[]): RetryMemory {
-    return { seen: byKey(sends), requests: new Map() };
+    return { seen: byKey(sends), requests: new Map(), attention: undefined };
 }
 
 /**
  * The memory after a render. A request stands until its control lowers it, or until the line stops failing (a success,
- * after which a control that appears later must not take focus), or until the line is no longer drawn. Pure.
+ * after which a control that appears later must not take focus), or until the line is no longer drawn. Nothing is raised
+ * or kept for a line other than the one the cook is on, once they are on one. Pure.
  *
  * @param memory - The memory before this render.
  * @param sends - The lines' states now.
@@ -101,8 +110,9 @@ export function stepRetryMemory(memory: RetryMemory, sends: readonly SendState[]
     const requests = new Map<string, RetryFocus>();
 
     for (const [key, send] of seen) {
-        const raised = retryFocusOf(memory.seen.get(key), send);
-        const standing = memory.requests.get(key);
+        const attended = ownsFocus(memory, key);
+        const raised = attended ? retryFocusOf(memory.seen.get(key), send) : undefined;
+        const standing = attended ? memory.requests.get(key) : undefined;
         const request = raised ?? (send.failed ? standing : undefined);
 
         if (request !== undefined) {
@@ -110,7 +120,9 @@ export function stepRetryMemory(memory: RetryMemory, sends: readonly SendState[]
         }
     }
 
-    return sameSends(memory.seen, seen) && sameRequests(memory.requests, requests) ? memory : { seen, requests };
+    return sameSends(memory.seen, seen) && sameRequests(memory.requests, requests)
+        ? memory
+        : { seen, requests, attention: memory.attention };
 }
 
 /**
@@ -131,5 +143,32 @@ export function lowerRetryRequest(memory: RetryMemory, key: string, request: Ret
 
     requests.delete(key);
 
-    return { seen: memory.seen, requests };
+    return { seen: memory.seen, requests, attention: memory.attention };
+}
+
+/**
+ * Whether a line may take focus from the host: the cook is on it, or has not acted on any line yet. Pure.
+ *
+ * @param memory - The memory now.
+ * @param key - The line.
+ * @returns `false` once the cook has acted on another line.
+ */
+export function ownsFocus(memory: RetryMemory, key: string): boolean {
+    return memory.attention === undefined || memory.attention === key;
+}
+
+/**
+ * The memory once the cook has acted on a line. Drops every standing request that belongs to another line, so no
+ * control of a line they have left takes focus from them. Pure.
+ *
+ * @param memory - The memory now.
+ * @param key - The line the cook acted on.
+ * @returns The new memory, or `memory` itself when attention already rests on the line and no other request stands.
+ */
+export function noteAttention(memory: RetryMemory, key: string): RetryMemory {
+    const requests = new Map([...memory.requests].filter(([requested]) => requested === key));
+
+    return memory.attention === key && requests.size === memory.requests.size
+        ? memory
+        : { seen: memory.seen, requests, attention: key };
 }

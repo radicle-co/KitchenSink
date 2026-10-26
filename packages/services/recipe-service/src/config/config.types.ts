@@ -487,6 +487,9 @@ export const foodServiceConfigSchema = z.object({
      * Per-keystroke bound (ms) on the catalog-blend request to food-service. Tunable because the right value
      * depends on observed inter-service latency, and the blast radius of a wrong one is bounded by design (too
      * low simply means the catalog section degrades to empty). `IngredientsModule` applies a default.
+     *
+     * The ceiling is not a free choice: the paste matcher (ADR-0071) runs two of these searches per food inside its
+     * own deadline, so {@link MAX_MATCH_SEARCH_TIMEOUT_MS} (`matchBudget.ts`) caps it, or no wave could ever start.
      */
     FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce
         .number()
@@ -531,7 +534,8 @@ export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldM
     },
     FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: {
         secret: false,
-        description: 'Per-keystroke food-catalog search timeout (ms)',
+        description:
+            'Per-keystroke food-catalog search timeout (ms); capped by the paste matcher budget (matchBudget.ts)',
     },
     FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS: {
         secret: false,

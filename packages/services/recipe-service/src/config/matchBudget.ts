@@ -7,16 +7,20 @@
  */
 
 /** The deadline the matcher keeps, from its first statement; every one of its legs ends with it. */
-export const MATCH_PROPOSE_DEADLINE_MS = 3_500;
+export const MATCH_PROPOSE_DEADLINE_MS = 2_800;
 
 /** Time kept back from the matcher's deadline, after the last wave, for the refs read, the saves, the claim and the send. */
-export const MATCH_TAIL_MS = 1_500;
+export const MATCH_TAIL_MS = 1_000;
 
 /** The most a release of a failed send's claim is waited for once the deadline has passed; the write still finishes. */
 export const MATCH_RELEASE_WAIT_MS = 250;
 
-/** When the job view's reads must end, measured from the start of the request. */
-export const MATCH_REQUEST_DEADLINE_MS = 7_000;
+/**
+ * When the whole handler's reads must end, measured from its start: the controller's fresh job read and the job view's.
+ * Sized so the guard's one unbounded pool wait (`READ_RESPONSE_HEADROOM_MS`) plus this plus the response margin stays
+ * strictly inside the client's 10 s (`parseJobMatchesBudget.test.ts`).
+ */
+export const MATCH_REQUEST_DEADLINE_MS = 3_500;
 
 /** What the response needs beyond its bounded parts: serialization and the round trip. */
 export const MATCH_RESPONSE_MARGIN_MS = 1_000;

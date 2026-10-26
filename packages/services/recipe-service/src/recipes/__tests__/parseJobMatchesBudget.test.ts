@@ -2,19 +2,21 @@
  * The time budget of `POST /api/v1/recipe-parse-jobs/{id}/matches` (ADR-0071), asserted against the recipe client's own
  * per-attempt timeout, the way `loadConfig.test.ts` asserts the read and post-commit budgets.
  *
- * The request runs in three parts, and the worst case is the larger of the first two chains plus the response's margin:
+ * Before the handler runs, every request passes the global `ErasureLockGuard`, which reads the database. It may wait for a
+ * pool connection, at most the pool's 5 s connection timeout: `READ_RESPONSE_HEADROOM_MS`, the read path's own posture.
+ * It is the ONE wait this request does not bound, because it happens before the request's clock starts.
  *
- *  1. The matcher, under `MATCH_PROPOSE_DEADLINE_MS`. Every leg ends with it: catalog searches and the refs read and
- *     the send take the deadline as an abort signal, and every database call is awaited through `boundedBy`, so a pool
- *     wait ends at the deadline too. The one thing allowed past it is the release of a failed send's claim, which waits
- *     at most `MATCH_RELEASE_WAIT_MS`.
- *  2. The controller's own job read, which must have an answer and so cannot be abandoned. It may wait for a pool
- *     connection, as every read does: `READ_RESPONSE_HEADROOM_MS`, the pool's 5 s connection timeout. This is the ONE
- *     unbounded-by-deadline pool wait the request accepts, the read path's own posture.
- *  3. The job view, whose reads end at `MATCH_REQUEST_DEADLINE_MS` after the request began (a signal), or not at all when
- *     that has passed. It degrades to "no matches shown", which the client's next poll repairs.
+ * From the handler on, EVERY leg is bounded by a deadline and none can wait on a pool without it:
  *
- * On top of the worse of those, `MATCH_RESPONSE_MARGIN_MS` covers serialization and the network round trip.
+ *  1. The matcher, under `MATCH_PROPOSE_DEADLINE_MS`. Catalog searches, the refs read and the send take the deadline as
+ *     an abort signal; every database call is awaited through `boundedBy`, so a pool wait ends at the deadline too. The
+ *     one thing allowed past it is the release of a failed send's claim, which waits at most `MATCH_RELEASE_WAIT_MS`.
+ *  2. The controller's own fresh job read and the job view's reads, which end at `MATCH_REQUEST_DEADLINE_MS` after the
+ *     handler began (a signal). The job read falls back to the record the matcher already read; the view degrades to "no
+ *     match shown", which the client's next poll repairs.
+ *
+ * So the handler answers within the larger of the two. On top of the guard's wait and that, `MATCH_RESPONSE_MARGIN_MS`
+ * covers serialization and the network round trip.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -36,11 +38,11 @@ import {
 /** What the shipped default of `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` is (`IngredientsModule`). */
 const DEFAULT_SEARCH_TIMEOUT_MS = 600;
 
-/** The slowest the request can answer, before the response's margin. */
-const WORST_CASE_MS = Math.max(
-    MATCH_PROPOSE_DEADLINE_MS + MATCH_RELEASE_WAIT_MS + READ_RESPONSE_HEADROOM_MS,
-    MATCH_REQUEST_DEADLINE_MS,
-);
+/** The slowest the handler can answer once it starts: every leg is bounded, so it is the larger of the two chains. */
+const HANDLER_WORST_CASE_MS = Math.max(MATCH_PROPOSE_DEADLINE_MS + MATCH_RELEASE_WAIT_MS, MATCH_REQUEST_DEADLINE_MS);
+
+/** The slowest the request can answer, before the response's margin: the guard's one pool wait, then the handler. */
+const WORST_CASE_MS = READ_RESPONSE_HEADROOM_MS + HANDLER_WORST_CASE_MS;
 
 describe('the matches request fits inside the recipe client’s timeout', () => {
     it('⛔ keeps the worst case plus the named margin STRICTLY inside the client’s 10 s', () => {
@@ -51,8 +53,11 @@ describe('the matches request fits inside the recipe client’s timeout', () => 
         expect(DEFAULT_REQUEST_TIMEOUT_MS - (WORST_CASE_MS + MATCH_RESPONSE_MARGIN_MS)).toBeGreaterThanOrEqual(250);
     });
 
-    it('ends the matcher before the view’s reads must end', () => {
-        expect(MATCH_PROPOSE_DEADLINE_MS).toBeLessThan(MATCH_REQUEST_DEADLINE_MS);
+    it('⛔ leaves the job view real time after the matcher’s deadline and its release cap', () => {
+        // Else a call that spends its whole matching budget would always answer with every match unread.
+        expect(MATCH_REQUEST_DEADLINE_MS - (MATCH_PROPOSE_DEADLINE_MS + MATCH_RELEASE_WAIT_MS)).toBeGreaterThanOrEqual(
+            400,
+        );
     });
 });
 

@@ -49,19 +49,23 @@ explicit pick. The review gate checks every paste match, whatever its measured e
    A curated or memo answer does not hide a default.
 6. **An outage is never stored as "no match".** A tier that failed, a food service that did not answer, or a switched
    off catalog writes no row. The next call retries.
-    - The matcher works under one deadline of 3.5 seconds. A wave of four foods starts only if its searches can
-      finish before the last 1.5 seconds, which are kept for the food read, the saves, the claim and the send. Every leg
+    - The matcher works under one deadline of 2.8 seconds. A wave of four foods starts only if its searches can
+      finish before the last second, which is kept for the food read, the saves, the claim and the send. Every leg
       ends with the deadline. The catalog searches, the food read and the send take it as an abort signal. Each database
       call is awaited through a bound that stops the wait. The database cannot cancel a pool wait, so the request stops
       waiting and the call finishes in the background. Reads and saves are simply left. A claim that lands late is
       released at once, because nobody will send it.
-    - The job view's reads end 7 seconds after the request began, by the same kind of bound. What they could not read
-      shows as no match, and the next poll repairs it.
-    - The worst case is the matcher's 3.5 seconds, a 0.25 second cap on waiting for a release, and one wait for a pool
-      connection (5 seconds) on the controller's own job read. That read must have an answer, so it cannot be left. It
-      is the same single pool wait the read path accepts. The total is 8.75 seconds. A named margin of 1 second for the
-      response brings it to 9.75, strictly under the client's 10 second timeout. `parseJobMatchesBudget.test.ts`
-      asserts this against the client's own constant.
+    - The whole handler works under a second deadline of 3.5 seconds. The controller's fresh read of the job and the
+      job view's reads end with it. If the fresh job read cannot finish, the view is built from the job the matcher
+      already read. What the view could not read shows as no match, and the next poll repairs it. If not even the
+      matcher's first read of the job finishes in time, the request fails as an internal error and the client retries.
+    - The worst case. Every request first passes the global erasure-lock guard, which reads the database and may wait
+      for a pool connection for at most the pool's 5 second connection timeout. That one wait happens before the
+      request's clock starts, so it is the one wait nothing here bounds. It is the same wait the read path budgets
+      (`READ_RESPONSE_HEADROOM_MS`). After it, every leg is bounded: the handler answers within 3.5 seconds, and the
+      matcher's 2.8 seconds plus a 0.25 second cap on waiting for a release fits inside that. So the worst case is
+      5 + 3.5 = 8.5 seconds. A named margin of 1 second for the response brings it to 9.5, strictly under the client's
+      10 second timeout. `parseJobMatchesBudget.test.ts` asserts this against the client's own constant.
     - The env schema refuses a catalog search timeout above 750 milliseconds. Above it, no wave could start inside the
       deadline and a paste would match nothing, silently.
     - A call that leaves proposals unmade writes a log line and one `paste-proposals-unmade` count, dimensioned by stage.
@@ -87,8 +91,8 @@ explicit pick. The review gate checks every paste match, whatever its measured e
       is final, and a recent one means the worker may still be running.
     - A proposal always has a review: owed, or refused. A request the gate can never take is refused, and the refusal
       is stored: a blank line, an over-long line, or a message the queue's contract refuses. It is never claimed, so it
-      is not retried on every poll. A food that food cannot name yet stores no row, as an outage stores none. The table
-      refuses a proposal with no review, because it would read as waiting for a review nothing sends.
+      is not retried on every poll. A proposed food that food cannot name is stored as no proposal, with the food kept as a
+      candidate. The table refuses a proposal with no review, because it would read as waiting for a review nothing sends.
     - An aborted send may already be accepted by the queue. The client gave up waiting, which is not a failure. The
       claim is released and the next call sends again. The duplicate is free: the worker's keyed claim pays for one
       verdict per key.

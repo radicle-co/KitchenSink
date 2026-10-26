@@ -408,6 +408,14 @@ export class ParseJobsService {
         }
     }
 
+    /**
+     * The view of a job record already read. The matches request builds its view from the record its matcher read when a
+     * fresh read cannot finish inside the request's deadline (ADR-0071). Pure.
+     */
+    public viewOfRecord(record: ParseJobRecord): ParseJobResponse {
+        return viewOf(record);
+    }
+
     /** The owner's job view. @throws `PARSE_JOB_NOT_FOUND` for stranger and absent alike. @sideEffect Reads. */
     public async get(ownerId: string, jobId: string): Promise<ParseJobResponse> {
         const record = await this.dal.getJob(ownerId, jobId);

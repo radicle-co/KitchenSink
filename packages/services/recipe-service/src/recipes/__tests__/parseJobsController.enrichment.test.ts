@@ -101,6 +101,37 @@ describe('ParseJobsController — every route answers with an ENRICHED view', ()
         expect((deadline as AbortSignal).aborted).toBe(false);
     });
 
+    it('⛔ the matches route builds its view from the matcher’s own job read when the fresh read outlives the deadline', async () => {
+        const deadline = new AbortController();
+
+        vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+
+        try {
+            const record = { id: 'record-job' };
+            const viewOfRecord = vi.fn().mockReturnValue({ id: 'view-of-record' });
+            const service = {
+                get: vi.fn(() => new Promise(() => undefined)),
+                viewOfRecord,
+            } as unknown as ParseJobsService;
+            const proposals = { propose: vi.fn().mockResolvedValue(record) } as unknown as MatchProposalService;
+            const decorate = vi.fn().mockResolvedValue({ id: 'enriched' });
+            const controller = new ParseJobsController(service, proposals, {
+                decorate,
+            } as unknown as ParseJobMatchView);
+
+            const answering = controller.proposeMatches(PRINCIPAL, undefined, '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+
+            await vi.waitFor(() => expect(service.get).toHaveBeenCalled());
+            deadline.abort();
+            await answering;
+
+            expect(viewOfRecord).toHaveBeenCalledWith(record);
+            expect(decorate.mock.calls[0]?.[2]).toStrictEqual({ id: 'view-of-record' });
+        } finally {
+            vi.restoreAllMocks();
+        }
+    });
+
     it('every route but the matches route enriches WITHOUT a deadline (a plain poll has no budget to keep)', async () => {
         const service = new Proxy(
             {},

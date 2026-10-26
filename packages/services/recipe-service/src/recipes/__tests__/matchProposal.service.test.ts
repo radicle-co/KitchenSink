@@ -21,6 +21,7 @@ import { verifiedLineIdentityOfMessage } from '@kitchensink/recipe-core/resoluti
 
 import { CallerToken } from '../../auth/CallerToken.js';
 import type { Principal } from '../../auth/principal.js';
+import { isDeadlineExceededError } from '../../common/boundedBy.js';
 import { sha256Hex } from '../../common/sha256.js';
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
@@ -504,24 +505,27 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
-    it('⛔ stores NOTHING for a proposal food cannot name yet — a row would outlive the name food has yet to publish', async () => {
+    it('⛔ a proposal food cannot name is stored as NO proposal, its food kept as a candidate — a terminal reading', async () => {
         const answers: Record<string, FoodRefAnswer> = {
             'root:F-whole': { ...foundRecord('Milk, whole', 'F-whole'), name: undefined },
             'root:F-crackers': found('Milk crackers', 'F-crackers'),
         };
-        const { service, matches, queue } = setup({ answers });
+        const { service, matches, queue, chain } = setup({ answers });
 
         await service.propose(COOK, CALLER, JOB);
 
-        expect(matches.rows.size).toBe(0);
+        // Not "nothing stored": a client that polls until every food has a match would call again forever, and each call
+        // would re-run the chain. And not a proposal either: a proposal food cannot name has no review to send.
+        const [row] = [...matches.rows.values()];
+
+        expect(row).toMatchObject({ proposal: null, verificationKey: null, review: null });
+        expect(row?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-whole', 'F-crackers']);
         expect(queue.enqueue).not.toHaveBeenCalled();
 
-        // Food names it on a later call: the proposal is then stored with a review owed, never stranded.
-        answers['root:F-whole'] = found('Milk, whole', 'F-whole');
+        // The next call finds the row current and does not match the line again.
         await service.propose(COOK, CALLER, JOB);
 
-        expect([...matches.rows.values()][0]).toMatchObject({ review: 'owed', enqueuedAt: expect.any(Date) });
-        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
     });
 
     it('⛔ refuses, with a terminal disposition, a proposal on a line the gate is never asked about (a blank line)', async () => {
@@ -801,14 +805,14 @@ describe('MatchProposalService.propose — bounded work under one request deadli
     }
 
     it('⛔ starts no wave that could end past the cutoff, and leaves the rest for the next call', async () => {
-        // Deadline 3 500 ms; tail 1 500 ms; a wave may need two 600 ms searches: no wave starts after 800 ms.
+        // Deadline 2 800 ms; tail 1 000 ms; a wave may need two 600 ms searches: no wave starts after 600 ms.
         // Each search here costs 500 ms, so waves start at 0 and 500 ms and the third (at 1 000 ms) does not.
         const { service, matches } = clockedSetup(6, 500);
 
         await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(2);
-        expect(MATCH_PROPOSE_DEADLINE_MS).toBe(3_500);
+        expect(MATCH_PROPOSE_DEADLINE_MS).toBe(2_800);
     });
 
     it('matches a long paste over waves of the configured width while time remains', async () => {
@@ -861,6 +865,36 @@ describe('MatchProposalService.propose — bounded work under one request deadli
         expect(matches.rows.size).toBe(0);
         expect(refs.resolve).not.toHaveBeenCalled();
         expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('answers with the job it read, so the controller needs no second read to build its view', async () => {
+        const { service } = clockedSetup(1, 0);
+
+        await expect(service.propose(COOK, CALLER, JOB)).resolves.toMatchObject({ id: JOB });
+    });
+
+    it('⛔ still answers with the job when a LATER database call outlives the deadline', async () => {
+        const { service, matches, deadline } = clockedSetup(1, 0);
+
+        vi.spyOn(matches, 'findForJob').mockImplementation(() => new Promise(() => undefined));
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        deadline.abort();
+
+        await expect(proposing).resolves.toMatchObject({ id: JOB });
+    });
+
+    it('⛔ fails, rather than hangs, when the job read itself outlives the deadline', async () => {
+        const { service, getJob, deadline } = clockedSetup(1, 0);
+
+        getJob.mockImplementation(() => new Promise(() => undefined));
+
+        const proposing = service.propose(COOK, CALLER, JOB).catch((error: unknown) => error);
+
+        deadline.abort();
+
+        expect(isDeadlineExceededError(await proposing)).toBe(true);
     });
 
     it('⛔ a database read that never answers ends at the deadline instead of holding the request', async () => {

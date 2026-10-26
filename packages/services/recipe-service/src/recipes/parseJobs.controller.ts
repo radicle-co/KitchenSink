@@ -39,6 +39,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ParseJobsService } from './parseJobs.service.js';
 import { MatchProposalService } from './matchProposal.service.js';
+import { boundedBy, isDeadlineExceededError } from '../common/boundedBy.js';
 import { MATCH_REQUEST_DEADLINE_MS } from '../config/matchBudget.js';
 import { ParseJobMatchView } from './parseJobMatchView.js';
 import { CreateParseJobDto } from './dto/createParseJob.dto.js';
@@ -167,13 +168,25 @@ export class ParseJobsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        // ⛔ ONE budget for the whole request (ADR-0071), taken before any I/O: the matcher keeps its own shorter deadline
-        // inside it, and the view's reads end at this one. `parseJobMatchesBudget.test.ts` holds the sum to the client's 10 s.
+        // ⛔ ONE budget for the whole handler (ADR-0071), taken before any I/O: the matcher keeps its own shorter deadline
+        // inside it, and the fresh job read and the view's reads end at this one. `parseJobMatchesBudget.test.ts` holds
+        // it, plus the guard's one pool wait and a named margin, strictly inside the client's 10 s.
         const deadline = AbortSignal.timeout(MATCH_REQUEST_DEADLINE_MS);
         const acting = actingPrincipalOf(principal);
+        const record = await this.matchProposals.propose(acting, caller, id);
 
-        await this.matchProposals.propose(acting, caller, id);
+        // The fresh read is better (workers parse lines while the matcher runs), but it must not carry the response past
+        // the client's timeout: past the deadline the view is built from the record the matcher already read.
+        const view = await boundedBy(deadline, () => this.parseJobsService.get(principal.userId, id)).catch(
+            (error: unknown) => {
+                if (isDeadlineExceededError(error)) {
+                    return this.parseJobsService.viewOfRecord(record);
+                }
 
-        return this.matchView.decorate(acting, caller, await this.parseJobsService.get(principal.userId, id), deadline);
+                throw error;
+            },
+        );
+
+        return this.matchView.decorate(acting, caller, view, deadline);
     }
 }

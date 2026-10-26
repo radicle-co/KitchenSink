@@ -37,8 +37,8 @@
  *     What is left waits for the client's next call, which the idempotency above makes safe. A call that leaves proposals
  *     unmade says so (a log line and a Stage-dimensioned count). Food is asked about every proposal in ONE batched read.
  * 10. **A proposal always has a review.** `owed` under its key, or `refused` when nothing can ever be asked (a blank or
- *     over-cap line, or a request the queue contract refuses). A food that food cannot name yet stores no row, as an
- *     outage does not, so a proposal can never read `checking` for a review nothing sends.
+ *     over-cap line, or a request the queue contract refuses). A proposed food that food cannot name is stored as no
+ *     proposal, its food kept as a candidate, so a proposal can never read `checking` for a review nothing sends.
  *
  * ⚠️ An aborted send is not a failed send. The client gave up waiting; SQS may already have accepted the message. The
  * claims are released and the next call sends again, and that duplicate is free: the worker's keyed claim and its attempt
@@ -275,18 +275,25 @@ export class MatchProposalService {
      * @param acting - The verified caller's acting slice: only their job is read, and their containment decides the enqueue.
      * @param caller - The caller's credential, forwarded to food.
      * @param jobId - The job.
-     * @throws `PARSE_JOB_NOT_FOUND` for a stranger or an absent job, `PARSE_JOB_EXPIRED` past the TTL.
+     * @returns The job as this call read it, so the caller can build its view from it when a fresh read cannot finish.
+     * @throws `PARSE_JOB_NOT_FOUND` for a stranger or an absent job, `PARSE_JOB_EXPIRED` past the TTL, and
+     *   `DeadlineExceededError` when not even the job could be read before the deadline.
      * @sideEffect Food searches and refs reads as the caller, match writes, verification enqueues.
      */
-    public async propose(acting: ActingPrincipal, caller: CallerToken | undefined, jobId: string): Promise<void> {
+    public async propose(
+        acting: ActingPrincipal,
+        caller: CallerToken | undefined,
+        jobId: string,
+    ): Promise<ParseJobRecord> {
         // ⛔ ONE deadline for the whole call (rule 9), taken before any I/O, as an instant and as a signal.
         const deadlineAt = this.limits.now() + MATCH_PROPOSE_DEADLINE_MS;
         const deadline = this.limits.signalAt(deadlineAt);
+        const read: { job: ParseJobRecord | undefined } = { job: undefined };
 
         try {
-            await this.proposeWithin(acting, caller, jobId, deadlineAt, deadline);
+            await this.proposeWithin(acting, caller, jobId, deadlineAt, deadline, read);
         } catch (error) {
-            if (!isDeadlineExceededError(error)) {
+            if (!isDeadlineExceededError(error) || read.job === undefined) {
                 throw error;
             }
 
@@ -294,6 +301,12 @@ export class MatchProposalService {
             // client's next call finishes the job.
             this.logger.warn(`parse-job ${jobId}: the request deadline passed in a database call; the rest waits`);
         }
+
+        if (read.job === undefined) {
+            throw new Error('unreachable: proposeWithin returns only after reading the job');
+        }
+
+        return read.job;
     }
 
     /** `propose` under its deadline: every database wait ends with `deadline`, and an unfinished call reports itself. */
@@ -303,6 +316,7 @@ export class MatchProposalService {
         jobId: string,
         deadlineAt: number,
         deadline: AbortSignal,
+        read: { job: ParseJobRecord | undefined },
     ): Promise<void> {
         const ownerId = acting.userId;
         const job = await boundedBy(deadline, () => this.jobs.getJob(ownerId, jobId));
@@ -310,6 +324,8 @@ export class MatchProposalService {
         if (job === undefined) {
             throw parseJobNotFound(jobId);
         }
+
+        read.job = job;
 
         if (isParseJobExpired(job, this.limits.now())) {
             throw parseJobExpired(jobId);
@@ -638,9 +654,12 @@ export class MatchProposalService {
         }
 
         if (answer.name === undefined) {
-            // Food published no usable name: the review cannot be asked NOW, but it can be later. Not stored, exactly as
-            // an outage is not (rule 4): a refusal stored here would outlive the name food has yet to publish.
-            return [];
+            // Food published no usable name, so no review can be asked and nothing can be shown as the proposal. Stored as
+            // NO proposal with the food kept among the candidates: a terminal reading (`needsChoice`, or `noMatch` while
+            // the candidates are nameless) rather than a row that would read `checking` for a review nothing sends, or no
+            // row at all, which a polling client would ask about forever. The view's `isNamed` filter lists the food as a
+            // candidate once food names it.
+            return [{ ...draft, proposal: null, verificationKey: null, review: null }];
         }
 
         const food = liveEndOf(answer);

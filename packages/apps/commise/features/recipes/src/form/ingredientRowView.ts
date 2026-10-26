@@ -60,7 +60,8 @@ import { rowMenuOf, type RowMenuAction } from './rowMenu.js';
 import { rowSecondLineOf } from './rowSecondLine.js';
 import { shortlistSettledAt, type ShortlistPanelProps } from './shortlistPanel.model.js';
 import { unitSuggestionsOf } from './unitSuggestions.js';
-import type { ControlFocus, RowFocus } from './useRowFocus.js';
+import type { ControlFocus } from './controlFocus.js';
+import type { RowFocus } from './useRowFocus.js';
 import type { RecipeFormErrors } from './validate.js';
 import type { RecipeFormIngredient, RecipeFormValues } from './values.js';
 

@@ -10,12 +10,23 @@ import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
-import { ImportLineOptions } from './ImportLineOptions.js';
+import { lineTextOf } from '../ingredientMatching/matchLine.js';
+import { useChoiceListView } from '../ingredientMatching/useChoiceListView.js';
+import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import { importMessages } from './messages.js';
 import type { ImportLineOptionsSheetProps } from './props.js';
 
 /** A flagged line's options, in a sheet. */
-export const ImportLineOptionsSheet: FC<ImportLineOptionsSheetProps> = ({ open, onOpenChange, title, ...options }) => {
+export const ImportLineOptionsSheet: FC<ImportLineOptionsSheetProps> = ({
+    open,
+    onOpenChange,
+    title,
+    line,
+    online,
+    pending,
+    ...list
+}) => {
+    const view = useChoiceListView(line, { online, pending });
     const { flagged: f } = useMessages(importMessages);
 
     return (
@@ -23,11 +34,11 @@ export const ImportLineOptionsSheet: FC<ImportLineOptionsSheetProps> = ({ open, 
             open={open}
             onOpenChange={onOpenChange}
             title={title}
-            closeLabel={fillTemplate(f.sheetClose, { line: options.lineText })}
+            closeLabel={fillTemplate(f.sheetClose, { line: lineTextOf(line.line) })}
             size="content"
         >
             <View style={styles.column}>
-                <ImportLineOptions {...options} />
+                <FoodChoiceList view={view} {...list} />
             </View>
         </Sheet>
     );

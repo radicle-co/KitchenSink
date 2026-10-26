@@ -14,7 +14,7 @@
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { FoodChoiceList } from './FoodChoiceList.js';
+import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
@@ -23,9 +23,11 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, on
         <div className="flex flex-col gap-1">
             <p className="text-meta text-ink-muted">{view.position}</p>
             <h2 className="break-words text-card-title text-ink">{view.heading}</h2>
-            <p className="break-words text-meta text-ink-muted">{view.open.prompt}</p>
+            {view.open.prompt === undefined ? null : (
+                <p className="break-words text-meta text-ink-muted">{view.open.prompt}</p>
+            )}
         </div>
-        <FoodChoiceList view={view.open} {...list} />
+        <FoodChoiceList view={view.open.list} {...list} />
         <div className="flex items-center justify-between gap-2">
             <Button variant="ghost" icon="chevronLeft" disabled={view.previous.disabled} onPress={onPrevious}>
                 {view.previous.label}

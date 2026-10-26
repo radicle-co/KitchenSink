@@ -1,68 +1,54 @@
 /**
  * Component tests for the native `PasteChoicePane`: the side pane at 1194 and on web
- * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). It names itself, says which open line it
+ * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). It says which open line it
  * shows out of how many, heads the line, and steps with Previous and Next — always drawn, disabled at an end, so
  * nothing moves under the cook.
+ *
+ * REWRITTEN when the paste and import builds were reconciled: the pane reads the one line model, a choice sends a pick,
+ * and the focus request is the house `ControlFocus`. The native pane no longer names itself (review finding m6;
+ * `docs/design/nativeContainerNames.md` N1, staff-ux 2026-10-25).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { recipeMessages } from '../../messages.js';
+import {
+    makeDefaultLine,
+    makeFoodChoice,
+    makeNeedsChoiceLine,
+    makeNoMatchLine,
+} from '../../ingredientMatching/__fixtures__/matchLines.js';
+import type { MatchLine } from '../../ingredientMatching/matchLine.js';
+import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeFormMessages } from '../messages.js';
-import type { FoodChoice, OpenLine } from '../pasteMatchLine.js';
-import { pasteMatchPaneViewOf, type PanePlace } from '../pasteMatchView.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteChoicePane } from '../PasteChoicePane.native.js';
+import { pasteMatchPaneViewOf, type PanePlace } from '../pasteMatchView.js';
 
 const m = recipeFormMessages.en;
-const copy = { ...m, details: recipeMessages.en.ingredientDetails };
-const MILKS: readonly FoodChoice[] = [
-    { id: 'skim', name: 'Skim milk', isDefault: false },
-    { id: 'whole', name: 'Whole milk', isDefault: true },
-];
-const MILK_LINE: OpenLine = {
-    key: 'l1',
-    line: { measure: '2 cups', words: 'milk' },
-    need: { kind: 'default', noun: 'milk', options: MILKS, chosenId: undefined },
-};
-const BREAD_LINE: OpenLine = {
-    key: 'l3',
-    line: { measure: '6 slices', words: 'day-old bread' },
-    need: {
-        kind: 'needsChoice',
-        options: [
-            { id: 'white', name: 'White bread, sliced', isDefault: false, detailParts: ['Commercially prepared'] },
-            { id: 'wheat', name: 'Whole-wheat bread', isDefault: false },
-            { id: 'sour', name: 'Sourdough bread', isDefault: false },
-            { id: 'brioche', name: 'Brioche', isDefault: false },
-            { id: 'challah', name: 'Challah, egg bread', isDefault: false },
-        ],
-        chosenId: undefined,
-    },
-};
-const SPICE_LINE: OpenLine = {
-    key: 'l9',
-    line: { measure: '1 tsp', words: 'Grandma’s spice mix' },
-    need: { kind: 'noMatch' },
-};
-
-const listHandlers = () => ({
-    onSearch: vi.fn(),
-    onChoose: vi.fn(),
-    onKeepAsWritten: vi.fn(),
-    onSearchFocusRequestHandled: vi.fn(),
+const lineCopy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
+const MILK_LINE = makeDefaultLine();
+const BREAD_LINE = makeNeedsChoiceLine({
+    candidates: [
+        makeFoodChoice({ id: 'white', name: 'White bread, sliced', detailParts: ['Commercially prepared'] }),
+        makeFoodChoice({ id: 'wheat', name: 'Whole-wheat bread' }),
+        makeFoodChoice({ id: 'sour', name: 'Sourdough bread' }),
+        makeFoodChoice({ id: 'brioche', name: 'Brioche' }),
+        makeFoodChoice({ id: 'challah', name: 'Challah, egg bread' }),
+    ],
 });
+const SPICE_LINE = makeNoMatchLine({ line: { measure: '1 tsp', words: 'Grandma’s spice mix' } });
 
 afterEach(cleanup);
 
-function renderPane(line: OpenLine, place: PanePlace) {
-    const handlers = { ...listHandlers(), onPrevious: vi.fn(), onNext: vi.fn() };
+function renderPane(line: MatchLine, place: PanePlace) {
+    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onPrevious: vi.fn(), onNext: vi.fn() };
 
     render(
         <PasteChoicePane
-            view={pasteMatchPaneViewOf(line, place, true, copy)}
-            searchFocusRequested={false}
+            view={pasteMatchPaneViewOf(line, place, { online: true, pending: undefined }, m, lineCopy)}
+            searchFocus={{ requested: false, onHandled: vi.fn() }}
             {...handlers}
         />,
     );
@@ -74,10 +60,15 @@ const disabled = (button: HTMLElement): boolean =>
     button.getAttribute('aria-disabled') === 'true' || button.hasAttribute('disabled');
 
 describe('PasteChoicePane (native)', () => {
-    it('names itself, says where it is, and heads the line', () => {
+    it('⛔ carries no name of its own: its header names it, and a repeated landmark name is one more stop', () => {
         renderPane(BREAD_LINE, { index: 1, count: 4 });
 
-        expect(screen.getByLabelText('Choose a food')).toBeTruthy();
+        expect(screen.queryByLabelText('Choose a food')).toBeNull();
+    });
+
+    it('says where it is, and heads the line', () => {
+        renderPane(BREAD_LINE, { index: 1, count: 4 });
+
         expect(screen.getByText('Open line 2 of 4')).toBeTruthy();
         expect(screen.getByRole('heading', { name: '6 slices day-old bread' })).toBeTruthy();
         expect(screen.getByText('More than one food fits. Nothing is chosen for you.')).toBeTruthy();
@@ -121,10 +112,10 @@ describe('PasteChoicePane (native)', () => {
     });
 
     it('a choice in the pane is the pick', () => {
-        const { onChoose } = renderPane(BREAD_LINE, { index: 1, count: 4 });
+        const { onPick } = renderPane(BREAD_LINE, { index: 1, count: 4 });
 
         fireEvent.click(screen.getByRole('button', { name: 'Brioche' }));
 
-        expect(onChoose).toHaveBeenCalledExactlyOnceWith('brioche');
+        expect(onPick).toHaveBeenCalledExactlyOnceWith({ kind: 'food', foodId: 'brioche', name: 'Brioche' });
     });
 });

@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
-        "components": 394,
-        "implementations": 582,
-        "props": 2587,
-        "documentedComponents": 390,
-        "implementationsWithModuleDoc": 561,
-        "implementationsWithComponentDoc": 426,
-        "documentedProps": 2216,
-        "classifiedComponents": 302,
+        "components": 396,
+        "implementations": 586,
+        "props": 2624,
+        "documentedComponents": 392,
+        "implementationsWithModuleDoc": 565,
+        "implementationsWithComponentDoc": 430,
+        "documentedProps": 2253,
+        "classifiedComponents": 304,
         "componentsWithPatternTag": 216,
-        "crossPlatformComponents": 188
+        "crossPlatformComponents": 190
     },
     "groups": [
         {
@@ -21,16 +21,16 @@
             "layer": "design-system",
             "catalogue": "docs/generated/components/groups/designSystem.json",
             "coverage": {
-                "components": 74,
-                "implementations": 129,
-                "props": 729,
-                "documentedComponents": 74,
-                "implementationsWithModuleDoc": 129,
-                "implementationsWithComponentDoc": 121,
-                "documentedProps": 694,
-                "classifiedComponents": 67,
-                "componentsWithPatternTag": 74,
-                "crossPlatformComponents": 55
+                "components": 75,
+                "implementations": 131,
+                "props": 737,
+                "documentedComponents": 75,
+                "implementationsWithModuleDoc": 131,
+                "implementationsWithComponentDoc": 123,
+                "documentedProps": 702,
+                "classifiedComponents": 68,
+                "componentsWithPatternTag": 75,
+                "crossPlatformComponents": 56
             }
         },
         {
@@ -40,16 +40,16 @@
             "layer": "feature",
             "catalogue": "docs/generated/components/groups/featuresRecipes.json",
             "coverage": {
-                "components": 176,
-                "implementations": 303,
-                "props": 1524,
-                "documentedComponents": 176,
-                "implementationsWithModuleDoc": 303,
-                "implementationsWithComponentDoc": 196,
-                "documentedProps": 1245,
-                "classifiedComponents": 156,
-                "componentsWithPatternTag": 82,
-                "crossPlatformComponents": 127
+                "components": 177,
+                "implementations": 305,
+                "props": 1553,
+                "documentedComponents": 177,
+                "implementationsWithModuleDoc": 305,
+                "implementationsWithComponentDoc": 198,
+                "documentedProps": 1274,
+                "classifiedComponents": 157,
+                "componentsWithPatternTag": 81,
+                "crossPlatformComponents": 128
             }
         },
         {

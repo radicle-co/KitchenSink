@@ -1,9 +1,12 @@
 /**
  * @module @commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,
- * the side pane a 1194 tablet shows. A view named for what it does, which keeps its native node so Android does not
- * flatten the name away (`docs/design/nativeContainerNames.md` N1), its line as a header, the line's
+ * the side pane a 1194 tablet shows: which open line it shows, the line as a header, its prompt, the line's
  * `FoodChoiceList`, then Previous and Next open line, always drawn and disabled at an end. Painted from the theme's
  * roles (D15).
+ *
+ * The pane carries NO name of its own: the web `aside`'s "Choose a food" only repeats a landmark, which on native is one
+ * more swipe stop with no new fact, and the line's header already names the pane (`docs/design/nativeContainerNames.md`
+ * N1 rules 2, 3 and 6; staff-ux 2026-10-25). With no name and no role it keeps no native node either.
  */
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
@@ -11,7 +14,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { FoodChoiceList } from './FoodChoiceList.native.js';
+import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
@@ -19,15 +22,17 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, on
     const { colors } = useTheme();
 
     return (
-        <View collapsable={false} aria-label={view.label} style={styles.pane}>
+        <View style={styles.pane}>
             <View style={styles.head}>
                 <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.position}</Text>
                 <Text accessibilityRole="header" style={[styles.heading, { color: colors.ink }]}>
                     {view.heading}
                 </Text>
-                <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.open.prompt}</Text>
+                {view.open.prompt === undefined ? null : (
+                    <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.open.prompt}</Text>
+                )}
             </View>
-            <FoodChoiceList view={view.open} {...list} />
+            <FoodChoiceList view={view.open.list} {...list} />
             <View style={styles.steps}>
                 <Button variant="ghost" icon="chevronLeft" disabled={view.previous.disabled} onPress={onPrevious}>
                     {view.previous.label}

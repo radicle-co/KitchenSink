@@ -14,6 +14,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { matchLineMessages } from '../ingredientMatching/messages.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -23,6 +24,7 @@ const PANE_WIDTH = 384;
 /** The lines the save-time check doubts. */
 export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, onUseSuggestion, onSearch, detail }) => {
     const { flagged: f } = useMessages(importMessages);
+    const m = useMessages(matchLineMessages);
     const locale = useLocale();
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
@@ -61,7 +63,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                                     variant="ghost"
                                     size="sm"
                                     icon="search"
-                                    accessibilityLabel={fillTemplate(f.searchName, { line: line.text })}
+                                    accessibilityLabel={fillTemplate(m.searchName, { line: line.text })}
                                     onPress={() => onSearch(line.key)}
                                 >
                                     {f.search}

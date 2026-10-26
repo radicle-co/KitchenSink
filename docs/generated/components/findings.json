@@ -3397,8 +3397,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/import/ImportLineOptions",
-            "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptions.tsx",
+            "component": "featuresRecipes/import/ImportWizardNotice",
+            "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardNotice.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
@@ -3407,8 +3407,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/import/ImportWizardNotice",
-            "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardNotice.tsx",
+            "component": "featuresRecipes/ingredientMatching/MatchRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchRow.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"

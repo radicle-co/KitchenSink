@@ -32,6 +32,8 @@ import type {
     RemotePart,
 } from '../hooks/foodSuggestions.model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { foodChoiceNameOf } from '../ingredientMatching/foodChoiceName.js';
+import type { MatchLineMessages } from '../ingredientMatching/messages.js';
 import type {
     IngredientDetailsMessages,
     IngredientPickerSearchMessages,
@@ -64,6 +66,8 @@ export interface EntryComboboxCopy {
     readonly pickerSearch: IngredientPickerSearchMessages;
     readonly remote: IngredientRemoteSearchMessages;
     readonly details: Pick<IngredientDetailsMessages, 'suggestionWithDetails' | 'ownFoodName'>;
+    /** The Default tag's word and the tagged name, read by the one food-naming rule (`foodChoiceNameOf`). */
+    readonly match: Pick<MatchLineMessages, 'defaultTag' | 'defaultOptionName'>;
     /** The app-wide parked-read sentence (`offlineNoticeMessages.readOffline`), reused rather than copied. */
     readonly readOffline: string;
 }
@@ -328,23 +332,25 @@ const authoredOptionOf = (option: AuthoredFoodOption, copy: EntryComboboxCopy): 
     accessibleName: fillTemplate(copy.details.ownFoodName, { name: option.hit.name }),
 });
 
-/** A catalog food, as an option: the variant its search matched draws its parts (§S2, L4.1). Pure. */
+/**
+ * A catalog food, as an option: the variant its search matched draws its parts (§S2, L4.1), and its accessible name is
+ * the ONE food-naming rule's (`foodChoiceNameOf`), the matching lists' too. The search wire carries no `isDefault` yet
+ * (recipe-service step 5); until it does no catalog food is tagged, and the wiring passes the hit's flag here. Pure.
+ */
 const catalogOptionOf = (option: CatalogFoodOption, copy: EntryComboboxCopy): ComboboxOption => {
     const key = `catalog:${option.hit.id}`;
     const label = option.hit.name;
     const parts = variantPartTexts(option.hit.variant?.parts);
+    const name = foodChoiceNameOf(
+        { name: label, detailParts: parts, isDefault: false },
+        {
+            suggestionWithDetails: copy.details.suggestionWithDetails,
+            defaultOptionName: copy.match.defaultOptionName,
+            defaultTag: copy.match.defaultTag,
+        },
+    );
 
-    return parts === undefined
-        ? { key, label }
-        : {
-              key,
-              label,
-              detailParts: parts,
-              accessibleName: fillTemplate(copy.details.suggestionWithDetails, {
-                  food: label,
-                  parts: parts.join(', '),
-              }),
-          };
+    return parts === undefined ? { key, label } : { key, label, detailParts: parts, accessibleName: name };
 };
 
 /**

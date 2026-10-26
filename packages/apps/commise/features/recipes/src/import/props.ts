@@ -7,7 +7,9 @@
  */
 import type { ReactNode } from 'react';
 
-import type { ImportCandidate, ImportLine, ImportLinePick, PickableImportLine } from './importLine.js';
+import type { FoodChoiceListProps } from '../ingredientMatching/foodChoiceListProps.js';
+import type { LinePick, MatchLine } from '../ingredientMatching/matchLine.js';
+import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
 import type { ImportMatchMode } from './importMode.js';
 
 /** The mode choice before a bulk import (board ImportModeChoice). */
@@ -28,55 +30,11 @@ export interface ImportModeChoiceProps {
     readonly starting?: boolean;
 }
 
-/** A line's option list: Search for a food first, then the candidates, then Keep … as written. */
-export interface ImportLineOptionsProps {
-    /** The line as written; names the list, the search button and the keep row. */
-    readonly lineText: string;
-    /** The server's candidates, in its order (the default first); drawn in that order, never re-sorted. */
-    readonly candidates: readonly ImportCandidate[];
-    /** The cook's pick, if any. A default is never passed here unless the cook picked it. */
-    readonly pick: ImportLinePick | undefined;
-    /** The cook chose a food or to keep the line as written. */
-    readonly onPick: (pick: ImportLinePick) => void;
-    /** Open food search for this line. */
-    readonly onSearch: () => void;
-}
-
-/** The one expanded line of a recipe: its text, its neutral prompt and its option list. */
-export interface ImportOpenLineProps {
-    readonly line: PickableImportLine;
-    readonly onPick: (key: string, pick: ImportLinePick) => void;
-    readonly onSearch: (key: string) => void;
-}
-
-/** A line drawn closed: a matched, chosen or checking line, or an open line waiting its turn. */
-export interface ImportLineRowProps {
-    readonly line: ImportLine;
-    /** Expand the line (a closed open line, or Change on a matched or chosen line). */
-    readonly onExpand: (key: string) => void;
-    /** Bind a checking line's proposed food. */
-    readonly onUseProposal: (key: string) => void;
-    /** Open food search for the line (a checking line reaches it in one tap). */
-    readonly onSearch: (key: string) => void;
-    /** Open why the late check suggested another food. */
-    readonly onSeeWhy: (key: string) => void;
-}
-
 /**
- * A recipe's lines, one open line expanded at a time (`ingredientMatching.md`: phone and tablet; the wizard keeps the
- * same list beside its recipe rail at 1194 and on web).
- *
- * ⚠️ Reconcile with the paste flow's line list at merge: the editor builder is building the same row states for paste
- * import in parallel, and this list must not survive as a second copy.
+ * A recipe's lines in the review wizard: the ONE shared matched-line list (`MatchLineList`, which the editor's paste
+ * flow draws too), one open line expanded at a time, and the recipe-with-nothing-to-fix sentence above it.
  */
-export interface ImportLineListProps extends Omit<ImportLineRowProps, 'line'> {
-    /** The recipe's lines, in the recipe's order. */
-    readonly lines: readonly ImportLine[];
-    /** The line drawn expanded, or `undefined` for none. A checking line is never drawn expanded. */
-    readonly expandedKey: string | undefined;
-    /** The cook picked for the expanded line. Expanding the next open line is the host's (`nextOpenLineKey`). */
-    readonly onPick: (key: string, pick: ImportLinePick) => void;
-}
+export type ImportLineListProps = MatchLineListProps;
 
 /** One step of the review wizard (board WizardStep): the recipe, its progress, its lines and the step's actions. */
 export interface ImportWizardStepProps {
@@ -221,7 +179,20 @@ export interface ImportFlaggedListProps {
     readonly detail?: ReactNode;
 }
 
-/** The line's options in a sheet (phone and 834): the same list the wide pane shows, search first. */
+/**
+ * A flagged line's options: the ONE shared food-choice list (`FoodChoiceList`), search first, built from the line the
+ * way every matched line's list is (`choiceListViewOf`).
+ */
+export interface ImportLineOptionsProps extends Omit<FoodChoiceListProps, 'view'> {
+    /** The line whose options are shown. */
+    readonly line: MatchLine;
+    /** Whether search can run. */
+    readonly online: boolean;
+    /** The pick in flight, if any. */
+    readonly pending: LinePick | undefined;
+}
+
+/** A flagged line's options in a sheet (phone and 834). */
 export interface ImportLineOptionsSheetProps extends ImportLineOptionsProps {
     /** Whether the sheet is shown. */
     readonly open: boolean;
@@ -231,7 +202,7 @@ export interface ImportLineOptionsSheetProps extends ImportLineOptionsProps {
     readonly title: string;
 }
 
-/** The line's options in the pane beside the flagged list (1194 and web): the same list as the sheet, search first. */
+/** A flagged line's options in the pane beside the flagged list (1194 and web): the same list as the sheet. */
 export interface ImportLineOptionsPaneProps extends ImportLineOptionsProps {
     /** The pane's heading: the line and its recipe. */
     readonly title: string;

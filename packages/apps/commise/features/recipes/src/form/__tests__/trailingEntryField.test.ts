@@ -13,6 +13,7 @@ import { editorMessages } from '../../editor/messages.js';
 import { makeCatalogFoodOption, progressiveFoodView } from '../../__fixtures__/foodSearchViews.js';
 import { COMPLETE_FRAME, catalogResult, databaseFrame } from '../../__fixtures__/progressiveFrames.js';
 import type { LineCommitTarget } from '../../hooks/lineCommit.js';
+import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeMessages } from '../../messages.js';
 import { ingredientAddFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
@@ -31,6 +32,7 @@ const COPY: TrailingEntryFieldCopy = {
     pickerSearch: shared.ingredientPickerSearch,
     remote: shared.ingredientRemoteSearch,
     details: shared.ingredientDetails,
+    match: matchLineMessages.en,
     readOffline: 'Waiting for a connection. This loads on its own.',
 };
 

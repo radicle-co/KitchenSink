@@ -21,5 +21,6 @@ export interface OptionLabelProps {
     readonly tag?: string;
     /** A variant's parts, in wire order, drawn under the label as `VariantPartsLine` draws them. */
     readonly detailParts?: readonly [string, ...string[]];
+    /** The label's size: `bodyMd` for a combobox option, `list` for a line in a list of choices. */
     readonly textSize: OptionLabelSize;
 }

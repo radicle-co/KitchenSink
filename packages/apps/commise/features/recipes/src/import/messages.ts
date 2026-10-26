@@ -6,67 +6,20 @@
  * set read by BOTH the web and the native leaves, so the platforms cannot drift on copy. Templates carry `{token}`
  * placeholders filled with `fillTemplate`; counts are {@link PluralText} filled with `pluralOf`.
  *
- * The spec names keys (`import.mode.*`, `import.wizard.*`, `import.summary.*`, `import.flagged.*`); the groups here
- * mirror them. The words are the boards'.
+ * The top-level groups follow the spec's key groups (`import.mode.*`, `import.wizard.*`, `import.summary.*`,
+ * `import.flagged.*`); `leave` is the spec's `import.wizard.leave.*`. The leaf names inside them are this module's own,
+ * chosen for what each string does, and do NOT repeat the spec's (it names `import.mode.saveAsWritten.*`, this module
+ * `mode.saveAsWrittenTitle`). The words are the boards'.
  *
- * ⚠️ `line` holds the per-line copy the paste flow ALSO shows (`editor.paste.line.*` in the spec: "Search for a food" is
- * one label in paste, the wizard, flagged lines and the picker). The paste flow's copy is being built in parallel, so
- * this group is a known second copy, its leaf names chosen to match the spec's so the merge is a move, not a rewrite.
+ * A matched LINE's words — Search for a food, the prompts, Change, "your choice", the late review note — are not here:
+ * they are the neutral matched-line copy (`ingredientMatching/messages.ts`), which the editor's paste flow reads too.
  *
  * ⚠️ Every accessible name that differs from its control's visible words STARTS with those words (WCAG 2.5.3, label in
- * name), and names its line, because a recipe shows several "Change" and "Use this" controls at once.
+ * name), and names its line, because a list shows several controls with the same words at once.
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
 import type { PluralText } from '../format/plural.js';
-
-/** Copy for one ingredient line in the wizard, the flagged pane and the options sheet. */
-export interface ImportLineMessages {
-    /** "Search for a food": the first row of every line the cook chooses for (owner ruling I1). */
-    readonly search: string;
-    /** Its accessible name (contains `{line}`). */
-    readonly searchName: string;
-    /** The option list's accessible name (contains `{line}`). */
-    readonly optionsLabel: string;
-    /** The last option: keep the line with no food (contains `{line}`). */
-    readonly keepAsWritten: string;
-    /** That option's hint. */
-    readonly keepHint: string;
-    /** The quiet tag on a default food. It never means the food is chosen. */
-    readonly defaultTag: string;
-    /** The prompt on an open default line (contains `{noun}`, the line's food word: "flour"). Neutral, never amber. */
-    readonly defaultPrompt: string;
-    /** The prompt on an open line with more than one fitting food. */
-    readonly needsChoicePrompt: string;
-    /** The prompt on an open line with no food found. */
-    readonly noMatchPrompt: string;
-    /** A closed line with options waiting ("Choose a food · 5 options"). */
-    readonly closedNeed: PluralText;
-    /** A closed default line (contains `{noun}`). */
-    readonly closedDefault: PluralText;
-    /** A closed line with no food found. */
-    readonly closedNoMatch: string;
-    /** The tag on a line still being checked. */
-    readonly checkingTag: string;
-    /** Bind a checking line's proposed food. */
-    readonly useThis: string;
-    /** Its accessible name (contains `{food}`, `{line}`). */
-    readonly useThisName: string;
-    /** Change a matched or chosen line's food. */
-    readonly change: string;
-    /** Its accessible name (contains `{line}`). */
-    readonly changeName: string;
-    /** Marks a food the cook picked. */
-    readonly yourChoice: string;
-    /** What a line the cook kept with no food says instead of a food. */
-    readonly keptAsWritten: string;
-    /** A late check result on a cook's pick (contains `{food}`). It never replaces the pick. */
-    readonly lateSuggestion: string;
-    /** Opens why the check suggested another food. */
-    readonly seeWhy: string;
-    /** Its accessible name (contains `{food}`, `{line}`). */
-    readonly seeWhyName: string;
-}
 
 /** Copy for the bulk import's matching surfaces. */
 export interface ImportMessages {
@@ -89,7 +42,6 @@ export interface ImportMessages {
         /** The wide layout's reassurance beside the choice. */
         readonly promise: string;
     };
-    readonly line: ImportLineMessages;
     readonly wizard: {
         /** `{count}` lines to choose; contains `{n}`, `{total}`. */
         readonly progress: PluralText;
@@ -178,10 +130,8 @@ export interface ImportMessages {
         readonly use: string;
         /** Its accessible name (contains `{food}`, `{line}`). */
         readonly useName: string;
-        /** The labelled Search button. */
+        /** The labelled Search button. Its accessible name is the matched line's `searchName` (one key). */
         readonly search: string;
-        /** Its accessible name (contains `{line}`). */
-        readonly searchName: string;
         /** Contains `{count}`. */
         readonly footer: string;
         /** The options sheet's close control (house form "Close {thing}"; contains `{line}`). */
@@ -209,33 +159,6 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             startHint: 'Choose one to start. You can change any food later.',
             promise:
                 'Whatever you choose, nothing is ever matched to a food you did not mean without you being able to see and change it.',
-        },
-        line: {
-            search: 'Search for a food',
-            searchName: 'Search for a food for {line}',
-            optionsLabel: 'Food for {line}',
-            keepAsWritten: 'Keep “{line}” as written',
-            keepHint: 'No nutrition for this line',
-            defaultTag: 'Default',
-            defaultPrompt: 'Choose the {noun} you use',
-            needsChoicePrompt: 'More than one food fits. Nothing is chosen for you.',
-            noMatchPrompt: 'No food found for this',
-            closedNeed: { one: 'Choose a food · {count} option', other: 'Choose a food · {count} options' },
-            closedDefault: {
-                one: 'Choose the {noun} you use · {count} option',
-                other: 'Choose the {noun} you use · {count} options',
-            },
-            closedNoMatch: 'No food found · search or keep as written',
-            checkingTag: 'Checking',
-            useThis: 'Use this',
-            useThisName: 'Use this: {food} for {line}',
-            change: 'Change',
-            changeName: 'Change the food for {line}',
-            yourChoice: 'your choice',
-            keptAsWritten: 'Kept as written',
-            lateSuggestion: 'Our check suggested {food}. Your choice stays.',
-            seeWhy: 'See why',
-            seeWhyName: 'See why our check suggested {food} for {line}',
         },
         wizard: {
             progress: {
@@ -314,7 +237,6 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             use: 'Use {food}',
             useName: 'Use {food} for {line}',
             search: 'Search',
-            searchName: 'Search for a food for {line}',
             footer: 'Each line also has a mark in its recipe. “{count} to check” stays at the top of My recipes until you are done.',
             sheetClose: 'Close options for {line}',
         },

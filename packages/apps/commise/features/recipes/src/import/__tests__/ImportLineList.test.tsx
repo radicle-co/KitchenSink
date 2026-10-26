@@ -1,239 +1,144 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web `ImportLineList` (board WizardStep; `ingredientMatching.md` line states): one open line
- * expanded at a time with its NEUTRAL prompt and its option list, every other open line closed and naming its need,
- * matched lines with Change, a checking line with Use this and Search in one tap, a cook's pick marked "your choice",
- * and a late check result that keeps the pick and adds one quiet sentence. Every state, every action.
+ * Component tests for the web `ImportLineList` (board WizardStep): one imported recipe's lines in the review wizard.
+ *
+ * REWRITTEN when the paste and import builds were reconciled. The import builder's list re-derived every line state in
+ * its own `LineRow` (an `if` chain behind a false `@pattern Visitor`, review finding M1) beside a radio-list copy of the
+ * editor's food-choice list. It now composes the ONE shared `MatchLineList`, so the per-state cases it carried — the
+ * expanded line, the checking line, "your choice", the late review note, Change on a matched line — are the shared
+ * module's and are tested there (`ingredientMatching/__tests__/matchLineView.test.ts`, `MatchRow.test.tsx`,
+ * `MatchSettledRow.test.tsx`, `FoodChoiceList.test.tsx`). What stays here is the wizard's own: the recipe with nothing to
+ * fix, and focus after a pick.
+ *
+ * The focus case is review finding M4: a pick used to re-render the step and destroy focus. After a pick and a
+ * re-render with the next open line expanded, focus IS that line's "Search for a food".
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState, type FC } from 'react';
 
 import {
+    cookPicked,
     makeCheckingLine,
     makeConfidentLine,
     makeDefaultLine,
     makeNeedsChoiceLine,
     makeNoMatchLine,
-} from '../__fixtures__/importLines.js';
-import type { ImportLine } from '../importLine.js';
+    MILKS,
+} from '../../ingredientMatching/__fixtures__/matchLines.js';
+import { pickFocusOf, type LinePick, type MatchLine } from '../../ingredientMatching/matchLine.js';
 import { ImportLineList } from '../ImportLineList.js';
-import { importMessages } from '../messages.js';
-
-const m = importMessages.en.line;
-const w = importMessages.en.wizard;
+import type { ImportLineListProps } from '../props.js';
 
 afterEach(cleanup);
 
-function renderList(lines: readonly ImportLine[], expandedKey: string | undefined = undefined) {
-    const handlers = {
-        onExpand: vi.fn(),
-        onPick: vi.fn(),
-        onSearch: vi.fn(),
-        onUseProposal: vi.fn(),
-        onSeeWhy: vi.fn(),
-    };
-    render(<ImportLineList lines={lines} expandedKey={expandedKey} {...handlers} />);
+const LINES: readonly MatchLine[] = [
+    makeConfidentLine(),
+    makeDefaultLine(),
+    makeCheckingLine(),
+    makeNeedsChoiceLine(),
+    makeNoMatchLine(),
+];
 
-    return handlers;
+const handlers = () => ({
+    onOpen: vi.fn(),
+    onPick: vi.fn(),
+    onSearch: vi.fn(),
+    onUseProposal: vi.fn(),
+    onRetry: vi.fn(),
+    onSeeWhy: vi.fn(),
+});
+
+function renderList(props: Partial<ImportLineListProps> = {}) {
+    render(
+        <ImportLineList
+            lines={LINES}
+            expandedKey="milk"
+            currentKey={undefined}
+            online
+            pending={undefined}
+            searchFocus={{ requested: false, onHandled: vi.fn() }}
+            {...handlers()}
+            {...props}
+        />,
+    );
 }
 
-const itemOf = (text: string) =>
-    screen.getAllByRole('listitem').find((item) => item.textContent?.includes(text)) as HTMLElement;
+/** The wiring phase's host in miniature: bind the pick, expand the next open line, and ask its Search for focus. */
+const PickingHost: FC = () => {
+    const [lines, setLines] = useState<readonly MatchLine[]>(LINES);
+    const [expandedKey, setExpandedKey] = useState<string | undefined>('milk');
+    const [focusRequested, setFocusRequested] = useState(false);
 
-describe('ImportLineList (web) — the expanded line', () => {
-    it('a default line: its text, the neutral prompt, Search first, the options with nothing chosen', () => {
-        renderList([makeDefaultLine()], 'flour');
-
-        const item = itemOf('275 g flour');
-        const prompt = within(item).getByText('Choose the flour you use');
-
-        expect(prompt.className).toContain('text-ink-muted');
-        expect(prompt.className).not.toContain('attention');
-        expect(within(item).getByRole('button', { name: 'Search for a food for 275 g flour' })).toBeTruthy();
-        expect(within(item).getByRole('radio', { name: 'All-purpose flour Default' })).toBeTruthy();
-        expect(within(item).queryByRole('radio', { checked: true })).toBeNull();
-    });
-
-    it('a needsChoice line says more than one food fits; a noMatch line offers only search and keep', () => {
-        renderList([makeNeedsChoiceLine()], 'bread');
-        expect(screen.getByText(m.needsChoicePrompt)).toBeTruthy();
-        cleanup();
-
-        renderList([makeNoMatchLine()], 'syrup');
-        expect(screen.getByText(m.noMatchPrompt)).toBeTruthy();
-        expect(screen.getAllByRole('radio')).toEqual([
-            screen.getByRole('radio', { name: 'Keep “4 tbsp drizzle syrup” as written' }),
-        ]);
-        expect(screen.getByRole('button', { name: 'Search for a food for 4 tbsp drizzle syrup' })).toBeTruthy();
-    });
-
-    it('reports a pick and a search for the expanded line by its key', async () => {
-        const user = userEvent.setup();
-        const { onPick, onSearch } = renderList([makeDefaultLine()], 'flour');
-
-        await user.click(screen.getByRole('radio', { name: 'Self-raising flour' }));
-        await user.click(screen.getByRole('button', { name: 'Search for a food for 275 g flour' }));
-
-        expect(onPick).toHaveBeenCalledWith('flour', { kind: 'food', foodId: 'f-sr', name: 'Self-raising flour' });
-        expect(onSearch).toHaveBeenCalledWith('flour');
-    });
-
-    it('a line re-opened after a pick shows that pick checked', () => {
-        renderList(
-            [makeDefaultLine({ choice: { pick: { kind: 'food', foodId: 'f-cake', name: 'Cake flour' } } })],
-            'flour',
+    const pick = (key: string, chosen: LinePick): void => {
+        const next = lines.map((line) =>
+            line.key === key && line.state !== 'confident' && line.state !== 'optionsFailed'
+                ? { ...line, binding: { boundBy: 'cook' as const, pick: chosen, reviewNote: undefined } }
+                : line,
         );
+        const focus = pickFocusOf(next, key);
 
-        expect(screen.getByRole('radio', { checked: true })).toBe(screen.getByRole('radio', { name: 'Cake flour' }));
-    });
+        setLines(next);
+        setExpandedKey(focus.kind === 'search' ? focus.key : undefined);
+        setFocusRequested(focus.kind === 'search');
+    };
 
-    it('a matched line opened by Change offers its candidates with no prompt', () => {
-        renderList(
-            [makeConfidentLine({ candidates: [{ id: 'b-s', name: 'Butter, salted', isDefault: false }] })],
-            'butter',
-        );
+    return (
+        <ImportLineList
+            lines={lines}
+            expandedKey={expandedKey}
+            currentKey={undefined}
+            online
+            pending={undefined}
+            searchFocus={{ requested: focusRequested, onHandled: () => setFocusRequested(false) }}
+            {...handlers()}
+            onPick={pick}
+        />
+    );
+};
 
-        expect(screen.getByRole('radio', { name: 'Butter, salted' })).toBeTruthy();
-        expect(screen.queryByText(m.needsChoicePrompt)).toBeNull();
-    });
+describe('ImportLineList (web)', () => {
+    it('draws the shared list: the expanded line open with Search first and nothing chosen, as buttons', () => {
+        renderList();
 
-    it('⛔ a checking line is never drawn expanded, even when asked', () => {
-        renderList([makeCheckingLine()], 'lemons');
-
-        expect(screen.queryByRole('radiogroup')).toBeNull();
-        expect(screen.getByRole('button', { name: /^Use this/u })).toBeTruthy();
-    });
-});
-
-describe('ImportLineList (web) — closed lines', () => {
-    it.each([
-        [makeDefaultLine(), '275 g flour', 'Choose the flour you use · 3 options'],
-        [makeNeedsChoiceLine(), '6 slices day-old bread', 'Choose a food · 2 options'],
-        [makeNoMatchLine(), '4 tbsp drizzle syrup', m.closedNoMatch],
-    ])('an open line waiting its turn is one button naming its need: %#', async (line, text, need) => {
-        const user = userEvent.setup();
-        const { onExpand } = renderList([line]);
-
-        const row = screen.getByRole('button', { name: `${text} ${need}` });
-
-        expect(row.className).toContain('min-h-12');
-
-        await user.click(row);
-
-        expect(onExpand).toHaveBeenCalledWith(line.key);
-    });
-
-    it('a matched line shows its food and a Change named for the line', async () => {
-        const user = userEvent.setup();
-        const { onExpand } = renderList([makeConfidentLine()]);
-
-        expect(within(itemOf('225 g butter')).getByText('Butter, unsalted')).toBeTruthy();
-
-        await user.click(screen.getByRole('button', { name: 'Change the food for 225 g butter, softened' }));
-
-        expect(onExpand).toHaveBeenCalledWith('butter');
-    });
-
-    it('a checking line shows its proposal with Checking, Use this and Search for a food, each in one tap', async () => {
-        const user = userEvent.setup();
-        const { onUseProposal, onSearch } = renderList([makeCheckingLine()]);
-
-        const item = itemOf('2 lemons');
-
-        expect(within(item).getByText('Lemon peel, raw')).toBeTruthy();
-        expect(within(item).getByText(m.checkingTag)).toBeTruthy();
-
-        await user.click(screen.getByRole('button', { name: 'Use this: Lemon peel, raw for 2 lemons, zest only' }));
-        await user.click(screen.getByRole('button', { name: 'Search for a food for 2 lemons, zest only' }));
-
-        expect(onUseProposal).toHaveBeenCalledWith('lemons');
-        expect(onSearch).toHaveBeenCalledWith('lemons');
-    });
-
-    it('⛔ nothing on a checking line moves: no element asks for an animation', () => {
-        renderList([makeCheckingLine()]);
-
-        expect(document.querySelector('[class*="animate-"]')).toBeNull();
-    });
-
-    it('a cook’s pick shows the food marked “your choice”, and Change', () => {
-        renderList([
-            makeDefaultLine({ choice: { pick: { kind: 'food', foodId: 'f-sr', name: 'Self-raising flour' } } }),
-        ]);
-
-        const item = itemOf('275 g flour');
-
-        expect(item.textContent).toContain('Self-raising flour');
-        expect(item.textContent).toContain(m.yourChoice);
-        expect(within(item).getByRole('button', { name: 'Change the food for 275 g flour' })).toBeTruthy();
-    });
-
-    it('a line the cook kept as written says so, marked “your choice”', () => {
-        renderList([makeNoMatchLine({ choice: { pick: { kind: 'asWritten' } } })]);
-
-        const item = itemOf('4 tbsp drizzle syrup');
-
-        expect(item.textContent).toContain(m.keptAsWritten);
-        expect(item.textContent).toContain(m.yourChoice);
-    });
-
-    it('⛔ a late check result keeps the cook’s pick and adds one quiet sentence with See why', async () => {
-        const user = userEvent.setup();
-        const { onSeeWhy } = renderList([
-            makeConfidentLine({
-                key: 'melted',
-                text: '3 tbsp butter, melted',
-                choice: {
-                    pick: { kind: 'food', foodId: 'b-u', name: 'Butter, unsalted' },
-                    lateSuggestion: 'Butter, salted',
-                },
-            }),
-        ]);
-
-        const item = itemOf('3 tbsp butter, melted');
-        const note = within(item).getByText('Our check suggested Butter, salted. Your choice stays.');
-
-        expect(item.textContent).toContain('Butter, unsalted');
-        expect(note.className).toContain('text-ink-muted');
-
-        await user.click(
-            screen.getByRole('button', {
-                name: 'See why our check suggested Butter, salted for 3 tbsp butter, melted',
-            }),
-        );
-
-        expect(onSeeWhy).toHaveBeenCalledWith('melted');
-    });
-});
-
-describe('ImportLineList (web) — the list', () => {
-    it('is a list of the recipe’s lines in order, one expanded', () => {
-        renderList([makeConfidentLine(), makeDefaultLine(), makeCheckingLine(), makeNoMatchLine()], 'flour');
-
-        const items = screen.getAllByRole('listitem');
-
-        expect(items.map((item) => item.textContent?.slice(0, 12))).toEqual([
-            '225 g butter',
-            '275 g flourC',
-            '2 lemons, ze',
-            '4 tbsp drizz',
-        ]);
-        expect(screen.getAllByRole('radiogroup')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Search for a food for 2 cups milk' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Whole milk, Default' })).toBeTruthy();
+        expect(screen.queryByRole('radio')).toBeNull();
+        expect(screen.queryByRole('button', { name: /, chosen$/ })).toBeNull();
     });
 
     it('a recipe whose every line is matched says there is nothing to fix', () => {
-        renderList([
-            makeConfidentLine(),
-            makeConfidentLine({ key: 'sugar', text: '225 g caster sugar', food: 'Caster sugar' }),
-        ]);
+        renderList({ lines: [makeConfidentLine(), makeConfidentLine({ key: 'sugar' })], expandedKey: undefined });
 
-        expect(screen.getByText(w.nothingToFix.other.replace('{count}', '2'))).toBeTruthy();
+        expect(screen.getByText('All 2 ingredients are matched. You can change any of them.')).toBeTruthy();
     });
 
-    it('says nothing of the kind while a line is still open', () => {
-        renderList([makeConfidentLine(), makeDefaultLine()]);
+    it('one matched ingredient is said in the singular', () => {
+        renderList({ lines: [makeConfidentLine()], expandedKey: undefined });
 
-        expect(screen.queryByText(/ingredients are matched/u)).toBeNull();
+        expect(screen.getByText('The ingredient is matched. You can change it.')).toBeTruthy();
+    });
+
+    it('says nothing of the kind while a line is still open, or once the cook picked the open lines', () => {
+        renderList();
+
+        expect(screen.queryByText(/are matched/)).toBeNull();
+
+        cleanup();
+        renderList({ lines: [makeDefaultLine({ binding: cookPicked(MILKS[1] ?? MILKS[0]) })], expandedKey: undefined });
+
+        expect(screen.queryByText(/is matched|are matched/)).toBeNull();
+    });
+
+    it('⛔ after a pick, focus moves to the next open line’s Search, not to the top of the page', async () => {
+        const user = userEvent.setup();
+
+        render(<PickingHost />);
+        await user.click(screen.getByRole('button', { name: 'Whole milk, Default' }));
+
+        expect(document.activeElement).toBe(
+            screen.getByRole('button', { name: 'Search for a food for 6 slices day-old bread' }),
+        );
     });
 });

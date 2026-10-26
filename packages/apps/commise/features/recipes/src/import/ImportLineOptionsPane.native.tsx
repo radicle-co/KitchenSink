@@ -8,11 +8,13 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { ImportLineOptions } from './ImportLineOptions.js';
+import { useChoiceListView } from '../ingredientMatching/useChoiceListView.js';
+import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import type { ImportLineOptionsPaneProps } from './props.js';
 
 /** A flagged line's options, as a pane. */
-export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({ title, ...options }) => {
+export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({ title, line, online, pending, ...list }) => {
+    const view = useChoiceListView(line, { online, pending });
     const { colors } = useTheme();
 
     return (
@@ -20,7 +22,7 @@ export const ImportLineOptionsPane: FC<ImportLineOptionsPaneProps> = ({ title, .
             <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                 {title}
             </Text>
-            <ImportLineOptions {...options} />
+            <FoodChoiceList view={view} {...list} />
         </View>
     );
 };

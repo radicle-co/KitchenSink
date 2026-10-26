@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 74,
-        "implementations": 129,
-        "props": 729,
-        "documentedComponents": 74,
-        "implementationsWithModuleDoc": 129,
-        "implementationsWithComponentDoc": 121,
-        "documentedProps": 694,
-        "classifiedComponents": 67,
-        "componentsWithPatternTag": 74,
-        "crossPlatformComponents": 55
+        "components": 75,
+        "implementations": 131,
+        "props": 737,
+        "documentedComponents": 75,
+        "implementationsWithModuleDoc": 131,
+        "implementationsWithComponentDoc": 123,
+        "documentedProps": 702,
+        "classifiedComponents": 68,
+        "componentsWithPatternTag": 75,
+        "crossPlatformComponents": 56
     },
     "components": [
         {
@@ -7700,6 +7700,163 @@
                             "defaultValue": null,
                             "description": "The localized message, from `offlineNoticeMessages.readOffline`.\n\n⚠️ A complete two-sentence message, not a title: the second sentence states that the screen recovers on\nits own, which is the only thing standing in for the absent retry control.",
                             "declaredIn": "packages/apps/commise/ui/src/offlineNotice/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/optionLabel/OptionLabel",
+            "name": "OptionLabel",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/optionLabel",
+            "kind": "presentational",
+            "patterns": [
+                "Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of\n    options so the tagged label is drawn once"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "OptionLabel",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/optionLabel/OptionLabel.tsx",
+                    "dir": "packages/apps/commise/ui/src/optionLabel",
+                    "moduleDoc": "@commise/ui/option-label — the web design-system {@link OptionLabel}: an option's name, a quiet `note`\n`StatusBadge` after it, and a `VariantPartsLine` under it. The tag flows after the label and wraps under it at\n320 px; the label can shrink below its longest word (`min-w-0`) and breaks rather than push the row sideways. One\ndrawing for the Combobox's options and the matching lists' food rows, which each drew it on their own.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/option-label — the web design-system {@link OptionLabel}: an option's name, a quiet `note`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of\n    options so the tagged label is drawn once"
+                        }
+                    ],
+                    "description": "The web option label.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "detailParts",
+                            "type": "readonly [string, ...string[]]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A variant's parts, in wire order, drawn under the label as `VariantPartsLine` draws them.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The option's visible name.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        },
+                        {
+                            "name": "tag",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A quiet word drawn after the label as a `note` badge (\"Default\"). Localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        },
+                        {
+                            "name": "textSize",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"bodyMd\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label's size: `bodyMd` for a combobox option, `list` for a line in a list of choices.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "OptionLabel",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/optionLabel/OptionLabel.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/optionLabel",
+                    "moduleDoc": "@commise/ui/option-label — the native design-system {@link OptionLabel}: the React Native leaf of\n`./OptionLabel.tsx`, on the same props. A View holding the label `Text`, the `note` badge after it (a View of its own,\nso it keeps its radius and padding) and the parts line under it. At 320 pt the tag wraps under the label and the label\nshrinks (`flexShrink: 1`, `minWidth: 0`), so nothing is cut off or pushes the row sideways. Colours come from the theme\nat render.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/option-label — the native design-system {@link OptionLabel}: the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Value Object contract (`OptionLabelProps`) rendered as a pure `props → JSX` leaf, shared by every list of\n    options so the tagged label is drawn once"
+                        }
+                    ],
+                    "description": "The native option label.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "detailParts",
+                            "type": "readonly [string, ...string[]]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A variant's parts, in wire order, drawn under the label as `VariantPartsLine` draws them.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The option's visible name.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        },
+                        {
+                            "name": "tag",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A quiet word drawn after the label as a `note` badge (\"Default\"). Localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
+                        },
+                        {
+                            "name": "textSize",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"bodyMd\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label's size: `bodyMd` for a combobox option, `list` for a line in a list of choices.",
+                            "declaredIn": "packages/apps/commise/ui/src/optionLabel/props.ts"
                         }
                     ],
                     "usesRefApi": [],

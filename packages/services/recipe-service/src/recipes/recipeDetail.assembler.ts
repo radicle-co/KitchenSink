@@ -56,7 +56,7 @@ import {
     isWithheld,
     identityContradictedOf,
     foodPresenceStatus,
-    identityReadingOf,
+    identityAbstainedOf,
     resolveLineStatus,
     viewerLineStatus,
     verifiedLineIdentity,
@@ -563,9 +563,8 @@ function finalLineStatus(
                 // Owner ruling 2026-08-31 (§4): a high-certainty identity contradiction opens the re-pick door; a
                 // pre-0042 verdict (identityVerdict null) keeps the passive badge.
                 identityContradicted: verdict !== undefined && identityContradictedOf(verdict),
-                // Owner ruling 2026-10-25 (ADR-0071): an identity abstention keeps the AMBIGUOUS badge, read through
-                // the one identity reading the paste matcher's state shares.
-                identityAbstained: verdict !== undefined && identityReadingOf(verdict) === 'abstain',
+                // Owner ruling 2026-10-25 (ADR-0071): an ITEMIZED identity abstention keeps the AMBIGUOUS badge.
+                identityAbstained: verdict !== undefined && identityAbstainedOf(verdict),
             }),
             presenceOf(identity),
         ),

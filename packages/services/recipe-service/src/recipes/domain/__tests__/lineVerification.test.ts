@@ -21,6 +21,7 @@ import { ABSENT_QUANTITY, FoodResolutionStatus } from '@kitchensink/recipe-core'
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 
 import {
+    identityAbstainedOf,
     identityContradictedOf,
     identityReadingOf,
     foodPresenceStatus,
@@ -344,6 +345,41 @@ describe('resolveLineStatus — an identity abstention keeps the AMBIGUOUS badge
                 identityAbstained: true,
             }),
         ).toBe(band === 'verified' ? FoodResolutionStatus.RESOLVED : FoodResolutionStatus.NEEDS_REVIEW);
+    });
+});
+
+/**
+ * Which verdicts badge a saved line AMBIGUOUS for an identity abstention (owner ruling 2026-10-25). Like the contradiction
+ * arm beside it, only the model's ITEMIZED identity answer opens it: an unreadable answer is stored as a joint
+ * `inconclusive` with no itemization, and a formatting failure is not the gate abstaining on the food.
+ */
+describe('identityAbstainedOf — which verdicts badge a saved line for an identity abstention', () => {
+    it('fires on an itemized identity abstention that asked identity', () => {
+        const row = {
+            band: 'inconclusive',
+            certainty: 'high',
+            identityVerdict: 'abstain',
+            aspects: ['identity', 'quantity'],
+        } as const;
+
+        expect(identityAbstainedOf(row)).toBe(true);
+    });
+
+    it.each([
+        [
+            '⛔ an unreadable answer (stored abstain, low, no itemization)',
+            { band: 'inconclusive', certainty: 'low', identityVerdict: null, aspects: ['identity', 'quantity'] },
+        ],
+        [
+            'a quantity-only abstention (identity agreed)',
+            { band: 'inconclusive', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] },
+        ],
+        [
+            'a verdict that never asked identity',
+            { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: ['quantity'] },
+        ],
+    ] as const)('does NOT fire on %s', (_label, row) => {
+        expect(identityAbstainedOf(row)).toBe(false);
     });
 });
 

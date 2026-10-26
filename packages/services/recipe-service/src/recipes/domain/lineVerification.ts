@@ -234,10 +234,7 @@ export interface LineIdentityFlags {
      * HIGH-certainty IDENTITY contradiction — {@link identityContradictedOf}'s answer.
      */
     readonly identityContradicted: boolean;
-    /**
-     * Owner ruling 2026-10-25 (ADR-0071): whether the gate ABSTAINED on this line's identity —
-     * `identityReadingOf(verdict) === 'abstain'`.
-     */
+    /** Owner ruling 2026-10-25 (ADR-0071): whether the gate ABSTAINED on this line's identity ({@link identityAbstainedOf}). */
     readonly identityAbstained: boolean;
 }
 
@@ -376,6 +373,22 @@ export function identityReadingOf(verdict: {
         case 'inconclusive':
             return 'abstain';
     }
+}
+
+/**
+ * Whether one stored verdict badges a saved line AMBIGUOUS for an identity ABSTENTION (owner ruling 2026-10-25,
+ * ADR-0071). Like {@link identityContradictedOf}, only the model's ITEMIZED identity answer opens it: an unreadable
+ * answer is stored as a joint `inconclusive` with no itemization, and a formatting failure is not the gate abstaining
+ * on the food. A verdict that never asked identity says nothing about it (`identityReadingOf`).
+ *
+ * @param row - The stored verdict's itemized identity verdict and the aspects the gate asked.
+ * @returns Whether the abstention badge opens. Pure.
+ */
+export function identityAbstainedOf(row: {
+    readonly identityVerdict: string | null;
+    readonly aspects: readonly string[];
+}): boolean {
+    return row.aspects.includes('identity') && row.identityVerdict === 'abstain';
 }
 
 /**

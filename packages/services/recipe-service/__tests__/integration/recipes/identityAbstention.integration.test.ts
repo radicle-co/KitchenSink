@@ -132,6 +132,18 @@ describe('GET /api/v1/recipes/:id — a saved line the gate abstained on (integr
         expect(await lineStatus()).toBe('RESOLVED');
     });
 
+    it('⛔ does not badge an UNREADABLE model answer — a formatting failure is not an identity abstention', async () => {
+        // The worker stores an unreadable answer as abstain, low certainty, band inconclusive, with no itemization.
+        verdict = {
+            band: 'inconclusive',
+            certainty: 'low',
+            identityVerdict: null,
+            aspects: ['identity', 'quantity'],
+        };
+
+        expect(await lineStatus()).toBe('RESOLVED');
+    });
+
     it('⛔ does not read a verdict that never asked identity as an identity abstention', async () => {
         verdict = { band: 'inconclusive', certainty: 'low', identityVerdict: null, aspects: ['quantity'] };
 

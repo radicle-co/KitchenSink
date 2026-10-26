@@ -25,7 +25,9 @@
   [ADR-0022](0022-in-stack-migration-trigger.md) — the counter is a NEW table in the recipe database,
   so it ships as a migration and arrives through that ADR's in-stack Trigger like any other schema change;
   [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) — per-PR deploys get their own LOGICAL database on the
-  shared sandbox instance, which is why the ceiling is prod-only (§3).
+  shared sandbox instance, which is why the ceiling is prod-only (§3);
+  [ADR-0071](0071-paste-matches-are-proposals.md) and [ADR-0072](0072-bulk-recipe-import.md) — the paste and bulk
+  import path, the one path that does not retry a ceiling denial (§3).
 - **Supersedes within the plan**: `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`
   §U11's layer table, its egress paragraph and §KTD-4's bake-off roster. Where this ADR and that plan
   disagree, this ADR wins and the plan is to be corrected.
@@ -269,6 +271,18 @@ a gate that only reads numbers cannot tell "raised deliberately in prod" from "d
 opposite changes. Scaling prod does not weaken the ceiling — the reservation is charged BEFORE the call and
 the row lock serialises callers, so higher concurrency reaches the $100 sooner and never past it. What it
 does change is that the monthly pool is consumed earlier in the month, and denials then arrive as DLQ depth.
+
+⛔ **One path does not retry a ceiling denial: a parse-job line, from a paste or a bulk import** (owner ruling,
+2026-10-26; ADR-0072 §10, ADR-0071 §7). Everywhere else a ceiling denial is transient: the message goes back to the
+queue, and layer 0 bounds the retries. On this path the worker records the denial and acknowledges the message. The
+LLM parse leg and its in-loop validators stop, and the line lands the CRF reading alone. The paste-match review records
+a `budgetSpent` outcome under its verification key, with the period captured at reserve. That outcome is not a
+verdict, and it reads as spent only while its period is current. The cook then sees every food as a choice to make,
+exact names and curated mappings included. The reason is the cook in front of the screen. A retry holds their paste or
+import until the next month, and the owner chose worse matching over that wait. Three things do NOT change. The save
+path's verification of a saved recipe still retries a denial. An unreadable counter is still transient and still fails
+closed, on every path. And the counter, the reservation and the one pool are untouched. This changes the effect of a
+denial, not the moment of one.
 
 ⛔ **Layer 0's `maxReceiveCount` is DERIVED from the nightly stop, not a flat number.** A consumer whose
 database is stopped fails every delivery and each failure spends a receive, so a queue whose redrive count
@@ -624,6 +638,9 @@ it is taken, the ceiling is conservative in the safe direction — it denies ear
 - **The ceiling protects PROD only.** Sandbox and every open PR call the provider ungated, bounded solely by
   layers 0–2 at ≈$88/month/stage on Nova. A non-prod runaway is billed, not denied — which is also where a
   runaway is most likely to originate.
+- **A spent ceiling degrades paste and bulk import matching instead of holding it** (§3). Past the ceiling, those
+  lines land a CRF-only parse and every food goes to the cook. That is worse matching, accepted by the owner, and
+  it lasts until the period ends.
 - **On Nova Micro the ceiling will essentially never fire.** The runaway §Context names — 8,000 calls
   becoming 800,000 — costs ~$27, well under $100. The ceiling is a backstop against a `maxTokens` mistake
   and against a model change, not against call volume alone.
@@ -825,8 +842,9 @@ observed overshoot distribution is the better evidence — it measures the real 
 ### Accepted, not fixed — a refused line stalls rather than re-drives
 
 A residency refusal leaves the line `pending`. U9 re-runs only `failed_retryable`, so nothing re-drives it and
-the job closes at TTL. `verifyLine.ts` treats a _ceiling denial_ — also month-long — as transient precisely so
-it surfaces as redrivable DLQ depth, and this deliberately differs: a residency refusal is a standing product
+the job closes at TTL. `verifyLine.ts` treats a _ceiling denial_ — also month-long — as transient on the save path
+precisely so it surfaces as redrivable DLQ depth (a parse-job line records it instead, §3), and this deliberately
+differs: a residency refusal is a standing product
 decision, and reporting a decision as queue depth trains an operator to ignore the queue.
 
 ⛔ The reason that is tolerable is the alarm, not the disposition. The refusal is the one failure leaving no

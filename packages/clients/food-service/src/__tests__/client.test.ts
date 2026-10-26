@@ -1057,6 +1057,28 @@ describe('FoodServiceClient — a caller-supplied deadline signal', () => {
         },
     );
 
+    // ADR-0071: the paste matcher's catalog searches (the blended `search`) end with the request's deadline.
+    it('aborts an in-flight search when the caller`s signal fires, long before timeoutMs', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: signalOnlyFetch(), timeoutMs: 60_000 });
+        const deadline = new AbortController();
+
+        const pending = client.search('egg', true, { signal: deadline.signal }).catch((caught: unknown) => caught);
+        deadline.abort();
+
+        expect(isFetchUnavailableError(await pending)).toBe(true);
+    });
+
+    it('refuses to start a search whose deadline has already passed', async () => {
+        const fetchMock = signalOnlyFetch();
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, timeoutMs: 60_000 });
+
+        const error = await client
+            .search('egg', false, { signal: AbortSignal.abort() })
+            .catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+    });
+
     it('refuses to start a request whose deadline has already passed', async () => {
         const fetchMock = signalOnlyFetch();
         const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, timeoutMs: 60_000 });

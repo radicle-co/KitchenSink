@@ -145,8 +145,32 @@ describe('GET /api/v1/recipes/:id — a saved line the gate abstained on (integr
     });
 
     it('⛔ does not read a verdict that never asked identity as an identity abstention', async () => {
-        verdict = { band: 'inconclusive', certainty: 'low', identityVerdict: null, aspects: ['quantity'] };
+        // The itemized identity answer says `abstain`, but the gate asked QUANTITY only: that answer is about nothing.
+        // Removing the aspects guard from the classifier makes this line AMBIGUOUS, and this case fail.
+        verdict = {
+            band: 'inconclusive',
+            certainty: 'high',
+            identityVerdict: 'abstain',
+            aspects: ['quantity'],
+        };
 
         expect(await lineStatus()).toBe('RESOLVED');
+    });
+
+    it('keeps the passive NEEDS_REVIEW badge for a contradiction the model did not itemize (the old population)', async () => {
+        verdict = { band: 'contradicted', certainty: 'high', identityVerdict: null, aspects: ['identity', 'quantity'] };
+
+        expect(await lineStatus()).toBe('NEEDS_REVIEW');
+    });
+
+    it('keeps NEEDS_REVIEW, not the re-pick, for an identity disagreement short of high certainty', async () => {
+        verdict = {
+            band: 'contradicted',
+            certainty: 'medium',
+            identityVerdict: 'disagree',
+            aspects: ['identity', 'quantity'],
+        };
+
+        expect(await lineStatus()).toBe('NEEDS_REVIEW');
     });
 });

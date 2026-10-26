@@ -24,6 +24,7 @@
  *     the web leaf, expressed with platform primitives; the open slide is local view state.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Icon } from '@commise/ui/icon';
 import { carouselBox } from '@commise/ui/layout';
 import { Modal } from '@commise/ui/modal';
 import { nativeTokens } from '@commise/ui/native';
@@ -152,9 +153,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                                 },
                             ]}
                         >
-                            <Text aria-hidden style={[styles.closeLabel, { color: colors.ink }]}>
-                                ×
-                            </Text>
+                            <Icon name="x" size={24} tone="ink" />
                         </Pressable>
                     </View>
                 </Modal>
@@ -182,5 +181,4 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    closeLabel: { fontSize: 24, lineHeight: 24 },
 });

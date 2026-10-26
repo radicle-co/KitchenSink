@@ -92,7 +92,7 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={thumbnail ? '1:1' : '4:3'}
-                overline={!drawsTimeChip}
+                showCuisine={!drawsTimeChip}
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />

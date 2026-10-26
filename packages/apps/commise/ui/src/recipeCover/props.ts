@@ -22,11 +22,11 @@ export interface RecipeCoverProps {
      * Whether the monogram may show its cuisine. A caller that lays a chip over the cover says `false`, because text
      * never sits under a chip (§1.8). Defaults to `true`.
      */
-    readonly overline?: boolean;
+    readonly showCuisine?: boolean;
 }
 
 /** The height from which a monogram shows its cuisine, in px or points (§1.8). */
-export const OVERLINE_FROM = 96;
+export const CUISINE_FROM = 96;
 
 /** The monogram letter's size, as a share of the cover's height (§1.8). */
 export const LETTER_SHARE = 0.4;

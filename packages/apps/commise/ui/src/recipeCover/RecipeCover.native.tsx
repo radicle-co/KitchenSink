@@ -3,7 +3,7 @@
  *
  * With a photo it draws the photo through `expo-image` (disk-cached), covering its box from the centre 40% down.
  * Without one it draws a monogram on the recipe's own tint: the title's first letter in Playfair 700 `ink` at 40% of
- * the cover's height, and the cuisine as an `overline` under it from 96 pt tall, unless the caller lays a chip over the cover. React Native has no container
+ * the cover's height, and the cuisine as a `caption` under it from 96 pt tall, unless the caller lays a chip over the cover. React Native has no container
  * query, so the cover measures its own height (`onLayout`) and holds it as local view state. The cover is hidden from
  * assistive tech either way: the title is the name of the control it sits in. Each aspect reserves its box.
  *
@@ -16,17 +16,24 @@ import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { coverTintOf, monogramOf } from './coverTint.js';
-import { LETTER_SHARE, OVERLINE_FROM, type CoverAspect, type RecipeCoverProps } from './props.js';
+import { LETTER_SHARE, CUISINE_FROM, type CoverAspect, type RecipeCoverProps } from './props.js';
 
 /** The box each aspect reserves. */
 const ASPECT: Readonly<Record<CoverAspect, ViewStyle>> = {
     '4:3': { width: '100%', aspectRatio: 4 / 3 },
     '1:1': { aspectRatio: 1 },
-    band: { width: '100%', height: OVERLINE_FROM },
+    band: { width: '100%', height: CUISINE_FROM },
 };
 
 /** The native design-system recipe cover. */
-export const RecipeCover: FC<RecipeCoverProps> = ({ recipeId, title, cuisine, photoUrl, aspect, overline = true }) => {
+export const RecipeCover: FC<RecipeCoverProps> = ({
+    recipeId,
+    title,
+    cuisine,
+    photoUrl,
+    aspect,
+    showCuisine = true,
+}) => {
     const [height, setHeight] = useState<number | null>(null);
     const { colors, covers } = useTheme();
 
@@ -63,8 +70,8 @@ export const RecipeCover: FC<RecipeCoverProps> = ({ recipeId, title, cuisine, ph
             >
                 {monogramOf(title)}
             </Text>
-            {overline && cuisine !== undefined && height !== null && height >= OVERLINE_FROM ? (
-                <Text style={[styles.overline, { color: colors.ink }]}>{cuisine}</Text>
+            {showCuisine && cuisine !== undefined && height !== null && height >= CUISINE_FROM ? (
+                <Text style={[styles.cuisine, { color: colors.ink }]}>{cuisine}</Text>
             ) : null}
         </View>
     );
@@ -74,5 +81,5 @@ const styles = StyleSheet.create({
     box: { overflow: 'hidden' },
     monogram: { alignItems: 'center', justifyContent: 'center', gap: nativeTokens.spacing[1] },
     letter: { fontFamily: nativeTokens.fontFace.display.bold },
-    overline: nativeTokens.type.overline,
+    cuisine: nativeTokens.type.caption,
 });

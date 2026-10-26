@@ -215,7 +215,11 @@ describe('PhotoCarousel (native)', () => {
 
                 expect(getComputedStyle(close).backgroundColor).toBe(rgb(colours.paper));
                 expect(getComputedStyle(close.parentElement as Element).backgroundColor).toBe(colours.scrim);
-                expect(getComputedStyle(screen.getByText('×')).color).toBe(rgb(colours.ink));
+                // REWRITTEN: the close mark was a 24 px `×` text glyph (a hard-coded size, retired by the type-scale ruling); it is
+                // now the Registry's `x` Icon, so the colour is read off the icon the control draws.
+                expect(close.querySelector('[data-icon-name="x"]')?.getAttribute('data-icon-color')).toBe(
+                    rgb(colours.ink),
+                );
 
                 for (const dot of screen.getAllByLabelText(/^Go to Grilled Lamb photo/)) {
                     expect(getComputedStyle(dot).backgroundColor).toBe(rgb(colours.lineDivider));

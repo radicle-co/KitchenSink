@@ -11,7 +11,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { fontSize, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
+import { fontSize, lineHeightPx, radius, spacing } from '@commise/ui/scale';
+import { TYPE_SIZES } from '@commise/ui/tokens/typography';
 
 import {
     bodyLineHeight,
@@ -23,8 +24,6 @@ import {
     sizeScale,
     spaceScale,
 } from '../../src/theme/scaleTokens.js';
-
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)', () => {
     it('createTokens.space equals the pre-U0 map (0…96 + true=16)', () => {
@@ -39,30 +38,22 @@ describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)',
         expect(radiusScale).toEqual({ 0: 0, 1: 6, 2: 12, 3: 20, 4: 28, 5: 9999 });
     });
 
-    it('body createFont size ramp is unchanged', () => {
-        expect(bodyFontSize).toEqual({ 1: 14, 2: 16, 3: 18, 4: 18, 5: 20, 6: 24, 7: 28, 8: 36, 9: 48 });
+    // REWRITTEN for the owner's type-scale ruling (2026-10-25): sizes 14/16/18/28 only, capped at 28, and the leading is
+    // the shared px value for each size (it was `round1(size × ratio)`: 21, 21.6, 28.8, 33.6, 43.2, 57.6 ...).
+    it('body createFont size ramp states only 14, 16, 18 and 28', () => {
+        expect(bodyFontSize).toEqual({ 1: 14, 2: 16, 3: 18, 4: 18, 5: 18, 6: 18, 7: 28, 8: 28, 9: 28 });
     });
 
-    it('body createFont lineHeight ramp is unchanged (round-1 exact, no float drift)', () => {
-        expect(bodyLineHeight).toEqual({ 1: 21, 2: 24, 3: 27, 4: 21.6, 5: 24, 6: 28.8, 7: 33.6, 8: 43.2, 9: 57.6 });
+    it('body createFont lineHeight ramp is whole px: 20, 24, 24 ... 32', () => {
+        expect(bodyLineHeight).toEqual({ 1: 20, 2: 24, 3: 24, 4: 24, 5: 24, 6: 24, 7: 32, 8: 32, 9: 32 });
     });
 
-    it('display (Playfair) createFont size ramp is unchanged', () => {
-        expect(displayFontSize).toEqual({ 1: 16, 2: 20, 3: 24, 4: 28, 5: 36, 6: 48, 7: 28, 8: 36, 9: 48 });
+    it('display (Playfair) createFont size ramp stops at the 28 px large title', () => {
+        expect(displayFontSize).toEqual({ 1: 16, 2: 18, 3: 18, 4: 28, 5: 28, 6: 28, 7: 28, 8: 28, 9: 28 });
     });
 
-    it('display (Playfair) createFont lineHeight ramp is unchanged (round-1 exact)', () => {
-        expect(displayLineHeight).toEqual({
-            1: 19.2,
-            2: 24,
-            3: 28.8,
-            4: 33.6,
-            5: 43.2,
-            6: 57.6,
-            7: 33.6,
-            8: 43.2,
-            9: 57.6,
-        });
+    it('display (Playfair) createFont lineHeight ramp is whole px', () => {
+        expect(displayLineHeight).toEqual({ 1: 24, 2: 24, 3: 24, 4: 32, 5: 32, 6: 32, 7: 32, 8: 32, 9: 32 });
     });
 
     it('shared createFont weight ramp is unchanged', () => {
@@ -90,6 +81,8 @@ describe('mobile Tamagui token ramps — SINGLE-SOURCE (derived from @commise/ui
         expect(radiusScale[5]).toBe(radius.full);
     });
 
+    // REWRITTEN for the owner's type-scale ruling (2026-10-25): the ramp stops at 28, so $7-$9 are all displayMd, and the
+    // 20/24/36/48 steps are gone.
     it('body font sizes select the expected scale ramp steps', () => {
         expect(bodyFontSize).toEqual({
             1: fontSize.bodySm,
@@ -99,34 +92,50 @@ describe('mobile Tamagui token ramps — SINGLE-SOURCE (derived from @commise/ui
             5: fontSize.headingMd,
             6: fontSize.headingLg,
             7: fontSize.displayMd,
-            8: fontSize.displayLg,
-            9: fontSize.displayXl,
+            8: fontSize.displayMd,
+            9: fontSize.displayMd,
         });
     });
 
-    it('body line-heights are round-1 of (size × ratio): body ratio for 1-3, heading for 4-9', () => {
-        expect(bodyLineHeight[1]).toBe(round1(fontSize.bodySm * lineHeightRatio.body));
-        expect(bodyLineHeight[3]).toBe(round1(fontSize.bodyLg * lineHeightRatio.body));
-        expect(bodyLineHeight[4]).toBe(round1(fontSize.headingSm * lineHeightRatio.heading));
-        expect(bodyLineHeight[9]).toBe(round1(fontSize.displayXl * lineHeightRatio.heading));
-    });
-
-    it('display sizes select the Playfair ramp steps (with 7-9 repeating 4-6)', () => {
+    it('display sizes select the Playfair ramp steps, which stop at the 28 px large title', () => {
         expect(displayFontSize).toEqual({
             1: fontSize.bodyMd,
             2: fontSize.headingMd,
             3: fontSize.headingLg,
             4: fontSize.displayMd,
-            5: fontSize.displayLg,
-            6: fontSize.displayXl,
+            5: fontSize.displayMd,
+            6: fontSize.displayMd,
             7: fontSize.displayMd,
-            8: fontSize.displayLg,
-            9: fontSize.displayXl,
+            8: fontSize.displayMd,
+            9: fontSize.displayMd,
         });
     });
+});
 
-    it('display line-heights are round-1 of (size × heading ratio) throughout', () => {
-        expect(displayLineHeight[1]).toBe(round1(fontSize.bodyMd * lineHeightRatio.heading));
-        expect(displayLineHeight[6]).toBe(round1(fontSize.displayXl * lineHeightRatio.heading));
+describe('mobile Tamagui font ramps — the owner’s type scale (2026-10-25)', () => {
+    const ramps = { bodyFontSize, displayFontSize } as const;
+    const leadings = { bodyLineHeight, displayLineHeight } as const;
+
+    it.each(Object.entries(ramps))('%s use only 14, 16, 18 or 28', (_name, ramp) => {
+        for (const size of Object.values(ramp)) {
+            expect(TYPE_SIZES as readonly number[]).toContain(size);
+        }
+    });
+
+    it.each(Object.entries(leadings))('%s steps are whole px on the 4 px grid, with no rounding', (_name, ramp) => {
+        for (const lineHeight of Object.values(ramp)) {
+            expect(lineHeight % 4).toBe(0);
+        }
+    });
+
+    it('sets each step’s leading from its size, in the shared px table', () => {
+        for (const step of [1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
+            expect(bodyLineHeight[step]).toBe(lineHeightPx[bodyFontSize[step]]);
+            expect(displayLineHeight[step]).toBe(lineHeightPx[displayFontSize[step]]);
+        }
+    });
+
+    it('caps both ramps at 28', () => {
+        expect(Math.max(...Object.values(bodyFontSize), ...Object.values(displayFontSize))).toBe(28);
     });
 });

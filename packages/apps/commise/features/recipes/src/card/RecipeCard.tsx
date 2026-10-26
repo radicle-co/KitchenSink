@@ -119,7 +119,7 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={aspect}
-                overline={!drawsTimeChip}
+                showCuisine={!drawsTimeChip}
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />

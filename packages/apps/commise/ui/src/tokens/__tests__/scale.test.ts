@@ -13,6 +13,7 @@ import {
     fontFamily,
     fontSize,
     fontWeight,
+    lineHeightPx,
     lineHeightRatio,
     radius,
     spacing,
@@ -49,30 +50,34 @@ describe('scale — type', () => {
         expect(fontWeight).toEqual({ normal: 400, medium: 500, semibold: 600, bold: 700 });
     });
 
-    it('exposes unitless line-height ratios', () => {
+    // The ratios are deprecated (only designArtifact reads them); the px table is the source of truth.
+    it('exposes the deprecated line-height ratios for designArtifact alone', () => {
         expect(lineHeightRatio).toEqual({ heading: 1.2, body: 1.5, caption: 1.4 });
     });
 
-    it('carries the full displayXl…overline ramp in pixels, including the Playfair/display steps', () => {
+    it('exposes a px line height for each allowed font size, on the 4 px grid', () => {
+        expect(lineHeightPx).toEqual({ 14: 20, 16: 24, 18: 24, 28: 32 });
+    });
+
+    it('carries the displayMd…caption ramp in pixels, only 14, 16, 18 and 28 (owner ruling 2026-10-25)', () => {
         expect(fontSize).toEqual({
-            displayXl: 48,
-            displayLg: 36,
             displayMd: 28,
-            headingLg: 24,
-            headingMd: 20,
+            headingLg: 18,
+            headingMd: 18,
             headingSm: 18,
             bodyLg: 18,
             bodyMd: 16,
             bodySm: 14,
-            caption: 12,
-            overline: 11,
+            caption: 14,
         });
     });
 
-    it('contains every size the mobile display (Playfair) ramp needs (16,20,24,28,36,48)', () => {
+    // REWRITTEN for the owner's type-scale ruling (2026-10-25): the display ramp stops at 28 and had 20, 24, 36 and 48
+    // steps, none of which exist now.
+    it('contains every size the mobile display (Playfair) ramp needs (16,18,28)', () => {
         const sizes = new Set<number>(Object.values(fontSize));
 
-        for (const displayStep of [16, 20, 24, 28, 36, 48]) {
+        for (const displayStep of [16, 18, 28]) {
             expect(sizes.has(displayStep)).toBe(true);
         }
     });

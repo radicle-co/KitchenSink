@@ -12,7 +12,7 @@ import {
     elevation,
     fontSize,
     fontWeight,
-    lineHeightRatio,
+    lineHeightPx,
     mediaHeight,
     radius,
     spacing,
@@ -55,8 +55,6 @@ export interface NativeTypeStyle {
     // Mutable on purpose: React Native's `TextStyle.fontVariant` is a mutable array, so a readonly tuple here would
     // make every role unusable as a `style`.
     readonly fontVariant?: ['tabular-nums', 'lining-nums'];
-    readonly letterSpacing?: number;
-    readonly textTransform?: 'uppercase';
 }
 
 /** The registered face for a role's family and weight. Throws for a weight the family has no face for. Pure. */
@@ -72,24 +70,15 @@ function faceOf(spec: TypeRoleSpec): string {
     return face;
 }
 
-/** One decimal: `size × ratio` is not exact in IEEE-754 (16 × 1.3), and React Native needs no finer leading. Pure. */
-function round1(value: number): number {
-    return Math.round(value * 10) / 10;
-}
-
 /** A role at one px size (or at the size of its line, for `inherit`). Pure. */
 function toNativeTypeStyle(spec: TypeRoleSpec, size: number | 'inherit'): NativeTypeStyle {
     return {
         fontFamily: faceOf(spec),
         ...(size === 'inherit' ? {} : { fontSize: size }),
-        ...(size === 'inherit' || spec.lineHeight === 'inherit' ? {} : { lineHeight: round1(size * spec.lineHeight) }),
+        ...(size === 'inherit' || spec.lineHeight === 'inherit' ? {} : { lineHeight: spec.lineHeight }),
         ...(spec.figure === true
             ? { fontVariant: ['tabular-nums', 'lining-nums'] satisfies NativeTypeStyle['fontVariant'] }
             : {}),
-        ...(spec.letterSpacingEm === undefined || size === 'inherit'
-            ? {}
-            : { letterSpacing: Math.round(size * spec.letterSpacingEm * 100) / 100 }),
-        ...(spec.uppercase === true ? { textTransform: 'uppercase' as const } : {}),
     };
 }
 
@@ -146,7 +135,7 @@ const touchTarget = 48;
 
 /**
  * The React Native projection of the design scale. `spacing`/`radius`/`fontSize` are pixel numbers,
- * `lineHeight` are unitless ratios, `fontWeight` are numeric weights, `elevation` are RN shadow objects,
+ * `lineHeight` is the px leading for each allowed size, `fontWeight` are numeric weights, `elevation` are RN shadow objects,
  * and `borderSubtle` is the shared string.
  *
  * Type is projected as `fontFace` — the REGISTERED face names — and NOT as the web `fontFamily` stacks:
@@ -161,7 +150,7 @@ export const nativeTokens = {
     fontFace: { display: displayFontFace, body: bodyFontFace },
     type: nativeType,
     fontWeight,
-    lineHeight: lineHeightRatio,
+    lineHeight: lineHeightPx,
     fontSize,
     elevation: nativeElevation,
     borderSubtle,

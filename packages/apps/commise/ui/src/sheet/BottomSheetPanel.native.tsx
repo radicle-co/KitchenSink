@@ -27,6 +27,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
+import { Icon } from '../icon/Icon.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -118,9 +119,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                     onPress={onClose}
                     style={styles.close}
                 >
-                    <Text aria-hidden style={[styles.closeGlyph, { color: colors.inkMuted }]}>
-                        ×
-                    </Text>
+                    <Icon name="x" size={24} tone="inkMuted" />
                 </Pressable>
             </View>
             {toolbar === undefined ? null : (
@@ -157,7 +156,6 @@ const styles = StyleSheet.create({
     // `barTitle`, Inter 17/600 (`buildSpec.md` §1.5): Playfair sets names only, never a sheet's title (F8).
     title: { ...nativeTokens.type.barTitle },
     close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-    closeGlyph: { fontSize: 24, lineHeight: 24 },
     toolbar: { paddingHorizontal: SHEET_EDGE_PADDING_DP, paddingTop: spacing[2], gap: spacing[2] },
     scrollContent: {
         paddingHorizontal: SHEET_EDGE_PADDING_DP,

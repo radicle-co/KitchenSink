@@ -8,17 +8,7 @@
  * `tests/theme/scaleTokens.test.ts`. `tamagui.config.ts` spreads these maps straight into its token/font
  * definitions.
  */
-import { fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
-
-/** Round to one decimal — `size × ratio` is not exact in IEEE-754 (e.g. 18×1.2), the ramp values are. */
-function round1(n: number): number {
-    return Math.round(n * 10) / 10;
-}
-
-/** Absolute px leading = the font size scaled by an unitless line-height ratio, rounded to the ramp grid. */
-function leading(size: number, ratio: number): number {
-    return round1(size * ratio);
-}
+import { fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 
 /**
  * Tamagui `space` scale. Steps `0…9` are the shared spacing ramp; `true` is Tamagui's default step (used
@@ -64,8 +54,9 @@ export const radiusScale = {
 } as const;
 
 /**
- * Body (Inter) `createFont` size ramp, positions `1…9`. Ascends the shared type ramp: the three body
- * steps, the three heading steps, then the three display steps.
+ * Body (Inter) `createFont` size ramp, positions `1…9`. Ascends the shared type ramp: the three body steps, the
+ * heading steps, then the display step. The ramp stops at 28 (owner ruling 2026-10-25), so `$5`/`$6` repeat 18 and
+ * `$7`-`$9` are all 28 — a Tamagui position needs a value, and no value above 28 exists.
  */
 export const bodyFontSize = {
     1: fontSize.bodySm,
@@ -75,50 +66,50 @@ export const bodyFontSize = {
     5: fontSize.headingMd,
     6: fontSize.headingLg,
     7: fontSize.displayMd,
-    8: fontSize.displayLg,
-    9: fontSize.displayXl,
+    8: fontSize.displayMd,
+    9: fontSize.displayMd,
 } as const;
 
-/** Body `createFont` leading ramp — body ratio for the body steps (1-3), heading ratio above (4-9). */
+/** Body `createFont` leading ramp — the shared px leading for each step's size, on the 4 px grid. */
 export const bodyLineHeight = {
-    1: leading(fontSize.bodySm, lineHeightRatio.body),
-    2: leading(fontSize.bodyMd, lineHeightRatio.body),
-    3: leading(fontSize.bodyLg, lineHeightRatio.body),
-    4: leading(fontSize.headingSm, lineHeightRatio.heading),
-    5: leading(fontSize.headingMd, lineHeightRatio.heading),
-    6: leading(fontSize.headingLg, lineHeightRatio.heading),
-    7: leading(fontSize.displayMd, lineHeightRatio.heading),
-    8: leading(fontSize.displayLg, lineHeightRatio.heading),
-    9: leading(fontSize.displayXl, lineHeightRatio.heading),
+    1: lineHeightPx[bodyFontSize[1]],
+    2: lineHeightPx[bodyFontSize[2]],
+    3: lineHeightPx[bodyFontSize[3]],
+    4: lineHeightPx[bodyFontSize[4]],
+    5: lineHeightPx[bodyFontSize[5]],
+    6: lineHeightPx[bodyFontSize[6]],
+    7: lineHeightPx[bodyFontSize[7]],
+    8: lineHeightPx[bodyFontSize[8]],
+    9: lineHeightPx[bodyFontSize[9]],
 } as const;
 
 /**
- * Display (Playfair) `createFont` size ramp, positions `1…9`. Steps `1-6` are the display scale
- * (16 → 48); `7-9` repeat the top three so `$7/$8/$9` alias the largest headings.
+ * Display (Playfair) `createFont` size ramp, positions `1…9`. Steps `1-3` are the display scale (16 → 18); `4-9`
+ * are the 28 px large title, the most Playfair sets.
  */
 export const displayFontSize = {
     1: fontSize.bodyMd,
     2: fontSize.headingMd,
     3: fontSize.headingLg,
     4: fontSize.displayMd,
-    5: fontSize.displayLg,
-    6: fontSize.displayXl,
+    5: fontSize.displayMd,
+    6: fontSize.displayMd,
     7: fontSize.displayMd,
-    8: fontSize.displayLg,
-    9: fontSize.displayXl,
+    8: fontSize.displayMd,
+    9: fontSize.displayMd,
 } as const;
 
-/** Display `createFont` leading ramp — heading ratio throughout (Playfair headings are tightly set). */
+/** Display `createFont` leading ramp — the shared px leading for each step's size. */
 export const displayLineHeight = {
-    1: leading(fontSize.bodyMd, lineHeightRatio.heading),
-    2: leading(fontSize.headingMd, lineHeightRatio.heading),
-    3: leading(fontSize.headingLg, lineHeightRatio.heading),
-    4: leading(fontSize.displayMd, lineHeightRatio.heading),
-    5: leading(fontSize.displayLg, lineHeightRatio.heading),
-    6: leading(fontSize.displayXl, lineHeightRatio.heading),
-    7: leading(fontSize.displayMd, lineHeightRatio.heading),
-    8: leading(fontSize.displayLg, lineHeightRatio.heading),
-    9: leading(fontSize.displayXl, lineHeightRatio.heading),
+    1: lineHeightPx[displayFontSize[1]],
+    2: lineHeightPx[displayFontSize[2]],
+    3: lineHeightPx[displayFontSize[3]],
+    4: lineHeightPx[displayFontSize[4]],
+    5: lineHeightPx[displayFontSize[5]],
+    6: lineHeightPx[displayFontSize[6]],
+    7: lineHeightPx[displayFontSize[7]],
+    8: lineHeightPx[displayFontSize[8]],
+    9: lineHeightPx[displayFontSize[9]],
 } as const;
 
 /** Shared `createFont` weight ramp (`1…4`) — the scale's numeric weights as Tamagui weight strings. */

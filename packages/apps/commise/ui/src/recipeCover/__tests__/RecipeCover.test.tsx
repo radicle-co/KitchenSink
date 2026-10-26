@@ -7,7 +7,7 @@ import { coverTintOf } from '../coverTint.js';
 /**
  * RecipeCover (web) — spec §1.8: the photo when there is one; otherwise a monogram cover — one of six tints chosen by
  * the recipe's id, the title's first letter in Playfair 700 `ink` at 40% of the cover's height, and the cuisine as an
- * `overline` under it, but never on a cover under 96 px tall. Either way the cover is decorative: the title is the
+ * `caption` under it, but never on a cover under 96 px tall. Either way the cover is decorative: the title is the
  * name of the link it sits in. Every cover states its aspect ratio, so nothing shifts as an image loads.
  */
 
@@ -51,33 +51,33 @@ describe('RecipeCover (web) — a monogram', () => {
         );
     });
 
-    it('sets the cuisine as an overline in ink, shown only on a cover 96px tall or taller', () => {
+    it('sets the cuisine as a caption in ink, shown only on a cover 96px tall or taller', () => {
         const { getByText } = render(
             <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" />,
         );
 
         expect(tokensOf(getByText('French'))).toEqual(
-            expect.arrayContaining(['text-overline', 'text-ink', 'hidden', '[@container_cover_(height>=6rem)]:block']),
+            expect.arrayContaining(['text-caption', 'text-ink', 'hidden', '[@container_cover_(height>=6rem)]:block']),
         );
     });
 
-    it('shows no overline without a cuisine', () => {
+    it('shows no cuisine without a cuisine', () => {
         const { getByText, container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
 
         expect(getByText('L').parentElement?.children).toHaveLength(1);
         expect(container.textContent).toBe('L');
     });
 
-    it('draws no overline when told the cover carries a chip over it (W-08), and still shows the letter', () => {
+    it('draws no cuisine when told the cover carries a chip over it (W-08), and still shows the letter', () => {
         const { queryByText, getByText } = render(
-            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" overline={false} />,
+            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" showCuisine={false} />,
         );
 
         expect(queryByText('French')).toBeNull();
         expect(getByText('L')).toBeTruthy();
     });
 
-    it('keeps the overline by default, so a caller that says nothing sees no change', () => {
+    it('keeps the cuisine by default, so a caller that says nothing sees no change', () => {
         const { getByText } = render(
             <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" />,
         );
@@ -85,7 +85,7 @@ describe('RecipeCover (web) — a monogram', () => {
         expect(getByText('French')).toBeTruthy();
     });
 
-    it('is a size container, so the letter and the overline read the cover’s own height', () => {
+    it('is a size container, so the letter and the cuisine read the cover’s own height', () => {
         const { container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="1:1" />);
 
         expect(tokensOf(container.firstElementChild)).toEqual(

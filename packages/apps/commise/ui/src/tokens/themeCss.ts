@@ -43,7 +43,7 @@ import { containerThreshold, contentWidth, pinnedBarHeight, viewportThreshold } 
 import { motionKeyframes, motionThemeDeclarations } from './motion.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
-import { fonts, fontSizes, fontWeights, lineHeights, webTypeRoles } from './typography.js';
+import { fonts, fontSizes, fontWeights, webTypeRoles } from './typography.js';
 
 /** A token map as emitted: keys become custom-property suffixes, values are written verbatim. */
 type TokenMap = Readonly<Record<string, string | number>>;
@@ -78,10 +78,10 @@ function canvasGradientDeclarations(): readonly string[] {
 
 /**
  * The type roles (§1.5) as `--text-{role}` plus the sub-properties Tailwind v4 folds into the `text-{role}` utility
- * (`--line-height`, `--font-weight`, `--letter-spacing`, each behind its `--tw-*` override, so an explicit `leading-*`
+ * (`--line-height` and `--font-weight`, each behind its `--tw-*` override, so an explicit `leading-*`
  * or `font-*` class still wins).
  *
- * Two roles share a name with the older ramp (`caption`, `overline`). For those the size is NOT declared again — the
+ * One role shares a name with the older ramp (`caption`). For that one the size is NOT declared again — the
  * ramp already declares it — and only the sub-properties are added. A role whose size disagrees with the ramp entry of
  * the same name throws, because two declarations of one custom property would let the later one win silently.
  *
@@ -101,7 +101,6 @@ function typeRoleDeclarations(): readonly string[] {
             ...(declared === undefined ? [`    --text-${name}: ${spec.size};`] : []),
             `    --text-${name}--line-height: ${spec.lineHeight};`,
             `    --text-${name}--font-weight: ${spec.fontWeight};`,
-            ...(spec.letterSpacing === undefined ? [] : [`    --text-${name}--letter-spacing: ${spec.letterSpacing};`]),
         ];
     });
 }
@@ -187,12 +186,11 @@ export function themeCss(): string {
         ...declarations('font', fonts),
         // `--text-*` / `--leading-*` are Tailwind v4's namespaces for font size and line height. They were
         // once emitted as `--font-size-*` / `--line-height-*` — spellings that match the SOURCE VARIABLE's
-        // name but no namespace at all — so `text-body-sm`, `text-display-md`, `leading-body` and friends
+        // name but no namespace at all — so `text-body-sm`, `text-display-md` and friends
         // generated NO rule and every one of their 324 call sites silently inherited the parent's size. The
         // whole DS type ramp had never reached the browser. See `__integration__/tailwindTheme` in the web
         // app, which compiles this artifact and asserts what a utility resolves to.
         ...declarations('text', fontSizes),
-        ...declarations('leading', lineHeights),
         ...declarations('font-weight', fontWeights),
         ...declarations('radius', radius, false),
         ...declarations('shadow', shadows, false),

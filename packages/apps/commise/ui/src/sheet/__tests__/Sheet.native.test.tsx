@@ -15,6 +15,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createElement, useState, type ComponentProps, type JSX, type ReactNode } from 'react';
 import { AccessibilityInfo, Pressable, Text, type Modal as ModalType } from 'react-native';
+import { nativeTokens } from '../../tokens/native.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { palette, tint } from '../../tokens/colors.js';
@@ -132,14 +133,16 @@ describe('Sheet (native)', () => {
         expect(screen.queryByRole('heading', { name: 'Filter recipes' })).toBeNull();
     });
 
-    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Playfair sets names only.
+    // F8: a sheet title is `barTitle`, Inter 16/600 (`buildSpec.md` §1.5). Playfair sets names only. REWRITTEN for the
+    // owner's type-scale ruling (2026-10-25): the role was 17, and 17 is off the 14/16/18/28 scale.
     it('sets the title in the barTitle role, never the display face', () => {
         renderSheet();
 
         const title = screen.getAllByText('Filter recipes').find((node) => node.getAttribute('role') === 'heading');
 
         expect(appliedStyle(title as Element, 'font-family')).not.toMatch(/Playfair/u);
-        expect(appliedStyle(title as Element, 'font-size')).toBe('17px');
+        expect(appliedStyle(title as Element, 'font-size')).toBe(`${String(nativeTokens.type.barTitle.fontSize)}px`);
+        expect(appliedStyle(title as Element, 'font-size')).toBe('16px');
     });
 
     // W-23 (bs §5.1 "sheet header truncate:1"): a long title never wraps to a second line. `numberOfLines={1}` is what

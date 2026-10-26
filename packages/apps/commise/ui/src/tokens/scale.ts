@@ -7,7 +7,7 @@
  * and native therefore cannot drift on a value: there is exactly one place a number lives.
  *
  * Values are deliberately unit-NEUTRAL. Lengths are raw pixels (each consumer applies its own
- * unit-aware emission: web ÷16 → `rem`, native → the number as-is); line-heights are unitless ratios;
+ * unit-aware emission: web ÷16 → `rem`, native → the number as-is); line-heights are px (see `lineHeightPx`);
  * font weights are numbers; families and the border colour are CSS-ready strings. Nothing here imports
  * a platform API, so the module is safe for web, React Native, and Node alike.
  */
@@ -103,8 +103,10 @@ export const fontWeight = {
 } as const;
 
 /**
- * Unitless line-height ratios. Web emits them verbatim as CSS `line-height` multipliers; native
- * multiplies a font size by the ratio to get an absolute px leading.
+ * Unitless line-height ratios — **DEPRECATED, and not a way to set a line height.** A ratio times a size gives 21,
+ * 21.6 or 33.6 px, which cannot sit on the 4 px grid; use {@link lineHeightPx} or a type role. It stays for one
+ * consumer, `tools/designArtifact` (`buildTokens.ts`), which reads `heading` for its design-canvas ramp and is not
+ * edited from this package. Delete it with that consumer.
  */
 export const lineHeightRatio = {
     heading: 1.2,
@@ -113,22 +115,32 @@ export const lineHeightRatio = {
 } as const;
 
 /**
- * The named type ramp — font size in pixels, largest to smallest. Web emits `rem` under kebab-case
- * keys (`display-xl` …); native uses the pixel number. The set intentionally includes every size the
- * mobile Playfair/display ramp needs (16, 20, 24, 28, 36, 48) so that ramp derives from here too.
+ * Line height in px for each allowed font size (owner ruling 2026-10-25: line heights are whole px on a 4 px grid).
+ * A pixel value is the source of truth: native uses it as is, and web writes it as the unitless `calc(px / size)`.
+ * 18 is 24 for a heading or figure; reading text sets itself at 28 (`typeRole.readingBody`).
+ */
+export const lineHeightPx = {
+    14: 20,
+    16: 24,
+    18: 24,
+    28: 32,
+} as const;
+
+/**
+ * The named type ramp — font size in pixels, largest to smallest. Web emits `rem` under kebab-case keys
+ * (`display-md` …); native uses the pixel number. Every value is one of 14, 16, 18 or 28 (the owner's type-scale
+ * ruling, pinned by `__tests__/typeScale.test.ts`); several names share a size because a name says what a step is
+ * for, and the rule says how many sizes there are. Nothing above 28: the 48 and 36 steps are retired.
  */
 export const fontSize = {
-    displayXl: 48,
-    displayLg: 36,
     displayMd: 28,
-    headingLg: 24,
-    headingMd: 20,
+    headingLg: 18,
+    headingMd: 18,
     headingSm: 18,
     bodyLg: 18,
     bodyMd: 16,
     bodySm: 14,
-    caption: 12,
-    overline: 11,
+    caption: 14,
 } as const;
 
 /**
@@ -168,5 +180,5 @@ export type LineHeightRatio = typeof lineHeightRatio;
 export type FontSize = typeof fontSize;
 export type Elevation = typeof elevation;
 
-/** Ramp step name (`displayXl` … `overline`). */
+/** Ramp step name (`displayMd` … `caption`). */
 export type FontSizeName = keyof FontSize;

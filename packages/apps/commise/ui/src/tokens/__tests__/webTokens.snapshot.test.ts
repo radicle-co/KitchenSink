@@ -12,7 +12,7 @@ import { radius } from '../radius.js';
 import { shadows } from '../shadows.js';
 import { size, space } from '../spacing.js';
 import { themeCss } from '../themeCss.js';
-import { fonts, fontSizes, fontWeights, lineHeights } from '../typography.js';
+import { fonts, fontSizes, fontWeights } from '../typography.js';
 
 /** Value + insertion-order assertion (Tailwind emission is order-sensitive via `Object.entries`). */
 function expectExact(actual: Record<string, unknown>, golden: Record<string, unknown>): void {
@@ -71,26 +71,22 @@ describe('web tokens — byte-identical values and order', () => {
         });
     });
 
-    it('fonts, fontSizes, lineHeights, fontWeights are unchanged', () => {
+    it('fonts, fontSizes, fontWeights are unchanged (fontSizes REWRITTEN for the 14/16/18/28 ruling, 2026-10-25)', () => {
         expectExact(fonts, {
             display: '"Playfair Display", Georgia, serif',
             body: 'Inter, system-ui, sans-serif',
             mono: '"JetBrains Mono", monospace',
         });
         expectExact(fontSizes, {
-            'display-xl': '3rem',
-            'display-lg': '2.25rem',
             'display-md': '1.75rem',
-            'heading-lg': '1.5rem',
-            'heading-md': '1.25rem',
+            'heading-lg': '1.125rem',
+            'heading-md': '1.125rem',
             'heading-sm': '1.125rem',
             'body-lg': '1.125rem',
             'body-md': '1rem',
             'body-sm': '0.875rem',
-            caption: '0.75rem',
-            overline: '0.6875rem',
+            caption: '0.875rem',
         });
-        expectExact(lineHeights, { heading: '1.2', body: '1.5', caption: '1.4' });
         expectExact(fontWeights, { normal: '400', medium: '500', semibold: '600', bold: '700' });
     });
 
@@ -196,20 +192,14 @@ describe('web tokens — generated theme.css artifact', () => {
               --font-display: "Playfair Display", Georgia, serif;
               --font-body: Inter, system-ui, sans-serif;
               --font-mono: "JetBrains Mono", monospace;
-              --text-display-xl: 3rem;
-              --text-display-lg: 2.25rem;
               --text-display-md: 1.75rem;
-              --text-heading-lg: 1.5rem;
-              --text-heading-md: 1.25rem;
+              --text-heading-lg: 1.125rem;
+              --text-heading-md: 1.125rem;
               --text-heading-sm: 1.125rem;
               --text-body-lg: 1.125rem;
               --text-body-md: 1rem;
               --text-body-sm: 0.875rem;
-              --text-caption: 0.75rem;
-              --text-overline: 0.6875rem;
-              --leading-heading: 1.2;
-              --leading-body: 1.5;
-              --leading-caption: 1.4;
+              --text-caption: 0.875rem;
               --font-weight-normal: 400;
               --font-weight-medium: 500;
               --font-weight-semibold: 600;
@@ -253,39 +243,36 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-on-action: #FFFFFF;
               --color-action-pressed: #2A6B65;
               --text-large-title: clamp(1.75rem, 1.75rem + 0cqi, 1.75rem);
-              --text-large-title--line-height: 1.15;
+              --text-large-title--line-height: calc(32 / 28);
               --text-large-title--font-weight: 600;
-              --text-bar-title: 1.0625rem;
-              --text-bar-title--line-height: 1.2;
+              --text-bar-title: 1rem;
+              --text-bar-title--line-height: calc(20 / 16);
               --text-bar-title--font-weight: 600;
               --text-section-title: 1.125rem;
-              --text-section-title--line-height: 1.25;
+              --text-section-title--line-height: calc(24 / 18);
               --text-section-title--font-weight: 600;
               --text-card-title: 1rem;
-              --text-card-title--line-height: 1.3;
+              --text-card-title--line-height: calc(20 / 16);
               --text-card-title--font-weight: 600;
               --text-body: 1rem;
-              --text-body--line-height: 1.5;
+              --text-body--line-height: calc(24 / 16);
               --text-body--font-weight: 400;
               --text-reading-body: 1.125rem;
-              --text-reading-body--line-height: 1.6;
+              --text-reading-body--line-height: calc(28 / 18);
               --text-reading-body--font-weight: 400;
               --text-meta: 0.875rem;
-              --text-meta--line-height: 1.4;
+              --text-meta--line-height: calc(20 / 14);
               --text-meta--font-weight: 400;
               --text-list: 0.875rem;
-              --text-list--line-height: 1.4;
+              --text-list--line-height: calc(20 / 14);
               --text-list--font-weight: 400;
               --text-label: 0.875rem;
-              --text-label--line-height: 1.2;
+              --text-label--line-height: calc(20 / 14);
               --text-label--font-weight: 600;
-              --text-caption--line-height: 1.4;
+              --text-caption--line-height: calc(20 / 14);
               --text-caption--font-weight: 500;
-              --text-overline--line-height: 1.4;
-              --text-overline--font-weight: 600;
-              --text-overline--letter-spacing: 0.06em;
-              --text-figure-stat: 1.25rem;
-              --text-figure-stat--line-height: 1.2;
+              --text-figure-stat: 1.125rem;
+              --text-figure-stat--line-height: calc(24 / 18);
               --text-figure-stat--font-weight: 600;
               --breakpoint-medium: 37.5rem;
               --breakpoint-nav: 52.5rem;

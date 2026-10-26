@@ -491,8 +491,8 @@ describe('RecipeCard (web) — W-06: a one-line row is one line, and a separator
     });
 });
 
-describe('RecipeCard (web, grid) — W-08: the cuisine overline never sits under the time chip', () => {
-    it('draws no overline on a cover that carries the time chip', () => {
+describe('RecipeCard (web, grid) — W-08: the cuisine never sits under the time chip', () => {
+    it('draws no cuisine on a cover that carries the time chip', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -505,7 +505,7 @@ describe('RecipeCard (web, grid) — W-08: the cuisine overline never sits under
         expect(screen.getAllByText('French')).toHaveLength(1);
     });
 
-    it('keeps the overline on a cover with no time chip', () => {
+    it('keeps the cuisine on a cover with no time chip', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}

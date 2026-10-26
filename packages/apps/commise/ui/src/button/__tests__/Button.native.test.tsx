@@ -5,7 +5,7 @@ import { AccessibilityInfo, Platform } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
-import type { ButtonProps, ButtonSize } from '../props.js';
+import { BUTTON_VISUAL_HEIGHT, type ButtonProps, type ButtonSize } from '../props.js';
 import { buttonSurfaceClass } from '../surfaceClass.js';
 import { dimmedOpacity } from '../../tokens/scale.js';
 
@@ -401,6 +401,17 @@ describe('Button (native)', () => {
             expect(withMinHeight(screen.getByRole('button', { name: 'Small' }), '44px')).not.toBeNull();
         } finally {
             restore();
+        }
+    });
+
+    // The type-scale ruling (2026-10-25) set the label's leading at 20 px (it was 16.8). The pill is
+    // `max(minHeight, 8 + leading + 8)`, so a label that outgrew the small variant would stretch every small button;
+    // 8 + 20 + 8 = 36 is exactly the small height, so none does. A one-line label never sets the height of any size.
+    it('keeps a one-line label inside every size: padding plus the label leading never exceeds the size’s height', () => {
+        const chrome = nativeTokens.spacing[2] * 2 + (nativeTokens.type.label.lineHeight ?? 0);
+
+        for (const height of Object.values(BUTTON_VISUAL_HEIGHT)) {
+            expect(chrome).toBeLessThanOrEqual(height);
         }
     });
 

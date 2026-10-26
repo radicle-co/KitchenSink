@@ -18,7 +18,7 @@ import { nativeTokens } from '../../tokens/native.js';
 
 /**
  * RecipeCover (native) — the native half of spec §1.8: the photo through `expo-image`, else the monogram on the
- * recipe's tint, the letter at 40% of the measured height, the cuisine as an overline only from 96 pt tall.
+ * recipe's tint, the letter at 40% of the measured height, the cuisine as a caption only from 96 pt tall.
  */
 
 afterEach(cleanup);
@@ -71,7 +71,7 @@ describe('RecipeCover (native) — a monogram', () => {
         expect(letter.fontSize).toBe('48px');
     });
 
-    it('shows the cuisine overline from 96pt tall, and not below', () => {
+    it('shows the cuisine from 96pt tall, and not below', () => {
         const { container } = render(
             <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="1:1" />,
         );
@@ -84,9 +84,9 @@ describe('RecipeCover (native) — a monogram', () => {
         expect(screen.getByText('French')).toBeTruthy();
     });
 
-    it('shows no overline when told the cover carries a chip over it, however tall (W-08)', () => {
+    it('shows no cuisine when told the cover carries a chip over it, however tall (W-08)', () => {
         const { container } = render(
-            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" overline={false} />,
+            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" showCuisine={false} />,
         );
 
         layOut(container.firstElementChild as Element, 360, 270);
@@ -95,7 +95,7 @@ describe('RecipeCover (native) — a monogram', () => {
         expect(screen.getByText('L')).toBeTruthy();
     });
 
-    it('shows no overline without a cuisine, however tall', () => {
+    it('shows no cuisine without a cuisine, however tall', () => {
         const { container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="band" />);
 
         layOut(container.firstElementChild as Element, 360, 96);

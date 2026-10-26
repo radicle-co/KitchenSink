@@ -9,7 +9,8 @@ import { Text } from 'react-native';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { palette } from '../../tokens/colors.js';
-import { fontSize, lineHeightRatio } from '../../tokens/scale.js';
+import { nativeTokens } from '../../tokens/native.js';
+import { fontSize } from '../../tokens/scale.js';
 import { VariantPartsLine } from '../VariantPartsLine.native.js';
 
 afterEach(cleanup);
@@ -93,10 +94,11 @@ describe('VariantPartsLine (native)', () => {
     });
 
     /**
-     * E2 I14 — a dotted line of up to eight lines reads at the body leading, 1.5 × its size, the same as web (which
-     * inherits the body's 1.5). With no `lineHeight`, React Native fell back to its default of about 1.2.
+     * E2 I14 — a dotted line of up to eight lines reads at its role's px leading (secondary 20, primary 24), which is
+     * the same line height web inherits. With no `lineHeight`, React Native fell back to its default of about 1.2.
+     * REWRITTEN for the px model (2026-10-25): it asserted `size × 1.5` (21 for the 14 px tone), which is off the 4 px grid.
      */
-    it('sets each tone at the body line height, 1.5 times its font size', () => {
+    it('sets each tone at its role’s px leading, on the 4 px grid', () => {
         render(
             <>
                 <VariantPartsLine parts={['flat half']} tone="secondary" />
@@ -104,13 +106,16 @@ describe('VariantPartsLine (native)', () => {
             </>,
         );
 
-        for (const label of ['flat half', 'point end']) {
+        const expected = {
+            'flat half': nativeTokens.type.meta.lineHeight,
+            'point end': nativeTokens.type.body.lineHeight,
+        };
+
+        for (const [label, lineHeight] of Object.entries(expected)) {
             const style = getComputedStyle(screen.getByLabelText(label));
 
-            expect(Number.parseFloat(style.lineHeight), label).toBeCloseTo(
-                Number.parseFloat(style.fontSize) * lineHeightRatio.body,
-                5,
-            );
+            expect(Number.parseFloat(style.lineHeight), label).toBe(lineHeight);
+            expect(Number.parseFloat(style.lineHeight) % 4, label).toBe(0);
         }
     });
 });

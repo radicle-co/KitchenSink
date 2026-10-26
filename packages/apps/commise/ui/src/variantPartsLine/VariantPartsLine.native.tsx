@@ -50,17 +50,12 @@ export const VariantPartsLine: FC<VariantPartsLineProps> = ({ parts, tone }) => 
 };
 
 /**
- * One style per tone, so a new tone fails the build here as it does on web. Each sets the body leading, size × 1.5
- * (E2 I14): web inherits the body's 1.5, and React Native's default of about 1.2 read tight over up to eight lines.
+ * One style per tone, so a new tone fails the build here as it does on web. Each is a type role, so each carries its
+ * px leading (E2 I14): React Native's default of about 1.2 read tight over up to eight lines. `secondary` is `meta`
+ * (14 / 20) and `primary` is `body` (16 / 24).
  */
 const TONE_STYLE: Readonly<Record<VariantPartsTone, TextStyle>> = StyleSheet.create({
     // `inkMuted` (the theme's, at render). The dot takes the text colour.
-    secondary: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        lineHeight: nativeTokens.fontSize.bodySm * nativeTokens.lineHeight.body,
-    },
-    primary: {
-        fontSize: nativeTokens.fontSize.bodyMd,
-        lineHeight: nativeTokens.fontSize.bodyMd * nativeTokens.lineHeight.body,
-    },
+    secondary: { ...nativeTokens.type.meta },
+    primary: { ...nativeTokens.type.body },
 });

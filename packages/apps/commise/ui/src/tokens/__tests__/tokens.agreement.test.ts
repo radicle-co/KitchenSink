@@ -13,7 +13,7 @@ import { radius } from '../radius.js';
 import * as scale from '../scale.js';
 import { shadows } from '../shadows.js';
 import { space } from '../spacing.js';
-import { fonts, fontSizes, fontWeights, lineHeights } from '../typography.js';
+import { fonts, fontSizes, fontWeights } from '../typography.js';
 
 /** Object.keys with the key type preserved (needed for the numeric-keyed scale ramps). */
 function typedKeys<T extends object>(o: T): (keyof T)[] {
@@ -39,8 +39,6 @@ function toPx(value: string | number): number {
 
 /** Web camelCase ramp name → its kebab-case web `fontSizes` key. */
 const RAMP_TO_WEB_KEY: Record<keyof typeof scale.fontSize, keyof typeof fontSizes> = {
-    displayXl: 'display-xl',
-    displayLg: 'display-lg',
     displayMd: 'display-md',
     headingLg: 'heading-lg',
     headingMd: 'heading-md',
@@ -49,7 +47,6 @@ const RAMP_TO_WEB_KEY: Record<keyof typeof scale.fontSize, keyof typeof fontSize
     bodyMd: 'body-md',
     bodySm: 'body-sm',
     caption: 'caption',
-    overline: 'overline',
 };
 
 describe('spacing agreement', () => {
@@ -81,11 +78,13 @@ describe('type agreement', () => {
         }
     });
 
-    it('line-height ratios: web string ↔ nativeTokens number ↔ scale number', () => {
-        for (const key of typedKeys(scale.lineHeightRatio)) {
-            const ratio = scale.lineHeightRatio[key];
-            expect(nativeTokens.lineHeight[key]).toBe(ratio);
-            expect(Number.parseFloat(lineHeights[key])).toBe(ratio);
+    // REWRITTEN for the px model (owner ruling 2026-10-25): line heights are no longer ratios. The native projection
+    // is the px table itself, which web writes as `calc(px / size)`; `typeScale.test.ts` holds the web side to the grid.
+    it('line heights: nativeTokens px ↔ scale px, one per ramp size', () => {
+        expect(nativeTokens.lineHeight).toBe(scale.lineHeightPx);
+
+        for (const size of Object.values(scale.fontSize)) {
+            expect(scale.lineHeightPx[size]).toBeGreaterThan(size);
         }
     });
 

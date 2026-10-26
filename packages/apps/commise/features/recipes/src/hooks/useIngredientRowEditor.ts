@@ -69,6 +69,11 @@ export type RowCommitOrigin =
     | { readonly kind: 'authoredFood'; readonly outcome: AuthoredFoodOutcome }
     /** Row 6's or row 7's panel: one pick on one line the search's shortlist offers (`../form/shortlistPanel.model.ts`). */
     | { readonly kind: 'shortlist' }
+    /**
+     * The paste list's pick on one line (`usePasteMatching`). The list says what happened itself, in its one polite
+     * region, and moves focus by `pickFocusOf`, so the row's own message and focus move stay silent for it.
+     */
+    | { readonly kind: 'paste' }
     | { readonly kind: 'details'; readonly mode: DetailsDialogEntry['mode'] };
 
 /** The last commit that settled, with where it came from. A commit refused as `busy` never settles. */
@@ -102,6 +107,11 @@ export interface IngredientRowEditor {
      * {@link pickInFlight} and {@link settled}, like every other commit's.
      */
     readonly pickFromShortlist: (key: IngredientLineKey, pick: IngredientPick) => Promise<LineCommitOutcome>;
+    /**
+     * The paste list's pick on a line it owns: the same commit port (a stored line is re-pointed by the rebind command,
+     * a draft line by its admission), tagged `paste` so the row says nothing and moves no focus for it.
+     */
+    readonly pickFromPaste: (key: IngredientLineKey, pick: IngredientPick) => Promise<LineCommitOutcome>;
     /** The last commit that settled, from any surface. */
     readonly settled: SettledRowCommit | undefined;
     /**
@@ -234,6 +244,7 @@ export function useIngredientRowEditor(options: UseIngredientRowEditorOptions): 
 
     return {
         pickFromShortlist: (key, pick) => commitFrom({ kind: 'shortlist' })(pick, { kind: 'line', key }),
+        pickFromPaste: (key, pick) => commitFrom({ kind: 'paste' })(pick, { kind: 'line', key }),
         entry,
         authoredFood,
         details: { target: detailsTarget, open: setDetailsTarget, model },

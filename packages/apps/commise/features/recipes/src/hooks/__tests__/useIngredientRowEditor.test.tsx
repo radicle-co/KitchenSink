@@ -197,6 +197,21 @@ describe('useIngredientRowEditor', () => {
         expect(mocks.abandon).not.toHaveBeenCalled();
     });
 
+    it('a paste pick commits on THAT line through the one port, tagged as the paste list’s (the row stays silent)', async () => {
+        const { result } = render();
+        const pick: IngredientPick = { kind: 'catalogFood', foodId: 'food_sauce', name: 'Applesauce' };
+
+        let outcome: LineCommitOutcome | undefined;
+
+        await act(async () => {
+            outcome = await result.current.pickFromPaste(KEY, pick);
+        });
+
+        expect(mocks.commit).toHaveBeenCalledExactlyOnceWith(pick, LINE, { kind: 'paste' });
+        expect(outcome).toEqual(COMMITTED);
+        expect(mocks.abandon).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['the trailing row', { kind: 'newLine' } as const],
         ['a row', LINE],

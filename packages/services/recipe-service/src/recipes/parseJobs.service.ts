@@ -128,7 +128,7 @@ export type JobAdmission =
           readonly units: number;
           readonly tier: ImportAllowanceTier;
       }
-    /** The caller already spent the unit this job belongs to (a bulk file import, D-013): admit nothing here. */
+    /** The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8): admit nothing here. */
     | { readonly kind: 'prepaid' };
 
 /** What creating a job answers. A refusal wrote nothing: no job, no line, no ledger row. */
@@ -335,12 +335,12 @@ export class ParseJobsService {
     }
 
     /**
-     * Create a job for lines whose unit the caller ALREADY spent (a bulk file import, D-013: one `migration` unit per file).
+     * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe, ADR-0072 §8: one `bulk` unit per recipe).
      *
-     * ⛔ THIS IS NOT A FREE PATH. It is legitimate only for a caller that has already charged a `migration` unit for the
-     * file these lines came from; a caller that has not must use {@link create}. It admits nothing, so nothing here stops
-     * a caller from using it to skip the allowance — the guard is the call site, and the reason it exists is that a file
-     * of 1,000 recipes is one import, not 1,000.
+     * ⛔ THIS IS NOT A FREE PATH. It is legitimate only for a caller that has already charged a `bulk` unit for the
+     * recipe these lines came from (and recorded that on the item, so a repeat never charges it twice); a caller that has
+     * not must use {@link create}. It admits nothing, so nothing here stops a caller from using it to skip the allowance —
+     * the guard is the call site. A bulk import pays PER RECIPE under its own channel, never against the paste allowance.
      *
      * @param ownerId - The verified caller.
      * @param lines - The already-split source lines (the importer's own, not a paste).

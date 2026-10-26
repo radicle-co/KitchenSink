@@ -728,6 +728,12 @@
             ],
             "type": "object"
         },
+        "advanceImportRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {},
+            "type": "object"
+        },
         "apiErrorSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": {},
@@ -1803,6 +1809,165 @@
             ],
             "type": "object"
         },
+        "createImportRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "items": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "ordinal": {
+                                "maximum": 99999,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "recipe": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "cookTimeMinutes": {
+                                        "maximum": 2147483647,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "cuisine": {
+                                        "maxLength": 100,
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "maxLength": 5000,
+                                        "type": "string"
+                                    },
+                                    "dietaryFlags": {
+                                        "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "difficulty": {
+                                        "enum": [
+                                            "easy",
+                                            "medium",
+                                            "hard"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "ingredientLines": {
+                                        "items": {
+                                            "maxLength": 1000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "maxItems": 200,
+                                        "type": "array"
+                                    },
+                                    "mealType": {
+                                        "enum": [
+                                            "breakfast",
+                                            "brunch",
+                                            "lunch",
+                                            "dinner",
+                                            "snack",
+                                            "dessert",
+                                            "drink"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "prepTimeMinutes": {
+                                        "maximum": 2147483647,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "servings": {
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 2147483647,
+                                        "type": "integer"
+                                    },
+                                    "steps": {
+                                        "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "instruction": {
+                                                    "maxLength": 5000,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "timerSeconds": {
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 2147483647,
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "instruction"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "maxItems": 200,
+                                        "type": "array"
+                                    },
+                                    "tags": {
+                                        "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "maxItems": 50,
+                                        "type": "array"
+                                    },
+                                    "title": {
+                                        "maxLength": 200,
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "totalTimeMinutes": {
+                                        "maximum": 2147483647,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "title",
+                                    "ingredientLines",
+                                    "steps"
+                                ],
+                                "type": "object"
+                            }
+                        },
+                        "required": [
+                            "ordinal",
+                            "recipe"
+                        ],
+                        "type": "object"
+                    },
+                    "maxItems": 25,
+                    "minItems": 1,
+                    "type": "array"
+                },
+                "matchMode": {
+                    "enum": [
+                        "keepAsWritten",
+                        "bindBest",
+                        "review"
+                    ],
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "matchMode",
+                "visibility",
+                "items"
+            ],
+            "type": "object"
+        },
         "createIngredientRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -2510,6 +2675,23 @@
             ],
             "type": "string"
         },
+        "getImportQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "after": {
+                    "maximum": 100000,
+                    "minimum": -1,
+                    "type": "integer"
+                },
+                "limit": {
+                    "maximum": 500,
+                    "minimum": 1,
+                    "type": "integer"
+                }
+            },
+            "type": "object"
+        },
         "healthStatusSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -2531,6 +2713,2538 @@
                 "status",
                 "service",
                 "contractHash"
+            ],
+            "type": "object"
+        },
+        "importCursorRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "from": {
+                    "anyOf": [
+                        {
+                            "maximum": 99999,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "move": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "action": {
+                                    "const": "next",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "action"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "action": {
+                                    "const": "skip",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "action"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "action": {
+                                    "const": "back",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "action"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "action": {
+                                    "const": "open",
+                                    "type": "string"
+                                },
+                                "to": {
+                                    "maximum": 99999,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "action",
+                                "to"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "from",
+                "move"
+            ],
+            "type": "object"
+        },
+        "importFlagSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "state": {
+                            "const": "clear",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "state"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "state": {
+                            "const": "checking",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "state"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "state": {
+                            "const": "flagged",
+                            "type": "string"
+                        },
+                        "suggestion": {
+                            "anyOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "id": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "root",
+                                                "variant"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id",
+                                        "name"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "state",
+                        "suggestion"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "importFlaggedLineSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "bound": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "id": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "enum": [
+                                "root",
+                                "variant"
+                            ],
+                            "type": "string"
+                        },
+                        "name": {
+                            "minLength": 1,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "id",
+                        "name"
+                    ],
+                    "type": "object"
+                },
+                "boundBy": {
+                    "enum": [
+                        "exact",
+                        "curated",
+                        "review",
+                        "default",
+                        "autoBest",
+                        "cook"
+                    ],
+                    "type": "string"
+                },
+                "flag": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "state": {
+                                    "const": "checking",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "state"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "state": {
+                                    "const": "flagged",
+                                    "type": "string"
+                                },
+                                "suggestion": {
+                                    "anyOf": [
+                                        {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "root",
+                                                        "variant"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "id",
+                                                "name"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "state",
+                                "suggestion"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
+                "foodIndex": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "lineIndex": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "ordinal": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "sourceLine": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ordinal",
+                "lineIndex",
+                "foodIndex",
+                "title",
+                "sourceLine",
+                "bound",
+                "boundBy",
+                "flag"
+            ],
+            "type": "object"
+        },
+        "importFlaggedResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "lines": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "bound": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "kind": {
+                                        "enum": [
+                                            "root",
+                                            "variant"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "kind",
+                                    "id",
+                                    "name"
+                                ],
+                                "type": "object"
+                            },
+                            "boundBy": {
+                                "enum": [
+                                    "exact",
+                                    "curated",
+                                    "review",
+                                    "default",
+                                    "autoBest",
+                                    "cook"
+                                ],
+                                "type": "string"
+                            },
+                            "flag": {
+                                "oneOf": [
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "state": {
+                                                "const": "checking",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "state"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "state": {
+                                                "const": "flagged",
+                                                "type": "string"
+                                            },
+                                            "suggestion": {
+                                                "anyOf": [
+                                                    {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "id": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "enum": [
+                                                                    "root",
+                                                                    "variant"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "kind",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "state",
+                                            "suggestion"
+                                        ],
+                                        "type": "object"
+                                    }
+                                ]
+                            },
+                            "foodIndex": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "lineIndex": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "ordinal": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "sourceLine": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "ordinal",
+                            "lineIndex",
+                            "foodIndex",
+                            "title",
+                            "sourceLine",
+                            "bound",
+                            "boundBy",
+                            "flag"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "lines"
+            ],
+            "type": "object"
+        },
+        "importItemInputSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ordinal": {
+                    "maximum": 99999,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "recipe": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "cookTimeMinutes": {
+                            "maximum": 2147483647,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "cuisine": {
+                            "maxLength": 100,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "description": {
+                            "maxLength": 5000,
+                            "type": "string"
+                        },
+                        "dietaryFlags": {
+                            "items": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "type": "array"
+                        },
+                        "difficulty": {
+                            "enum": [
+                                "easy",
+                                "medium",
+                                "hard"
+                            ],
+                            "type": "string"
+                        },
+                        "ingredientLines": {
+                            "items": {
+                                "maxLength": 1000,
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "maxItems": 200,
+                            "type": "array"
+                        },
+                        "mealType": {
+                            "enum": [
+                                "breakfast",
+                                "brunch",
+                                "lunch",
+                                "dinner",
+                                "snack",
+                                "dessert",
+                                "drink"
+                            ],
+                            "type": "string"
+                        },
+                        "prepTimeMinutes": {
+                            "maximum": 2147483647,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "servings": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 2147483647,
+                            "type": "integer"
+                        },
+                        "steps": {
+                            "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "instruction": {
+                                        "maxLength": 5000,
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "timerSeconds": {
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 2147483647,
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "instruction"
+                                ],
+                                "type": "object"
+                            },
+                            "maxItems": 200,
+                            "type": "array"
+                        },
+                        "tags": {
+                            "items": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "maxItems": 50,
+                            "type": "array"
+                        },
+                        "title": {
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "totalTimeMinutes": {
+                            "maximum": 2147483647,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "title",
+                        "ingredientLines",
+                        "steps"
+                    ],
+                    "type": "object"
+                }
+            },
+            "required": [
+                "ordinal",
+                "recipe"
+            ],
+            "type": "object"
+        },
+        "importItemSummarySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ordinal": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "recipeId": {
+                    "anyOf": [
+                        {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "review": {
+                    "enum": [
+                        "pending",
+                        "reviewed",
+                        "skipped"
+                    ],
+                    "type": "string"
+                },
+                "stage": {
+                    "enum": [
+                        "received",
+                        "parsing",
+                        "matched",
+                        "saved"
+                    ],
+                    "type": "string"
+                },
+                "statement": {
+                    "anyOf": [
+                        {
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "authored",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "format": "uri",
+                                            "maxLength": 2000,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "public_web",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "book",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "paid_site",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "public",
+                                "private"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "ordinal",
+                "title",
+                "stage",
+                "review",
+                "statement",
+                "visibility",
+                "recipeId"
+            ],
+            "type": "object"
+        },
+        "importMatchModeSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "keepAsWritten",
+                "bindBest",
+                "review"
+            ],
+            "type": "string"
+        },
+        "importPickRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "against": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "foodIndex": {
+                    "maximum": 199,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "lineIndex": {
+                    "maximum": 199,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "pick": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "id": {
+                                    "maxLength": 255,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "food",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "id"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "id": {
+                                    "maxLength": 255,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "variant",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "id"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "asWritten",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "lineIndex",
+                "foodIndex",
+                "against",
+                "pick"
+            ],
+            "type": "object"
+        },
+        "importRecipeSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "cookTimeMinutes": {
+                    "maximum": 2147483647,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "cuisine": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "description": {
+                    "maxLength": 5000,
+                    "type": "string"
+                },
+                "dietaryFlags": {
+                    "items": {
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "difficulty": {
+                    "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                    ],
+                    "type": "string"
+                },
+                "ingredientLines": {
+                    "items": {
+                        "maxLength": 1000,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "maxItems": 200,
+                    "type": "array"
+                },
+                "mealType": {
+                    "enum": [
+                        "breakfast",
+                        "brunch",
+                        "lunch",
+                        "dinner",
+                        "snack",
+                        "dessert",
+                        "drink"
+                    ],
+                    "type": "string"
+                },
+                "prepTimeMinutes": {
+                    "maximum": 2147483647,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "servings": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 2147483647,
+                    "type": "integer"
+                },
+                "steps": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "instruction": {
+                                "maxLength": 5000,
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "timerSeconds": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "instruction"
+                        ],
+                        "type": "object"
+                    },
+                    "maxItems": 200,
+                    "type": "array"
+                },
+                "tags": {
+                    "items": {
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "maxItems": 50,
+                    "type": "array"
+                },
+                "title": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "totalTimeMinutes": {
+                    "maximum": 2147483647,
+                    "minimum": 0,
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "title",
+                "ingredientLines",
+                "steps"
+            ],
+            "type": "object"
+        },
+        "importReviewMarkSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "pending",
+                "reviewed",
+                "skipped"
+            ],
+            "type": "string"
+        },
+        "importStageSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "received",
+                "parsing",
+                "matched",
+                "saved"
+            ],
+            "type": "string"
+        },
+        "importStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "authored",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "book",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "paid_site",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "importStatementViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "authored",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "book",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "paid_site",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "importStepLineSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "boundBy": {
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "exact",
+                                "curated",
+                                "review",
+                                "default",
+                                "autoBest",
+                                "cook"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "flag": {
+                    "anyOf": [
+                        {
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "state": {
+                                            "const": "clear",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "state"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "state": {
+                                            "const": "checking",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "state"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "state": {
+                                            "const": "flagged",
+                                            "type": "string"
+                                        },
+                                        "suggestion": {
+                                            "anyOf": [
+                                                {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "id": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "enum": [
+                                                                "root",
+                                                                "variant"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "kind",
+                                                        "id",
+                                                        "name"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                {
+                                                    "type": "null"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "state",
+                                        "suggestion"
+                                    ],
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "foodIndex": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "judgementDigest": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "lineIndex": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "match": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "candidates": {
+                            "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "isDefault": {
+                                        "type": "boolean"
+                                    },
+                                    "kind": {
+                                        "enum": [
+                                            "root",
+                                            "variant"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "kind",
+                                    "id",
+                                    "name",
+                                    "isDefault"
+                                ],
+                                "type": "object"
+                            },
+                            "type": "array"
+                        },
+                        "proposed": {
+                            "anyOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "id": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "root",
+                                                "variant"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id",
+                                        "name"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "reason": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "reviewNote": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "state": {
+                            "enum": [
+                                "checking",
+                                "confident",
+                                "default",
+                                "needsChoice",
+                                "noMatch"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "state",
+                        "reason",
+                        "proposed",
+                        "candidates"
+                    ],
+                    "type": "object"
+                },
+                "measure": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "preparation": {
+                            "type": "string"
+                        },
+                        "quantity": {
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "exact",
+                                            "type": "string"
+                                        },
+                                        "value": {
+                                            "maximum": 1000000,
+                                            "minimum": 0.001,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "value"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "high": {
+                                            "maximum": 1000000,
+                                            "minimum": 0.001,
+                                            "type": "number"
+                                        },
+                                        "kind": {
+                                            "const": "range",
+                                            "type": "string"
+                                        },
+                                        "low": {
+                                            "maximum": 1000000,
+                                            "minimum": 0.001,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "low",
+                                        "high"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "absent",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        "unit": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "quantity",
+                        "unit"
+                    ],
+                    "type": "object"
+                },
+                "phrase": {
+                    "type": "string"
+                },
+                "pick": {
+                    "anyOf": [
+                        {
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "id": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "food",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "id": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "variant",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "asWritten",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "sourceLine": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "lineIndex",
+                "foodIndex",
+                "sourceLine",
+                "phrase",
+                "measure",
+                "judgementDigest",
+                "match",
+                "flag",
+                "pick",
+                "boundBy"
+            ],
+            "type": "object"
+        },
+        "importStepResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "lines": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "boundBy": {
+                                "anyOf": [
+                                    {
+                                        "enum": [
+                                            "exact",
+                                            "curated",
+                                            "review",
+                                            "default",
+                                            "autoBest",
+                                            "cook"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "flag": {
+                                "anyOf": [
+                                    {
+                                        "oneOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "state": {
+                                                        "const": "clear",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "state"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "state": {
+                                                        "const": "checking",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "state"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "state": {
+                                                        "const": "flagged",
+                                                        "type": "string"
+                                                    },
+                                                    "suggestion": {
+                                                        "anyOf": [
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "minLength": 1,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
+                                                                        "enum": [
+                                                                            "root",
+                                                                            "variant"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "minLength": 1,
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "kind",
+                                                                    "id",
+                                                                    "name"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "state",
+                                                    "suggestion"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "foodIndex": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "judgementDigest": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "lineIndex": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "match": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "candidates": {
+                                        "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "isDefault": {
+                                                    "type": "boolean"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "root",
+                                                        "variant"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "id",
+                                                "name",
+                                                "isDefault"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "proposed": {
+                                        "anyOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "id": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "enum": [
+                                                            "root",
+                                                            "variant"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "id",
+                                                    "name"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "reason": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "reviewNote": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "state": {
+                                        "enum": [
+                                            "checking",
+                                            "confident",
+                                            "default",
+                                            "needsChoice",
+                                            "noMatch"
+                                        ],
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "state",
+                                    "reason",
+                                    "proposed",
+                                    "candidates"
+                                ],
+                                "type": "object"
+                            },
+                            "measure": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "preparation": {
+                                        "type": "string"
+                                    },
+                                    "quantity": {
+                                        "oneOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "exact",
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "maximum": 1000000,
+                                                        "minimum": 0.001,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "value"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "high": {
+                                                        "maximum": 1000000,
+                                                        "minimum": 0.001,
+                                                        "type": "number"
+                                                    },
+                                                    "kind": {
+                                                        "const": "range",
+                                                        "type": "string"
+                                                    },
+                                                    "low": {
+                                                        "maximum": 1000000,
+                                                        "minimum": 0.001,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "low",
+                                                    "high"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "absent",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        ]
+                                    },
+                                    "unit": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "quantity",
+                                    "unit"
+                                ],
+                                "type": "object"
+                            },
+                            "phrase": {
+                                "type": "string"
+                            },
+                            "pick": {
+                                "anyOf": [
+                                    {
+                                        "oneOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "id": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "const": "food",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "id"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "id": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "const": "variant",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "id"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "asWritten",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "sourceLine": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "lineIndex",
+                            "foodIndex",
+                            "sourceLine",
+                            "phrase",
+                            "measure",
+                            "judgementDigest",
+                            "match",
+                            "flag",
+                            "pick",
+                            "boundBy"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "ordinal": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "review": {
+                    "enum": [
+                        "pending",
+                        "reviewed",
+                        "skipped"
+                    ],
+                    "type": "string"
+                },
+                "stage": {
+                    "enum": [
+                        "received",
+                        "parsing",
+                        "matched",
+                        "saved"
+                    ],
+                    "type": "string"
+                },
+                "statement": {
+                    "anyOf": [
+                        {
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "authored",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "format": "uri",
+                                            "maxLength": 2000,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "public_web",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "book",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "paid_site",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "public",
+                                "private"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "ordinal",
+                "title",
+                "stage",
+                "review",
+                "statement",
+                "visibility",
+                "lines"
+            ],
+            "type": "object"
+        },
+        "importToCheckLineSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "foodIndex": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "judgementDigest": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "lineIndex": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "match": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "candidates": {
+                            "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "isDefault": {
+                                        "type": "boolean"
+                                    },
+                                    "kind": {
+                                        "enum": [
+                                            "root",
+                                            "variant"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "kind",
+                                    "id",
+                                    "name",
+                                    "isDefault"
+                                ],
+                                "type": "object"
+                            },
+                            "type": "array"
+                        },
+                        "proposed": {
+                            "anyOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "id": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "root",
+                                                "variant"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id",
+                                        "name"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "reason": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "reviewNote": {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "state": {
+                            "enum": [
+                                "checking",
+                                "confident",
+                                "default",
+                                "needsChoice",
+                                "noMatch"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "state",
+                        "reason",
+                        "proposed",
+                        "candidates"
+                    ],
+                    "type": "object"
+                },
+                "ordinal": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "sourceLine": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ordinal",
+                "lineIndex",
+                "foodIndex",
+                "title",
+                "sourceLine",
+                "judgementDigest",
+                "match"
+            ],
+            "type": "object"
+        },
+        "importToCheckResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "lines": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "foodIndex": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "judgementDigest": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "lineIndex": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "match": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "candidates": {
+                                        "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "isDefault": {
+                                                    "type": "boolean"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "root",
+                                                        "variant"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "id",
+                                                "name",
+                                                "isDefault"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "proposed": {
+                                        "anyOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "id": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "enum": [
+                                                            "root",
+                                                            "variant"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "id",
+                                                    "name"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "reason": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "reviewNote": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "state": {
+                                        "enum": [
+                                            "checking",
+                                            "confident",
+                                            "default",
+                                            "needsChoice",
+                                            "noMatch"
+                                        ],
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "state",
+                                    "reason",
+                                    "proposed",
+                                    "candidates"
+                                ],
+                                "type": "object"
+                            },
+                            "ordinal": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "sourceLine": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "ordinal",
+                            "lineIndex",
+                            "foodIndex",
+                            "title",
+                            "sourceLine",
+                            "judgementDigest",
+                            "match"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "lines"
+            ],
+            "type": "object"
+        },
+        "importViewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "counts": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "matched": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "parsing": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "received": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "saved": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "total": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "total",
+                        "received",
+                        "parsing",
+                        "matched",
+                        "saved"
+                    ],
+                    "type": "object"
+                },
+                "cursorOrdinal": {
+                    "anyOf": [
+                        {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "id": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                },
+                "items": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "ordinal": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "recipeId": {
+                                "anyOf": [
+                                    {
+                                        "format": "uuid",
+                                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "review": {
+                                "enum": [
+                                    "pending",
+                                    "reviewed",
+                                    "skipped"
+                                ],
+                                "type": "string"
+                            },
+                            "stage": {
+                                "enum": [
+                                    "received",
+                                    "parsing",
+                                    "matched",
+                                    "saved"
+                                ],
+                                "type": "string"
+                            },
+                            "statement": {
+                                "anyOf": [
+                                    {
+                                        "oneOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "authored",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "citation": {
+                                                        "format": "uri",
+                                                        "maxLength": 2000,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "const": "public_web",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "citation"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "citation": {
+                                                        "maxLength": 2000,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "const": "book",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "citation"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "citation": {
+                                                        "maxLength": 2000,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "const": "paid_site",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "citation"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "visibility": {
+                                "anyOf": [
+                                    {
+                                        "enum": [
+                                            "public",
+                                            "private"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "ordinal",
+                            "title",
+                            "stage",
+                            "review",
+                            "statement",
+                            "visibility",
+                            "recipeId"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "matchMode": {
+                    "enum": [
+                        "keepAsWritten",
+                        "bindBest",
+                        "review"
+                    ],
+                    "type": "string"
+                },
+                "nextAfter": {
+                    "anyOf": [
+                        {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "reviewClosed": {
+                    "type": "boolean"
+                },
+                "version": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "matchMode",
+                "visibility",
+                "cursorOrdinal",
+                "reviewClosed",
+                "version",
+                "counts",
+                "items",
+                "nextAfter"
             ],
             "type": "object"
         },
@@ -3160,6 +5874,12 @@
             "required": [
                 "q"
             ],
+            "type": "object"
+        },
+        "leaveImportRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {},
             "type": "object"
         },
         "listCollectionsQuerySchema": {
@@ -4704,6 +7424,148 @@
             ],
             "type": "object"
         },
+        "putImportItemsRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "items": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "ordinal": {
+                                "maximum": 99999,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "recipe": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "cookTimeMinutes": {
+                                        "maximum": 2147483647,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "cuisine": {
+                                        "maxLength": 100,
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "maxLength": 5000,
+                                        "type": "string"
+                                    },
+                                    "dietaryFlags": {
+                                        "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "difficulty": {
+                                        "enum": [
+                                            "easy",
+                                            "medium",
+                                            "hard"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "ingredientLines": {
+                                        "items": {
+                                            "maxLength": 1000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "maxItems": 200,
+                                        "type": "array"
+                                    },
+                                    "mealType": {
+                                        "enum": [
+                                            "breakfast",
+                                            "brunch",
+                                            "lunch",
+                                            "dinner",
+                                            "snack",
+                                            "dessert",
+                                            "drink"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "prepTimeMinutes": {
+                                        "maximum": 2147483647,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "servings": {
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 2147483647,
+                                        "type": "integer"
+                                    },
+                                    "steps": {
+                                        "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "instruction": {
+                                                    "maxLength": 5000,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "timerSeconds": {
+                                                    "exclusiveMinimum": 0,
+                                                    "maximum": 2147483647,
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "instruction"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "maxItems": 200,
+                                        "type": "array"
+                                    },
+                                    "tags": {
+                                        "items": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "maxItems": 50,
+                                        "type": "array"
+                                    },
+                                    "title": {
+                                        "maxLength": 200,
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "totalTimeMinutes": {
+                                        "maximum": 2147483647,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "title",
+                                    "ingredientLines",
+                                    "steps"
+                                ],
+                                "type": "object"
+                            }
+                        },
+                        "required": [
+                            "ordinal",
+                            "recipe"
+                        ],
+                        "type": "object"
+                    },
+                    "maxItems": 25,
+                    "minItems": 1,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "items"
+            ],
+            "type": "object"
+        },
         "ratingExportSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -6232,6 +9094,17 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "boundBy": {
+                                "enum": [
+                                    "exact",
+                                    "curated",
+                                    "review",
+                                    "default",
+                                    "autoBest",
+                                    "cook"
+                                ],
+                                "type": "string"
+                            },
                             "foodId": {
                                 "minLength": 1,
                                 "type": "string"
@@ -8368,6 +11241,101 @@
             ],
             "type": "object"
         },
+        "recordImportChoicesRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "statement": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "paid_site",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
+                "visibility": {
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "public",
+                                "private"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "type": "object"
+        },
         "reorderPhotosRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -8504,6 +11472,17 @@
                             "items": {
                                 "additionalProperties": false,
                                 "properties": {
+                                    "boundBy": {
+                                        "enum": [
+                                            "exact",
+                                            "curated",
+                                            "review",
+                                            "default",
+                                            "autoBest",
+                                            "cook"
+                                        ],
+                                        "type": "string"
+                                    },
                                     "foodId": {
                                         "minLength": 1,
                                         "type": "string"

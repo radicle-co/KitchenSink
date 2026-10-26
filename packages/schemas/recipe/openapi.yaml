@@ -5260,6 +5260,15 @@ components:
                   - RESOLVED_UNAVAILABLE
                   - FOOD_REMOVED
                   - FOOD_UNREACHABLE
+              boundBy:
+                type: string
+                enum:
+                  - exact
+                  - curated
+                  - review
+                  - default
+                  - autoBest
+                  - cook
             required:
               - ingredientId
               - quantity

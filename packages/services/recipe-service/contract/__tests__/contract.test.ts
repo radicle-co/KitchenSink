@@ -525,10 +525,10 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
      * query could have been tightened to `strictObject` (a breaking change for any caller with a tracking tag)
      * with no test to notice.
      *
-     * So both directions are now asserted: the exempt set is exactly these four names, and every one of them is
+     * So both directions are now asserted: the exempt set is exactly these five names, and every one of them is
      * genuinely non-strict. Adding a fifth is a visible, reviewable edit.
      */
-    it('exempts EXACTLY the four read queries from strictness, and each of them really is open', async () => {
+    it('exempts EXACTLY the five read queries from strictness, and each of them really is open', async () => {
         const modules = await Promise.all(
             authored.map(
                 async (schema) =>
@@ -543,6 +543,8 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
         );
 
         expect(querySchemas.map(([name]) => name).sort()).toStrictEqual([
+            // ADR-0072: `GET /api/v1/import/{importId}`'s page of items — a READ query like the others, open for the same reason.
+            'getImportQuerySchema',
             'ingredientSearchQuerySchema',
             'listCollectionsQuerySchema',
             'listRecipesQuerySchema',

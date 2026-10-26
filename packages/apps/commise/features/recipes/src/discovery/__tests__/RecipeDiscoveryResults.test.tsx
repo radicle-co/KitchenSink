@@ -295,7 +295,8 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
         renderResults({ results: threeResults, loadMore: { hasMore: true, loading: false, failed: true, onLoadMore } });
 
         expect(screen.getByText('Mediterranean Grilled Lamb')).toBeTruthy();
-        expect(screen.getByText('We couldn’t load more recipes.')).toBeTruthy();
+        // The reason is the announced alert; the quiet Button also describes itself with it (hidden, so not a second match).
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load more recipes.');
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onLoadMore).toHaveBeenCalledTimes(1);
@@ -328,6 +329,8 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
         expect(screen.queryByRole('button', { name: /Load more|Loading/ })).toBeNull();
     });
 
+    // ⚠️ REWRITTEN: the control is now the quiet Button, whose floor is reset only for a FINE pointer at md (`md:pointer-fine:`),
+    // so a touch iPad at 768 px and wider keeps 44 px; the hand-rolled `md:min-h-0` reset it on width alone.
     it('gives the load-more action the 44px touch floor, reset for the mouse at md', () => {
         renderResults({
             results: threeResults,
@@ -336,7 +339,7 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
 
         const control = screen.getByRole('button', { name: 'Load more' });
         expect(control.className).toContain('min-h-11');
-        expect(control.className).toContain('md:min-h-0');
+        expect(control.className).toContain('md:pointer-fine:min-h-0');
     });
 });
 

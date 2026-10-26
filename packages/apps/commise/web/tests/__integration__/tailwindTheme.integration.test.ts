@@ -481,15 +481,16 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(css).toMatch(/--text-card-title--font-weight:\s*600/u);
     });
 
-    // Owner rule C5: ingredient lists are set at 13 px, in the `list` role (redesignSpec.md's 13 / 1.35 step).
-    it('sets the list role at 0.8125rem / 1.35 / 400 from one utility', async () => {
+    // REWRITTEN for the owner's type-scale ruling (2026-10-25): lists are 14 px, the unit scale's step (they were 13 px
+    // / 1.35 under rule C5, which the owner found "rather small").
+    it('sets the list role at 0.875rem / 1.4 / 400 from one utility', async () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'text-list')).toBe(
             'font-size:var(--text-list);line-height:var(--tw-leading,var(--text-list--line-height));font-weight:var(--tw-font-weight,var(--text-list--font-weight))',
         );
-        expect(css).toMatch(/--text-list:\s*0\.8125rem/u);
-        expect(css).toMatch(/--text-list--line-height:\s*1\.35/u);
+        expect(css).toMatch(/--text-list:\s*0\.875rem/u);
+        expect(css).toMatch(/--text-list--line-height:\s*1\.4;/u);
         expect(css).toMatch(/--text-list--font-weight:\s*400/u);
     });
 

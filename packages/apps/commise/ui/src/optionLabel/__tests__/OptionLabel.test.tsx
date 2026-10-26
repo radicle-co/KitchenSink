@@ -7,7 +7,8 @@
  * - The tag FOLLOWS the label and wraps under it at 320 px; the label can shrink below its longest word (`min-w-0`) and
  *   breaks rather than pushing the row sideways.
  * - Its size is the caller's, from a closed pair: a combobox option matches the field the cook types in (`bodyMd`);
- *   a list of ingredient lines takes the 13 px `list` role (owner rule C5; staff-ux 2026-10-25).
+ *   a list of ingredient lines takes the 14 px `list` role (owner type-scale ruling 2026-10-25). The parts line is 14 px
+ *   at either size: never larger than a list line, and one step under a combobox option.
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -59,6 +60,12 @@ describe('OptionLabel (web)', () => {
         render(<OptionLabel label="Whole milk" tag="Default" textSize={textSize} />);
 
         expect(screen.getByText('Whole milk').className).toContain(utility);
+    });
+
+    it.each(['list', 'bodyMd'] as const)('textSize %s draws the variant’s parts at 14 px (body-sm)', (textSize) => {
+        render(<OptionLabel label="Oat milk" detailParts={['unsweetened']} textSize={textSize} />);
+
+        expect(screen.getByText('unsweetened').closest('span.break-words')?.className).toContain('text-body-sm');
     });
 
     it('⛔ wraps at 320 px: the label can shrink below its longest word and breaks, and the tag wraps under it', () => {

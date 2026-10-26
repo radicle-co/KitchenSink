@@ -6,7 +6,8 @@
  * - Display only: it presses nothing and has no role. The option around it owns the role, the name and the press.
  * - At 320 pt the tag wraps under the label (`flexWrap`), and the label can shrink (`flexShrink: 1`, `minWidth: 0`), so
  *   nothing is cut off or pushes the row sideways.
- * - `list` draws the 13 px `list` role's face, size and leading; `bodyMd` the combobox's field-matching size.
+ * - `list` draws the 14 px `list` role's face, size and leading; `bodyMd` the combobox's field-matching size. The parts
+ *   line is 14 px at either size.
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -59,6 +60,12 @@ describe('OptionLabel (native)', () => {
         expect(getComputedStyle(screen.getByText('Whole milk')).fontSize).toBe(
             `${String(nativeTokens.fontSize.bodyMd)}px`,
         );
+    });
+
+    it.each(['list', 'bodyMd'] as const)('textSize %s draws the variant’s parts at 14 px', (textSize) => {
+        render(<OptionLabel label="Oat milk" detailParts={['unsweetened']} textSize={textSize} />);
+
+        expect(getComputedStyle(screen.getByText('unsweetened')).fontSize).toBe('14px');
     });
 
     it('⛔ wraps at 320 pt: the tag wraps under the label, and the label can shrink', () => {

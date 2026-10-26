@@ -177,9 +177,10 @@
         {
             "id": "native",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 1,
+            "tokenCount": 2,
             "kinds": [
-                "color"
+                "color",
+                "number"
             ]
         },
         {

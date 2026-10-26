@@ -34,8 +34,9 @@ describe('typeRole — the §1.5 table', () => {
             body: { face: 'body', size: 16, weight: 'normal', lineHeight: 1.5 },
             readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 1.6 },
             meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
-            // Owner rule C5: ingredient lists at 13, and 15 was "still too large" (redesignSpec.md's 13 / 1.35 step).
-            list: { face: 'body', size: 13, weight: 'normal', lineHeight: 1.35 },
+            // REWRITTEN for the owner's type-scale ruling (2026-10-25): 13 px "is rather small" and 13 and 15 are off the
+            // unit scale, so a list line is 14 px, set like `meta` (it was 13 / 1.35 under rule C5).
+            list: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
             label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 1.2 },
             caption: { face: 'body', size: 12, weight: 'medium', lineHeight: 1.4 },
             overline: {
@@ -81,8 +82,9 @@ describe('webTypeRoles — the --text-{role} projection', () => {
         expect(webTypeRoles['figure-stat']).toEqual({ size: '1.25rem', lineHeight: '1.2', fontWeight: '600' });
     });
 
-    it('emits the list role at 13 px (0.8125rem), leading 1.35, weight 400', () => {
-        expect(webTypeRoles.list).toEqual({ size: '0.8125rem', lineHeight: '1.35', fontWeight: '400' });
+    // REWRITTEN for the owner's 14/16 ruling (2026-10-25): the list role was 13 px (0.8125rem) / 1.35.
+    it('emits the list role at 14 px (0.875rem), leading 1.4, weight 400', () => {
+        expect(webTypeRoles.list).toEqual({ size: '0.875rem', lineHeight: '1.4', fontWeight: '400' });
     });
 
     it('carries the overline’s tracking as a letter-spacing sub-property', () => {
@@ -172,8 +174,9 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
         expect(nativeTokens.type.largeTitle.narrow.fontFamily).toBe(displayFontFace.semibold);
     });
 
-    it('sets the list role in the regular body face at 13, with a 17.6 leading (13 x 1.35, to one decimal)', () => {
-        expect(nativeTokens.type.list).toEqual({ fontFamily: bodyFontFace.normal, fontSize: 13, lineHeight: 17.6 });
+    // REWRITTEN for the owner's 14/16 ruling (2026-10-25): it was 13 with a 17.6 leading.
+    it('sets the list role in the regular body face at 14, with a 19.6 leading (14 x 1.4)', () => {
+        expect(nativeTokens.type.list).toEqual({ fontFamily: bodyFontFace.normal, fontSize: 14, lineHeight: 19.6 });
     });
 
     it('gives the large title one size per container class', () => {

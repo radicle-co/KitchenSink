@@ -9,7 +9,9 @@
 
 /**
  * The label's size, a closed pair. `bodyMd`: a combobox option, which matches the field the cook types in. `list`: a
- * line in a list of choices, the 13 px `list` role (owner rule C5). Required, so no caller has a size chosen for it.
+ * line in a list of choices, the 14 px `list` role (owner type-scale ruling 2026-10-25). Required, so no caller has a size
+ * chosen for it. The variant's parts under the label are 14 px at either size: the size of the `list` line itself, and
+ * one step under a combobox's 16 px option.
  */
 export type OptionLabelSize = 'list' | 'bodyMd';
 

@@ -81,9 +81,11 @@ export interface TypeRoleSpec {
  *   ({@link webTypeRoles}); native picks the size for its class.
  * - `figureInline` takes the size and leading of the line it sits in, so it has neither of its own.
  * - Choices the spec left open, recorded so they are not re-decided per screen: `meta` is 400 (a 500 meta is a
- *   per-element exception); `figureStat`'s leading is 1.2 (the spec says "as its line", and a stat stands alone). * - `list` sets the lines of a list, such as a recipe's ingredients, at 13 px (owner rule C5: 15 was "still too
- *   large"). Its size, weight and leading are the 13 step of `docs/design/uiRefreshWorkshop5/redesignCanvas/
- *   redesignSpec.md`. It is named for its use, not its size, because the redesign later folds `meta` into that step.
+ *   per-element exception); `figureStat`'s leading is 1.2 (the spec says "as its line", and a stat stands alone).
+ * - `list` sets the lines of a list, such as a recipe's ingredients and the words under a matched line, at 14 px,
+ *   weight 400, leading 1.4: the unit scale's 14 step, set as `meta` is. The owner's type-scale ruling (2026-10-25)
+ *   replaced rule C5's 13 px: "13px is rather small", and 13 and 15 are off the scale, which allows 14 or 16 only. It
+ *   is named for its use, not its size, so a list can move without moving every metadata line.
  */
 export const typeRole = {
     largeTitle: { face: 'display', size: { narrow: 28, regular: 28, wide: 28 }, weight: 'semibold', lineHeight: 1.15 },
@@ -93,7 +95,7 @@ export const typeRole = {
     body: { face: 'body', size: 16, weight: 'normal', lineHeight: 1.5 },
     readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 1.6 },
     meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
-    list: { face: 'body', size: 13, weight: 'normal', lineHeight: 1.35 },
+    list: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
     label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 1.2 },
     caption: { face: 'body', size: 12, weight: 'medium', lineHeight: 1.4 },
     overline: {

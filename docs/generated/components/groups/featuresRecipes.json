@@ -6,11 +6,11 @@
     "coverage": {
         "components": 178,
         "implementations": 307,
-        "props": 1609,
+        "props": 1611,
         "documentedComponents": 178,
         "implementationsWithModuleDoc": 307,
         "implementationsWithComponentDoc": 200,
-        "documentedProps": 1330,
+        "documentedProps": 1332,
         "classifiedComponents": 158,
         "componentsWithPatternTag": 81,
         "crossPlatformComponents": 129
@@ -19083,7 +19083,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again. Keep the row drawn while the retry is in\nflight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).",
+                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again calls {@link onRetry}. Keep the row drawn while the retry is in\nflight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19105,12 +19105,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
+                            "name": "onRetry",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed on a failed line: send AGAIN the action that failed, whatever it was (a Use of the\nsuggestion, or a pick from the options sheet or pane): `sendLedger.retryOf(key)`. It is NOT {@link onUseSuggestion}\nagain, which would replace a failed pick with a Use the cook never chose. The host raises its pending send in this\ncall, as for every send.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
                             "name": "onUseSuggestion",
                             "type": "(key: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Bind the line to its suggestion. The host raises its pending send in this call. Try again calls it again.",
+                            "description": "Bind the line to its suggestion. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19180,7 +19189,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again. Keep the row drawn while the retry is in\nflight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).",
+                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again calls {@link onRetry}. Keep the row drawn while the retry is in\nflight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19202,12 +19211,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
+                            "name": "onRetry",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed on a failed line: send AGAIN the action that failed, whatever it was (a Use of the\nsuggestion, or a pick from the options sheet or pane): `sendLedger.retryOf(key)`. It is NOT {@link onUseSuggestion}\nagain, which would replace a failed pick with a Use the cook never chose. The host raises its pending send in this\ncall, as for every send.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
                             "name": "onUseSuggestion",
                             "type": "(key: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Bind the line to its suggestion. The host raises its pending send in this call. Try again calls it again.",
+                            "description": "Bind the line to its suggestion. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {

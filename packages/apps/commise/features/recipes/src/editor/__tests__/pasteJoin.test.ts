@@ -7,6 +7,7 @@
  * binds, every other state joins as written (a default is NEVER selected for the cook, ADR-0070 section 5); a food whose
  * request failed, or whose job can no longer match, does not hold its line; a reader row has no match and joins as written.
  */
+import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -28,7 +29,7 @@ const parsedLine = (lineIndex: number, ...foods: ReturnType<typeof makeParseProp
         proposal: makeParseProposal({ raw: `line ${String(lineIndex)}`, foods }),
     });
 
-const inputOf = (over: Partial<PasteJoinInput> & Pick<PasteJoinInput, 'job'>): PasteJoinInput => ({
+const inputOf = (over: Partial<PasteJoinInput> & { readonly job: ParseJobResponse }): PasteJoinInput => ({
     lines: pastedLinesOf({ job: over.job, jobFailed: false, now: 0, typedByCook: new Set() }),
     joined: new Set(),
     optionsFailed: new Set(),

@@ -40,11 +40,13 @@ import { IngredientsNutritionTotal } from './IngredientsNutritionTotal.native.js
 import { recipeFormMessages } from './messages.js';
 import { MoveToGroupSheet } from './MoveToGroupSheet.native.js';
 import { PastedReadingRow } from './PastedReadingRow.native.js';
+import { PasteMatchedBlock } from './PasteMatchedBlock.native.js';
 import { PasteProgressBlock } from './PasteProgressBlock.native.js';
 import { pasteAnnouncementTextOf } from './pasteStatusCopy.js';
 import type { RecipeIngredientsFieldsProps } from './props.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
+import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
 
 /** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
@@ -161,7 +163,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
         ) : null;
     const pasteBesideField = pasteButton !== null && addFieldHere && inline;
     const amountColumn = inline ? 96 : 72;
-    const rows = model.sections.flatMap((section) => section.rows);
+    // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
+    const { wide, sections, matching } = usePasteLayout(model.sections, paste);
+    const rows = sections.flatMap((section) => section.rows);
     // The new row's height, once it has laid out: the add field asks for the row only then, so the ask is made once, with
     // the real distance (`ingredientArrival.md`). A later change of the row's height does not ask again.
     const [arrivedRow, setArrivedRow] = useState<{ readonly key: string; readonly height: number } | undefined>(
@@ -183,7 +187,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <IngredientRowPanelBody row={row} m={m} nutrition={nutrition} close={close} />
         );
     const detailsOf = (row: IngredientRowView): ReactNode => panelOf(row)(row.lineEditor.onToggleDetails);
-    const empty = model.sections.length === 0 && reading.length === 0;
+    const empty = model.sections.length === 0 && reading.length === 0 && matching === undefined;
 
     const rowOf = (row: IngredientRowView): ReactNode => (
         <IngredientRow
@@ -247,7 +251,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             {empty ? (
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{m.noIngredients}</Text>
             ) : (
-                model.sections.map((section) => (
+                sections.map((section) => (
                     <View key={section.key} style={styles.stack}>
                         {section.group !== undefined && (
                             <IngredientGroupHeading id={`${section.key}-heading`} group={section.group} />
@@ -255,13 +259,17 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         {/* N1 (`docs/design/nativeContainerNames.md`): no list is named. The editor's section already
                             says "Ingredients", and a group's heading says its name, so a name here would be said
                             twice (N3). The node is kept so the role reaches TalkBack and Maestro. */}
-                        <View role="list" collapsable={false}>
-                            {section.rows.map(rowOf)}
-                        </View>
+                        {section.rows.length === 0 ? null : (
+                            <View role="list" collapsable={false}>
+                                {section.rows.map(rowOf)}
+                            </View>
+                        )}
                         <GroupFoot add={section.addHere} model={model} arrival={arrival} />
                     </View>
                 ))
             )}
+            {/* The paste's matched lines, their summary and the notice (ADR-0071), then the lines not in the recipe yet. */}
+            {matching !== undefined && <PasteMatchedBlock matching={matching} wide={wide} />}
             {/* Pasted lines being read follow the list's own rows (§7.5.4), under ONE progress block. */}
             {paste?.progress !== undefined && reading.length > 0 && (
                 <PasteProgressBlock

@@ -18,6 +18,7 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { createMemoryOutboxStore, loadOutbox } from '@kitchensink/sync';
 import { onlineManager } from '@tanstack/react-query';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import type { ParseJobResponse, ParseProposalMatch } from '@kitchensink/schema-recipe';
 import { recipeFormMessages } from '@commise/features-recipes';
 
 import { RecipeEditorScreen } from '../../src/screens/RecipeEditorScreen.js';
@@ -541,37 +542,55 @@ describe('RecipeEditorScreen (native) — the signed-in cook changes', () => {
 });
 
 describe('RecipeEditorScreen (native) — Paste a list', () => {
-    it('a new recipe’s empty Ingredients section offers it; the pasted line is looked up by name', async () => {
+    /**
+     * REWRITTEN for ADR-0071 (2026-10-26): the pasted line used to be looked up by name (`addIngredientByName`), which
+     * bound a ranked guess (milk crackers for milk). It now asks for the job's MATCHES and binds a confident one by food;
+     * the by-name assertion was deleted with the path, and this test pins that the screen never reaches it.
+     */
+    it('a new recipe’s empty Ingredients section offers it; the pasted line is matched, then bound by food', async () => {
         const client = createFakeRecipeServiceClient();
-        const job = {
+        const base = {
             id: '00000000-0000-4000-8000-00000000e201',
             status: 'complete' as const,
             createdAt: '2026-10-09T10:00:00.000Z',
             expiresAt: '2099-01-01T00:00:00.000Z',
+        };
+        const lineWith = (match?: ParseProposalMatch): ParseJobResponse['lines'][number] => ({
+            lineIndex: 0,
+            sourceLine: '2 cups flour',
+            status: 'parsed' as const,
+            progress: null,
+            proposal: {
+                raw: '2 cups flour',
+                quantity: { kind: 'exact' as const, value: 2 },
+                unit: 'cup',
+                statedMeasure: '2 cups',
+                foods: [{ name: 'flour', prep: null, ...(match === undefined ? {} : { match }) }],
+                reviewReasons: [],
+            },
+        });
+        const parsed: ParseJobResponse = { ...base, lines: [lineWith()] };
+        const matched: ParseJobResponse = {
+            ...base,
             lines: [
-                {
-                    lineIndex: 0,
-                    sourceLine: '2 cups flour',
-                    status: 'parsed' as const,
-                    progress: null,
-                    proposal: {
-                        raw: '2 cups flour',
-                        quantity: { kind: 'exact' as const, value: 2 },
-                        unit: 'cup',
-                        statedMeasure: '2 cups',
-                        foods: [{ name: 'flour', prep: null }],
-                        reviewReasons: [],
-                    },
-                },
+                lineWith({
+                    state: 'confident',
+                    reason: 'exactName',
+                    proposed: { kind: 'root', id: 'food_flour', name: 'Plain flour' },
+                    candidates: [],
+                }),
             ],
         };
-        const create = vi.spyOn(client, 'createParseJob').mockResolvedValue(job);
-        vi.spyOn(client, 'getParseJob').mockResolvedValue(job);
-        const byName = vi.spyOn(client, 'addIngredientByName').mockResolvedValue({
+        const create = vi.spyOn(client, 'createParseJob').mockResolvedValue(parsed);
+        vi.spyOn(client, 'getParseJob').mockResolvedValue(parsed);
+        const matches = vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(matched);
+        const byName = vi.spyOn(client, 'addIngredientByName');
+        const byFood = vi.spyOn(client, 'addIngredientByFood').mockResolvedValue({
             id: '00000000-0000-4000-8000-0000000000f1',
-            name: 'flour',
+            name: 'Plain flour',
+            foodId: 'food_flour',
             isUserEntered: false,
-        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByName']>>);
+        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByFood']>>);
         renderScreen(client);
 
         fireEvent.click(screen.getByRole('button', { name: 'Paste a list' }));
@@ -581,7 +600,10 @@ describe('RecipeEditorScreen (native) — Paste a list', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Add 1 ingredient' }));
 
         await waitFor(() => expect(create).toHaveBeenCalledWith({ text: '2 cups flour' }));
-        await waitFor(() => expect(byName).toHaveBeenCalledWith('flour'));
+        await waitFor(() => expect(matches).toHaveBeenCalledWith(base.id));
+        await waitFor(() => expect(byFood).toHaveBeenCalledWith('food_flour'));
+        expect(byName).not.toHaveBeenCalled();
+        expect(await screen.findByText('Plain flour')).toBeTruthy();
     });
 
     it('opens with the sheet up when Home’s first-run Paste ingredients asks for it', () => {

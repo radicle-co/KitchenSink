@@ -79,6 +79,18 @@ export interface MatchLineMessages {
     readonly seeWhy: string;
     /** Its accessible name (contains `{food}`, `{line}`). */
     readonly seeWhyName: string;
+    /**
+     * Why the check proposed the food it suggests, by the server's opaque `reason` key (ADR-0071 section 9). Only the
+     * reasons that sit under a CONFIDENT proposal can be a late note's, so only those are worded.
+     */
+    readonly reasons: {
+        readonly exactName: string;
+        readonly curatedMapping: string;
+        readonly rememberedMatch: string;
+        readonly reviewVerified: string;
+    };
+    /** Any other key, including one a newer server adds: the general sentence, never the key itself. */
+    readonly reasonFallback: string;
     /** A line whose options did not load. The one amber sentence. */
     readonly optionsError: string;
     readonly retry: string;
@@ -142,6 +154,13 @@ export const matchLineMessages: LocalizedMessages<MatchLineMessages> = {
         lateSuggestion: 'Our check suggested {food}. Your choice stays.',
         seeWhy: 'See why',
         seeWhyName: 'See why our check suggested {food} for {line}',
+        reasons: {
+            exactName: 'The name on your line is exactly this food.',
+            curatedMapping: 'A person who looks after the food list matched this line to this food.',
+            rememberedMatch: 'This line was matched to this food before, and the match was remembered.',
+            reviewVerified: 'Our check read the line and agreed that this is the food.',
+        },
+        reasonFallback: 'Our check suggested this food when it finished looking at your line.',
         optionsError: 'We couldn’t load the options for this line.',
         retry: 'Try again',
         retryName: 'Try again to load the options for {line}',

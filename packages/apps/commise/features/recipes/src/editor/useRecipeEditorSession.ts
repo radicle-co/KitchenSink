@@ -253,9 +253,14 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         offered: editor.pasteAvailable,
         keepsSource: editor.pasteKeepsSource,
         dispatch,
-        lineCount: editor.values.ingredients.length,
+        lineKeys: editor.values.ingredients.map((line) => line.key),
         initiallyOpen: openPaste,
         hold: pasteHold,
+        rowEditor,
+        keep,
+        // A line the review confirms binds by itself only while the recipe is a draft (paste is offered until the first
+        // publish, D10): a published recipe's lines change only at the cook's Save changes.
+        autoBind: editor.pasteAvailable,
     });
 
     return {

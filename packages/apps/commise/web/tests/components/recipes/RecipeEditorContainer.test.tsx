@@ -14,6 +14,7 @@ import { recipeSender } from '@commise/query/recipe-sender';
 import { SyncProvider } from '@commise/query/sync';
 import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import { EMPTY_OUTBOX, createMemoryOutboxStore, loadOutbox, saveOutbox, type OutboxStore } from '@kitchensink/sync';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
@@ -798,16 +799,50 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         ],
     });
 
-    it('a new recipe’s empty Ingredients section offers it; the pasted line reads, then joins the recipe', async () => {
+    /**
+     * REWRITTEN for ADR-0071 (2026-10-26): the pasted line used to join through `addIngredientByName`, which bound a
+     * ranked guess (milk crackers for milk). It now asks for the job's MATCHES and binds a confident one by food
+     * (`addIngredientByFood`); the by-name assertion was deleted with the path, and this test pins that the container
+     * never reaches it. The wire cases are in `features/recipes`' `pasteMatch.integration.test.tsx`.
+     */
+    it('a new recipe’s empty Ingredients section offers it; the pasted line reads, is matched, then joins the recipe', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
+        const matched = job('complete');
+        const withMatch: ParseJobResponse = {
+            ...matched,
+            lines: matched.lines.map((line) => ({
+                ...line,
+                proposal:
+                    line.proposal === null
+                        ? null
+                        : {
+                              ...line.proposal,
+                              foods: [
+                                  {
+                                      name: 'flour',
+                                      prep: null,
+                                      match: {
+                                          state: 'confident',
+                                          reason: 'exactName',
+                                          proposed: { kind: 'root', id: 'food_flour', name: 'Plain flour' },
+                                          candidates: [],
+                                      },
+                                  },
+                              ],
+                          },
+            })),
+        };
         const create = vi.spyOn(client, 'createParseJob').mockResolvedValue(job('running'));
         vi.spyOn(client, 'getParseJob').mockResolvedValue(job('complete'));
-        const byName = vi.spyOn(client, 'addIngredientByName').mockResolvedValue({
+        const matches = vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(withMatch);
+        const byName = vi.spyOn(client, 'addIngredientByName');
+        const byFood = vi.spyOn(client, 'addIngredientByFood').mockResolvedValue({
             id: '00000000-0000-4000-8000-0000000000f1',
-            name: 'flour',
+            name: 'Plain flour',
+            foodId: 'food_flour',
             isUserEntered: false,
-        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByName']>>);
+        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByFood']>>);
 
         renderEditor(client);
         await user.click(await screen.findByRole('button', { name: 'Paste a list' }));
@@ -816,13 +851,16 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
 
         expect(create).toHaveBeenCalledWith({ text: '2 cups flour' });
-        await waitFor(() => expect(byName).toHaveBeenCalledWith('flour'));
+        await waitFor(() => expect(matches).toHaveBeenCalledWith(JOB_ID));
+        await waitFor(() => expect(byFood).toHaveBeenCalledWith('food_flour'));
+        expect(byName).not.toHaveBeenCalled();
         await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste a list' })).toBeNull());
         expect(
             await screen.findByText(
                 (_, node) => node?.textContent === 'Added 1 ingredient.' && node.getAttribute('role') === 'status',
             ),
         ).toBeTruthy();
+        expect(await screen.findByText('Plain flour')).toBeTruthy();
     });
 
     it('opens with the sheet up when Home’s first-run Paste ingredients asks for it', async () => {

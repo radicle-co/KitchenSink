@@ -1,16 +1,21 @@
 /**
- * Tests for {@link usePasteIntoIngredients} — Paste a list in the Ingredients section (blueprint A5, owner decision D10,
- * build spec §7.5.4): the parse job is created, each line reads, and each settled line is looked up by name and appended
- * to the draft, in paste order.
+ * Tests for {@link usePasteIntoIngredients} — Paste a list in the Ingredients section (blueprint A5, A2; owner decision
+ * D10, build spec §7.5.4): the parse job is created and polled, each line is projected in paste order, and the cook's
+ * way out of a stalled or failed line is theirs (Add as written, Try again).
  *
- * The recipe service's hooks are doubles (their own suite drives the client); the projection (`pastedLines.ts`), the
- * draft actions and the line adapters are the real ones.
+ * ⛔ REWRITTEN for ADR-0071 (blueprint A2). This hook no longer JOINS lines and no longer looks anything up by name: the
+ * by-name join bound a ranked guess (milk crackers for milk), which is why it was removed. It now owns the paste's
+ * SESSION — the job, the lines and which of them have joined — and `usePasteMatching` (its own suite) does the joining.
+ * Every by-name assertion that stood here (the lookup, the appended rows, a failed lookup, the paused join) was deleted
+ * with the code it tested; the coverage moved to `usePasteMatching.test.tsx` and `pasteMatch.integration.test.tsx`. What
+ * stayed is what this hook still owns: the job, the cook's choices (no time limit), the session's end, and the daily
+ * limit's refusal (004 FR-022), where every line joins as written.
+ *
+ * The recipe service's hooks are doubles (their own suite drives the client); the projection (`pastedLines.ts`) is real.
  */
-import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
-import { FoodResolutionStatus, type Ingredient } from '@kitchensink/recipe-core';
-import { makeIngredient } from '@kitchensink/recipe-core/testing';
-import { FetchUnavailableError, NotFoundError } from '@kitchensink/recipe-service-client';
+import { FetchUnavailableError, ImportQuotaExceededError, NotFoundError } from '@kitchensink/recipe-service-client';
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,18 +25,16 @@ import {
     makeParseProposal,
     makeParseProposalFood,
 } from '../../__fixtures__/parseJobs.js';
-import type { DraftAction } from '../../form/draftAction.js';
-import { PASTE_ANNOUNCE_INTERVAL_MS } from '../usePasteAnnouncement.js';
 
 const mocks = vi.hoisted(() => ({
     created: undefined as ((job: ParseJobResponse) => void) | undefined,
-    createState: { isPending: false, isError: false },
+    createState: { isPending: false, isError: false, error: null as Error | null },
     mutate: vi.fn(),
     reset: vi.fn(),
     job: undefined as ParseJobResponse | undefined,
     jobError: undefined as Error | undefined,
+    pollPaused: false,
     polledId: vi.fn(),
-    byName: vi.fn(),
     retryParse: vi.fn(),
     withdraw: vi.fn(),
     retryState: { isError: false },
@@ -50,21 +53,14 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
             data: id === '' ? undefined : mocks.job,
             isError: id !== '' && mocks.jobError !== undefined,
             error: id === '' ? null : (mocks.jobError ?? null),
+            fetchStatus: mocks.pollPaused ? 'paused' : 'idle',
         };
     },
-    useAddIngredientByName: () => ({ mutateAsync: mocks.byName, isPaused: false }),
     useRetryParseJob: () => ({ mutate: mocks.retryParse, ...mocks.retryState }),
     useWithdrawParseJobLines: () => ({ mutate: mocks.withdraw }),
 }));
 
 import { usePasteIntoIngredients, type UsePasteIntoIngredientsOptions } from '../usePasteIntoIngredients.js';
-
-const ingredient = (name: string): Ingredient =>
-    makeIngredient({
-        id: `00000000-0000-4000-8000-0000000000${name.length.toString().padStart(2, '0')}`,
-        name,
-        foodResolutionStatus: FoodResolutionStatus.PENDING,
-    });
 
 const parsed = (lineIndex: number, sourceLine: string, name: string) =>
     makeParseJobLine({
@@ -75,15 +71,13 @@ const parsed = (lineIndex: number, sourceLine: string, name: string) =>
     });
 
 function render(over: Partial<UsePasteIntoIngredientsOptions> = {}) {
-    const dispatch = vi.fn<(action: DraftAction) => void>();
-    // The join is a real TanStack mutation over the doubled lookup.
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const hook = renderHook((props: UsePasteIntoIngredientsOptions) => usePasteIntoIngredients(props), {
-        initialProps: { offered: true, keepsSource: true, dispatch, ...over },
+        initialProps: { offered: true, ...over },
         wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
     });
 
-    return { ...hook, dispatch };
+    return hook;
 }
 
 /** The job the create answers with, accepted. */
@@ -92,11 +86,10 @@ function accept(job: ParseJobResponse): void {
     act(() => mocks.created?.(job));
 }
 
-/** Let every queued lookup settle. */
+/** Let every queued update settle. */
 async function settle(): Promise<void> {
     for (let turn = 0; turn < 4; turn += 1) {
         await act(async () => {
-            // A mutation notifies on a timer: advance it under fake timers, wait it out under real ones.
             if (vi.isFakeTimers()) {
                 await vi.advanceTimersByTimeAsync(0);
             } else {
@@ -106,8 +99,9 @@ async function settle(): Promise<void> {
     }
 }
 
-const appended = (dispatch: ReturnType<typeof render>['dispatch']) =>
-    dispatch.mock.calls.flatMap(([action]) => (action.kind === 'appendResolvedIngredient' ? [action.line] : []));
+/** What a settled line adds, by name. */
+const rowNamesOf = (line: ReturnType<typeof render>['result']['current']['lines'][number] | undefined) =>
+    line?.kind === 'settled' ? line.rows.map((row) => row.name) : undefined;
 
 /** The fixture job's `createdAt`: its `expiresAt` is a day later, so a real clock past that day expires every job. */
 const FIXTURE_NOW = new Date('2026-10-09T10:00:00.000Z');
@@ -115,13 +109,13 @@ const FIXTURE_NOW = new Date('2026-10-09T10:00:00.000Z');
 beforeEach(() => {
     vi.setSystemTime(FIXTURE_NOW);
     mocks.created = undefined;
-    mocks.createState = { isPending: false, isError: false };
+    mocks.createState = { isPending: false, isError: false, error: null };
     mocks.job = undefined;
     mocks.jobError = undefined;
+    mocks.pollPaused = false;
     mocks.retryState = { isError: false };
     mocks.retryParse.mockReset();
     mocks.withdraw.mockReset();
-    mocks.byName.mockImplementation(async (name: string) => ingredient(name));
 });
 
 afterEach(() => {
@@ -136,7 +130,7 @@ describe('usePasteIntoIngredients — where it is offered (D10)', () => {
         expect(render({ offered: false }).result.current.available).toBe(false);
     });
 
-    it('is not offered again while a paste is still reading', () => {
+    it('is not offered again while a paste is still joining', () => {
         const { result } = render();
 
         act(() => result.current.submit('2 cups flour'));
@@ -147,11 +141,11 @@ describe('usePasteIntoIngredients — where it is offered (D10)', () => {
 });
 
 describe('usePasteIntoIngredients — the job', () => {
-    it('creates the job with the pasted text, and each line reads at once with its own text', () => {
+    it('creates the job with the pasted text, and every line is projected at once with its own text', () => {
         const { result } = render();
 
         act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        expect(mocks.mutate).toHaveBeenCalledWith({ text: '2 cups flour\n1 tsp salt' });
+        expect(mocks.mutate).toHaveBeenCalledWith({ text: '2 cups flour\n1 tsp salt' }, expect.any(Object));
 
         accept(
             makeParseJob({
@@ -162,353 +156,267 @@ describe('usePasteIntoIngredients — the job', () => {
             }),
         );
 
-        // The fixture's lines are pending and the server reads them as queued (`progress`).
-        expect(result.current.reading.map((row) => [row.sourceLine, row.state])).toEqual([
-            ['2 cups flour', 'queued'],
-            ['1 tsp salt', 'queued'],
+        expect(result.current.lines.map((line) => [line.kind, line.sourceLine])).toEqual([
+            ['reading', '2 cups flour'],
+            ['reading', '1 tsp salt'],
         ]);
         expect(result.current.acceptedCount).toBe(1);
-        expect(result.current.progress).toEqual({
-            done: 0,
-            count: 2,
-            status: { kind: 'step', step: 'queued', position: 1 },
-            retryCount: 0,
-            restCount: 0,
-        });
+        expect(result.current.jobId).toBe(makeParseJob().id);
+        expect(result.current.joined.size).toBe(0);
     });
 
     it('a refused create (offline included) says so and reads nothing', () => {
-        mocks.createState = { isPending: false, isError: true };
+        mocks.createState = { isPending: false, isError: true, error: new FetchUnavailableError() };
         const { result } = render();
 
         expect(result.current.failed).toBe(true);
-        expect(result.current.reading).toEqual([]);
+        expect(result.current.lines).toEqual([]);
+    });
+
+    it('⛔ keeps polling the job after every line has joined: a food still being checked needs the next read', () => {
+        const { result } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ lines: [parsed(0, '2 cups flour', 'flour')] }));
+        mocks.polledId.mockClear();
+
+        act(() => result.current.markJoined(result.current.sessionKey ?? '', 0, 1));
+
+        expect(result.current.lines).toEqual([]);
+        expect(result.current.available).toBe(true);
+        expect(mocks.polledId).toHaveBeenLastCalledWith(makeParseJob().id);
+        expect(result.current.job).toBeDefined();
     });
 });
 
-describe('usePasteIntoIngredients — settled lines join the recipe', () => {
-    it('a parsed line is looked up by NAME and appended with its measure and what it was read from (A5)', async () => {
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour, sifted'));
-        accept(makeParseJob());
-
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [
-                makeParseJobLine({
-                    sourceLine: '2 cups flour, sifted',
-                    status: 'parsed',
-                    proposal: makeParseProposal({ foods: [makeParseProposalFood({ name: 'flour', prep: 'sifted' })] }),
-                }),
-            ],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-
-        expect(mocks.byName).toHaveBeenCalledWith('flour');
-        expect(appended(dispatch)).toEqual([
-            expect.objectContaining({
-                name: 'flour',
-                quantity: 2,
-                // The unit as the cook stated it ("2 cups"), never rewritten to the parse's "cup" (F12).
-                unit: 'cups',
-                preparation: 'sifted',
-                sourceLine: '2 cups flour, sifted',
-                sourcePhrase: 'flour',
-            }),
-        ]);
-        // R19: the parse bound nothing; the line is whatever the lookup admitted, still resolving.
-        expect(appended(dispatch)[0]?.resolutionStatus).toBe(FoodResolutionStatus.PENDING);
-    });
-
-    /**
-     * REWRITTEN (findings 7 and 8): whether a line keeps its source is the editor's `pasteKeepsSource`, read when the
-     * line JOINS — false once the create is submitted, which may be while the paste was still reading.
-     */
-    it('⛔ a line that joins once the create is submitted lands as an authored line: no source (A5, Q3)', async () => {
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour'));
-        accept(makeParseJob());
-
-        mocks.job = makeParseJob({ status: 'complete', lines: [parsed(0, '2 cups flour', 'flour')] });
-        rerender({ offered: true, keepsSource: false, dispatch });
-        await settle();
-
-        expect(appended(dispatch)).toHaveLength(1);
-        expect(appended(dispatch)[0]).not.toHaveProperty('sourceLine');
-        expect(appended(dispatch)[0]).not.toHaveProperty('sourcePhrase');
-    });
-
-    it('lines join in paste order: a later line that settles first waits for the one above it', async () => {
-        const { result, rerender, dispatch } = render();
+describe('usePasteIntoIngredients — lines join, and the session ends with the last one', () => {
+    it('records each joined line; the session ends and says the count only when the last has joined', () => {
+        const { result } = render();
         act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob());
+        accept(makeParseJob({ lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')] }));
+        const key = result.current.sessionKey ?? '';
 
-        mocks.job = makeParseJob({
-            lines: [makeParseJobLine({ lineIndex: 0, sourceLine: '2 cups flour' }), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
+        act(() => result.current.markJoined(key, 0, 1));
 
-        expect(appended(dispatch)).toEqual([]);
+        expect([...result.current.joined]).toEqual([0]);
+        expect(result.current.added).toBeUndefined();
+        expect(result.current.available).toBe(false);
 
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
+        act(() => result.current.markJoined(key, 1, 2));
 
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
-    });
-
-    it('a heading adds no row and does not hold back the line after it', async () => {
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('For the dough:\n2 cups flour'));
-        accept(makeParseJob());
-
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [
-                makeParseJobLine({
-                    lineIndex: 0,
-                    sourceLine: 'For the dough:',
-                    status: 'parsed',
-                    proposal: makeParseProposal({ foods: [] }),
-                }),
-                parsed(1, '2 cups flour', 'flour'),
-            ],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour']);
-    });
-
-    it('once every line has joined: nothing reads, the count is said, and paste is offered again', async () => {
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob());
-
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-
-        expect(result.current.reading).toEqual([]);
-        expect(result.current.added).toEqual({ count: 2, occurrence: 1 });
+        expect(result.current.added).toEqual({ count: 3, occurrence: 1 });
         expect(result.current.available).toBe(true);
     });
-});
 
-describe('usePasteIntoIngredients — a lookup that fails', () => {
-    it('marks its row failed and holds the lines after it; Try again asks again and the rest follow', async () => {
-        mocks.byName.mockRejectedValueOnce(new Error('down'));
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob());
+    it('a heading adds no row: its line joins with a count of 0', () => {
+        const { result } = render();
+        act(() => result.current.submit('For the sauce:'));
+        accept(
+            makeParseJob({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine: 'For the sauce:',
+                        status: 'parsed',
+                        proposal: makeParseProposal({ foods: [] }),
+                    }),
+                ],
+            }),
+        );
 
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
+        act(() => result.current.markJoined(result.current.sessionKey ?? '', 0, 0));
 
-        // The second line is read and waits its turn behind the first (lines join in paste order).
-        expect(result.current.reading.map((row) => [row.sourceLine, row.state])).toEqual([
-            ['2 cups flour', 'lookupFailed'],
-            ['1 tsp salt', 'ready'],
-        ]);
-        expect(appended(dispatch)).toEqual([]);
+        expect(result.current.added).toEqual({ count: 0, occurrence: 1 });
+    });
+
+    it('⛔ a join that answers for a paste that was replaced does not touch the newer paste', () => {
+        const { result } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ id: 'job-a', lines: [parsed(0, '2 cups flour', 'flour')] }));
+        const staleKey = result.current.sessionKey ?? '';
+        act(() => result.current.markJoined(staleKey, 0, 1));
+        act(() => result.current.submit('1 tsp salt'));
+        accept(makeParseJob({ id: 'job-b', lines: [parsed(0, '1 tsp salt', 'salt')] }));
+
+        act(() => result.current.markJoined(staleKey, 0, 1));
+
+        expect(result.current.sessionKey).toBe('job-b');
+        expect(result.current.joined.size).toBe(0);
+        expect(result.current.added).toEqual({ count: 1, occurrence: 1 });
+    });
+
+    it('a join that fails holds its line (and the lines after it) until Try again', () => {
+        const { result } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob({ lines: [parsed(0, '2 cups flour', 'flour')] }));
+        const key = result.current.sessionKey ?? '';
+
+        act(() => result.current.markJoinFailed(key, 0));
+        expect(result.current.failedAt).toBe(0);
 
         act(() => result.current.retryLookup());
-        await settle();
-
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
+        expect(result.current.failedAt).toBeUndefined();
     });
 
-    it('⛔ Add as written merges into the session as it stands: it does not undo a Try again made in the same batch', async () => {
-        mocks.byName.mockRejectedValueOnce(new Error('down'));
-        const { result, rerender, dispatch } = render();
+    it('⛔ a failure that arrives for a line the session has already joined is ignored', () => {
+        const { result } = render();
         act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob());
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-        expect(result.current.reading[0]?.state).toBe('lookupFailed');
+        accept(makeParseJob({ lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')] }));
+        const key = result.current.sessionKey ?? '';
+        act(() => result.current.markJoined(key, 0, 1));
 
-        // Both presses are handled by the one render's closures, before React renders in between.
-        act(() => {
-            result.current.retryLookup();
-            result.current.addAsWritten(1);
-        });
-        await settle();
+        act(() => result.current.markJoinFailed(key, 0));
 
-        // A closure-based merge writes the stale `failedAt` back over the retry, and line 0 stays failed forever.
-        expect(result.current.reading.map((row) => row.state)).not.toContain('lookupFailed');
-    });
-
-    /** A lookup the test answers by hand, so the join is still in flight while the cook acts. */
-    function holdLookup(): { release: () => void } {
-        let release: () => void = () => undefined;
-        mocks.byName.mockImplementationOnce(
-            (name: string) =>
-                new Promise<Ingredient>((resolve) => {
-                    release = () => resolve(ingredient(name));
-                }),
-        );
-
-        return { release: () => release() };
-    }
-
-    it('⛔ a join that answers does not undo an Add as written the cook pressed while it was in flight', async () => {
-        const gate = holdLookup();
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob());
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [
-                parsed(0, '2 cups flour', 'flour'),
-                makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'stalled' } }),
-            ],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-        expect(mocks.byName).toHaveBeenCalledTimes(1);
-
-        act(() => result.current.addAsWritten(1));
-        await act(async () => gate.release());
-        await settle();
-
-        // Two things are held. The join's answer merges into the session as it stands, so line 1 stays the cook's. And
-        // Add as written replaces the session object while line 0 is joining, which re-runs the join effect: the line
-        // is claimed by its job and place (`jobId:done`), so it is not joined again. Without the claim the same line
-        // joins twice, and the second join writes its foods to the catalog a second time (`byName` called 3 times).
-        expect(result.current.reading).toEqual([]);
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
-        // One catalog write per food: flour, then salt as written. A line joined twice would write its foods twice.
-        expect(mocks.byName).toHaveBeenCalledTimes(2);
-    });
-
-    it('⛔ a join that answers for a paste that was replaced does not overwrite the newer paste', async () => {
-        const gate = holdLookup();
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob({ id: '11111111-1111-4111-8111-111111111111' }));
-        mocks.job = makeParseJob({
-            id: '11111111-1111-4111-8111-111111111111',
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-
-        accept(makeParseJob({ id: '22222222-2222-4222-8222-222222222222' }));
-        mocks.polledId.mockClear();
-        await act(async () => gate.release());
-        await settle();
-
-        expect(mocks.polledId).not.toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
-    });
-
-    // The guard's `done` half has no test, on purpose. `PasteSession.done` moves in exactly one place: the success
-    // updater of the join that holds that very `jobId:done` claim (Add as written and Try again replace the session
-    // without moving it). So no path advances `done` while that join is in flight, and a test could only fake the
-    // state, which would pass with the half deleted. The replaced-paste tests around this one pin the `jobId` half.
-    it('⛔ a join that FAILS for a paste that was replaced does not mark the newer paste failed', async () => {
-        let fail: () => void = () => undefined;
-        mocks.byName.mockImplementationOnce(
-            () =>
-                new Promise<Ingredient>((_resolve, reject) => {
-                    fail = () => reject(new Error('down'));
-                }),
-        );
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
-        accept(makeParseJob({ id: '11111111-1111-4111-8111-111111111111' }));
-        mocks.job = makeParseJob({
-            id: '11111111-1111-4111-8111-111111111111',
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-        expect(mocks.byName).toHaveBeenCalledTimes(1);
-
-        // A second paste replaces the session while the first paste's join is still in flight; its line 0 is still reading.
-        mocks.job = makeParseJob({
-            id: '22222222-2222-4222-8222-222222222222',
-            lines: [
-                makeParseJobLine({ lineIndex: 0, sourceLine: '3 eggs', progress: { phase: 'reading' } }),
-                makeParseJobLine({ lineIndex: 1, sourceLine: '1 tsp salt', progress: { phase: 'reading' } }),
-            ],
-        });
-        accept(mocks.job);
-        await act(async () => fail());
-        await settle();
-
-        expect(result.current.reading.map((row) => row.state)).not.toContain('lookupFailed');
+        expect(result.current.failedAt).toBeUndefined();
     });
 });
 
 /**
- * ⛔ REWRITTEN for owner ruling 2026-10-13 (plan 2026-10-15-011): "it takes as long as it takes". The 3-minute stall
- * bound that joined every unread line through the reader is gone. A line waits as long as the parse takes; a line the
- * server calls stalled, or that the system stopped trying, waits on the COOK — Add as written joins it through the add
- * field's reader, and Try again re-drives the whole paste. The server's own terminals still join without the cook.
+ * 004 FR-022 (ADR-0071 phase 0): past the daily allowance the create is refused with `IMPORT_QUOTA_EXCEEDED`, and there
+ * is no job. The cook pasted a list, so it still lands: every line joins AS WRITTEN, nothing is matched, and the host says
+ * when matching starts again.
  */
+describe('usePasteIntoIngredients — the daily limit (004 FR-022)', () => {
+    const RESETS_AT = '2026-10-10T08:00:00.000Z';
+    const quotaError = () => new ImportQuotaExceededError(RESETS_AT);
+
+    /** Submit, and let the create answer with the refusal. */
+    function refused(text: string) {
+        const hook = render();
+
+        mocks.createState = { isPending: false, isError: true, error: quotaError() };
+        act(() => hook.result.current.submit(text));
+        const [, options] = mocks.mutate.mock.calls.at(-1) as [unknown, { onError: (error: Error) => void }];
+
+        act(() => options.onError(quotaError()));
+
+        return hook;
+    }
+
+    it('⛔ is not a failure: the sheet keeps no error, closes, and the cook is told the limit instead', () => {
+        const { result } = refused('2 cups flour\n1 tsp salt');
+
+        expect(result.current.failed).toBe(false);
+        expect(result.current.acceptedCount).toBe(1);
+        expect(result.current.quota).toEqual({ resetsAt: RESETS_AT });
+    });
+
+    it('⛔ every line joins as written, through the reader, in paste order, and none is parsed', () => {
+        const { result } = refused('2 tbsp olive oil, for frying\n1 tsp salt');
+
+        expect(result.current.jobId).toBeUndefined();
+        expect(mocks.polledId).not.toHaveBeenCalledWith(expect.stringMatching(/./));
+        expect(result.current.lines.map(rowNamesOf)).toEqual([['olive oil'], ['salt']]);
+        expect(result.current.matchesGone).toBe(true);
+        expect(result.current.available).toBe(false);
+    });
+
+    it('the notice outlives the session, and the next paste clears it', () => {
+        const { result } = refused('1 tsp salt');
+        const key = result.current.sessionKey ?? '';
+
+        act(() => result.current.markJoined(key, 0, 1));
+
+        expect(result.current.lines).toEqual([]);
+        expect(result.current.quota).toEqual({ resetsAt: RESETS_AT });
+
+        act(() => result.current.submit('2 cups flour'));
+
+        expect(result.current.quota).toBeUndefined();
+    });
+
+    it('a different refusal is still a failure the sheet shows', () => {
+        mocks.createState = { isPending: false, isError: true, error: new FetchUnavailableError() };
+        const { result } = render();
+
+        expect(result.current.failed).toBe(true);
+        expect(result.current.quota).toBeUndefined();
+    });
+});
+
+/** Whether the job can still match: an expired or unreadable job answers no match, ever. */
+describe('usePasteIntoIngredients — when matches can no longer come', () => {
+    it('is false for a live job, and for a read that failed for now', () => {
+        const { result, rerender } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob());
+
+        expect(result.current.matchesGone).toBe(false);
+
+        mocks.jobError = new FetchUnavailableError();
+        rerender({ offered: true });
+
+        expect(result.current.matchesGone).toBe(false);
+    });
+
+    it('is true for a job the service says is gone', () => {
+        const { result, rerender } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob());
+
+        mocks.jobError = new NotFoundError('gone', 'PARSE_JOB_NOT_FOUND');
+        rerender({ offered: true });
+
+        expect(result.current.matchesGone).toBe(true);
+    });
+
+    it('is true once the job expires, at its deadline', async () => {
+        vi.useFakeTimers({ now: FIXTURE_NOW });
+        const { result, rerender } = render();
+        act(() => result.current.submit('2 cups flour'));
+        accept(makeParseJob());
+
+        act(() => {
+            vi.advanceTimersByTime(24 * 60 * 60 * 1_000 + 1);
+        });
+        rerender({ offered: true });
+        await settle();
+
+        expect(result.current.matchesGone).toBe(true);
+    });
+});
+
 describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
     const OLIVE = '2 tbsp olive oil, for frying';
 
-    it('⛔ a pending line waits however long the parse takes: no clock joins it', async () => {
+    it('⛔ a pending line waits however long the parse takes: no clock settles it', async () => {
         vi.useFakeTimers({ now: FIXTURE_NOW });
-        const { result, rerender, dispatch } = render();
+        const { result, rerender } = render();
         act(() => result.current.submit(OLIVE));
         accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'reading' } })] }));
 
         act(() => {
             vi.advanceTimersByTime(60 * 60 * 1_000);
         });
-        rerender({ offered: true, keepsSource: true, dispatch });
+        rerender({ offered: true });
         await settle();
 
-        expect(mocks.byName).not.toHaveBeenCalled();
-        expect(result.current.reading.map((row) => row.state)).toEqual(['reading']);
+        expect(result.current.lines.map((line) => line.kind)).toEqual(['reading']);
     });
 
-    it('a stalled line waits on the cook, and Add as written joins it through the reader', async () => {
-        const { result, rerender, dispatch } = render();
+    it('a stalled line waits on the cook, and Add as written settles it through the reader', async () => {
+        const { result } = render();
         act(() => result.current.submit(OLIVE));
         accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'stalled' } })] }));
         await settle();
 
-        expect(result.current.reading.map((row) => row.state)).toEqual(['stalled']);
-        expect(result.current.progress?.status).toEqual({ kind: 'stalled' });
-        expect(appended(dispatch)).toEqual([]);
+        expect(result.current.lines.map((line) => line.kind)).toEqual(['awaitingCook']);
 
         const signal = result.current.focusSignal;
         act(() => result.current.addAsWritten(0));
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
 
-        expect(mocks.byName).toHaveBeenCalledWith('olive oil');
-        expect(appended(dispatch)).toEqual([
-            // The unit as the cook typed it ("tbsp"), the same on every path that settles a line (F12).
-            expect.objectContaining({ quantity: 2, unit: 'tbsp', preparation: 'for frying' }),
+        const [line] = result.current.lines;
+
+        expect(line?.kind).toBe('settled');
+        // The unit as the cook typed it ("tbsp"), the same on every path that settles a line (F12).
+        expect(line?.kind === 'settled' ? line.rows : []).toEqual([
+            expect.objectContaining({ name: 'olive oil', measure: expect.objectContaining({ unit: 'tbsp' }) }),
         ]);
-        expect(appended(dispatch)[0]).not.toHaveProperty('sourcePhrase');
+        expect(line?.kind === 'settled' ? line.rows[0] : undefined).not.toHaveProperty('sourcePhrase');
+        expect(line?.kind === 'settled' ? line.rows[0] : undefined).not.toHaveProperty('foodIndex');
         expect(result.current.focusSignal).toBe(signal + 1);
     });
 
     it('a retryable line waits on the cook; Try again re-drives the whole paste', async () => {
-        const { result, rerender, dispatch } = render();
+        const { result } = render();
         act(() => result.current.submit('2 cups flour\n1 tsp salt'));
         accept(
             makeParseJob({
@@ -519,16 +427,13 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
                 ],
             }),
         );
-        rerender({ offered: true, keepsSource: true, dispatch });
         await settle();
 
-        expect(result.current.reading.map((row) => row.state)).toEqual(['retryable', 'retryable']);
-        expect(result.current.progress).toMatchObject({ status: { kind: 'needsYou', count: 2 }, retryCount: 2 });
+        expect(result.current.lines.map((line) => line.kind)).toEqual(['awaitingCook', 'awaitingCook']);
 
         act(() => result.current.retryParse());
 
         expect(mocks.retryParse).toHaveBeenCalledWith(makeParseJob().id, { onError: expect.any(Function) });
-        expect(appended(dispatch)).toEqual([]);
     });
 
     /**
@@ -536,7 +441,7 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
      * the worker still pays an engine for an answer this client discards.
      */
     it('⛔ Add as written withdraws that line from the parse job on the server', async () => {
-        const { result, rerender, dispatch } = render();
+        const { result } = render();
         act(() => result.current.submit('x'));
         accept(
             makeParseJob({
@@ -549,15 +454,13 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
         await settle();
 
         act(() => result.current.addAsWritten(1));
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
 
         expect(mocks.withdraw).toHaveBeenCalledTimes(1);
         expect(mocks.withdraw).toHaveBeenCalledWith({ id: makeParseJob().id, lineIndexes: [1] });
     });
 
     it('⛔ Add the rest as written withdraws exactly the stalled and retryable lines, not the ones being read', async () => {
-        const { result, rerender, dispatch } = render();
+        const { result } = render();
         act(() => result.current.submit('x'));
         accept(
             makeParseJob({
@@ -571,26 +474,22 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
         await settle();
 
         act(() => result.current.addRestAsWritten());
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
 
         expect(mocks.withdraw).toHaveBeenCalledWith({ id: makeParseJob().id, lineIndexes: [1, 2] });
     });
 
-    it('a refused withdrawal never holds the line back: it still joins as written', async () => {
+    it('a refused withdrawal never holds the line back: it still settles as written', async () => {
         mocks.withdraw.mockImplementation((_variables: unknown, options?: { onError?: (error: Error) => void }) =>
             options?.onError?.(new Error('refused')),
         );
-        const { result, rerender, dispatch } = render();
+        const { result } = render();
         act(() => result.current.submit(OLIVE));
         accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'stalled' } })] }));
         await settle();
 
         act(() => result.current.addAsWritten(0));
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
 
-        expect(appended(dispatch)).toHaveLength(1);
+        expect(result.current.lines.map(rowNamesOf)).toEqual([['olive oil']]);
     });
 
     /** Plan open question 4: a refused Try again used to show nothing at all. */
@@ -626,7 +525,7 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
 
     /** Plan open question 5: the UX spec prefers the NEXT WAITING ROW's action to the progress block. */
     it('⛔ after Add as written, focus goes to the next waiting row, not the block', async () => {
-        const { result, rerender, dispatch } = render();
+        const { result } = render();
         act(() => result.current.submit('x'));
         accept(
             makeParseJob({
@@ -648,9 +547,6 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
         act(() => result.current.onRowFocusHandled());
 
         expect(result.current.focusRow).toBeUndefined();
-
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
     });
 
     it('falls back to the earlier waiting row when none follows, and to the block when none waits', async () => {
@@ -697,8 +593,8 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
         expect(result.current.focusSignal).toBe(signal + 1);
     });
 
-    it('Add the rest as written joins every line waiting on the cook, and leaves read lines their parse', async () => {
-        const { result, rerender, dispatch } = render();
+    it('Add the rest as written settles every line waiting on the cook, and leaves read lines their parse', async () => {
+        const { result } = render();
         act(() => result.current.submit('x'));
         accept(
             makeParseJob({
@@ -709,170 +605,53 @@ describe('usePasteIntoIngredients — no time limit; the cook decides', () => {
                 ],
             }),
         );
-        rerender({ offered: true, keepsSource: true, dispatch });
         await settle();
 
         act(() => result.current.addRestAsWritten());
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
 
-        expect(appended(dispatch).map((line) => [line.name, line.sourcePhrase])).toEqual([
-            ['flour', 'flour'],
-            ['salt', undefined],
-            ['olive oil', undefined],
-        ]);
-        expect(result.current.reading).toEqual([]);
+        expect(result.current.lines.map(rowNamesOf)).toEqual([['flour'], ['salt'], ['olive oil']]);
+        // The parsed line keeps its parse: it names its food index, so it can find its match.
+        expect(result.current.lines[0]?.kind === 'settled' ? result.current.lines[0].rows[0]?.foodIndex : -1).toBe(0);
     });
 
-    it('an expired job joins its unread lines through the reader at its deadline', async () => {
-        vi.useFakeTimers({ now: FIXTURE_NOW });
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit(OLIVE));
-        // The fixture job expires a day after FIXTURE_NOW.
-        accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: OLIVE, progress: { phase: 'reading' } })] }));
-
-        act(() => {
-            vi.advanceTimersByTime(24 * 60 * 60 * 1_000 + 1);
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['olive oil']);
-    });
-
-    it('a job the service says is gone joins every line through the reader', async () => {
-        const { result, rerender, dispatch } = render();
+    it('a job the service says is gone settles every line through the reader', async () => {
+        const { result, rerender } = render();
         act(() => result.current.submit('2 cups flour'));
         accept(makeParseJob());
 
         mocks.jobError = new NotFoundError('gone', 'PARSE_JOB_NOT_FOUND');
-        rerender({ offered: true, keepsSource: true, dispatch });
+        rerender({ offered: true });
         await settle();
 
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour']);
+        expect(result.current.lines.map(rowNamesOf)).toEqual([['flour']]);
     });
 
     /**
      * ⛔ A READ THAT MAY WORK AGAIN IS NOT A GIVE-UP (owner ruling 2026-10-13: no time limit). An outage of the recipe
-     * service — the sandbox's midnight stop included — fails the poll's refetch; joining every unread line as written
+     * service — the sandbox's midnight stop included — fails the poll's refetch; settling every unread line as written
      * then would be the cook's choice made for them. Only a failure the client's own retry policy calls terminal stops
      * the paste.
      */
     it('⛔ a read that failed for now keeps the lines waiting rather than adding them as written', async () => {
-        const { result, rerender, dispatch } = render();
+        const { result, rerender } = render();
         act(() => result.current.submit('2 cups flour'));
         accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] }));
 
         mocks.jobError = new FetchUnavailableError();
-        rerender({ offered: true, keepsSource: true, dispatch });
+        rerender({ offered: true });
         await settle();
 
-        expect(appended(dispatch)).toEqual([]);
-        expect(result.current.reading.map((row) => row.state)).toEqual(['reading']);
+        expect(result.current.lines.map((line) => line.kind)).toEqual(['reading']);
     });
 });
 
-/**
- * The polite region (UX spec, plan 2026-10-15-011): it speaks at milestones only, never per row, and at most once per
- * interval — the newest milestone wins a burst.
- */
-describe('usePasteIntoIngredients — what is said politely', () => {
-    it('says the paste started, then a stall that lasts past the interval', async () => {
-        vi.useFakeTimers({ now: FIXTURE_NOW });
-        const { result, rerender, dispatch } = render();
+describe('usePasteIntoIngredients — an unreachable connection', () => {
+    it('says the poll is paused, from the query’s own state, never from a connectivity read', () => {
+        mocks.pollPaused = true;
+        const { result } = render();
         act(() => result.current.submit('2 cups flour'));
-        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] }));
-        // A paste starting is said at once: on the next turn, not after the interval.
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(0);
-        });
-
-        expect(result.current.announcement).toMatchObject({ milestone: 'started', count: 1, occurrence: 1 });
-
-        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'stalled' } })] });
-        rerender({ offered: true, keepsSource: true, dispatch });
-
-        // Inside the interval nothing new is said; once it has passed, the stall is.
-        expect(result.current.announcement).toMatchObject({ milestone: 'started', occurrence: 1 });
-
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS);
-        });
-
-        expect(result.current.announcement).toMatchObject({ milestone: 'stalled', occurrence: 2 });
-    });
-
-    it('a stall that clears inside the interval is never said: the condition is back where it was', async () => {
-        vi.useFakeTimers({ now: FIXTURE_NOW });
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour'));
-        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] }));
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(0);
-        });
-
-        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'stalled' } })] });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'retrying' } })] });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS);
-        });
-
-        expect(result.current.announcement).toMatchObject({ milestone: 'started', occurrence: 1 });
-    });
-
-    it('says nothing when only a row moves within the same condition', async () => {
-        vi.useFakeTimers({ now: FIXTURE_NOW });
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour'));
-        accept(makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'queued' } })] }));
-
-        mocks.job = makeParseJob({ lines: [makeParseJobLine({ progress: { phase: 'reading' } })] });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS * 2);
-        });
-
-        expect(result.current.announcement).toMatchObject({ milestone: 'started', occurrence: 1 });
-    });
-});
-
-/**
- * Offline (finding 11). The by-name lookups are mutations that PAUSE without a connection and resume on reconnect (the
- * behaviour kept); the rows then say they will finish when the device is back online, rather than reading "Reading…"
- * while Publish waits on them for no reason the cook can see. The state comes from the mutation's own `isPaused`, never
- * from a connectivity read (build spec: screens do not branch on connectivity).
- */
-describe('usePasteIntoIngredients — offline', () => {
-    afterEach(() => {
-        onlineManager.setOnline(true);
-    });
-
-    it('a join paused for want of a connection says so on every row still joining, then finishes on reconnect', async () => {
-        const { result, rerender, dispatch } = render();
-        act(() => result.current.submit('2 cups flour\n1 tsp salt'));
         accept(makeParseJob());
 
-        act(() => {
-            onlineManager.setOnline(false);
-        });
-        mocks.job = makeParseJob({
-            status: 'complete',
-            lines: [parsed(0, '2 cups flour', 'flour'), parsed(1, '1 tsp salt', 'salt')],
-        });
-        rerender({ offered: true, keepsSource: true, dispatch });
-        await settle();
-
-        expect(appended(dispatch)).toEqual([]);
-        expect(result.current.reading.map((row) => row.state)).toEqual(['waiting', 'waiting']);
-
-        act(() => {
-            onlineManager.setOnline(true);
-        });
-        await settle();
-
-        expect(appended(dispatch).map((line) => line.name)).toEqual(['flour', 'salt']);
-        expect(result.current.reading).toEqual([]);
+        expect(result.current.pollPaused).toBe(true);
     });
 });

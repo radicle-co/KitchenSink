@@ -186,6 +186,59 @@ describe('the native editor', () => {
         expect(publish).not.toHaveBeenCalled();
     });
 
+    describe('Publish asks about lines that have no food yet (R23)', () => {
+        const FACTS = { openNames: ['milk', 'bread'], checkingNames: ['cream'], counted: 7, total: 9 };
+
+        it('⛔ asks first, naming the open lines, and sends nothing until the cook says so', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(view(makeEditorResult({ publish }), { openChoices: { facts: FACTS, chooseNow: vi.fn() } }));
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            expect(screen.getByRole('heading', { name: '2 ingredients have no food yet' })).toBeTruthy();
+            expect(screen.getByText(/milk and bread/u)).toBeTruthy();
+            expect(screen.getByText(/7 of 9/u)).toBeTruthy();
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('Publish anyway publishes, with the entry`s uncommitted text', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish }), {
+                    pendingEntryText: 'flour',
+                    openChoices: { facts: FACTS, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Publish anyway' }));
+
+            expect(publish).toHaveBeenCalledExactlyOnceWith('flour');
+        });
+
+        it('Choose now publishes nothing and opens the first open line', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            const chooseNow = vi.fn();
+            render(view(makeEditorResult({ publish }), { openChoices: { facts: FACTS, chooseNow } }));
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Choose now' }));
+
+            expect(chooseNow).toHaveBeenCalledTimes(1);
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('does not ask when no line needs a pick', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(view(makeEditorResult({ publish }), { openChoices: { facts: undefined, chooseNow: vi.fn() } }));
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            expect(screen.queryByRole('dialog')).toBeNull();
+            expect(publish).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it('Publish goes through the gate with the entry`s uncommitted text', () => {
         const publish = vi.fn(() => ({ kind: 'send' }) as const);
         render(view(makeEditorResult({ publish }), { pendingEntryText: 'salt' }));

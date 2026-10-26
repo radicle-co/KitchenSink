@@ -248,3 +248,151 @@ describe('useEditorPage — a refused Publish focuses the first invalid field (E
         expect(onRefused).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * R23 (`ingredientMatching.md`, "Save"): publishing with paste lines that have no food yet is ALLOWED, but the cook is
+ * asked first. The interception lives where every route to Publish passes — `finish` — so the primary, the resume
+ * notice's Save and any later route cannot skip it. A published recipe's Save changes is not a publish and never asks.
+ */
+describe('useEditorPage — Publish asks about lines that have no food yet (R23)', () => {
+    const FACTS = { openNames: ['milk'], checkingNames: [], counted: 3, total: 4 };
+
+    function renderAsking(over: {
+        readonly facts?: typeof FACTS | undefined;
+        readonly lifecycle?: 'unsaved' | 'published';
+        readonly publish?: () => { kind: 'send' };
+        readonly saveChanges?: () => { kind: 'send' };
+        readonly chooseNow?: () => void;
+    }) {
+        const publish = over.publish ?? vi.fn(() => ({ kind: 'send' as const }));
+        const saveChanges = over.saveChanges ?? vi.fn(() => ({ kind: 'send' as const }));
+        const chooseNow = over.chooseNow ?? vi.fn();
+
+        const Probe = (): ReactElement => {
+            const page = useEditorPage({
+                editor: makeEditorResult({
+                    publish,
+                    saveChanges,
+                    lifecycle: over.lifecycle ?? 'unsaved',
+                }),
+                mode: 'create',
+                keep: 'tabSession',
+                pendingEntryText: '',
+                pendingEntryFieldId: undefined,
+                sections: { details: null, ingredients: null, steps: null, photos: null },
+                onClose: () => undefined,
+                onPreview: () => undefined,
+                onOpenMyRecipes: () => undefined,
+                openChoices: { facts: 'facts' in over ? over.facts : FACTS, chooseNow },
+            });
+
+            return (
+                <>
+                    <button type="button" onClick={page.finish}>
+                        Primary
+                    </button>
+                    <button type="button" onClick={page.openChoices.publishAnyway}>
+                        Publish anyway
+                    </button>
+                    <button type="button" onClick={page.openChoices.chooseNow}>
+                        Choose now
+                    </button>
+                    <button type="button" onClick={() => page.openChoices.setOpen(false)}>
+                        Dismiss
+                    </button>
+                    <output>{page.openChoices.open ? 'asking' : 'quiet'}</output>
+                    <output aria-label="Facts">{JSON.stringify(page.openChoices.facts ?? null)}</output>
+                </>
+            );
+        };
+
+        render(
+            <LocaleProvider locale="en">
+                <ScrollHost sections={EDITOR_SECTIONS}>
+                    {EDITOR_SECTIONS.map((id) => (
+                        <section key={id} id={id} tabIndex={-1} />
+                    ))}
+                    <Probe />
+                </ScrollHost>
+            </LocaleProvider>,
+        );
+
+        for (const node of document.querySelectorAll('section')) {
+            (node as HTMLElement).scrollIntoView = vi.fn();
+        }
+
+        return {
+            publish,
+            saveChanges,
+            chooseNow,
+            press: (name = 'Primary') => fireEvent.click(screen.getByRole('button', { name })),
+        };
+    }
+
+    it('⛔ asks instead of publishing while a line needs a pick', () => {
+        const view = renderAsking({});
+
+        view.press();
+
+        expect(view.publish).not.toHaveBeenCalled();
+        expect(screen.getAllByRole('status')[0]?.textContent).toBe('asking');
+    });
+
+    it('publishes at once when no line needs a pick', () => {
+        const view = renderAsking({ facts: undefined });
+
+        view.press();
+
+        expect(view.publish).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByRole('status')[0]?.textContent).toBe('quiet');
+    });
+
+    it('Publish anyway closes the ask and publishes', () => {
+        const view = renderAsking({});
+
+        view.press();
+        view.press('Publish anyway');
+
+        expect(view.publish).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByRole('status')[0]?.textContent).toBe('quiet');
+    });
+
+    it('Choose now closes the ask, opens the first open line, and takes the cook to the Ingredients section', () => {
+        const view = renderAsking({});
+
+        view.press();
+        view.press('Choose now');
+
+        expect(view.publish).not.toHaveBeenCalled();
+        expect(view.chooseNow).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByRole('status')[0]?.textContent).toBe('quiet');
+        expect((document.getElementById('ingredients') as HTMLElement).scrollIntoView).toHaveBeenCalled();
+    });
+
+    it('closing the ask any other way publishes nothing', () => {
+        const view = renderAsking({});
+
+        view.press();
+        view.press('Dismiss');
+
+        expect(view.publish).not.toHaveBeenCalled();
+        expect(screen.getAllByRole('status')[0]?.textContent).toBe('quiet');
+    });
+
+    it('⛔ a published recipe’s Save changes is not a publish: it never asks', () => {
+        const view = renderAsking({ lifecycle: 'published' });
+
+        view.press();
+
+        expect(view.saveChanges).toHaveBeenCalledTimes(1);
+        expect(view.publish).not.toHaveBeenCalled();
+    });
+
+    it('keeps the facts a closing sheet still shows, once the lines are chosen', () => {
+        const view = renderAsking({});
+
+        view.press();
+
+        expect(JSON.parse(screen.getByLabelText('Facts').textContent ?? 'null')).toEqual(FACTS);
+    });
+});

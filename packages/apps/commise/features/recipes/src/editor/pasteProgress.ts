@@ -22,8 +22,8 @@ export interface PasteRowsInput {
     readonly jobId: string;
     /** Every pasted line, in paste order. */
     readonly lines: readonly PastedLine[];
-    /** How many lines, in paste order, have joined the recipe. */
-    readonly done: number;
+    /** The lines, by index, that have joined the recipe. */
+    readonly joined: ReadonlySet<number>;
     /** The line whose lookup failed, by its index, until Try again. */
     readonly failedAt: number | undefined;
     /** The paste's work is paused for a connection. */
@@ -49,19 +49,21 @@ function ownStateOf(line: PastedLine, isNext: boolean): PasteRowState {
  * @returns One row per unjoined line. Pure.
  */
 export function pasteRowsOf(input: PasteRowsInput): readonly PasteReadingRow[] {
-    const { jobId, lines, done, failedAt, waiting } = input;
+    const { jobId, lines, joined, failedAt, waiting } = input;
 
-    return lines.slice(done).map((line, offset) => {
-        const own = ownStateOf(line, offset === 0);
-        const state: PasteRowState = failedAt === line.lineIndex ? 'lookupFailed' : waiting ? 'waiting' : own;
+    return lines
+        .filter((line) => !joined.has(line.lineIndex))
+        .map((line, offset) => {
+            const own = ownStateOf(line, offset === 0);
+            const state: PasteRowState = failedAt === line.lineIndex ? 'lookupFailed' : waiting ? 'waiting' : own;
 
-        return {
-            key: `${jobId}:${String(line.lineIndex)}`,
-            lineIndex: line.lineIndex,
-            sourceLine: line.sourceLine,
-            state,
-        };
-    });
+            return {
+                key: `${jobId}:${String(line.lineIndex)}`,
+                lineIndex: line.lineIndex,
+                sourceLine: line.sourceLine,
+                state,
+            };
+        });
 }
 
 /** The row states the server still holds (pending lines), as opposed to the cook's or the client's. */

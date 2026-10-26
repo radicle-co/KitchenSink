@@ -81,6 +81,17 @@ export function draftKeyOf(session: PasteMatchSession, key: string): string | un
     return join?.status === 'joined' ? join.draftKey : undefined;
 }
 
+/**
+ * The food a draft line belongs to. Pure.
+ *
+ * @param session - The session.
+ * @param draftKey - A draft line's key.
+ * @returns The food's key, or `undefined` when the overlay does not own the line.
+ */
+export function foodKeyOfDraft(session: PasteMatchSession, draftKey: string): string | undefined {
+    return [...session.joins].find(([, join]) => join.status === 'joined' && join.draftKey === draftKey)?.[0];
+}
+
 /** A copy of a map with one entry set. Pure. */
 function withEntry<V>(map: ReadonlyMap<string, V>, key: string, value: V): ReadonlyMap<string, V> {
     return new Map(map).set(key, value);

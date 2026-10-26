@@ -159,6 +159,22 @@ function pastedLineOf(line: ParseJobLineView, stopped: boolean, typedByCook: boo
 }
 
 /**
+ * The lines of a paste that has no job (the daily limit refused it, 004 FR-022): each settles through the add field's
+ * reader, as written. Pure.
+ *
+ * @param sourceLines - The pasted lines, as the splitter made them.
+ * @returns Each line, settled, in paste order.
+ */
+export function readerLinesOf(sourceLines: readonly string[]): readonly PastedLine[] {
+    return sourceLines.map((sourceLine, lineIndex): PastedLine => ({
+        kind: 'settled',
+        lineIndex,
+        sourceLine,
+        rows: HEADING.test(sourceLine) ? [] : readerRowsOf(sourceLine),
+    }));
+}
+
+/**
  * The pasted lines, in paste order.
  *
  * @param input - The job, whether it can be read, the clock (for the deadline) and the cook's choices.

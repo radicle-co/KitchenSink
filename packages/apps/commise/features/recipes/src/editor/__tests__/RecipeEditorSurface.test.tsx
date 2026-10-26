@@ -28,6 +28,7 @@ import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.j
 import { recipeFormMessages } from '../../form/messages.js';
 import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
+import type { IngredientsPaste } from '../useIngredientsPaste.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
@@ -48,6 +49,8 @@ interface HarnessProps {
     readonly renderPhotos: (recipe: { recipeId: string; title: string; cuisine: string }) => ReactNode;
     readonly onClose: () => void;
     readonly onOpenMyRecipes: () => void;
+    /** The paste's lines with no food yet, as the Facade would report them (R23). */
+    readonly openChoices?: IngredientsPaste['openChoices'];
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -67,7 +70,11 @@ function Harness(props: HarnessProps): ReactElement {
 
     return (
         <RecipeEditorSurface
-            session={session}
+            session={
+                props.openChoices === undefined
+                    ? session
+                    : { ...session, paste: { ...session.paste, openChoices: props.openChoices } }
+            }
             seed={seed}
             mode={seed.recipe === undefined ? 'create' : 'edit'}
             keep="disk"
@@ -213,5 +220,32 @@ describe('RecipeEditorSurface — an error about the ingredient entry', () => {
         await user.clear(entry);
 
         expect(screen.queryByText(pending)).toBeNull();
+    });
+});
+
+describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R23)', () => {
+    const FACTS = { openNames: ['milk'], checkingNames: [], counted: 3, total: 4 };
+
+    it('⛔ hands the paste’s open lines to the editor, so Publish asks before it saves them as written', async () => {
+        const user = userEvent.setup();
+        const chooseNow = vi.fn();
+
+        mount({ openChoices: { facts: FACTS, chooseNow } });
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(screen.getByRole('dialog', { name: '1 ingredient has no food yet' })).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: 'Choose now' }));
+
+        expect(chooseNow).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not ask while no line needs a pick', async () => {
+        const user = userEvent.setup();
+
+        mount({ openChoices: { facts: undefined, chooseNow: vi.fn() } });
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(screen.queryByRole('dialog', { name: /have no food yet|has no food yet/u })).toBeNull();
     });
 });

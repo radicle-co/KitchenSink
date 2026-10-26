@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { LineBinding } from '../../ingredientMatching/matchLine.js';
 import {
     draftKeyOf,
+    foodKeyOfDraft,
     emptyPasteMatchSession,
     joinStateOf,
     reducePasteMatchSession,
@@ -223,5 +224,20 @@ describe('bindingOffered: the review binds only a line nobody has bound', () => 
         const session = run(ACCEPTED, JOINED_MILK, { type: 'draftLineRemoved', draftKey: 'd-1' });
 
         expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+});
+
+describe('foodKeyOfDraft', () => {
+    it('finds the food a draft line belongs to, and nothing for a line the overlay does not own', () => {
+        const session = run(ACCEPTED, JOINED_MILK);
+
+        expect(foodKeyOfDraft(session, 'd-1')).toBe('0:0');
+        expect(foodKeyOfDraft(session, 'd-2')).toBeUndefined();
+    });
+
+    it('a removed food’s draft line is not owned any more', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'draftLineRemoved', draftKey: 'd-1' });
+
+        expect(foodKeyOfDraft(session, 'd-1')).toBeUndefined();
     });
 });

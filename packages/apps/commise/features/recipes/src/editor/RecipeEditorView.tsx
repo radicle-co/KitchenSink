@@ -31,6 +31,7 @@ import { EDITOR_GUTTER } from './editorGutter.js';
 import { EditorHeader } from './EditorHeader.js';
 import { FailureAlert } from './FailureAlert.js';
 import { PublishLine } from './PublishLine.js';
+import { PublishOpenChoicesSheet } from './PublishOpenChoicesSheet.js';
 import { ResumeNotice } from './ResumeNotice.js';
 import { UnmatchedNote } from './UnmatchedNote.js';
 import { EditorSection } from './EditorSection.js';
@@ -222,6 +223,15 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     busy={page.discarding}
                     busyLabel={m.discard.discarding}
                     {...(chrome.discard.unavailable === undefined ? {} : { unavailable: chrome.discard.unavailable })}
+                />
+            )}
+            {page.openChoices.facts === undefined ? null : (
+                <PublishOpenChoicesSheet
+                    open={page.openChoices.open}
+                    facts={page.openChoices.facts}
+                    onChooseNow={page.openChoices.chooseNow}
+                    onPublishAnyway={page.openChoices.publishAnyway}
+                    onOpenChange={page.openChoices.setOpen}
                 />
             )}
         </PopupInsetsContext>

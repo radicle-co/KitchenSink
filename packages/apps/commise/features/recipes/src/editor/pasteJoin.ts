@@ -58,8 +58,8 @@ export interface NextJoin {
 export interface PasteJoinInput {
     /** The pasted lines, in paste order (`pastedLinesOf`). */
     readonly lines: readonly PastedLine[];
-    /** The job as last read, for its matches. */
-    readonly job: ParseJobResponse;
+    /** The job as last read, for its matches; `undefined` for a paste with no job (the daily limit refused it). */
+    readonly job: ParseJobResponse | undefined;
     /** The lines already in the draft, by index. */
     readonly joined: ReadonlySet<number>;
     /** The foods whose match request failed. */
@@ -71,8 +71,8 @@ export interface PasteJoinInput {
 }
 
 /** A food's match, or `undefined` when the line or food has none. Pure. */
-function matchOf(job: ParseJobResponse, lineIndex: number, foodIndex: number) {
-    return job.lines.find((line) => line.lineIndex === lineIndex)?.proposal?.foods[foodIndex]?.match ?? undefined;
+function matchOf(job: ParseJobResponse | undefined, lineIndex: number, foodIndex: number) {
+    return job?.lines.find((line) => line.lineIndex === lineIndex)?.proposal?.foods[foodIndex]?.match ?? undefined;
 }
 
 /**

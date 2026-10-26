@@ -18,7 +18,7 @@ import {
     makeParseProposal,
     makeParseProposalFood,
 } from '../../__fixtures__/parseJobs.js';
-import { pastedLinesOf, type PastedLinesInput } from '../pastedLines.js';
+import { pastedLinesOf, readerLinesOf, type PastedLinesInput } from '../pastedLines.js';
 
 const NOW = Date.parse('2026-10-09T10:01:00.000Z');
 
@@ -444,5 +444,35 @@ describe('pastedLinesOf', () => {
         });
 
         expect(pastedLinesOf(input({ job })).map((line) => line.sourceLine)).toEqual(['a', 'b']);
+    });
+});
+
+/**
+ * 004 FR-022: a paste past the daily allowance is refused with no parse job, so nothing is parsed or matched. Every line
+ * the cook pasted still joins, AS WRITTEN, through the add field's own reader.
+ */
+describe('readerLinesOf (the lines of a paste the daily limit refused)', () => {
+    it('settles every line through the reader, in paste order, indexed from 0', () => {
+        const lines = readerLinesOf(['2 tbsp olive oil, for frying', 'salt']);
+
+        expect(lines.map((line) => [line.kind, line.lineIndex, line.sourceLine])).toEqual([
+            ['settled', 0, '2 tbsp olive oil, for frying'],
+            ['settled', 1, 'salt'],
+        ]);
+        expect(lines[0]?.kind === 'settled' ? lines[0].rows : []).toEqual([OLIVE_OIL_FALLBACK]);
+    });
+
+    it('⛔ claims no parsed phrase and no food index: no engine read the line, and there is no match to find', () => {
+        const [line] = readerLinesOf(['2 tbsp olive oil']);
+        const [row] = line?.kind === 'settled' ? line.rows : [];
+
+        expect(row).not.toHaveProperty('sourcePhrase');
+        expect(row).not.toHaveProperty('foodIndex');
+    });
+
+    it('a heading, and a measure alone, name no food on this path either', () => {
+        const lines = readerLinesOf(['For the sauce:', '2 cups']);
+
+        expect(lines.map((line) => (line.kind === 'settled' ? line.rows : undefined))).toEqual([[], []]);
     });
 });

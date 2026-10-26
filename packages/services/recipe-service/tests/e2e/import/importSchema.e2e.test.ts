@@ -91,6 +91,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
     async function newImport(extra: Columns = {}, userId = USER): Promise<string> {
         const row = await insert('recipe_imports', {
             user_id: userId,
+            expected_total: 5,
             match_mode: 'review',
             visibility: 'private',
             ...extra,
@@ -171,6 +172,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             expect(await columnsOf('recipe_imports')).toEqual([
                 'created_at',
                 'cursor_ordinal',
+                'expected_total',
                 'id',
                 'match_mode',
                 'review_closed_at',
@@ -283,7 +285,12 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
     describe('recipe_imports', () => {
         it('starts the cursor at 0 and admits the three modes and both visibilities', async () => {
             for (const mode of ['keepAsWritten', 'bindBest', 'review']) {
-                const row = await insert('recipe_imports', { user_id: USER, match_mode: mode, visibility: 'public' });
+                const row = await insert('recipe_imports', {
+                    user_id: USER,
+                    expected_total: 5,
+                    match_mode: mode,
+                    visibility: 'public',
+                });
 
                 expect(row['cursor_ordinal']).toBe(0);
             }
@@ -294,13 +301,35 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             ['the snake_case spelling of a mode', { match_mode: 'keep_as_written' }],
             ['an invented visibility', { visibility: 'friends' }],
             ['a negative cursor', { cursor_ordinal: -1 }],
+            ['a zero expected total', { expected_total: 0 }],
+            ['a negative expected total', { expected_total: -3 }],
+            ['a cursor past the end of the file', { expected_total: 5, cursor_ordinal: 6 }],
         ])('refuses %s', async (_name, extra) => {
             await refused(newImport(extra as Columns), CHECK_VIOLATION);
         });
 
-        it('requires the owner and the mode', async () => {
+        it('admits a cursor AT expected_total: that is the wizard being done', async () => {
+            const row = await insert('recipe_imports', {
+                user_id: USER,
+                expected_total: 5,
+                match_mode: 'review',
+                visibility: 'private',
+                cursor_ordinal: 5,
+            });
+
+            expect(row['cursor_ordinal']).toBe(5);
+        });
+
+        it('requires the owner, the mode and how many recipes the file holds', async () => {
             await refused(insert('recipe_imports', { match_mode: 'review', visibility: 'private' }), '23502');
-            await refused(insert('recipe_imports', { user_id: USER, visibility: 'private' }), '23502');
+            await refused(
+                insert('recipe_imports', { user_id: USER, expected_total: 5, visibility: 'private' }),
+                '23502',
+            );
+            await refused(
+                insert('recipe_imports', { user_id: USER, match_mode: 'review', visibility: 'private' }),
+                '23502',
+            );
         });
     });
 

@@ -34,8 +34,11 @@ import {
     advanceImportRequestSchema,
     createImportRequestSchema,
     importCursorRequestSchema,
+    importListQuerySchema,
+    importPickResponseSchema,
     importFlaggedResponseSchema,
     importMatchModeSchema,
+    getImportQuerySchema,
     importPickRequestSchema,
     importRecipeSchema,
     importStatementSchema,
@@ -54,7 +57,8 @@ const RECIPE = {
     steps: [{ instruction: 'Simmer.' }],
 };
 const ITEM = { ordinal: 0, recipe: RECIPE };
-const CREATE = { matchMode: 'review', visibility: 'private', items: [ITEM] };
+const IMPORT_ID = '66666666-6666-4666-8666-000000000001';
+const CREATE = { id: IMPORT_ID, expectedTotal: 1, matchMode: 'review', visibility: 'private', items: [ITEM] };
 const INT4_MAX = 2_147_483_647;
 
 describe('createImportRequestSchema', () => {
@@ -84,8 +88,17 @@ describe('createImportRequestSchema', () => {
                 })),
             },
         ],
-        ['a missing mode', { visibility: 'private', items: [ITEM] }],
-        ['a missing visibility', { matchMode: 'review', items: [ITEM] }],
+        ['a missing mode', { id: IMPORT_ID, expectedTotal: 1, visibility: 'private', items: [ITEM] }],
+        ['no id (the client mints it, so a lost 201 is safe to replay)', { ...CREATE, id: undefined }],
+        ['an id that is not a UUID', { ...CREATE, id: 'abc' }],
+        ['no expectedTotal (the wizard cannot know the file is complete)', { ...CREATE, expectedTotal: undefined }],
+        ['a zero expectedTotal', { ...CREATE, expectedTotal: 0 }],
+        ['a fractional expectedTotal', { ...CREATE, expectedTotal: 1.5 }],
+        [
+            'an item whose ordinal is past expectedTotal',
+            { ...CREATE, expectedTotal: 1, items: [{ ...ITEM, ordinal: 1 }] },
+        ],
+        ['a missing visibility', { id: IMPORT_ID, expectedTotal: 1, matchMode: 'review', items: [ITEM] }],
     ])('rejects %s', (_name, body) => {
         expect(createImportRequestSchema.safeParse(body).success).toBe(false);
     });
@@ -93,11 +106,29 @@ describe('createImportRequestSchema', () => {
     it('accepts exactly the per-request maximum', () => {
         const items = Array.from({ length: MAX_IMPORT_ITEMS_PER_REQUEST }, (_n, ordinal) => ({ ...ITEM, ordinal }));
 
-        expect(createImportRequestSchema.safeParse({ ...CREATE, items }).success).toBe(true);
+        expect(
+            createImportRequestSchema.safeParse({ ...CREATE, expectedTotal: MAX_IMPORT_ITEMS_PER_REQUEST, items })
+                .success,
+        ).toBe(true);
     });
 
     it('rejects two items with one ordinal in the same request', () => {
-        expect(createImportRequestSchema.safeParse({ ...CREATE, items: [ITEM, ITEM] }).success).toBe(false);
+        expect(createImportRequestSchema.safeParse({ ...CREATE, expectedTotal: 2, items: [ITEM, ITEM] }).success).toBe(
+            false,
+        );
+    });
+
+    it('lets an item carry its own statement and visibility, so a file needs no round trip per recipe', () => {
+        const item = { ...ITEM, statement: { kind: 'authored' }, visibility: 'public' };
+
+        expect(createImportRequestSchema.safeParse({ ...CREATE, items: [item] }).success).toBe(true);
+        expect(putImportItemsRequestSchema.safeParse({ items: [item] }).success).toBe(true);
+        expect(
+            putImportItemsRequestSchema.safeParse({ items: [{ ...ITEM, statement: { kind: 'book' } }] }).success,
+        ).toBe(false);
+        expect(putImportItemsRequestSchema.safeParse({ items: [{ ...ITEM, visibility: 'friends' }] }).success).toBe(
+            false,
+        );
     });
 });
 
@@ -141,6 +172,7 @@ describe('importRecipeSchema — the create-recipe bounds, reused', () => {
 
     it.each([
         ['a blank ingredient line', { ingredientLines: [''] }],
+        ['a whitespace-only ingredient line', { ingredientLines: ['   '] }],
         ['an over-long ingredient line', { ingredientLines: ['x'.repeat(PARSE_JOB_LINE_MAX_CHARS + 1)] }],
         [
             'more ingredient lines than a parse job holds',
@@ -325,6 +357,8 @@ describe('importCursorRequestSchema (POST …/cursor)', () => {
         ['a negative target', { from: 3, move: { action: 'open', to: -1 } }],
         ['a fractional position', { from: 1.5, move: { action: 'next' } }],
         ['a key beside the move', { from: 3, move: { action: 'next' }, extra: true }],
+        ['next from done (there is no item to mark)', { from: null, move: { action: 'next' } }],
+        ['skip from done (there is no item to mark)', { from: null, move: { action: 'skip' } }],
     ])('rejects %s', (_name, body) => {
         expect(importCursorRequestSchema.safeParse(body).success).toBe(false);
     });
@@ -362,6 +396,8 @@ describe('responses are loose and reuse the paste match view', () => {
         cursorOrdinal: 0,
         reviewClosed: false,
         version: 'abc123',
+        expectedTotal: 2,
+        allowance: { limit: 1000, used: 3, resetsAt: null },
         counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
         items: [
             {
@@ -372,6 +408,7 @@ describe('responses are loose and reuse the paste match view', () => {
                 statement: { kind: 'authored' },
                 visibility: null,
                 recipeId: null,
+                issue: null,
             },
         ],
         nextAfter: null,
@@ -380,6 +417,25 @@ describe('responses are loose and reuse the paste match view', () => {
     it('parses a view and tolerates a field a newer server adds', () => {
         expect(importViewSchema.safeParse(view).success).toBe(true);
         expect(importViewSchema.safeParse({ ...view, somethingNew: 1 }).success).toBe(true);
+    });
+
+    it('says how much of the allowance is spent and when more opens, so a paused import can explain itself', () => {
+        const paused = { ...view, allowance: { limit: 1000, used: 1000, resetsAt: '2026-10-27T03:30:00.000Z' } };
+
+        expect(importViewSchema.safeParse(paused).success).toBe(true);
+        expect(importViewSchema.safeParse({ ...view, allowance: undefined }).success).toBe(false);
+        expect(
+            importViewSchema.safeParse({ ...view, allowance: { ...view.allowance, resetsAt: 'tomorrow' } }).success,
+        ).toBe(false);
+    });
+
+    it('lets an item say it cannot be saved yet, as an opaque key, so a stuck item is never silent', () => {
+        const stuck = { ...view.items[0], stage: 'matched', issue: { reason: 'visibilityRefused' } };
+
+        expect(importViewSchema.safeParse({ ...view, items: [stuck] }).success).toBe(true);
+        expect(importViewSchema.safeParse({ ...view, items: [{ ...stuck, issue: { reason: '' } }] }).success).toBe(
+            false,
+        );
     });
 
     it('reads a null cursor as done', () => {
@@ -437,17 +493,54 @@ describe('responses are loose and reuse the paste match view', () => {
             foodIndex: 0,
             title: 'Soup',
             sourceLine: '1 cup milk',
+            recipeId: '66666666-6666-4666-8666-0000000000a1',
+            judgementDigest: 'jd',
             bound: { kind: 'root', id: 'f1', name: 'Milk crackers' },
             boundBy: 'exact',
             flag: { state: 'flagged', suggestion: { kind: 'root', id: 'f2', name: 'Milk' } },
+            match: { state: 'confident', reason: 'exactName', proposed: null, candidates: [] },
         };
 
-        expect(importFlaggedResponseSchema.safeParse({ lines: [flagged] }).success).toBe(true);
+        expect(importFlaggedResponseSchema.safeParse({ lines: [flagged], nextAfter: null }).success).toBe(true);
+        // The cook can open the draft, pick against the digest, and see the candidates: all of it is on the line.
         expect(
-            importFlaggedResponseSchema.safeParse({ lines: [{ ...flagged, flag: { state: 'clear' } }] }).success,
+            importFlaggedResponseSchema.safeParse({
+                lines: [{ ...flagged, judgementDigest: undefined }],
+                nextAfter: null,
+            }).success,
         ).toBe(false);
         expect(
-            importFlaggedResponseSchema.safeParse({ lines: [{ ...flagged, flag: { state: 'checking' } }] }).success,
+            importFlaggedResponseSchema.safeParse({ lines: [{ ...flagged, match: undefined }], nextAfter: null })
+                .success,
+        ).toBe(false);
+        // Food was down on this read: the name is null, never a name invented from storage (ADR-0045).
+        expect(
+            importFlaggedResponseSchema.safeParse({
+                lines: [
+                    {
+                        ...flagged,
+                        bound: { ...flagged.bound, name: null },
+                        flag: { state: 'flagged', suggestion: null },
+                    },
+                ],
+                nextAfter: null,
+            }).success,
+        ).toBe(true);
+        // A draft the cook deleted is a null recipeId.
+        expect(
+            importFlaggedResponseSchema.safeParse({ lines: [{ ...flagged, recipeId: null }], nextAfter: null }).success,
+        ).toBe(true);
+        expect(
+            importFlaggedResponseSchema.safeParse({
+                lines: [{ ...flagged, flag: { state: 'clear' } }],
+                nextAfter: null,
+            }).success,
+        ).toBe(false);
+        expect(
+            importFlaggedResponseSchema.safeParse({
+                lines: [{ ...flagged, flag: { state: 'checking' } }],
+                nextAfter: null,
+            }).success,
         ).toBe(true);
     });
 
@@ -462,7 +555,51 @@ describe('responses are loose and reuse the paste match view', () => {
             match: { state: 'needsChoice', reason: 'reviewBudgetSpent', proposed: null, candidates: [] },
         };
 
-        expect(importToCheckResponseSchema.safeParse({ lines: [waiting] }).success).toBe(true);
-        expect(importToCheckResponseSchema.safeParse({ lines: [{ ...waiting, ordinal: -1 }] }).success).toBe(false);
+        expect(importToCheckResponseSchema.safeParse({ lines: [waiting], nextAfter: 'opaque' }).success).toBe(true);
+        expect(
+            importToCheckResponseSchema.safeParse({ lines: [{ ...waiting, ordinal: -1 }], nextAfter: null }).success,
+        ).toBe(false);
+    });
+});
+
+describe('a pick answers whether it applied (a stale pick is not an error and not silent)', () => {
+    const step = {
+        ordinal: 0,
+        title: 'Soup',
+        stage: 'matched',
+        review: 'pending',
+        statement: null,
+        visibility: null,
+        lines: [],
+    };
+
+    it('carries applied and the fresh step', () => {
+        expect(importPickResponseSchema.safeParse({ applied: true, step }).success).toBe(true);
+        expect(importPickResponseSchema.safeParse({ applied: false, step }).success).toBe(true);
+        expect(importPickResponseSchema.safeParse({ step }).success).toBe(false);
+        expect(importPickResponseSchema.safeParse({ applied: true }).success).toBe(false);
+    });
+});
+
+describe('the read queries page, and a blank value is not zero', () => {
+    it('GET import: after is an ordinal and limit is capped', () => {
+        expect(getImportQuerySchema.safeParse({ after: '0', limit: '500' }).success).toBe(true);
+        expect(getImportQuerySchema.safeParse({}).success).toBe(true);
+        expect(getImportQuerySchema.safeParse({ limit: '501' }).success).toBe(false);
+        expect(getImportQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
+    });
+
+    it.each(['', ' ', '-1', '1.5', 'abc', '1e3'])(
+        'GET import: refuses after=%j rather than reading it as 0',
+        (after) => {
+            expect(getImportQuerySchema.safeParse({ after }).success).toBe(false);
+        },
+    );
+
+    it('flagged and to-check: after is an opaque cursor and limit is capped', () => {
+        expect(importListQuerySchema.safeParse({ after: 'opaque-cursor', limit: '100' }).success).toBe(true);
+        expect(importListQuerySchema.safeParse({}).success).toBe(true);
+        expect(importListQuerySchema.safeParse({ after: '' }).success).toBe(false);
+        expect(importListQuerySchema.safeParse({ limit: '501' }).success).toBe(false);
     });
 });

@@ -69,7 +69,7 @@ describe('bulk import — erasure and purge (LOCAL e2e)', () => {
     /** One import with one saved item (its recipe), one snapshot line and one ingredient bound from that line. */
     async function seedImport(userId: string, recipeId: string): Promise<string> {
         const created = await db.execute<{ id: string }>(sql`
-            INSERT INTO recipe_imports (user_id, match_mode, visibility) VALUES (${userId}, 'bindBest', 'public') RETURNING id
+            INSERT INTO recipe_imports (user_id, expected_total, match_mode, visibility) VALUES (${userId}, 1, 'bindBest', 'public') RETURNING id
         `);
         const importId = created.rows[0]?.id ?? '';
 

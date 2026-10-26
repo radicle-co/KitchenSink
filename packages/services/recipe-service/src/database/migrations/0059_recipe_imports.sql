@@ -60,15 +60,20 @@ CREATE TABLE recipe_imports (
     -- What the cook asked for the whole import. An item may override it. The visibility policy decides what each recipe's
     -- label allows; a refused choice is the service's to answer, never this table's to repair.
     visibility text NOT NULL CHECK (visibility IN ('public', 'private')),
-    -- The wizard's position: the ordinal of the item the cook is on. A position EQUAL TO THE ITEM COUNT means done (past
-    -- the last item), which is the reducer's `done`; it is derived, not stored, so items appended by a later chunk reopen
-    -- the wizard at the first new item. Ordinals are contiguous 0..n-1 (the create path's rule; SQL cannot say it). The
-    -- cursor command compares it, so a stale device is told the cursor moved.
+    -- How many recipes the WHOLE file holds. Chunks arrive over many requests (PUT items), so the number that have arrived
+    -- cannot say when the wizard is finished: a cursor that reached the last ARRIVED recipe of a 500-recipe file is not done.
+    -- Every item ordinal is below it (the create path's rule; a CHECK cannot read another table).
+    expected_total integer NOT NULL CHECK (expected_total > 0),
+    -- The wizard's position: the ordinal of the item the cook is on. A position EQUAL TO `expected_total` means done, which
+    -- is the reducer's `done`; it is derived, not stored. Ordinals are contiguous 0..expected_total-1 (the create path's
+    -- rule; SQL cannot say it). The cursor command compares it, so a stale device is told the cursor moved.
     cursor_ordinal integer NOT NULL DEFAULT 0 CHECK (cursor_ordinal >= 0),
     -- Set by "Save and leave". In `review` mode an item is ready when the cook has no open line on it or this is set.
     review_closed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    -- The cursor cannot pass the end of the file.
+    CONSTRAINT recipe_imports_cursor_within_file CHECK (cursor_ordinal <= expected_total)
 );
 
 -- The cook's imports, newest first; and the erasure sweep's key.

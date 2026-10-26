@@ -71,7 +71,9 @@ export const recipeImports = pgTable(
         userId: varchar('user_id', { length: 255 }).notNull(),
         matchMode: text('match_mode').notNull(),
         visibility: text('visibility').notNull(),
-        /** The wizard position. A position equal to the item count is done; it is derived, not stored. */
+        /** How many recipes the whole file holds; chunks arrive over many requests. */
+        expectedTotal: integer('expected_total').notNull(),
+        /** The wizard position. A position equal to `expected_total` is done; it is derived, not stored. */
         cursorOrdinal: integer('cursor_ordinal').notNull().default(0),
         reviewClosedAt: timestamp('review_closed_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -80,7 +82,9 @@ export const recipeImports = pgTable(
     (table) => [
         check('recipe_imports_match_mode_check', inArray(table.matchMode, [...IMPORT_MATCH_MODES])),
         check('recipe_imports_visibility_check', inArray(table.visibility, [...IMPORT_VISIBILITIES])),
+        check('recipe_imports_expected_total_check', sql`${table.expectedTotal} > 0`),
         check('recipe_imports_cursor_ordinal_check', sql`${table.cursorOrdinal} >= 0`),
+        check('recipe_imports_cursor_within_file', sql`${table.cursorOrdinal} <= ${table.expectedTotal}`),
         index('recipe_imports_user_created_idx').on(table.userId, table.createdAt),
     ],
 );

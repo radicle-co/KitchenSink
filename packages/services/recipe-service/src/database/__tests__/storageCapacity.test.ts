@@ -39,6 +39,7 @@ import type { ColumnAccount } from '@kitchensink/contract-gen';
 import { recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
 import { setRatingRequestSchema } from '../../ratings/ratings.schema.js';
 import {
+    createImportRequestSchema,
     importCursorRequestSchema,
     importItemInputSchema,
     importPickRequestSchema,
@@ -350,6 +351,11 @@ const accounts: readonly ColumnAccount[] = [
             { field: 'ImportCursorRequest.move.to', schema: openMove.shape.to },
             { field: 'ImportCursorRequest.from (WHERE comparison)', schema: importCursorRequestSchema.shape.from },
         ],
+    },
+    {
+        table: 'recipe_imports',
+        column: 'expected_total',
+        fields: [{ field: 'CreateImportRequest.expectedTotal', schema: createImportRequestSchema.shape.expectedTotal }],
     },
     {
         table: 'recipe_import_items',

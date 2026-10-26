@@ -263,6 +263,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             match_mode: { type: 'text', notNull: true },
             visibility: { type: 'text', notNull: true },
             cursor_ordinal: { type: 'integer', notNull: true },
+            // How many recipes the whole file holds: chunks arrive over many requests, and the cursor is done only at this.
+            expected_total: { type: 'integer', notNull: true },
             review_closed_at: { type: 'timestampwithtimezone', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
             updated_at: { type: 'timestampwithtimezone', notNull: true },

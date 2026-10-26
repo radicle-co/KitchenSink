@@ -18,8 +18,9 @@
 #
 # Two surfaces, one confirm: the recipe page's ⋯ and the editor's "Who can see it" (recipes), then a collection's ⋯.
 #
-# The confirm's body differs by reason (hidden: "won't be able to", upsell: "you'll need Premium"), and the stage's gate
-# is the owner's, so the body is matched by the sentence both share. ⚠️ The editor's radios are named by ALL their texts,
+# The confirm's body (ADR-0073, owner ruling 2026-10-26: public is never final) says it frees one of the cook's private slots
+# and that the recipe can be made private again while a slot is free; it never says it cannot be. The body is matched by
+# the sentence every version shares. ⚠️ The editor's radios are named by ALL their texts,
 # the cost note included (`visibility.yaml` says why), so the Public radio is matched by its leading words.
 appId: ${APP_ID}
 # The device is cleared after the run, pass or fail, so the next flow signs in as the shard's signer (`signinHome.yaml`

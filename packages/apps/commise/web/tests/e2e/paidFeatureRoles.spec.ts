@@ -48,32 +48,33 @@ async function openEditorAs(page: Page, role: keyof typeof ROLE_LANE_IDS): Promi
 
 test.describe('paid features by role (deployed identity)', () => {
     for (const role of ['premium', 'vip', 'superuser'] as const) {
-        test(`${role}: always granted — Private is a choice, with no Premium badge`, async ({ page }) => {
+        test(`${role}: always granted — Private is a choice, with no count and no Premium badge`, async ({ page }) => {
             expect(await openEditorAs(page, role)).toBe('granted');
 
             await expect(page.getByRole('radio', { name: 'Private' })).toBeVisible();
             await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+            // Premium has no slot limit, so the server reports no count and none is shown (ADR-0073).
+            await expect(page.getByText(/private slots left/u)).toHaveCount(0);
         });
     }
 
     for (const role of ['default', 'admin'] as const) {
-        test(`⛔ ${role}: never granted, and shows only what the stage’s gate allows`, async ({ page }) => {
+        test(`⛔ ${role}: never granted — and Private is a slot, not Premium, whatever the stage’s gate says`, async ({
+            page,
+        }) => {
             const paidFeatures = await openEditorAs(page, role);
 
             expect(['upsell', 'hidden']).toContain(paidFeatures);
 
-            if (paidFeatures === 'upsell') {
-                // Gate on: the upsell, and only the upsell — Private carries the Premium badge and opens the sheet.
-                await expect(page.getByText('Premium', { exact: true })).toBeVisible();
-                await page.getByRole('radio', { name: 'Private' }).click();
-                await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
-                await expect(page.getByRole('radio', { name: 'Public', includeHidden: true })).toBeChecked();
-            } else {
-                // Gate off: no paid feature and no upsell at all.
-                await expect(page.getByText('Who can see it')).toBeVisible();
-                await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
-                await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-            }
+            // REWRITTEN for ADR-0073 (owner ruling 2026-10-26). This used to branch on the gate: the upsell showed a Premium
+            // badge and a sheet, `hidden` showed no Private at all. A free cook now keeps up to the server's limit of
+            // recipes private, so Private is offered in both, with the server's count; the limit is the server's, so it is
+            // matched by shape. Choosing it saves nothing (the draft is not stored until a title is typed).
+            await expect(page.getByText(/^\d+ of \d+ private slots left$/u)).toBeVisible();
+            await page.getByRole('radio', { name: /^Private/u }).check();
+            await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+            await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
         });
     }
 });

@@ -76,6 +76,21 @@ const RESTORED_ISO = '2026-01-03T00:00:00.000Z';
 const NOT_FOUND_BODY = { code: 'NOT_FOUND', message: 'Resource not found' };
 
 /**
+ * A free cook's private-slot limit as the stubbed recipe service states it (ADR-0073). The real service owns the number
+ * and sends it on the wire; this is the double's own copy, so a spec can fill the slots with a handful of seeded recipes.
+ */
+export const E2E_PRIVATE_SLOT_LIMIT = 50;
+
+/** The `403 PRIVATE_SLOTS_FULL` body the service answers a private write with when a free cook has no slot left. */
+function privateSlotsFullBody(used: number, limit: number) {
+    return {
+        code: 'PRIVATE_SLOTS_FULL',
+        message: 'All of your private slots are in use.',
+        details: { used, limit },
+    };
+}
+
+/**
  * The contract's `VersionConflictErrorResponse` body for a 409, in the enriched shape the service ALWAYS sends:
  * `server` is the version that won, and `base` — the version the losing write was built on — only when the caller
  * knows it, exactly as `raiseVersionConflict` omits it for a version it has no row for. A bare body with neither
@@ -985,6 +1000,13 @@ export interface MockRecipeApiOptions {
      * premium cook, `upsell` and `hidden` are not.
      */
     readonly paidFeatures?: PaidFeatures;
+    /**
+     * A free cook's private-slot limit at `GET /api/v1/recipes/private-slots` (ADR-0073). Defaults to
+     * {@link E2E_PRIVATE_SLOT_LIMIT}; a spec lowers it to fill the slots with a few seeded recipes. The stubbed service
+     * counts the viewer's own private recipes in the store, refuses a private create or flip at the limit with
+     * `403 PRIVATE_SLOTS_FULL`, and answers a `granted` viewer (a premium cook) with `unlimited`.
+     */
+    readonly privateSlotLimit?: number;
     /** The app-user id the viewer owns recipes as (matches the recipe `ownerId` so owner controls show). */
     readonly viewerId?: string;
     /** Collections to seed the store with (defaults to none — the collection list starts empty). */
@@ -1099,6 +1121,7 @@ export async function mockRecipeApi(
     const paidFeatures = options.paidFeatures ?? 'granted';
     // What the stubbed recipe service treats the viewer as — the real one decides from roles, which `granted` stands for.
     const tier: 'free' | 'premium' = paidFeatures === 'granted' ? 'premium' : 'free';
+    const privateSlotLimit = options.privateSlotLimit ?? E2E_PRIVATE_SLOT_LIMIT;
     const authorHandles = options.authorHandles ?? {};
     const collectionsPageSize = options.collectionsPageSize ?? 20;
     const store = new Map<string, RecipeDetail>();
@@ -1316,6 +1339,10 @@ export async function mockRecipeApi(
     for (const collection of options.collections ?? []) {
         collections.set(collection.id, collection);
     }
+
+    /** The viewer's private, undeleted recipes in the store: what the real service counts (ADR-0073). */
+    const privateSlotsUsed = (): number =>
+        [...store.values()].filter((recipe) => recipe.ownerId === viewerId && recipe.visibility === 'private').length;
 
     await page.route('**/api/v1/**', async (route) => {
         const request = route.request();
@@ -1769,6 +1796,17 @@ export async function mockRecipeApi(
             return route.fulfill({ status: 201, json: created });
         }
 
+        // The caller's private-slot standing (ADR-0073). Matched BEFORE the single-recipe route, which would read
+        // `private-slots` as a recipe id. A premium cook has no limit; a free cook's count is their private recipes.
+        if (path.endsWith('/api/v1/recipes/private-slots') && method === 'GET') {
+            return route.fulfill({
+                json:
+                    tier === 'premium'
+                        ? { kind: 'unlimited' }
+                        : { kind: 'limited', used: privateSlotsUsed(), limit: privateSlotLimit },
+            });
+        }
+
         // Visibility toggle.
         const visibility = path.match(/\/api\/v1\/recipes\/([^/]+)\/visibility$/);
 
@@ -1778,6 +1816,16 @@ export async function mockRecipeApi(
 
             if (!current) {
                 return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+            }
+
+            // A free cook with every slot used is refused a move TO private; a recipe already private holds its slot.
+            if (
+                body()['visibility'] === 'private' &&
+                current.visibility !== 'private' &&
+                tier === 'free' &&
+                privateSlotsUsed() >= privateSlotLimit
+            ) {
+                return route.fulfill({ status: 403, json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit) });
             }
 
             const updated = {
@@ -1949,7 +1997,19 @@ export async function mockRecipeApi(
 
             if (method === 'POST') {
                 const input = body();
+
+                if (input['visibility'] === 'private' && tier === 'free' && privateSlotsUsed() >= privateSlotLimit) {
+                    return route.fulfill({
+                        status: 403,
+                        json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit),
+                    });
+                }
+
                 const created = makeRecipeDetail({
+                    // The visibility the caller asked for, as the service persists it (the default fixture is public).
+                    ...(input['visibility'] === 'private' || input['visibility'] === 'public'
+                        ? { visibility: input['visibility'] as RecipeVisibility }
+                        : {}),
                     id: `ec200000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`,
                     ownerId: viewerId,
                     title: typeof input['title'] === 'string' ? input['title'] : 'New Recipe',

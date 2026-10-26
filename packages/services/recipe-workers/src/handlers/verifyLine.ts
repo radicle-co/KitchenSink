@@ -12,10 +12,12 @@
  *
  * ADR-0024 spends a section on it, so it is repeated where the branches are:
  *
- *  - **TRANSIENT** — a ceiling denial, an unreadable counter, unreadable settings, an unpriced model, a
+ *  - **TRANSIENT** — a ceiling denial (EXCEPT on a paste-job line, below), an unreadable counter, unreadable settings, an unpriced model, a
  *    provider failure. The message returns to the queue and retries under layer 0's `maxReceiveCount` + DLQ.
  *    **No verdict is recorded.** "An exhausted ceiling drains to the DLQ, where it is visible as queue depth
  *    instead of as silently degraded recipes."
+ *  - **RECORDED, NOT RETRIED** — a ceiling denial on a PASTE-JOB line (ADR-0024 §3, owner ruling 2026-10-26): the denial is
+ *    stored as `budgetSpent` under the review's key with the period captured at reserve, and the message completes.
  *  - **TERMINAL** — a verdict was read, or the model answered unusably. A row is written and the message is
  *    acknowledged; the money is not spent again.
  *  - **REFUSED** — an over-cap line, and a model residency has not cleared (ADR-0024 §4b). Acknowledged like
@@ -97,6 +99,7 @@ import { logger } from '../common/logger.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { createSpendLedger, isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import {
+    BUDGET_SPENT_METRIC_NAME,
     INPUT_BOUND_EXCEEDED_METRIC_NAME,
     RESIDENCY_REFUSED_METRIC_NAME,
     SETTLE_FAILURE_METRIC_NAME,
@@ -270,8 +273,21 @@ function evidenceFrom(message: VerifyIngredientLineMessage): IdentityEvidence {
 }
 
 /** Publish one metric under this gate's namespace. */
-function publish(deps: VerificationDeps, name: string, value: number, unit: EmfMetric['unit'] = 'Count'): void {
-    deps.emit({ namespace: SPEND_METRIC_NAMESPACE, name, unit, stage: deps.stage, value });
+function publish(
+    deps: VerificationDeps,
+    name: string,
+    value: number,
+    unit: EmfMetric['unit'] = 'Count',
+    callSite?: SpendCallSite,
+): void {
+    deps.emit({
+        namespace: SPEND_METRIC_NAMESPACE,
+        name,
+        unit,
+        stage: deps.stage,
+        value,
+        ...(callSite === undefined ? {} : { dimensions: { CallSite: callSite } }),
+    });
 }
 
 /**
@@ -663,6 +679,28 @@ export async function processVerification(deps: VerificationDeps, message: Verif
 
     if (gated) {
         const reservation = await deps.ledger.reserve(plan);
+
+        if (reservation.kind === 'denied' && origin.kind === 'parseJob') {
+            // ⛔ THE ONE PATH THAT DOES NOT RETRY A CEILING DENIAL (ADR-0024 §3, ADR-0071 §7; owner ruling 2026-10-26).
+            // A paste review is owed to a cook looking at the screen, and a retry would hold their paste until the month
+            // ends. So the denial is RECORDED, with the period the RESERVE captured (never recomputed: a call straddling
+            // the UTC month boundary would otherwise store the wrong month), and the message completes.
+            //
+            // ⛔ IT IS NOT A VERDICT. No verdict row is written (that would be the wrong-DISAGREE outcome, and an absent
+            // verdict is what keeps the line unchecked), no attempt-failure code is set (that reads as "the gate gave
+            // up"), and nothing is settled (nothing was reserved). The fact reads as spent only while its period is
+            // current; the next matches call in a new period sends the review again.
+            //
+            // ⚠️ NOT swallowed on failure, unlike `recordQuietly`: nothing was billed, so a failed write must redeliver
+            // the message (retry the whole denial) rather than lose the fact and leave the cook a `checking` forever.
+            await deps.store.recordBudgetSpent(key, plan.modelId, reservation.period);
+            publish(deps, BUDGET_SPENT_METRIC_NAME, 1, 'Count', callSite);
+            logger.warn('verification ceiling reached on the paste path; the review is recorded as budget spent', {
+                period: reservation.period,
+            });
+
+            return;
+        }
 
         if (reservation.kind === 'denied') {
             // ⛔ TRANSIENT. Not a judgement about this line, so no verdict is recorded — the message retries

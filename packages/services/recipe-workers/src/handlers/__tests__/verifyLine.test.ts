@@ -112,6 +112,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         converse: ReturnType<typeof vi.fn>;
         claimVerification: ReturnType<typeof vi.fn>;
         recordAttemptFailure: ReturnType<typeof vi.fn>;
+        recordBudgetSpent: ReturnType<typeof vi.fn>;
         recordVerdict: ReturnType<typeof vi.fn>;
         rememberAgreement: ReturnType<typeof vi.fn>;
         bandRecord: ReturnType<typeof vi.fn>;
@@ -128,6 +129,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         // claim is for — so the default has to say "first delivery of an unjudged line" out loud.
         claimVerification: vi.fn().mockResolvedValue({ kind: 'claimed', attempts: 1 }),
         recordAttemptFailure: vi.fn().mockResolvedValue(undefined),
+        recordBudgetSpent: vi.fn().mockResolvedValue(undefined),
         recordVerdict: vi.fn().mockResolvedValue(undefined),
         rememberAgreement: vi.fn().mockResolvedValue(undefined),
         bandRecord: vi.fn().mockResolvedValue(undefined),
@@ -145,6 +147,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         store: {
             claimVerification: spies.claimVerification,
             recordAttemptFailure: spies.recordAttemptFailure,
+            recordBudgetSpent: spies.recordBudgetSpent,
             recordVerdict: spies.recordVerdict,
             rememberAgreement: spies.rememberAgreement,
         },
@@ -723,6 +726,119 @@ describe('the memo is keyed on the parsed phrase, and only a phrase the model ac
         await processVerification(d, { ...MESSAGE, ingredientPhrase: 'All-Purpose FLOUR' });
 
         expect(d.spies.rememberAgreement).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * A CEILING DENIAL ON THE PASTE PATH IS NOT RETRIED (ADR-0024 §3, ADR-0071 §7; owner ruling 2026-10-26).
+ *
+ * The gate is injected: `stage: 'prod'` with a ledger that answers `denied`, so no case depends on a real stage or a
+ * real counter. The paste-match review records the fact (key, model, and the period CAPTURED AT RESERVE) and the message
+ * completes; the SAVE path's review still throws, so the queue retries it. An unreadable counter is transient on every
+ * path.
+ */
+describe('a ceiling denial: the paste path records it and acknowledges, the save path retries', () => {
+    const { recipeId: _legacy, ...CONTENT } = MESSAGE;
+    const PASTE = {
+        ...CONTENT,
+        origin: {
+            kind: 'parseJob' as const,
+            jobId: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b',
+            lineIndex: 3,
+            foodIndex: 1,
+        },
+    };
+    const RECIPE = { ...CONTENT, origin: { kind: 'recipe' as const, recipeId: MESSAGE.recipeId } };
+
+    function denied(): ReturnType<typeof deps> {
+        const d = deps({ stage: 'prod' });
+        d.spies.reserve.mockResolvedValue({ kind: 'denied', period: '2026-10' });
+
+        return d;
+    }
+
+    it('⛔ PASTE: resolves without throwing, so the message completes and is never redelivered', async () => {
+        await expect(processVerification(denied(), PASTE)).resolves.toBeUndefined();
+    });
+
+    it('⛔ PASTE: records budget spent under the verification key and model, with the period the reserve captured', async () => {
+        const d = denied();
+        await processVerification(d, PASTE);
+
+        expect(d.spies.recordBudgetSpent).toHaveBeenCalledTimes(1);
+        expect(d.spies.recordBudgetSpent).toHaveBeenCalledWith(
+            expect.stringMatching(/^v\d+:[0-9a-f]{64}$/u),
+            SETTINGS.modelId,
+            '2026-10',
+        );
+    });
+
+    it("PASTE: the period recorded is the DENIAL's, not one recomputed from the clock (a month boundary mid-call)", async () => {
+        const d = denied();
+        d.spies.reserve.mockResolvedValue({ kind: 'denied', period: '2026-09' });
+        await processVerification(d, PASTE);
+
+        expect(d.spies.recordBudgetSpent.mock.calls[0]?.[2]).toBe('2026-09');
+    });
+
+    it('PASTE: calls no provider, records no verdict, settles nothing, and gives no attempt-failure code', async () => {
+        const d = denied();
+        await processVerification(d, PASTE);
+
+        expect(d.spies.converse).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).not.toHaveBeenCalled();
+        expect(d.spies.settle).not.toHaveBeenCalled();
+        expect(d.spies.recordAttemptFailure).not.toHaveBeenCalled();
+    });
+
+    it('PASTE: meters the denial under the paste-match-review call site', async () => {
+        const d = denied();
+        await processVerification(d, PASTE);
+
+        const metric = d.spies.emit.mock.calls
+            .map((call) => call[0] as { name: string; dimensions?: Record<string, string> })
+            .find((m) => m.name === 'VerificationBudgetSpent');
+
+        expect(metric?.dimensions).toEqual({ CallSite: 'paste-match-review' });
+    });
+
+    it('PASTE: if the budget-spent write FAILS the handler throws, so the message retries (nothing was billed)', async () => {
+        const d = denied();
+        d.spies.recordBudgetSpent.mockRejectedValue(new Error('connection terminated'));
+
+        await expect(processVerification(d, PASTE)).rejects.toThrow('connection terminated');
+    });
+
+    it('⛔ GUARD, SAVE PATH: a recipe-origin review STILL throws on a ceiling denial, and records no budget fact', async () => {
+        const d = denied();
+
+        await expect(processVerification(d, RECIPE)).rejects.toThrow(/ceiling reached/u);
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).not.toHaveBeenCalled();
+    });
+
+    it('⛔ GUARD, LEGACY SAVE PATH: a message with no origin (a producer before ADR-0071) is a recipe line and retries', async () => {
+        const d = denied();
+
+        await expect(processVerification(d, MESSAGE)).rejects.toThrow(/ceiling reached/u);
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+    });
+
+    it('⛔ an UNREADABLE counter is transient on the paste path too: it throws and records nothing', async () => {
+        const d = deps({ stage: 'prod' });
+        d.spies.reserve.mockRejectedValue(new Error('connection terminated'));
+
+        await expect(processVerification(d, PASTE)).rejects.toThrow('connection terminated');
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+    });
+
+    it('an UNGATED stage never reserves, so it never records budget spent', async () => {
+        const d = deps({ stage: 'sandbox' });
+        await processVerification(d, PASTE);
+
+        expect(d.spies.reserve).not.toHaveBeenCalled();
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).toHaveBeenCalledTimes(1);
     });
 });
 

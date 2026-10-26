@@ -23,7 +23,9 @@
   [ADR-0004](0004-minimize-nat-egress.md) — the blast radius of an automated fetch, and why the corpus is not
   fetched by anything we deploy;
   [ADR-0012](0012-mcp-agent-credential-bridge.md) — the same posture it records: Clerk proves identity, **we**
-  own the grant.
+  own the grant;
+  [ADR-0072](0072-bulk-recipe-import.md) — the bulk import route, the one place a cook's own per-recipe statement
+  sets `imported_public` without the grant (§1a).
 
 ## ⚠️ Before you change this — the three "improvements" that are all wrong
 
@@ -35,7 +37,8 @@
 3. **Do not add `imported_physical` or `imported_paid` to the declarable union** "for symmetry". Both are
    private-only under C-004 and `evaluateVisibility` admits either to `private` with **no premium check**, so
    admitting them hands a free-tier caller exactly the private recipe 004-`FR-028` says must be
-   entitlement-gated. See Consequences.
+   entitlement-gated. See Consequences. The bulk import route sets both labels from the cook's per-recipe
+   statement (§1a, ADR-0072 §9). That is a separate route, not a member of this union.
 
 ## Context
 
@@ -111,6 +114,23 @@ Argued on `FR-025`'s **own threat model**, an administrator grant is a **stronge
 attribution than "the server fetched a URL the caller chose" — because a caller-supplied URL can point at
 content the caller wrote. Server-side fetching proves that _a document exists at that URL_. It proves nothing
 about authorship, and `FR-025` is an authorship control.
+
+### 1a. The one exception: bulk import sets the label from the cook's statement
+
+Owner ruling, 2026-10-26, recorded in ADR-0072 §9. On the bulk import route (`/api/v1/import`), the cook makes a
+statement for each recipe. It is either "I wrote this", or "From a source" with a citation. A source is public (a
+public web page) or private (a book or a paid site). The import sets the label from that statement: `user_created`,
+`imported_public`, `imported_physical` or `imported_paid`.
+
+- **This is an exception to §1, for that route only.** A cook with no curator grant sets `imported_public` there.
+  What backs the label is the stored statement and citation, the per-item attestation 004-`FR-014a` and
+  016-`FR-014` rely on.
+- **`POST /api/v1/recipes` is unchanged.** Its union still has two members, `imported_public` still needs the grant,
+  and `imported_paid` and `imported_physical` are still not declarable there.
+- **The false-attribution hazard is still real.** §1 argued that a grant is a stronger control than a fetched URL. On
+  the bulk route the control is weaker: the cook's own statement. The owner accepted that for bulk import. There the
+  cook brings the file and states each source. Counsel confirms the statement's wording before launch
+  (016-`FR-050`).
 
 ### 2. The corpus is an OPERATOR-DOWNLOADED file. Nothing we deploy fetches Project Gutenberg. ⚠️ looks wrong, isn't
 
@@ -220,7 +240,8 @@ buys nothing that `details.requiredScope` does not already make actionable.
   `private` with **no premium check** (`visibilityPolicy.ts`) — so admitting them would hand a free-tier
   caller exactly the private recipe 004-`FR-028` says must be entitlement-gated, and `FR-014a`'s
   attestation + citation machinery that is supposed to travel with them does not exist yet. They join the
-  union when 004 builds that gate; adding a member is additive.
+  union when 004 builds that gate; adding a member is additive. The bulk import route sets them from the
+  cook's statement instead (§1a), and there the owner ruled that a free cook can keep them private.
 - **The corpus is an operator responsibility.** Refreshing it is a manual, out-of-band step with no automation
   behind it, and no job will notice if it goes stale.
 - **A curator token is a real credential.** It must be minted with the grant inside the signed

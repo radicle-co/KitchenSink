@@ -17,6 +17,8 @@
   guard are recorded. This ADR does not restate any of them;
   [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md) — the parse leg is a new **consumer** of the one
   $100/month ceiling, never a second ceiling;
+  [ADR-0072](0072-bulk-recipe-import.md) — a parse-job line (paste or bulk import) keeps the CRF answer alone when
+  the ceiling denies the LLM leg, rather than retrying;
   [ADR-0019](0019-recipe-import-spine.md) — the import spine this pipeline sits inside;
   [ADR-0014](0014-service-owned-api-contracts.md) /
   [ADR-0015](0015-input-validation-at-every-boundary.md) — the boundary the CRF engine's response crosses,
@@ -121,7 +123,9 @@ Two details are load-bearing:
 
 ### 3. `single-engine` is NOT `differ` — an engine that FAILED is not a disagreement
 
-A CRF Lambda that threw, or an LLM call ADR-0024's ceiling denied, is **absence, not dissent**. So
+A CRF Lambda that threw, or an LLM call ADR-0024's ceiling denied, is **absence, not dissent**. On a parse-job
+line (paste or bulk import) a ceiling denial is also final for that line: the line lands the CRF answer alone as
+`single-engine` (owner ruling, 2026-10-26, ADR-0072 §10). The amendment on the retry boundary below states it. So
 `ParseAgreement` in `packages/shared/recipe-import-core/src/domain/parseComparator.ts` has four inhabitants —
 `agree`, `differ` (naming the fields), `single-engine` (naming the engine that **answered**), and `neither` —
 and the comparator returns `single-engine` **even when the surviving parse is the kind that would have
@@ -1270,8 +1274,8 @@ Plan 001's U7/U8 implementation settled a boundary this ADR's "absence is not di
 never spelled: **which failures RETRY, and which land as facts about the line.**
 
 - **Transient, and therefore RETRIED** (the message redelivers under `maxReceiveCount` and dead-letters
-  after it): an ADR-0024 ceiling denial, an unreadable spend counter, a Bedrock transport failure, and a
-  CRF invocation failure. None of these is evidence about the ingredient; recording any of them as an
+  after it): an ADR-0024 ceiling denial outside the parse-job path, an unreadable spend counter, a Bedrock
+  transport failure, and a CRF invocation failure. None of these is evidence about the ingredient; recording any of them as an
   outcome would turn an outage into a permanent fact about a line (§3's single-engine ≠ differ, one level
   up). The parse CACHE is what makes redelivery affordable — a retried job re-pays only for the lines
   that never landed (KTD-F).
@@ -1282,6 +1286,14 @@ never spelled: **which failures RETRY, and which land as facts about the line.**
   all-disputed lands `unParseable`. A model REFUSAL is a refusal — never an empty `ParsedLine` — and a
   deterministic over-cap line is rejected, not truncated (§ the prompt rules), because retrying a
   deterministic outcome five times only fills the DLQ slower.
+
+- **The one exception: a ceiling denial on a parse-job line** (paste or bulk import; owner ruling, 2026-10-26;
+  ADR-0072 §10, ADR-0024 §3). A denial on the LLM leg or on either in-loop validator ends the LLM leg for that
+  line. The line lands the CRF answer alone as `single-engine`. A retry holds the cook's paste or import until
+  the next month, and the owner chose a worse parse over that wait. Three rules keep it honest. The landing is
+  still `single-engine`, never `differ`, so §3's rates stay clean. The LLM's absence is not written to the parse
+  cache, so the same text is asked again once the budget returns. And every food on that line goes to the cook
+  (ADR-0071 §9).
 
 The rule in one line: **retry what the world did to the call; land what the validators concluded about
 the line.** `parseLine.test.ts`'s transient/terminal split suite is the pin.

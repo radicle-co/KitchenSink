@@ -120,17 +120,17 @@ explicit pick. The review gate checks every paste match, whatever its measured e
 
     The paste view is `matchStateOf`, a pure policy applied in this order:
 
-    | State         | When                                                                                                          |
-    | ------------- | ------------------------------------------------------------------------------------------------------------- |
-    | `default`     | A candidate sits on the `default` rung, whatever answered (or nothing did), whatever the gate said.           |
-    | `noMatch`     | Nothing proposed and no candidates.                                                                           |
-    | `needsChoice` | Nothing proposed, but candidates exist.                                                                       |
-    | `needsChoice` | The spend ceiling refused the review (`budgetSpent`), whatever the tier and rung. Reason `reviewBudgetSpent`. |
-    | `confident`   | A curated mapping. A `contradict` keeps it confident and adds the note `reviewDisagreed`.                     |
-    | `needsChoice` | A memo or lexical proposal read `contradict` or `doubt`.                                                      |
-    | `confident`   | A memo, a lexical proposal read `agree`, or an exact-name rung with no readable verdict.                      |
-    | `needsChoice` | A lexical proposal read `abstain` or `hedged`, or one the gate refused, gave up on or was not asked.          |
-    | `checking`    | A lexical proposal awaiting review.                                                                           |
+    | State         | When                                                                                                                          |
+    | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+    | `default`     | A candidate sits on the `default` rung, whatever answered (or nothing did), whatever the gate said.                           |
+    | `noMatch`     | Nothing proposed and no candidates.                                                                                           |
+    | `needsChoice` | Nothing proposed, but candidates exist.                                                                                       |
+    | `needsChoice` | The spend ceiling refused the review (`budgetSpent`). Curated, memo and exact-name proposals too. Reason `reviewBudgetSpent`. |
+    | `confident`   | A curated mapping. A `contradict` keeps it confident and adds the note `reviewDisagreed`.                                     |
+    | `needsChoice` | A memo or lexical proposal read `contradict` or `doubt`.                                                                      |
+    | `confident`   | A memo, a lexical proposal read `agree`, or an exact-name rung with no readable verdict.                                      |
+    | `needsChoice` | A lexical proposal read `abstain` or `hedged`, or one the gate refused, gave up on or was not asked.                          |
+    | `checking`    | A lexical proposal awaiting review.                                                                                           |
     - **The two surfaces differ in one direction, and on purpose.** Asking the cook before a bind is cheap. So the paste
       view asks on `doubt`, `hedged`, `abstain` and `unreadable`. Badging a line the cook has already bound is a
       warning. So a saved line shows the AMBIGUOUS badge only for `contradict` (under a contradicted band) and
@@ -147,8 +147,9 @@ explicit pick. The review gate checks every paste match, whatever its measured e
       reviews the parse or the match. So a proposal whose review reads `budgetSpent` is `needsChoice`, with the reason
       `reviewBudgetSpent`. This holds for curated mappings, remembered matches and exact names too. A match on a
       CRF-only phrase can be a match to the wrong words. A `default` line stays `default`, and a line with no proposal
-      stays `noMatch` or `needsChoice`. The proposed food stays a candidate, so keeping it is one pick. In the editor, no
-      line binds without the cook while the budget is spent. ADR-0072 §10 covers the bulk modes. Matching gets worse
+      stays `noMatch` or `needsChoice`. The proposed food stays a candidate, so keeping it is one pick. While the budget is
+      spent, no line binds without the cook, in any mode (owner ruling, second round). That covers the editor and all
+      three bulk import modes. ADR-0072 §10 holds the bulk detail. Matching gets worse
       past the budget, by decision.
     - The proposal is shown as the line's match only in `checking` and `confident`. In every other state the wire's
       `proposed` is `null`, and the food stays one of the candidates.

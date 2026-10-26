@@ -7,7 +7,7 @@
   for the cook. [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, and the exception this
   path takes to its retry rule. [ADR-0026](0026-two-engine-ingredient-parse-pipeline.md): the two-engine parse.
   [ADR-0045](0045-ingredient-lookup-and-unresolved-foods.md): no food names in the recipe database.
-  [ADR-0023](0023-curator-declared-provenance.md): who can declare `imported_public`.
+  [ADR-0023](0023-curator-declared-provenance.md): who can declare `imported_public`, and this route's exception.
   [ADR-0057](0057-editor-device-draft-and-outbox-format.md): the device draft's format is a one-way door.
   [ADR-0058](0058-never-published-drafts-record-no-version.md): a draft records no version.
   [ADR-0039](0039-database-role-split.md) and [ADR-0035](0035-schema-stacks-decoupled-from-service-deploys.md): new
@@ -182,33 +182,51 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   `importAllowancePolicy.ts` defines.
 - An item spends its unit at the first send of its lines for parsing, because LLM spend starts there. The item
   records that it paid, so a repeated `advance` or a re-created parse job never charges it twice.
+- **A file of any size is accepted** (owner ruling, second round). There is no per-file cap. A file larger than the
+  room left today imports what fits, and the rest follows as room frees up.
 - An `advance` that reaches the allowance does the work it can still pay for and returns the `IMPORT_QUOTA_EXCEEDED`
   refusal with `resetsAt` for the rest. The import pauses. The next call after that time resumes it.
 - The ledger's channel names follow the route: `bulk`, not `migration`. Migration 0058 is not pushed, so it is
   edited in place rather than followed by a rename.
+- **Builder work: the allowance policy has one limit today.** `importAllowancePolicy.ts` sums every channel's rows
+  against a single limit of 200, and its comments and migration 0058's say a bulk file costs one unit. Both are
+  wrong under this ruling. The policy takes the channel and counts only that channel's rows against that channel's
+  limit.
 
-### 9. The cook chooses Public or Private, and every recipe carries its own source statement
+### 9. Each recipe carries its own source statement, and the statement sets its provenance
 
-- The import flow asks once, Public or Private, for the whole import. The review wizard can change it per recipe,
-  the way the editor's visibility field does. The visibility policy (`visibilityPolicy.ts`) still decides whether
-  each choice is allowed.
-- **Every imported recipe needs its own source statement with a citation** (004 FR-014a, 016 FR-014). This holds for
-  private recipes as well as public ones. One statement for a whole file is not the per-item attestation FR-014a
-  requires. 017's portability contract already says bulk import is not a side door around it.
-- **A recipe whose source is not a public web page cannot be public.** That is FR-014a's own rule: it is classified
-  `imported_paid`, which is private-only.
-- Counsel confirms the attestation wording before launch. It is on 016 FR-050's list.
-- **Three interactions are recorded, not resolved.**
-    - Private still needs Premium today. A free-tier `user_created` recipe is public-only, and 004 FR-028 gates the
-      `imported_paid` channel behind Premium. Whether that gate lifts is 015's open D4a. Until it does, a free-tier
-      cook cannot keep a cookbook recipe from a bulk import at all: it cannot be public, and it cannot be private.
-    - A public bulk-imported recipe has no provenance value to save as. An ordinary cook cannot declare
-      `imported_public` (ADR-0023, 004 FR-025). `imported_paid` is private-only. Saving a cited web recipe as
-      `user_created` states that the cook wrote it. The value is owed before the Public choice can be built.
-      Note also that an `imported_public` recipe cannot be made private before a substantive edit by the cook.
-    - The ruling asks for a citation on every imported recipe. `FR-014a` covers only a recipe the cook attests came
-      from an external source. A cook who moves their own recipes over from another app has nothing to cite. What
-      the source statement says for a cook's own recipe is owed, by the owner and by counsel (016 `FR-050`).
+- **The per-recipe statement has two forms** (owner ruling, second round). "I wrote this" needs no citation.
+  "From a source" needs a citation. With it, the cook says whether the source is public (a public web page) or
+  private (a book, or a paid site). One statement for a whole file is not the per-item attestation of 004 FR-014a
+  and 016 FR-014. 017's portability contract already says bulk import is not a side door around it.
+- **The import sets the provenance label from the statement:**
+
+    | Statement                            | `sourceType`        | Visibility the policy allows                         |
+    | ------------------------------------ | ------------------- | ---------------------------------------------------- |
+    | I wrote this                         | `user_created`      | Public. Private needs Premium (015's D4a is open).   |
+    | From a public web page, with its URL | `imported_public`   | Public. Private needs Premium and a substantive edit |
+    | From a book, with a citation         | `imported_physical` | Private only. No Premium needed.                     |
+    | From a paid site, with a citation    | `imported_paid`     | Private only. No Premium needed.                     |
+
+- **This is an exception to ADR-0023's curator-only rule for `imported_public`, for this route only.** On
+  `POST /api/v1/recipes` only a principal holding the curator grant can declare `imported_public`. On the bulk import
+  route the cook's own statement sets it, and the stored statement and citation are what back the label. ADR-0023
+  names the exception. `imported_paid` and `imported_physical` are set the same way, from the statement, and stay
+  undeclarable on `POST /api/v1/recipes`.
+- **The cook still chooses Public or Private.** The import flow asks once for the whole import, and the review wizard
+  can change it per recipe, the way the editor's visibility field does. The visibility policy (`visibilityPolicy.ts`)
+  decides whether each choice is allowed for that recipe's label, as the table shows. A recipe whose source is not a
+  public web page cannot be public. That is FR-014a's own rule.
+- **A free cook can keep a book or paid-site recipe private.** The policy admits `imported_paid` and
+  `imported_physical` to private without Premium. Only `user_created` and `imported_public` need Premium for
+  private.
+- **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
+- **Two interactions are recorded, not resolved.**
+    - A cook who chooses Private for a public web recipe is refused on a fresh import. `imported_public` goes private
+      only with Premium and after a substantive edit. The import keeps that recipe public, or lets the cook change the
+      choice, and never edits the recipe to get round the rule.
+    - 004 FR-028 asks for Premium on the `imported_paid` channel of a single paste. This ruling lets a free cook keep
+      a bulk-imported paid-site recipe private. Whether FR-028's gate still stands for the single paste is open.
 
 ### 10. When the spend ceiling is reached, matching goes on without the LLM
 
@@ -229,13 +247,14 @@ is reached, this path does not wait for the budget to return.
   state enum stays closed. A `default` line stays `default`. A line with no proposal stays `noMatch` or `needsChoice`.
   Every other line, curated, remembered and exact-name lines included, reads `needsChoice`, with the proposed food kept
   as a candidate. ADR-0071 §9 records the row.
-- **Why every food, and not only the lexical ones.** Without the LLM parse leg, nothing reviews the parse itself. A
+- **Why every food, and not only the lexical ones.** The owner confirmed that every food goes to the cook, curated
+  and remembered matches included. Without the LLM parse leg, nothing reviews the parse itself. A
   curated or exact-name match on a CRF-only phrase can be a confident match to the wrong words.
-- **The bulk modes.** This ADR reads "no line binds without the cook" as the rule where the cook is present: the
-  single-paste editor and `review` mode. It reads "in bulk modes such lines are flagged" as the rule for the other two
-  modes. In `keepAsWritten` and `bindBest`, the cook chose up front to let the mode bind. There the mode's rule runs on the
-  derived state, which holds no confident line while the budget is spent. A line the mode binds reads `flagged`,
-  because its review is `budgetSpent`, not owed. This reading needs the owner's confirmation.
+- **Nothing binds without the cook, in every mode** (owner ruling, second round). With the budget spent, a bulk
+  import follows the same process as a single paste, for many recipes. In `keepAsWritten`, `bindBest` and `review`
+  alike, a line whose review reads `budgetSpent` is saved as written, with no food and so no nutrition. It is listed
+  under "to check" until the cook accepts it, by picking a food or by keeping it as written. A default does not bind,
+  and `bindBest` does not bind its top match. The design session drew the "to check" list this way.
 - **Scope.** The exception covers the parse-job origin only: paste and bulk import. The save path's verification of a
   saved recipe still treats a ceiling denial as transient. An unreadable counter is still transient and still fails
   closed on every path. The ceiling is enforced in prod only (ADR-0024 §3), so this fallback can only happen in prod.
@@ -251,8 +270,8 @@ is reached, this path does not wait for the budget to return.
 - One read model, three mappings. The paste view, a saved line's badge and the import flag all read the one
   classifier, so the three surfaces cannot disagree about what a verdict means.
 - The allowance now has two channels in one table. Paste and bulk import never borrow from each other.
-- With the budget spent, a bulk import keeps working. Its lines are worse matched and more of them are flagged or kept
-  as written. Nothing waits for the next month.
+- With the budget spent, a bulk import keeps working. Its lines are saved as written and wait under "to check" for
+  the cook. Nothing waits for the next month.
 - The `/api/v1/import` prefix now holds a resource, so a later single-recipe channel under it must be a literal word
   that is not a ULID.
 
@@ -275,15 +294,15 @@ is reached, this path does not wait for the budget to return.
   if the ceiling is raised mid-month. New lines are reviewed again only in the next period.
 - **The fallback only fires in prod**, where the ceiling is enforced. It needs a test that injects a denial, because no
   non-prod stage ever produces one.
-- **A CRF-only parse is permanent for its job line.** ADR-0026 and `parseLine.ts` treat a ceiling denial as transient
-  so that an outage never becomes a fact about a line. This path now lands that line. The parse cache does not store
-  the LLM's absence, so a later job asks again, but the landed job line is not re-parsed.
-- **The flag cannot see a line kept as written.** `importFlagOf` flags only a bound line. In `keepAsWritten`, a line
-  that is confident with budget left is kept as written while the budget is spent, and nothing flags it. `bindingOf` has
-  no budget input either. Both are owed by the builder.
-- **The file limit and the allowance overlap.** 004 D-013 caps one file at 1,000 recipes, and 017 SC-004 measures a
-  2,000-recipe export. A larger library takes more than one day and more than one file. That conflict is in the specs,
-  not settled here.
+- **A CRF-only parse is permanent for its job line.** ADR-0026 records the exception: elsewhere a ceiling denial
+  retries, so an outage never becomes a fact about a line. The parse cache does not store the LLM's absence, so a
+  later job asks again, but the landed job line is not re-parsed.
+- **The built modules do not know about the budget yet.** `bindingOf` has no budget input, so it still binds defaults
+  and `autoBest` lines. `importFlagOf` flags only a bound line, so it cannot list a line saved as written. The builder
+  owes both: a spent budget makes `bindingOf` keep every line without a cook choice as written, and the "to check"
+  list covers those lines.
+- **A large library takes days.** At 1,000 recipes a rolling day, 017 SC-004's 2,000-recipe export finishes on the
+  second day at the earliest.
 
 ## Follow-ups
 
@@ -293,8 +312,19 @@ is reached, this path does not wait for the budget to return.
   one unit. Split the allowance policy by channel, with 200 for paste and 1,000 for bulk.
 - Add the `budgetSpent` review value and its worker outcome, the `reviewBudgetSpent` reason, and the CRF-only landing
   on a ceiling denial. Each needs a test that fails on a return of the old transient behaviour.
-- Settle the provenance value for a public bulk-imported recipe (§9).
-- Update the `CLAUDE.md` pointer for ADR-0024, which states the transient rule with no exception.
+- Set the provenance label from the per-recipe statement (§9), and store the statement and citation with the
+  recipe.
+- Give `bindingOf` a budget input and build the "to check" list (§10).
+
+## Related work
+
+- **URL import is a separate flow** (004, owner ruling, second round). Before it imports a page, the server checks the
+  source page's copyright or licence and decides public, private, or block. An allowed-public link is stored as
+  `imported_public`. A link allowed only as private is stored as `imported_paid`, private-only on every plan. A
+  free cook keeps it private with no Premium and no edit. A blocked link is not imported. 004's spec records the
+  ruling near FR-008.
+  This ADR does not design that check, and bulk import does not use it: in bulk import, the cook's statement sets the
+  label (§9).
 
 ## Alternatives
 

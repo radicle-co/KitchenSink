@@ -425,7 +425,7 @@ The previous task list specified **none** of this. Security tests are written fi
 
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-001-A, ATP-003-A, ATP-004-A`
 
-- [ ] `POST /api/v1/recipes/import/url` → `202 { jobId }`; `GET /import/jobs/{id}` → status
+- [ ] `POST /api/v1/import/url` → `202 { jobId }`; `GET /import/jobs/{id}` → status
 - [ ] Duplicate canonical URL resolves to the existing recipe with `cloneAvailable: true` — **200, not an error**
 - [ ] Constraint violation on insert is caught and resolved to the winning recipe (HAZ-018)
 - [ ] **Integration test** for the concurrent-duplicate race: two simultaneous imports ⇒ exactly one recipe
@@ -441,7 +441,7 @@ The previous task list specified **none** of this. Security tests are written fi
 
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-006-A, ATP-006-B`
 
-- [ ] `POST /api/v1/recipes/import/file` → `201 { draftId }` (sync — no outbound call)
+- [ ] `POST /api/v1/import/file` → `201 { draftId }` (sync — no outbound call)
 - [ ] Type determined by **magic bytes** (`file-type`, already a dependency), never the client MIME/filename
 - [ ] JSON / YAML (`yaml`) / Markdown-frontmatter (`gray-matter`) parsers; ≤1 MB
 - [ ] Classified `user_created` (FR-011) — file import stays available to free tier
@@ -599,7 +599,7 @@ is entirely about it — while `spec.md`, `plan.md` and this file shipped no end
 That is a hole, not a new feature. It is also what the OCR transfer makes load-bearing: with photo owned by
 011, paste is how a user gets a cookbook recipe in **today**.
 
-- [ ] `POST /api/v1/recipes/import/text` → **`201` synchronously**, not `202`. There is no fetch and no vendor
+- [ ] `POST /api/v1/import/text` → **`201` synchronously**, not `202`. There is no fetch and no vendor
       call, so there is nothing to poll; an async job here would be ceremony that adds a failure mode
 - [ ] Body is `{ text, declaredSource, sourceCitation? }`. `text` is bounded (≤ 100 KB) and rejected empty;
       the bound is asserted, because an unbounded body is the memory-exhaustion vector this repo has already

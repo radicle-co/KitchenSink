@@ -392,7 +392,7 @@ household's content intact.
     > `/api/v1/recipes/migrations` is withdrawn (owner ruling, 2026-10-26). Bulk import already uses
     > `/api/v1/import` ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md)). The question, and
     > the two possible answers, are in [contracts/portability.md](contracts/portability.md). Note also that bulk
-    > import allows 1,000 recipes a rolling day, so SC-004's 2,000-recipe export takes more than one day to finish.
+    > import accepts a file of any size and allows 1,000 recipes a rolling day (see SC-004).
 - **FR-018** `→ 001 MODIFIED`: Users MUST be able to export their entire recipe library as a lossless
   machine-readable file **from a product surface**, not only as a privacy-request endpoint. ⚠️ **Corrected by
   research R-02:** `GET /api/v1/account/export` already ships a zod-contracted GDPR Art. 15/20 export covering
@@ -553,6 +553,10 @@ household's content intact.
   waited on.
 - **SC-004**: A 2,000-recipe competitor export completes migration with a per-recipe outcome for every entry
   and **zero** silently dropped recipes.
+    > ⚠️ Owner rulings, 2026-10-26: a file of any size is accepted, and bulk import allows 1,000 recipes a rolling
+    > day. A 2,000-recipe export imports what fits on the first day. The rest follows as room frees up, so it
+    > completes on the second day at the earliest. "Completes" here means every entry reaches an outcome, not that
+    > it happens in one sitting.
 - **SC-005**: An exported library re-imported into an empty account reproduces **100%** of user-visible fields,
   verified field-by-field rather than by spot check.
 - **SC-006**: A user completes a three-timer recipe end to end hands-free, in airplane mode, in dark mode, with

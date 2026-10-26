@@ -210,22 +210,28 @@ This feature's entire input side is untrusted external data, and none of it is a
 
 | Method   | Path                                              | Auth        | Success | Notes                                                                                                                                       |
 | -------- | ------------------------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST     | `/api/v1/recipes/import/url`                      | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                       |
-| POST     | `/api/v1/recipes/import/instagram`                | user        | `202`   | Gated by capability flag (D-002)                                                                                                            |
-| POST     | `/api/v1/recipes/import/file`                     | user        | `201`   | Sync — local parse, no outbound call                                                                                                        |
-| POST     | `/api/v1/recipes/import/text`                     | user        | `201`   | Sync — raw-text paste, no outbound call (`FR-052`)                                                                                          |
-| ~~POST~~ | ~~`/api/v1/recipes/import/photo`~~                | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract |
-| GET      | `/api/v1/recipes/import/jobs/{id}`                | user, owner | `200`   | Job status → `draftId` or error code                                                                                                        |
-| GET      | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | Draft for review                                                                                                                            |
-| PATCH    | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | User corrections                                                                                                                            |
-| POST     | `/api/v1/recipes/import/drafts/{id}/confirm`      | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                     |
-| DELETE   | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `204`   | Discard                                                                                                                                     |
-| GET      | `/api/v1/recipes/import/sources`                  | user        | `200`   | Enabled channels + blocklist summary                                                                                                        |
+| POST     | `/api/v1/import/url`                              | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                       |
+| POST     | `/api/v1/import/instagram`                        | user        | `202`   | Gated by capability flag (D-002)                                                                                                            |
+| POST     | `/api/v1/import/file`                             | user        | `201`   | Sync — local parse, no outbound call                                                                                                        |
+| POST     | `/api/v1/import/text`                             | user        | `201`   | Sync — raw-text paste, no outbound call (`FR-052`)                                                                                          |
+| ~~POST~~ | ~~`/api/v1/import/photo`~~                        | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract |
+| GET      | `/api/v1/import/jobs/{id}`                        | user, owner | `200`   | Job status → `draftId` or error code                                                                                                        |
+| GET      | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | Draft for review                                                                                                                            |
+| PATCH    | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | User corrections                                                                                                                            |
+| POST     | `/api/v1/import/drafts/{id}/confirm`              | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                     |
+| DELETE   | `/api/v1/import/drafts/{id}`                      | user, owner | `204`   | Discard                                                                                                                                     |
+| GET      | `/api/v1/import/sources`                          | user        | `200`   | Enabled channels + blocklist summary                                                                                                        |
 | GET      | `/api/v1/admin/import/paywalled-domains`          | admin scope | `200`   | D-004                                                                                                                                       |
 | POST     | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                                                                                                                       |
 | DELETE   | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                                                                                                                       |
 
 **Clone is NOT here** — `POST /api/v1/recipes/{id}/clone` already ships in 001.
+
+> ⚠️ **Routes live under `/api/v1/import/*`.** Owner ruling, 2026-10-26. The single-recipe channels above sit beside
+> the bulk import resource of [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §1
+> (`POST /api/v1/import`, `GET /api/v1/import/{importId}`). An import id is a ULID, so it never collides with a
+> literal word such as `url`, `file`, `jobs` or `drafts`. A many-recipe export file goes through ADR-0072's
+> resource, not through `file` and `confirm-bulk`. How `file` and `confirm-bulk` fold into that resource is owed.
 
 `confirm-bulk` returns **`207 Multi-Status`**: a 187-recipe migration where 3 fail is neither a success nor a
 failure, and collapsing it to one status would force the client to guess. The body carries one entry per draft

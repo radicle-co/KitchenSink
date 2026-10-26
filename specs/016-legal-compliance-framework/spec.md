@@ -693,16 +693,20 @@ they do not create a second mechanism.
   frame sampling is permitted at all; and the drafting of every document surface here.
     - **The bulk-import attestation wording.** Owner ruling, 2026-10-26, recorded in
       [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9. A bulk import asks for a source
-      statement and a citation on every recipe, not one statement for the file. Counsel confirms that this is still
-      the "contemporaneous, specific" instrument `FR-014` relies on. The flow imports hundreds of recipes at once, and
+      statement on every recipe, not one statement for the file. The statement has two forms: "I wrote this", with
+      no citation, or "From a source", with a citation. A source is a public web page, a book or a paid site. The statement sets the recipe's provenance label, `imported_public` included, with no curator grant.
+      Counsel confirms the wording of both forms, and that this is still the "contemporaneous, specific" instrument
+      `FR-014` relies on. The flow imports hundreds of recipes at once, and
       that is the doubt. **What breaks.** The per-item attestation is our evidence for every imported recipe. A
       statement that reads as a blanket one fails `FR-014` for the whole migrated library. The takedown defence for
-      those recipes then rests on the terms, which `FR-014` says must not carry it.
+      those recipes then rests on the terms, which `FR-014` says must not carry it. A false "I wrote this" on a copied recipe
+      labels it `user_created` with no citation at all. A false "public web page" makes it publishable.
     - **The private-copy attestation.** A bulk-imported recipe kept private still carries its source statement and
       citation. An import is a reproduction, even with nobody else able to see it. Counsel confirms the wording. Counsel
       also confirms that privacy plus the statement is enough for a private copy of a paid or physical source. **What
       breaks.** Finding 1 says privacy does the heavy lifting, and that is the basis for a private copy of a cookbook
-      recipe. Without it, `imported_paid` recipes need a different control. A bulk import of a library full of
+      recipe. Without it, `imported_paid` and `imported_physical` recipes need a different control. The owner ruled
+      that a free cook can keep them private, so this is not limited to paying cooks. A bulk import of a library full of
       cookbook recipes is where that exposure grows fastest.
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.

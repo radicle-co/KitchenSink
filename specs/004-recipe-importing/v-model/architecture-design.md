@@ -101,7 +101,7 @@ sequenceDiagram
     participant P as ARCH-022 ProvenancePolicy
     participant D as ARCH-025 ImportDrafts
 
-    C->>CT: POST /api/v1/recipes/import/url {url} + Idempotency-Key
+    C->>CT: POST /api/v1/import/url {url} + Idempotency-Key
     CT->>J: enqueue(url, principal, key)
     J-->>CT: jobId (existing job if key seen)
     CT-->>C: 202 { jobId }
@@ -119,7 +119,7 @@ sequenceDiagram
     S->>D: createDraft(...)
     D-->>S: draftId
     S->>J: succeed(job, draftId)
-    C->>CT: GET /api/v1/recipes/import/jobs/{id}
+    C->>CT: GET /api/v1/import/jobs/{id}
     CT-->>C: 200 { status: succeeded, draftId }
 ```
 
@@ -138,7 +138,7 @@ sequenceDiagram
     participant R as 001 RecipesService (shipped)
     participant FD as food-service client (003)
 
-    C->>CT: POST /api/v1/recipes/import/drafts/{id}/confirm
+    C->>CT: POST /api/v1/import/drafts/{id}/confirm
     CT->>CF: confirm(principal, draftId)
     CF->>D: loadForOwner(id, principal.userId)
     D-->>CF: ImportDraft (404 if absent OR not owner)

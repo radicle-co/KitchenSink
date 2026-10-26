@@ -178,6 +178,15 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   has already been imported and is not deleted, the system MUST surface the existing public recipe instead of
   creating a duplicate, and offer to clone it. Uniqueness MUST be enforced by a database constraint, not by a
   read-then-write check.
+    > ⚠️ **Ruling: the server checks the source page's rights first.** Owner ruling, 2026-10-26. Before a URL
+    > import, the server checks the copyright or licence of the source page and decides one of three outcomes:
+    > import as public, import as private, or block. Each outcome sets the label. An allowed-public link is stored
+    > as `imported_public`. A link the check allows only as private is stored as `imported_paid`, which is
+    > private-only on every plan and never public. It is NOT stored as `imported_public`, because that label stays
+    > private only with Premium and a substantive edit. A blocked link is not imported. The design session drew
+    > these three outcomes on features canvas v21 (ImportReviewDraft, ImportLinkPrivateOnly, ImportPaidSiteBlocked).
+    > The check itself is not designed yet. It belongs to this URL flow only. Bulk import is a separate flow, where the cook's per-recipe statement sets the label
+    > ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9).
 - **FR-009** _(GATED — see D-002)_: System MUST allow users to import recipes from public Instagram posts by
   extracting recipe content from the post caption. Import is limited to posts whose caption contains recipe
   text; video-only or image-only posts without recipe text are unsupported and the user MUST be told so.
@@ -345,14 +354,12 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   detection heuristics MUST additionally run as a **secondary signal** that flags a recipe for review; a
   heuristic MUST NOT by itself reclassify a recipe or block a save. _(Legal review remains advisable on the
   heuristic set; the attestation + citation rule above is operable without it — see D-003.)_
-    > ⚠️ **Bulk import.** Owner ruling, 2026-10-26. This attestation applies to **every** bulk-imported recipe,
-    > private as well as public: each recipe carries its own source statement and citation, and one statement for a
-    > whole file does not count. A recipe whose source is not a public web page cannot be public. Counsel confirms
-    > the wording before launch (016 FR-050). See
-    > [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9, which also records three open
-    > interactions. Premium still gates private (015's D4a). A public bulk-imported recipe has no declarable
-    > provenance value yet. And this requirement covers only recipes from an external source, so what a cook cites
-    > for a recipe they wrote themselves is still open.
+    > ⚠️ **Bulk import.** Owner rulings, 2026-10-26. Every bulk-imported recipe, private as well as public,
+    > carries its own statement, and one statement for a whole file does not count. The statement is "I wrote this",
+    > with no citation, or "From a source", with a citation. A source is a public web page, a book or a paid site. The import sets the label from it: `user_created`, `imported_public`,
+    > `imported_physical` or `imported_paid`. A recipe whose source is not a public web page cannot be public. A free
+    > cook can keep a book or paid-site recipe private. Counsel approves the wording before launch (016
+    > FR-050). See [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9.
 
 **Failure handling and lifecycle**
 
@@ -371,6 +378,10 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   caller without the entitlement MUST be refused with a distinct, machine-readable code — not a generic
   authorization error — so the client can present the upgrade path rather than a failure. The channel MUST also
   be absent from the advertised channel list for such a caller, so no unusable affordance is rendered.
+    > ⚠️ **Open: bulk import does not apply this gate.** Owner ruling, 2026-10-26: a free cook can keep a
+    > bulk-imported book or paid-site recipe private
+    > ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9). Whether this requirement still
+    > gates the same labels on a single paste or a photo import is for the owner to confirm.
 - **FR-024** _(PARTIALLY IMPLEMENTED 2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe creation
   MUST accept an explicit provenance (`sourceType` plus optional source URL and attribution) rather than
   assuming `user_created`, and MUST evaluate the C-004 visibility policy against the **actual** provenance.
@@ -635,7 +646,7 @@ The section above decides **who authors** the contract; this one is where it **r
 - **`z.strictObject()` for every mutating request body** — the portfolio default, ruled 2026-08-12 in GR-017
   §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
   survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. On
-  `PATCH /api/v1/recipes/import/drafts/{id}` — a **user correcting an extraction** — a silently stripped unknown
+  `PATCH /api/v1/import/drafts/{id}` — a **user correcting an extraction** — a silently stripped unknown
   key returns `200` for a correction that was never applied, which is the worst possible place for `z.object`'s
   default. ⛔ Measured 2026-08-12, `recipe-service` has **zero** `z.strictObject()` against **36** `z.object()`
   occurrences, so 004's mutating bodies must be authored strict from the start rather than matching the
@@ -824,9 +835,10 @@ The section above decides **who authors** the contract; this one is where it **r
   daily allowance, not one per recipe — the allowance exists to bound outbound fetching and OCR spend, and a
   file import does neither (one upload, parsed locally, no third-party call). Without this carve-out a
   first-day migration would exhaust a user's daily allowance on the day they join, which is precisely backwards.
-    > ⚠️ **The counting half is replaced.** Owner ruling, 2026-10-26. Bulk import has its own allowance of
-    > 1,000 recipes a rolling day. It counts per recipe, and it is separate from paste (see the note under
-    > `FR-022`). The 1,000-recipe file limit above is unchanged.
+    > ⚠️ **Both halves are replaced.** Owner rulings, 2026-10-26. A file of any size is accepted, and there is no
+    > 1,000-recipe file limit. Bulk import has its own allowance of 1,000 recipes a rolling day. It counts per
+    > recipe, and it is separate from paste (see the note under `FR-022`). A file larger than the room left imports
+    > what fits, and the rest follows as room frees up.
 - **D-012 (Bulk import, 2026-08-02)**: A single uploaded export file may contain many recipes — the realistic
   migration path from Paprika, Mealie, or Plan To Eat, and the onboarding case this feature exists to serve.
   One draft per recipe (so nothing is fabricated and every rule still applies), with **split review**: complete

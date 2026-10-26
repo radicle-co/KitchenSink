@@ -412,17 +412,17 @@ Response:
 
 ### @RequirePremium() Applied Per Feature
 
-| Feature                     | Spec | FR         | Endpoint                                         | Guard               |
-| --------------------------- | ---- | ---------- | ------------------------------------------------ | ------------------- |
-| Private recipe visibility   | 001  | 001-FR-003 | `PATCH /api/v1/recipes/:id/visibility`           | `@RequirePremium()` |
-| Clone-to-private (imported) | 004  | 004-FR-011 | `POST /api/v1/recipes/import` (visibility param) | `@RequirePremium()` |
-| AI recipe generation        | 005  | 005-FR-016 | `POST /api/v1/ai/generate`                       | `@RequirePremium()` |
-| AI instruction optimization | 005  | 005-FR-019 | `POST /api/v1/ai/optimize-instructions`          | `@RequirePremium()` |
-| AI meal suggestions         | 006  | 006-FR-025 | `POST /api/v1/meal-plans/suggest`                | `@RequirePremium()` |
-| Auto-generated meal plans   | 006  | 006-FR-026 | `POST /api/v1/meal-plans/generate`               | `@RequirePremium()` |
-| Food waste optimization     | 006  | 006-FR-027 | `POST /api/v1/meal-plans/optimize-waste`         | `@RequirePremium()` |
-| Online grocery ordering     | 007  | 007-FR-031 | `POST /api/v1/grocery-lists/:id/order`           | `@RequirePremium()` |
-| Trainer nutrition planning  | 009  | 009-FR-038 | `POST /api/v1/nutrition/client-plans`            | `@RequirePremium()` |
+| Feature                     | Spec | FR         | Endpoint                                 | Guard               |
+| --------------------------- | ---- | ---------- | ---------------------------------------- | ------------------- |
+| Private recipe visibility   | 001  | 001-FR-003 | `PATCH /api/v1/recipes/:id/visibility`   | `@RequirePremium()` |
+| Clone-to-private (imported) | 004  | 004-FR-011 | `POST /api/v1/import` (visibility param) | `@RequirePremium()` |
+| AI recipe generation        | 005  | 005-FR-016 | `POST /api/v1/ai/generate`               | `@RequirePremium()` |
+| AI instruction optimization | 005  | 005-FR-019 | `POST /api/v1/ai/optimize-instructions`  | `@RequirePremium()` |
+| AI meal suggestions         | 006  | 006-FR-025 | `POST /api/v1/meal-plans/suggest`        | `@RequirePremium()` |
+| Auto-generated meal plans   | 006  | 006-FR-026 | `POST /api/v1/meal-plans/generate`       | `@RequirePremium()` |
+| Food waste optimization     | 006  | 006-FR-027 | `POST /api/v1/meal-plans/optimize-waste` | `@RequirePremium()` |
+| Online grocery ordering     | 007  | 007-FR-031 | `POST /api/v1/grocery-lists/:id/order`   | `@RequirePremium()` |
+| Trainer nutrition planning  | 009  | 009-FR-038 | `POST /api/v1/nutrition/client-plans`    | `@RequirePremium()` |
 
 ### PlanGuard Implementation
 

@@ -191,3 +191,37 @@ describe('expanded and paneMoved', () => {
         expect(reducePasteMatchSession(session, { type: 'expanded', key: '0:0' })).toBe(session);
     });
 });
+
+describe('bindingOffered: the review binds only a line nobody has bound', () => {
+    const REVIEW: LineBinding = { boundBy: 'review', pick: { kind: 'food', foodId: 'whole', name: 'Whole milk' } };
+
+    it('binds a joined line that holds no binding', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingOffered', key: '0:0', binding: REVIEW });
+
+        expect(session.bindings.get('0:0')).toEqual(REVIEW);
+    });
+
+    it('⛔ never replaces the cook’s pick (ADR-0071 section 9: a late verdict never replaces a pick)', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingSet', key: '0:0', binding: COOK });
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+
+    it('does not replace an earlier binding of any kind', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingOffered', key: '0:0', binding: SERVER });
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+
+    it('ignores a food that is not in the draft, as bindingSet does', () => {
+        const session = run(ACCEPTED);
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+
+    it('a removed food is never bound again', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'draftLineRemoved', draftKey: 'd-1' });
+
+        expect(reducePasteMatchSession(session, { type: 'bindingOffered', key: '0:0', binding: REVIEW })).toBe(session);
+    });
+});

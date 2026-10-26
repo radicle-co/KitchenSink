@@ -42,6 +42,8 @@ export type PasteMatchEvent =
     | { readonly type: 'lineJoined'; readonly key: string; readonly draftKey: string }
     | { readonly type: 'lineJoinFailed'; readonly key: string }
     | { readonly type: 'bindingSet'; readonly key: string; readonly binding: LineBinding }
+    /** A binding the SERVER or the review offers (a checking line that read confident): taken only by a line with none. */
+    | { readonly type: 'bindingOffered'; readonly key: string; readonly binding: LineBinding }
     | { readonly type: 'draftLineRemoved'; readonly draftKey: string }
     | { readonly type: 'expanded'; readonly key: string | undefined }
     | { readonly type: 'paneMoved'; readonly key: string | undefined };
@@ -119,6 +121,11 @@ export function reducePasteMatchSession(session: PasteMatchSession, event: Paste
 
         case 'bindingSet':
             return draftKeyOf(session, event.key) === undefined
+                ? session
+                : { ...session, bindings: withEntry(session.bindings, event.key, event.binding) };
+
+        case 'bindingOffered':
+            return draftKeyOf(session, event.key) === undefined || session.bindings.has(event.key)
                 ? session
                 : { ...session, bindings: withEntry(session.bindings, event.key, event.binding) };
 

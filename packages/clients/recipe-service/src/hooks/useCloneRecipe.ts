@@ -62,6 +62,8 @@ export function useCloneRecipe() {
             queryClient.setQueryData(recipeServiceKeys.recipe(data.id), data);
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
+            // ADR-0073: a clone can land private (a book recipe, a copy of a private one), taking a slot.
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePrivateSlots });
         },
     });
 }

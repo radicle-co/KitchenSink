@@ -121,6 +121,14 @@ export const recipeServiceKeys = {
      * third SHAPE of the same region, so its own segment, still under `recipeLists` for every broad invalidation.
      */
     recipeLibrary: (params: LibraryParams = {}) => ['recipe-service', 'recipes', 'list', 'library', params] as const,
+    /**
+     * The caller's private-slot standing (`GET /api/v1/recipes/private-slots`, ADR-0073).
+     *
+     * Under the `recipes` prefix on purpose: every write that moves a recipe in or out of private is a recipe write that
+     * already invalidates that prefix (create, delete), and the two that do not (a visibility flip, a clone) invalidate this
+     * key explicitly. NOT under `recipe(id)`: it is the cook's, not a recipe's.
+     */
+    recipePrivateSlots: ['recipe-service', 'recipes', 'private-slots'] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
     recipeVersion: (id: string, versionNumber: number) =>
@@ -400,6 +408,16 @@ export function recipeQueries(client: RecipeServiceClient) {
             queryOptions({
                 queryKey: recipeServiceKeys.recipe(id),
                 queryFn: () => client.getRecipeById(id),
+                staleTime: RECIPE_STANDARD_STALE_TIME_MS,
+            }),
+        /**
+         * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073). Stale after 30 s like the
+         * list it counts; every private/public/delete/clone write invalidates it sooner.
+         */
+        privateSlots: () =>
+            queryOptions({
+                queryKey: recipeServiceKeys.recipePrivateSlots,
+                queryFn: () => client.getPrivateSlots(),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
         /** `GET /api/v1/recipes/{id}/versions` — a recipe's recent versions. */

@@ -29,6 +29,8 @@ export const CACHE_PROBES = {
     recipeAVersions: ['recipe-service', 'recipes', 'detail', 'rec_a', 'versions'],
     recipeAPhotos: ['recipe-service', 'recipes', 'detail', 'rec_a', 'photos'],
     recipeB: ['recipe-service', 'recipes', 'detail', 'rec_b'],
+    // ADR-0073: the caller's private-slot standing. Under the `recipes` prefix, so a create or delete reaches it broadly.
+    privateSlots: ['recipe-service', 'recipes', 'private-slots'],
     collectionList: ['recipe-service', 'collections', 'list', {}],
     collectionA: ['recipe-service', 'collections', 'detail', 'col_a'],
     collectionB: ['recipe-service', 'collections', 'detail', 'col_b'],

@@ -131,6 +131,7 @@ import {
     withdrawParseJobLinesRequestSchema,
     parseJobResponseSchema,
     recipeNutritionRequestSchema,
+    privateSlotUsageSchema,
     recipeNutritionResponseSchema,
     pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
@@ -151,6 +152,7 @@ import type {
     IngredientFoodNutritionRequest,
     IngredientFoodNutritionResponse,
     ParseJobResponse,
+    PrivateSlotUsage,
     RecipeApiError,
     RecipeNutritionResponse,
     RebindIngredientLineRequest,
@@ -1251,6 +1253,22 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 200, recipeNutritionResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073).
+     *
+     * `limited` carries the live count and the limit THE SERVER states (the client never knows the number); `unlimited` is
+     * Premium. A DISPLAY read: it may be a moment stale, and a private write is never withheld on it.
+     *
+     * @returns The standing.
+     * @throws {UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getPrivateSlots(): Promise<PrivateSlotUsage> {
+        const res = await this.send('GET', '/api/v1/recipes/private-slots');
+
+        return this.expect(res, 200, privateSlotUsageSchema);
     }
 
     /**

@@ -725,6 +725,10 @@ bind.
     >    for a person to repeat what code already proved. An appeal exists for the case code got wrong.
     > 3. **Hold public visibility, keep the recipe, and let a person reverse it.** Chosen. A false positive costs a wait
     >    and an appeal. A false negative is what happens today, without the check.
+    >
+    > One case costs more: a free cook with no free slot whose save the rules block loses the save, and so has nothing
+    > to appeal (FR-018). They can free a slot, go Premium, or change the content. This follows ADR-0073's refusal of a
+    > book recipe with no slot, and it stops "I wrote this" buying more private storage than the honest statement.
 - **FR-014a**: **The lifecycle the cook sees** (owner ruling, 2026-10-26). The stored visibility keeps what the cook
   asked for. The cook-facing state is derived from it and from the outcome, by the same classifier as the read rule:
     - **Checking**: the short time after a publish before the outcome is revealed (FR-051's floor). Only the cook sees
@@ -924,8 +928,10 @@ bind.
   the owner sets one, is added then.
 - **FR-030a**: The reviewer queue MUST order referrals oldest first, and MUST let a reviewer see every open referral
   from one cook or one import together, so a large import or a curated book is decided in one sitting. Each recipe still
-  gets its own decision. A recipe's place in the queue is the time it **first** entered review. An edit that replaces
-  the referral, or a return from Draft, keeps that place, so the cook cannot push a recipe back to stay in review.
+  gets its own decision. A recipe's place in the queue is the time it **first** entered its current review. An edit
+  that replaces the referral, or a return from Draft, keeps that place, so the cook cannot push a recipe back to stay
+  in review. After a decision, a new review starts a fresh place, so an old date cannot jump the queue. The reviewer
+  sees the recipe's own earlier decisions (FR-049).
 - **FR-030b**: Each cook MUST have a cap on open referrals. Past the cap, a new referral is created as `deferred`. It
   is not in the queue, and it opens, oldest first, when one of the cook's open referrals closes. The cap only defers.
   It MUST NOT publish, clear or drop anything, and the cook sees a deferred referral the same way as an open one. A
@@ -1111,7 +1117,7 @@ bind.
   says. The skip rule of FR-013a still holds: a recipe skips review only when every part is green.
 - **FR-048**: A match inside the clone tree (FR-046b) MUST be ignored: neither a pass nor a flag. Cloning is the
   sanctioned way to build on another cook's public recipe (`001-FR-005`, `GR-014`).
-- **FR-049**: The reviewer screen MUST show every match found: the kind (same recipe or same source), the similarity,
+- **FR-049**: The reviewer screen MUST show the recipe's own earlier decisions, and every match found: the kind (same recipe or same source), the similarity,
   the row of FR-047 that applied, and the earlier decision with its ground and date. For a match against another cook's
   **private** recipe, it MUST show the earlier decision only, never that recipe's content.
 - **FR-050**: A staff reviewer MUST be able to record a decision about a **source**, apart from any one recipe:

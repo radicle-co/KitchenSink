@@ -13,7 +13,7 @@ recipe**. Any other viewer never sees it, and never sees a recipe that is checki
 `404`, as for a draft).
 
 ```text
-sourceCheck: null                         // no check owed: a draft, private, or a private-only label
+sourceCheck: null                         // only when the current digest has no check row: never headed public
            | {
                contentDigest: string      // the digest this state belongs to (opaque to clients)
                cookState: 'checking' | 'public' | 'inReview' | 'notApproved'   // spec FR-014a
@@ -35,6 +35,10 @@ sourceCheck: null                         // no check owed: a draft, private, or
              }
 ```
 
+- **`sourceCheck` is present whenever the current digest has a check row**: a recipe checking, in review, public after
+  a check, not approved (which is private, and still carries `cookState: 'notApproved'`, `canAppeal` and
+  `statementId`), or a bulk-imported draft whose check has run (spec FR-024a). It is `null` only for a recipe never
+  headed public, such as a plain private recipe or a draft the cook never meant to publish.
 - **One message for every cause** (owner ruling, 2026-10-26, spec FR-016c). For `inReview` the response carries no
   outcome value, no reason, no part results and no evidence. Every cause, from a page reference to a photo signal, a
   match in our database (public or private), a source decision, a spent budget or a failed check, gives the same

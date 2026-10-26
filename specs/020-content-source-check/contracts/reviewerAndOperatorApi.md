@@ -50,8 +50,10 @@ decision request: {
   limit). It issues a statement of reasons that says automated means flagged the recipe and a person decided, with a
   generic ground and no detail of what matched (spec FR-014a, FR-028). The same unchanged content cannot enter review
   again.
-- The queue orders by `queue_since`, the time the recipe first entered review, so a cook's edits never push it back
-  (spec FR-030a).
+- The queue orders by `queue_since`, the time the recipe first entered its current review, so a cook's edits never
+  push it back. After a decision, a new review starts a fresh date (spec FR-030a).
+- The referral detail lists the recipe's own earlier decisions, so a reviewer sees that a resubmitted recipe was
+  refused before.
 - **The note never reaches the cook.** The statement takes the ground's localised text and the facts from the check.
   A match fact is always the one generic fact (spec FR-027), so a reviewer cannot disclose another cook's private
   recipe through the statement.

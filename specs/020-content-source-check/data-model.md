@@ -454,9 +454,14 @@ CREATE INDEX recipe_source_referrals_cook ON recipe_source_referrals (owner_id, 
 
 - There is no due time. The owner set no decision target in this release ("we can deal with SLO/SLA later"). The
   queue orders by `queue_since`, oldest first (spec FR-030).
-- **`queue_since` is carried forward.** When an edit supersedes a live referral, or the cook returns a recipe from
-  Draft to review, the new referral copies the latest earlier referral's `queue_since` for that recipe. So editing,
-  or a trip through Draft, never pushes a recipe back, and review cannot be stretched into a free private store.
+- **`queue_since` is carried forward only within one review.** When an edit supersedes a live referral, or the cook
+  returns a recipe from Draft to review, the new referral copies the latest earlier referral's `queue_since` for that
+  recipe, but only if no decision has ended review since. After a decision (approved, not approved, or resolved by the
+  check), a new review starts a fresh `queue_since`. So editing, or a trip through Draft, never pushes a recipe back,
+  and a recipe refused last week cannot jump to the front of the queue with an old date.
+- **The reviewer sees the recipe's own history.** The referral detail lists every earlier decision on this recipe,
+  read from `recipe_source_decisions` by `recipe_id`, because the lookup leaves the recipe itself out (spec FR-047
+  row 1) and fingerprints hold only the current version.
 - **The per-cook cap** (spec FR-030b). A new referral is created `deferred` when the cook already has the cap's number
   `open`, counted under a per-cook advisory lock in the same transaction (the ADR-0073 shape). When one closes, the
   cook's oldest `deferred` opens. The cap never publishes, clears or drops anything.

@@ -567,8 +567,9 @@ What else the review changed, without a question to the owner:
   call is owed for it.
 - **FR-005b**: Two recipes that share a part MUST NOT pay for it twice, and neither MUST wait on it forever. A worker
   MUST claim a part, with a lease, before it reserves any spend. A claim whose lease has run out MAY be taken over.
-  When a part's evidence lands, every outcome still `checking` whose digest names that part MUST be worked out again.
-  A sweep re-drives any that this misses (FR-022).
+  When a part's evidence lands, a check request MUST be sent again for every outcome still `checking` whose digest
+  names that part. Each outcome is then worked out by its own run of the same steps, in one place, and that run finds
+  the evidence already there and spends nothing. A sweep re-drives any that this misses (FR-022).
 - **FR-006**: Photos are checked, in this release. The check reads every photo the cook uploaded to a recipe headed
   public. **Code cannot prove what a model reads in an image**, so every photo signal is unproven: it MUST make the
   outcome at least `possible`, which sends the recipe to a person. A photo signal MUST NEVER make an outcome `detected`
@@ -736,6 +737,8 @@ What else the review changed, without a question to the owner:
       erasure does not wait at all.
     - While it waits, the account is closed, so the cook cannot sign in, and their recipes are visible only through
       the read rule.
+    - Two things wake the waiting erasure: the decision on its last open donation referral re-enqueues it at once, and
+      the sweeper claims it when the deadline passes. Nothing else needs to run for it to finish.
 - **FR-018c**: A recipe deleted by its owner is a tombstone (`001-FR-002`), not a removed row. In the same transaction
   as the delete, its open or deferred referrals MUST close as `withdrawn`, and its match rows (FR-052) MUST be removed,
   so a deleted recipe never matches another. Its outcome rows hold no recipe text and stay until the hard purge.
@@ -885,7 +888,9 @@ What else the review changed, without a question to the owner:
     - A statement of reasons owed to a cook whose account has been erased cannot be delivered. The decision record
       MUST say so, and counsel confirms that this is enough (FR-041).
 - **FR-037**: The cook MUST be able to see, for their own recipe, its current outcome, each part's result, the evidence,
-  any open referral, and any decision, within the limits of FR-051.
+  any open referral, and any decision, within the limits of FR-051. The parts the cook sees read their own content
+  only. So when a person's earlier approval made the outcome `clear`, the cook sees `clear` beside a part that reads
+  not green, with no reason given for the difference.
 
 #### H. Measurement and operation
 
@@ -1048,6 +1053,12 @@ What else the review changed, without a question to the owner:
       whatever the lookup finds. It never skips or shortens a model call because a match already decided a part, and
       it writes the outcome only once every part is read. So the time to an outcome does not show whether a match
       exists.
+    - **A floor on every outcome the worker produces.** A model answer can come from the shared cache, for example
+      when a cook pastes the exact text, or uploads the exact photo, of a recipe checked before. That recipe can now
+      be another cook's private recipe, and a cached answer lands in milliseconds instead of seconds. So no
+      worker-produced outcome is revealed before the check began plus a fixed floor: neither the cook's view nor the
+      read rule moves before it. The floor MUST be set from the measured time of an uncached check, never guessed. A
+      rule-only `detected` is exempt, because it reads only the cook's own content.
     - The statement of reasons and the decision's cook-facing ground follow FR-027 and FR-029.
 - **FR-052**: What is stored for the lookup MUST be kept per recipe, for its current version: the normalised match
   text, its exact fingerprint, and its source keys. These are derived from the cook's content, so they are the cook's
@@ -1145,8 +1156,9 @@ What else the review changed, without a question to the owner:
 - **SC-011**: Before blocking is switched on, the shadow-mode forecast (FR-039a) has been produced and shown to the owner,
   with its three cases. It is information, not a gate.
 - **SC-012**: Zero recipes are made `detected` or `clear` by a photo signal alone, checked structurally.
-- **SC-013**: Zero recipes are `clear` while any part is not green, checked by a property test over every combination of
-  part results.
+- **SC-013**: Zero recipes are `clear` while any judged part is not green, checked by a property test over every
+  combination of part results. "Judged" means the staff view, with match effects applied. The cook's view of a part
+  reads their own content only (FR-037).
 - **SC-014**: Zero reviewer actions come from an account that is not a staff account, checked against the review
   scope's grant list.
 - **SC-015**: On a labeled set of recipe pairs (exact copies, lightly edited copies, and different recipes for the same

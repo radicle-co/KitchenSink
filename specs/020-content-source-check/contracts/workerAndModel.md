@@ -33,17 +33,22 @@ SourceCheckRequested {
    That part costs nothing here.
 4. **For each claimed part: reserve, call, settle.** Settle is never retried.
 5. **Write each finished model set**, then run the **fan-in** in the same transaction. It marks every `pending` part
-   row with that part digest and model key as `ran`. Then it works out the outcome of every `checking` row that now has
-   no `pending` part (data-model §3a).
+   row with that part digest and model key as `ran`. Then it sends a fresh `SourceCheckRequested` for every other
+   `checking` row that now has no `pending` part (data-model §3a). It never writes another recipe's outcome.
 6. **Write this recipe's outcome**, by compare-and-set on `state = 'checking'`, once none of its parts is pending: the
    judged items (rule items from the save, model items projected with their marker digests), the part results, the
-   matches, `evidence_ref` and `allows`. If another worker's fan-in already wrote it, zero rows change and the message
-   ends.
+   matches, `evidence_ref`, `allows`, and `reveal_at`, the later of now and `checking_since` plus the timing floor.
+   If a duplicate run already wrote it, zero rows change and the message ends.
 
 ⛔ **The steps do not change with what the lookup finds** (spec FR-051, owner ruling 3). The worker never skips or
 shortens a model call because a match already decided a part. Two reasons: the same-items rule needs the copy's own
 model items (spec FR-047a), and the time to an outcome must not show whether a match exists. A unit test runs the
 handler with and without a match and asserts the same sequence of port calls.
+
+⛔ **A cached answer is not revealed early** (spec FR-051). When every part's evidence is already in the cache, for
+example because a cook pasted the exact text of a recipe checked before, no model call runs and the run is fast. That
+recipe can be another cook's private recipe. So `reveal_at` holds every worker-produced outcome back to the floor,
+measured from an uncached check, and neither the cook's view nor the read rule moves before it.
 
 ### The photo read is scoped to this function (spec FR-023b)
 

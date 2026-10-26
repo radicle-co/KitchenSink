@@ -99,8 +99,9 @@ every check and stored with that recipe's outcome. That recipe's judged items ca
 needs (§5), and they are erased with the recipe.
 
 Two recipes that share a part never pay twice. A worker claims a part with a **lease** before any reservation. When a
-part's evidence lands, the same transaction works out every outcome still waiting on it (a fan-in). A sweep re-drives
-what the fan-in misses.
+part's evidence lands, the same transaction sends the check again for every outcome still waiting on it (a fan-in).
+That rerun does the cheap steps again and finds the evidence there, so an outcome is always worked out by its own run,
+in one place. A sweep re-drives what the fan-in misses.
 
 ### 5. A match counts only through a person's own latest decision, in a fixed order
 
@@ -153,6 +154,11 @@ Private recipes are candidates. A cook never learns anything about another cook'
   where this came from", never as a part reason. There is no field that says why a part is green.
 - The worker runs **the same steps whatever the lookup finds**, and writes the outcome only once every part is read,
   so the time to an outcome does not show whether a match exists.
+- **No outcome is revealed before a floor.** Model evidence is a shared cache, so an exact copy of a recipe checked
+  before gets its answer in milliseconds, and that recipe can be another cook's private recipe. So every outcome the
+  worker produces carries a `reveal_at`, the start of its check plus a floor measured from an uncached check. Neither
+  the cook's view nor the hold Specification moves before it. A rule-only `detected` is exempt, because it reads only
+  the cook's own content.
 - The statement of reasons takes a ground from a closed set and states a match only as one generic fact. The
   reviewer's own words are an internal note that never reaches the cook.
 - A private candidate with no person decision can only send a recipe to a person.
@@ -229,6 +235,8 @@ recipe that is already public.
   one sent to a person at its next check. To order by the latest content change instead flags every original each
   time a copy is edited first.
 - **The lookup's cost at scale is unmeasured** until the benchmark runs.
+- **The timing floor makes every checked recipe wait at least that long**, even one whose answer was cached. That is
+  the price of not showing a cook whether an exact copy exists.
 - **The queue has no automatic way out.** With one reviewer, a busy week, a spent AI budget or one curated book can
   hold recipes for a long time. The per-cook cap only defers.
 - **Counsel items stay open:** the standard for a reviewer's clearance, a statement for a pending hold, the generic

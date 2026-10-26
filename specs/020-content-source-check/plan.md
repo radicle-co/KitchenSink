@@ -164,8 +164,9 @@ cook saves (public intent) ──▶ recipe-service, one transaction
                                            ├─ lookup in our own database (pg_trgm + SET LOCAL, shingle Jaccard)
                                            ├─ claims each part with a lease (layer 0a); claimed elsewhere → no spend
                                            ├─ text and each photo: reserve → call → settle (denial: not retried)
-                                           ├─ writes each model set, then fans in to every outcome waiting on it
-                                           └─ writes the outcome by compare-and-set: items, parts, matches, allows
+                                           ├─ writes each model set, then re-sends the check for every outcome waiting on it
+                                           └─ writes the outcome by compare-and-set: items, parts, matches, allows,
+                                              and reveal_at (the timing floor)
                                                      │
               possible / unchecked, decided, on a published recipe ──▶ referral (cap defers) ──▶ staff reviewer
                                                                                        clear │ hold
@@ -173,7 +174,7 @@ cook saves (public intent) ──▶ recipe-service, one transaction
                                                                            decision + statement of reasons
 
 any read ──▶ viewable = owner OR (public AND published AND SOURCE_CHECK_ALLOWS_SQL)
-             SOURCE_CHECK_ALLOWS_SQL = the current digest's row AND (allows OR enforced = false)
+             SOURCE_CHECK_ALLOWS_SQL = the current digest's row AND ((allows AND reveal_at <= now()) OR enforced = false)
 ```
 
 ### Where the hold lives

@@ -284,10 +284,10 @@ path's verification of a saved recipe still retries a denial. An unreadable coun
 closed, on every path. And the counter, the reservation and the one pool are untouched. This changes the effect of a
 denial, not the moment of one.
 
-⛔ **A second path does not retry a ceiling denial: the content source check** (owner ruling, 2026-10-26; ADR-0074
-§10, spec 020 FR-020). Its worker records the denial on that part, with the period captured at reserve, and
-acknowledges the message. The recipe's outcome is `unchecked` (`budgetSpent`), and a staff reviewer decides, because
-the owner ruled that a case the AI could not read goes to a person. A retry would only hold the message until the month
+⛔ **A second path does not retry a ceiling denial: the content source check** (ADR-0074 §10, spec 020 FR-020). This
+follows from the owner's ruling (2026-10-26) that a case the AI could not read goes to a person. Its worker records
+the denial on that part, with the period captured at reserve, and acknowledges the message. The recipe's outcome is
+`unchecked` (`budgetSpent`), and a staff reviewer decides. A retry would only hold the message until the month
 ends, while the person already has the case. The part reads as spent only while its period is current. Once the period
 has ended, the next-period re-check reads it again. The same three things do not change: an unreadable counter is
 still transient and fails closed, and the counter, the reservation and the one pool are untouched.

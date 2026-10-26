@@ -515,7 +515,8 @@ allowed`.
 - At election, each elected recipe that is not already allowed is checked, like any recipe headed public. All green:
   donatable. Not green: a `donation` referral.
 - If any donation referral exists, the erasure job waits for its recipe phase until every one is decided or the
-  **donation deadline** passes. The account is closed meanwhile. Then the existing transaction runs. A recipe the hold
+  **donation deadline** passes. The account is closed meanwhile. The decision on the last donation referral re-enqueues
+  the job, and the sweeper claims it at the deadline. Then the existing transaction runs. A recipe the hold
   Specification does not allow is deleted with no extra logic: a held public recipe, an elected recipe a person held,
   and one still undecided.
 - The cook is told all this at election, before they confirm. The election screen is in the account closure plan
@@ -547,6 +548,11 @@ After the identity record is scrubbed there is nobody to deliver to, so the deci
 - **The same steps every time.** The lookup runs in the worker. The worker never skips or shortens a model call
   because of a match, and writes the outcome only once every part is read. So the time to an outcome does not depend
   on a match.
+- **A floor on the time to an outcome.** Model evidence is shared, so a cook who pastes the exact text, or uploads the
+  exact photo, of a recipe checked before gets a cached answer in milliseconds. That recipe can be another cook's
+  private recipe, so the speed alone would show it exists. Every worker-produced outcome is therefore held back to a
+  floor from the start of its check, set from the measured time of an uncached check. A rule-only `detected` is exempt,
+  because it reads only the cook's own content.
 - **A closed ground and a generic fact.** A reviewer chooses the cook-facing ground from a closed set, and a match is
   always stated as the one generic fact. The reviewer's own words are an internal note. So a reviewer cannot disclose
   the match by typing it. Counsel is asked whether the generic fact satisfies DSA Art. 17(3)(b) (spec FR-041).
@@ -575,6 +581,8 @@ saw. So:
 claimed and stopped, and nothing ever finished its outcome. So:
 
 - A claim has a lease, so a dead worker's claim can be taken over.
-- Each outcome lists the parts it waits on. When a part's evidence lands, the same transaction works out every
-  outcome that was waiting on it. That is the fan-in.
+- Each outcome lists the parts it waits on. When a part's evidence lands, the same transaction sends a fresh check
+  request for every outcome that was waiting on it. That is the fan-in. It does not write another recipe's outcome:
+  the lookup result and the marker digests belong to that recipe's own run, so the rerun does the cheap steps again
+  and spends nothing.
 - The sweeper re-drives anything the fan-in missed, inside the 24-hour limit.

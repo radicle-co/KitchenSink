@@ -113,10 +113,12 @@ the repository.** The labeled set for SC-001 to SC-003 lives outside it (researc
 | 53  | Markers and source decisions refuse DELETE and any UPDATE but a retire; the switch ledger refuses UPDATE and DELETE                                                                                                                                                                                                                | FR-011, FR-019                 | LOCAL e2e (as the service role)        |
 | 54  | Page keys come from `normalize-url` with the pinned options                                                                                                                                                                                                                                                                        | FR-046a                        | unit                                   |
 | 55  | The hold Specification's TypeScript and SQL forms agree on every row shape, and a guard fails another SQL copy                                                                                                                                                                                                                     | FR-018                         | unit (parity) + LOCAL e2e + repo guard |
+| 56  | An exact-copy cache hit and a fresh check reach `publiclyVisible` on the same schedule: neither is revealed before the floor; a rule-only `detected` is revealed at once                                                                                                                                                           | FR-051                         | integration (fake clock) + LOCAL e2e   |
+| 57  | The decision on the last donation referral wakes the waiting erasure at once; with no decision, the sweeper finishes it at the deadline                                                                                                                                                                                            | FR-018a                        | integration                            |
 
 ## Expected results
 
-- Scenarios 1–30, 32–34, 36–39 and 42–55 pass in CI or on a developer's machine as their tier says.
+- Scenarios 1–30, 32–34, 36–39 and 42–57 pass in CI or on a developer's machine as their tier says.
 - Scenario 31 meets SC-001 and SC-002, scenario 40 meets SC-015, and scenario 41 meets its budget, before anyone
   switches blocking on. Scenario 32's forecast is shown to the owner, and gates nothing.
 - Scenario 35 decides whether the read rule stays an `EXISTS` or flips to a fence column (research R-02).

@@ -160,6 +160,7 @@ CREATE TABLE recipe_source_checks (
     allows                boolean     NOT NULL DEFAULT false,
     checking_since        timestamptz NOT NULL DEFAULT now(),
     decided_at            timestamptz NULL,
+    reveal_at             timestamptz NULL,      -- the outcome is not revealed before this (spec FR-051)
     part_results          jsonb       NULL,      -- each part green or not, with why, match effects included (staff view)
     PRIMARY KEY (recipe_id, content_digest),
     CONSTRAINT recipe_source_checks_state_check CHECK (state IN ('checking', 'decided')),
@@ -168,7 +169,8 @@ CREATE TABLE recipe_source_checks (
     CONSTRAINT recipe_source_checks_reason_check
         CHECK (reason IS NULL OR reason IN ('budgetSpent', 'tooLong', 'checkFailed')),
     CONSTRAINT recipe_source_checks_decided_has_outcome
-        CHECK ((state = 'decided') = (outcome IS NOT NULL AND decided_at IS NOT NULL AND evidence_ref IS NOT NULL)),
+        CHECK ((state = 'decided') = (outcome IS NOT NULL AND decided_at IS NOT NULL AND evidence_ref IS NOT NULL
+                                      AND reveal_at IS NOT NULL)),
     CONSTRAINT recipe_source_checks_reason_iff_unchecked CHECK ((outcome = 'unchecked') = (reason IS NOT NULL)),
     CONSTRAINT recipe_source_checks_period_iff_budget CHECK ((reason = 'budgetSpent') = (budget_period IS NOT NULL)),
     CONSTRAINT recipe_source_checks_clearance_complete CHECK (
@@ -187,7 +189,12 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
 ```
 
 - **A rule-only `detected` is written `decided` in the save's own transaction** (spec FR-013, review H4). No message
-  is sent for it, because no model answer can change it.
+  is sent for it, because no model answer can change it. Its `reveal_at` is the save's own time.
+- **`reveal_at` is the timing floor** (spec FR-051). A worker-produced outcome sets it to the later of now and
+  `checking_since` plus the floor. A model answer from the shared cache is fast, and an exact copy of another cook's
+  private recipe hits that cache, so without a floor the time to an outcome could show that such a recipe exists. The
+  cook's view reads `checking` until `reveal_at`, and the hold Specification (section 8) does not allow before it. The
+  floor is one constant, set from the measured time of an uncached check.
 - **`enforced` is written once.** recipe-service sets it, from the latest enforcement event, at the first moment its
   recipe is headed for public view with this digest (spec FR-001): `true` while the mode is `blocking`, `false` while
   it is `shadow` or `paused`. The write is `… SET enforced = $mode WHERE enforced IS NULL`. A trigger refuses any later
@@ -267,9 +274,11 @@ CREATE INDEX recipe_source_check_parts_waiting ON recipe_source_check_parts (par
 - recipe-service writes one row per part when it creates the check row, because it knows the text digest and every
   photo's digest.
 - **Fan-in** (spec FR-005b). When a model set lands, the same transaction marks every `pending` part row with that
-  part digest and model key as `ran`, then works out the outcome of every `checking` check row that now has no
-  `pending` part. That is how a recipe whose shared photo another worker read still gets its outcome. A message whose
-  part was claimed elsewhere ends without spend, because the fan-in will finish its outcome.
+  part digest and model key as `ran`. It then sends a fresh `SourceCheckRequested` for every other `checking` check row
+  that now has no `pending` part. That run does the cheap steps again (its own lookup, its own marker digests from its
+  own text), finds the evidence already there, spends nothing, and writes its own outcome. So an outcome is always
+  worked out in one place, by one run of the same steps. A message whose part was claimed elsewhere ends without
+  spend, because the fan-in will send it again.
 - The sweeper re-drives a `checking` row with no `pending` part that the fan-in missed, and ends the 24-hour limit
   (spec FR-022).
 
@@ -519,7 +528,7 @@ by a parity test (spec FR-018):
 EXISTS (SELECT 1 FROM recipe_source_checks rsc
         WHERE rsc.recipe_id = r.id
           AND rsc.content_digest = r.checked_content_digest
-          AND (rsc.allows OR rsc.enforced = false))
+          AND ((rsc.allows AND rsc.reveal_at <= now()) OR rsc.enforced = false))
 ```
 
 - The three SQL twins (`viewableBy`, `readableBy`, `communityOf` in `recipePredicates.ts`) and the account erasure
@@ -561,7 +570,9 @@ EXISTS (SELECT 1 FROM recipe_source_checks rsc
    not gets a referral with `origin = 'donation'`. If any such referral exists, the job's `donation_review_until` is set
    to the deadline.
 2. **Waiting.** The job is not claimed for its recipe phase while `donation_review_until` is in the future and a
-   donation referral is still live. The account is closed meanwhile.
+   donation referral is still live. The account is closed meanwhile. Two things wake it: the decision on its last live
+   donation referral re-enqueues the job in the same transaction, and the sweeper claims it once
+   `donation_review_until` passes.
 3. **At completion** (every donation referral decided, or the deadline passed). Live donation referrals close as
    `expired`. The existing transaction then runs unchanged in shape: it flips the elected recipes, and removes every
    recipe of the owner that is not `visibility = 'public' AND status = 'published' AND SOURCE_CHECK_ALLOWS_SQL`. So a

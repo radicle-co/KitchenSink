@@ -68,7 +68,10 @@ PartResult: {
 - There is **no field that says why a part is green**. `PartResult` carries no `greenBy`, and a match never changes a
   part, so the response never says that an earlier approval made anything green.
 - `parts` reflect the cook's own content: what the rules and the model found in their text, photos and citation. A
-  match changes the outcome and the note, never a part.
+  match changes the outcome and the note, never a part. So a recipe a person's earlier approval made `clear` can show a
+  part that reads not green, with no reason given for the difference (spec FR-037).
+- Before the outcome's `reveal_at`, the response reads `state: 'checking'` and `publiclyVisible: false`, whatever the
+  worker has written (spec FR-051's timing floor).
 - A contract test runs the same case against a public and a private earlier recipe and asserts byte-equal responses,
   apart from ids and times (SC-017).
 - **Timing.** At save the response is `checking`, or `decided` with `detected` when a rule blocked (rules read only the

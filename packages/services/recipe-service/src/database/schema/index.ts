@@ -183,5 +183,13 @@ export type {
     RecipeImpactSignalRow,
 } from './analyticsEvents.js';
 
+// ── import_allowance_events (004 FR-022, 0058) — the daily import allowance ledger ──────────────
+export { importAllowanceEvents, IMPORT_ALLOWANCE_CHANNELS } from './importAllowanceEvents.js';
+export type {
+    ImportAllowanceChannel,
+    ImportAllowanceEventRow,
+    NewImportAllowanceEventRow,
+} from './importAllowanceEvents.js';
+
 // ── convenience re-exports ────────────────────────────────────────────────────────────────────────
 export type { InferInsertModel, InferSelectModel } from 'drizzle-orm';

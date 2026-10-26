@@ -324,6 +324,14 @@ const accounts: readonly ColumnAccount[] = [
         why: "The position of a food in the worker's stored proposal, bounded by that proposal's foods; no wire field sets it.",
     },
 
+    // ── the daily import allowance ledger (004 FR-022, 0058) ──────────────────────────────────────
+    { table: 'import_allowance_events', column: 'user_id', why: PRINCIPAL_DERIVED },
+    {
+        table: 'import_allowance_events',
+        column: 'units',
+        why: 'Written by the service (1 for a paste, one per file for a migration, D-013) and held positive by a CHECK; no wire field sets it, and the policy refuses a request above the daily limit.',
+    },
+
     // ── band authority (plan U3, 0036) ────────────────────────────────────────────────────────────
     {
         table: 'resolution_band_authority',

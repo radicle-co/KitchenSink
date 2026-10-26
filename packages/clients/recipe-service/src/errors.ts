@@ -290,6 +290,35 @@ export function isParseJobExpiredError(error: unknown): error is ParseJobExpired
 }
 
 /**
+ * `429 IMPORT_QUOTA_EXCEEDED` — the caller's daily import allowance is spent (004 FR-022). NOTHING was created.
+ *
+ * ⛔ ITS OWN TYPE, and deliberately NOT retryable. It shares a status with the service's burst throttle, and the two could
+ * not be more different: a throttle clears in seconds and is worth coming back for, a spent allowance stays spent until
+ * `resetsAt`, hours away. A retry loop (the transport's, TanStack's, the outbox's) that treated it as a throttle would
+ * hammer the server for hours and the cook would never see why their paste did nothing. `retryPolicy.ts` classifies it
+ * terminal, and a test pins that.
+ *
+ * `resetsAt` is the instant the allowance reopens, kept as the ISO string the wire carries: a surface localises the date
+ * itself, and a `Date` here would be a conversion this client has no reason to own.
+ */
+export class ImportQuotaExceededError extends RecipeServiceClientError {
+    /** When the allowance reopens for this caller, an ISO 8601 instant. */
+    public readonly resetsAt: string;
+
+    public constructor(resetsAt: string, message = 'The daily import allowance is spent') {
+        super(message, 429, 'IMPORT_QUOTA_EXCEEDED');
+        this.name = 'ImportQuotaExceededError';
+        this.resetsAt = resetsAt;
+        Object.setPrototypeOf(this, ImportQuotaExceededError.prototype);
+    }
+}
+
+/** Type guard for {@link ImportQuotaExceededError}. */
+export function isImportQuotaExceededError(error: unknown): error is ImportQuotaExceededError {
+    return error instanceof ImportQuotaExceededError;
+}
+
+/**
  * `409 VERSION_LINE_UNRESTORABLE` — a version restore would drop lines whose foods no longer exist and whose version
  * froze no name to find them by (plan 002 R52). NOTHING was restored.
  *

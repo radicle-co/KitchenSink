@@ -26,12 +26,15 @@ import { and, asc, eq, getTableColumns, inArray, isNull, sql } from 'drizzle-orm
 import type pg from 'pg';
 import { PARSE_JOB_AGGREGATE_SQL } from '@kitchensink/recipe-core/parsing/parse-job-aggregate';
 
+import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeParseJobLines, recipeParseJobs } from '../../database/schema/parseJobs.js';
 import { COPYABLE_LINE_STATUSES, type CopyForwardCandidate } from '../domain/copyForwardPolicy.js';
 import { lineIsOrphaned } from '../domain/lineProgress.js';
 import { isParseJobExpired } from '../domain/parseJobExpiry.js';
 import type {
+    CreateJobOutcome,
+    JobAdmission,
     NewParseJobLine,
     ParseJobMutation,
     ParseJobRecord,
@@ -125,6 +128,8 @@ export class ParseJobsDal implements ParseJobsDalPort {
         private readonly db: RecipeDrizzle,
         /** For the shared `$1`-parameterized aggregate — the same driver form the worker uses. */
         private readonly pool: pg.Pool,
+        /** The daily import allowance (004 FR-022); stateless, so the default is the production one. */
+        private readonly allowance: ImportAllowanceDal = new ImportAllowanceDal(),
     ) {}
 
     /** @inheritdoc */
@@ -170,7 +175,8 @@ export class ParseJobsDal implements ParseJobsDalPort {
         ownerId: string,
         lines: readonly NewParseJobLine[],
         expiresAt: Date,
-    ): Promise<ParseJobRecord> {
+        admission: JobAdmission,
+    ): Promise<CreateJobOutcome> {
         // ⛔ THE JOB'S STATUS IS DERIVED IN THIS TRANSACTION, not recomputed after it — and that is the whole
         // remedy for copy-forward's hang. A copied line NEVER lands, so the worker never runs
         // `PARSE_JOB_AGGREGATE_SQL` for it; an all-copied job left `running` would sit with zero pending
@@ -185,7 +191,22 @@ export class ParseJobsDal implements ParseJobsDalPort {
         const pending = lines.filter((line) => line.decision.kind === 'enqueue').length;
         const status = pending > 0 ? ('running' as const) : ('complete' as const);
 
-        return this.db.transaction(async (tx) => {
+        return this.db.transaction(async (tx): Promise<CreateJobOutcome> => {
+            // ⛔ THE ALLOWANCE IS THE FIRST WRITE (004 FR-022). It takes the per-user lock, so the unit and the job it pays
+            // for commit together; a refusal returns before anything below runs, so a refused paste leaves no job, no
+            // line and no ledger row. `prepaid` is the one admission that spends nothing (a bulk file already paid).
+            if (admission.kind === 'charge') {
+                const outcome = await this.allowance.admit(tx, ownerId, {
+                    channel: admission.channel,
+                    units: admission.units,
+                    tier: admission.tier,
+                });
+
+                if (outcome.kind === 'refused') {
+                    return outcome;
+                }
+            }
+
             const [job] = await tx.insert(recipeParseJobs).values({ ownerId, expiresAt, status }).returning();
 
             if (job === undefined) {
@@ -211,24 +232,27 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 .returning();
 
             return {
-                id: job.id,
-                status,
-                createdAt: job.createdAt,
-                expiresAt: job.expiresAt,
-                lines: inserted
-                    .sort((a, b) => a.lineIndex - b.lineIndex)
-                    .map((line) => ({
-                        lineIndex: line.lineIndex,
-                        sourceLine: line.sourceLine,
-                        lineDigest: line.lineDigest,
-                        status: this.lineStatusOf(line.status),
-                        proposal: line.proposal ?? null,
-                        llmAttempts: line.llmAttempts,
-                        // Nothing has claimed a line inserted this instant, and nothing has gone quiet.
-                        attempts: 0,
-                        claimAgeSeconds: null,
-                    })),
-                quietSeconds: 0,
+                kind: 'created',
+                record: {
+                    id: job.id,
+                    status,
+                    createdAt: job.createdAt,
+                    expiresAt: job.expiresAt,
+                    lines: inserted
+                        .sort((a, b) => a.lineIndex - b.lineIndex)
+                        .map((line) => ({
+                            lineIndex: line.lineIndex,
+                            sourceLine: line.sourceLine,
+                            lineDigest: line.lineDigest,
+                            status: this.lineStatusOf(line.status),
+                            proposal: line.proposal ?? null,
+                            llmAttempts: line.llmAttempts,
+                            // Nothing has claimed a line inserted this instant, and nothing has gone quiet.
+                            attempts: 0,
+                            claimAgeSeconds: null,
+                        })),
+                    quietSeconds: 0,
+                },
             };
         });
     }

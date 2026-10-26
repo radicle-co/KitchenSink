@@ -38,6 +38,7 @@ import {
     BadRequestError,
     ForbiddenError,
     GoneError,
+    ImportQuotaExceededError,
     NotFoundError,
     PublishRequirementsUnmetError,
     PullDriftError,
@@ -53,7 +54,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { apiError } from '../apiError.js';
 import { apiErrorSchema, recipeApiErrorSchema, recipeErrorCodeSchema } from '../apiError.schema.js';
 import { ApiExceptionFilter } from '../filters/apiException.filter.js';
-import { publishRequirementsUnmet } from '../../recipes/recipe.error.js';
+import { importQuotaExceeded, publishRequirementsUnmet } from '../../recipes/recipe.error.js';
 import { CreateRecipeDto } from '../../recipes/dto/createRecipe.dto.js';
 
 const BASE = 'https://recipe.example.test';
@@ -191,6 +192,7 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.MAX_PHOTOS_EXCEEDED]: { limit: 10 },
     [RecipeErrorCode.VERSION_LINE_UNRESTORABLE]: { positions: [2] },
     [RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET]: { missing: ['cuisine'] },
+    [RecipeErrorCode.IMPORT_QUOTA_EXCEEDED]: { resetsAt: '2026-10-27T03:30:00.000Z' },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */
@@ -389,6 +391,19 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect((error as PublishRequirementsUnmetError).missing).toStrictEqual(['cuisine', 'steps']);
         expect((error as PublishRequirementsUnmetError).code).toBe(CODE.PUBLISH_REQUIREMENTS_UNMET);
         expect((error as PublishRequirementsUnmetError).message).toBe('The policy’s own words.');
+    });
+
+    it('429 IMPORT_QUOTA_EXCEEDED → ImportQuotaExceededError carrying when the allowance reopens', async () => {
+        const { wire, error } = await throughTheWire(
+            importQuotaExceeded(new Date('2026-10-27T03:30:00.000Z')),
+            (client) => client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.TOO_MANY_REQUESTS);
+        expect(error).toBeInstanceOf(ImportQuotaExceededError);
+        expect((error as ImportQuotaExceededError).resetsAt).toBe('2026-10-27T03:30:00.000Z');
+        expect((error as ImportQuotaExceededError).status).toBe(429);
+        expect((error as ImportQuotaExceededError).code).toBe(CODE.IMPORT_QUOTA_EXCEEDED);
     });
 
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {

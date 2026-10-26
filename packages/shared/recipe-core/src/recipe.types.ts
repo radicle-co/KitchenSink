@@ -1472,6 +1472,12 @@ export const RecipeErrorCode = {
      * each instead of parsing a message. A draft is never refused this way.
      */
     PUBLISH_REQUIREMENTS_UNMET: 'PUBLISH_REQUIREMENTS_UNMET',
+    /**
+     * 004 FR-022 — the caller's daily import allowance is spent. A 429 with its OWN code, not the throttler's
+     * `TOO_MANY_REQUESTS`: a burst limit clears in seconds and is worth retrying, a spent allowance stays spent for hours
+     * and is not. `details.resetsAt` (an ISO instant) says when the allowance reopens, and is always present.
+     */
+    IMPORT_QUOTA_EXCEEDED: 'IMPORT_QUOTA_EXCEEDED',
 } as const;
 
 /**
@@ -1513,6 +1519,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.PARSE_JOB_EXPIRED,
     RecipeErrorCode.VERSION_LINE_UNRESTORABLE,
     RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
+    RecipeErrorCode.IMPORT_QUOTA_EXCEEDED,
 ]);
 
 /**

@@ -68,6 +68,9 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     VERSION_LINE_UNRESTORABLE: HttpStatus.CONFLICT,
     // ── The publish floor (owner rulings 2026-10-13): a policy answer, a 400 like its sibling INVALID_VISIBILITY ──
     PUBLISH_REQUIREMENTS_UNMET: HttpStatus.BAD_REQUEST,
+    // ── The daily import allowance (004 FR-022): a 429 like the throttler's, with a code of its own — a burst limit
+    //    clears in seconds and is worth retrying, a spent allowance stays spent for hours and is not ──
+    IMPORT_QUOTA_EXCEEDED: HttpStatus.TOO_MANY_REQUESTS,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

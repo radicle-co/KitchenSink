@@ -56,6 +56,7 @@ import {
     GoneError,
     InvalidRequestError,
     NotFoundError,
+    ImportQuotaExceededError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
     PublishRequirementsUnmetError,
@@ -1706,6 +1707,10 @@ export class RecipeServiceClient {
             // to string-compare `.code`, which is the knowledge `errorForCode` exists to hold exactly once.
             case 'PARSE_JOB_EXPIRED':
                 return new ParseJobExpiredError(body.message);
+            // 004 FR-022 — a 429 that is NOT a throttle: its own class carrying when the allowance reopens, which the
+            // retry policy classifies terminal. Mapped here, off the code, so no surface string-compares `.code`.
+            case 'IMPORT_QUOTA_EXCEEDED':
+                return new ImportQuotaExceededError(body.details.resetsAt, body.message);
             // Plan 002 R52 — a restore that would drop lines. Its own class for the reason the conflict has one:
             // the surface names the lines and offers a different remedy.
             case 'VERSION_LINE_UNRESTORABLE':

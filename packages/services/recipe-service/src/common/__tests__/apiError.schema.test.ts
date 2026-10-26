@@ -58,6 +58,7 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     MAX_PHOTOS_EXCEEDED: { limit: 10 },
     VERSION_LINE_UNRESTORABLE: { positions: [2] },
     PUBLISH_REQUIREMENTS_UNMET: { missing: ['cuisine'] },
+    IMPORT_QUOTA_EXCEEDED: { resetsAt: '2026-10-27T03:30:00.000Z' },
 };
 
 /** A minimal valid body for a published code. */
@@ -198,6 +199,27 @@ describe('PUBLISH_REQUIREMENTS_UNMET — a write that would publish a recipe mis
         expect(recipeApiErrorSchema.safeParse(body()).success).toBe(false);
         expect(recipeApiErrorSchema.safeParse(body({ missing: [] })).success).toBe(false);
         expect(recipeApiErrorSchema.safeParse(body({ missing: ['photos'] })).success).toBe(false);
+    });
+});
+
+describe('IMPORT_QUOTA_EXCEEDED — the daily import allowance is spent (004 FR-022)', () => {
+    const body = (details?: unknown) => ({
+        code: 'IMPORT_QUOTA_EXCEEDED',
+        message: 'a message',
+        ...(details === undefined ? {} : { details }),
+    });
+
+    it('is a 429, the status a client already reads as "slow down" (and the distinct code is how it tells this apart)', () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_QUOTA_EXCEEDED).toBe(429);
+        expect(RECIPE_ERROR_STATUS.IMPORT_QUOTA_EXCEEDED).toBe(RECIPE_ERROR_STATUS.TOO_MANY_REQUESTS);
+    });
+
+    it('REQUIRES details.resetsAt, an ISO instant — FR-022 says the refusal carries when the allowance reopens', () => {
+        expect(recipeApiErrorSchema.safeParse(body({ resetsAt: '2026-10-27T03:30:00.000Z' })).success).toBe(true);
+        expect(recipeApiErrorSchema.safeParse(body()).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({})).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({ resetsAt: 'tomorrow' })).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({ resetsAt: 1798342200000 })).success).toBe(false);
     });
 });
 

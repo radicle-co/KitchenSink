@@ -366,7 +366,7 @@ const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly c
  * is already caught by the coverage assertion below, which names the table. This pin catches the opposite
  * failure, where discovery quietly finds FEWER tables than the schema has.
  */
-const EXPECTED_OWNER_BEARING_TABLES = 13;
+const EXPECTED_OWNER_BEARING_TABLES = 14;
 
 /**
  * The fewest handle-bearing `table.column` locations a working discovery must find.

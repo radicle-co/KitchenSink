@@ -758,6 +758,23 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(control.txStatements().filter((s) => /test_principals|test_reset_jobs/i.test(s.text))).toHaveLength(2);
     });
 
+    it('⛔ DELETES the erasing user’s import allowance ledger, in the erasure transaction, keyed on the owner (004 FR-022)', async () => {
+        // The ledger holds an opaque ULID, a channel and a count — and it is the only thing in the database that
+        // records WHEN a person last pasted. Nothing downstream needs it once the person is gone, so it is deleted,
+        // not de-identified (`erasureSweepCoverage.test.ts` fails for any user-keyed table the sweep misses).
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const ledger = control.statements().filter((s) => /import_allowance_events/i.test(s.text));
+
+        expect(ledger).toHaveLength(1);
+        expect(ledger[0]?.text).toMatch(/^delete from import_allowance_events where user_id = \$\d$/i);
+        expect(ledger[0]?.params).toEqual([OWNER]);
+        expect(control.txStatements().filter((s) => /import_allowance_events/i.test(s.text))).toHaveLength(1);
+    });
+
     it('does not hand-delete rows the FK cascade already removes', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -1536,6 +1553,17 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
             expect(matches, String(pattern)).toHaveLength(1);
             expect(matches[0]?.params).toEqual([OWNER]);
         }
+    });
+
+    it('⛔ deletes the principal’s import allowance ledger, so a reset principal starts a run with a full allowance', async () => {
+        // The ledger outlives a run by up to 24 h. A purge that left it would make the k6 pool and every deployed
+        // fixture user that pastes hit `429 IMPORT_QUOTA_EXCEEDED` on a repeat run within the day.
+        const control = await purge();
+        const ledger = control.statements().filter((s) => /import_allowance_events/i.test(s.text));
+
+        expect(ledger).toHaveLength(1);
+        expect(ledger[0]?.text).toMatch(/^delete from import_allowance_events where user_id = \$\d$/i);
+        expect(ledger[0]?.params).toEqual([OWNER]);
     });
 
     it('deletes the principal’s private-food bindings ONLY when unreferenced, and only AFTER its own recipes go', async () => {

@@ -27,7 +27,7 @@
  * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one
  *     reason this leaf holds a ref: `.focus()` has no declarative form.
  */
-import { useRef, type FC } from 'react';
+import { useId, useRef, type FC } from 'react';
 
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.js';
@@ -35,7 +35,7 @@ import { PressScale } from '../pressScale/index.js';
 import { Spinner } from '../spinner/Spinner.js';
 import { busyControlProps } from './busyControlProps.js';
 import { surfaceOf, type ButtonProps } from './props.js';
-import { buttonSurfaceClass } from './surfaceClass.js';
+import { buttonGlyphClass, buttonSurfaceClass } from './surfaceClass.js';
 
 /** The Commise design-system button — the meaning's glyph + label, one surface per tier and size. */
 export const Button: FC<ButtonProps> = (props) => {
@@ -49,6 +49,7 @@ export const Button: FC<ButtonProps> = (props) => {
         busy = false,
         refused = false,
         accessibilityLabel,
+        description,
         width = 'auto',
         iconPlacement = 'start',
         focusRequested = false,
@@ -58,31 +59,46 @@ export const Button: FC<ButtonProps> = (props) => {
     const surface =
         variant === 'destructive' ? buttonSurfaceClass(variant, size, tone) : buttonSurfaceClass(variant, size);
     const node = useRef<HTMLButtonElement>(null);
+    const descriptionId = useId();
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     const glyph =
         busy || icon !== undefined ? (
-            <span aria-hidden="true" className="inline-flex shrink-0 items-center">
+            <span
+                aria-hidden="true"
+                className={`inline-flex shrink-0 items-center ${buttonGlyphClass(variant)}`.trimEnd()}
+            >
                 {busy || icon === undefined ? <Spinner className="animate-spin" /> : <Icon name={icon} size={20} />}
             </span>
         ) : null;
 
     return (
-        <PressScale width={width}>
-            <button
-                ref={node}
-                type={type}
-                // ⛔ BUSY IS NOT NATIVE `disabled` — the control that goes busy is the one just pressed, and a browser
-                // drops focus from a disabled control. The rule, and why the click is cancelled, is `busyControlProps`'s.
-                {...busyControlProps({ busy, refused, blocked: disabled, onClick: () => onPress?.() })}
-                aria-label={accessibilityLabel}
-                // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
-                className={width === 'fill' ? `${surface} w-full` : surface}
-            >
-                {iconPlacement === 'start' ? glyph : null}
-                <span>{children}</span>
-                {iconPlacement === 'end' ? glyph : null}
-            </button>
-        </PressScale>
+        <>
+            <PressScale width={width}>
+                <button
+                    ref={node}
+                    type={type}
+                    // ⛔ BUSY IS NOT NATIVE `disabled` — the control that goes busy is the one just pressed, and a browser
+                    // drops focus from a disabled control. The rule, and why the click is cancelled, is `busyControlProps`'s.
+                    {...busyControlProps({ busy, refused, blocked: disabled, onClick: () => onPress?.() })}
+                    aria-label={accessibilityLabel}
+                    aria-describedby={description === undefined ? undefined : descriptionId}
+                    // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
+                    className={width === 'fill' ? `${surface} w-full` : surface}
+                >
+                    {iconPlacement === 'start' ? glyph : null}
+                    <span>{children}</span>
+                    {iconPlacement === 'end' ? glyph : null}
+                </button>
+            </PressScale>
+            {/* Beside the button, not inside it: inside, the reason would join the accessible name. Hidden from browse
+                mode (a description is still read through `aria-describedby`), so a caller that also shows the reason
+                does not have it read twice. */}
+            {description === undefined ? null : (
+                <span id={descriptionId} aria-hidden="true" className="sr-only">
+                    {description}
+                </span>
+            )}
+        </>
     );
 };

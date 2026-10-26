@@ -18,7 +18,7 @@ export const CollectionRecipePickerLoadError: FC<CollectionRecipePickerLoadError
     return (
         <div role="alert" className="flex flex-col items-start gap-3 py-6">
             <p className="text-body text-ink">{picker.errorTitle}</p>
-            <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+            <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                 {picker.retry}
             </Button>
         </div>

@@ -3,7 +3,7 @@
  *
  * A `filter` chip is a `checkbox` (`aria-checked`), with a 16 pt check before its label while selected and an optional
  * `figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing `x`. Each is
- * a 36 pt pill inside a 44 pt hit area (48 dp on Android). The accessible name is always stated, because
+ * a 32 pt pill inside a 44 pt hit area (48 dp on Android). The accessible name is always stated, because
  * react-native-web joins a pressable's texts without a space and a truncated label must still be named in full.
  *
  * @pattern Visitor — an exhaustive switch over the `kind` discriminated union; the geometry is `chipStyle.ts`

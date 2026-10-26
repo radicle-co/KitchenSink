@@ -162,12 +162,12 @@ describe('ImportWizardStep (native)', () => {
         expect(skip.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    // U15: Skip is the quiet tier (an inkMuted label), so it does not compete with Next recipe.
+    // U15: Skip is the quiet tier (an ink label since `componentFixes.md` §1, it was inkMuted), so it does not compete with Next recipe.
     it('draws Skip in the quiet tier', () => {
         renderStep();
 
         const skip = within(screen.getByRole('group', { name: w.actionsLabel })).getByRole('button', { name: w.skip });
-        const hex = themeFor('light').colors.inkMuted;
+        const hex = themeFor('light').colors.ink;
         const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
 
         expect(getComputedStyle(within(skip).getByText(w.skip)).color).toBe(

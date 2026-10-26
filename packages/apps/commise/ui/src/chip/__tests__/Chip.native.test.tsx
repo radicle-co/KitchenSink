@@ -7,15 +7,18 @@ import { useState } from 'react';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Chip } from '../Chip.native.js';
 import { ChipRow } from '../ChipRow.native.js';
+import { Button } from '../../button/Button.native.js';
 import type { ChipOption } from '../props.js';
-import { role } from '../../tokens/colors.js';
+import { chipLabel, chipPill } from '../chipStyle.js';
+import { role, roleDark } from '../../tokens/colors.js';
+import { themeFor } from '../../theme/themeFor.js';
 import { nativeTokens } from '../../tokens/native.js';
 
 /**
  * Chip and ChipRow (native) — rendered via react-native-web under jsdom, glyphs through the `lucideNativeStub`.
  * Native semantics (spec §1.11): a filter chip is a `checkbox`, a choice option a `radio` in a `radiogroup`, both with
- * `accessibilityState.checked`; an input chip is a button named by its remove label. The pill is 36 visual points, hit
- * at 44 (48 dp on Android).
+ * `accessibilityState.checked`; an input chip is a button named by its remove label. The pill is 32 visual points, hit
+ * at 44 (48 dp on Android), on `surfaceMuted` with no edge at rest (`componentFixes.md` §4).
  */
 
 afterEach(cleanup);
@@ -27,14 +30,14 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** The painted pill inside a chip: the element with its edge. */
+/** The painted pill inside a chip: the rounded element (a resting chip draws no edge to find it by). */
 function pillOf(chip: HTMLElement): HTMLElement {
     const pill = [chip, ...Array.from(chip.querySelectorAll<HTMLElement>('*'))].find(
-        (element) => Number.parseFloat(getComputedStyle(element).borderTopWidth) > 0,
+        (element) => Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) > 0,
     );
 
     if (pill === undefined) {
-        throw new Error('The chip paints no edge.');
+        throw new Error('The chip paints no pill.');
     }
 
     return pill;
@@ -71,19 +74,64 @@ describe('Chip (native) — filter', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('rests on paper with a 1pt lineControl edge and an ink label', () => {
+    it('rests on surfaceMuted with no edge and an ink caption label (14/500)', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
         // Read the label's font FIRST: jsdom's computed-style cache reports the shim's system stack for a child's
         // `fontFamily` once its ancestors' styles have been computed (measured; the order is a harness artefact).
-        expect(getComputedStyle(screen.getByText('Vegan')).fontFamily).toBe(nativeTokens.type.label.fontFamily);
+        expect(getComputedStyle(screen.getByText('Vegan')).fontFamily).toBe(nativeTokens.type.caption.fontFamily);
+        expect(nativeTokens.type.caption.fontFamily).not.toBe(nativeTokens.type.label.fontFamily);
 
         const pill = getComputedStyle(pillOf(screen.getByRole('checkbox', { name: 'Vegan' })));
 
-        expect(pill.backgroundColor).toBe(rgb(role.paper));
-        expect(pill.borderTopColor).toBe(rgb(role.lineControl));
-        expect(pill.borderTopWidth).toBe('1px');
+        expect(pill.backgroundColor).toBe(rgb(role.surfaceMuted));
+        expect(pill.borderTopWidth).toBe('0px');
         expect(getComputedStyle(screen.getByText('Vegan')).color).toBe(rgb(role.ink));
+    });
+
+    it('⛔ cannot be mistaken for a secondary button: a different fill and no edge, side by side', () => {
+        render(
+            <>
+                <Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />
+                <Button variant="secondary" icon="plus" onPress={vi.fn()}>
+                    Add
+                </Button>
+            </>,
+        );
+
+        const chip = getComputedStyle(pillOf(screen.getByRole('checkbox', { name: 'Vegan' })));
+        const button = getComputedStyle(screen.getByText('Add').parentElement as HTMLElement);
+
+        expect(chip.backgroundColor).not.toBe(button.backgroundColor);
+        expect(chip.borderTopWidth).not.toBe(button.borderTopWidth);
+        expect(button.borderTopWidth).toBe('1px');
+    });
+
+    it('washes the pill with the ink wash while pressed (the rest fill is replaced, as on a button), in both schemes', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+            const rest = chipPill(theme, false, false);
+            const pressed = chipPill(theme, false, true);
+
+            expect(rest.backgroundColor, scheme).toBe(theme.colors.surfaceMuted);
+            expect(pressed.backgroundColor, scheme).toBe(theme.wash);
+            expect(pressed.borderWidth, scheme).toBe(0);
+            // A press must be visible: the wash is not the resting fill.
+            expect(pressed.backgroundColor, scheme).not.toBe(rest.backgroundColor);
+        }
+    });
+
+    it('keeps the selected pill unchanged while pressed: the tint and the 1.5pt edge', () => {
+        const theme = themeFor('light');
+
+        expect(chipPill(theme, true, true)).toEqual(chipPill(theme, true, false));
+    });
+
+    it('paints the dark scheme from the dark roles', () => {
+        const theme = themeFor('dark');
+
+        expect(chipPill(theme, false, false).backgroundColor).toBe(roleDark.surfaceMuted);
+        expect(chipLabel(theme, false).color).toBe(roleDark.ink);
     });
 
     it('shows selection by tint, a 1.5pt selectedEdge, an actionText label AND a check', () => {
@@ -105,7 +153,7 @@ describe('Chip (native) — filter', () => {
         expect(glyphIn(screen.getByRole('checkbox', { name: 'Vegan' }))).toBeUndefined();
     });
 
-    it('draws a 36pt pill inside a 44pt hit area on iOS, 48dp on Android', () => {
+    it('draws a 32pt pill inside a 44pt hit area on iOS, 48dp on Android', () => {
         for (const [os, hit] of [
             ['ios', '44px'],
             ['android', '48px'],
@@ -117,7 +165,7 @@ describe('Chip (native) — filter', () => {
                 const chip = screen.getByRole('checkbox', { name: 'Vegan' });
 
                 expect(getComputedStyle(chip).minHeight, os).toBe(hit);
-                expect(getComputedStyle(pillOf(chip)).minHeight, os).toBe('36px');
+                expect(getComputedStyle(pillOf(chip)).minHeight, os).toBe('32px');
                 unmount();
             } finally {
                 restore();

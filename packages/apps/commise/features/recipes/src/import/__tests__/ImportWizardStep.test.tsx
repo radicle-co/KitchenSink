@@ -136,7 +136,9 @@ describe('ImportWizardStep (web)', () => {
 
         const skip = within(screen.getByRole('group', { name: w.actionsLabel })).getByRole('button', { name: w.skip });
 
-        expect(skip.className.split(' ')).toContain('text-ink-muted');
+        // `componentFixes.md` §1: the quiet label is `ink` now (it was `inkMuted`); it still has no fill.
+        expect(skip.className.split(' ')).toContain('text-ink');
+        expect(skip.className.split(' ')).not.toContain('text-ink-muted');
     });
 
     it('below the wide class Next recipe fills its own row under Back and Skip; at it the three share one row', () => {

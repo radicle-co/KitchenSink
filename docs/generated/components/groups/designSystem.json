@@ -6,11 +6,11 @@
     "coverage": {
         "components": 76,
         "implementations": 133,
-        "props": 753,
+        "props": 757,
         "documentedComponents": 76,
         "implementationsWithModuleDoc": 133,
         "implementationsWithComponentDoc": 125,
-        "documentedProps": 718,
+        "documentedProps": 722,
         "classifiedComponents": 69,
         "componentsWithPatternTag": 76,
         "crossPlatformComponents": 57
@@ -799,6 +799,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
                         },
                         {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why the action is on offer, or what went wrong: the control's accessible DESCRIPTION, read after its name, never\npart of it. Web draws it in a visually hidden element beside the button and points `aria-describedby` at it;\nnative hands it over as the `accessibilityHint`, because React Native has no `aria-describedby`.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
                             "name": "disabled",
                             "type": "boolean",
                             "typeDetail": null,
@@ -997,7 +1006,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/button/Button.native.tsx",
                     "dir": "packages/apps/commise/ui/src/button",
-                    "moduleDoc": "@commise/ui/button — the native design-system {@link Button} (React Native).\n\nMirrors the web leaf's contract and states with a RN `StyleSheet` (`docs/design/uiOverhaul/buildSpec.md` §1.10): the\nRegistry glyph for its meaning beside its label, on the surface its tier and size select. The accessible button is\nthe {@link PressScale} `Pressable` this leaf composes — one accessibility element (`accessibilityRole=\"button\"` + a\nlabel-derived name) that also gives the pill its motion-safe press-scale, which is the native pressed state (§1.9).\nThe glyph sits in a hidden slot and is drawn in the label's colour, so the label alone is the name.\n\n- **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays\n  inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44\n  (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.\n- **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.\n- **Type**: the label is the `label` role — one registered Inter face per weight and never a `fontWeight` (§1.5),\n  which on Android resolves to a synthesised or system bold instead of the face.\n- **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to\n  40%.\n\nEvery tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,\nsurface-less ghost and quiet (an `actionText` and an `inkMuted` label), and destructive's danger label (filled\n`danger` only in its `confirm` tone). Each colour comes\nfrom `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).",
+                    "moduleDoc": "@commise/ui/button — the native design-system {@link Button} (React Native).\n\nMirrors the web leaf's contract and states with a RN `StyleSheet` (`docs/design/uiOverhaul/buildSpec.md` §1.10): the\nRegistry glyph for its meaning beside its label, on the surface its tier and size select. The accessible button is\nthe {@link PressScale} `Pressable` this leaf composes — one accessibility element (`accessibilityRole=\"button\"` + a\nlabel-derived name) that also gives the pill its motion-safe press-scale, which is the native pressed state (§1.9).\nThe glyph sits in a hidden slot and is drawn in the label's colour, so the label alone is the name.\n\n- **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays\n  inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44\n  (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.\n- **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.\n- **Type**: the label is the `label` role — one registered Inter face per weight and never a `fontWeight` (§1.5),\n  which on Android resolves to a synthesised or system bold instead of the face.\n- **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to\n  40%.\n\nEvery tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,\nsurface-less ghost and quiet (an `actionText` label; an `ink` label with an `actionText` glyph), and destructive's danger label (filled\n`danger` only in its `confirm` tone). Each colour comes\nfrom `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1042,6 +1051,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The visible label. Also the accessible name unless {@link accessibilityLabel} overrides it.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why the action is on offer, or what went wrong: the control's accessible DESCRIPTION, read after its name, never\npart of it. Web draws it in a visually hidden element beside the button and points `aria-describedby` at it;\nnative hands it over as the `accessibilityHint`, because React Native has no `aria-describedby`.",
                             "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
                         },
                         {
@@ -1458,7 +1476,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/chip/Chip.native.tsx",
                     "dir": "packages/apps/commise/ui/src/chip",
-                    "moduleDoc": "@commise/ui/chip — the native design-system {@link Chip}.\n\nA `filter` chip is a `checkbox` (`aria-checked`), with a 16 pt check before its label while selected and an optional\n`figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing `x`. Each is\na 36 pt pill inside a 44 pt hit area (48 dp on Android). The accessible name is always stated, because\nreact-native-web joins a pressable's texts without a space and a truncated label must still be named in full.",
+                    "moduleDoc": "@commise/ui/chip — the native design-system {@link Chip}.\n\nA `filter` chip is a `checkbox` (`aria-checked`), with a 16 pt check before its label while selected and an optional\n`figure` count after it; an `input` chip is a button named by the caller's remove label, with a trailing `x`. Each is\na 32 pt pill inside a 44 pt hit area (48 dp on Android). The accessible name is always stated, because\nreact-native-web joins a pressable's texts without a space and a truncated label must still be named in full.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7525,8 +7543,8 @@
             "dir": "packages/apps/commise/ui/src/loadMore",
             "kind": "presentational",
             "patterns": [
-                "Facade over one `Pressable` and an assertive `LiveRegion` — the same contract as the web leaf",
-                "Facade over one button and its empty `alert` message slot, with the busy half delegated to\n    `busyControlProps`"
+                "Facade over the design system's quiet `Button` and an assertive `LiveRegion` — the same contract as the web\n    leaf",
+                "Facade over the design system's quiet `Button` and an empty `alert` message slot — the radius, the busy and\n    the disabled states, and the failure reason's description, all come from `Button`"
             ],
             "platforms": [
                 "web",
@@ -7541,7 +7559,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/loadMore/LoadMoreControl.tsx",
                     "dir": "packages/apps/commise/ui/src/loadMore",
-                    "moduleDoc": "@commise/ui/load-more — the web \"Load more\" control of a server-paged list (no infinite scroll).\n\nThree states over ONE button element: idle (\"Load more\"), busy (the next page is in flight) and failed (\"Try\nagain\", with a message saying what happened). The element is never swapped between states, because the cook who\npressed it holds focus on it — a swapped element drops that focus to <body> (WCAG 2.2 SC 2.4.3). The busy half is\n`busyControlProps`, for the same reason.\n\nThe failure message is an `alert` mounted EMPTY above the button, so a failure announces when its text appears;\na retry in flight clears it, so a second failure announces again. The pages already loaded are the caller's and\nstay on screen: this control reports a failed NEXT page, never a failed list.\n\nA presentational leaf: the caller derives `loading` and `failed` from its infinite query.",
+                    "moduleDoc": "@commise/ui/load-more — the web \"Load more\" control of a server-paged list (no infinite scroll).\n\nThree states over ONE button element: idle (\"Load more\"), busy (the next page is in flight) and failed (\"Try\nagain\", with a message saying what happened). The element is never swapped between states, because the cook who\npressed it holds focus on it — a swapped element drops that focus to <body> (WCAG 2.2 SC 2.4.3). The busy half is\n`Button`'s (`busyControlProps`), for the same reason.\n\nThe failure message is an `alert` mounted EMPTY above the button, so a failure announces when its text appears;\na retry in flight clears it, so a second failure announces again. The pages already loaded are the caller's and\nstay on screen: this control reports a failed NEXT page, never a failed list.\n\nA presentational leaf: the caller derives `loading` and `failed` from its infinite query.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7549,7 +7567,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Facade over one button and its empty `alert` message slot, with the busy half delegated to\n    `busyControlProps`"
+                            "text": "Facade over the design system's quiet `Button` and an empty `alert` message slot — the radius, the busy and\n    the disabled states, and the failure reason's description, all come from `Button`"
                         }
                     ],
                     "description": "The explicit next-page control, with its busy and failed states.",
@@ -7615,7 +7633,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/loadMore/LoadMoreControl.native.tsx",
                     "dir": "packages/apps/commise/ui/src/loadMore",
-                    "moduleDoc": "@commise/ui/load-more — the native \"Load more\" control of a server-paged list (no infinite scroll).\n\nThree states over one `Pressable`: idle, busy (native `disabled` — a disabled native control keeps the\nscreen-reader cursor — plus `aria-busy`, which react-native-web projects and React Native aliases to\n`accessibilityState.busy`) and failed (\"Try again\", with the reason as its hint). The failure is SPOKEN through an\nassertive `LiveRegion` mounted empty above the button, so it announces when its text appears on both platforms; a\nretry in flight clears it, so a second failure announces again. The pages already loaded stay on screen.\n\nA presentational leaf: the caller derives `loading` and `failed` from its infinite query.",
+                    "moduleDoc": "@commise/ui/load-more — the native \"Load more\" control of a server-paged list (no infinite scroll).\n\nThree states over one quiet `Button`: idle, busy (the button's native `disabled`, which keeps the screen-reader\ncursor, plus `aria-busy`) and failed (\"Try again\", with the reason as its hint). The failure is SPOKEN through an\nassertive `LiveRegion` mounted empty above the button, so it announces when its text appears on both platforms; a\nretry in flight clears it, so a second failure announces again. The pages already loaded stay on screen.\n\nA presentational leaf: the caller derives `loading` and `failed` from its infinite query.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7623,7 +7641,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Facade over one `Pressable` and an assertive `LiveRegion` — the same contract as the web leaf"
+                            "text": "Facade over the design system's quiet `Button` and an assertive `LiveRegion` — the same contract as the web\n    leaf"
                         }
                     ],
                     "description": "The explicit next-page control, with its busy and failed states.",
@@ -8888,6 +8906,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "accessibilityHint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The description a screen reader reads after the name (`accessibilityHint`). Native-only (the web child owns its own).",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
+                        {
                             "name": "accessibilityLabel",
                             "type": "string",
                             "typeDetail": null,
@@ -9004,6 +9031,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "accessibilityHint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The description a screen reader reads after the name (`accessibilityHint`). Native-only (the web child owns its own).",
+                            "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
+                        },
                         {
                             "name": "accessibilityLabel",
                             "type": "string",
@@ -9755,8 +9791,8 @@
             "dir": "packages/apps/commise/ui/src/refreshNotice",
             "kind": "presentational",
             "patterns": [
-                "Facade over a busy button and a polite `status` region, with the busy half delegated to\n    `busyControlProps`",
-                "Facade over one `Pressable` and a polite, visually hidden `LiveRegion` — the same contract as the web leaf"
+                "Facade over the design system's quiet `Button` and a polite `status` region, with the busy half and the\n    failure reason's description delegated to `Button`",
+                "Facade over the design system's quiet `Button` and a polite, visually hidden `LiveRegion` — the same\n    contract as the web leaf"
             ],
             "platforms": [
                 "web",
@@ -9771,7 +9807,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/refreshNotice/RefreshNotice.tsx",
                     "dir": "packages/apps/commise/ui/src/refreshNotice",
-                    "moduleDoc": "@commise/ui/refresh-notice — the web notice for a failed refresh of data that stays on screen.\n\nWhile nothing has failed it renders only a `status` region, mounted EMPTY, so a failure announces when its text\nappears. On failure the region says what happened and a visible row shows the same message with a Try again\nbutton. The rows the viewer is reading are still valid, so the region is POLITE — unlike `LoadMoreControl`'s\nassertive alert, which reports an action the viewer just took failing.\n\nA retry in flight keeps the message and the SAME button (busy through `busyControlProps`): unmounting the pressed\nbutton would drop its focus to `<body>` (WCAG 2.2 SC 2.4.3). Only the announcement clears, so a second failure is\nannounced again. A successful refresh removes the row; where focus goes then is the surface's decision, because\nonly the surface knows what it would land on.\n\nThe button carries a `lineDivider` hairline: its `canvas` fill is ~1:1 against the `surfaceMuted` row, so without it a text-only\ncontrol reads as bold text rather than something pressable. Decorative — the visible label is what identifies it.\n\nA presentational leaf: the caller derives `failed` and `refreshing` from its query.",
+                    "moduleDoc": "@commise/ui/refresh-notice — the web notice for a failed refresh of data that stays on screen.\n\nWhile nothing has failed it renders only a `status` region, mounted EMPTY, so a failure announces when its text\nappears. On failure the region says what happened and a visible row shows the same message with a Try again\nbutton. The rows the viewer is reading are still valid, so the region is POLITE — unlike `LoadMoreControl`'s\nassertive alert, which reports an action the viewer just took failing.\n\nA retry in flight keeps the message and the SAME button (busy through `Button`, i.e. `busyControlProps`): unmounting the pressed\nbutton would drop its focus to `<body>` (WCAG 2.2 SC 2.4.3). Only the announcement clears, so a second failure is\nannounced again. A successful refresh removes the row; where focus goes then is the surface's decision, because\nonly the surface knows what it would land on.\n\nThe button is the quiet `Button` with the retry glyph. It used to carry a `lineDivider` hairline and a `canvas` fill so\na text-only control on a `surfaceMuted` row read as pressable; the `actionText` glyph is that cue now, and the tonal\nfill is a chip's (`componentFixes.md` §4), so the control draws none.\n\nA presentational leaf: the caller derives `failed` and `refreshing` from its query.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9779,7 +9815,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Facade over a busy button and a polite `status` region, with the busy half delegated to\n    `busyControlProps`"
+                            "text": "Facade over the design system's quiet `Button` and a polite `status` region, with the busy half and the\n    failure reason's description delegated to `Button`"
                         }
                     ],
                     "description": "The failed-refresh notice: a silent region until a refresh fails, then the message and its retry.",
@@ -9836,7 +9872,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/refreshNotice/RefreshNotice.native.tsx",
                     "dir": "packages/apps/commise/ui/src/refreshNotice",
-                    "moduleDoc": "@commise/ui/refresh-notice — the native notice for a failed refresh of data that stays on screen.\n\nA POLITE `LiveRegion`, mounted empty and visually hidden, speaks the failure; the visible row shows the same\nmessage with a Try again button. Polite, unlike `LoadMoreControl`'s assertive region, because the rows on screen\nare still valid. The button is required, not a convenience: pull-to-refresh is a drag, and a gesture-only action\nneeds a single-tap alternative (WCAG 2.2 SC 2.5.1).\n\nA retry in flight keeps the message and the SAME button (native `disabled`, which keeps the screen-reader cursor,\nplus `aria-busy`); only the announcement clears, so a second failure is spoken again. A successful refresh removes\nthe row, and the surface decides where the screen-reader cursor goes.\n\nA presentational leaf: the caller derives `failed` and `refreshing` from its query.",
+                    "moduleDoc": "@commise/ui/refresh-notice — the native notice for a failed refresh of data that stays on screen.\n\nA POLITE `LiveRegion`, mounted empty and visually hidden, speaks the failure; the visible row shows the same\nmessage with a Try again button. Polite, unlike `LoadMoreControl`'s assertive region, because the rows on screen\nare still valid. The button is required, not a convenience: pull-to-refresh is a drag, and a gesture-only action\nneeds a single-tap alternative (WCAG 2.2 SC 2.5.1).\n\nA retry in flight keeps the message and the SAME button (`Button`'s native `disabled`, which keeps the screen-reader\ncursor, plus `aria-busy`); only the announcement clears, so a second failure is spoken again. A successful refresh removes\nthe row, and the surface decides where the screen-reader cursor goes.\n\nA presentational leaf: the caller derives `failed` and `refreshing` from its query.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9844,7 +9880,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Facade over one `Pressable` and a polite, visually hidden `LiveRegion` — the same contract as the web leaf"
+                            "text": "Facade over the design system's quiet `Button` and a polite, visually hidden `LiveRegion` — the same\n    contract as the web leaf"
                         }
                     ],
                     "description": "The failed-refresh notice: a silent region until a refresh fails, then the message and its retry.",
@@ -12223,7 +12259,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/stateNotice/StateNotice.tsx",
                     "dir": "packages/apps/commise/ui/src/stateNotice",
-                    "moduleDoc": "@commise/ui/state-notice — the web `StateNotice`: an alert that says what went wrong, in the page's flow, with\nup to two ways out. The title is the page's heading (the failed view had one), the actions are the design system's\nbuttons — a retry is a `Button`, a way back is a real link when it has an `href` — and nothing in it is an unstyled\ncontrol.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/state-notice — the web `StateNotice`: an alert that says what went wrong, in the page's flow, with\nup to two ways out. The title is the page's heading (the failed view had one), the actions are the design system's\nbuttons — a retry is a quiet `Button` whose description is the body, a way back is a real link when it has an `href` — and nothing in it is an unstyled\ncontrol.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12288,11 +12324,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/stateNotice/StateNotice.native.tsx",
                     "dir": "packages/apps/commise/ui/src/stateNotice",
-                    "moduleDoc": "@commise/ui/state-notice — the native `StateNotice`: the thumb-reach stack the root crash fallback drew. The\nmessage sits in the upper two thirds, centred; the actions sit stacked at full width in the bottom third, within reach\nof the thumb, the primary on top.\n\nThe title is ANNOUNCED through `LiveRegion` (iOS has no live region, so an `alert` role on a View is silent there) and\nis also the screen's header.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/state-notice — the native `StateNotice`: the root crash fallback's stack. The message and its\nactions are one centred group; the actions sit under the message at their label's width (`componentFixes.md` §1: Try\nagain is a quiet control, not a full-width call to action), the first on top. The first is quiet, with the body as\nits description; the way out is ghost.\n\nThe title is ANNOUNCED through `LiveRegion` (iOS has no live region, so an `alert` role on a View is silent there) and\nis also the screen's header.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/state-notice — the native `StateNotice`: the thumb-reach stack the root crash fallback drew. The"
+                            "text": "@commise/ui/state-notice — the native `StateNotice`: the root crash fallback's stack. The message and its"
                         }
                     ],
                     "description": "The native state notice: presentational, props → JSX.",

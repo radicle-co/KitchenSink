@@ -45,6 +45,8 @@ export interface PressScaleProps {
     readonly busy?: boolean;
     /** Accessible name for the native `Pressable`. Native-only (the web child owns its own name). */
     readonly accessibilityLabel?: string;
+    /** The description a screen reader reads after the name (`accessibilityHint`). Native-only (the web child owns its own). */
+    readonly accessibilityHint?: string;
     /** Accessibility role for the native `Pressable`. Defaults to `button`. Native-only. */
     readonly accessibilityRole?: PressScaleRole;
     /**

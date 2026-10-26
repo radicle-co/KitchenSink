@@ -48,7 +48,7 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry 
                         <p role="alert" className="text-body text-ink">
                             {t.loadError}
                         </p>
-                        <Button variant="secondary" size="sm" icon="rotateCcw" onPress={onRetry}>
+                        <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                             {t.retry}
                         </Button>
                     </div>

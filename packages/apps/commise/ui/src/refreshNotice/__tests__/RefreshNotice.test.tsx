@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buttonSurfaceClass } from '../../button/surfaceClass.js';
 import type { RefreshNoticeProps } from '../props.js';
 import { RefreshNotice } from '../RefreshNotice.js';
 
@@ -57,7 +58,7 @@ describe('RefreshNotice (web)', () => {
         expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
         expect(document.activeElement).toBe(button);
         expect(button.getAttribute('aria-busy')).toBe('true');
-        expect(screen.getByText(labels.failed)).toBeTruthy();
+        expect(screen.getByText(labels.failed, { selector: 'p:not(.sr-only)' })).toBeTruthy();
         // Cleared while retrying, so a second failure is announced again.
         expect(screen.getByRole('status').textContent).toBe('');
         fireEvent.click(button);
@@ -89,5 +90,16 @@ describe('RefreshNotice (web)', () => {
         const describedBy = button.getAttribute('aria-describedby');
         expect(describedBy).not.toBeNull();
         expect(document.getElementById(describedBy ?? '')?.textContent).toBe(labels.failed);
+    });
+
+    // `componentFixes.md` §1: Try again is the quiet Button with the retry glyph. The hairline and `canvas` fill this
+    // control hand-rolled were a cue that a text-only control is pressable; the actionText glyph is that cue now.
+    it('⛔ is the quiet Button with the retry glyph, with no hand-rolled fill or edge', () => {
+        const { container } = render(notice({ failed: true }));
+        const button = screen.getByRole('button', { name: 'Try again' });
+
+        expect(button.className).toBe(buttonSurfaceClass('quiet'));
+        expect(button.className).not.toMatch(/\bbg-canvas\b|\bborder\b/u);
+        expect(container.querySelector('svg.lucide-refresh-cw')).not.toBeNull();
     });
 });

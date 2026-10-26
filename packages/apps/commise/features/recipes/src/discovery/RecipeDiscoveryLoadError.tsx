@@ -23,7 +23,7 @@ export const RecipeDiscoveryLoadError: FC<RecipeDiscoveryLoadErrorProps> = ({ on
         <div className="flex flex-col gap-6">
             <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <p className="text-body text-ink">{discovery.errorTitle}</p>
-                <Button variant="secondary" size="sm" icon="rotateCcw" onPress={onRetry}>
+                <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                     {discovery.retry}
                 </Button>
             </div>

@@ -799,7 +799,8 @@ describe('RecipeDiscoveryContainer — recent searches (U7)', () => {
 
         await user.click(await screen.findByRole('button', { name: 'Load more' }));
 
-        expect(await screen.findByText('We couldn’t load more recipes.')).toBeInTheDocument();
+        // The announced alert: the quiet Try again button also describes itself with this text, hidden, so it is not a lone match.
+        expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load more recipes.');
         expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     });

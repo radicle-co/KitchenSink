@@ -323,7 +323,8 @@ describe('CollectionListContainer', () => {
 
         await user.click(await screen.findByRole('button', { name: 'Load more' }));
 
-        expect(await screen.findByText('We couldn’t load more collections.')).toBeInTheDocument();
+        // The announced alert: the quiet Try again button also describes itself with this text, hidden, so it is not a lone match.
+        expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load more collections.');
         expect(screen.getByRole('link', { name: 'Weeknight dinners' })).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t load your collections.')).not.toBeInTheDocument();
 

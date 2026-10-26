@@ -311,11 +311,14 @@ describe('Button (web)', () => {
             expect(button.className).toBe(buttonSurfaceClass('quiet'));
         });
 
-        it('is text only in the inkMuted role: no fill, no edge and no shadow at rest', () => {
+        // ⚠️ REWRITTEN (`componentFixes.md` §1): the label was `inkMuted`, so a Try again receded; it is `ink` now. The
+        // fill stays absent, because a tonal fill now marks a chip (§4).
+        it('is text only in the ink role: no fill, no edge and no shadow at rest', () => {
             render(<Button variant="quiet">Keep as written</Button>);
 
             const resting = restingTokens(screen.getByRole('button', { name: 'Keep as written' }));
-            expect(resting).toContain('text-ink-muted');
+            expect(resting).toContain('text-ink');
+            expect(resting).not.toContain('text-ink-muted');
             expect(resting.filter((token) => /^(bg|border|from|shadow)(-|$)/u.test(token))).toEqual([]);
         });
 
@@ -351,6 +354,49 @@ describe('Button (web)', () => {
             expect(screen.getByRole('button', { name: 'Keep as written' })).toBeTruthy();
         });
 
+        it('draws its glyph in actionText while the label stays ink; no other tier recolours its glyph', () => {
+            const { container, rerender } = render(
+                <Button variant="quiet" icon="refreshCw">
+                    Try again
+                </Button>,
+            );
+            const slot = (): Element | null =>
+                container.querySelector('svg.lucide')?.closest('span[aria-hidden="true"]') ?? null;
+
+            expect(slot()?.className).toContain('text-action-text');
+            expect(screen.getByRole('button', { name: 'Try again' }).className).toContain('text-ink');
+
+            rerender(
+                <Button variant="secondary" icon="refreshCw">
+                    Try again
+                </Button>,
+            );
+            expect(slot()?.className ?? '').not.toContain('text-action-text');
+        });
+
+        it('keeps the SAME element and its focus while busy, with the spinner in the actionText slot', () => {
+            const { container, rerender } = render(
+                <Button variant="quiet" icon="refreshCw">
+                    Try again
+                </Button>,
+            );
+            const button = screen.getByRole('button', { name: 'Try again' });
+            button.focus();
+
+            rerender(
+                <Button variant="quiet" icon="refreshCw" busy>
+                    Try again
+                </Button>,
+            );
+
+            expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
+            expect(document.activeElement).toBe(button);
+            expect(button.getAttribute('aria-busy')).toBe('true');
+            expect(container.querySelector('.animate-spin')?.closest('span[aria-hidden="true"]')?.className).toContain(
+                'text-action-text',
+            );
+        });
+
         it('fires onPress on click', async () => {
             const user = userEvent.setup();
             const onPress = vi.fn();
@@ -362,6 +408,30 @@ describe('Button (web)', () => {
 
             await user.click(screen.getByRole('button', { name: 'Keep as written' }));
             expect(onPress).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe('description', () => {
+        it('is described by the reason it was given, which stays out of the accessible name', () => {
+            render(
+                <Button variant="quiet" icon="refreshCw" description="We couldn’t load this recipe.">
+                    Try again
+                </Button>,
+            );
+
+            const button = screen.getByRole('button', { name: 'Try again' });
+            const describedBy = button.getAttribute('aria-describedby');
+
+            expect(describedBy).not.toBeNull();
+            expect(document.getElementById(describedBy ?? '')?.textContent).toBe('We couldn’t load this recipe.');
+            // The reason sits OUTSIDE the button: inside it, it would be part of the name.
+            expect(button.contains(document.getElementById(describedBy ?? ''))).toBe(false);
+        });
+
+        it('states no description, and no describedby, when none is given', () => {
+            render(<Button variant="quiet">Try again</Button>);
+
+            expect(screen.getByRole('button', { name: 'Try again' }).hasAttribute('aria-describedby')).toBe(false);
         });
     });
 

@@ -1,8 +1,9 @@
 /**
  * @module @commise/ui/chip — the native chip geometry and surfaces, shared by `Chip.native.tsx` and the options
- * `ChipRow.native.tsx` draws (spec §1.6/§1.10): a 36 pt pill inside a 44 pt hit area (48 dp on Android), `paper` with a
- * 1 pt `lineControl` edge and an `ink` label at rest, `pearl` while pressed, and when selected the `selectedFill` tint,
- * a 1.5 pt `selectedEdge` and an `actionText` label. The web leaves spell the same rules as utilities (`chipClass.ts`).
+ * `ChipRow.native.tsx` draws (spec §1.6/§1.10): a 32 pt pill inside a 44 pt hit area (48 dp on Android), `surfaceMuted`
+ * with no edge and an `ink` caption label (14/500) at rest, the ink wash while pressed, and when selected the
+ * `selectedFill` tint, a 1.5 pt `selectedEdge` and an `actionText` label. A count keeps the semibold figure on both
+ * platforms. The web leaves spell the same rules as utilities (`chipClass.ts`).
  */
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
@@ -10,7 +11,7 @@ import type { Theme } from '../theme/themeFor.js';
 import { nativeTokens } from '../tokens/native.js';
 
 /** The chip's visual height, in points. */
-const CHIP_HEIGHT = 36;
+const CHIP_HEIGHT = 32;
 
 /** The most lines a chip's label takes before its ellipsis (`chipClass.ts`'s `CHIP_LABEL_CLASS`, the web twin). */
 export const CHIP_LABEL_LINES = 2;
@@ -40,7 +41,7 @@ export function chipPill({ colors, wash }: Theme, selected: boolean, pressed: bo
         paddingHorizontal: nativeTokens.spacing[3],
         ...(selected
             ? { backgroundColor: colors.selectedFill, borderWidth: 1.5, borderColor: colors.selectedEdge }
-            : { backgroundColor: pressed ? wash : colors.paper, borderWidth: 1, borderColor: colors.lineControl }),
+            : { backgroundColor: pressed ? wash : colors.surfaceMuted, borderWidth: 0 }),
     };
 }
 
@@ -52,7 +53,7 @@ export function chipPill({ colors, wash }: Theme, selected: boolean, pressed: bo
  * @returns The label's style.
  */
 export function chipLabel({ colors }: Theme, selected: boolean): TextStyle {
-    return { ...nativeTokens.type.label, flexShrink: 1, color: selected ? colors.actionText : colors.ink };
+    return { ...nativeTokens.type.caption, flexShrink: 1, color: selected ? colors.actionText : colors.ink };
 }
 
 /** A count after the label: tabular digits, `inkMuted`, from the theme. Pure. */

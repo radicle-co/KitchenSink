@@ -20,7 +20,7 @@ import { palette, role } from '../../tokens/colors.js';
 import { kebab } from '../../tokens/emit.js';
 import { BUSY_CONTROL_CLASS } from '../busyControlProps.js';
 import type { ButtonSize } from '../props.js';
-import { GHOST_EDGE_CLASS, buttonSurfaceClass } from '../surfaceClass.js';
+import { GHOST_EDGE_CLASS, buttonGlyphClass, buttonSurfaceClass } from '../surfaceClass.js';
 
 /** Every colour a utility can name: the palette, and the roles under their emitted kebab names (`ink-muted`). */
 const COLOURS: Readonly<Record<string, string>> = {
@@ -208,15 +208,29 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
         expect(tokens).toEqual(expect.arrayContaining(['hover:bg-ink/6', 'active:bg-ink/6']));
     });
 
-    // `ingredientMatching.md`, "Decisions from the build": "Keep … as written" is text only, in `--ink-muted`, with the
-    // same 44 px target. Hover and press take the house ink wash every tier shares (`darkTheme.md` §1), never at rest.
-    it('paints quiet as an inkMuted label with no fill and no edge at rest, an ink wash on hover and press', () => {
+    // `componentFixes.md` §1 (owner approval 2026-10-26): the quiet tier has NO fill and NO edge at rest, because a tonal
+    // fill now means "chip" (§4). Its label is `ink` (it was `inkMuted`: a Try again must not recede), and the glyph takes
+    // `actionText` (`buttonGlyphClass`). Hover and press take the house ink wash every tier shares (`darkTheme.md` §1).
+    it('paints quiet as an ink label with no fill and no edge at rest, an ink wash on hover and press', () => {
         const tokens = tokensOf(buttonSurfaceClass('quiet'));
 
-        expect(tokens).toContain('text-ink-muted');
+        expect(tokens).toContain('text-ink');
+        expect(tokens).not.toContain('text-ink-muted');
         expect(tokens.filter((token) => /^(bg|border|from|shadow)(-|$)/u.test(token))).toEqual([]);
         expect(tokens).toEqual(expect.arrayContaining(['hover:bg-ink/6', 'active:bg-ink/6']));
         expect(tokens).toContain('min-h-11');
+    });
+
+    it('⛔ gives quiet no surface a chip could be mistaken for: no surface-muted fill, at rest or on hover', () => {
+        expect(tokensOf(buttonSurfaceClass('quiet')).filter((token) => token.includes('surface-muted'))).toEqual([]);
+    });
+
+    it('takes the glyph from actionText for quiet alone; every other tier draws it in its label colour', () => {
+        expect(buttonGlyphClass('quiet')).toBe('text-action-text');
+
+        for (const variant of ['primary', 'secondary', 'ghost', 'destructive'] as const) {
+            expect(buttonGlyphClass(variant), variant).toBe('');
+        }
     });
 
     it('paints inline destructive as a danger label on the neutral surface', () => {

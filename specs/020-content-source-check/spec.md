@@ -102,7 +102,8 @@ choices.
 3. **Given** a `detected` recipe, **When** the cook chooses to keep it private, **Then** it becomes private under the
    usual private rules and slot count, and its label does not change.
 4. **Given** a `detected` recipe, **When** the cook changes their statement to "From a source" with a book citation,
-   **Then** the label follows the new statement (`imported_physical`), and the recipe can only be private.
+   **Then** the label becomes `imported_physical` and the recipe becomes private (FR-015a). If the cook has no private
+   slot free, the change is refused, and the cook can appeal or leave the recipe held.
 5. **Given** a recipe whose checked text holds no evidence, **When** the check finishes, **Then** the outcome is
    `clear` and the recipe becomes publicly visible with no further step.
 6. **Given** a `detected` outcome, **When** it is shown to the cook, **Then** it comes with a statement of reasons
@@ -231,8 +232,9 @@ cannot see the recipe from the moment the edit is saved, and that the cook sees 
    has an outcome that allows it.
 2. **Given** a public recipe, **When** a change leaves the checked text the same (cuisine, tags, photo replaced),
    **Then** no new check runs and visibility does not change.
-3. **Given** a clone of a public recipe, **When** the cloner publishes it unchanged, **Then** the outcome of the same
-   text is reused and no new model call is made.
+3. **Given** a recipe whose checked text is the same as text already checked under the same rules and model, **When**
+   it is published, **Then** the stored evidence is reused and no new model call is made. (A clone of another cook's
+   recipe needs a substantive edit before it is published, `GR-014` AC-014-g, so it is new text.)
 
 ---
 
@@ -287,7 +289,11 @@ SC-001 or SC-002 is not met, blocking cannot be turned on.
   not re-check public recipes on its own, and it never hides them (FR-002). A re-check of the public corpus is a
   separate, deliberate operator act.
 - **A cook erases their account and their public recipes are donated.** Donation makes recipes public and published
-  without the editor. A held recipe stays hidden, because the hold is part of the read rule (FR-018a).
+  without the editor. A held recipe is not donated: it is deleted with the account, like a private recipe, because
+  nobody would be left to appeal it (FR-018a).
+- **A curated public-domain import.** The curator path (ADR-0023 §1) imports old cookbooks on purpose, and they are
+  full of page references. Those recipes have no cook to ask, so the curator's grant counts as the confirmation
+  (FR-003a). A `detected` outcome still holds them, and goes to the reviewer queue.
 - **The cook deletes the recipe or erases their account while an appeal is open.** The appeal closes as withdrawn.
   The decision records 016 requires are kept for their period (FR-036).
 
@@ -324,6 +330,10 @@ The spent-budget case is not an open question: the owner already ruled that AI s
   MUST NOT, on its own, hide a recipe that already has an allowing outcome.
 - **FR-003**: The check MUST NOT run on a recipe that stays private, or on a recipe whose label is `imported_paid` or
   `imported_physical`, because those can never be public.
+- **FR-003a**: For a recipe whose provenance was declared under the curator grant (ADR-0023 §1), the grant MUST count as
+  the confirmation of a `possible` or `unchecked` outcome. A `detected` outcome still holds it and goes to the reviewer
+  queue. This MUST be keyed on the recorded grant or channel (`016-FR-028`), never on the `imported_public` label,
+  because a cook's bulk statement also sets that label (ADR-0072 §9).
 - **FR-004**: The check MUST run for every way a recipe arrives: typed, pasted (`004-FR-052`), from a link
   (`004-FR-008`), from a photo (`011`), from a file and in bulk (ADR-0072). It runs on the recipe's text, not on the
   channel.
@@ -400,10 +410,20 @@ The spent-budget case is not an open question: the owner already ruled that AI s
     >    waits days for a person to repeat what code already found. The queue also grows with import volume.
     > 3. **Hold public visibility, keep the recipe, and let a person reverse it.** Chosen. A false positive costs a
     >    short wait and an appeal. A false negative is what happens today, without the check.
-- **FR-015**: A cook with a `detected` recipe MUST be offered three choices:
+- **FR-015**: A cook with a `detected` recipe MUST be offered these choices:
     - Keep it private, under the usual private rules and the free-tier private slots ADR.
-    - Change their statement. The label then follows the new statement.
+    - Change their statement to "From a source" with a book or paid-site citation (FR-015a).
     - Appeal.
+    - Leave it as it is. It stays held, visible only to them, like a draft.
+
+    A free cook with no private slot free has only the last two, plus deleting the recipe.
+
+- **FR-015a**: Changing the statement after a save MUST be a one-way **downgrade** only: from `user_created` or
+  `imported_public` to `imported_physical` or `imported_paid`, with a citation, and the recipe becomes private in the
+  same act. It needs a private slot under the free-tier private slots ADR. No route MAY change a label upward or to
+  `imported_public`. Today provenance cannot change after a save at all (ADR-0023 keeps `source` on create only), so
+  this route MUST be recorded as an amendment to ADR-0023. The new label is private-only, so no outcome is needed for
+  it.
 - **FR-016**: A `possible` outcome MUST be handled as [NEEDS CLARIFICATION: Q2. **A**: the cook is shown what made
   the check unsure and asked to confirm their statement. On confirmation the recipe is published, and the confirmation
   is recorded. **B**: the recipe is held until a person decides, as for an appeal. **C**: the recipe is published with
@@ -418,10 +438,13 @@ The spent-budget case is not an open question: the owner already ruled that AI s
   (`visibilityPolicy.ts`) keeps deciding which visibility a recipe may hold. The only write-side refusal is bulk
   import's (FR-025).
 - **FR-018a**: Every path that makes a recipe public and published, including account erasure's donation of recipes,
-  MUST be subject to FR-002. Because the hold lives in the read rule, no path can go around it.
+  MUST be subject to FR-002. Because the hold lives in the read rule, no path can go around it. Erasure MUST NOT donate
+  a recipe whose current text has no allowing outcome. It is deleted with the account, as a private recipe is.
 - **FR-019**: Blocking MUST start in **shadow mode**: outcomes are recorded and no recipe is held back. Blocking MUST
   be switched on only after the evaluation meets SC-001 and SC-002, and switching it on MUST be a recorded operator
-  act.
+  act. Shadow mode runs **before launch**. If blocking is ever switched on while public recipes exist, it MUST NOT hide
+  any of them at once: each recipe it would hide first gets its cook-facing step (a confirmation request, or a
+  statement of reasons for `detected`). That transition needs its own plan before it is used.
 
 #### D. Budget, failure and cost
 
@@ -431,7 +454,9 @@ The spent-budget case is not an open question: the owner already ruled that AI s
   the AI budget is spent, AI-dependent steps stop and the cook is asked. An `unchecked` outcome MUST NEVER be shown or stored as
   `clear`.
 - **FR-021**: At the start of the next spend period, a public recipe whose outcome is `unchecked` (`budgetSpent`) MUST
-  be checked again. A `detected` result then holds it back, with a statement of reasons (FR-028).
+  be checked again. This is the only way a decided outcome changes: only from `unchecked`, with a new evidence set. A
+  `detected` result then holds the recipe back, with a statement of reasons (FR-028). Any other result keeps the cook's
+  earlier confirmation.
 - **FR-022**: A spend counter that cannot be read MUST fail closed: no model call, the check retries, and the recipe
   stays held. When retries are spent, the outcome MUST become `unchecked` (`checkFailed`) and the cook is asked as in
   FR-020. A recipe MUST NOT stay in "checking" for more than 24 hours.
@@ -461,7 +486,7 @@ The spent-budget case is not an open question: the owner already ruled that AI s
     - the ground: the terms clause on rights to upload
     - the facts: the kinds of evidence, and where they are
     - that automated means were used, and, for an upheld appeal, that a person decided
-    - the redress: keep private, change the statement, or appeal.
+    - the redress: keep private, change the statement (FR-015a), or appeal.
 - **FR-029**: The statement MUST be built from a fixed template filled with the evidence kinds and locations. It
   MUST NOT be prose written by the model.
 - **FR-030**: Appeals MUST be decided within 7 days of being made, the target `016-FR-017a` sets for grounds other
@@ -531,6 +556,8 @@ The spent-budget case is not an open question: the owner already ruled that AI s
   change.
 - **FR-043**: ADR-0072's readiness rule (§7) MUST gain FR-024: an item headed public is not ready to save until it has
   an outcome.
+- **FR-044**: ADR-0023 MUST be amended for FR-015a: a one-way downgrade of provenance after a save, to a private-only
+  label with a citation, and nothing else.
 
 ### Non-Functional Requirements _(constitution-derived)_
 

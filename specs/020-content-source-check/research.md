@@ -263,3 +263,16 @@ free-tier private slots ADR's answer for owner-only drafts. 020 adds no new rule
 
 **Risk recorded**: if owner-only drafts use no slot, a held recipe is an unmetered place to keep book recipes. That
 hole already exists for drafts. Raised as a question for the slots ADR.
+
+## R-16. The curated public-domain corpus
+
+**Finding**: the curator path (ADR-0023 §1) publishes recipes from a 1919 cookbook on purpose. Old cookbooks carry
+page references, and a model judgement lands on most of them, so most would read `possible`. `possible` needs a
+confirmation, and the `cookbook-import` tool has no cook to ask. In blocking mode the whole corpus would disappear.
+
+**Decision**: the curator's grant counts as the confirmation of `possible` and `unchecked` (spec FR-003a). `detected`
+still holds, and a reviewer decides. The exemption keys on the recorded grant or channel (`016-FR-028`), never on the
+`imported_public` label, because a cook's bulk statement sets the same label (ADR-0072 §9) with a weaker control.
+
+**Rejected**: exempting the curated corpus from the check entirely. A curator can still make a mistake (a modern
+reprint with a listed imprint), and the check costs one call per recipe once.

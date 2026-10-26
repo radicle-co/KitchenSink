@@ -162,6 +162,13 @@ The hold-in-the-read-rule decision, the per-recipe outcome over shared evidence,
 hard to reverse. They are recorded in a new ADR before the first build slice, numbered when written (another branch is
 writing the slots ADR now).
 
+Two existing ADRs are amended with it:
+
+- **ADR-0023**: a one-way downgrade of provenance after a save, to `imported_physical` or `imported_paid` with a
+  citation (spec FR-015a, FR-044). Today `source` exists on create only, so without this amendment "change your
+  statement" has no route.
+- **ADR-0072 §7**: readiness waits for the source flag on items headed public (spec FR-043).
+
 ## Delivery slices
 
 Each slice is test-first in every tier it touches (CLAUDE.md, "TEST-FIRST IS LAW").
@@ -173,7 +180,7 @@ Each slice is test-first in every tier it touches (CLAUDE.md, "TEST-FIRST IS LAW
 | S2    | Migration and tables; rightsholder list with admin routes; `checked_text_digest` on every write                                            | S1                                   |
 | S3    | Shadow mode end to end: rule detectors at write time, worker call site, evidence and outcomes recorded, nothing hidden, metrics and alerts | S2; owner's call on the model (R-05) |
 | S4    | Evaluation harness over the labeled set (outside the repo); bake-off picks the model                                                       | S3; counsel on the labeled set       |
-| S5    | Read rule and cook surfaces: required field, SQL twins, `sourceCheck` on the response, confirm, web and mobile states                      | S3                                   |
+| S5    | Read rule and cook surfaces: required field, SQL twins, `sourceCheck` on the response, confirm, downgrade, web and mobile states           | S3                                   |
 | S6    | Bulk import integration: source flag, readiness, choices                                                                                   | S5; the slots ADR                    |
 | S7    | Appeals, decisions and statements through 016; the blocking switch                                                                         | S5; 016's delivery and queue         |
 | S8    | Switch blocking on                                                                                                                         | S4 passes SC-001/SC-002; S7          |

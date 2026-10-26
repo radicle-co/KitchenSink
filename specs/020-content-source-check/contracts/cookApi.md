@@ -66,7 +66,26 @@ request:  { textDigest: string, reason?: string (≤ 2,000 characters) }
 404                            not the caller's recipe
 ```
 
-## 4. What does NOT change
+## 4. Change the statement: a one-way downgrade (spec FR-015a)
+
+`POST /api/v1/recipes/{id}/source-statement`
+
+```text
+request:  {
+  sourceType: 'imported_physical' | 'imported_paid'   // nothing else is representable
+  citation: string (1–500 characters)                 // book title and page, or the paid site
+}
+200:      the recipe response: label changed, visibility private, sourceCheck null
+409 PRIVATE_SLOTS_EXHAUSTED   no private slot free (the slot ADR owns this code)
+409 SOURCE_STATEMENT_NOT_DOWNGRADE  the label is already private-only
+404                           not the caller's recipe
+```
+
+- The label and the visibility change in one transaction. The new label is private-only, so no check is owed.
+- The new statement and citation are recorded as the recipe's attestation (`004-FR-014a`).
+- This route needs ADR-0023 amended first (spec FR-044). Nothing else can change a label after a save.
+
+## 5. What does NOT change
 
 - `POST`/`PATCH /api/v1/recipes` and `PATCH /api/v1/recipes/{id}/visibility` never fail because of an outcome (spec
   FR-014, FR-018). They answer as today; the response's `sourceCheck` says what happens next.

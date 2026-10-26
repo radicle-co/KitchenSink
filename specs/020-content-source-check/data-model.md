@@ -100,6 +100,7 @@ CREATE TABLE recipe_source_checks (
     judged_source_type text        NOT NULL,
     judged_cited_host  text        NULL,
     confirmed_at       timestamptz NULL,
+    confirmed_by       text        NULL,
     overturned_at      timestamptz NULL,
     allows             boolean     NOT NULL DEFAULT false,
     checking_since     timestamptz NOT NULL DEFAULT now(),
@@ -114,6 +115,10 @@ CREATE TABLE recipe_source_checks (
         CHECK ((state = 'decided') = (outcome IS NOT NULL AND evidence_set_id IS NOT NULL AND decided_at IS NOT NULL)),
     CONSTRAINT recipe_source_checks_reason_iff_unchecked
         CHECK ((outcome = 'unchecked') = (reason IS NOT NULL)),
+    CONSTRAINT recipe_source_checks_confirmed_by_check
+        CHECK (confirmed_by IS NULL OR confirmed_by IN ('cook', 'curatorGrant')),
+    CONSTRAINT recipe_source_checks_confirmation_complete
+        CHECK ((confirmed_at IS NULL) = (confirmed_by IS NULL)),
     CONSTRAINT recipe_source_checks_overturn_only_detected
         CHECK (overturned_at IS NULL OR outcome = 'detected'),
     CONSTRAINT recipe_source_checks_source_type_check
@@ -132,10 +137,13 @@ CREATE INDEX recipe_source_checks_checking ON recipe_source_checks (checking_sin
 | `clear`     | always                                             |
 | `possible`  | `confirmed_at` is set (WA-2, spec FR-016 option A) |
 | `unchecked` | `confirmed_at` is set (spec FR-020)                |
-| `detected`  | `overturned_at` is set (a person overturned it)    |
-| none yet    | never (`state = 'checking'`)                       |
 
-Three writes change an input: the worker's outcome, a confirmation and an appeal decision. Each recomputes `allows` in
+`confirmed_by` is `cook` for the cook's own confirmation, or `curatorGrant` when the recipe's provenance was declared
+under the curator grant (spec FR-003a). It is set from the recorded grant or channel, never from the label.
+| `detected` | `overturned_at` is set (a person overturned it) |
+| none yet | never (`state = 'checking'`) |
+
+Four writes change an input: the worker's outcome, a confirmation, an appeal decision and the next-period re-check. Each recomputes `allows` in
 the same statement, with a compare-and-set on `(recipe_id, text_digest, state)`. Two writers touch this row
 (recipe-service and the worker), and the digest key is what keeps either from writing a stale verdict onto new text.
 
@@ -148,8 +156,14 @@ the same statement, with a compare-and-set on `(recipe_id, text_digest, state)`.
 
 decided: confirm (possible | unchecked) ─▶ allows
          appeal overturned (detected)   ─▶ allows
+         re-check (unchecked only)      ─▶ decided again, with a new evidence set (spec FR-021)
          text changes                   ─▶ a NEW row for the new digest; this row is history
 ```
+
+The re-check is the only transition out of `decided` for the same digest. It is allowed only while `outcome =
+'unchecked'`, by a compare-and-set on `(recipe_id, text_digest, state, outcome)`. It writes a new evidence set and a new
+outcome, and keeps `confirmed_at`/`confirmed_by` unless the new outcome is `detected`. A `detected` result clears
+`allows`, writes an `automatedHold` decision and issues a statement of reasons.
 
 ## 4. `recipe_source_decisions`: the evidence of a hold or an appeal decision
 

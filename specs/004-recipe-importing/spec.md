@@ -360,6 +360,13 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > `imported_physical` or `imported_paid`. A recipe whose source is not a public web page cannot be public. A free
     > cook can keep a book or paid-site recipe private. Counsel approves the wording before launch (016
     > FR-050). See [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9.
+    >
+    > ⚠️ **Source check.** Owner ruling, 2026-10-26: when an automated check can tell that a recipe is from a book, a paid
+    > site or another published source, the recipe does not go public. Feature 020 amends the heuristic sentence above:
+    > blocking evidence that code finds in the text can prevent publication, by a publication hold. The hold does not
+    > change the label, never blocks a save, and a person can lift it on appeal. A heuristic still never reclassifies a
+    > recipe. The attestation and citation stay the controlling record. See
+    > [020 spec](../020-content-source-check/spec.md) FR-014 and FR-040.
 
 **Failure handling and lifecycle**
 

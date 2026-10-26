@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import { verifiedLineIdentityOfMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
 import { CallerToken } from '../../auth/CallerToken.js';
 import type { Principal } from '../../auth/principal.js';
@@ -413,6 +414,71 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
 
         expect(row?.proposal?.food.id).toBe('F-whole');
         expect(row?.verificationKey).toBeNull();
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The stored key IS the worker's key (ADR-0071). The gate's verdict lands under the key the WORKER derives from the
+ * message (`verifiedLineIdentityOfMessage`), and the job view reads it back through the key the ROW stored. The row's
+ * key is therefore derived from the exact message that is sent, so the two cannot diverge.
+ */
+describe('MatchProposalService.propose — the stored key is the key of the message it sends', () => {
+    it('⛔ stores, for every proposal it sends, the key the message itself derives', async () => {
+        const { service, matches, queue } = setup({
+            job: makeParseJobRecord({
+                lines: [
+                    makeParseJobLine(),
+                    makeParseJobLine({
+                        lineIndex: 1,
+                        sourceLine: '2 tbsp salt and pepper',
+                        proposal: makeStoredProposal({
+                            raw: '2 tbsp salt and pepper',
+                            quantity: { kind: 'exact', value: 2 },
+                            unit: 'tablespoon',
+                            statedMeasure: '2 tbsp',
+                            foods: [
+                                { name: 'salt', prep: null },
+                                { name: 'pepper', prep: null },
+                            ],
+                        }),
+                    }),
+                ],
+            }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const messages = queue.enqueue.mock.calls.flatMap((call) => [...call[0]]);
+        const rows = [...matches.rows.values()];
+
+        expect(messages).toHaveLength(3);
+        for (const message of messages) {
+            const origin = message.origin?.kind === 'parseJob' ? message.origin : undefined;
+            const row = rows.find((candidate) => {
+                return candidate.lineIndex === origin?.lineIndex && candidate.foodIndex === origin.foodIndex;
+            });
+
+            expect(row?.verificationKey).toBe(verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex));
+        }
+    });
+
+    it('⛔ sends nothing for a stored row whose key is not the key of the message it would send', async () => {
+        const { service, matches, queue } = setup();
+
+        await matches.saveMatches(JOB, [
+            {
+                lineIndex: 0,
+                foodIndex: 0,
+                lineDigest: lineDigest('2 cups whole milk', sha256Hex),
+                proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
+                candidates: [{ kind: 'root', id: 'F-whole', rung: 'head' }],
+                verificationKey: 'v2:not-the-message-key',
+            },
+        ]);
+
+        await service.propose(COOK, CALLER, JOB);
+
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
 });

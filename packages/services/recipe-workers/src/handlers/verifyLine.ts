@@ -71,6 +71,7 @@ import {
 import {
     verificationFoodOf,
     verificationOriginOf,
+    verifiedLineIdentityOfMessage,
     verifyIngredientLineMessageSchema,
     type VerificationFood,
     type VerificationOrigin,
@@ -237,30 +238,18 @@ const VERIFICATION_ATTEMPTS_EXHAUSTED_METRIC_NAME = 'VerificationAttemptsExhaust
 /**
  * The verification key for a message — the content hash a verdict lands under.
  *
- * ⛔ EVERY INPUT COMES FROM THE MESSAGE, which is what makes U7 possible at all: the key was computed after
- * the model had answered, purely because that is where it was first needed, so a duplicate delivery paid
- * Bedrock to reach a judgement already stored under the very key it could have computed for free.
+ * ⛔ EVERY INPUT COMES FROM THE MESSAGE, which is what makes U7 possible at all: a duplicate delivery is refused by a
+ * keyed read before anything is reserved. ⛔ AND IT IS RECIPE-CORE'S DERIVATION (`verifiedLineIdentityOfMessage`), not a
+ * copy: the save path's dedup read and the paste matcher's stored key (ADR-0071) use the same one, so a verdict this
+ * worker writes is the verdict they read back. `statedMeasure` is in the key (`null` when not restated), which is why
+ * `VERIFICATION_KEY_VERSION` is `v2`.
  *
  * @param message - The delivered line.
  * @returns The key.
  */
 function keyFor(message: VerifyIngredientLineMessage): string {
-    return verificationKey(
-        {
-            sourceLine: message.sourceLine,
-            // The bound food's id, root or variant (curated U9) — the bytes the producer keyed it under.
-            foodRefId: verificationFoodOf(message).id,
-            quantityLow: message.quantityLow,
-            quantityHigh: message.quantityHigh,
-            unit: message.unit,
-            // ⛔ IN THE KEY, not merely in the prompt, and `null` — never omitted — when the line was not
-            // restated. It changes what the model was SHOWN and therefore what it concluded, so a restated
-            // line and its un-restated self are different judgements. Sharing a key across them would serve
-            // the pre-0027 false DISAGREE to the corrected line forever, because absence of a verdict is the
-            // only thing that publishes. This is why `VERIFICATION_KEY_VERSION` is `v2`.
-            statedMeasure: message.statedMeasure ?? null,
-        },
-        (input) => createHash('sha256').update(input).digest('hex'),
+    return verificationKey(verifiedLineIdentityOfMessage(message), (input) =>
+        createHash('sha256').update(input).digest('hex'),
     );
 }
 

@@ -29,11 +29,7 @@
  */
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
-import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
-import {
-    verificationFoodFieldsOf,
-    type VerifyIngredientLineMessage,
-} from '@kitchensink/recipe-core/resolution/verification-message';
+import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
@@ -53,11 +49,10 @@ import {
 } from '../ingredients/resolution/resolutionCascade.js';
 import { PROPOSAL_TIERS } from '../ingredients/resolution/resolutionRegistry.js';
 import type { LineVerificationsDal } from './dal/lineVerifications.dal.js';
-import { variantDisplayName } from './domain/lineVerification.js';
 import {
     candidatesFor,
-    matchJudgementOf,
-    proposalVerificationDecision,
+    proposalKeyOf,
+    proposalMessageOf,
     type ParsedLineMeasure,
 } from './domain/matchProposal.js';
 import type { MatchSlot, NewParseJobMatch, ParseJobMatch, ParseJobMatchesPort } from './domain/parseJobMatch.js';
@@ -178,7 +173,7 @@ export class MatchProposalService {
             caller,
             drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
         );
-        const fresh = drafts.flatMap((draft) => this.withLiveProposal(draft, lines, answers));
+        const fresh = drafts.flatMap((draft) => this.withLiveProposal(jobId, draft, lines, answers));
         // A stored proposal is the LIVE end of what the chain named, so the message lookup is by that end too.
         const known = new Map(answers);
 
@@ -376,6 +371,7 @@ export class MatchProposalService {
      * @returns Zero or one match. Pure given the answers.
      */
     private withLiveProposal(
+        jobId: string,
         draft: DraftMatch,
         lines: ReturnType<MatchProposalService['parsedLines']>,
         answers: ReadonlyMap<string, FoodRefAnswer>,
@@ -408,14 +404,21 @@ export class MatchProposalService {
         }
 
         const food = liveEndOf(answer);
-        const judgement = matchJudgementOf(line, draft.foodIndex, food.id);
-        const askable = proposalVerificationDecision(line.sourceLine, food.kind).kind === 'verify';
+        // ⛔ The key is the key of the request this row will send: the worker writes the verdict under it.
+        const message = proposalMessageOf({
+            jobId,
+            slot: draft,
+            line,
+            food,
+            answer,
+            requestedAt: new Date().toISOString(),
+        });
 
         return [
             {
                 ...draft,
                 proposal: { ...draft.proposal, food },
-                verificationKey: askable && judgement !== undefined ? verificationKey(judgement, sha256Hex) : null,
+                verificationKey: message === undefined ? null : proposalKeyOf(message, sha256Hex),
             },
         ];
     }
@@ -524,12 +527,13 @@ export class MatchProposalService {
     }
 
     /**
-     * The verification request for one match, or `undefined` when food cannot name its proposal now.
+     * The verification request for one stored match, or `undefined` when nothing can be sent for it.
      *
-     * ⛔ The judgement fields come from the SAME derivation the key was stored with, and no `ingredientPhrase` is sent:
-     * the worker writes no memo for a paste origin, and a memo of a default would bind it for the next cook.
+     * ⛔ The request is rebuilt from the same inputs the row's key was derived from, and it is sent only when its key IS
+     * the row's key. A mismatch would land the verdict under a key the job view never reads, so it is refused and logged
+     * at error: it can only mean the derivation changed between the call that stored the row and this one.
      *
-     * Pure given its inputs.
+     * Pure apart from that log.
      */
     private messageFor(
         jobId: string,
@@ -541,28 +545,25 @@ export class MatchProposalService {
         const food = match.proposal?.food;
         const answer = food === undefined ? undefined : answers.get(foodRefKey(food));
 
-        if (line === undefined || food === undefined || answer?.outcome !== 'found' || answer.name === undefined) {
+        if (line === undefined || food === undefined || answer === undefined) {
             return undefined;
         }
 
-        const judgement = matchJudgementOf(line, match.foodIndex, food.id);
+        const message = proposalMessageOf({ jobId, slot: match, line, food, answer, requestedAt: new Date().toISOString() });
 
-        if (judgement === undefined) {
+        if (message === undefined) {
             return undefined;
         }
 
-        return {
-            origin: { kind: 'parseJob', jobId, lineIndex: match.lineIndex, foodIndex: match.foodIndex },
-            sourceLine: line.sourceLine,
-            ...verificationFoodFieldsOf(food),
-            candidateFoodName: variantDisplayName(answer.name, answer.variant?.parts),
-            quantityLow: judgement.quantityLow,
-            quantityHigh: judgement.quantityHigh,
-            unit: judgement.unit,
-            evidenceKind: 'unattributed',
-            shortlist: [],
-            requestedAt: new Date().toISOString(),
-            ...(answer.isPrivate ? { privateFood: true } : {}),
-        };
+        if (proposalKeyOf(message, sha256Hex) !== match.verificationKey) {
+            this.logger.error(
+                `parse-job ${jobId}: the stored verdict key of line ${String(match.lineIndex)} food ` +
+                    `${String(match.foodIndex)} is not the key of the request it would send; nothing is sent`,
+            );
+
+            return undefined;
+        }
+
+        return message;
     }
 }

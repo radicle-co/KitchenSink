@@ -12,8 +12,10 @@ import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient, type Message } 
 import pg from 'pg';
 
 import { parseJobResponseSchema } from '@kitchensink/schema-recipe';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import {
     verificationOriginOf,
+    verifiedLineIdentityOfMessage,
     verifyIngredientLineMessageSchema,
 } from '@kitchensink/recipe-core/resolution/verification-message';
 
@@ -152,6 +154,9 @@ describe('paste-job match proposals (LOCAL e2e)', () => {
         expect(verificationOriginOf(message)).toStrictEqual({ kind: 'parseJob', jobId, lineIndex: 0, foodIndex: 0 });
         // The unit is the cook's word (`cups`, from the parse's statedMeasure), as the editor saves it (ADR-0071).
         expect(message).toMatchObject({ foodId: 'F-whole', quantityLow: 2, unit: 'cups', evidenceKind: 'unattributed' });
+        // ⛔ The key the worker will write the verdict under, derived from the message it DRAINED, is the key the row
+        // stored: the job view reads the verdict back through the row's key (ADR-0071).
+        expect(verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex)).toBe(rows.rows[0]?.verification_key);
     });
 
     it('⛔ a second call writes and sends nothing more', async () => {

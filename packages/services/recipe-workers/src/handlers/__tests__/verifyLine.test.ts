@@ -18,6 +18,8 @@
  * from a response the model finished normally.** Every error branch below is asserted to record either
  * nothing or `inconclusive` — never an agreement.
  */
+import { createHash } from 'node:crypto';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ⛔ THE REAL SDK IS FAKED SO THE ISSUE PATH IS OBSERVABLE. `captureHandled` is inert until
@@ -45,6 +47,11 @@ import {
     type ModelRate,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verifiedLineIdentityOfMessage,
+    verifyIngredientLineMessageSchema,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 
 import {
     INPUT_BOUND_EXCEEDED_METRIC_NAME,
@@ -992,6 +999,24 @@ describe('a line whose measure was RESTATED', () => {
 
         expect(userTurn(d.spies)).toContain('unit: gill');
         expect(userTurn(d.spies)).not.toContain('cup');
+    });
+
+    it.each([
+        ['a root line', MESSAGE],
+        ['a restated line', RESTATED],
+        ['a variant line', { ...MESSAGE, foodId: undefined, foodVariantId: '01JVARIANT0000000000000000' }],
+    ])('⛔ claims and writes %s under recipe-core’s key for the message — the key the producer stored', async (_l, m) => {
+        // ADR-0071: the paste matcher stores the key of the exact message it sends, derived the same way. A second,
+        // inline derivation here could drift from it, and the job view would never find the verdict.
+        const d = deps();
+        await processVerification(d, m);
+
+        const expected = verificationKey(verifiedLineIdentityOfMessage(verifyIngredientLineMessageSchema.parse(m)), (input) =>
+            createHash('sha256').update(input).digest('hex'),
+        );
+
+        expect(d.spies.claimVerification.mock.calls[0]?.[0]).toBe(expected);
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey).toBe(expected);
     });
 
     it('keys the verdict on a DIFFERENT identity than the same line un-restated', async () => {

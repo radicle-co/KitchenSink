@@ -9,6 +9,8 @@
  *     if the cook keeps this food, so a kept line is never asked about twice. The measure is recipe-core's
  *     `pastedLineMeasureOf`, the rule the editor saves a pasted row with: the cook's own words (`2 tbsp` keys unit
  *     `tbsp`, not the parse's `tablespoon`), and only the FIRST food of a line carries it.
+ *     The request itself ({@link proposalMessageOf}) is built from that judgement, and the key the row stores is the
+ *     key of that MESSAGE ({@link proposalKeyOf}), the derivation the worker writes the verdict under.
  *  2. **Whether the gate may be asked** ({@link proposalVerificationDecision}). Identity is ALWAYS asked for a paste
  *     proposal: no band and no curated skip (ADR-0071, the exception to earned autonomy D1).
  *  3. **Which candidates the cook sees** ({@link candidatesFor}). At most five, the proposal first, and a default that
@@ -22,12 +24,22 @@ import {
     unattributedEvidence,
     type VerificationDecision,
 } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-import type { VerifiedLineIdentity } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verificationKey,
+    type HexDigest,
+    type VerifiedLineIdentity,
+} from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verificationFoodFieldsOf,
+    verifiedLineIdentityOfMessage,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { RankedCandidate } from '../../ingredients/resolution/resolutionCascade.js';
-import { verifiedLineIdentity } from './lineVerification.js';
-import type { MatchCandidate } from './parseJobMatch.js';
+import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
+import { variantDisplayName, verifiedLineIdentity } from './lineVerification.js';
+import type { MatchCandidate, MatchSlot } from './parseJobMatch.js';
 
 /** How many candidates a match keeps. The column's CHECK holds the same bound. */
 export const MAX_MATCH_CANDIDATES = 5;
@@ -92,6 +104,69 @@ export function proposalVerificationDecision(sourceLine: string, boundTo: FoodRe
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
         boundTo,
     });
+}
+
+/**
+ * The verification request for one proposal: the gate's question about the proposed food, as the worker will read it.
+ *
+ * ⛔ No `ingredientPhrase` is sent: the worker writes no memo for a paste origin, and a memo of a default would bind it
+ * for the next cook. Identity is always asked (`unattributed` evidence, no shortlist).
+ *
+ * @param input - The job and slot, the parsed line, the proposal at its live end, food's answer about it, and when.
+ * @returns The message, or `undefined` when nothing can be asked: a blank or over-cap line, or a food food cannot name
+ *     now. Pure.
+ */
+export function proposalMessageOf(input: {
+    readonly jobId: string;
+    readonly slot: MatchSlot;
+    readonly line: ParsedLineMeasure;
+    readonly food: FoodRef;
+    readonly answer: FoodRefAnswer;
+    readonly requestedAt: string;
+}): VerifyIngredientLineMessage | undefined {
+    const { jobId, slot, line, food, answer } = input;
+
+    if (answer.outcome !== 'found' || answer.name === undefined) {
+        return undefined;
+    }
+
+    if (proposalVerificationDecision(line.sourceLine, food.kind).kind !== 'verify') {
+        return undefined;
+    }
+
+    const judgement = matchJudgementOf(line, slot.foodIndex, food.id);
+
+    if (judgement === undefined) {
+        return undefined;
+    }
+
+    return {
+        origin: { kind: 'parseJob', jobId, lineIndex: slot.lineIndex, foodIndex: slot.foodIndex },
+        sourceLine: line.sourceLine,
+        ...verificationFoodFieldsOf(food),
+        candidateFoodName: variantDisplayName(answer.name, answer.variant?.parts),
+        quantityLow: judgement.quantityLow,
+        quantityHigh: judgement.quantityHigh,
+        unit: judgement.unit,
+        evidenceKind: 'unattributed',
+        shortlist: [],
+        requestedAt: input.requestedAt,
+        ...(answer.isPrivate ? { privateFood: true } : {}),
+    };
+}
+
+/**
+ * The key the gate's verdict for a request lands under: the WORKER's derivation, from the message alone.
+ *
+ * ⛔ The row stores this, never a key derived separately from the line, so the key the job view reads a verdict back
+ * through is the key the worker wrote it under.
+ *
+ * @param message - The request.
+ * @param digest - The hex digest (`sha256Hex` in the service).
+ * @returns The verification key. Pure, given a pure digest.
+ */
+export function proposalKeyOf(message: VerifyIngredientLineMessage, digest: HexDigest): string {
+    return verificationKey(verifiedLineIdentityOfMessage(message), digest);
 }
 
 /**

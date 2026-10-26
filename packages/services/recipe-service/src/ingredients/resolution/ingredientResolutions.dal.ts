@@ -5,9 +5,7 @@
  * entirely, so a resolution is a fact about ONE admission at one moment.
  *
  * ⚠️ WRITE-ONLY since ADR-0071: the events are TELEMETRY, never read back as a line's provenance (the ADR records
- * why). The read (`latestResolutionsByLookupIds`) and the ranked shape it carried (rung, margin, shortlist, band epoch)
- * were deleted with it; by-name runs the settled chain only, so it has no ranked shape to write. The columns stay until
- * a later release contracts them (ADR-0035, expand/contract).
+ * why). The ranked columns stay until a later release contracts them (ADR-0035, expand/contract).
  *
  * Failures are the CALLER's to swallow: the cascade's auxiliary work must never fail a resolution that succeeded.
  */

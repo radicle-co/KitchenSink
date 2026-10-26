@@ -10,11 +10,6 @@
  *   - **Correction reach** — `findWriteFacts.correctedFoodIsPrivate` reads the privacy fact from the real
  *     binding row, which is what clamps a curator grant / corroboration pair to author scope in the policy.
  *
- * ⚠️ REMOVED (ADR-0071): "record → latestResolutionsByLookupIds carries the `author_augmented` flag". Nothing in this
- * service writes the flag or reads the event back any more: by-name binds through the settled chain only, so it records
- * no ranked event, and provenance is no longer read from the shared binding. The column stays until a later release
- * contracts it (ADR-0035); this suite's schema case still asserts it exists.
- *
  * ⚠️ REWRITTEN (plan 002): three cases were REMOVED because their subject no longer exists in this service, not
  * because they failed. Where each behaviour went:
  *

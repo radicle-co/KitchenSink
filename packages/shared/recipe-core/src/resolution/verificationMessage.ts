@@ -152,8 +152,11 @@ export const scoredCandidateSchema = z.object({
  * records. A paste-job origin names the line AND the food within it, because one parsed line can propose more
  * than one food (`salt and pepper`), so a log or an alarm can say which proposal a message was about.
  *
- * What the origin DOES change at the worker is how the line is judged: a paste proposal always asks identity, is
- * attributed to its own spend call site, and feeds no band observation and no memo (`verifyLine.ts`).
+ * What the origin DOES change at the worker is how the line is judged: a paste proposal always asks identity and is
+ * attributed to its own spend call site (`verifyLine.ts`). It feeds no band and no memo because of what its message
+ * CARRIES, never because of its origin: the worker feeds a band only for a `ranked` message that names its own band
+ * key, and writes a memo only for a message that carries an `ingredientPhrase`, and the paste producer sends neither.
+ * A message of either origin that did carry them would feed them.
  */
 export const verificationOriginSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('recipe'), recipeId: z.uuid() }),

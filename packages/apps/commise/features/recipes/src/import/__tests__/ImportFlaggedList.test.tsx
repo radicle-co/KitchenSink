@@ -39,6 +39,7 @@ const SPICE: ImportFlaggedLineItem = {
 function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
     const onUseSuggestion = vi.fn();
     const onChooseAnother = vi.fn();
+    const onRetry = vi.fn();
     render(
         <ImportFlaggedList
             total={23}
@@ -48,11 +49,12 @@ function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
             announcement={{ text: '', occurrence: 0 }}
             onUseSuggestion={onUseSuggestion}
             onChooseAnother={onChooseAnother}
+            onRetry={onRetry}
             {...overrides}
         />,
     );
 
-    return { onUseSuggestion, onChooseAnother };
+    return { onUseSuggestion, onChooseAnother, onRetry };
 }
 
 const itemOf = (text: string) =>
@@ -163,7 +165,7 @@ describe('ImportFlaggedList (web)', () => {
 
     it('⛔ M6: a Use that did not save says so on its row, in the shared words, with Try again naming the line', async () => {
         const user = userEvent.setup();
-        const { onUseSuggestion } = renderList({ failed: new Set(['milk']) });
+        const { onUseSuggestion, onRetry } = renderList({ failed: new Set(['milk']) });
 
         const row = itemOf('1 1/4 cups milk');
         const retry = within(row).getByRole('button', { name: 'Try again to save the choice for 1 1/4 cups milk' });
@@ -172,14 +174,36 @@ describe('ImportFlaggedList (web)', () => {
         expect(retry.textContent).toBe('Try again');
         expect(within(itemOf('1 tsp mixed spice')).queryByText('We couldn’t save that choice.')).toBeNull();
 
-        // Try again sends the same Use again; Use itself is still there, and neither control is natively disabled.
+        // Try again hands the row's key to the host, which repeats the action that failed (`sendLedger.retryOf`);
+        // it is NOT the Use again: the failed action may have been a pick from the options sheet.
         await user.click(retry);
 
-        expect(onUseSuggestion).toHaveBeenCalledExactlyOnceWith('milk');
+        expect(onRetry).toHaveBeenCalledExactlyOnceWith('milk');
+        expect(onUseSuggestion).not.toHaveBeenCalled();
 
         for (const button of within(row).getAllByRole('button')) {
             expect(button.hasAttribute('disabled')).toBe(false);
         }
+    });
+
+    it('⛔ replay: Try again on each failed row reports THAT row, whatever the failed action was', async () => {
+        const user = userEvent.setup();
+        const { onRetry, onUseSuggestion, onChooseAnother } = renderList({ failed: new Set(['milk', 'spice']) });
+
+        await user.click(
+            within(itemOf('1 tsp mixed spice')).getByRole('button', {
+                name: 'Try again to save the choice for 1 tsp mixed spice',
+            }),
+        );
+        await user.click(
+            within(itemOf('1 1/4 cups milk')).getByRole('button', {
+                name: 'Try again to save the choice for 1 1/4 cups milk',
+            }),
+        );
+
+        expect(onRetry.mock.calls).toEqual([['spice'], ['milk']]);
+        expect(onUseSuggestion).not.toHaveBeenCalled();
+        expect(onChooseAnother).not.toHaveBeenCalled();
     });
 
     it('M6: a retry in flight hides the failure; the busy Use says what is happening and keeps focus', () => {
@@ -270,6 +294,7 @@ describe('ImportFlaggedList (web): Try again keeps focus (WCAG 2.4.3)', () => {
                 announcement={{ text: '', occurrence: 0 }}
                 onUseSuggestion={vi.fn()}
                 onChooseAnother={vi.fn()}
+                onRetry={vi.fn()}
                 {...props}
             />
         </>

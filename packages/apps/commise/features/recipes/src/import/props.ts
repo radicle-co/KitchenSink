@@ -186,7 +186,7 @@ export interface ImportFlaggedListProps {
     readonly pending: ReadonlyMap<string, PendingSend>;
     /**
      * The lines whose "Use {food}" did not save. Each says so, in the matched-line list's words, with Try again, until
-     * a retry is in flight (M6). Try again is {@link onUseSuggestion} again. Keep the row drawn while the retry is in
+     * a retry is in flight (M6). Try again calls {@link onRetry}. Keep the row drawn while the retry is in
      * flight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).
      */
     readonly failed: ReadonlySet<string>;
@@ -195,8 +195,15 @@ export interface ImportFlaggedListProps {
      * pane beside the list, with `pickFailedAnnouncementOf`. A pick from the SHEET is spoken by the sheet's own region.
      */
     readonly announcement: ListAnnouncement;
-    /** Bind the line to its suggestion. The host raises its pending send in this call. Try again calls it again. */
+    /** Bind the line to its suggestion. The host raises its pending send in this call. */
     readonly onUseSuggestion: (key: string) => void;
+    /**
+     * Try again was pressed on a failed line: send AGAIN the action that failed, whatever it was (a Use of the
+     * suggestion, or a pick from the options sheet or pane): `sendLedger.retryOf(key)`. It is NOT {@link onUseSuggestion}
+     * again, which would replace a failed pick with a Use the cook never chose. The host raises its pending send in this
+     * call, as for every send.
+     */
+    readonly onRetry: (key: string) => void;
     /** Choose another: open the line's options, search first — the sheet on phone and 834, the pane at 1194 and web. */
     readonly onChooseAnother: (key: string) => void;
     /** The open line's options, drawn beside the list at the wide container class. */

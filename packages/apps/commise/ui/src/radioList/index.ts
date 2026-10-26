@@ -3,4 +3,4 @@
  * radios, resolved to its web or native leaf at bundle time.
  */
 export { RadioList } from './RadioList.js';
-export type { RadioListLook, RadioListOption, RadioListProps } from './props.js';
+export type { RadioListOption, RadioListProps } from './props.js';

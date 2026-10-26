@@ -9,7 +9,8 @@ import type { RadioListOption, RadioListProps } from '../props.js';
 /**
  * RadioList (web) — a `radiogroup` of whole-row radios over Radix `RadioGroup`: controlled, able to hold NO choice, the
  * hint as each radio's description, arrow keys moving between rows. (The quiet tag went with the reconciliation: a
- * food's Default tag lives on a food-choice BUTTON, never a radio, and no radio group carries one.)
+ * food's Default tag lives on a food-choice BUTTON, never a radio, and no radio group carries one. The `look` prop went
+ * with U13: its `rows` look had no caller.)
  */
 
 afterEach(cleanup);
@@ -28,7 +29,6 @@ function renderList(overrides: Partial<RadioListProps> = {}) {
             options={OPTIONS}
             value={undefined}
             onChange={onChange}
-            look="rows"
             {...overrides}
         />,
     );
@@ -91,7 +91,7 @@ describe('RadioList (web)', () => {
         const Host = () => {
             const [value, setValue] = useState<string | undefined>('whole');
 
-            return <RadioList label="Food" options={OPTIONS} value={value} onChange={setValue} look="rows" />;
+            return <RadioList label="Food" options={OPTIONS} value={value} onChange={setValue} />;
         };
 
         render(<Host />);
@@ -110,32 +110,25 @@ describe('RadioList (web)', () => {
         expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Milk, 2% fat' }));
     });
 
-    it.each(['rows', 'cards'] as const)('%s: draws every row at the 48 px floor', (look) => {
-        const { group } = renderList({ look });
+    it('draws every row at the 48 px floor', () => {
+        const { group } = renderList();
 
         for (const radio of within(group).getAllByRole('radio')) {
             expect(radio.className).toContain('min-h-12');
         }
     });
 
-    it('cards: each row is its own bordered card; rows: the group is the one border', () => {
-        const { group } = renderList({ look: 'cards' });
+    // REWRITTEN (U13, 2026-10-25): the unused `rows` look and the `look` prop are gone, so every list is the card list
+    // the mode choice draws. The deleted half asserted the `rows` look's single group border, which no longer exists.
+    it('draws each row as its own bordered card, and the group as no border of its own', () => {
+        const { group } = renderList();
 
         expect(
             within(group)
                 .getAllByRole('radio')
                 .every((radio) => radio.className.includes('border')),
         ).toBe(true);
-        cleanup();
-
-        const rows = renderList({ look: 'rows' }).group;
-
-        expect(rows.className).toContain('border');
-        expect(
-            within(rows)
-                .getAllByRole('radio')
-                .some((radio) => / border /u.test(` ${radio.className} `)),
-        ).toBe(false);
+        expect(/ border /u.test(` ${group.className} `)).toBe(false);
     });
 
     it('lets a long label wrap instead of scrolling sideways', () => {

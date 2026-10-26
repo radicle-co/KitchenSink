@@ -1,8 +1,9 @@
 /**
  * @module @commise/ui/radio-list — the shared contract of the design-system `RadioList`: one choice from a short list,
  * drawn as a column of whole-row radios (the bulk import mode choice,
- * `docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). Each row is at least 48 px tall, its 18 px
- * radio first, its label wrapping rather than scrolling at 320 px, and an optional hint under it.
+ * `docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). Each row is its own bordered card at least
+ * 48 px tall, its 18 px radio first, its bolder label wrapping rather than scrolling at 320 px, and an optional hint
+ * under it.
  *
  * ⛔ Only for a GENUINE radio group, where moving through the options may change the choice. A list of foods to pick
  * from is not one: the arrow keys would pick a food, so foods are buttons (`FoodChoiceList`, design authority
@@ -22,12 +23,6 @@ export interface RadioListOption {
     readonly hint?: string;
 }
 
-/**
- * How the rows are drawn. `rows`: one bordered group, rows divided by hairlines (an option list). `cards`: each row its
- * own bordered card with a bolder label (a choice of modes). Only the look differs; the semantics are the same.
- */
-export type RadioListLook = 'rows' | 'cards';
-
 /** The cross-platform `RadioList` contract. */
 export interface RadioListProps {
     /** The group's accessible name ("How to match ingredients"). */
@@ -38,6 +33,4 @@ export interface RadioListProps {
     readonly value: string | undefined;
     /** Called with a row's id when the person chooses it. The list holds no state: the host decides. */
     readonly onChange: (id: string) => void;
-    /** How the rows are drawn. */
-    readonly look: RadioListLook;
 }

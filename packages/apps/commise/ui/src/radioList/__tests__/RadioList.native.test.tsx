@@ -28,7 +28,6 @@ function renderList(overrides: Partial<RadioListProps> = {}) {
             options={OPTIONS}
             value={undefined}
             onChange={onChange}
-            look="rows"
             {...overrides}
         />,
     );
@@ -36,6 +35,7 @@ function renderList(overrides: Partial<RadioListProps> = {}) {
     return { onChange, group: screen.getByRole('radiogroup', { name: 'Food for 2 cups milk' }) };
 }
 
+// REWRITTEN (U13, 2026-10-25): the `look` prop and its unused `rows` look are gone; every case draws the one card list.
 describe('RadioList (native)', () => {
     it('is a radiogroup named by its label, one radio per option in the given order', () => {
         const { group } = renderList();
@@ -69,8 +69,8 @@ describe('RadioList (native)', () => {
         expect(screen.queryByRole('radio', { checked: true })).toBeNull();
     });
 
-    it.each(['rows', 'cards'] as const)('%s: every row stands at least 48 dp tall', (look) => {
-        const { group } = renderList({ look });
+    it('every row stands at least 48 dp tall', () => {
+        const { group } = renderList();
 
         for (const radio of within(group).getAllByRole('radio')) {
             expect(getComputedStyle(radio).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);

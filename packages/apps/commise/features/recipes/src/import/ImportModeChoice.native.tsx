@@ -55,7 +55,6 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
             <Text style={[styles.body, { color: colors.inkMuted }]}>{m.intro}</Text>
             <RadioList
                 label={m.groupLabel}
-                look="cards"
                 options={modeOptionsOf(messages)}
                 value={mode}
                 onChange={(id) => {

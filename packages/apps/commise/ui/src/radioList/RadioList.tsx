@@ -17,27 +17,11 @@
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useId, type FC } from 'react';
 
-import type { RadioListLook, RadioListProps } from './props.js';
-
-/** Each look's group and row chrome. Only the look differs, never the semantics. */
-const LOOK: Readonly<Record<RadioListLook, { readonly group: string; readonly row: string; readonly label: string }>> =
-    {
-        rows: {
-            group: 'flex flex-col divide-y divide-line-divider rounded-lg border border-line-divider bg-paper-raised',
-            row: 'rounded-lg px-3 py-2',
-            label: 'text-meta text-ink',
-        },
-        cards: {
-            group: 'flex flex-col gap-3',
-            row: 'rounded-lg border border-line-divider bg-paper px-4 py-3',
-            label: 'text-body font-semibold text-ink',
-        },
-    };
+import type { RadioListProps } from './props.js';
 
 /** The web design-system option list. */
-export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange, look }) => {
+export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
     const baseId = useId();
-    const chrome = LOOK[look];
 
     return (
         <RadioGroup.Root
@@ -46,7 +30,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
             // Radix treats `undefined` as UNCONTROLLED and would check a clicked row by itself; '' matches no row.
             value={value ?? ''}
             onValueChange={onChange}
-            className={chrome.group}
+            className="flex flex-col gap-3"
         >
             {options.map((option, index) => {
                 const labelId = `${baseId}-${index}-label`;
@@ -59,7 +43,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
                         value={option.id}
                         aria-labelledby={labelId}
                         {...(option.hint === undefined ? {} : { 'aria-describedby': hintId })}
-                        className={`flex min-h-12 w-full items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${chrome.row}`}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         <span
                             aria-hidden="true"
@@ -68,7 +52,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
                             }`}
                         />
                         <span className="flex min-w-0 flex-1 flex-col">
-                            <span id={labelId} className={`break-words ${chrome.label}`}>
+                            <span id={labelId} className="break-words text-body font-semibold text-ink">
                                 {option.label}
                             </span>
                             {option.hint === undefined ? null : (

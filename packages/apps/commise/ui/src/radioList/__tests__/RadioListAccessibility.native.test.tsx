@@ -57,9 +57,10 @@ function styleOf(row: PressableProps | undefined, pressed: boolean): ViewStyle {
     return StyleSheet.flatten(resolved);
 }
 
-describe.each(['rows', 'cards'] as const)('RadioList (native, %s) — what the screen reader receives', (look) => {
+// REWRITTEN (U13, 2026-10-25): no longer run per look; the `rows` look was deleted, and the card list is the only one.
+describe('RadioList (native) — what the screen reader receives', () => {
     it('names each row by its label, and hands its hint to the platform as the accessibility hint', () => {
-        render(<RadioList label="How to match" options={OPTIONS} value={undefined} onChange={vi.fn()} look={look} />);
+        render(<RadioList label="How to match" options={OPTIONS} value={undefined} onChange={vi.fn()} />);
 
         expect(seen.rows.map((row) => [row.accessibilityLabel, row.accessibilityHint])).toEqual([
             ['Pick the best match for me', undefined],
@@ -68,7 +69,7 @@ describe.each(['rows', 'cards'] as const)('RadioList (native, %s) — what the s
     });
 
     it('a pressed row takes the press wash; a row at rest does not', () => {
-        render(<RadioList label="How to match" options={OPTIONS} value={undefined} onChange={vi.fn()} look={look} />);
+        render(<RadioList label="How to match" options={OPTIONS} value={undefined} onChange={vi.fn()} />);
 
         const { wash } = themeFor('light');
 

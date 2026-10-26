@@ -39,7 +39,9 @@ describe('PublishOpenChoicesSheet (native)', () => {
         renderSheet();
 
         expect(
-            screen.getByText(/Grandma’s spice mix are saved as written\. They don’t count toward nutrition/),
+            screen.getByText(
+                /We’ll save Milk, day-old bread, salt, and Grandma’s spice mix as written\. They don’t count toward nutrition/,
+            ),
         ).toBeTruthy();
     });
 
@@ -47,7 +49,7 @@ describe('PublishOpenChoicesSheet (native)', () => {
         renderSheet();
 
         expect(
-            screen.getByText('Heavy cream is still being checked. If you publish now, it is saved as written too.'),
+            screen.getByText('We’re still checking Heavy cream. If you publish now, it is saved as written too.'),
         ).toBeTruthy();
     });
 
@@ -97,5 +99,17 @@ describe('PublishOpenChoicesSheet (native)', () => {
         renderSheet(FACTS, false);
 
         expect(screen.queryByRole('heading', { name: '4 ingredients have no food yet' })).toBeNull();
+    });
+
+    // U11: at narrow (a phone) the two stack with the PRIMARY LAST, nearest the thumb; they sat side by side.
+    it('at narrow, stacks Choose now then Publish anyway, the primary last', () => {
+        renderSheet();
+
+        const chooseNow = screen.getByRole('button', { name: 'Choose now' });
+        const publish = screen.getByRole('button', { name: 'Publish anyway' });
+        const row = chooseNow.parentElement?.parentElement;
+
+        expect(chooseNow.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(row === null || row === undefined ? undefined : getComputedStyle(row).flexDirection).toBe('column');
     });
 });

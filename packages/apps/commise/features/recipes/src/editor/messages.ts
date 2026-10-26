@@ -376,13 +376,14 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
 
         openChoices: {
             title: { one: '{count} ingredient has no food yet', other: '{count} ingredients have no food yet' },
+            // No sentence starts with `{names}` (U14): a food's name may begin in lower case ("day-old bread").
             body: {
-                one: '{names} is saved as written. It doesn’t count toward nutrition until you choose a food.',
-                other: '{names} are saved as written. They don’t count toward nutrition until you choose a food.',
+                one: 'We’ll save {names} as written. It doesn’t count toward nutrition until you choose a food.',
+                other: 'We’ll save {names} as written. They don’t count toward nutrition until you choose a food.',
             },
             checking: {
-                one: '{names} is still being checked. If you publish now, it is saved as written too.',
-                other: '{names} are still being checked. If you publish now, they are saved as written too.',
+                one: 'We’re still checking {names}. If you publish now, it is saved as written too.',
+                other: 'We’re still checking {names}. If you publish now, they are saved as written too.',
             },
             chooseNow: 'Choose now',
             publishAnyway: 'Publish anyway',

@@ -7,6 +7,8 @@
  * a line still being checked, and says how many lines count; Choose now and Publish anyway are the two ways on.
  *
  * On the design-system `Sheet`, not `ConfirmDialog`: that primitive is for a destructive step, and publishing is not one.
+ * At narrow the two actions stack, Publish anyway LAST, nearest the thumb; from the `nav` width they share a row, the
+ * primary at its end. The DOM order is the visual order at every width, so Tab and the eye agree (U11).
  *
  * Presentational: props in, markup out; the words are `openChoicesCopyOf`'s. The native leaf is
  * `./PublishOpenChoicesSheet.native.tsx`.
@@ -38,7 +40,7 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
             closeLabel={copy.close}
             size="content"
             footer={
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
                     <Button variant="secondary" icon="list" width="fill" onPress={onChooseNow}>
                         {copy.chooseNow}
                     </Button>
@@ -50,8 +52,8 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
         >
             <div className="flex flex-col gap-3">
                 <p className="text-body text-ink">{copy.body}</p>
-                {copy.checking !== undefined && <p className="text-meta text-ink-muted">{copy.checking}</p>}
-                <p className="text-meta text-ink-muted">{copy.later}</p>
+                {copy.checking !== undefined && <p className="text-list text-ink-muted">{copy.checking}</p>}
+                <p className="text-list text-ink-muted">{copy.later}</p>
             </div>
         </Sheet>
     );

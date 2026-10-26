@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-recipes/editor — `PublishOpenChoicesSheet` (native): the React Native leaf of
- * `./PublishOpenChoicesSheet.tsx`, on the same props and words (`openChoicesCopyOf`). The bottom sheet puts Choose now and
- * Publish anyway side by side at its foot, within thumb reach. Painted from the theme's roles (D15).
+ * `./PublishOpenChoicesSheet.tsx`, on the same props and words (`openChoicesCopyOf`). The bottom sheet stacks Choose now
+ * and Publish anyway at its foot, each across the sheet so neither label wraps, with Publish anyway LAST, nearest the
+ * thumb (U11). Painted from the theme's roles (D15).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -35,16 +36,12 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
             size="content"
             footer={
                 <View style={styles.actions}>
-                    <View style={styles.action}>
-                        <Button variant="secondary" icon="list" width="fill" onPress={onChooseNow}>
-                            {copy.chooseNow}
-                        </Button>
-                    </View>
-                    <View style={styles.action}>
-                        <Button icon="check" width="fill" onPress={onPublishAnyway}>
-                            {copy.publishAnyway}
-                        </Button>
-                    </View>
+                    <Button variant="secondary" icon="list" width="fill" onPress={onChooseNow}>
+                        {copy.chooseNow}
+                    </Button>
+                    <Button icon="check" width="fill" onPress={onPublishAnyway}>
+                        {copy.publishAnyway}
+                    </Button>
                 </View>
             }
         >
@@ -62,7 +59,6 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
 const styles = StyleSheet.create({
     body: { gap: nativeTokens.spacing[3] },
     lead: { ...nativeTokens.type.body },
-    meta: { ...nativeTokens.type.meta },
-    actions: { flexDirection: 'row', gap: nativeTokens.spacing[3] },
-    action: { flex: 1, minWidth: 0 },
+    meta: { ...nativeTokens.type.list },
+    actions: { flexDirection: 'column', gap: nativeTokens.spacing[3] },
 });

@@ -38,7 +38,9 @@ describe('PublishOpenChoicesSheet (web)', () => {
         renderSheet();
 
         expect(
-            screen.getByText(/Grandma’s spice mix are saved as written\. They don’t count toward nutrition/),
+            screen.getByText(
+                /We’ll save Milk, day-old bread, salt, and Grandma’s spice mix as written\. They don’t count toward nutrition/,
+            ),
         ).toBeTruthy();
     });
 
@@ -46,7 +48,7 @@ describe('PublishOpenChoicesSheet (web)', () => {
         renderSheet();
 
         expect(
-            screen.getByText('Heavy cream is still being checked. If you publish now, it is saved as written too.'),
+            screen.getByText('We’re still checking Heavy cream. If you publish now, it is saved as written too.'),
         ).toBeTruthy();
     });
 
@@ -96,5 +98,19 @@ describe('PublishOpenChoicesSheet (web)', () => {
         renderSheet(FACTS, false);
 
         expect(screen.queryByRole('heading', { name: '4 ingredients have no food yet' })).toBeNull();
+    });
+
+    // U11: at narrow the two stack with the PRIMARY LAST, nearest the thumb, in visual and Tab order alike; from the
+    // `nav` width they share a row. They were a fixed two-column grid.
+    it('stacks Choose now then Publish anyway at narrow, the primary last, and shares a row from the nav width', () => {
+        renderSheet();
+
+        const chooseNow = screen.getByRole('button', { name: 'Choose now' });
+        const publish = screen.getByRole('button', { name: 'Publish anyway' });
+        const footer = chooseNow.closest('div.flex');
+
+        expect(chooseNow.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(footer?.className.split(' ')).toEqual(expect.arrayContaining(['flex-col', 'nav:flex-row']));
+        expect(footer?.className).not.toContain('reverse');
     });
 });

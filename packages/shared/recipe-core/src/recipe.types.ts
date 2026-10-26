@@ -338,12 +338,11 @@ export interface Recipe {
  * capability only a premium user has. Called by BOTH the list and the detail projection so they can
  * never disagree; never inlined or re-implemented elsewhere.
  *
- * The only premium-gated recipe capability today is CHOOSING private visibility. Note this is
- * deliberately NOT `visibility === 'private'`: per C-004, `imported_physical` and `imported_paid`
- * recipes are private for EVERY tier (their privacy is forced, not chosen), so badging them PRO would
- * mark a free-tier user's OCR import as premium content. That is latent today — 004 has not shipped,
- * so every row is `user_created` — which is exactly why it is encoded correctly now, while the rule
- * costs nothing to get right.
+ * The only premium-gated recipe capability today is keeping an IMPORTED PUBLIC-WEB recipe private (ADR-0073 section 10):
+ * that still needs Premium and a substantive edit. A free cook can hold a private `user_created` recipe in one of their
+ * 50 private slots, and a book or paid-site recipe (`imported_physical`, `imported_paid`) is private for every tier and
+ * uses a slot too, so none of those three is a premium capability. Badging them PRO would mark a free cook's own
+ * recipes as premium content. This is deliberately NOT `visibility === 'private'`.
  *
  * When 010 ships real entitlements, this function is the one place the rule changes.
  *
@@ -351,10 +350,7 @@ export interface Recipe {
  * @returns True when the recipe uses a premium-only capability. Pure.
  */
 export function usesPremiumCapability(recipe: Pick<Recipe, 'visibility' | 'sourceType'>): boolean {
-    return (
-        recipe.visibility === RecipeVisibility.PRIVATE &&
-        (recipe.sourceType === RecipeSourceType.USER_CREATED || recipe.sourceType === RecipeSourceType.IMPORTED_PUBLIC)
-    );
+    return recipe.visibility === RecipeVisibility.PRIVATE && recipe.sourceType === RecipeSourceType.IMPORTED_PUBLIC;
 }
 
 /**

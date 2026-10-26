@@ -1,7 +1,8 @@
 /**
- * @module @commise/ui/state-notice — the native `StateNotice`: the thumb-reach stack the root crash fallback drew. The
- * message sits in the upper two thirds, centred; the actions sit stacked at full width in the bottom third, within reach
- * of the thumb, the primary on top.
+ * @module @commise/ui/state-notice — the native `StateNotice`: the root crash fallback's stack. The message and its
+ * actions are one centred group; the actions sit under the message at their label's width (`componentFixes.md` §1: Try
+ * again is a quiet control, not a full-width call to action), the first on top. The first is quiet, with the body as
+ * its description; the way out is ghost.
  *
  * The title is ANNOUNCED through `LiveRegion` (iOS has no live region, so an `alert` role on a View is silent there) and
  * is also the screen's header.
@@ -31,12 +32,17 @@ export const StateNotice: FC<StateNoticeProps> = ({ title, body, primary, second
             </View>
             <View style={styles.actions}>
                 {primary === undefined ? null : (
-                    <Button icon={primary.icon} onPress={primary.onPress}>
+                    <Button
+                        variant="quiet"
+                        icon={primary.icon}
+                        onPress={primary.onPress}
+                        {...(body === undefined ? {} : { description: body })}
+                    >
                         {primary.label}
                     </Button>
                 )}
                 {secondary === undefined ? null : (
-                    <Button variant="secondary" icon={secondary.icon} onPress={secondary.onPress}>
+                    <Button variant="ghost" icon={secondary.icon} onPress={secondary.onPress}>
                         {secondary.label}
                     </Button>
                 )}
@@ -46,12 +52,13 @@ export const StateNotice: FC<StateNoticeProps> = ({ title, body, primary, second
 };
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, justifyContent: 'space-between', padding: 24 },
-    message: { flex: 2, alignItems: 'center', justifyContent: 'center', gap: 8 },
+    // One centred group: the message, then its actions under it (no longer pinned to the bottom third).
+    screen: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
+    message: { alignItems: 'center', gap: 8 },
     title: {
         ...nativeTokens.type.sectionTitle,
         textAlign: 'center',
     },
     body: { ...nativeTokens.type.meta, textAlign: 'center' },
-    actions: { flex: 1, justifyContent: 'flex-end', gap: 12, alignSelf: 'stretch', maxWidth: 480, width: '100%' },
+    actions: { alignItems: 'center', gap: 12 },
 });

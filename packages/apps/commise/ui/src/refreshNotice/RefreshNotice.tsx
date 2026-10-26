@@ -6,28 +6,27 @@
  * button. The rows the viewer is reading are still valid, so the region is POLITE — unlike `LoadMoreControl`'s
  * assertive alert, which reports an action the viewer just took failing.
  *
- * A retry in flight keeps the message and the SAME button (busy through `busyControlProps`): unmounting the pressed
+ * A retry in flight keeps the message and the SAME button (busy through `Button`, i.e. `busyControlProps`): unmounting the pressed
  * button would drop its focus to `<body>` (WCAG 2.2 SC 2.4.3). Only the announcement clears, so a second failure is
  * announced again. A successful refresh removes the row; where focus goes then is the surface's decision, because
  * only the surface knows what it would land on.
  *
- * The button carries a `lineDivider` hairline: its `canvas` fill is ~1:1 against the `surfaceMuted` row, so without it a text-only
- * control reads as bold text rather than something pressable. Decorative — the visible label is what identifies it.
+ * The button is the quiet `Button` with the retry glyph. It used to carry a `lineDivider` hairline and a `canvas` fill so
+ * a text-only control on a `surfaceMuted` row read as pressable; the `actionText` glyph is that cue now, and the tonal
+ * fill is a chip's (`componentFixes.md` §4), so the control draws none.
  *
  * A presentational leaf: the caller derives `failed` and `refreshing` from its query.
  *
- * @pattern Facade over a busy button and a polite `status` region, with the busy half delegated to
- *     `busyControlProps`
+ * @pattern Facade over the design system's quiet `Button` and a polite `status` region, with the busy half and the
+ *     failure reason's description delegated to `Button`
  */
-import { useId, type FC } from 'react';
+import type { FC } from 'react';
 
-import { BUSY_CONTROL_CLASS, busyControlProps } from '../button/busyControlProps.js';
+import { Button } from '../button/Button.js';
 import type { RefreshNoticeProps } from './props.js';
 
 /** The failed-refresh notice: a silent region until a refresh fails, then the message and its retry. */
 export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRetry, labels }) => {
-    const messageId = useId();
-
     return (
         <>
             <p role="status" className="sr-only">
@@ -35,17 +34,16 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
             </p>
             {failed && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-muted px-4 py-2">
-                    <p id={messageId} className="text-body-sm text-ink-muted">
-                        {labels.failed}
-                    </p>
-                    <button
-                        type="button"
-                        {...busyControlProps({ busy: refreshing, onClick: onRetry })}
-                        aria-describedby={messageId}
-                        className={`inline-flex min-h-11 items-center justify-center rounded-full border border-line-divider bg-canvas px-4 py-2 text-body-sm font-semibold text-ink transition hover:bg-ink/6 md:min-h-0 ${BUSY_CONTROL_CLASS}`}
+                    <p className="text-body-sm text-ink-muted">{labels.failed}</p>
+                    <Button
+                        variant="quiet"
+                        icon="refreshCw"
+                        busy={refreshing}
+                        onPress={onRetry}
+                        description={labels.failed}
                     >
                         {labels.retry}
-                    </button>
+                    </Button>
                 </div>
             )}
         </>

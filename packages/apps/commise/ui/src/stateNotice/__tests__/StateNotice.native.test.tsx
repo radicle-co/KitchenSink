@@ -78,4 +78,45 @@ describe('StateNotice (native)', () => {
 
         expect(screen.queryByRole('button')).toBeNull();
     });
+
+    // `componentFixes.md` §1: Try again is the quiet tier at its label's width, under the message; the way out is ghost.
+    it('⛔ draws the first action quiet (ink label, actionText glyph, no fill) and the second ghost (actionText)', () => {
+        const { container } = render(
+            <StateNotice
+                title="Failed."
+                primary={{ label: 'Try again', icon: 'refreshCw', onPress: vi.fn() }}
+                secondary={{ label: 'Back to Home', icon: 'house', onPress: vi.fn() }}
+            />,
+        );
+        const [first, second] = screen.getAllByRole('button');
+
+        expect(getComputedStyle(screen.getByText('Try again')).color).toBe(rgb(role.ink));
+        expect(getComputedStyle(screen.getByText('Back to Home')).color).toBe(rgb(role.actionText));
+
+        for (const button of [first, second]) {
+            const pill = [button, ...Array.from(button?.querySelectorAll<HTMLElement>('*') ?? [])].find(
+                (el) => Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) > 0,
+            );
+
+            expect(getComputedStyle(pill as HTMLElement).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+        }
+
+        expect(container.querySelector('[data-commise-stub="icon"][data-icon-name="refresh-cw"]')).not.toBeNull();
+    });
+
+    it('⛔ stops stretching the actions: they sit at their label’s width, not across the screen', () => {
+        render(
+            <StateNotice
+                title="Failed."
+                primary={{ label: 'Try again', icon: 'refreshCw', onPress: vi.fn() }}
+                secondary={{ label: 'Back to Home', icon: 'house', onPress: vi.fn() }}
+            />,
+        );
+        const actions = screen.getByRole('button', { name: 'Try again' }).parentElement as HTMLElement;
+        const style = getComputedStyle(actions);
+
+        expect(style.alignItems).not.toBe('stretch');
+        expect(style.alignSelf).not.toBe('stretch');
+        expect(getComputedStyle(screen.getByRole('button', { name: 'Try again' })).alignSelf).not.toBe('stretch');
+    });
 });

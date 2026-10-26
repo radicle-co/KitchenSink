@@ -20,9 +20,11 @@ import type { PressScaleWidth } from '../pressScale/props.js';
 
 /**
  * The visual tiers (§1.10). `primary` is the one filled call-to-action of a view; `secondary` is neutral (paper, a
- * `lineControl` edge, an `ink` label); `ghost` is an `actionText` label with no surface at rest; `quiet` is an
- * `inkMuted` label with no surface at rest, for an action that must stay available without competing with the line's
- * own choices ("Keep … as written", `docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`);
+ * `lineControl` edge, an `ink` label); `ghost` is an `actionText` label with no surface at rest; `quiet` is an `ink`
+ * label with no surface at rest and its glyph in `actionText`, for an action that must stay available without a
+ * surface of its own: Try again (`componentFixes.md` §1) and "Keep … as written"
+ * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). It has no fill on purpose: a tonal fill marks
+ * a chip (`componentFixes.md` §4);
  * `destructive` is a danger label, filled with `danger` only in its `confirm` tone.
  */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructive';
@@ -76,6 +78,12 @@ interface ButtonCommon {
      * yields to {@link busy} and wins over {@link disabled}.
      */
     readonly refused?: boolean;
+    /**
+     * Why the action is on offer, or what went wrong: the control's accessible DESCRIPTION, read after its name, never
+     * part of it. Web draws it in a visually hidden element beside the button and points `aria-describedby` at it;
+     * native hands it over as the `accessibilityHint`, because React Native has no `aria-describedby`.
+     */
+    readonly description?: string;
     /**
      * Overrides the label-derived accessible name. Use only when the visible label is not a plain string or is
      * insufficient on its own; the visible label must stay contained in it (SC 2.5.3).

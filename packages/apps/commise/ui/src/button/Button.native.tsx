@@ -17,7 +17,7 @@
  *   40%.
  *
  * Every tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,
- * surface-less ghost and quiet (an `actionText` and an `inkMuted` label), and destructive's danger label (filled
+ * surface-less ghost and quiet (an `actionText` label; an `ink` label with an `actionText` glyph), and destructive's danger label (filled
  * `danger` only in its `confirm` tone). Each colour comes
  * from `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).
  *
@@ -52,10 +52,16 @@ const FOREGROUND: Readonly<Record<Surface, Role>> = {
     primary: 'onAction',
     secondary: 'ink',
     ghost: 'actionText',
-    quiet: 'inkMuted',
+    quiet: 'ink',
     destructiveInline: 'dangerText',
     destructiveConfirm: 'onAction',
 };
+
+/**
+ * Each surface's GLYPH and spinner role. Every tier draws them in its label's colour except `quiet`: an `ink` label with
+ * an `actionText` glyph (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`.
+ */
+const GLYPH: Readonly<Record<Surface, Role>> = { ...FOREGROUND, quiet: 'actionText' };
 
 /**
  * Each surface's paint in the current theme — the native idiom of the web leaf's map (the two change for different
@@ -94,6 +100,7 @@ export const Button: FC<ButtonProps> = (props) => {
         busy = false,
         refused = false,
         accessibilityLabel,
+        description,
         width = 'auto',
         iconPlacement = 'start',
         focusRequested = false,
@@ -103,6 +110,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const surface: Surface =
         variant === 'destructive' ? (tone === 'confirm' ? 'destructiveConfirm' : 'destructiveInline') : variant;
     const foreground = FOREGROUND[surface];
+    const glyphRole = GLYPH[surface];
     const theme = useTheme();
     const node = useRef<View>(null);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
@@ -117,9 +125,9 @@ export const Button: FC<ButtonProps> = (props) => {
         busy || icon !== undefined ? (
             <View style={styles.glyph} aria-hidden>
                 {busy || icon === undefined ? (
-                    <ActivityIndicator color={theme.colors[foreground]} />
+                    <ActivityIndicator color={theme.colors[glyphRole]} />
                 ) : (
-                    <Icon name={icon} size={20} tone={foreground} />
+                    <Icon name={icon} size={20} tone={glyphRole} />
                 )}
             </View>
         ) : null;
@@ -150,6 +158,7 @@ export const Button: FC<ButtonProps> = (props) => {
             busy={busy}
             accessibilityRole="button"
             accessibilityLabel={resolveAccessibilityLabel(accessibilityLabel, children)}
+            accessibilityHint={description}
             width={width}
         >
             {/* `sm` draws below the touch floor, so a transparent frame carries the hit area around it. */}

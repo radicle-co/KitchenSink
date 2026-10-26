@@ -85,13 +85,13 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** Tiers drawn with a glyph here, with the colour their label and glyph share. */
+/** Tiers drawn with a glyph here: the colour of the label, and of the glyph (which only `quiet` takes apart). */
 const TIERS = [
-    { variant: 'primary', tone: undefined, label: role.onAction },
-    { variant: 'secondary', tone: undefined, label: role.ink },
-    { variant: 'quiet', tone: undefined, label: role.inkMuted },
-    { variant: 'destructive', tone: 'inline', label: role.dangerText },
-    { variant: 'destructive', tone: 'confirm', label: role.onAction },
+    { variant: 'primary', tone: undefined, label: role.onAction, glyph: role.onAction },
+    { variant: 'secondary', tone: undefined, label: role.ink, glyph: role.ink },
+    { variant: 'quiet', tone: undefined, label: role.ink, glyph: role.actionText },
+    { variant: 'destructive', tone: 'inline', label: role.dangerText, glyph: role.dangerText },
+    { variant: 'destructive', tone: 'confirm', label: role.onAction, glyph: role.onAction },
 ] as const;
 
 describe('Button (native)', () => {
@@ -117,8 +117,10 @@ describe('Button (native)', () => {
         expect(screen.getByRole('button', { name: 'Add step' })).toBeTruthy();
     });
 
-    it('draws the glyph in its label’s colour, for every tier', () => {
-        for (const { variant, tone, label } of TIERS) {
+    // ⚠️ REWRITTEN (`componentFixes.md` §1): "the glyph is in its label's colour, for every tier" stopped being true for
+    // quiet, whose label is `ink` and whose glyph is `actionText`. Every other tier still agrees with its label.
+    it('draws the glyph in its tier’s glyph colour — its label’s, except quiet’s actionText', () => {
+        for (const { variant, tone, label, glyph } of TIERS) {
             const { container, unmount } = render(
                 variant === 'destructive' ? (
                     <Button icon="trash" variant={variant} tone={tone}>
@@ -131,7 +133,7 @@ describe('Button (native)', () => {
                 ),
             );
 
-            expect(glyphIn(container)?.dataset['iconColor'], `${variant} ${String(tone)}`).toBe(label);
+            expect(glyphIn(container)?.dataset['iconColor'], `${variant} ${String(tone)}`).toBe(glyph);
             expect(getComputedStyle(screen.getByText('Tier')).color, `${variant} ${String(tone)}`).toBe(rgb(label));
             unmount();
         }
@@ -291,8 +293,8 @@ describe('Button (native)', () => {
         expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
     });
 
-    // `ingredientMatching.md`, "Decisions from the build": text only, in `--ink-muted`, with the same 44 px target.
-    it('paints quiet as text only: no fill and no edge, in inkMuted, as a named button', () => {
+    // `componentFixes.md` §1: text only, in `--ink` (it was `--ink-muted`), with the same 44 px target.
+    it('paints quiet as text only: no fill and no edge, in ink, as a named button', () => {
         render(<Button variant="quiet">Keep as written</Button>);
 
         const button = screen.getByRole('button', { name: 'Keep as written' });
@@ -300,14 +302,39 @@ describe('Button (native)', () => {
 
         expect(pill.backgroundColor).toBe('rgba(0, 0, 0, 0)');
         expect(pill.borderTopWidth).toBe('0px');
-        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(role.inkMuted));
+        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(role.ink));
     });
 
-    it('repaints the quiet label from the dark inkMuted role when the system is dark', () => {
+    it('repaints the quiet label and glyph from the dark roles when the system is dark', () => {
         scheme.current = 'dark';
-        render(<Button variant="quiet">Keep as written</Button>);
+        const { container } = render(
+            <Button variant="quiet" icon="refreshCw">
+                Keep as written
+            </Button>,
+        );
 
-        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(roleDark.inkMuted));
+        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(roleDark.ink));
+        expect(glyphIn(container)?.dataset['iconColor']).toBe(roleDark.actionText);
+    });
+
+    it('draws the busy spinner in the quiet glyph colour, actionText, on the same pressable', () => {
+        const { rerender } = render(
+            <Button variant="quiet" icon="refreshCw">
+                Try again
+            </Button>,
+        );
+        const button = screen.getByRole('button', { name: 'Try again' });
+
+        rerender(
+            <Button variant="quiet" icon="refreshCw" busy>
+                Try again
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
+        expect(screen.getByRole('progressbar', { hidden: true }).outerHTML).toContain(
+            `stroke: ${rgb(role.actionText)}`,
+        );
     });
 
     it('gives quiet a 44 pt target on iOS and 48 dp on Android', () => {

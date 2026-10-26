@@ -34,6 +34,7 @@ export const PressScale: FC<PressScaleProps> = ({
     disabled = false,
     busy = false,
     accessibilityLabel,
+    accessibilityHint,
     accessibilityRole = 'button',
     ref,
     expanded,
@@ -50,6 +51,7 @@ export const PressScale: FC<PressScaleProps> = ({
             disabled={disabled}
             accessibilityRole={accessibilityRole}
             accessibilityLabel={accessibilityLabel}
+            accessibilityHint={accessibilityHint}
             // `expanded` only when stated: `false` is COLLAPSED, and absent means "not a disclosure".
             accessibilityState={{ disabled, busy, ...(expanded === undefined ? {} : { expanded }) }}
             // `aria-busy` is React Native's own first-class ALIAS for `accessibilityState.busy` (declared in

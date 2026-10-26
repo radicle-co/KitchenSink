@@ -116,6 +116,7 @@ import {
     recipeNutritionRequestSchema,
     recipeNutritionResponseSchema,
     recipeNutritionStateSchema,
+    privateSlotUsageSchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
     MAX_NUTRITION_RECIPE_IDS,
@@ -190,6 +191,7 @@ export const openApiComponents = {
     RecipeNutritionState: recipeNutritionStateSchema,
     RecipeNutritionResponse: recipeNutritionResponseSchema,
     SetRecipeVisibilityRequest: setRecipeVisibilityRequestSchema,
+    PrivateSlotUsage: privateSlotUsageSchema,
     RebindIngredientLineRequest: rebindIngredientLineRequestSchema,
     SetRatingRequest: setRatingRequestSchema,
     RecipePhoto: recipePhotoSchema,
@@ -389,7 +391,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             requestBody: { description: 'The recipe to create.', required: true, schema: 'CreateRecipeRequest' },
             responses: {
                 '201': { description: 'The created recipe.', schema: 'RecipeDetail' },
-                '403': CONTAINED_403,
+                '403': {
+                    description: `A free cook with no private slot left asked for \`private\` (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`), or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    schema: 'ErrorResponse',
+                },
                 ...sharedErrorResponses(),
             },
         },
@@ -421,6 +426,18 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             ],
             responses: {
                 '200': { description: 'A page of the caller’s recipes.', schema: 'PaginatedRecipes' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipes/private-slots': {
+        get: {
+            operationId: 'getPrivateSlots',
+            summary: 'The caller’s private-slot standing (ADR-0073).',
+            description:
+                'A free cook holds up to a limit of private recipes (every private, undeleted recipe they own, any label, drafts included); Premium has none. `limited` carries the live count and the limit the SERVER states (`used` can exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited` carries neither. A DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private write is never withheld on it. Scoped entirely by the verified token.',
+            responses: {
+                '200': { description: 'The caller’s private-slot standing.', schema: 'PrivateSlotUsage' },
                 ...sharedErrorResponses(),
             },
         },
@@ -506,7 +523,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             parameters: [uuidPathParam('id', 'The recipe to clone.')],
             responses: {
                 '201': { description: 'The caller’s new clone.', schema: 'RecipeDetail' },
-                '403': CONTAINED_403,
+                '403': {
+                    description: `A clone that lands private by default needs a private slot: a free cook with none left gets \`code: PRIVATE_SLOTS_FULL\` (\`details.used\`, \`details.limit\`). Or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    schema: 'ErrorResponse',
+                },
                 '404': RECIPE_NOT_FOUND,
                 ...sharedErrorResponses(),
             },
@@ -561,7 +581,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '200': { description: 'The updated recipe.', schema: 'RecipeDetail' },
                 '403': {
-                    description: `The caller does not own the recipe, or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    description: `The caller does not own the recipe; or a free cook with no private slot left asked for \`private\` (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`); or: ${TEST_PRINCIPAL_CONTAINED}`,
                     schema: 'ErrorResponse',
                 },
                 '404': RECIPE_NOT_FOUND,

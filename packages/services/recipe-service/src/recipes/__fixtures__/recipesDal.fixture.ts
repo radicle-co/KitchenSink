@@ -32,6 +32,11 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         update: vi.fn(),
         softDelete: vi.fn(),
         readConflict: vi.fn(),
+        // ADR-0073: a cook with no private recipes by default. A suite about slots overrides these with the count it needs.
+        lockAndCountPrivateSlots: vi.fn(async () => 0),
+        countPrivateSlots: vi.fn(async () => 0),
+        lockVisibility: vi.fn(),
+        setVisibility: vi.fn(),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
         ...overrides,
     };

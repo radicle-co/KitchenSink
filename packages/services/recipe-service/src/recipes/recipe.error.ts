@@ -244,3 +244,20 @@ export function invalidVisibility(reason: string, details?: Record<string, unkno
 export function provenanceNotPermitted(reason: string, details?: Record<string, unknown>): HttpException {
     return apiError('FORBIDDEN', reason, details);
 }
+
+/**
+ * `PRIVATE_SLOTS_FULL` (→ 403) - a free cook has no private slot left (ADR-0073). NOTHING was written.
+ *
+ * `used` is the live count the write saw under the per-user lock; it can exceed `limit` for a cook who lost Premium with
+ * more than the limit, and is reported as it is.
+ *
+ * @param used - The cook's private, undeleted recipes.
+ * @param limit - The cook's limit.
+ * @returns The error.
+ */
+export function privateSlotsFull(used: number, limit: number): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.PRIVATE_SLOTS_FULL, 'All of your private slots are in use.', {
+        used,
+        limit,
+    });
+}

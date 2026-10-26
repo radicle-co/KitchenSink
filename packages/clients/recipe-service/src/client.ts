@@ -59,6 +59,7 @@ import {
     ImportCursorMovedError,
     ImportItemAlreadySavedError,
     ImportQuotaExceededError,
+    PrivateSlotsFullError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
     PublishRequirementsUnmetError,
@@ -1714,6 +1715,9 @@ export class RecipeServiceClient {
             // retry policy classifies terminal. Mapped here, off the code, so no surface string-compares `.code`.
             case 'IMPORT_QUOTA_EXCEEDED':
                 return new ImportQuotaExceededError(body.details.resetsAt, body.message);
+            // ADR-0073 - a 403 with a remedy of its own (free a slot or take Premium), terminal for the retry policy. Mapped off the code.
+            case 'PRIVATE_SLOTS_FULL':
+                return new PrivateSlotsFullError(body.details.used, body.details.limit, body.message);
             // ADR-0072 — two 409s a bulk-import surface acts on differently from any other conflict, so each is its own class.
             case 'IMPORT_CURSOR_MOVED':
                 return new ImportCursorMovedError(body.details.cursorOrdinal, body.message);

@@ -1504,6 +1504,13 @@ export const RecipeErrorCode = {
      * earlier request landed; `details.ordinal` names the item.
      */
     IMPORT_ITEM_ALREADY_SAVED: 'IMPORT_ITEM_ALREADY_SAVED',
+    /**
+     * ADR-0073 - a free cook has no private slot left, so the recipe cannot be made (or kept as a new) private. A 403, NOT a 409:
+     * the recipe client reads any 409 code it does not know as a version conflict, so an installed build that predates this code
+     * would open the conflict view for a slot refusal. `details.used` and `details.limit` are always present (a downgraded cook
+     * can hold more than the limit, and `used` says so).
+     */
+    PRIVATE_SLOTS_FULL: 'PRIVATE_SLOTS_FULL',
 } as const;
 
 /**
@@ -1549,6 +1556,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.IMPORT_NOT_FOUND,
     RecipeErrorCode.IMPORT_CURSOR_MOVED,
     RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
+    RecipeErrorCode.PRIVATE_SLOTS_FULL,
 ]);
 
 /**

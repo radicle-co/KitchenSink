@@ -43,7 +43,8 @@ import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
-import { OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { actingPrincipalOf, type Principal } from '../auth/principal.js';
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
@@ -148,12 +149,12 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async proposeMatches(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        await this.matchProposals.propose(ownerId, caller, id);
+        await this.matchProposals.propose(actingPrincipalOf(principal), caller, id);
 
-        return this.matchView.decorate(ownerId, caller, await this.parseJobsService.get(ownerId, id));
+        return this.matchView.decorate(principal.userId, caller, await this.parseJobsService.get(principal.userId, id));
     }
 }

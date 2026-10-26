@@ -47,7 +47,8 @@ explicit pick. The review gate checks every paste match, whatever its measured e
    autonomy (D1). Spend is attributed to a new call site, `paste-match-review`, inside ADR-0024's one pool.
    No `ingredientPhrase` is sent, so the worker writes no memo from a paste.
 8. **A send is claimed.** A verdict already on record sends nothing. A row already sent sends nothing. A failed send
-   releases its claim for the next call.
+   releases its claim for the next call. A contained test principal (ADR-0040) gets its proposals stored, but no
+   review is sent for them. The save path's verification producer follows the same rule.
 9. **The state is derived at read time.** `matchStateOf` is a pure policy, applied in this order:
 
     | State         | When                                                                                            |

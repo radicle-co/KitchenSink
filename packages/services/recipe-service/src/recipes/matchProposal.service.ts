@@ -20,7 +20,8 @@
  *  5. **One request per proposal, paid once.** A verdict already on record under the key sends nothing; a row already
  *     sent sends nothing; a send is CLAIMED so two concurrent calls cannot both send it, and a failed send releases
  *     its claim so the next call retries. Identity is always asked (no band, no curated skip).
- *  6. **Bounded work.** Lines are matched in waves of {@link MatchProposalLimits.concurrency} until a time budget is
+ *  6. **Contained test principals send nothing** (ADR-0040): their proposals are stored, the review is not asked.
+ *  7. **Bounded work.** Lines are matched in waves of {@link MatchProposalLimits.concurrency} until a time budget is
  *     spent. What is left waits for the client's next call, which the idempotency above makes safe.
  *
  * ⚠️ Residual risk, recorded rather than hidden: a message SQS accepted and then lost leaves its row claimed with no
@@ -35,6 +36,8 @@ import {
 } from '@kitchensink/recipe-core/resolution/verification-message';
 
 import type { CallerToken } from '../auth/CallerToken.js';
+import type { ActingPrincipal } from '../auth/principal.js';
+import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { isBatchEnqueueError } from '../common/batchEnqueueError.js';
 import { sha256Hex } from '../common/sha256.js';
 import { foodRefKey, type FoodRef } from '../database/schema/foodLookupArm.js';
@@ -132,13 +135,14 @@ export class MatchProposalService {
     /**
      * Match every parsed food of the owner's job that has no current match, and ask the gate about each proposal.
      *
-     * @param ownerId - The caller; only their job is read.
+     * @param acting - The verified caller's acting slice: only their job is read, and their containment decides the enqueue.
      * @param caller - The caller's credential, forwarded to food.
      * @param jobId - The job.
      * @throws `PARSE_JOB_NOT_FOUND` for a stranger or an absent job, `PARSE_JOB_EXPIRED` past the TTL.
      * @sideEffect Food searches and refs reads as the caller, match writes, verification enqueues.
      */
-    public async propose(ownerId: string, caller: CallerToken | undefined, jobId: string): Promise<void> {
+    public async propose(acting: ActingPrincipal, caller: CallerToken | undefined, jobId: string): Promise<void> {
+        const ownerId = acting.userId;
         const job = await this.jobs.getJob(ownerId, jobId);
 
         if (job === undefined) {
@@ -185,7 +189,7 @@ export class MatchProposalService {
         }
 
         await this.matches.saveMatches(jobId, fresh);
-        await this.sendOwed(ownerId, caller, jobId, lines, known);
+        await this.sendOwed(acting, caller, jobId, lines, known);
     }
 
     /**
@@ -222,7 +226,7 @@ export class MatchProposalService {
     }
 
     /**
-     * Match the owed slots in waves until the budget is spent (rule 6).
+     * Match the owed slots in waves until the budget is spent (rule 7).
      *
      * @returns A draft per slot the chain could answer for; a slot it could not look for is left out (rule 4).
      * @sideEffect Runs the proposal chain as the caller.
@@ -418,16 +422,24 @@ export class MatchProposalService {
     /**
      * Send one verification request for every current match that is owed one (rule 5).
      *
+     * ⛔ NOTHING for a CONTAINED test principal (ADR-0040), and that check is the FIRST statement. The review spends
+     * ADR-0024's shared production pool, which a test principal is contained from, exactly as the save path's
+     * producer is (`RecipesService.requestVerification`). The proposals stay the cook's own rows; they read `checking`.
+     *
      * @sideEffect Reads the matches and the verdict table, claims, enqueues, and releases on failure.
      */
     private async sendOwed(
-        ownerId: string,
+        subject: ContainmentSubject & Pick<ActingPrincipal, 'userId'>,
         caller: CallerToken | undefined,
         jobId: string,
         lines: ReturnType<MatchProposalService['parsedLines']>,
         known: ReadonlyMap<string, FoodRefAnswer>,
     ): Promise<void> {
-        const owed = (await this.matches.findForJob(ownerId, jobId)).filter(
+        if (isContained(subject)) {
+            return;
+        }
+
+        const owed = (await this.matches.findForJob(subject.userId, jobId)).filter(
             (match) =>
                 match.verificationKey !== null &&
                 match.enqueuedAt === null &&

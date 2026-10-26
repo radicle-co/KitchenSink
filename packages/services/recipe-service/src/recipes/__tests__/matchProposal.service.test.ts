@@ -18,6 +18,7 @@ import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 
 import { CallerToken } from '../../auth/CallerToken.js';
+import type { Principal } from '../../auth/principal.js';
 import { sha256Hex } from '../../common/sha256.js';
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
@@ -40,6 +41,19 @@ import { isRecipeDomainError } from '../recipe.error.js';
 const OWNER = '01JMATCHPROPOSALOWNER00001';
 const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
+
+/** The verified cook, as the auth middleware hands it over. */
+const principal = (userId: string, overrides: Partial<Principal> = {}): Principal => ({
+    userId,
+    sub: `clerk_${userId}`,
+    scopes: [],
+    permissions: [],
+    roles: [],
+    principalKind: 'real',
+    containment: 'enforce',
+    ...overrides,
+});
+const COOK = principal(OWNER);
 
 /** What each tier holds for the phrase it is asked about. */
 interface World {
@@ -171,7 +185,7 @@ describe('MatchProposalService.propose — whose job, and which jobs', () => {
     it('⛔ answers PARSE_JOB_NOT_FOUND for a stranger, and writes nothing', async () => {
         const { service, matches, queue } = setup();
 
-        await expect(service.propose('01JSTRANGER0000000000000001', CALLER, JOB)).rejects.toSatisfy(
+        await expect(service.propose(principal('01JSTRANGER0000000000000001'), CALLER, JOB)).rejects.toSatisfy(
             (error) => isRecipeDomainError(error) && error.code === 'PARSE_JOB_NOT_FOUND',
         );
         expect(matches.rows.size).toBe(0);
@@ -181,7 +195,7 @@ describe('MatchProposalService.propose — whose job, and which jobs', () => {
     it('⛔ answers PARSE_JOB_EXPIRED once the TTL passed', async () => {
         const { service, matches } = setup({ job: makeParseJobRecord({ expiresAt: new Date(Date.now() - 1_000) }) });
 
-        await expect(service.propose(OWNER, CALLER, JOB)).rejects.toSatisfy(
+        await expect(service.propose(COOK, CALLER, JOB)).rejects.toSatisfy(
             (error) => isRecipeDomainError(error) && error.code === 'PARSE_JOB_EXPIRED',
         );
         expect(matches.rows.size).toBe(0);
@@ -198,7 +212,7 @@ describe('MatchProposalService.propose — whose job, and which jobs', () => {
             }),
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(0);
     });
@@ -206,7 +220,7 @@ describe('MatchProposalService.propose — whose job, and which jobs', () => {
     it('⛔ proposes NOTHING while the operator has the catalog switched off — a no-match then would stick', async () => {
         const { service, matches, chain } = setup({ enabled: false });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(0);
         expect(chain.curated).not.toHaveBeenCalled();
@@ -217,7 +231,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
     it('stores the lexical proposal with its candidates, and sends ONE parse-job verification', async () => {
         const { service, matches, queue, chain } = setup();
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         // AS the cook: the chain gets the caller and the owner.
         expect(chain.lexical).toHaveBeenCalledWith(expect.objectContaining({ phrase: 'whole milk' }), {
@@ -278,7 +292,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             }),
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         const messages = queue.enqueue.mock.calls[0]?.[0] ?? [];
 
@@ -298,7 +312,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             answers: { 'root:F-whole': found('Milk, whole', 'F-whole') },
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(chain.lexical).toHaveBeenCalledTimes(1);
         const [row] = matches.rows.values();
@@ -313,7 +327,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             answers: { 'root:F-retired': found('Beef brisket', 'R-brisket', 'V-flat') },
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         const [row] = matches.rows.values();
 
@@ -329,7 +343,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             answers: { 'root:F-whole': found('Gran’s milk', 'F-whole', undefined, true) },
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(queue.enqueue.mock.calls[0]?.[0]?.[0]?.privateFood).toBe(true);
     });
@@ -339,7 +353,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             answers: { 'root:F-crackers': found('Milk crackers', 'F-crackers') },
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         const [row] = matches.rows.values();
 
@@ -351,7 +365,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
     it('stores NO MATCH for a phrase with no candidates, and asks nothing', async () => {
         const { service, matches, queue } = setup({ world: { lexical: [] } });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect([...matches.rows.values()]).toMatchObject([{ proposal: null, candidates: [], verificationKey: null }]);
         expect(queue.enqueue).not.toHaveBeenCalled();
@@ -363,7 +377,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             job: makeParseJobRecord({ lines: [makeParseJobLine({ sourceLine: long })] }),
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         const [row] = matches.rows.values();
 
@@ -377,7 +391,7 @@ describe('MatchProposalService.propose — an outage is never a stored no-match'
     it('⛔ writes NO row when a tier could not look — the next call retries', async () => {
         const { service, matches } = setup({ world: { lexical: 'unavailable' } });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(0);
     });
@@ -385,7 +399,7 @@ describe('MatchProposalService.propose — an outage is never a stored no-match'
     it('⛔ writes NO row when food could not be asked about the proposal', async () => {
         const { service, matches } = setup({ answers: { 'root:F-whole': { outcome: 'unreachable' } } });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(0);
     });
@@ -395,10 +409,10 @@ describe('MatchProposalService.propose — idempotent, and paid once', () => {
     it('⛔ a second call for the same lines runs no tier and sends nothing', async () => {
         const { service, chain, queue } = setup();
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
         chain.lexical.mockClear();
         queue.enqueue.mockClear();
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(chain.lexical).not.toHaveBeenCalled();
         expect(queue.enqueue).not.toHaveBeenCalled();
@@ -408,11 +422,11 @@ describe('MatchProposalService.propose — idempotent, and paid once', () => {
         const lines = [makeParseJobLine()];
         const { service, chain, queue } = setup({ job: makeParseJobRecord({ lines }) });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
         lines.splice(0, 1, makeParseJobLine({ lineDigest: 'digest-edited' }));
         chain.lexical.mockClear();
         queue.enqueue.mockClear();
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(chain.lexical).toHaveBeenCalledTimes(1);
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
@@ -422,7 +436,7 @@ describe('MatchProposalService.propose — idempotent, and paid once', () => {
         const verdicts = fakeLineVerificationsDal(new Map([[milkKey('F-whole'), 'verified']]));
         const { service, matches, queue } = setup({ verdicts });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(queue.enqueue).not.toHaveBeenCalled();
         expect([...matches.rows.values()][0]?.enqueuedAt).toBeNull();
@@ -432,14 +446,35 @@ describe('MatchProposalService.propose — idempotent, and paid once', () => {
         const { service, matches, queue } = setup();
 
         queue.enqueue.mockRejectedValueOnce(new Error('SQS down'));
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect([...matches.rows.values()][0]?.enqueuedAt).toBeNull();
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(queue.enqueue).toHaveBeenCalledTimes(2);
         expect([...matches.rows.values()][0]?.enqueuedAt).not.toBeNull();
+    });
+});
+
+describe('MatchProposalService.propose — ADR-0040 containment', () => {
+    it('⛔ stores a TEST principal’s proposals on an enforcing stage, but sends the review gate nothing', async () => {
+        // The review spends ADR-0024's shared production pool, which a test principal is contained from, exactly as
+        // the save path's verification producer is. The proposals are the cook's own rows.
+        const { service, matches, queue } = setup();
+
+        await service.propose({ ...COOK, principalKind: 'test', containment: 'enforce' }, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(1);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('still sends for a test principal on a stage that does not contain', async () => {
+        const { service, queue } = setup();
+
+        await service.propose({ ...COOK, principalKind: 'test', containment: 'off' }, CALLER, JOB);
+
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -453,7 +488,7 @@ describe('MatchProposalService.propose — bounded work', () => {
             limits: { concurrency: 2, budgetMs: 0 },
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(0);
     });
@@ -467,7 +502,7 @@ describe('MatchProposalService.propose — bounded work', () => {
             limits: { concurrency: 2, budgetMs: 60_000 },
         });
 
-        await service.propose(OWNER, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(5);
     });

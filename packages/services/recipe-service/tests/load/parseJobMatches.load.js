@@ -19,7 +19,8 @@
 //
 // The paste text is FIXED per VU, so a later iteration's lines are copied forward from the first landing (no new
 // parse spend) and its proposals meet verdicts already on record (no new review spend). The first iteration of each
-// VU pays the parse and the review once.
+// VU pays the parse and the review once. ⚠️ A pool user is a signed TEST principal, so on an enforcing stage (prod)
+// the review is never sent at all (ADR-0040): the scenario then measures the matching, not the enqueue.
 //
 //   k6 run \
 //     -e RECIPE_API_BASE_URL=https://recipe-pr-91.commise.app \

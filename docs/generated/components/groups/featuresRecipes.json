@@ -5261,7 +5261,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesLoadError.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/dataSources",
-                    "moduleDoc": "@commise/features-recipes/dataSources — web Data sources ERROR state (presentational; design §S16).\n\nWhat the read boundary renders when the read failed: the failure, then a secondary Try again that retries it. Try\nagain stays mounted and busy while the retry runs, so focus stays on it. The failure is an `alert`, keyed by the\nfailure count, so each failure is a new alert and announces itself.",
+                    "moduleDoc": "@commise/features-recipes/dataSources — web Data sources ERROR state (presentational; design §S16).\n\nWhat the read boundary renders when the read failed: the failure, then a quiet Try again that retries it. Try\nagain stays mounted and busy while the retry runs, so focus stays on it. The failure is an `alert`, keyed by the\nfailure count, so each failure is a new alert and announces itself.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -25995,7 +25995,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The header, an alert, and a secondary Try again button."
+                            "text": "The header, an alert, and a quiet Try again button."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -26059,7 +26059,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.\nThe way back is the SCREEN's pinned bar, which is there in every state, so the header draws none and the props carry no\nway back (`onBack` and `backHref` are the web leaf's, `RecipeVersionListErrorWebProps`), as the native skeleton does. The\ncopy arrives as props from the app's boundary dictionary.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"We\ncouldn't load the history.\" + Try again), the twin of the web leaf.\n\nThe settled list's title, so nothing moves between loading, failed and loaded; then an alert and a quiet Try again.\nThe way back is the SCREEN's pinned bar, which is there in every state, so the header draws none and the props carry no\nway back (`onBack` and `backHref` are the web leaf's, `RecipeVersionListErrorWebProps`), as the native skeleton does. The\ncopy arrives as props from the app's boundary dictionary.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -26074,7 +26074,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The title, an alert, and a secondary Try again button."
+                            "text": "The title, an alert, and a quiet Try again button."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",

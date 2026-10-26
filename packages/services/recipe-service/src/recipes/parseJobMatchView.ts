@@ -23,6 +23,7 @@
  * not inflate the count. A replaced row (the line edited or reparsed) counts afresh.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { periodEndsAt, periodKey } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
@@ -37,7 +38,7 @@ import { RECIPE_RESOLUTION_NAMESPACE } from '../ingredients/resolution/resolutio
 import type { LineVerdictRow, LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { variantDisplayName } from './domain/lineVerification.js';
 import { isDefaultRung, matchJudgementDigestOf } from './domain/matchProposal.js';
-import { matchStateOf, proposalShownIn } from './domain/matchState.js';
+import { matchStateOf, proposalShownIn, REVIEW_BUDGET_SPENT_REASON, type MatchFacts } from './domain/matchState.js';
 import { isCurrentMatch, slotKey, type ParseJobMatch, type ParseJobMatchesPort } from './domain/parseJobMatch.js';
 import { PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
 import type { ParseJobResponse, ParseProposalCandidate, ParseProposalMatch } from './parseJobs.schema.js';
@@ -50,6 +51,18 @@ export const CURATION_DISAGREEMENT_SINK = 'CURATION_DISAGREEMENT_SINK';
 export interface CurationDisagreement {
     readonly jobId: string;
     readonly foodId: string;
+}
+
+/**
+ * The wire fact the paste notice reads: when the spend period ends and the AI check comes back. Pure.
+ *
+ * @param period - The spend period the read judged against.
+ * @returns `{ reviewResetsAt }`, or nothing when the period key is not a period (it always is: `periodKey` wrote it).
+ */
+function resetsAt(period: string): { readonly reviewResetsAt: string } | Record<string, never> {
+    const end = periodEndsAt(period);
+
+    return end === undefined ? {} : { reviewResetsAt: end };
 }
 
 /** The metric for a curated mapping the gate contradicted on a paste line, under the one resolution namespace. */
@@ -117,7 +130,10 @@ export class ParseJobMatchView {
         @Inject(PARSE_JOB_MATCHES_DAL)
         private readonly matches: Pick<ParseJobMatchesPort, 'findForJob' | 'claimCurationReport'>,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
-        private readonly verdicts: Pick<LineVerificationsDal, 'findBandsByKeys' | 'findExhaustedKeys'>,
+        private readonly verdicts: Pick<
+            LineVerificationsDal,
+            'findBandsByKeys' | 'findExhaustedKeys' | 'findBudgetSpentKeys'
+        >,
         @Inject(FoodRefsGateway) private readonly refs: Pick<FoodRefsGateway, 'resolve'>,
         @Inject(CURATION_DISAGREEMENT_SINK)
         private readonly reportCurationDisagreement: (report: CurationDisagreement) => void,
@@ -152,9 +168,12 @@ export class ParseJobMatchView {
         const keys = [...current.values()].flatMap((match) =>
             match.verificationKey === null ? [] : [match.verificationKey],
         );
-        const [verdicts, exhausted, answers] = await Promise.all([
+        // ⛔ ONE period for the whole read, taken before any query: every food in a view is judged against the same month.
+        const period = periodKey(new Date());
+        const [verdicts, exhausted, budgetSpent, answers] = await Promise.all([
             this.readVerdicts(view.id, keys, deadline),
             this.readExhausted(view.id, keys, deadline),
+            this.readBudgetSpent(view.id, keys, period, deadline),
             this.namesFor(caller, [...current.values()], deadline),
         ]);
 
@@ -165,7 +184,7 @@ export class ParseJobMatchView {
 
             return match === undefined
                 ? null
-                : this.project(match, { answers, verdicts, exhausted, contained, toReport });
+                : this.project(match, { answers, verdicts, exhausted, budgetSpent, period, contained, toReport });
         });
 
         await this.reportOnce(view.id, toReport, deadline);
@@ -257,6 +276,28 @@ export class ParseJobMatchView {
         }
     }
 
+    /**
+     * The keys whose review the spend ceiling refused in the CURRENT period (ADR-0024 §3); an unreadable table is none,
+     * so a poll never fails on it and a food reads as it did before the budget was spent.
+     */
+    private async readBudgetSpent(
+        jobId: string,
+        keys: readonly string[],
+        period: string,
+        deadline: AbortSignal | undefined,
+    ): Promise<ReadonlySet<string>> {
+        try {
+            return await within(deadline, () => this.verdicts.findBudgetSpentKeys(keys, period));
+        } catch (error) {
+            this.logger.warn(
+                `parse-job ${jobId}: budget-spent facts could not be read`,
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return new Set();
+        }
+    }
+
     /** Food's answer about every proposed and candidate food, in one batched read as the caller. */
     private async namesFor(
         caller: CallerToken | undefined,
@@ -284,6 +325,10 @@ export class ParseJobMatchView {
             readonly answers: ReadonlyMap<string, FoodRefAnswer>;
             readonly verdicts: ReadonlyMap<string, LineVerdictRow>;
             readonly exhausted: ReadonlySet<string>;
+            /** The keys whose review the ceiling refused in `period`. */
+            readonly budgetSpent: ReadonlySet<string>;
+            /** The spend period this read judges against. */
+            readonly period: string;
             readonly contained: boolean;
             /** Where a curated contradiction to count is collected, for {@link ParseJobMatchView.reportOnce}. */
             readonly toReport: CurationReport[];
@@ -317,7 +362,7 @@ export class ParseJobMatchView {
                           identityVerdict: verdict.identityVerdict,
                           aspects: verdict.aspects,
                       },
-            review: this.reviewOf(match, read.exhausted, read.contained),
+            review: this.reviewOf(match, read.exhausted, read.budgetSpent, read.contained),
         });
 
         if (answer.reviewNote === 'reviewDisagreed' && proposed !== null && match.verificationKey !== null) {
@@ -331,6 +376,7 @@ export class ParseJobMatchView {
             proposed: proposalShownIn(answer.state) ? proposed : null,
             candidates,
             ...(answer.reviewNote === undefined ? {} : { reviewNote: answer.reviewNote }),
+            ...(answer.reason === REVIEW_BUDGET_SPENT_REASON ? resetsAt(read.period) : {}),
         };
     }
 
@@ -368,8 +414,15 @@ export class ParseJobMatchView {
     private reviewOf(
         match: ParseJobMatch,
         exhausted: ReadonlySet<string>,
+        budgetSpent: ReadonlySet<string>,
         contained: boolean,
-    ): 'asked' | 'refused' | 'exhausted' | 'notAsked' {
+    ): MatchFacts['review'] {
+        // ⛔ A spent budget is a fact about the KEY in the CURRENT period (the DAL filtered by it), so it comes first: it is
+        // the only reason a review is owed and will not be sent, and it must not read as `checking` or `unchecked`.
+        if (match.verificationKey !== null && budgetSpent.has(match.verificationKey)) {
+            return 'budgetSpent';
+        }
+
         if (match.review === 'refused') {
             return 'refused';
         }

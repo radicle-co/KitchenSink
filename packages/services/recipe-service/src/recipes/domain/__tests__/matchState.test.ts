@@ -58,6 +58,81 @@ const QUANTITY_ONLY_DISAGREE = {
     aspects: ['quantity'],
 } as const;
 
+/**
+ * A SPENT AI BUDGET on a paste job (ADR-0071 §9, ADR-0024 §3; owner ruling 2026-10-26). While the prod ceiling refuses
+ * the paste path nothing reviews the parse or the match, so EVERY proposed food goes to the cook: curated, remembered
+ * and exact-name matches too. The precedence: a default and a missing proposal keep their states (rows 1 and 2), and
+ * the budget outranks every proposal-based row. A review that actually RAN (a verdict that asked identity) outranks the
+ * budget, because a real judgement is on record.
+ */
+describe('matchStateOf: a spent AI budget surfaces every food', () => {
+    const SPENT = { review: 'budgetSpent' } as const;
+
+    it.each<[string, MatchFacts, ReturnType<typeof matchStateOf>]>([
+        [
+            'a curated mapping needs a choice',
+            facts({ ...SPENT, proposal: { matchedBy: 'curated', rung: null } }),
+            { state: 'needsChoice', reason: 'reviewBudgetSpent' },
+        ],
+        [
+            'a remembered (memo) match needs a choice',
+            facts({ ...SPENT, proposal: { matchedBy: 'memo', rung: null } }),
+            { state: 'needsChoice', reason: 'reviewBudgetSpent' },
+        ],
+        [
+            'an exact-name match needs a choice',
+            facts({ ...SPENT, proposal: { matchedBy: 'lexical', rung: 'exact' } }),
+            { state: 'needsChoice', reason: 'reviewBudgetSpent' },
+        ],
+        [
+            'a lexical proposal needs a choice',
+            facts({ ...SPENT }),
+            { state: 'needsChoice', reason: 'reviewBudgetSpent' },
+        ],
+        [
+            'a curated mapping carries NO review note while the budget is spent',
+            facts({ ...SPENT, proposal: { matchedBy: 'curated', rung: null }, verdict: undefined }),
+            { state: 'needsChoice', reason: 'reviewBudgetSpent' },
+        ],
+        [
+            'a verdict that asked only quantity says nothing about the food: the budget still surfaces it',
+            facts({ ...SPENT, proposal: { matchedBy: 'lexical', rung: 'exact' }, verdict: QUANTITY_ONLY_AGREE }),
+            { state: 'needsChoice', reason: 'reviewBudgetSpent' },
+        ],
+        [
+            'a default stays a default',
+            facts({ ...SPENT, defaultApplies: true, proposal: { matchedBy: 'curated', rung: null } }),
+            { state: 'default', reason: 'defaultApplies' },
+        ],
+        [
+            'no proposal and no candidates stays noMatch',
+            facts({ ...SPENT, proposal: undefined, candidateCount: 0 }),
+            { state: 'noMatch', reason: 'noCandidates' },
+        ],
+        [
+            'no proposal with candidates stays needsChoice for its own reason',
+            facts({ ...SPENT, proposal: undefined }),
+            { state: 'needsChoice', reason: 'noProposal' },
+        ],
+        [
+            '⛔ a review that RAN (identity asked, verified) outranks the budget: a real judgement is on record',
+            facts({ ...SPENT, verdict: VERIFIED }),
+            { state: 'confident', reason: 'reviewVerified' },
+        ],
+        [
+            'the control: the same exact-name proposal with the budget NOT spent is confident',
+            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' } }),
+            { state: 'confident', reason: 'exactName' },
+        ],
+    ])('%s', (_label, input, expected) => {
+        expect(matchStateOf(input)).toStrictEqual(expected);
+    });
+
+    it('never shows the proposal as the line match: the food stays one of the candidates', () => {
+        expect(proposalShownIn(matchStateOf(facts(SPENT)).state)).toBe(false);
+    });
+});
+
 describe('matchStateOf — the truth table', () => {
     it.each<[string, MatchFacts, ReturnType<typeof matchStateOf>]>([
         // 1. Nothing proposed.

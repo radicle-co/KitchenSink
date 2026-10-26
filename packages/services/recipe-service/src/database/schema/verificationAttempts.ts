@@ -22,6 +22,12 @@ export const verificationAttempts = pgTable(
         lastReceivedAt: timestamp('last_received_at', { withTimezone: true }).notNull().defaultNow(),
         /** Why the gate stopped trying; the line then publishes unverified. */
         failureCode: text('failure_code'),
+        /**
+         * The spend period (`YYYY-MM`, captured at reserve) in which the ceiling refused this paste-match review
+         * (migration 0061, ADR-0024 §3). Not a verdict and not a failure: it reads as "spent" only while the period is
+         * current, and `recordVerdict` retires the row.
+         */
+        budgetSpentPeriod: text('budget_spent_period'),
     },
     (table) => [primaryKey({ columns: [table.verificationKey, table.modelId] })],
 );

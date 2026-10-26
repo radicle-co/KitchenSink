@@ -33,6 +33,7 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { parseStoredLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { periodKey } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { rankTierOf } from '../domain/matchProposal.js';
@@ -261,6 +262,10 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                         AND NOT EXISTS (SELECT 1 FROM recipe_verification_attempts a
                                          WHERE a.verification_key = m.verification_key
                                            AND (a.failure_code IS NOT NULL
+                                                -- ⛔ A review the spend ceiling refused in the CURRENT period is final for that
+                                                -- period too (ADR-0024 §3, owner ruling 2026-10-26): sending it again would only
+                                                -- be refused again. An earlier period no longer matches, so a new month sends it.
+                                                OR a.budget_spent_period = ${periodKey(new Date())}
                                                 OR a.last_received_at
                                                    >= now() - make_interval(secs => ${staleAfterSeconds})))))
             RETURNING m.line_index, m.food_index, m.line_digest, m.verification_key,

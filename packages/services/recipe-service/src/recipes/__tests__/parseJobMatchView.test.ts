@@ -12,7 +12,7 @@
  *  - **A stale row is ignored**: a line edited since it was matched shows no match until it is matched again.
  *  - **The view stays total**: an unreadable match store degrades every food to `match: null`, never a failed poll.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { lineDigest, parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
@@ -120,6 +120,8 @@ interface Setup {
     readonly answers?: Record<string, FoodRefAnswer>;
     readonly verdicts?: ReadonlyMap<string, LineVerdictRow>;
     readonly exhausted?: ReadonlySet<string>;
+    /** Verification key → the spend period its review was refused in (the DAL answers only the period asked). */
+    readonly budgetSpent?: ReadonlyMap<string, string>;
 }
 
 function setup(options: Setup = {}) {
@@ -144,6 +146,10 @@ function setup(options: Setup = {}) {
     const findExhaustedKeys = vi.fn(
         async (keys: readonly string[]) => new Set(keys.filter((key) => options.exhausted?.has(key) === true)),
     );
+    const findBudgetSpentKeys = vi.fn(
+        async (keys: readonly string[], period: string) =>
+            new Set(keys.filter((key) => options.budgetSpent?.get(key) === period)),
+    );
     const metric = vi.fn();
     // The store's once-per-verdict marker for a curated contradiction: only the first claim of a row wins.
     const reported = new Set<string>();
@@ -157,12 +163,12 @@ function setup(options: Setup = {}) {
     });
     const view = new ParseJobMatchView(
         { findForJob, claimCurationReport },
-        { findBandsByKeys, findExhaustedKeys },
+        { findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys },
         { resolve } as unknown as FoodRefsGateway,
         metric,
     );
 
-    return { view, findForJob, resolve, metric, claimCurationReport };
+    return { view, findForJob, resolve, metric, claimCurationReport, findBudgetSpentKeys };
 }
 
 /** The match on food 0 of line 0 of a decorated view. */
@@ -493,6 +499,99 @@ describe('ParseJobMatchView.decorate', () => {
  * cannot carry the response past the client's timeout. What it could not read degrades exactly as an unreadable read does
  * (the view stays total), and the client's next poll repairs it.
  */
+/**
+ * A SPENT AI BUDGET (ADR-0071 §9, ADR-0024 §3; owner ruling 2026-10-26). The worker recorded the spend period in which
+ * the ceiling refused the key's review. The view asks for the CURRENT period only, so a month that has moved on reads as
+ * not spent, and a spent key puts every food in front of the cook, a curated or exact-name one included.
+ */
+describe('ParseJobMatchView.decorate: a spent AI budget', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const NOW = new Date('2026-10-26T12:00:00.000Z');
+    const exactMatch = matchOf({
+        proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'exact', margin: 0.2 },
+    });
+
+    it('⛔ surfaces an EXACT-name proposal as a choice with reason `reviewBudgetSpent`, the food kept as a candidate', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-10']]) });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toStrictEqual({
+            state: 'needsChoice',
+            reason: 'reviewBudgetSpent',
+            proposed: null,
+            candidates: [
+                { kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: false },
+                { kind: 'root', id: 'F-crackers', name: 'Milk crackers', isDefault: false },
+            ],
+            reviewResetsAt: '2026-11-01T00:00:00.000Z',
+        });
+    });
+
+    it('asks for the CURRENT period, read from the clock', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view, findBudgetSpentKeys } = setup({ matches: [exactMatch] });
+
+        await view.decorate(COOK, CALLER, viewOf());
+
+        expect(findBudgetSpentKeys).toHaveBeenCalledWith(['v2:milk'], '2026-10');
+    });
+
+    it('⛔ a fact recorded in an EARLIER period is not spent: the exact name is confident again', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-09']]) });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
+            state: 'confident',
+            reason: 'exactName',
+        });
+    });
+
+    it('moves from spent to not spent when the clock crosses the month boundary', async () => {
+        const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-10']]) });
+
+        vi.useFakeTimers({ now: new Date('2026-10-31T23:59:59.000Z') });
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('reviewBudgetSpent');
+
+        vi.setSystemTime(new Date('2026-11-01T00:00:01.000Z'));
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('exactName');
+    });
+
+    it('carries `reviewResetsAt` ONLY on the budget-spent reason', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({ matches: [exactMatch] });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).not.toHaveProperty('reviewResetsAt');
+    });
+
+    it('a default stays a default while the budget is spent', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({
+            matches: [
+                matchOf({
+                    candidates: [
+                        { kind: 'root', id: 'F-whole', rung: 'head' },
+                        { kind: 'root', id: 'F-default', rung: 'default' },
+                    ],
+                }),
+            ],
+            budgetSpent: new Map([['v2:milk', '2026-10']]),
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('default');
+    });
+
+    it('is total: an unreadable fact degrades to "not spent", never a failed poll', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view, findBudgetSpentKeys } = setup({ matches: [exactMatch] });
+        findBudgetSpentKeys.mockRejectedValue(new Error('connection terminated'));
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
+    });
+});
+
 describe('ParseJobMatchView.decorate — under a request deadline', () => {
     it('⛔ hands food’s names read the request’s deadline, beside the read budget', async () => {
         const { view, resolve } = setup();
@@ -507,7 +606,11 @@ describe('ParseJobMatchView.decorate — under a request deadline', () => {
         const deadline = new AbortController();
         const hanging = new ParseJobMatchView(
             { findForJob: async () => [matchOf()], claimCurationReport: async () => false },
-            { findBandsByKeys: () => new Promise(() => undefined), findExhaustedKeys: async () => new Set() },
+            {
+                findBandsByKeys: () => new Promise(() => undefined),
+                findExhaustedKeys: async () => new Set(),
+                findBudgetSpentKeys: async () => new Set(),
+            },
             {
                 resolve: async (_caller: unknown, refs: readonly FoodRef[]) => ({
                     answers: new Map(refs.map((ref) => [`${ref.kind}:${ref.id}`, NAMED[`${ref.kind}:${ref.id}`]!])),
@@ -529,7 +632,11 @@ describe('ParseJobMatchView.decorate — under a request deadline', () => {
         const deadline = new AbortController();
         const hanging = new ParseJobMatchView(
             { findForJob: () => new Promise(() => undefined), claimCurationReport: async () => false },
-            { findBandsByKeys: async () => new Map(), findExhaustedKeys: async () => new Set() },
+            {
+                findBandsByKeys: async () => new Map(),
+                findExhaustedKeys: async () => new Set(),
+                findBudgetSpentKeys: async () => new Set(),
+            },
             { resolve: async () => ({ answers: new Map(), degraded: false }) } as unknown as FoodRefsGateway,
             vi.fn(),
         );
@@ -582,6 +689,7 @@ describe('ParseJobMatchView.decorate — under a request deadline', () => {
             {
                 findBandsByKeys: async () => new Map([['v2:milk', contradicted]]),
                 findExhaustedKeys: async () => new Set(),
+                findBudgetSpentKeys: async () => new Set(),
             },
             {
                 resolve: async (_caller: unknown, refs: readonly FoodRef[]) => ({

@@ -23,6 +23,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import { parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { periodKey } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { verificationDeliveryBoundSeconds } from '@kitchensink/recipe-core/resolution/verification-delivery';
 
 import { createRecipeDrizzle } from '../../../src/database/client.js';
@@ -430,6 +431,36 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
             );
 
             expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toEqual([]);
+        });
+
+        // ⛔ ADR-0024 §3 (owner ruling 2026-10-26). A review the ceiling refused is RECORDED, not owed again: within its
+        // period it blocks a resend, as an exhausted attempt does; in a later period the next call claims it afresh.
+        // The old row (a lost write) is made old enough to pass every other clause, so the period is the only variable.
+        describe('a review the spend ceiling refused', () => {
+            async function refusedIn(period: string): Promise<string> {
+                const job = await lostClaim();
+
+                await pool.query(
+                    `INSERT INTO recipe_verification_attempts
+                         (verification_key, model_id, attempts, last_received_at, budget_spent_period)
+                     VALUES ('v2:F-milk', 'm', 1, now() - make_interval(secs => $1 + 60), $2)`,
+                    [STALE_AFTER, period],
+                );
+
+                return job;
+            }
+
+            it('⛔ is NOT claimed again in the CURRENT period: nothing is sent while the budget is spent', async () => {
+                const job = await refusedIn(periodKey(new Date()));
+
+                expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toEqual([]);
+            });
+
+            it('⛔ IS claimed again once its period is over: a new month sends the review afresh', async () => {
+                const job = await refusedIn('2020-01');
+
+                expect(await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk')], STALE_AFTER)).toHaveLength(1);
+            });
         });
 
         it('is NOT claimed again inside the bound', async () => {

@@ -6208,6 +6208,9 @@ components:
                   reviewNote:
                     type: string
                     minLength: 1
+                  reviewResetsAt:
+                    type: string
+                    minLength: 1
                 required:
                   - state
                   - reason

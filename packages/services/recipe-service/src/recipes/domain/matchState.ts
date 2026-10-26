@@ -12,6 +12,9 @@
  *     keeps the default and saves can teach the memo tier "salt → table salt", and a confident memo would then select it
  *     for the next cook.
  *  2. **Nothing proposed**: `noMatch` with no candidates, `needsChoice` with some.
+ *  2b. **A spent AI budget** (owner ruling 2026-10-26): `needsChoice` with reason `reviewBudgetSpent`, ahead of
+ *     everything below, unless a verdict that asked identity is on record. Curated, remembered and exact-name
+ *     proposals included: nothing reviewed the parse or the match.
  *  3. **A curated mapping**: `confident`. A gate contradiction keeps it confident, because a person decided and the model
  *     has an error rate, and adds the review note `reviewDisagreed` so curation can be reviewed.
  *  4. **A memo or lexical proposal the gate contradicted, or doubted, on IDENTITY**: `needsChoice`.
@@ -66,6 +69,15 @@ export type MatchReason =
     | 'reviewNotAsked'
     | 'awaitingReview';
 
+/**
+ * Why a proposal needs a choice because the AI budget is spent (ADR-0071 §9, ADR-0024 §3). The wire key installed
+ * clients localize.
+ *
+ * ⚠️ Kept beside {@link MatchReason} rather than inside it so that code which switches exhaustively over the older
+ * reasons (a confident match never carries this one) keeps compiling; the answer's `reason` is the union of the two.
+ */
+export const REVIEW_BUDGET_SPENT_REASON = 'reviewBudgetSpent';
+
 /** A note that rides beside a state without changing it. */
 export type MatchReviewNote = 'reviewDisagreed';
 
@@ -93,15 +105,16 @@ export interface MatchFacts {
     /**
      * Where the review stands when there is no verdict: `asked` (sent or owed), `refused` (the gate is never asked:
      * an over-cap line, or a request the queue contract refuses), `exhausted` (the gate gave up after its attempts), or
-     * `notAsked` (a contained test principal's review, which is never sent; ADR-0040).
+     * `notAsked` (a contained test principal's review, which is never sent; ADR-0040), or `budgetSpent` (the prod
+     * spend ceiling refused the review in a period that is still current: nothing reviewed the parse or the match).
      */
-    readonly review: 'asked' | 'refused' | 'exhausted' | 'notAsked';
+    readonly review: 'asked' | 'refused' | 'exhausted' | 'notAsked' | 'budgetSpent';
 }
 
 /** A derived state, its reason, and a note when one applies. */
 export interface MatchStateAnswer {
     readonly state: MatchState;
-    readonly reason: MatchReason;
+    readonly reason: MatchReason | typeof REVIEW_BUDGET_SPENT_REASON;
     readonly reviewNote?: MatchReviewNote;
 }
 
@@ -125,6 +138,14 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
     }
 
     const reading = verdict === undefined ? 'unasked' : identityReadingOf(verdict);
+
+    // ⛔ A SPENT BUDGET SURFACES EVERY FOOD (owner ruling 2026-10-26), ahead of curated, memo, exact and confident: with
+    // no review of the parse or the match, even a curated or exact-name match on a CRF-only phrase can be a confident
+    // match to the wrong words. A verdict that ASKED identity outranks it (a real judgement is on record), so only an
+    // `unasked` reading falls here. The default and no-proposal rows above are unchanged.
+    if (facts.review === 'budgetSpent' && reading === 'unasked') {
+        return { state: 'needsChoice', reason: REVIEW_BUDGET_SPENT_REASON };
+    }
 
     if (proposal.matchedBy === 'curated') {
         // A person decided, and the model has an error rate: only its STRONGEST claim adds the review note.
@@ -177,6 +198,10 @@ function unjudgedState(proposal: { readonly rung: RankTier | null }, review: Mat
             return { state: 'needsChoice', reason: 'reviewNotAsked' };
         case 'asked':
             return { state: 'checking', reason: 'awaitingReview' };
+        case 'budgetSpent':
+            // Unreachable from `matchStateOf` (it answers a spent budget above, for an unasked reading, and an
+            // `unreadable` one is passed as `exhausted`); total for the compiler's sake: the budget is the reason.
+            return { state: 'needsChoice', reason: REVIEW_BUDGET_SPENT_REASON };
     }
 }
 

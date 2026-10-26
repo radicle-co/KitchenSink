@@ -34,6 +34,7 @@ import {
     inputTokenCeiling,
     inputTokensBeyondBound,
     periodKey,
+    periodEndsAt,
     planReservation,
     rateFor,
     registryEntryFor,
@@ -105,6 +106,27 @@ const fixtureWith = (residencyApproval?: ResidencyApproval) => ({
 });
 const UNWARRANTED_FIXTURE = fixtureWith();
 const WARRANTED_FIXTURE = fixtureWith({ approvedOn: '2026-09-12', reference: 'ADR-0024 §4b (fixture)' });
+
+describe('periodEndsAt', () => {
+    it.each([
+        ['2026-10', '2026-11-01T00:00:00.000Z'],
+        ['2026-12', '2027-01-01T00:00:00.000Z'],
+        ['2026-01', '2026-02-01T00:00:00.000Z'],
+    ])('%s ends at the first instant of the next UTC month', (period, expected) => {
+        expect(periodEndsAt(period)).toBe(expected);
+    });
+
+    it('is the instant after which periodKey names the next period (they cannot disagree)', () => {
+        const end = new Date(periodEndsAt('2026-10') as string);
+
+        expect(periodKey(new Date(end.getTime() - 1))).toBe('2026-10');
+        expect(periodKey(end)).toBe('2026-11');
+    });
+
+    it.each(['', 'garbage', '2026-13', '2026-00', '26-10', '2026-1'])('answers undefined for %j', (period) => {
+        expect(periodEndsAt(period)).toBeUndefined();
+    });
+});
 
 describe('periodKey', () => {
     it.each([

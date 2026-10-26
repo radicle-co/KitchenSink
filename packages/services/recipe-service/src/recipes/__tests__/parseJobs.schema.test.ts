@@ -107,6 +107,8 @@ describe('parseProposalSchema', () => {
             'proposed',
             'reason',
             'reviewNote',
+            // ADR-0024 §3: when the AI check comes back. A date, not a binding.
+            'reviewResetsAt',
             'state',
         ]);
         expect(Object.keys(parseProposalSchema.shape).sort()).toEqual([

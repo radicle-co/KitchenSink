@@ -740,6 +740,26 @@ export function periodKey(nowUtc: Date): string {
 }
 
 /**
+ * The instant a spend period ends: the first instant of the next UTC month.
+ *
+ * ADR-0024 §3: a recorded "budget spent" outcome reads as spent only while its period is current, and this is when
+ * the AI check comes back. It is the inverse of {@link periodKey}'s grain, kept beside it so the two cannot disagree.
+ *
+ * @param period - A period key (`YYYY-MM`) as {@link periodKey} writes it.
+ * @returns The ISO 8601 instant the period ends, or `undefined` when the text is not a period key. Pure.
+ */
+export function periodEndsAt(period: string): string | undefined {
+    const parts = /^(\d{4})-(0[1-9]|1[0-2])$/u.exec(period);
+
+    if (parts === null) {
+        return undefined;
+    }
+
+    // Month is 1-based in the key and 0-based in Date.UTC, so the key's month IS the next month's index.
+    return new Date(Date.UTC(Number(parts[1]), Number(parts[2]), 1)).toISOString();
+}
+
+/**
  * Cost `tokens` at a per-million rate, rounded UP to the next micro-dollar.
  *
  * `Math.ceil` and not `Math.round`: at $0.035/1M a single token costs 0.035 micros, so rounding to nearest

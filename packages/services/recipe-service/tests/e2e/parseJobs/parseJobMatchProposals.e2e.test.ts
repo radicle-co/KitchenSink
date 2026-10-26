@@ -12,6 +12,7 @@ import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient, type Message } 
 import pg from 'pg';
 
 import { parseJobResponseSchema } from '@kitchensink/schema-recipe';
+import { periodKey } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import {
     verificationOriginOf,
@@ -240,5 +241,92 @@ describe('paste-job match proposals (LOCAL e2e)', () => {
         } finally {
             await pool.query('DELETE FROM recipe_verification_attempts WHERE verification_key = $1', [key]);
         }
+    });
+
+    /**
+     * ADR-0024 §3 / ADR-0071 §9 (owner ruling 2026-10-26): the worker stored that the spend ceiling refused this key's
+     * review, with the period it captured at reserve. The view a client reads then surfaces the food as a choice.
+     */
+    describe('a review the spend ceiling refused (the fact the worker stores)', () => {
+        async function spentIn(jobId: string, period: string): Promise<string> {
+            const key = await storedKey(jobId);
+
+            await pool.query(
+                `INSERT INTO recipe_verification_attempts (verification_key, model_id, attempts, budget_spent_period)
+                 VALUES ($1, 'test-model', 1, $2)`,
+                [key, period],
+            );
+
+            return key;
+        }
+
+        const clean = (key: string): Promise<unknown> =>
+            pool.query('DELETE FROM recipe_verification_attempts WHERE verification_key = $1', [key]);
+
+        it('⛔ in the CURRENT period the view reads `needsChoice` / `reviewBudgetSpent`, the food kept as a candidate, with the reset date', async () => {
+            const jobId = await parsedJob();
+
+            await proposeMatches(jobId);
+
+            const key = await spentIn(jobId, periodKey(new Date()));
+
+            try {
+                const match = (await matchOnView(jobId)) as {
+                    state: string;
+                    reason: string;
+                    proposed: unknown;
+                    candidates: { id: string }[];
+                    reviewResetsAt?: string;
+                };
+                const end = new Date(match.reviewResetsAt ?? '');
+
+                expect(match).toMatchObject({ state: 'needsChoice', reason: 'reviewBudgetSpent', proposed: null });
+                expect(match.candidates.map((candidate) => candidate.id)).toContain('F-whole');
+                // The first instant of the next UTC month: the period the fact was captured in has just ended.
+                expect(periodKey(new Date(end.getTime() - 1))).toBe(periodKey(new Date()));
+                expect(periodKey(end)).not.toBe(periodKey(new Date()));
+            } finally {
+                await clean(key);
+            }
+        });
+
+        it('⛔ a fact from an EARLIER period is not spent: the review reads `checking` again, with no reset date', async () => {
+            const jobId = await parsedJob();
+
+            await proposeMatches(jobId);
+
+            const key = await spentIn(jobId, '2020-01');
+
+            try {
+                const match = (await matchOnView(jobId)) as Record<string, unknown>;
+
+                expect(match).toMatchObject({ state: 'checking', reason: 'awaitingReview' });
+                expect(match).not.toHaveProperty('reviewResetsAt');
+            } finally {
+                await clean(key);
+            }
+        });
+
+        it('⛔ a verdict that asked identity outranks the fact: a real judgement is on record', async () => {
+            const jobId = await parsedJob();
+
+            await proposeMatches(jobId);
+
+            const key = await spentIn(jobId, periodKey(new Date()));
+
+            await pool.query(
+                `INSERT INTO recipe_ingredient_verifications
+                     (verification_key, verdict, certainty, band, aspects, identity_verdict, quantity_verdict, model_id, food_id)
+                 VALUES ($1, 'agree', 'high', 'verified', ARRAY['identity', 'quantity'], 'agree', 'agree', 'test-model', 'F-whole')`,
+                [key],
+            );
+
+            try {
+                expect(await matchOnView(jobId)).toMatchObject({ state: 'confident', reason: 'reviewVerified' });
+            } finally {
+                await clean(key);
+                await pool.query('DELETE FROM recipe_ingredient_verifications WHERE verification_key = $1', [key]);
+            }
+        });
     });
 });

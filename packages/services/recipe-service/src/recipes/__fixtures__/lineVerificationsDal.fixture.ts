@@ -57,5 +57,7 @@ export function fakeLineVerificationsDal(
             .mockImplementation((keys: readonly string[]) =>
                 Promise.resolve(new Set(keys.filter((key) => exhausted.has(key)))),
             ),
+        // ADR-0024 §3: no review was refused by the spend ceiling unless a test says so.
+        findBudgetSpentKeys: vi.fn().mockResolvedValue(new Set()),
     } as unknown as LineVerificationsDal;
 }

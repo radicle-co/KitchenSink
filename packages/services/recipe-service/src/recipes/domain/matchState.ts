@@ -14,16 +14,20 @@
  *  2. **Nothing proposed**: `noMatch` with no candidates, `needsChoice` with some.
  *  3. **A curated mapping**: `confident`. A gate contradiction keeps it confident, because a person decided and the model
  *     has an error rate, and adds the review note `reviewDisagreed` so curation can be reviewed.
- *  4. **A memo or lexical proposal the gate contradicted on IDENTITY**: `needsChoice`.
+ *  4. **A memo or lexical proposal the gate contradicted, or doubted, on IDENTITY**: `needsChoice`.
  *  5. **A memo**: `confident`.
- *  6. **A lexical proposal**: `confident` once the gate verified identity, `needsChoice` when it abstained. With no
- *     verdict: an exact-name rung is `confident` (ruling 3); a review the gate could not take (`refused`), gave up on
- *     (`exhausted`) or was never sent for a contained test principal (`notAsked`, ADR-0040) is `needsChoice`; otherwise
- *     `checking`.
+ *  6. **A lexical proposal**: `confident` once the gate verified identity, `needsChoice` when it abstained or hedged.
+ *     With no readable verdict: an exact-name rung is `confident` (ruling 3, whether the review was refused, gave up,
+ *     was never sent for a contained test principal, or came back unreadable); a review the gate could not take
+ *     (`refused`), gave up on (`exhausted`, or an unreadable reply) or was never sent (`notAsked`, ADR-0040) is
+ *     `needsChoice`; otherwise `checking`. Only a review that DISAGREES overrides an exact name.
  *
- * ⛔ IDENTITY, not the joint verdict, read through `identityReadingOf` — the one reading a saved line's status shares. A
- * joint `contradicted` beside an itemized identity `agree` is a quantity dispute, which a different food cannot fix, and
- * a verdict that never ASKED identity is read as no verdict at all: it neither confirms nor rejects the food.
+ * ⛔ IDENTITY, not the joint verdict, read through `identityReadingOf`: the ONE classifier a saved line's status also
+ * derives from (ADR-0071 §9). This module maps its seven readings to a state, exhaustively. The mapping to a saved
+ * line's status (`resolveLineStatus`) differs in one direction, on purpose: asking the cook before a bind is cheap, so
+ * `doubt`, `hedged`, `abstain` and `unreadable` all ask here, while badging a line the cook already bound is a
+ * warning, so a saved line badges only `contradict` and `abstain`. A quantity dispute (identity `agree`) is no food
+ * problem, and a verdict that never ASKED identity (`unasked`) is no verdict about the food at all.
  *
  * ⛔ `state` is a closed enum on the wire and a ONE-WAY DOOR for installed clients: a new fact becomes a new field or a
  * new `reason` key, never a sixth state. `reason` and `reviewNote` are opaque display keys the clients localize.
@@ -68,6 +72,8 @@ export type MatchReviewNote = 'reviewDisagreed';
 /** What the gate concluded about the proposal, as the verdict table holds it. */
 export interface MatchVerdict {
     readonly band: VerificationBand;
+    /** The model's certainty in its verdict. */
+    readonly certainty: string;
     /** The model's itemized identity verdict (0042), or `null` when it gave none. */
     readonly identityVerdict: string | null;
     /** The aspects the gate asked; a verdict that never asked `identity` says nothing about the food. */
@@ -119,16 +125,15 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
     }
 
     const reading = verdict === undefined ? 'unasked' : identityReadingOf(verdict);
-    // ⛔ A verdict that never asked identity is no verdict about the food (item 7).
-    const identity = reading === 'unasked' ? undefined : reading;
 
     if (proposal.matchedBy === 'curated') {
-        return identity === 'disagree'
+        // A person decided, and the model has an error rate: only its STRONGEST claim adds the review note.
+        return reading === 'contradict'
             ? { state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' }
             : { state: 'confident', reason: 'curatedMapping' };
     }
 
-    if (identity === 'disagree') {
+    if (reading === 'contradict' || reading === 'doubt') {
         return { state: 'needsChoice', reason: 'reviewContradicted' };
     }
 
@@ -136,19 +141,34 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
         return { state: 'confident', reason: 'rememberedMatch' };
     }
 
-    if (identity === 'agree') {
-        return { state: 'confident', reason: 'reviewVerified' };
+    switch (reading) {
+        case 'agree':
+            return { state: 'confident', reason: 'reviewVerified' };
+        case 'abstain':
+        case 'hedged':
+            return { state: 'needsChoice', reason: 'reviewAbstained' };
+        case 'unasked':
+        case 'unreadable':
+            return unjudgedState(proposal, reading === 'unreadable' ? 'exhausted' : facts.review);
     }
+}
 
-    if (identity === 'abstain') {
-        return { state: 'needsChoice', reason: 'reviewAbstained' };
-    }
-
+/**
+ * The state of a lexical proposal no readable verdict has judged, given where its review stands.
+ *
+ * @param proposal - The lexical proposal.
+ * @param review - Where the review stands. An unreadable reply is passed as `exhausted`: the gate answered, but said
+ *   nothing about the food, which is a review that gave up.
+ * @returns The state. Pure and total.
+ */
+function unjudgedState(proposal: { readonly rung: RankTier | null }, review: MatchFacts['review']): MatchStateAnswer {
+    // Owner ruling: an exact name is a confident match, whether the review was refused, exhausted or never asked. Only
+    // a review that DISAGREES overrides it, and that was decided above.
     if (proposal.rung === EXACT_RUNG) {
         return { state: 'confident', reason: 'exactName' };
     }
 
-    switch (facts.review) {
+    switch (review) {
         case 'refused':
             return { state: 'needsChoice', reason: 'reviewRefused' };
         case 'exhausted':

@@ -50,7 +50,7 @@ export const recipeIngredientVerifications = pgTable(
          * The model's verdict on IDENTITY alone, when it itemized (migration 0042, owner ruling
          * 2026-08-31). `NULL` = the answer carried no aspects object (pre-0042, or the model omitted it) —
          * ⛔ never backfilled from the joint verdict, which would surface every quantity dispute as a food
-         * re-pick. The read side's `identityContradictedOf` opens the U13 re-pick door on this.
+         * re-pick. The read side's `identityReadingOf` opens the U13 re-pick door on this.
          */
         identityVerdict: text('identity_verdict'),
         /** The model's verdict on QUANTITY alone, under the same rules. */

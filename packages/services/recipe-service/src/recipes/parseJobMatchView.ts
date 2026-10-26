@@ -280,7 +280,12 @@ export class ParseJobMatchView {
             verdict:
                 verdict === undefined
                     ? undefined
-                    : { band: verdict.band, identityVerdict: verdict.identityVerdict, aspects: verdict.aspects },
+                    : {
+                          band: verdict.band,
+                          certainty: verdict.certainty,
+                          identityVerdict: verdict.identityVerdict,
+                          aspects: verdict.aspects,
+                      },
             review: this.reviewOf(match, read.exhausted, read.contained),
         });
 

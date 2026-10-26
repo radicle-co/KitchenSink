@@ -227,17 +227,6 @@ function unitOf(unit: string): string | null {
     return unit.trim() === '' ? null : unit;
 }
 
-/** What one stored verdict says about the line's IDENTITY, beside the band (`identityReadingOf`). */
-export interface LineIdentityFlags {
-    /**
-     * The re-pick arm (owner ruling 2026-08-31, U15 report "Owner rulings" §4): whether this line's verdict is a
-     * HIGH-certainty IDENTITY contradiction — {@link identityContradictedOf}'s answer.
-     */
-    readonly identityContradicted: boolean;
-    /** Owner ruling 2026-10-25 (ADR-0071): whether the gate ABSTAINED on this line's identity ({@link identityAbstainedOf}). */
-    readonly identityAbstained: boolean;
-}
-
 /**
  * The status ONE recipe line reports, given whatever the gate concluded about it and whatever the shared
  * catalog says about its food.
@@ -252,14 +241,15 @@ export interface LineIdentityFlags {
  *
  * @param band - The gate's verdict for this line, or `undefined` when it has not judged it.
  * @param catalogStatus - The shared catalog row's own food-resolution status, if it has one.
- * @param identity - What the verdict says about identity. ⛔ REQUIRED, both members, never defaulted: a call site that
- *   has not thought about the re-pick or the abstention must not silently keep the passive badge.
+ * @param identity - What the verdict says about the FOOD ({@link identityReadingOf}, `unasked` when there is no verdict).
+ *   ⛔ REQUIRED, never defaulted: a call site that has not thought about the re-pick or the abstention must not
+ *   silently keep the passive badge.
  * @returns The status the line reports, or `undefined` when it has nothing to report. Pure.
  */
 export function resolveLineStatus(
     band: VerificationBand | undefined,
     catalogStatus: LineResolutionStatus | undefined,
-    identity: LineIdentityFlags,
+    identity: IdentityReading,
 ): LineResolutionStatus | undefined {
     if (band === undefined) {
         // ⛔ No verdict publishes (migration 0023). The line's catalog status stands (ADR-0071).
@@ -272,14 +262,14 @@ export function resolveLineStatus(
             // ambiguity-review surface — the pick affordance — instead of the passive badge. Nothing moves
             // automatically: nutrition stays withheld (`isWithheld` reads the BAND, not the status), and a
             // quantity-only dispute keeps NEEDS_REVIEW, because a food re-pick cannot fix an amount.
-            return identity.identityContradicted ? FoodResolutionStatus.AMBIGUOUS : FoodResolutionStatus.NEEDS_REVIEW;
+            return identity === 'contradict' ? FoodResolutionStatus.AMBIGUOUS : FoodResolutionStatus.NEEDS_REVIEW;
         case 'verified':
             return catalogStatus;
         case 'inconclusive':
             // The gate ABSTAINED, which publishes exactly as no verdict does (R23 keeps publish allowed). Owner ruling
             // 2026-10-25 (ADR-0071): when it abstained on the IDENTITY, the line keeps the AMBIGUOUS badge so the cook
             // is invited to look; a quantity-only abstention keeps the catalog status.
-            return identity.identityAbstained ? FoodResolutionStatus.AMBIGUOUS : catalogStatus;
+            return identity === 'abstain' ? FoodResolutionStatus.AMBIGUOUS : catalogStatus;
     }
 }
 
@@ -310,46 +300,51 @@ function quantityLowOf(quantity: IngredientQuantity): number | null {
     }
 }
 
+/** Every reading, in the order the classifier checks them. */
+export const IDENTITY_READINGS = [
+    'unasked',
+    'agree',
+    'contradict',
+    'doubt',
+    'hedged',
+    'abstain',
+    'unreadable',
+] as const;
+
 /**
- * The re-pick door (owner ruling 2026-08-31, U15 report "Owner rulings" §4): whether one stored verdict is
- * a HIGH-certainty IDENTITY contradiction — the only verdict shape that invites a human to re-pick the
- * FOOD. Everything else keeps its existing treatment:
+ * What one stored verdict says about the FOOD.
  *
- *  - a joint `disagree` with NO itemized identity is the pre-0042 population, unreadable further — copying
- *    the joint verdict into the identity slot would surface every quantity dispute, the exact conflation
- *    the ruling removes;
- *  - `identityVerdict: 'agree'` beside a joint `disagree` IS the quantity-only case ("a small piece of
- *    butter" → Butter, salted), and a food re-pick cannot fix an amount;
- *  - anything below `high` certainty stays a badge — U11 ranks a wrong DISAGREE as the unacceptable
- *    direction, so the affordance that asks a human to act opens only on the model's strongest claim.
- *
- * @param row - The stored verdict's band, certainty, and itemized identity verdict (`null` = not itemized).
- * @returns Whether the re-pick arm opens. Pure.
+ *  - `unasked`: the gate never asked identity (a quantity-only verdict). It says nothing about the food.
+ *  - `agree`: identity agreed, at medium or high certainty (or a joint `verified` the model did not itemize).
+ *  - `contradict`: the model itemized identity as `disagree` at HIGH certainty: its strongest claim.
+ *  - `doubt`: the model itemized `disagree`, short of high certainty.
+ *  - `hedged`: the model itemized `agree` at LOW certainty: `bandFor` honours the hedge and does not promote it.
+ *  - `abstain`: the model itemized identity as `abstain`.
+ *  - `unreadable`: no itemized identity answer to read: an unreadable model reply (stored as a joint `abstain`, low,
+ *    `inconclusive`), a joint disagree the model did not itemize, or a value this build does not know.
  */
-export function identityContradictedOf(row: {
-    readonly band: VerificationBand;
-    readonly certainty: string;
-    readonly identityVerdict: string | null;
-}): boolean {
-    return row.band === 'contradicted' && row.certainty === 'high' && row.identityVerdict === 'disagree';
-}
-
-/** What one stored verdict says about the food: an agreement, a disagreement, an abstention, or nothing at all. */
-export type IdentityReading = 'agree' | 'disagree' | 'abstain' | 'unasked';
+export type IdentityReading = (typeof IDENTITY_READINGS)[number];
 
 /**
- * The ONE reading of a stored verdict's IDENTITY (ADR-0071), shared by the paste matcher's state (`matchStateOf`) and a
- * saved line's status (`resolveLineStatus`), so the editor and the detail view can never read one row two ways.
+ * The ONE classifier of what a stored verdict says about the FOOD (ADR-0071 §9): the single authority both surfaces
+ * derive from. The paste matcher maps it to a proposal state (`matchStateOf`) and a saved line maps it to a status
+ * (`resolveLineStatus`). Neither re-reads the row's columns, so the two cannot read one row two ways.
  *
- * ⛔ A verdict whose aspects never included `identity` is `unasked`, whatever its band: a quantity-only `verified` is
- * not an agreement that the food is right, and a quantity-only `contradicted` is not a rejection of it. The model's
- * itemized identity verdict (0042) is read first; the joint band only when it gave none (the pre-0042 population).
+ * The two mappings differ in ONE direction, on purpose. Asking the cook before a bind is cheap, so the paste state
+ * asks on `doubt`, `hedged`, `abstain` and `unreadable` alike. Badging a line the cook already bound is a warning, so
+ * the saved status badges only `contradict` (re-pick) and `abstain` (look), and keeps the catalog status on the rest.
  *
- * @param verdict - The stored band, itemized identity verdict, and the aspects the gate asked.
+ * ⛔ A verdict whose aspects never included `identity` is `unasked`, whatever its band. The model's itemized identity
+ * verdict (0042) is read first. The joint band is trusted only for a joint `verified`, which implies every aspect
+ * agreed: a joint `contradicted` or `inconclusive` without itemization does not say WHICH aspect failed, so copying
+ * it into identity would surface every quantity dispute as a rejected food.
+ *
+ * @param verdict - The stored band, certainty, itemized identity verdict, and the aspects the gate asked.
  * @returns What it says about identity. Pure and total.
  */
 export function identityReadingOf(verdict: {
     readonly band: VerificationBand;
+    readonly certainty: string;
     readonly identityVerdict: string | null;
     readonly aspects: readonly string[];
 }): IdentityReading {
@@ -357,38 +352,16 @@ export function identityReadingOf(verdict: {
         return 'unasked';
     }
 
-    if (
-        verdict.identityVerdict === 'agree' ||
-        verdict.identityVerdict === 'disagree' ||
-        verdict.identityVerdict === 'abstain'
-    ) {
-        return verdict.identityVerdict;
-    }
-
-    switch (verdict.band) {
-        case 'verified':
-            return 'agree';
-        case 'contradicted':
-            return 'disagree';
-        case 'inconclusive':
+    switch (verdict.identityVerdict) {
+        case 'abstain':
             return 'abstain';
+        case 'agree':
+            return verdict.certainty === 'low' ? 'hedged' : 'agree';
+        case 'disagree':
+            return verdict.certainty === 'high' ? 'contradict' : 'doubt';
+        default:
+            return verdict.band === 'verified' ? 'agree' : 'unreadable';
     }
-}
-
-/**
- * Whether one stored verdict badges a saved line AMBIGUOUS for an identity ABSTENTION (owner ruling 2026-10-25,
- * ADR-0071). Like {@link identityContradictedOf}, only the model's ITEMIZED identity answer opens it: an unreadable
- * answer is stored as a joint `inconclusive` with no itemization, and a formatting failure is not the gate abstaining
- * on the food. A verdict that never asked identity says nothing about it (`identityReadingOf`).
- *
- * @param row - The stored verdict's itemized identity verdict and the aspects the gate asked.
- * @returns Whether the abstention badge opens. Pure.
- */
-export function identityAbstainedOf(row: {
-    readonly identityVerdict: string | null;
-    readonly aspects: readonly string[];
-}): boolean {
-    return row.aspects.includes('identity') && row.identityVerdict === 'abstain';
 }
 
 /**

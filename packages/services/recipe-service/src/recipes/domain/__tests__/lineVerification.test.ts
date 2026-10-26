@@ -21,8 +21,7 @@ import { ABSENT_QUANTITY, FoodResolutionStatus } from '@kitchensink/recipe-core'
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 
 import {
-    identityAbstainedOf,
-    identityContradictedOf,
+    IDENTITY_READINGS,
     identityReadingOf,
     foodPresenceStatus,
     resolveLineStatus,
@@ -219,61 +218,42 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
 describe('resolveLineStatus — which status one recipe line reports', () => {
     it('reports NEEDS_REVIEW when the gate CONTRADICTED the line, overriding the catalog mirror', () => {
-        expect(
-            resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: false,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.NEEDS_REVIEW);
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'unreadable')).toBe(
+            FoodResolutionStatus.NEEDS_REVIEW,
+        );
     });
 
     it('reports NEEDS_REVIEW even when the catalog knows nothing about the food', () => {
-        expect(
-            resolveLineStatus('contradicted', undefined, { identityContradicted: false, identityAbstained: false }),
-        ).toBe(FoodResolutionStatus.NEEDS_REVIEW);
+        expect(resolveLineStatus('contradicted', undefined, 'unreadable')).toBe(FoodResolutionStatus.NEEDS_REVIEW);
     });
 
     it('⛔ passes a VERIFIED line through unchanged — a verdict that agreed changes nothing', () => {
-        expect(
-            resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: false,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.RESOLVED);
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'agree')).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
     });
 
-    it('⛔ passes an INCONCLUSIVE line through unchanged — abstention is not disagreement', () => {
-        expect(
-            resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, {
-                identityContradicted: false,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.PENDING);
+    it('⛔ passes an INCONCLUSIVE line through unchanged — a hedge is not a disagreement', () => {
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, 'hedged')).toBe(
+            FoodResolutionStatus.PENDING,
+        );
     });
 
     it('⛔ ABSENCE OF A VERDICT MEANS PUBLISH — the line reports its catalog status alone (0023)', () => {
-        expect(
-            resolveLineStatus(undefined, FoodResolutionStatus.PENDING, {
-                identityContradicted: false,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.PENDING);
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING, 'unasked')).toBe(
+            FoodResolutionStatus.PENDING,
+        );
     });
 
     it('reports nothing at all for an unjudged line with no catalog status', () => {
-        expect(
-            resolveLineStatus(undefined, undefined, { identityContradicted: false, identityAbstained: false }),
-        ).toBeUndefined();
+        expect(resolveLineStatus(undefined, undefined, 'unasked')).toBeUndefined();
     });
 
-    it('is TOTAL over every band migration 0023 admits', () => {
+    it('is TOTAL over every band migration 0023 admits, under every reading', () => {
         for (const band of VERIFICATION_BANDS) {
-            expect(
-                resolveLineStatus(band, FoodResolutionStatus.RESOLVED, {
-                    identityContradicted: false,
-                    identityAbstained: false,
-                }),
-            ).toBeDefined();
+            for (const reading of IDENTITY_READINGS) {
+                expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, reading)).toBeDefined();
+            }
         }
     });
 });
@@ -287,165 +267,139 @@ describe('resolveLineStatus — which status one recipe line reports', () => {
  */
 describe('resolveLineStatus — an identity contradiction invites the re-pick', () => {
     it('reports AMBIGUOUS for a contradicted line whose identity the model itemized as the dispute', () => {
-        expect(
-            resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: true,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.AMBIGUOUS);
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'contradict')).toBe(
+            FoodResolutionStatus.AMBIGUOUS,
+        );
     });
 
-    it('keeps NEEDS_REVIEW for a contradicted line with NO identity itemization — the pre-0042 population', () => {
-        expect(
-            resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: false,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.NEEDS_REVIEW);
-    });
+    it.each(['agree', 'doubt', 'unreadable', 'unasked'] as const)(
+        'keeps NEEDS_REVIEW for a contradicted line whose identity reads %s',
+        (reading) => {
+            expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, reading)).toBe(
+                FoodResolutionStatus.NEEDS_REVIEW,
+            );
+        },
+    );
 
-    it('⛔ the flag reaches ONLY the contradicted arm — a verified line stays verified whatever it says', () => {
-        expect(
-            resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: true,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.RESOLVED);
+    it('⛔ the reading reaches ONLY the contradicted arm — a verified line stays verified whatever it says', () => {
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'contradict')).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
     });
 });
 
 /**
  * Owner ruling 2026-10-25 (ADR-0071 review, item 10): when the gate ABSTAINS on a saved line's IDENTITY, the line joins
  * the same ambiguity-review surface an identity contradiction does — the AMBIGUOUS badge — so the cook is invited to
- * look. Nutrition still publishes (`isWithheld` reads the band, and only `contradicted` withholds).
+ * look. Nutrition still publishes (`isWithheld` reads the band, and only `contradicted` withholds). A saved line is
+ * ALREADY BOUND, so a badge is a warning: only the model's itemized abstention earns it, never an unreadable answer.
  */
 describe('resolveLineStatus — an identity abstention keeps the AMBIGUOUS badge', () => {
     it('reports AMBIGUOUS for an inconclusive line whose IDENTITY the gate abstained on', () => {
-        expect(
-            resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: false,
-                identityAbstained: true,
-            }),
-        ).toBe(FoodResolutionStatus.AMBIGUOUS);
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'abstain')).toBe(
+            FoodResolutionStatus.AMBIGUOUS,
+        );
     });
 
-    it('keeps the catalog status for an inconclusive line whose identity was not the abstention', () => {
-        expect(
-            resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, {
-                identityContradicted: false,
-                identityAbstained: false,
-            }),
-        ).toBe(FoodResolutionStatus.RESOLVED);
-    });
+    it.each(['hedged', 'unreadable', 'doubt', 'agree', 'unasked'] as const)(
+        'keeps the catalog status for an inconclusive line whose identity reads %s',
+        (reading) => {
+            expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, reading)).toBe(
+                FoodResolutionStatus.RESOLVED,
+            );
+        },
+    );
 
-    it.each(['verified', 'contradicted'] as const)('⛔ the flag reaches ONLY the inconclusive arm — not %s', (band) => {
-        expect(
-            resolveLineStatus(band, FoodResolutionStatus.RESOLVED, {
-                identityContradicted: false,
-                identityAbstained: true,
-            }),
-        ).toBe(band === 'verified' ? FoodResolutionStatus.RESOLVED : FoodResolutionStatus.NEEDS_REVIEW);
-    });
+    it.each(['verified', 'contradicted'] as const)(
+        '⛔ the reading reaches ONLY the inconclusive arm — not %s',
+        (band) => {
+            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, 'abstain')).toBe(
+                band === 'verified' ? FoodResolutionStatus.RESOLVED : FoodResolutionStatus.NEEDS_REVIEW,
+            );
+        },
+    );
 });
 
 /**
- * Which verdicts badge a saved line AMBIGUOUS for an identity abstention (owner ruling 2026-10-25). Like the contradiction
- * arm beside it, only the model's ITEMIZED identity answer opens it: an unreadable answer is stored as a joint
- * `inconclusive` with no itemization, and a formatting failure is not the gate abstaining on the food.
- */
-describe('identityAbstainedOf — which verdicts badge a saved line for an identity abstention', () => {
-    it('fires on an itemized identity abstention that asked identity', () => {
-        const row = {
-            band: 'inconclusive',
-            certainty: 'high',
-            identityVerdict: 'abstain',
-            aspects: ['identity', 'quantity'],
-        } as const;
-
-        expect(identityAbstainedOf(row)).toBe(true);
-    });
-
-    it.each([
-        [
-            '⛔ an unreadable answer (stored abstain, low, no itemization)',
-            { band: 'inconclusive', certainty: 'low', identityVerdict: null, aspects: ['identity', 'quantity'] },
-        ],
-        [
-            'a quantity-only abstention (identity agreed)',
-            { band: 'inconclusive', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] },
-        ],
-        [
-            'a verdict that never asked identity',
-            { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: ['quantity'] },
-        ],
-    ] as const)('does NOT fire on %s', (_label, row) => {
-        expect(identityAbstainedOf(row)).toBe(false);
-    });
-});
-
-/**
- * The ONE reading of a verdict's identity (ADR-0071 review, item 7), shared by the paste matcher's state and the saved
- * line's status so the two can never read the same row differently. A verdict whose aspects never included `identity`
- * says nothing about the food, whatever its band: it is `unasked`, never an agreement.
+ * The ONE classifier of what a stored verdict says about the FOOD (ADR-0071 §9). The paste matcher's state and the
+ * saved line's status both derive from it; neither re-reads the row's columns.
  */
 describe('identityReadingOf — what one stored verdict says about the food', () => {
     const BOTH = ['identity', 'quantity'];
 
     it.each([
-        ['an itemized agree', { band: 'verified', identityVerdict: 'agree', aspects: BOTH }, 'agree'],
-        ['an itemized disagree', { band: 'contradicted', identityVerdict: 'disagree', aspects: BOTH }, 'disagree'],
-        ['an itemized abstain', { band: 'inconclusive', identityVerdict: 'abstain', aspects: BOTH }, 'abstain'],
         [
-            'a quantity dispute with identity agreed',
-            { band: 'contradicted', identityVerdict: 'agree', aspects: BOTH },
+            'an itemized agree',
+            { band: 'verified', certainty: 'high', identityVerdict: 'agree', aspects: BOTH },
             'agree',
         ],
-        ['a joint verified, not itemized', { band: 'verified', identityVerdict: null, aspects: BOTH }, 'agree'],
         [
-            'a joint contradicted, not itemized',
-            { band: 'contradicted', identityVerdict: null, aspects: BOTH },
-            'disagree',
+            'an itemized agree at medium certainty',
+            { band: 'verified', certainty: 'medium', identityVerdict: 'agree', aspects: BOTH },
+            'agree',
         ],
         [
-            'a joint inconclusive, not itemized',
-            { band: 'inconclusive', identityVerdict: null, aspects: BOTH },
+            'a quantity dispute with identity agreed',
+            { band: 'contradicted', certainty: 'high', identityVerdict: 'agree', aspects: BOTH },
+            'agree',
+        ],
+        [
+            'a high-certainty itemized disagree',
+            { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: BOTH },
+            'contradict',
+        ],
+        [
+            'a medium-certainty itemized disagree',
+            { band: 'contradicted', certainty: 'medium', identityVerdict: 'disagree', aspects: BOTH },
+            'doubt',
+        ],
+        [
+            'a low-certainty itemized disagree',
+            { band: 'inconclusive', certainty: 'low', identityVerdict: 'disagree', aspects: BOTH },
+            'doubt',
+        ],
+        [
+            '⛔ a low-certainty itemized agree (the hedge is honoured, not promoted)',
+            { band: 'inconclusive', certainty: 'low', identityVerdict: 'agree', aspects: BOTH },
+            'hedged',
+        ],
+        [
+            'an itemized abstain',
+            { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: BOTH },
             'abstain',
         ],
         [
+            'a joint verified that was not itemized (a joint agree implies each aspect)',
+            { band: 'verified', certainty: 'high', identityVerdict: null, aspects: BOTH },
+            'agree',
+        ],
+        [
+            '⛔ an unreadable model answer (stored abstain, low, not itemized)',
+            { band: 'inconclusive', certainty: 'low', identityVerdict: null, aspects: BOTH },
+            'unreadable',
+        ],
+        [
+            '⛔ a joint contradiction that was not itemized (which aspect is unknown)',
+            { band: 'contradicted', certainty: 'high', identityVerdict: null, aspects: BOTH },
+            'unreadable',
+        ],
+        [
+            '⛔ an identity verdict this build does not know',
+            { band: 'contradicted', certainty: 'high', identityVerdict: 'someday', aspects: BOTH },
+            'unreadable',
+        ],
+        [
             '⛔ a verified band that never asked identity',
-            { band: 'verified', identityVerdict: null, aspects: ['quantity'] },
+            { band: 'verified', certainty: 'high', identityVerdict: null, aspects: ['quantity'] },
             'unasked',
         ],
         [
-            '⛔ a contradiction that never asked identity',
-            { band: 'contradicted', identityVerdict: null, aspects: ['quantity'] },
+            '⛔ a disagree that never asked identity',
+            { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['quantity'] },
             'unasked',
         ],
     ] as const)('reads %s', (_label, verdict, reading) => {
         expect(identityReadingOf(verdict)).toBe(reading);
-    });
-});
-
-describe('identityContradictedOf — which verdicts open the re-pick door', () => {
-    it('fires ONLY on a contradicted band with a high-certainty identity disagreement', () => {
-        expect(identityContradictedOf({ band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' })).toBe(
-            true,
-        );
-    });
-
-    it.each([
-        ['the band is not contradicted', { band: 'verified', certainty: 'high', identityVerdict: 'disagree' }],
-        ['certainty is only medium', { band: 'contradicted', certainty: 'medium', identityVerdict: 'disagree' }],
-        [
-            'identity itself agreed — a quantity-only dispute',
-            { band: 'contradicted', certainty: 'high', identityVerdict: 'agree' },
-        ],
-        [
-            'identity was never itemized (pre-0042 verdict)',
-            { band: 'contradicted', certainty: 'high', identityVerdict: null },
-        ],
-    ])('does NOT fire when %s', (_label, row) => {
-        expect(identityContradictedOf(row as Parameters<typeof identityContradictedOf>[0])).toBe(false);
     });
 });
 

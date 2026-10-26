@@ -159,7 +159,7 @@ export class LineVerificationsDal {
  * One stored verdict, as the read side consumes it (migration 0042, owner ruling 2026-08-31).
  *
  * The band is the publish decision, exactly as before; `certainty` and `identityVerdict` exist for ONE
- * consumer — `identityContradictedOf`, the U13 re-pick door — and `identityVerdict: null` is the pre-0042
+ * consumer — `identityReadingOf`, the U13 re-pick door — and `identityVerdict: null` is the pre-0042
  * population, which keeps its NEEDS_REVIEW treatment.
  */
 export interface LineVerdictRow {

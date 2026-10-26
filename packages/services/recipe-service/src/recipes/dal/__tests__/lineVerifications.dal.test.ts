@@ -88,7 +88,7 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
         const bands = await new LineVerificationsDal(control.db).findBandsByKeys([KEY_A, KEY_B]);
 
         // Migration 0042: the row carries the per-aspect identity verdict beside the band, because the
-        // U13 re-pick door (`identityContradictedOf`) reads all three fields off one row. ADR-0071 (item 7): and the
+        // U13 re-pick door (`identityReadingOf`) reads all three fields off one row. ADR-0071 (item 7): and the
         // aspects asked, because a verdict that never asked identity says nothing about the food.
         expect(bands.get(KEY_A)).toEqual({
             band: 'contradicted',

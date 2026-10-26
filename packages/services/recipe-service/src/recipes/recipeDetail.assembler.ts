@@ -54,9 +54,8 @@ import { RecipesDal, type RecipeAggregate } from './dal/recipes.dal.js';
 import { toRecipeNutritionState } from './domain/nutritionState.js';
 import {
     isWithheld,
-    identityContradictedOf,
+    identityReadingOf,
     foodPresenceStatus,
-    identityAbstainedOf,
     resolveLineStatus,
     viewerLineStatus,
     verifiedLineIdentity,
@@ -559,13 +558,11 @@ function finalLineStatus(
 ) {
     return viewerLineStatus(
         foodPresenceStatus(
-            resolveLineStatus(verdict?.band, catalogStatusOf(identity), {
-                // Owner ruling 2026-08-31 (§4): a high-certainty identity contradiction opens the re-pick door; a
-                // pre-0042 verdict (identityVerdict null) keeps the passive badge.
-                identityContradicted: verdict !== undefined && identityContradictedOf(verdict),
-                // Owner ruling 2026-10-25 (ADR-0071): an ITEMIZED identity abstention keeps the AMBIGUOUS badge.
-                identityAbstained: verdict !== undefined && identityAbstainedOf(verdict),
-            }),
+            resolveLineStatus(
+                verdict?.band,
+                catalogStatusOf(identity),
+                verdict === undefined ? 'unasked' : identityReadingOf(verdict),
+            ),
             presenceOf(identity),
         ),
         privateFoodOwnerOf(identity.arm),

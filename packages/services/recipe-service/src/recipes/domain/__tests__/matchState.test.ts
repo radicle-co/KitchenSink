@@ -12,8 +12,8 @@
  *     error rate) but adds a review note.
  *  4. A memo, or a lexical proposal the gate CONTRADICTED on identity: `needsChoice`.
  *  5. A memo: `confident`.
- *  6. A lexical proposal: `confident` once the gate verified identity and `needsChoice` when it contradicted or
- *     abstained. With no verdict, an exact-name rung is `confident` (ruling 3); otherwise `needsChoice` when the gate
+ *  6. A lexical proposal: `confident` once the gate verified identity and `needsChoice` when it contradicted,
+ *     doubted, hedged or abstained, or when its reply was unreadable. With no verdict, an exact-name rung is `confident` (ruling 3); otherwise `needsChoice` when the gate
  *     could not be asked (refused) or gave up (unchecked), and `checking` while the review is in flight.
  *
  * ⛔ A quantity-only dispute is not a food problem: a joint `contradicted` with an itemized identity `agree` is a
@@ -37,12 +37,26 @@ const facts = (overrides: Partial<MatchFacts> = {}): MatchFacts => ({
 
 /** Both aspects asked, as every paste review asks them. */
 const ASKED = ['identity', 'quantity'] as const;
-const CONTRADICTED = { band: 'contradicted', identityVerdict: 'disagree', aspects: ASKED } as const;
-const VERIFIED = { band: 'verified', identityVerdict: 'agree', aspects: ASKED } as const;
-const ABSTAINED = { band: 'inconclusive', identityVerdict: 'abstain', aspects: ASKED } as const;
+const CONTRADICTED = { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ASKED } as const;
+const DOUBTED = { band: 'contradicted', certainty: 'medium', identityVerdict: 'disagree', aspects: ASKED } as const;
+const VERIFIED = { band: 'verified', certainty: 'high', identityVerdict: 'agree', aspects: ASKED } as const;
+const HEDGED = { band: 'inconclusive', certainty: 'low', identityVerdict: 'agree', aspects: ASKED } as const;
+const ABSTAINED = { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: ASKED } as const;
+/** The model's reply could not be read: stored as a joint abstain, low, with no itemized identity. */
+const UNREADABLE = { band: 'inconclusive', certainty: 'low', identityVerdict: null, aspects: ASKED } as const;
 /** A verdict on record under the key that asked QUANTITY only: it says nothing about the food. */
-const QUANTITY_ONLY_AGREE = { band: 'verified', identityVerdict: null, aspects: ['quantity'] } as const;
-const QUANTITY_ONLY_DISAGREE = { band: 'contradicted', identityVerdict: null, aspects: ['quantity'] } as const;
+const QUANTITY_ONLY_AGREE = {
+    band: 'verified',
+    certainty: 'high',
+    identityVerdict: null,
+    aspects: ['quantity'],
+} as const;
+const QUANTITY_ONLY_DISAGREE = {
+    band: 'contradicted',
+    certainty: 'high',
+    identityVerdict: null,
+    aspects: ['quantity'],
+} as const;
 
 describe('matchStateOf — the truth table', () => {
     it.each<[string, MatchFacts, ReturnType<typeof matchStateOf>]>([
@@ -128,12 +142,12 @@ describe('matchStateOf — the truth table', () => {
         ],
         [
             '⛔ a quantity-only dispute (identity agreed) is confident',
-            facts({ verdict: { band: 'contradicted', identityVerdict: 'agree', aspects: ASKED } }),
+            facts({ verdict: { band: 'contradicted', certainty: 'high', identityVerdict: 'agree', aspects: ASKED } }),
             { state: 'confident', reason: 'reviewVerified' },
         ],
         [
             'a joint verified verdict with no itemized identity is confident',
-            facts({ verdict: { band: 'verified', identityVerdict: null, aspects: ASKED } }),
+            facts({ verdict: { band: 'verified', certainty: 'high', identityVerdict: null, aspects: ASKED } }),
             { state: 'confident', reason: 'reviewVerified' },
         ],
         [
@@ -142,9 +156,9 @@ describe('matchStateOf — the truth table', () => {
             { state: 'needsChoice', reason: 'reviewContradicted' },
         ],
         [
-            'a joint contradiction with no itemized identity needs a choice',
-            facts({ verdict: { band: 'contradicted', identityVerdict: null, aspects: ASKED } }),
-            { state: 'needsChoice', reason: 'reviewContradicted' },
+            '⛔ a joint contradiction with no itemized identity cannot say the FOOD is wrong: unchecked',
+            facts({ verdict: { band: 'contradicted', certainty: 'high', identityVerdict: null, aspects: ASKED } }),
+            { state: 'needsChoice', reason: 'reviewUnchecked' },
         ],
         [
             'a lexical proposal the gate abstained on',
@@ -152,9 +166,39 @@ describe('matchStateOf — the truth table', () => {
             { state: 'needsChoice', reason: 'reviewAbstained' },
         ],
         [
-            'a joint inconclusive verdict with no itemized identity needs a choice',
-            facts({ verdict: { band: 'inconclusive', identityVerdict: null, aspects: ASKED } }),
+            '⛔ an unreadable model reply reads as a review that gave up, never `checking` forever',
+            facts({ verdict: UNREADABLE }),
+            { state: 'needsChoice', reason: 'reviewUnchecked' },
+        ],
+        [
+            'an unreadable reply on an EXACT-name proposal is confident, like any review that gave up (Q)',
+            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' }, verdict: UNREADABLE }),
+            { state: 'confident', reason: 'exactName' },
+        ],
+        [
+            'a disagreement short of high certainty asks the cook (asking is cheap)',
+            facts({ verdict: DOUBTED }),
+            { state: 'needsChoice', reason: 'reviewContradicted' },
+        ],
+        [
+            'a memo with a disagreement short of high certainty asks the cook',
+            facts({ proposal: { matchedBy: 'memo', rung: null }, verdict: DOUBTED }),
+            { state: 'needsChoice', reason: 'reviewContradicted' },
+        ],
+        [
+            '⛔ a curated mapping with a disagreement short of high certainty carries NO review note',
+            facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: DOUBTED }),
+            { state: 'confident', reason: 'curatedMapping' },
+        ],
+        [
+            '⛔ a hedged agree (low certainty) is not a confirmation',
+            facts({ verdict: HEDGED }),
             { state: 'needsChoice', reason: 'reviewAbstained' },
+        ],
+        [
+            'a memo with a hedged agree stays a remembered match',
+            facts({ proposal: { matchedBy: 'memo', rung: null }, verdict: HEDGED }),
+            { state: 'confident', reason: 'rememberedMatch' },
         ],
         [
             '⛔ an EXACT-name proposal the gate contradicted needs a choice — the verdict outranks the rung',
@@ -175,6 +219,11 @@ describe('matchStateOf — the truth table', () => {
         [
             'an EXACT-name proposal awaiting the gate is confident (ruling 3)',
             facts({ proposal: { matchedBy: 'lexical', rung: 'exact' } }),
+            { state: 'confident', reason: 'exactName' },
+        ],
+        [
+            'Q: an EXACT-name proposal whose review the gate GAVE UP on is still confident (owner: an exact name is)',
+            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' }, review: 'exhausted' }),
             { state: 'confident', reason: 'exactName' },
         ],
         [

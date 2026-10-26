@@ -131,6 +131,16 @@ describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
         expect(applied).not.toContain(',');
     });
 
+    it('in compact height the plain heading takes the large title role too: its 600 face, never the 700 bold', () => {
+        layout.compact = true;
+        render(frame());
+
+        const heading = screen.getByRole('heading', { name: 'Recipes' });
+
+        expect(appliedFontFamily(heading)).toBe(nativeTokens.type.largeTitle.narrow.fontFamily);
+        expect(appliedFontFamily(heading)).not.toBe(nativeTokens.fontFace.display.bold);
+    });
+
     it('does not wrap the heading in a gradient title band', () => {
         render(frame());
         // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
@@ -243,7 +253,8 @@ describe('RecipeListFrame (native) — compact height', () => {
 
         expect(heading.parentElement?.contains(field)).toBe(true);
         expect(getComputedStyle(heading.parentElement as Element).flexDirection).toBe('row');
-        expect(appliedFontFamily(heading)).toBe(nativeTokens.fontFace.display.bold);
+        // REWRITTEN: this pinned the compact heading's 700 bold face, the defect itself. Its face is now the large title
+        // role's, asserted in "the heading sits on the canvas" above.
     });
 
     it('keeps the same field node, focused, through regular, compact and collapsed', () => {

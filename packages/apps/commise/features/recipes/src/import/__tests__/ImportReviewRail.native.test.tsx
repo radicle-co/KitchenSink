@@ -2,6 +2,7 @@
  * Native component tests for `ImportReviewRail`, rendered through react-native-web under jsdom. Mirrors
  * `ImportReviewRail.test.tsx`.
  */
+import { nativeTokens } from '@commise/ui/native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -49,5 +50,21 @@ describe('ImportReviewRail (native)', () => {
         fireEvent.click(buttons[0] as HTMLElement);
 
         expect(onOpenRecipe).toHaveBeenCalledWith('beef');
+    });
+
+    it('every recipe row keeps the native touch floor', () => {
+        render(
+            <ImportReviewRail
+                total={309}
+                recipes={RECIPES}
+                currentId="lemon"
+                addedWithoutStep={0}
+                onOpenRecipe={vi.fn()}
+            />,
+        );
+
+        for (const row of screen.getAllByRole('button')) {
+            expect(getComputedStyle(row).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);
+        }
     });
 });

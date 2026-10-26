@@ -147,9 +147,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: nativeTokens.spacing[3],
     },
-    heading: {
-        fontFamily: nativeTokens.fontFace.display.bold,
-        fontSize: nativeTokens.fontSize.displayMd,
-    },
+    // The large title role at its narrow size, the face and the 28 px cap the full header draws (owner rule C1), not a
+    // 700 face of its own.
+    heading: nativeTokens.type.largeTitle.narrow,
     searchCompact: { flexGrow: 1, flexBasis: 240, minWidth: 0 },
 });

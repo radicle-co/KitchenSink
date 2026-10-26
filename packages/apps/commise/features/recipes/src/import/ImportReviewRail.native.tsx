@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     rail: { gap: nativeTokens.spacing[1] },
     label: nativeTokens.type.label,
     row: {
-        minHeight: 44,
+        minHeight: nativeTokens.touchTarget,
         justifyContent: 'center',
         paddingHorizontal: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.sm,

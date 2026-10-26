@@ -76,6 +76,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => {
         useAllOwnerRecipes: () => ({ recipes: [], isLoading: false, isError: false }),
         useDeleteRecipe: () => idle,
         useSetRecipeVisibility: () => idle,
+        // ADR-0073: the detail decides Make private from the cook's private slots; this file is not about them, so a slot is free.
+        usePrivateSlots: () => ({ data: { kind: 'limited', used: 0, limit: 50 }, isPending: false }),
         // The detail screen reads a refused visibility write from the mutation cache under this key.
         RECIPE_VISIBILITY_MUTATION_KEY: ['recipe-service', 'mutations', 'recipeVisibility'],
         useSetRecipeRating: () => idle,

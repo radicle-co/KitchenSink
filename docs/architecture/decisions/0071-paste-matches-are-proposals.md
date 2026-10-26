@@ -48,22 +48,22 @@ explicit pick. The review gate checks every paste match, whatever its measured e
    A curated or memo answer does not hide a default.
 6. **An outage is never stored as "no match".** A tier that failed, a food service that did not answer, or a switched
    off catalog writes no row. The next call retries.
-    - Work per call is bounded by one deadline of 4.5 seconds. A wave of four foods starts only if its searches can
-      finish in time. The food read and the send to the queue carry the same deadline. With the view's own name read,
+    - Work per call is bounded by one deadline of 4.5 seconds. If the searches of a wave of four foods can finish in
+      time, the wave starts. The food read and the send to the queue carry the same deadline. With the view's own name read,
       the request stays inside the client's 10 second timeout.
 7. **The review gate checks each proposal once.** The message carries a parse-job origin and `unattributed`
    evidence, so identity is always asked. No `ingredientPhrase` is sent, so the worker writes no memo from a paste.
     - **Earned autonomy (D1) is suspended for every line, not only for paste lines.** No producer sends a band key, so
       no band is observed and no band skip is granted. The worker records an observation, and reads band authority,
       only for a `ranked` message that names its own band. It never looks a band up from the shared resolution
-      events. The band tables and the revocation drain stay for now; a later release contracts them.
+      events. The band tables and the revocation drain stay for now. A later release contracts them.
     - What can bring D1 back: the paste origin carrying the match row's rung, margin, query shape and ranker version
       as the message's band key. The worker already accepts that key.
     - **Spend.** Every curated and memo line on the save path now pays an identity call, because nothing skips
       identity any more. Each paste food pays one review. The review is attributed to a new call site,
       `paste-match-review`, inside ADR-0024's one pool. Outside production it is ungated (ADR-0024 §3).
-8. **A send is claimed, and a claim is a lease.** A verdict already on record sends nothing, if it asked identity. A
-   row already sent sends nothing.
+8. **A send is claimed, and a claim is a lease.** Nothing is sent for a proposal whose verdict is on record and asked
+   identity. A row already sent sends nothing.
     - A claim names the row's digest and verdict key. A failed send releases only its own claim. One caller can never
       clear another caller's claim.
     - A claim older than the queue's delivery bound (90 seconds times 361 receives, about nine hours), with no verdict
@@ -85,7 +85,7 @@ explicit pick. The review gate checks every paste match, whatever its measured e
     | `needsChoice` | The gate abstained, refused the line, gave up, or was never asked for a contained principal.        |
     | `checking`    | A lexical proposal awaiting review.                                                                 |
     - Identity is read through one rule, `identityReadingOf`, which a saved line's status shares. A verdict that never
-      asked identity is no verdict about the food. It neither confirms nor rejects the proposal.
+      asked identity is no verdict about the food. It does not accept or reject the proposal.
     - The proposal is shown as the line's match only in `checking` and `confident`. In every other state the wire's
       `proposed` is `null`, and the food stays one of the candidates.
     - The state enum is closed. A new fact becomes a new field or a new reason key, never a new state. The candidate
@@ -101,7 +101,7 @@ explicit pick. The review gate checks every paste match, whatever its measured e
     record and asked identity. A pasted line whose proposal the gate judged is not paid for twice: the editor and the
     matcher read the line's measure with one function, `pastedLineMeasureOf`, so the two keys are equal.
 13. **An identity abstention on a saved line shows the AMBIGUOUS badge** (owner ruling 2026-10-25). A quantity-only
-    abstention keeps the catalog status. Nutrition still publishes; only a contradiction withholds it.
+    abstention keeps the catalog status. Nutrition still publishes. Only a contradiction withholds it.
 
 ## Consequences
 

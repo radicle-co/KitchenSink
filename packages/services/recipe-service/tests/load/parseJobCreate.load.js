@@ -22,9 +22,15 @@
 // ⛔ THE DAILY IMPORT ALLOWANCE (004 FR-022) BOUNDS THIS SCRIPT. Every create spends one unit of a user's 200-a-day
 // allowance (a trailing 24 hours), and nothing resets a pool user's ledger between k6 runs. A ramp that creates as fast
 // as the pace lets it would spend a pool user's whole day in a minute and then measure 429s. So each VU stops creating
-// once it has used its share of `PASTES_PER_USER` (default 60, so three runs inside a day still fit under 200), and a
-// fourth scenario, `quotaRefusal`, runs LAST on its own reserved pool user to assert the refusal itself: `429`, the code
-// `IMPORT_QUOTA_EXCEEDED`, and a `details.resetsAt` that is a future ISO instant within 24 hours.
+// once it has used its share of `PASTES_PER_USER` (default 60, so three runs inside a day still fit under 200).
+//
+// A fourth scenario, `quotaRefusal`, asserts the refusal itself: `429`, the code `IMPORT_QUOTA_EXCEEDED`, and a
+// `details.resetsAt` that is a future ISO instant within 24 hours. It drains one user's allowance ON PURPOSE, so it never
+// borrows a pool user: it runs only for a throwaway user NOBODY ELSE USES (not a pool member), named by
+// `RECIPE_QUOTA_HANDLES_FILE` (a sign-in handle, so the bearer is re-minted like the pool's) or, on the substrate profile,
+// by a static `RECIPE_QUOTA_TOKEN`. It starts WITH the ramps (a static bearer would not outlive waiting for them) and
+// paces like every other scenario, so about 200 creates take ten minutes on the deployed profile. A rerun within the day
+// finds that user already refused and asserts on the first request, which is cheap.
 //
 // A third, `pollProgress` (plan 2026-10-15-011), drives the READ every open paste issues every few seconds: since each
 // pending line reports its phase, `GET /recipe-parse-jobs/:id` computes ages with the database clock and a window over
@@ -43,7 +49,6 @@ import {
     BASE_URL,
     jsonHeaders,
     rampStages,
-    rampSeconds,
     PEAK_VUS,
     SC009_P95_MS,
     TOKEN_POOL,
@@ -51,6 +56,7 @@ import {
     PACE_SECONDS,
     iterationPause,
 } from './lib/common.js';
+import { freshBearer, loadSessionHandles } from '../../../../tools/loadtest/k6/session.js';
 
 const createTrend = new Trend('parse_job_create_duration', true);
 const pollTrend = new Trend('parse_job_poll_duration', true);
@@ -73,11 +79,19 @@ const DAILY_ALLOWANCE = Number(__ENV['RECIPE_IMPORT_DAILY_LIMIT'] || 200);
  */
 const PASTES_PER_USER = Number(__ENV['RECIPE_PARSE_JOB_PASTES_PER_USER'] || 60);
 
-/** Users the ramping scenarios spread over: the pool, minus the one `quotaRefusal` reserves; a hand run has one. */
-const RAMPING_USERS = Math.max(1, TOKEN_POOL.length > 1 ? TOKEN_POOL.length - 1 : TOKEN_POOL.length);
+/** Users the ramping scenarios spread over: the whole pool; a hand run has one. */
+const RAMPING_USERS = Math.max(1, TOKEN_POOL.length);
 
-/** Whether the refusal scenario runs: only against a provisioned pool of throwaway users, never a hand run's single token. */
-const QUOTA_SCENARIO = TOKEN_POOL.length > 1 || __ENV['RECIPE_PARSE_JOB_QUOTA'] === '1';
+/**
+ * The throwaway user `quotaRefusal` drains, used by NOTHING else: a static bearer (substrate) and/or a sign-in handle
+ * (deployed, re-minted). Neither present, the scenario does not run: it must never be pointed at a pool user (their ledger
+ * survives the run for 24 hours) or at a hand run's only token.
+ */
+const QUOTA_TOKEN = __ENV['RECIPE_QUOTA_TOKEN'] || '';
+const QUOTA_HANDLES = loadSessionHandles('RECIPE_QUOTA_HANDLES_FILE');
+
+/** Whether the refusal scenario runs. */
+const QUOTA_SCENARIO = QUOTA_TOKEN !== '' || QUOTA_HANDLES.length > 0;
 
 /** The peak of each ramping scenario, exactly as `rampStages` will set it (the deployed profile pins it to the pool). */
 const SCENARIO_PEAKS = [PEAK_VUS, Math.max(1, Math.floor(PEAK_VUS / 4)), PEAK_VUS].map(
@@ -86,11 +100,15 @@ const SCENARIO_PEAKS = [PEAK_VUS, Math.max(1, Math.floor(PEAK_VUS / 4)), PEAK_VU
 
 /**
  * Creates one VU may issue. A user's VUs are the ramping VUs spread over `RAMPING_USERS` (VU ids are contiguous, so
- * no user holds more than `ceil(total / users)` of them), and each VU's share keeps that user under `PASTES_PER_USER`.
+ * no user holds more than `ceil(total / users)` of them; `quotaRefusal`'s VU takes an id and is counted too), and each
+ * VU's share keeps that user under `PASTES_PER_USER`.
  */
 const CREATES_PER_VU = Math.max(
     1,
-    Math.floor(PASTES_PER_USER / Math.ceil(SCENARIO_PEAKS.reduce((sum, peak) => sum + peak, 0) / RAMPING_USERS)),
+    Math.floor(
+        PASTES_PER_USER /
+            Math.ceil((SCENARIO_PEAKS.reduce((sum, peak) => sum + peak, 0) + (QUOTA_SCENARIO ? 1 : 0)) / RAMPING_USERS),
+    ),
 );
 
 /** Creates THIS VU has issued. Module state is per-VU in k6, which is exactly the scope the budget needs. */
@@ -140,8 +158,7 @@ export const options = {
             stages: rampStages(PEAK_VUS),
             tags: { scenario: 'pollProgress' },
         },
-        // Runs AFTER the ramping scenarios, on the pool's reserved last user: it spends that user's allowance on purpose,
-        // so nothing may still be creating for them. `rampSeconds()` is the idiom for "after", not a hardcoded offset.
+        // Starts WITH the ramps: it shares no user with them, and every threshold is filtered by scenario tag.
         ...(QUOTA_SCENARIO
             ? {
                   quotaRefusal: {
@@ -149,7 +166,6 @@ export const options = {
                       exec: 'quotaRefusal',
                       vus: 1,
                       iterations: 1,
-                      startTime: `${String(rampSeconds() + 10)}s`,
                       maxDuration: '15m',
                       tags: { scenario: 'quotaRefusal' },
                   },
@@ -261,44 +277,55 @@ export function pollProgress() {
 /** The 24 h window plus clock skew between the runner and the service. */
 const RESETS_AT_SLACK_MS = 24 * 3_600_000 + 5 * 60_000;
 
+/** How many burst-throttle answers (`TOO_MANY_REQUESTS`) the scenario waits out before it gives up. */
+const MAX_THROTTLE_WAITS = 60;
+
 /**
- * Spend the reserved user's allowance to the limit and assert what the refusal says (004 FR-022).
+ * Spend the dedicated user's allowance to the limit and assert what the refusal says (004 FR-022).
  *
- * The user is the pool's LAST member, which the ramping scenarios do not use. Runs at most `DAILY_ALLOWANCE + 1`
- * creates, and stops at the first `429` — a user already at the limit from an earlier run today is refused on the first.
- * `responseCallback` makes 202 and 429 both EXPECTED for these requests only, so the one refusal is not counted as a
- * service failure by `http_req_failed`.
+ * Runs at most `DAILY_ALLOWANCE + 1` counted creates and stops at the first `IMPORT_QUOTA_EXCEEDED` — a user already at
+ * the limit from an earlier run today is refused on the first. A burst-throttle `429` (`TOO_MANY_REQUESTS`) is a
+ * different answer with a different code: it is waited out and not counted, so it can neither end the scenario nor pass
+ * for the quota. `responseCallback` makes 202 and 429 EXPECTED for these requests only, so the one refusal is not counted
+ * as a service failure by `http_req_failed`.
  *
  * @returns {void}
  */
 export function quotaRefusal() {
-    const bearerUser = TOKEN_POOL[TOKEN_POOL.length - 1] || undefined;
-    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    let throttled = 0;
 
-    if (bearerUser !== undefined) {
-        headers['Authorization'] = `Bearer ${bearerUser}`;
-    } else {
-        Object.assign(headers, jsonHeaders());
-    }
-
-    for (let attempt = 0; attempt <= DAILY_ALLOWANCE; attempt += 1) {
+    for (let attempt = 0; attempt <= DAILY_ALLOWANCE;) {
+        // Re-minted each time it is older than 45 seconds, so a ten-minute loop never presents an expired bearer.
+        const headers = {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${freshBearer(QUOTA_HANDLES, QUOTA_TOKEN)}`,
+        };
         const res = http.post(
             `${BASE_URL}/api/v1/recipe-parse-jobs`,
-            JSON.stringify({ text: `1 cup ${LINE_PREFIX} quota-${__VU}-${__ITER}-${String(attempt)}` }),
+            JSON.stringify({ text: `1 cup ${LINE_PREFIX} quota-${String(attempt)}-${String(throttled)}` }),
             {
                 headers,
                 tags: { operation: 'createParseJob' },
                 responseCallback: http.expectedStatuses(202, 429),
             },
         );
+        const body = res.status === 429 ? JSON.parse(res.body || '{}') : {};
 
-        if (res.status !== 429) {
+        if (res.status === 429 && body.code === 'TOO_MANY_REQUESTS' && throttled < MAX_THROTTLE_WAITS) {
+            throttled += 1;
             sleep(PACE_SECONDS);
 
             continue;
         }
 
-        const body = JSON.parse(res.body || '{}');
+        if (res.status !== 429) {
+            attempt += 1;
+            sleep(PACE_SECONDS);
+
+            continue;
+        }
+
         const resetsAt = Date.parse((body.details || {}).resetsAt);
 
         check(res, {

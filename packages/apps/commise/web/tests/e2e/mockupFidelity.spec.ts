@@ -5,7 +5,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { palette, semantic } from '@commise/ui/colors';
 import { gradient } from '@commise/ui/tokens/gradients';
-import { elevation, fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
+import { elevation, fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
@@ -340,7 +340,7 @@ const TOKEN_SCALE = {
     fontFamily,
     fontSize,
     fontWeight,
-    lineHeightRatio,
+    lineHeightPx,
     elevation,
 };
 

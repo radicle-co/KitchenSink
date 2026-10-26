@@ -105,8 +105,8 @@ export const fontWeight = {
 /**
  * Unitless line-height ratios — **DEPRECATED, and not a way to set a line height.** A ratio times a size gives 21,
  * 21.6 or 33.6 px, which cannot sit on the 4 px grid; use {@link lineHeightPx} or a type role. It stays for one
- * consumer, `tools/designArtifact` (`buildTokens.ts`), which reads `heading` for its design-canvas ramp and is not
- * edited from this package. Delete it with that consumer.
+ * consumer, `tools/designArtifact` (`buildTokens.ts`, `heading`), which is not edited from this package. Delete it with
+ * that consumer.
  */
 export const lineHeightRatio = {
     heading: 1.2,

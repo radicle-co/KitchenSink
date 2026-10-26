@@ -278,6 +278,72 @@ describe('Button (web)', () => {
         expect(container.querySelector('.animate-spin')).not.toBeNull();
     });
 
+    describe('the quiet tier', () => {
+        /** The tokens a control paints at rest: every class with no state or breakpoint prefix. */
+        const restingTokens = (element: Element | null): string[] =>
+            (element?.className ?? '').split(/\s+/u).filter((token) => !token.includes(':'));
+
+        it('is a named button that wears exactly the shared quiet surface', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            const button = screen.getByRole('button', { name: 'Keep as written' });
+            expect(button.className).toBe(buttonSurfaceClass('quiet'));
+        });
+
+        it('is text only in the inkMuted role: no fill, no edge and no shadow at rest', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            const resting = restingTokens(screen.getByRole('button', { name: 'Keep as written' }));
+            expect(resting).toContain('text-ink-muted');
+            expect(resting.filter((token) => /^(bg|border|from|shadow)(-|$)/u.test(token))).toEqual([]);
+        });
+
+        it('keeps the 44 px target', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            expect(restingTokens(screen.getByRole('button', { name: 'Keep as written' }))).toContain('min-h-11');
+        });
+
+        it('draws the standard focus ring, the same as every other tier', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            const classes = screen.getByRole('button', { name: 'Keep as written' }).className.split(/\s+/u);
+            expect(classes).toEqual(
+                expect.arrayContaining([
+                    'focus-visible:outline-none',
+                    'focus-visible:ring-2',
+                    'focus-visible:ring-focus-ring',
+                    'focus-visible:ring-offset-2',
+                ]),
+            );
+        });
+
+        it('may carry a decorative glyph, and the label alone stays the name', () => {
+            const { container } = render(
+                <Button variant="quiet" icon="x">
+                    Keep as written
+                </Button>,
+            );
+
+            expect(glyphIn(container)).toBe('lucide-x');
+            expect(container.querySelector('svg.lucide')?.closest('[aria-hidden="true"]')).not.toBeNull();
+            expect(screen.getByRole('button', { name: 'Keep as written' })).toBeTruthy();
+        });
+
+        it('fires onPress on click', async () => {
+            const user = userEvent.setup();
+            const onPress = vi.fn();
+            render(
+                <Button variant="quiet" onPress={onPress}>
+                    Keep as written
+                </Button>,
+            );
+
+            await user.click(screen.getByRole('button', { name: 'Keep as written' }));
+            expect(onPress).toHaveBeenCalledOnce();
+        });
+    });
+
     it('draws its glyph at the 20px inline size, in the colour of its label', () => {
         const { container } = render(<Button icon={plusMeaning}>Add</Button>);
         const svg = container.querySelector('svg.lucide');

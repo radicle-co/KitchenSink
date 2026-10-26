@@ -99,6 +99,8 @@ const SIZE: Readonly<Record<ButtonSize, string>> = {
  * - `secondary`: NEUTRAL — `paper`, a `lineControl` edge (SC 1.4.11), an `ink` label. ⚠️ This REPLACES the mockups'
  *   coral-outlined glass: the owner overruled coral on every control.
  * - `ghost`: an `actionText` label with no surface at rest.
+ * - `quiet`: an `inkMuted` label with no surface at rest. It takes the same ink wash on hover and press as every
+ *   other tier, so a mouse still sees the control respond, and nothing depends on that hover.
  * - `destructive` inline: a `dangerText` label on the neutral surface; `confirm`: the `danger` fill with an `onAction`
  *   label (4.66:1), which only a confirm dialog's action takes (§1.11). Its press darkens the fill (`danger/90`):
  *   `dangerText` is a light red in the dark theme and cannot be a fill.
@@ -107,6 +109,7 @@ const SURFACE = {
     primary: 'bg-action text-on-action shadow-sm hover:bg-action-pressed active:bg-action-pressed',
     secondary: 'border border-line-control bg-paper text-ink hover:bg-ink/6 active:bg-ink/6',
     ghost: 'text-action-text hover:bg-ink/6 active:bg-ink/6',
+    quiet: 'text-ink-muted hover:bg-ink/6 active:bg-ink/6',
     destructiveInline: 'border border-line-control bg-paper text-danger-text hover:bg-ink/6 active:bg-ink/6',
     destructiveConfirm: 'bg-danger text-on-action shadow-sm hover:bg-danger/90 active:bg-danger/90',
 } as const;

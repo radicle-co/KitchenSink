@@ -10,13 +10,15 @@
  * - **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays
  *   inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44
  *   (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.
+ * - **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.
  * - **Type**: the label is the `label` role — one registered Inter face per weight and never a `fontWeight` (§1.5),
  *   which on Android resolves to a synthesised or system bold instead of the face.
  * - **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to
  *   40%.
  *
  * Every tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,
- * surface-less ghost, and destructive's danger label (filled `danger` only in its `confirm` tone). Each colour comes
+ * surface-less ghost and quiet (an `actionText` and an `inkMuted` label), and destructive's danger label (filled
+ * `danger` only in its `confirm` tone). Each colour comes
  * from `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).
  *
  * @pattern Discriminated union (`ButtonProps`) rendered with a `StyleSheet`, composing `PressScale` — which owns the
@@ -43,13 +45,14 @@ import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } fr
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
 
 /** The flat surfaces and the role each one's label and glyph share. */
-type Surface = 'primary' | 'secondary' | 'ghost' | 'destructiveInline' | 'destructiveConfirm';
+type Surface = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructiveInline' | 'destructiveConfirm';
 
 /** Each surface's foreground role — the label AND the glyph AND the spinner, so the three always agree. */
 const FOREGROUND: Readonly<Record<Surface, Role>> = {
     primary: 'onAction',
     secondary: 'ink',
     ghost: 'actionText',
+    quiet: 'inkMuted',
     destructiveInline: 'dangerText',
     destructiveConfirm: 'onAction',
 };
@@ -67,6 +70,7 @@ function surfacePaint({ colors }: Theme, surface: Surface): ViewStyle {
         case 'destructiveInline':
             return { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.lineControl };
         case 'ghost':
+        case 'quiet':
             return { backgroundColor: 'transparent', borderWidth: 0 };
         case 'destructiveConfirm':
             return { backgroundColor: colors.danger, borderWidth: 0 };
@@ -159,7 +163,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: nativeTokens.spacing[2],
         paddingVertical: nativeTokens.spacing[2],
-        paddingHorizontal: nativeTokens.spacing[5],
+        // The web surface's base `px-3` (`surfaceClass.ts`): at 24 dp a row of three actions overflowed a 320 dp phone
+        // and clipped the primary. A test holds the two platforms equal.
+        paddingHorizontal: nativeTokens.spacing[3],
     },
     hitFrame: { justifyContent: 'center' },
     glyph: { flexShrink: 0 },

@@ -8,8 +8,8 @@
  * {@link ButtonProps} contract; the native leaf (`Button.native.tsx`) mirrors it.
  *
  * The glyph is drawn at the 20 px inline size in `currentColor`, so it always takes its label's colour, inside an
- * `aria-hidden` slot: the visible label (`children`) owns the accessible name. A ghost button may have no glyph; then
- * the slot exists only while busy, to hold the spinner.
+ * `aria-hidden` slot: the visible label (`children`) owns the accessible name. A ghost or quiet button may have no
+ * glyph; then the slot exists only while busy, to hold the spinner.
  *
  * Two behaviours are shared with the native leaf but expressed in the web idiom:
  *  - **Touch target** — a `min-h-11` (44px) floor at base for comfortable touch, RESET at `md:` so the

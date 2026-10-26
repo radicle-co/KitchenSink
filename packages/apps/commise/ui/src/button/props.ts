@@ -7,7 +7,7 @@
  * so callers cannot regress them:
  *  1. **The glyph is a MEANING, not an element.** `icon` is an `IconName` from `@commise/ui/icon`, so a screen cannot
  *     draw its own glyph (`docs/design/uiOverhaul/buildSpec.md` §1.7). It is REQUIRED for `primary`, `secondary` and
- *     `destructive`, and optional only for `ghost` — the one text-like tier (§1.11).
+ *     `destructive`, and optional only for the two text-like tiers, `ghost` (§1.11) and `quiet`.
  *  2. **The label owns the accessible name.** `children` is the visible text AND the accessible name; the glyph is
  *     always decorative, so a screen reader announces the label alone and name-based selection is stable.
  *  3. **Only a destructive button has a tone**, and only a confirm dialog asks for the filled one (§1.11). The
@@ -20,10 +20,12 @@ import type { PressScaleWidth } from '../pressScale/props.js';
 
 /**
  * The visual tiers (§1.10). `primary` is the one filled call-to-action of a view; `secondary` is neutral (paper, a
- * `lineControl` edge, an `ink` label); `ghost` is an `actionText` label with no surface at rest; `destructive` is a
- * danger label, filled with `danger` only in its `confirm` tone.
+ * `lineControl` edge, an `ink` label); `ghost` is an `actionText` label with no surface at rest; `quiet` is an
+ * `inkMuted` label with no surface at rest, for an action that must stay available without competing with the line's
+ * own choices ("Keep … as written", `docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`);
+ * `destructive` is a danger label, filled with `danger` only in its `confirm` tone.
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructive';
 
 /** The sizes (§1.6): 52, 44 and 36 visual px. `sm` keeps a 44 px hit area (48 dp on Android). */
 export type ButtonSize = 'lg' | 'md' | 'sm';
@@ -108,15 +110,15 @@ interface DestructiveButton extends ButtonCommon {
     readonly tone?: DestructiveTone;
 }
 
-/** A ghost button: the one tier whose glyph is optional. */
-interface GhostButton extends ButtonCommon {
-    readonly variant: 'ghost';
+/** A ghost or quiet button: the text-like tiers, whose glyph is optional. */
+interface TextButton extends ButtonCommon {
+    readonly variant: 'ghost' | 'quiet';
     /** The meaning the button's glyph draws, if it has one. */
     readonly icon?: IconName;
 }
 
 /** The cross-platform Button contract shared by the web and native leaves. */
-export type ButtonProps = SurfacedButton | DestructiveButton | GhostButton;
+export type ButtonProps = SurfacedButton | DestructiveButton | TextButton;
 
 /**
  * The surface a set of props asks for: its tier and, for a destructive button, its tone. Pure.

@@ -32,11 +32,12 @@ const COLOURS: Readonly<Record<string, string>> = {
 const AA_TEXT = 4.5;
 const AA_UI_COMPONENT = 3;
 
-/** Every surface the four tiers and two destructive tones produce, at the default size. */
+/** Every surface the five tiers and two destructive tones produce, at the default size. */
 const SURFACES: readonly { readonly name: string; readonly className: string }[] = [
     { name: 'primary', className: buttonSurfaceClass('primary') },
     { name: 'secondary', className: buttonSurfaceClass('secondary') },
     { name: 'ghost', className: buttonSurfaceClass('ghost') },
+    { name: 'quiet', className: buttonSurfaceClass('quiet') },
     { name: 'destructive inline', className: buttonSurfaceClass('destructive') },
     { name: 'destructive confirm', className: buttonSurfaceClass('destructive', 'md', 'confirm') },
 ];
@@ -146,7 +147,7 @@ describe('buttonSurfaceClass — geometry', () => {
      * longer than its whole container (200% text, §1.1's standing exception) wrapping inside the box, never overflowing.
      */
     it('never shrinks below its label in a flex row, and never grows past its container', () => {
-        for (const variant of ['primary', 'secondary', 'ghost'] as const) {
+        for (const variant of ['primary', 'secondary', 'ghost', 'quiet'] as const) {
             for (const size of SIZES) {
                 const tokens = tokensOf(buttonSurfaceClass(variant, size));
 
@@ -205,6 +206,17 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
         expect(tokens).toContain('text-action-text');
         expect(tokens.filter((token) => /^(bg|border|from)-/u.test(token))).toEqual([]);
         expect(tokens).toEqual(expect.arrayContaining(['hover:bg-ink/6', 'active:bg-ink/6']));
+    });
+
+    // `ingredientMatching.md`, "Decisions from the build": "Keep … as written" is text only, in `--ink-muted`, with the
+    // same 44 px target. Hover and press take the house ink wash every tier shares (`darkTheme.md` §1), never at rest.
+    it('paints quiet as an inkMuted label with no fill and no edge at rest, an ink wash on hover and press', () => {
+        const tokens = tokensOf(buttonSurfaceClass('quiet'));
+
+        expect(tokens).toContain('text-ink-muted');
+        expect(tokens.filter((token) => /^(bg|border|from|shadow)(-|$)/u.test(token))).toEqual([]);
+        expect(tokens).toEqual(expect.arrayContaining(['hover:bg-ink/6', 'active:bg-ink/6']));
+        expect(tokens).toContain('min-h-11');
     });
 
     it('paints inline destructive as a danger label on the neutral surface', () => {

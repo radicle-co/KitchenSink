@@ -24,6 +24,7 @@ import {
     addFoodRequestSchema,
     catalogSearchResultViewSchema,
     rankTierSchema,
+    searchResponseSchema,
     searchResultViewSchema,
     addResponseSchema,
     batchAddFoodRequestSchema,
@@ -883,13 +884,13 @@ describe('the search query schemas refuse a NUL byte', () => {
 describe('the split search response shapes (plan 002 S3)', () => {
     const variant = { id: '01JVARIANT0000000000000001', parts: [{ attribute: 'cut', text: 'flat' }] };
 
-    it('publishes a catalog hit as id, name, score, a rung and an optional variant, and nothing naming a caller', () => {
-        // Rewritten (ADR-0070): the rung joined the catalog hit. It depends on the query and the row only, never
-        // on who asked, so the edge may still share one response across callers.
+    it('publishes a catalog hit as id, name, score, an optional default flag and variant, and nothing naming a caller', () => {
+        // Rewritten (code-quality review W2): the catalog hit carried the rung, a closed enum every client parses
+        // strictly. It carries `isDefault` instead, the one ranking fact a picker shows (ADR-0070 §4), and no rung.
         expect(Object.keys(catalogSearchResponseSchema.shape.results.element.shape).sort()).toStrictEqual([
             'id',
+            'isDefault',
             'name',
-            'rung',
             'score',
             'variant',
         ]);
@@ -939,15 +940,45 @@ describe('searchResultViewSchema.rung', () => {
         expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 1 }).rung).toBeUndefined();
     });
 
-    it('rejects a rung the ladder does not have', () => {
-        expect(searchResultViewSchema.safeParse({ id: 'F', name: 'n', score: 0.5, rung: 'popular' }).success).toBe(
+    // Rewritten (review of 6888cdf60): this asserted a strict refusal. The rung is a RESPONSE field, and a client built
+    // against an older ladder parses responses strictly, so a new rung (ADR-0070 §4 added `default`) would have failed
+    // every response that carried it. A rung this build does not know now reads as absent, and the hit survives.
+    it('reads a rung this build does not know as absent, and keeps the hit', () => {
+        const parsed = searchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung: 'popular' });
+
+        expect(parsed.rung).toBeUndefined();
+        expect(parsed).toMatchObject({ id: 'F', name: 'n', score: 0.5 });
+        expect(
+            searchResponseSchema.parse({ results: [{ id: 'F', name: 'n', score: 0.5, rung: 'popular' }] }).results,
+        ).toHaveLength(1);
+    });
+
+    it('still refuses a hit that breaks a field other than the rung', () => {
+        expect(searchResultViewSchema.safeParse({ id: 'F', name: 'n', score: 'high', rung: 'exact' }).success).toBe(
             false,
         );
     });
 
-    it('carries the rung on the shared catalog search too', () => {
-        expect(catalogSearchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung: 'exact' }).rung).toBe(
-            'exact',
-        );
+    // Rewritten (code-quality review W2): the shared catalog search no longer carries the rung; it strips one.
+    it('strips a rung from the shared catalog search, which publishes isDefault instead', () => {
+        expect(
+            catalogSearchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung: 'default', isDefault: true }),
+        ).toStrictEqual({ id: 'F', name: 'n', score: 0.5, isDefault: true });
+    });
+});
+
+/** How a server-to-server hit says what it matched (code-quality review W2): a name, or an identifier. */
+describe('searchResultViewSchema.matchedBy', () => {
+    it('round-trips each kind of match', () => {
+        for (const matchedBy of ['name', 'identifier'] as const) {
+            expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 1, matchedBy }).matchedBy).toBe(matchedBy);
+        }
+    });
+
+    it('reads a kind of match this build does not know as absent, and keeps the hit', () => {
+        const parsed = searchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, matchedBy: 'barcode-ish' });
+
+        expect(parsed.matchedBy).toBeUndefined();
+        expect(parsed).toMatchObject({ id: 'F', name: 'n', score: 0.5 });
     });
 });

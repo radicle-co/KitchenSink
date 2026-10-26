@@ -14,6 +14,7 @@
  * - a declared alias (naming rule 28a) is a `declaredAlias` source of its `of` item, and its own group's other
  *   members come with it.
  */
+import { rankingKeyOf } from '@kitchensink/recipe-core/resolution/ranking-terms';
 import type { LineageKey } from '@kitchensink/usda-client';
 
 import type { CanonicalNutrient } from '../../../sources/foodSourceAdapter.js';
@@ -100,6 +101,8 @@ export interface SeedImageRoot {
     readonly name: string;
     /** The curated synonyms; none for a baseline root. */
     readonly synonyms: readonly string[];
+    /** The bare nouns this root is the curated default for (ADR-0070 §4); none for a baseline root. */
+    readonly defaultFor: readonly string[];
     /** The root's item: its USDA item, or its own seed key when it stands for none (KTD-6). */
     readonly item: ItemKey;
     /** The curated variants; none for a baseline root. */
@@ -572,7 +575,8 @@ function composeItem(baseline: BaselineSeed, item: FdcKey, declaredAliases: read
  * @returns The image.
  * @throws {SeedRefusedError} for a baseline refusal, an exclusion outside the universe, an item that is not
  *   its group's supplier or not in the universe, a candidate its dataset does not hold, a tie, a citation that is not
- *   the policy's choice (KTD-22), or a seed key or name the image holds twice.
+ *   the policy's choice (KTD-22), a seed key or name the image holds twice, or a default term another phrase keys
+ *   (ADR-0070 §4).
  */
 export function composeSeedImage(inputs: SeedInputs): SeedImage {
     const { curated, branded, extracts, candidates } = inputs;
@@ -625,6 +629,7 @@ export function composeSeedImage(inputs: SeedInputs): SeedImage {
                 seedKey: root.seedKey,
                 name: root.name,
                 synonyms: root.synonyms,
+                defaultFor: root.defaultFor,
                 item: root.item ?? root.seedKey,
                 variants: root.variants,
                 numbers,
@@ -667,6 +672,7 @@ export function composeSeedImage(inputs: SeedInputs): SeedImage {
             seedKey,
             name: group.name,
             synonyms: [],
+            defaultFor: [],
             item: seedKey,
             variants: [],
             numbers: { from: 'item' },
@@ -693,6 +699,8 @@ export function composeSeedImage(inputs: SeedInputs): SeedImage {
             });
         }
     }
+
+    issues.push(...defaultTermIssues(roots.values()));
 
     if (issues.length > 0) {
         throw new SeedRefusedError(issues);
@@ -724,6 +732,69 @@ export function composeSeedImage(inputs: SeedInputs): SeedImage {
     }
 
     return { roots, items };
+}
+
+/**
+ * Refuse a default term that another phrase of the catalog already keys (ADR-0070 §4). Every root counts, baseline
+ * ones included, and the key is `rankingKeyOf`, the key the `default` rung compares, so a term refused here is exactly a
+ * term that would tie or shadow another rung for the same query:
+ *
+ * - a root's NAME already answers the noun on the `exact` rung, so a default for it would never list first;
+ * - a SYNONYM is the food itself and binds with no cook involved, which a default must never do;
+ * - a noun has ONE default, so two terms with one key, on one root or two, are refused.
+ *
+ * A term with no letter or digit keys `''`, which no query keys, so it is refused rather than silently inert. Pure.
+ *
+ * @param roots - Every image root, curated ones first in file order.
+ * @returns One issue per refused term, on the root that lists it; a repeat is reported on its later holder.
+ */
+function defaultTermIssues(roots: Iterable<SeedImageRoot>): SeedIssue[] {
+    const all = [...roots];
+    const names = new Map<string, SeedKey>();
+    const synonyms = new Map<string, SeedKey>();
+
+    for (const root of all) {
+        names.set(rankingKeyOf(root.name), root.seedKey);
+
+        for (const synonym of root.synonyms) {
+            synonyms.set(rankingKeyOf(synonym), root.seedKey);
+        }
+    }
+
+    const defaults = new Map<string, SeedKey>();
+    const issues: SeedIssue[] = [];
+
+    for (const root of all) {
+        for (const term of root.defaultFor) {
+            const key = rankingKeyOf(term);
+            const where = root.seedKey;
+            const named = names.get(key);
+            const synonymOf = synonyms.get(key);
+            const defaultOf = defaults.get(key);
+
+            if (key === '') {
+                issues.push({ where, rule: 'defaultTermEmpty', detail: `'${term}' holds no letter or digit` });
+            } else if (named !== undefined) {
+                issues.push({ where, rule: 'defaultTermIsAName', detail: `'${term}' keys as the name of ${named}` });
+            } else if (synonymOf !== undefined) {
+                issues.push({
+                    where,
+                    rule: 'defaultTermIsASynonym',
+                    detail: `'${term}' keys as a synonym of ${synonymOf}`,
+                });
+            } else if (defaultOf !== undefined) {
+                issues.push({
+                    where,
+                    rule: 'defaultTermRepeated',
+                    detail: `'${term}' keys as a default term ${defaultOf} already lists`,
+                });
+            } else {
+                defaults.set(key, root.seedKey);
+            }
+        }
+    }
+
+    return issues;
 }
 
 /**

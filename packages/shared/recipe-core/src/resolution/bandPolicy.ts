@@ -24,6 +24,8 @@
  * constants are, not against today's guesses.
  */
 
+import { SCORE_CEILING, TIER_GAP } from './rankingTiers.js';
+
 /** The measured-agreement floor a band must clear to hold authority. Provisional (Q2). */
 export const BAND_AGREEMENT_BAR = 0.995;
 
@@ -62,13 +64,27 @@ export interface BandStats {
 export type BandTransition = 'authorize' | 'revoke' | 'hold';
 
 /**
- * The grant/revoke decision for one band, from its current state and full measured record.
+ * The rungs whose bands may never earn authority to skip the gate.
+ *
+ * ⛔ `default` (ADR-0070): its top hit is the curated default for a bare noun (`milk` → whole milk). Authority would let
+ * the lexical tier bind that default with no cook involved, and the owner ruled that a default is shown, never selected
+ * for the cook (2026-10-25). Its band is still observed; it is only never authorized.
+ */
+const RUNGS_WITHOUT_AUTHORITY: ReadonlySet<string> = new Set(['default']);
+
+/**
+ * The grant/revoke decision for one band, from its current state, its full measured record and its rung.
  *
  * @param state - The stored lifecycle state.
  * @param stats - Agreements and disagreements, all-time within the band's ranker version.
+ * @param rung - The band key's rung. REQUIRED, so no caller can decide authority without saying which rung it is for.
  * @returns The transition to apply. Pure.
  */
-export function decideBandAuthority(state: BandState, stats: BandStats): BandTransition {
+export function decideBandAuthority(state: BandState, stats: BandStats, rung: string): BandTransition {
+    if (RUNGS_WITHOUT_AUTHORITY.has(rung)) {
+        return state === 'authorized' ? 'revoke' : 'hold';
+    }
+
     const total = stats.agreements + stats.disagreements;
 
     if (total < BAND_MINIMUM_OBSERVATIONS) {
@@ -109,14 +125,29 @@ export function shadowRateFor(observationsSinceGrant: number): number {
     return observationsSinceGrant < BURN_IN_OBSERVATIONS ? POST_GRANT_SHADOW_RATE : STEADY_SHADOW_RATE;
 }
 
-/** The margin-band labels — the band key's second axis. Provisional bucket edges (Q2). */
-export type MarginBand = 'none' | '0.00-0.05' | '0.05-0.15' | '0.15+';
+/** The margin-band labels — the band key's second axis, in rung units. Provisional bucket edges (Q2). */
+export type MarginBand = 'none' | 'lt-0.3-rung' | '0.3-0.9-rung' | 'ge-0.9-rung';
+
+/**
+ * One rung of the ladder on the score scale: the score lead one rung gives at an equal base metric.
+ *
+ * ⚠️ The margin edges are fractions of THIS, never absolute scores. The score is normalized by `SCORE_CEILING`, which
+ * grows with every rung the ladder gains, so an absolute edge silently moves: a one-rung lead was 2/12 = 0.167 (above
+ * the old 0.15 edge) and is 2/16 = 0.125 with seven rungs. In rung units a one-rung lead is always 1 (the top band).
+ */
+const RUNG = TIER_GAP / SCORE_CEILING;
+
+/** Below this lead, two candidates are a photo-finish. Provisional (Q2): 0.3 rung, the old 0.05 at 2/12 per rung. */
+const NARROW_MARGIN_EDGE = 0.3 * RUNG;
+
+/** At or above this lead, the winner is clear by about a rung. Provisional (Q2): 0.9 rung, the old 0.15 at 2/12. */
+const CLEAR_MARGIN_EDGE = 0.9 * RUNG;
 
 /**
  * Bucket a ranked shortlist's top-1/top-2 score margin into its band label.
  *
  * ⛔ A MISSING margin (a singleton shortlist has no runner-up to measure against) is its OWN band, never
- * folded into `0.00-0.05`: a singleton is a very different confidence shape from a photo-finish, and
+ * folded into `lt-0.3-rung`: a singleton is a very different confidence shape from a photo-finish, and
  * sharing a bucket would let one earn authority on the other's record.
  *
  * @param margin - Top-1 minus top-2 relevance score, or `undefined` for a singleton shortlist.
@@ -127,15 +158,15 @@ export function marginBandOf(margin: number | undefined): MarginBand {
         return 'none';
     }
 
-    if (margin < 0.05) {
-        return '0.00-0.05';
+    if (margin < NARROW_MARGIN_EDGE) {
+        return 'lt-0.3-rung';
     }
 
-    if (margin < 0.15) {
-        return '0.05-0.15';
+    if (margin < CLEAR_MARGIN_EDGE) {
+        return '0.3-0.9-rung';
     }
 
-    return '0.15+';
+    return 'ge-0.9-rung';
 }
 
 /** The query-shape labels — the band key's third axis (single-token and multi-word rank differently). */

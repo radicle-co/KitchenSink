@@ -146,9 +146,13 @@ export const scoredCandidateSchema = z.object({
 /**
  * WHERE a line to verify came from (ADR-0071): a SAVED recipe, or a line of a paste job the cook has not saved yet.
  *
- * Correlation only — the verdict is keyed on content, not on this. A paste-job origin names the line AND the food
- * within it, because one parsed line can propose more than one food (`salt and pepper`), and the worker writes the
- * verdict back onto that one proposal.
+ * The verdict is keyed on CONTENT, never on this: the worker writes it to the one verdict table under the
+ * verification key, and recipe-service reads it back onto a proposal through the key that proposal's match row
+ * records. A paste-job origin names the line AND the food within it, because one parsed line can propose more
+ * than one food (`salt and pepper`), so a log or an alarm can say which proposal a message was about.
+ *
+ * What the origin DOES change at the worker is how the line is judged: a paste proposal always asks identity, is
+ * attributed to its own spend call site, and feeds no band observation and no memo (`verifyLine.ts`).
  */
 export const verificationOriginSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('recipe'), recipeId: z.uuid() }),

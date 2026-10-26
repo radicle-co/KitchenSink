@@ -200,7 +200,7 @@ export class BandAuthorityStore {
 
         const authority = await this.authorityFor(band);
         const stats = await this.statsFor(band);
-        const transition = decideBandAuthority(authority?.state ?? 'observing', stats);
+        const transition = decideBandAuthority(authority?.state ?? 'observing', stats, band.rung);
         await this.applyTransition(band, transition);
 
         return transition;

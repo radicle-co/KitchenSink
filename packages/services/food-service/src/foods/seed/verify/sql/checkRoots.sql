@@ -12,14 +12,14 @@
 -- - `tombstoned_at` and `withdrawn_at` NULL: neither a lookup tombstone nor an author's withdrawal is the seed's.
 -- `retired_at` is compared by selection: a live root has none, so a retired root the seed holds reads as absent.
 WITH expected AS (
-    SELECT seed_key, name, normalized_name, aliases, item_key, 'root'::text AS item_owner_kind,
+    SELECT seed_key, name, normalized_name, aliases, default_terms, item_key, 'root'::text AS item_owner_kind,
            'RESOLVED'::text AS status, 'generic'::text AS kind, NULL::text AS description, NULL::text AS brand_owner,
            NULL::text AS brand_name, NULL::text AS barcode, 'public'::text AS visibility, NULL::text AS user_id,
            NULL::timestamptz AS tombstoned_at, NULL::timestamptz AS withdrawn_at
       FROM pg_temp.v_expected_root
 ),
 actual AS (
-    SELECT root.seed_key, root.name, root.normalized_name, root.aliases, item.natural_key,
+    SELECT root.seed_key, root.name, root.normalized_name, root.aliases, root.default_terms, item.natural_key,
            root.item_owner_kind::text, root.status::text, root.kind::text, root.description, root.brand_owner,
            root.brand_name, root.barcode, root.visibility, root.user_id::text, root.tombstoned_at, root.withdrawn_at
       FROM public.food root

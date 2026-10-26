@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 156,
         "missing-module-doc": 21,
-        "platform-singleton": 67,
+        "platform-singleton": 69,
         "ref-api": 13,
         "unclassified-layer": 92,
         "undocumented-prop": 175
@@ -3389,6 +3389,26 @@
             "severity": "review",
             "component": "featuresRecipes/form/ShortlistPanel",
             "sourcePath": "packages/apps/commise/features/recipes/src/form/ShortlistPanel.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/import/ImportLineOptions",
+            "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportLineOptions.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/import/ImportWizardNotice",
+            "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardNotice.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"

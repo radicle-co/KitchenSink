@@ -33,20 +33,31 @@ that default, and nobody built it. The owner also ruled on 2026-10-01 that the s
 2. **`RANKER_VERSION` becomes `ladder-v4-head-noun`.** Every band re-earns its authority under the new ranker.
 3. **A synonym is its own rung.** A query that equals a root's synonym ranks just below an equal name, so the
    curator's synonym loop (ADR-0055) can lift a root above other head-rung rows. Food publishes the rung on each
-   search hit, and recipe-service records that value instead of computing the rung a second time.
+   ranked hit of the per-caller search, the server-to-server shape recipe-service reads, and recipe-service records
+   that value instead of computing the rung a second time. That field reads a rung it does not know as absent, so the
+   ladder can grow without failing an older reader. The shared catalog search, which clients read and the edge
+   caches, publishes no rung: it carries only `isDefault` (decision 4). The authored search publishes neither.
 4. **A bare noun's default is a separate seed kind, `defaultFor`, with a `default` rung just below `synonym`.** It is
    not a synonym, because food treats a synonym as the food itself. A synonym `milk` on whole milk binds whole milk
-   with no cook involved. A default term is excluded from that identity rule, and a seed check refuses a
-   folded term that appears twice across names, synonyms and defaults.
-5. **The six defaults are owner rulings of 2026-10-25:** salt → table salt, pepper → black pepper, milk → whole milk,
-   flour → all-purpose flour, cinnamon → ground cinnamon, rice → long-grain white rice. Bread, cream and oil get
-   none. The owner also ruled that defaults serve imports. The UI can show which choice is the default, but it never
-   selects that choice for the cook. This is a recorded exception to the 2026-10-01 text-only ruling: a
-   default is matched by text, but a curator chose it.
+   with no cook involved. A default term is excluded from that identity rule: it lives in its own column,
+   `food.default_terms` (migration 0027), which catalog-name identity never reads. The seed refuses a default term
+   whose ranking key is any root's name key, any synonym key, or another default term's key, across every root. It
+   does not refuse a key twice among names and synonyms: 22 keys repeat within one root (`coriander seed` and
+   `coriander seeds`), and that redundancy names one food. No key is shared by two roots.
+5. **The ten defaults are owner rulings of 2026-10-25:** salt → table salt, pepper → black pepper, milk → whole milk,
+   flour → all-purpose flour, cinnamon → ground cinnamon, rice → long-grain white rice, nutmeg → ground nutmeg,
+   peppercorns → black peppercorns, endive → Belgian endive and oatmeal → rolled oats. The last four were synonyms and
+   are now only defaults, so a cook can choose another food. Bread, cream and oil get none. The owner also ruled that
+   defaults serve imports. The UI can show which choice is the default, but it never selects that choice for the
+   cook. This is a recorded exception to the 2026-10-01 text-only ruling: a default is matched by text, but a curator
+   chose it.
 
 ## Consequences
 
 - Carob flour now ranks as a flour. Which flour a bare `flour` means is the `default` rung's job, not the head rule's.
+- Each new rung shrinks one rung's share of the normalized score (2/12 with five rungs, 2/16 with seven). The lexical
+  tier's margin bands are therefore measured in rung units, not absolute scores, so a one-rung lead stays in the top
+  band as the ladder grows.
 - Every search order moves, in the picker, in progressive search and in the lexical resolution tier. The judgement
   set is re-run and re-baselined.
 - Known names the rule still reads wrongly: `Cream of Wheat`, `cream of tartar`, `hearts of palm`, brand-led comma

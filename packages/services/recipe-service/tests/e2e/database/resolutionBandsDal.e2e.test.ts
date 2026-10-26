@@ -14,7 +14,12 @@ import { ResolutionBandsDal, type BandKey } from '../../../src/ingredients/resol
 import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
-const BAND: BandKey = { rung: 'head', marginBand: '0.15+', queryShape: 'single-token', rankerVersion: 'dal-test-v1' };
+const BAND: BandKey = {
+    rung: 'head',
+    marginBand: 'ge-0.9-rung',
+    queryShape: 'single-token',
+    rankerVersion: 'dal-test-v1',
+};
 const OTHER_BAND: BandKey = { ...BAND, queryShape: 'multi-word' };
 
 describe('ResolutionBandsDal (migration 0036)', () => {

@@ -73,6 +73,7 @@ export interface SnapshotRows {
         readonly seedKey: string;
         readonly name: string | null;
         readonly aliases: string | null;
+        readonly defaultTerms: readonly string[];
         readonly retired: boolean;
         readonly itemKey: string | null;
     }[];
@@ -459,6 +460,7 @@ export function assembleSnapshot(rows: SnapshotRows): CatalogSnapshot {
             seedKey,
             name,
             synonyms: row.aliases === null ? [] : row.aliases.split(ALIAS_DELIMITER),
+            defaultFor: row.defaultTerms,
             item: itemKey,
             nutrition: nutrition ?? null,
         });
@@ -592,6 +594,7 @@ export class CatalogSnapshotDao implements CatalogSnapshotSource {
                 seedKey: food.seedKey,
                 name: food.name,
                 aliases: food.aliases,
+                defaultTerms: food.defaultTerms,
                 retiredAt: food.retiredAt,
                 itemKey: foodItem.naturalKey,
             })
@@ -728,6 +731,7 @@ export class CatalogSnapshotDao implements CatalogSnapshotSource {
                               seedKey: row.seedKey,
                               name: row.name,
                               aliases: row.aliases,
+                              defaultTerms: row.defaultTerms,
                               retired: row.retiredAt !== null,
                               itemKey: row.itemKey,
                           },

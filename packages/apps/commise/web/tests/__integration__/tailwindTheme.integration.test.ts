@@ -67,6 +67,7 @@ const PROBES = [
     'max-w-page',
     'max-w-reading',
     'text-card-title',
+    'text-list',
     'text-large-title',
     'text-overline',
     'bg-paper',
@@ -480,11 +481,25 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(css).toMatch(/--text-card-title--font-weight:\s*600/u);
     });
 
-    it('sizes the large title with a bounded container-unit clamp', async () => {
+    // Owner rule C5: ingredient lists are set at 13 px, in the `list` role (redesignSpec.md's 13 / 1.35 step).
+    it('sets the list role at 0.8125rem / 1.35 / 400 from one utility', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'text-list')).toBe(
+            'font-size:var(--text-list);line-height:var(--tw-leading,var(--text-list--line-height));font-weight:var(--tw-font-weight,var(--text-list--font-weight))',
+        );
+        expect(css).toMatch(/--text-list:\s*0\.8125rem/u);
+        expect(css).toMatch(/--text-list--line-height:\s*1\.35/u);
+        expect(css).toMatch(/--text-list--font-weight:\s*400/u);
+    });
+
+    // REWRITTEN: the clamp's ceiling was 2.5rem (40 px). Owner rule C1 caps UI text at 28 px, so every container class
+    // is 28 and the compiled clamp is bounded at 1.75rem on both ends (the source change was 60cf38d84).
+    it('sizes the large title with a container-unit clamp bounded at 28 px', async () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'text-large-title')).toContain('font-size:var(--text-large-title)');
-        expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*2\.5rem\)/u);
+        expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*1\.75rem\)/u);
     });
 
     it('tracks the overline from its letter-spacing sub-property', async () => {

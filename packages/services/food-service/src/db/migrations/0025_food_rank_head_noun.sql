@@ -28,6 +28,12 @@
 -- value with `describeRankingName().head` name by name.
 --
 -- No index: a sort-key input, never a predicate.
+--
+-- ⚠️ `lock_timeout`: this file rewrites `food` under ACCESS EXCLUSIVE, and the runner's own lock_timeout covers only
+--   its advisory lock. A deploy that cannot take the table lock in 5 s fails, and a re-run retries it, instead of
+--   stalling every food read queued behind it.
+
+SET LOCAL lock_timeout = '5s';
 
 CREATE FUNCTION rank_head_of(source text) RETURNS text
 LANGUAGE sql IMMUTABLE PARALLEL SAFE

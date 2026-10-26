@@ -36,7 +36,7 @@
  * @implements FR-007 FR-047
  */
 import { Logger } from '@nestjs/common';
-import type { SearchResultView } from '@kitchensink/food-service-client';
+import type { RankTierView, SearchResultView } from '@kitchensink/food-service-client';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { FoodServiceClients } from './FoodServiceClients.factory.js';
@@ -73,7 +73,7 @@ export interface CatalogHit {
      * The ranking rung food ordered this hit by (ADR-0070). Food's SQL is the one authority for it, so the lexical tier
      * records it rather than classifying the name again. Absent on a crosswalk hit, which matched an identifier.
      */
-    readonly rung?: SearchResultView['rung'];
+    readonly rung?: RankTierView;
     /**
      * Per-100g macros, present only on an enriched search (`withNutrition` — plan U4b, the lexical tier's
      * path) and only where the catalog stores a qualifying row. Absent means UNKNOWN, never zero. Named in

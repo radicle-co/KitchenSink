@@ -82,6 +82,7 @@ export type {
     PendingFoodStatus,
     PendingResponse,
     PortionView,
+    RankTierView,
     RemoteFoodView,
     ResolveFoodRefsResponse,
     ResolveResponse,

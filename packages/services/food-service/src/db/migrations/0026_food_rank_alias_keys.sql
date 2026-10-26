@@ -15,6 +15,18 @@
 --   empty array, never NULL, so `= ANY(...)` is simply false for it.
 --
 -- STORED, like every ranking column: a sort-key input read on every search. No index: never a predicate.
+--
+-- ⚠️ `rank_alias_keys_of` is declared IMMUTABLE and calls `array_to_string`, which pg_proc marks STABLE. That
+--   marking exists because an element type's output function may read settings (a timestamptz array prints by
+--   DateStyle and TimeZone). Here the array is `rank_tokens_of()`'s text[], and text output reads no setting, so the
+--   call is immutable in fact and the declaration is safe. foodAliases.ts keeps `aliases` as text for the general
+--   case.
+--
+-- ⚠️ `lock_timeout`: this file rewrites `food` under ACCESS EXCLUSIVE, and the runner's own lock_timeout covers only
+--   its advisory lock. A deploy that cannot take the table lock in 5 s fails, and a re-run retries it, instead of
+--   stalling every food read queued behind it.
+
+SET LOCAL lock_timeout = '5s';
 
 CREATE FUNCTION rank_alias_keys_of(aliases text) RETURNS text[]
 LANGUAGE sql IMMUTABLE PARALLEL SAFE

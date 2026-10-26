@@ -70,6 +70,7 @@ import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocu
 import { FIELD_PADDING, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldAccessibilityHint } from '../input/props.js';
+import { StatusBadge } from '../statusBadge/StatusBadge.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -296,7 +297,17 @@ export const Combobox: FC<ComboboxProps> = ({
             ]}
         >
             <View style={styles.optionText}>
-                <Text style={[styles.optionLabel, { color: colors.ink }]}>{option.label}</Text>
+                {option.tag === undefined ? (
+                    <Text style={[styles.optionLabel, { color: colors.ink }]}>{option.label}</Text>
+                ) : (
+                    // The tag flows after the label and wraps under it at 320 pt, never squeezing the name.
+                    <View style={styles.taggedLabel}>
+                        <Text style={[styles.optionLabel, styles.taggedLabelText, { color: colors.ink }]}>
+                            {option.label}
+                        </Text>
+                        <StatusBadge status="note">{option.tag}</StatusBadge>
+                    </View>
+                )}
                 {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
             </View>
         </Pressable>
@@ -505,6 +516,14 @@ const styles = StyleSheet.create({
     optionText: { flex: 1, minWidth: 0 },
     busy: { opacity: 0.6 },
     optionLabel: { fontSize: nativeTokens.fontSize.bodyMd },
+    taggedLabel: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: nativeTokens.spacing[2],
+        rowGap: nativeTokens.spacing[1],
+    },
+    taggedLabelText: { flexShrink: 1, minWidth: 0 },
     status: {
         gap: nativeTokens.spacing[1],
         paddingHorizontal: nativeTokens.spacing[3],

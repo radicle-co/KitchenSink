@@ -91,6 +91,7 @@ export const TYPE_ROLE_DOC: Readonly<Record<TypeRole, TypeRoleDoc>> = {
     body: { group: 'Text', usage: 'Default text.' },
     readingBody: { group: 'Text', usage: 'Long-form recipe method text.' },
     meta: { group: 'Text', usage: 'Metadata line.' },
+    list: { group: 'Text', usage: 'A line in a list, such as an ingredient.' },
     label: { group: 'Text', usage: 'Control label.' },
     caption: { group: 'Text', usage: 'Caption.' },
     overline: { group: 'Text', usage: 'Overline, set in capitals with wide tracking.' },

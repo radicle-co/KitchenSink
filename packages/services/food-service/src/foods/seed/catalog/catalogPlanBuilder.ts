@@ -54,6 +54,8 @@ export interface RootWrite {
     readonly seedKey: SeedKey;
     readonly name: string;
     readonly synonyms: readonly string[];
+    /** The bare nouns the root is the curated default for (ADR-0070 §4), in seed order. */
+    readonly defaultFor: readonly string[];
     readonly item: ItemKey;
     /** Whether the row is retired now and the write clears `retired_at`. */
     readonly restore: boolean;
@@ -176,6 +178,12 @@ export type CatalogChange =
     | { readonly kind: 'rootRenamed'; readonly seedKey: SeedKey; readonly from: string; readonly to: string }
     | {
           readonly kind: 'rootSynonymsChanged';
+          readonly seedKey: SeedKey;
+          readonly from: readonly string[];
+          readonly to: readonly string[];
+      }
+    | {
+          readonly kind: 'rootDefaultsChanged';
           readonly seedKey: SeedKey;
           readonly from: readonly string[];
           readonly to: readonly string[];
@@ -401,6 +409,7 @@ function changeSortKey(change: CatalogChange): string {
         case 'rootRestored':
         case 'rootRenamed':
         case 'rootSynonymsChanged':
+        case 'rootDefaultsChanged':
         case 'rootItemChanged':
         case 'rootRetired':
         case 'rootRemoved':
@@ -570,6 +579,7 @@ function planNutrition(
 function planKeptRoot(state: PlanState, wanted: ContentRoot, had: ContentRoot, write: RootWrite): void {
     const { seedKey } = wanted;
     const synonymsChanged = !sameJson(wanted.synonyms, had.synonyms);
+    const defaultsChanged = !sameJson(wanted.defaultFor, had.defaultFor);
 
     if (write.restore) {
         state.changes.push({ kind: 'rootRestored', seedKey, name: wanted.name });
@@ -581,11 +591,15 @@ function planKeptRoot(state: PlanState, wanted: ContentRoot, had: ContentRoot, w
         state.changes.push({ kind: 'rootSynonymsChanged', seedKey, from: had.synonyms, to: wanted.synonyms });
     }
 
+    if (defaultsChanged) {
+        state.changes.push({ kind: 'rootDefaultsChanged', seedKey, from: had.defaultFor, to: wanted.defaultFor });
+    }
+
     if (wanted.item !== had.item) {
         state.changes.push({ kind: 'rootItemChanged', seedKey, from: had.item, to: wanted.item });
     }
 
-    if (write.restore || wanted.name !== had.name || wanted.item !== had.item || synonymsChanged) {
+    if (write.restore || wanted.name !== had.name || wanted.item !== had.item || synonymsChanged || defaultsChanged) {
         state.rootUpdate.push(write);
     }
 
@@ -615,7 +629,13 @@ function planRoots(inputs: PlanInputs, state: PlanState): void {
             continue;
         }
 
-        const write = { seedKey, name: wanted.name, synonyms: wanted.synonyms, item: wanted.item };
+        const write = {
+            seedKey,
+            name: wanted.name,
+            synonyms: wanted.synonyms,
+            defaultFor: wanted.defaultFor,
+            item: wanted.item,
+        };
 
         if (held === undefined || id === undefined) {
             const forward = inputs.forwardsBySource.get(forwardSourceKey('root', seedKey));

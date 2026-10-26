@@ -38,6 +38,9 @@ import {
     rateFor,
     registryEntryFor,
     residencyClearance,
+    PASTE_MATCH_REVIEW_CALL_SITE,
+    SPEND_CALL_SITES,
+    VERIFICATION_GATE_CALL_SITE,
     residencyRefusal,
     settleDeltaMicros,
     utf8ByteLength,
@@ -1090,5 +1093,22 @@ describe('Nova 2 Lite — the shipped parse model', () => {
             perMillion(out, rate.outputMicrosPerMillionTokens);
 
         expect(Math.round(onDemand)).toBe(521); // micro-dollars/line, matching the measured $0.000521
+    });
+});
+
+/**
+ * The paste-match review (ADR-0071) is a NEW claimant on the one pool, not a new pool: it gets its own `CallSite`
+ * value so an emptied pool can say who emptied it, and nothing else. Both properties are asserted — the value
+ * exists under its own name, and it is a member of the closed union the EMF dimension is drawn from.
+ */
+describe('the paste-match review call site (ADR-0071)', () => {
+    it("is 'paste-match-review', a member of the closed call-site union", () => {
+        expect(PASTE_MATCH_REVIEW_CALL_SITE).toBe('paste-match-review');
+        expect(SPEND_CALL_SITES).toContain(PASTE_MATCH_REVIEW_CALL_SITE);
+    });
+
+    it('is distinct from the verification gate it shares a handler with — otherwise it attributes nothing', () => {
+        expect(PASTE_MATCH_REVIEW_CALL_SITE).not.toBe(VERIFICATION_GATE_CALL_SITE);
+        expect(new Set(SPEND_CALL_SITES).size).toBe(SPEND_CALL_SITES.length);
     });
 });

@@ -38,6 +38,7 @@ export const VERIFIED_COLUMNS = {
         brand_name: 'compared',
         barcode: 'compared',
         aliases: 'compared',
+        default_terms: 'compared',
         status: 'compared',
         item_id: 'compared',
         item_owner_kind: 'compared',
@@ -56,6 +57,7 @@ export const VERIFIED_COLUMNS = {
         rank_tokens: 'generated',
         rank_head: 'generated',
         rank_alias_keys: 'generated',
+        rank_default_keys: 'generated',
     },
     food_item: {
         id: 'identity',
@@ -167,6 +169,8 @@ export const COVERED: readonly ComparedColumn[] = [
     'food.name',
     'food.normalized_name',
     'food.aliases',
+    // ADR-0070 §4: a root's default terms, in seed order (`checkRoots.sql`).
+    'food.default_terms',
     'food.status',
     'food.item_id',
     'food.item_owner_kind',

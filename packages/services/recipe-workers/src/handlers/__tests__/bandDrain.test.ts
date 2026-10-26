@@ -64,7 +64,7 @@ const VALID_MESSAGE = (id: string) => ({
 
 const SKIP = (id: string) => ({
     id,
-    band: { rung: 'head', marginBand: '0.15+', queryShape: 'single-token', rankerVersion: 'v1' },
+    band: { rung: 'head', marginBand: 'ge-0.9-rung', queryShape: 'single-token', rankerVersion: 'v1' },
     epoch: 1,
     message: VALID_MESSAGE(id),
 });

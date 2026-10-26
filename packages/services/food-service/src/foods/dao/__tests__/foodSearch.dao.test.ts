@@ -348,7 +348,8 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             expect(score).toContain('CASE');
             expect(score).toContain('food.rank_folded');
             expect(score).toContain('food.rank_tokens');
-            expect(score).toContain('ELSE 0');
+            // Rewritten (code-quality review G1): the base ordinal is bound now, not rendered raw.
+            expect(score).toMatch(/ELSE \$\d+::int END/);
             // ⛔ And it does NO per-row text processing: the fold and the tokenizer are two STORED generated
             // columns (migration 0008), because computing them per row measured 253–357ms at 50,000 rows
             // against SC-007's 200ms budget. Inlining them back would pass every ordering test here.

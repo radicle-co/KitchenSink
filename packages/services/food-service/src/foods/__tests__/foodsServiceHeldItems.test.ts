@@ -130,6 +130,8 @@ function serviceOver(spec: WorldSpec) {
         rankTokens: null,
         rankHead: null,
         rankAliasKeys: [],
+        defaultTerms: [],
+        rankDefaultKeys: [],
     };
     const createByName = vi.fn(
         async (_input: CreateByNameInput): Promise<CreateByNameResult> =>

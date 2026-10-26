@@ -464,16 +464,21 @@ function isBlank(line: string): boolean {
 }
 
 /**
- * Decide what, if anything, the verification gate asks the model about this line.
+ * Whether the cascade's identity doors are honoured for this decision.
  *
- * Total: every input produces a decision, and none throws. The order of the three branches is the order of
- * ADR-0024's cost layers — the free judgements come first, and only a line that survives all of them can
- * become a reservation.
+ * `open` for a BINDING — a saved line's food, where curated evidence and an earned band may excuse identity.
+ * `closed` for a PROPOSAL — a candidate the cook has not chosen (ADR-0071), where nothing excuses it.
+ */
+type IdentityDoors = 'open' | 'closed';
+
+/**
+ * The one decision procedure behind {@link decideVerification} and {@link decideProposalVerification}.
  *
  * @param input - The source line, the cascade's identity evidence, and the bands.
- * @returns The decision, with the observations it measured on the way. Pure.
+ * @param doors - Whether identity may be excused at all.
+ * @returns The decision. Pure.
  */
-export function decideVerification(input: VerificationGateInput): VerificationDecision {
+function decide(input: VerificationGateInput, doors: IdentityDoors): VerificationDecision {
     const shortlist = shortlistOf(input.evidence);
     const observations: GateObservations = {
         shortlistSize: shortlist.length,
@@ -499,15 +504,48 @@ export function decideVerification(input: VerificationGateInput): VerificationDe
     }
 
     // ⛔ Quantity is NEVER absent from this tuple. Nothing the cascade produces is evidence about a number.
-    const aspects: [VerificationAspect, ...VerificationAspect[]] = identityEstablished(
-        input.evidence,
-        input.thresholds,
-        observations.nutrientAgreement,
-        input.bandAuthority,
-        input.boundTo,
-    )
-        ? ['quantity']
-        : ['identity', 'quantity'];
+    const excused =
+        doors === 'open' &&
+        identityEstablished(
+            input.evidence,
+            input.thresholds,
+            observations.nutrientAgreement,
+            input.bandAuthority,
+            input.boundTo,
+        );
+    const aspects: [VerificationAspect, ...VerificationAspect[]] = excused ? ['quantity'] : ['identity', 'quantity'];
 
     return { kind: 'verify', aspects, observations };
+}
+
+/**
+ * Decide what, if anything, the verification gate asks the model about this line.
+ *
+ * Total: every input produces a decision, and none throws. The order of the three branches is the order of
+ * ADR-0024's cost layers — the free judgements come first, and only a line that survives all of them can
+ * become a reservation.
+ *
+ * @param input - The source line, the cascade's identity evidence, and the bands.
+ * @returns The decision, with the observations it measured on the way. Pure.
+ */
+export function decideVerification(input: VerificationGateInput): VerificationDecision {
+    return decide(input, 'open');
+}
+
+/**
+ * Decide what the gate asks about a match PROPOSED for a pasted line (ADR-0071) — identity, always.
+ *
+ * ⛔ THE OWNER'S RULE, NOT A CALIBRATION (2026-10-25): "the review LLM checks every paste-import match in the parse
+ * stack, whatever the measured error rate." A proposal is a candidate nobody has chosen yet, so neither door of
+ * {@link identityEstablished} applies to it: an earned band (D1's autonomy) speaks for a BINDING's ranked line, and
+ * a curated mapping asserts what a phrase means — not that this proposal is the one this cook's line means. The
+ * skip and the over-cap rejection are unchanged, because they are judgements about the TEXT.
+ *
+ * Band authority is not an input at all, so no caller can be tempted to read one for a decision it cannot change.
+ *
+ * @param input - The source line, the proposal's evidence, and the bands.
+ * @returns The decision; a `verify` always carries `identity`. Pure.
+ */
+export function decideProposalVerification(input: Omit<VerificationGateInput, 'bandAuthority'>): VerificationDecision {
+    return decide({ ...input, bandAuthority: undefined }, 'closed');
 }

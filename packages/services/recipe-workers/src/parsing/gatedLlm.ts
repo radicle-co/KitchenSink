@@ -19,8 +19,9 @@
  *    redelivery re-pays only uncached attempts;
  *  - settle is NEVER retried, and any outcome with no billed response refunds in full;
  *  - the dollar metric carries the call site — `ingredient-parse` for BOTH the first attempt and the retry,
- *    `foodness-validator`, `measurement-validator` (three of `SPEND_CALL_SITES`' four; the fourth,
- *    `verification-gate`, is `verifyLine.ts`'s) — attribution on the METRIC only, one pool, no sub-budgets.
+ *    `foodness-validator`, `measurement-validator` (three of `SPEND_CALL_SITES`' five; the other two,
+ *    `verification-gate` and `paste-match-review`, are `verifyLine.ts`'s) — attribution on the METRIC only, one
+ *    pool, no sub-budgets.
  *
  * ## ⛔ THIS IS THE SECOND OPINION, AND IT IS ONLY WORTH ANYTHING IF IT IS INDEPENDENT (ADR-0026 §1)
  *

@@ -14,8 +14,8 @@
  *   `numeric` at its stored scale while the projection computes its own;
  * - a USDA external key is {@link usdaExternalKey}'s bare FDC id, the live adapter's spelling (`String(fdcId)`), in
  *   `food_sources` and in a USDA citation alike;
- * - every list is in {@link compareText} order of its natural key, except a root's synonyms and a variant's parts,
- *   whose order is content.
+ * - every list is in {@link compareText} order of its natural key, except a root's synonyms and default terms and a
+ *   variant's parts, whose order is content.
  */
 import type { LineageKey } from '@kitchensink/usda-client';
 import Decimal from 'decimal.js';
@@ -122,6 +122,8 @@ export interface ContentRoot {
     readonly name: string;
     /** In seed order, which is display order. */
     readonly synonyms: readonly string[];
+    /** The bare nouns the root is the curated default for (ADR-0070 §4), in seed order. */
+    readonly defaultFor: readonly string[];
     readonly item: ItemKey;
     /** `null` when the seed states no numbers for the root (GR-019). */
     readonly nutrition: ContentNutrition | null;

@@ -5,6 +5,8 @@ import { AccessibilityInfo, Platform } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
+import type { ButtonProps, ButtonSize } from '../props.js';
+import { buttonSurfaceClass } from '../surfaceClass.js';
 import { dimmedOpacity } from '../../tokens/scale.js';
 
 // A value no literal in the leaf could match: the dimmed opacity must be READ from the shared token.
@@ -83,10 +85,11 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** The tiers that take a glyph, with the colour their label and glyph share. */
+/** Tiers drawn with a glyph here, with the colour their label and glyph share. */
 const TIERS = [
     { variant: 'primary', tone: undefined, label: role.onAction },
     { variant: 'secondary', tone: undefined, label: role.ink },
+    { variant: 'quiet', tone: undefined, label: role.inkMuted },
     { variant: 'destructive', tone: 'inline', label: role.dangerText },
     { variant: 'destructive', tone: 'confirm', label: role.onAction },
 ] as const;
@@ -271,6 +274,44 @@ describe('Button (native)', () => {
         expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
     });
 
+    // `ingredientMatching.md`, "Decisions from the build": text only, in `--ink-muted`, with the same 44 px target.
+    it('paints quiet as text only: no fill and no edge, in inkMuted, as a named button', () => {
+        render(<Button variant="quiet">Keep as written</Button>);
+
+        const button = screen.getByRole('button', { name: 'Keep as written' });
+        const pill = getComputedStyle(pillOf(button));
+
+        expect(pill.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+        expect(pill.borderTopWidth).toBe('0px');
+        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(role.inkMuted));
+    });
+
+    it('repaints the quiet label from the dark inkMuted role when the system is dark', () => {
+        scheme.current = 'dark';
+        render(<Button variant="quiet">Keep as written</Button>);
+
+        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(roleDark.inkMuted));
+    });
+
+    it('gives quiet a 44 pt target on iOS and 48 dp on Android', () => {
+        for (const [os, floor] of [
+            ['ios', 44],
+            ['android', 48],
+        ] as const) {
+            const restore = onPlatform(os);
+
+            try {
+                const { unmount } = render(<Button variant="quiet">Keep as written</Button>);
+                const button = screen.getByRole('button', { name: 'Keep as written' });
+
+                expect(getComputedStyle(pillOf(button)).minHeight, os).toBe(`${String(floor)}px`);
+                unmount();
+            } finally {
+                restore();
+            }
+        }
+    });
+
     it('fills destructive with danger only in its confirm tone; inline is a danger label on the neutral surface', () => {
         const { rerender } = render(
             <Button icon="trash" variant="destructive">
@@ -439,5 +480,92 @@ describe('Button (native) — iconPlacement (A-018)', () => {
 
         expect(label.compareDocumentPosition(glyph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(glyph.closest('[aria-hidden="true"]')).not.toBeNull();
+    });
+});
+
+/**
+ * Web and native share ONE horizontal padding (`surfaceClass.ts`, "`px-3 md:px-5`"). Measured in Chromium at 320 px,
+ * three actions at 20-24 px of inline padding need 383 px against 288 available, so the label wraps and the primary
+ * action is clipped off the right edge. Web moved to `px-3`; the native leaf kept `spacing[5]` (24 dp), so every
+ * three-action row on a 320 dp phone overflowed. The native padding is read from the rendered pill and compared with
+ * the web surface's own base `px-*` step, so neither platform can move alone.
+ *
+ * Only the BASE step is shared. Web's `md:px-5` is a wide-viewport density, and native has no viewport breakpoint on a
+ * button, so a phone always takes the narrow value.
+ */
+describe('Button (native) — horizontal padding equals web’s', () => {
+    /** Tailwind v4's default `--spacing` base: `px-N` is N x 0.25rem, which is N x 4 px at the 16 px root. */
+    const TAILWIND_SPACING_PX = 4;
+
+    /** The px a web surface pads each side with at the narrowest width: its one unprefixed `px-N` step. */
+    function webBasePaddingPx(className: string): number {
+        const steps = className
+            .split(/\s+/u)
+            .map((token) => /^px-(\d+(?:\.\d+)?)$/u.exec(token)?.[1])
+            .filter((step): step is string => step !== undefined);
+
+        expect(steps, className).toHaveLength(1);
+
+        return Number(steps[0]) * TAILWIND_SPACING_PX;
+    }
+
+    const SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm'];
+
+    /** Every tier and destructive tone, as the props that ask for it and the web surface it wears. */
+    const SURFACES: readonly {
+        readonly name: string;
+        readonly props: (size: ButtonSize) => ButtonProps;
+        readonly web: (size: ButtonSize) => string;
+    }[] = [
+        {
+            name: 'primary',
+            props: (size) => ({ icon: 'plus', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('primary', size),
+        },
+        {
+            name: 'secondary',
+            props: (size) => ({ icon: 'plus', variant: 'secondary', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('secondary', size),
+        },
+        {
+            name: 'ghost',
+            props: (size) => ({ variant: 'ghost', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('ghost', size),
+        },
+        {
+            name: 'quiet',
+            props: (size) => ({ variant: 'quiet', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('quiet', size),
+        },
+        {
+            name: 'destructive inline',
+            props: (size) => ({ icon: 'trash', variant: 'destructive', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('destructive', size, 'inline'),
+        },
+        {
+            name: 'destructive confirm',
+            props: (size) => ({ icon: 'trash', variant: 'destructive', tone: 'confirm', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('destructive', size, 'confirm'),
+        },
+    ];
+
+    it('pads every tier and size on each side by the web surface’s base px step', () => {
+        for (const { name, props, web } of SURFACES) {
+            for (const size of SIZES) {
+                const { unmount } = render(<Button {...props(size)} />);
+                const pill = getComputedStyle(pillOf(screen.getByRole('button', { name: 'Padded' })));
+                const expected = `${String(webBasePaddingPx(web(size)))}px`;
+
+                expect(pill.paddingLeft, `${name} ${size}`).toBe(expected);
+                expect(pill.paddingRight, `${name} ${size}`).toBe(expected);
+                unmount();
+            }
+        }
+    });
+
+    // The guard above compares two moving parts; this pins the agreed value, so both cannot drift together.
+    it('is the 12 px step, so three actions fit a 320 px row', () => {
+        expect(webBasePaddingPx(buttonSurfaceClass('primary'))).toBe(12);
+        expect(nativeTokens.spacing[3]).toBe(12);
     });
 });

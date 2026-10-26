@@ -23,8 +23,9 @@ describe('typeRole — the §1.5 table', () => {
         expect(typeRole).toEqual({
             largeTitle: {
                 face: 'display',
-                size: { narrow: 28, regular: 34, wide: 40 },
-                weight: 'bold',
+                // Owner rule C1 (no UI text above 28) and the redesign's 600 weight ceiling: rewritten from 28/34/40 bold.
+                size: { narrow: 28, regular: 28, wide: 28 },
+                weight: 'semibold',
                 lineHeight: 1.15,
             },
             barTitle: { face: 'body', size: 17, weight: 'semibold', lineHeight: 1.2 },
@@ -33,6 +34,8 @@ describe('typeRole — the §1.5 table', () => {
             body: { face: 'body', size: 16, weight: 'normal', lineHeight: 1.5 },
             readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 1.6 },
             meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
+            // Owner rule C5: ingredient lists at 13, and 15 was "still too large" (redesignSpec.md's 13 / 1.35 step).
+            list: { face: 'body', size: 13, weight: 'normal', lineHeight: 1.35 },
             label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 1.2 },
             caption: { face: 'body', size: 12, weight: 'medium', lineHeight: 1.4 },
             overline: {
@@ -78,6 +81,10 @@ describe('webTypeRoles — the --text-{role} projection', () => {
         expect(webTypeRoles['figure-stat']).toEqual({ size: '1.25rem', lineHeight: '1.2', fontWeight: '600' });
     });
 
+    it('emits the list role at 13 px (0.8125rem), leading 1.35, weight 400', () => {
+        expect(webTypeRoles.list).toEqual({ size: '0.8125rem', lineHeight: '1.35', fontWeight: '400' });
+    });
+
     it('carries the overline’s tracking as a letter-spacing sub-property', () => {
         expect(webTypeRoles.overline).toEqual({
             size: '0.6875rem',
@@ -116,6 +123,7 @@ describe('webTypeRoles — the --text-{role} projection', () => {
                 'body',
                 'reading-body',
                 'meta',
+                'list',
                 'label',
                 'caption',
                 'overline',
@@ -144,20 +152,14 @@ describe('webTypeRoles — the --text-{role} projection', () => {
             expect(clamp).not.toContain('vw');
         });
 
-        it('floors at the narrow size and caps at the wide size', () => {
-            expect(evaluate(0)).toBe(28);
-            expect(evaluate(4000)).toBe(40);
+        it('never renders above 28 px at any container width (owner rule C1)', () => {
+            for (const px of [0, 320, containerThreshold.regular, containerThreshold.wide, 4000]) {
+                expect(evaluate(px)).toBeCloseTo(28, 5);
+            }
         });
 
-        it.each([
-            ['regular', containerThreshold.regular, 34],
-            ['wide', containerThreshold.wide, 40],
-        ] as const)('reaches the %s size at the %s threshold', (_name, px, size) => {
-            expect(evaluate(px)).toBeCloseTo(size, 1);
-        });
-
-        it('carries the large title’s leading and weight', () => {
-            expect(webTypeRoles['large-title']).toMatchObject({ lineHeight: '1.15', fontWeight: '700' });
+        it('carries the large title’s leading and a weight within the 600 ceiling', () => {
+            expect(webTypeRoles['large-title']).toMatchObject({ lineHeight: '1.15', fontWeight: '600' });
         });
     });
 });
@@ -167,19 +169,23 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
         expect(nativeTokens.type.body.fontFamily).toBe(bodyFontFace.normal);
         expect(nativeTokens.type.cardTitle.fontFamily).toBe(bodyFontFace.semibold);
         expect(nativeTokens.type.caption.fontFamily).toBe(bodyFontFace.medium);
-        expect(nativeTokens.type.largeTitle.narrow.fontFamily).toBe(displayFontFace.bold);
+        expect(nativeTokens.type.largeTitle.narrow.fontFamily).toBe(displayFontFace.semibold);
+    });
+
+    it('sets the list role in the regular body face at 13, with a 17.6 leading (13 x 1.35, to one decimal)', () => {
+        expect(nativeTokens.type.list).toEqual({ fontFamily: bodyFontFace.normal, fontSize: 13, lineHeight: 17.6 });
     });
 
     it('gives the large title one size per container class', () => {
         expect(nativeTokens.type.largeTitle.narrow.fontSize).toBe(28);
-        expect(nativeTokens.type.largeTitle.regular.fontSize).toBe(34);
-        expect(nativeTokens.type.largeTitle.wide.fontSize).toBe(40);
+        expect(nativeTokens.type.largeTitle.regular.fontSize).toBe(28);
+        expect(nativeTokens.type.largeTitle.wide.fontSize).toBe(28);
     });
 
     it('turns each ratio into an absolute leading', () => {
         expect(nativeTokens.type.body.lineHeight).toBe(24);
         expect(nativeTokens.type.cardTitle.lineHeight).toBeCloseTo(20.8, 5);
-        expect(nativeTokens.type.largeTitle.wide.lineHeight).toBeCloseTo(46, 5);
+        expect(nativeTokens.type.largeTitle.wide.lineHeight).toBeCloseTo(32.2, 5); // 28 x 1.15 (owner rule C1)
     });
 
     it('sets figures in tabular, lining digits', () => {

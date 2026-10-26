@@ -6,8 +6,9 @@
  * @pattern Registry — `CLASS_HEADINGS` names every class once, and its key order is the order the diff lists them
  *
  * The diff lists every R41 class (roots added, renamed, merged, split, aliased and retired, roots whose item changed,
- * variants moved or promoted) and every citation, tier and value change, because a tier is a hand judgment the format
- * check cannot verify (KTD-22). It reads only `plan.changes`, never the rows.
+ * variants moved or promoted), every synonym and default-term change (a default is an owner ruling, ADR-0070 §4), and
+ * every citation, tier and value change, because a tier is a hand judgment the format check cannot verify (KTD-22). It
+ * reads only `plan.changes`, never the rows.
  */
 import type { CatalogChange, CatalogPlan, OwnerKey } from './catalogPlanBuilder.js';
 import type { ContentCitation } from './catalogSnapshot.js';
@@ -31,6 +32,7 @@ const CLASS_HEADINGS = {
     rootRestored: 'Roots restored',
     rootRenamed: 'Roots renamed',
     rootSynonymsChanged: 'Root synonyms changed',
+    rootDefaultsChanged: 'Root default terms changed',
     rootItemChanged: 'Roots whose item changed',
     rootMerged: 'Roots merged',
     rootAliased: 'Roots aliased',
@@ -149,6 +151,7 @@ function classOf(change: CatalogChange): ChangeClass {
         case 'rootRestored':
         case 'rootRenamed':
         case 'rootSynonymsChanged':
+        case 'rootDefaultsChanged':
         case 'rootItemChanged':
         case 'rootRetired':
         case 'variantAdded':
@@ -185,6 +188,7 @@ function describeChange(change: CatalogChange): string {
             return `${code(change.seedKey)} ${escapeMarkdown(change.from)} → ${escapeMarkdown(change.to)}`;
 
         case 'rootSynonymsChanged':
+        case 'rootDefaultsChanged':
             return `${code(change.seedKey)} ${namesOf(change.from)} → ${namesOf(change.to)}`;
 
         case 'rootItemChanged':

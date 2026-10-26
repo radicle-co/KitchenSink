@@ -35,6 +35,7 @@ const LABEL: LabelCitation = {
 
 const BRISKET = makeContentRoot({
     synonyms: ['brisket', 'beef breast'],
+    defaultFor: ['brisket cut', 'beef chest'],
     nutrition: {
         ...makeNutrition('fdc:100'),
         values: [
@@ -141,7 +142,7 @@ describe('resolveCatalogWriteSet — an empty catalog', () => {
         expect(set.itemInserts.every((row) => row.id.startsWith('new-'))).toBe(true);
     });
 
-    it('writes each root on its own item, with its name, normalized name and synonyms', () => {
+    it('writes each root on its own item, with its name, normalized name, synonyms and default terms in seed order', () => {
         expect(rootOf('fdc:100')).toEqual({
             id: rootOf('fdc:100').id,
             seedKey: 'fdc:100',
@@ -149,12 +150,15 @@ describe('resolveCatalogWriteSet — an empty catalog', () => {
             name: 'beef brisket',
             normalizedName: 'beef brisket',
             aliases: 'brisket; beef breast',
+            defaultTerms: ['brisket cut', 'beef chest'],
         });
+        // An empty array, never NULL: the column is NOT NULL and an empty list means the default for no noun.
         expect(rootOf('curated:salt-blend')).toMatchObject({
             itemId: itemOf('curated:salt-blend').id,
             name: 'Salt Blend',
             normalizedName: 'salt blend',
             aliases: null,
+            defaultTerms: [],
         });
     });
 
@@ -310,6 +314,8 @@ describe('resolveCatalogWriteSet — rows the catalog holds', () => {
                 name: 'Beef Brisket, whole',
                 normalizedName: 'beef brisket, whole',
                 aliases: 'brisket; beef breast',
+                // Rewritten (ADR-0070 §4): an update carries the root's default terms, as an insert does.
+                defaultTerms: ['brisket cut', 'beef chest'],
                 restore: false,
             },
         ]);

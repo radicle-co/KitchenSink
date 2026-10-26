@@ -52,6 +52,7 @@ export type TypeRole =
     | 'body'
     | 'readingBody'
     | 'meta'
+    | 'list'
     | 'label'
     | 'caption'
     | 'overline'
@@ -80,16 +81,19 @@ export interface TypeRoleSpec {
  *   ({@link webTypeRoles}); native picks the size for its class.
  * - `figureInline` takes the size and leading of the line it sits in, so it has neither of its own.
  * - Choices the spec left open, recorded so they are not re-decided per screen: `meta` is 400 (a 500 meta is a
- *   per-element exception); `figureStat`'s leading is 1.2 (the spec says "as its line", and a stat stands alone).
+ *   per-element exception); `figureStat`'s leading is 1.2 (the spec says "as its line", and a stat stands alone). * - `list` sets the lines of a list, such as a recipe's ingredients, at 13 px (owner rule C5: 15 was "still too
+ *   large"). Its size, weight and leading are the 13 step of `docs/design/uiRefreshWorkshop5/redesignCanvas/
+ *   redesignSpec.md`. It is named for its use, not its size, because the redesign later folds `meta` into that step.
  */
 export const typeRole = {
-    largeTitle: { face: 'display', size: { narrow: 28, regular: 34, wide: 40 }, weight: 'bold', lineHeight: 1.15 },
+    largeTitle: { face: 'display', size: { narrow: 28, regular: 28, wide: 28 }, weight: 'semibold', lineHeight: 1.15 },
     barTitle: { face: 'body', size: 17, weight: 'semibold', lineHeight: 1.2 },
     sectionTitle: { face: 'body', size: 18, weight: 'semibold', lineHeight: 1.25 },
     cardTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 1.3 },
     body: { face: 'body', size: 16, weight: 'normal', lineHeight: 1.5 },
     readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 1.6 },
     meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
+    list: { face: 'body', size: 13, weight: 'normal', lineHeight: 1.35 },
     label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 1.2 },
     caption: { face: 'body', size: 12, weight: 'medium', lineHeight: 1.4 },
     overline: {

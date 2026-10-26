@@ -142,6 +142,7 @@ export const SPEND_CALL_SITES = [
     'ingredient-parse',
     'foodness-validator',
     'measurement-validator',
+    'paste-match-review',
 ] as const;
 
 /** One claimant on ADR-0024's single spend pool. */
@@ -179,6 +180,17 @@ export const FOODNESS_VALIDATOR_CALL_SITE: SpendCallSite = 'foodness-validator';
  * partitioning: the pool stays ONE ceiling (ADR-0024's owner ruling).
  */
 export const MEASUREMENT_VALIDATOR_CALL_SITE: SpendCallSite = 'measurement-validator';
+
+/**
+ * The PASTE-MATCH REVIEW (ADR-0071) — the verification gate judging a match PROPOSED for a pasted line the cook has
+ * not saved yet, as opposed to a line a saved recipe is bound to.
+ *
+ * ⚠️ Same handler, same prompt, same reservation as {@link VERIFICATION_GATE_CALL_SITE}; only the claimant differs,
+ * which is the whole reason it is a value of its own. Its spend scales with what cooks PASTE (one call per proposed
+ * food, every one of them asked about identity — owner ruling 2026-10-25), not with what they save, and when the
+ * pool empties that difference is the first thing an operator needs to read off the metric.
+ */
+export const PASTE_MATCH_REVIEW_CALL_SITE: SpendCallSite = 'paste-match-review';
 
 /**
  * Where a decision to route this model's inference beyond the calling region is written down.

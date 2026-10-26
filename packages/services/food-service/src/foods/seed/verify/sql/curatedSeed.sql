@@ -8,6 +8,10 @@ CREATE TEMP TABLE v_seed_root AS
            doc ->> 'seedKey' AS seed_key,
            doc ->> 'name' AS name,
            doc -> 'synonyms' AS synonyms,
+           -- ADR-0070 §4: the bare nouns the root is the default for, in file order; absent is none, never NULL.
+           ARRAY(SELECT term.value
+                   FROM jsonb_array_elements_text(doc -> 'defaultFor') WITH ORDINALITY AS term(value, position)
+                  ORDER BY term.position) AS default_terms,
            doc ->> 'item' AS item_key,
            nullif(doc -> 'nutrition', 'null'::jsonb) AS nutrition,
            doc -> 'variants' AS variants

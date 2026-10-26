@@ -233,6 +233,8 @@ async function foundationZip(): Promise<Buffer> {
 export const MINI_ROOTS: readonly CuratedRoot[] = [
     makeItemRoot({
         synonyms: ['brisket', 'whole brisket'],
+        // Two default terms, so the order is observable (ADR-0070 §4).
+        defaultFor: ['beef', 'brisket cut'],
         variants: [
             makeVariant({ item: 'fdc:101', parts: [makePart({ text: 'flat' }), makePart({ text: 'first cut' })] }),
             makeVariant({
@@ -429,7 +431,12 @@ export async function writeMiniSeedData(
         writeFileSync(join(dir, source, 'sourcePins.json'), tablePins(extract, bytes));
     }
 
-    writeFileSync(join(dir, 'curatedCatalog.jsonl'), catalogText(overrides.roots ?? MINI_ROOTS));
+    // A root with no default terms states none, as the committed file does: absence is the default for no noun.
+    const lines = (overrides.roots ?? MINI_ROOTS).map(({ defaultFor, ...line }) =>
+        defaultFor.length === 0 ? line : { ...line, defaultFor },
+    );
+
+    writeFileSync(join(dir, 'curatedCatalog.jsonl'), catalogText(lines));
     writeFileSync(join(dir, 'catalogChanges.json'), changesText(overrides.changes ?? MINI_CHANGES));
     writeFileSync(
         join(dir, 'sourceCandidates.tsv'),

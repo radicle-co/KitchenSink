@@ -93,7 +93,7 @@ describe('createBandFeedback — the lookup discipline', () => {
         expect(observationCall).toBeDefined();
         expect(observationCall?.[1]).toEqual([
             'head',
-            '0.15+',
+            'ge-0.9-rung',
             'single-token',
             'ladder-v2-comma-head',
             'agree',

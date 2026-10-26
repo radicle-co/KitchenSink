@@ -51,6 +51,8 @@ interface RankingFixtureRow {
     readonly name: string;
     /** The root's synonyms, stored joined in `food.aliases` exactly as the seed stores them. */
     readonly synonyms?: readonly string[];
+    /** The bare nouns the root is the curated default for, stored in `food.default_terms` (ADR-0070 §4). */
+    readonly defaultTerms?: readonly string[];
 }
 
 /** Insert `RESOLVED` catalog rows — search only surfaces golden records. */
@@ -63,6 +65,7 @@ async function seedFoods(pool: pg.Pool, rows: readonly RankingFixtureRow[]): Pro
             name: row.name,
             description: row.name,
             aliases: synonyms.length === 0 ? null : synonyms.join(ALIAS_DELIMITER),
+            defaultTerms: row.defaultTerms ?? [],
         });
     }
 }
@@ -230,7 +233,7 @@ describe('catalog tiered ranking (integration)', () => {
         it('keeps every score below 1, so a crosswalk hit still sorts first', async () => {
             // `FoodsService.search` unshifts a barcode / external-key crosswalk hit at score exactly 1, and
             // recipe-service's `FoodCatalogGateway` then re-sorts the page by score. An un-normalized tiered
-            // score would reach 9 and silently demote an exact identifier match below a lexical one.
+            // score would reach 13 and silently demote an exact identifier match below a lexical one.
             await seedFoods(pool, [{ id: 'f-flour', name: 'Flour' }]);
 
             const hits = await dao.search('flour', 'search-it-caller');
@@ -271,6 +274,63 @@ describe('catalog tiered ranking (integration)', () => {
                 'Rye flour, dark',
                 'Wheat flour, white, all-purpose, enriched, bleached',
             ]);
+        });
+    });
+
+    describe('a bare noun lists its curated default first (ADR-0070 §4, owner rulings of 2026-10-25)', () => {
+        it('`milk` lists whole milk first, above 1% milk and milk crackers, on the default rung', async () => {
+            await seedFoods(pool, [
+                { id: 'f-crackers', name: 'milk crackers' },
+                { id: 'f-1pct', name: '1% milk' },
+                { id: 'f-whole', name: 'whole milk', defaultTerms: ['milk'] },
+            ]);
+
+            const hits = await dao.search('milk', 'search-it-caller');
+
+            expect(hits.map((hit) => hit.name)).toEqual(['whole milk', '1% milk', 'milk crackers']);
+            expect(hits.map((hit) => hit.rung)).toEqual(['default', 'head', 'covered']);
+        });
+
+        it('`flour` lists all-purpose flour above carob flour, which the base metric alone puts first', async () => {
+            await seedFoods(pool, [
+                { id: 'f-carob', name: 'carob flour' },
+                { id: 'f-ap', name: 'all-purpose flour', synonyms: ['white flour'], defaultTerms: ['flour'] },
+            ]);
+
+            expect(await rank('flour')).toEqual(['all-purpose flour', 'carob flour']);
+            // The premise: without the default both sit on the head rung, and the shorter name wins.
+            const { rows } = await pool.query<{ carob: string; ap: string }>(
+                `SELECT similarity('carob flour', 'flour')::text AS carob,
+                        similarity('all-purpose flour', 'flour')::text AS ap`,
+            );
+
+            expect(Number(rows[0]!.carob)).toBeGreaterThan(Number(rows[0]!.ap));
+        });
+
+        it('`nutmeg` lists ground nutmeg first, above whole nutmeg (owner ruling: a default, not a synonym)', async () => {
+            await seedFoods(pool, [
+                { id: 'f-whole-nutmeg', name: 'whole nutmeg' },
+                { id: 'f-ground-nutmeg', name: 'ground nutmeg', defaultTerms: ['nutmeg'] },
+            ]);
+
+            const hits = await dao.search('nutmeg', 'search-it-caller');
+
+            expect(hits.map((hit) => [hit.name, hit.rung])).toEqual([
+                ['ground nutmeg', 'default'],
+                ['whole nutmeg', 'head'],
+            ]);
+        });
+
+        it('a default term never lifts its root for a query that only contains it', async () => {
+            await seedFoods(pool, [
+                { id: 'f-whole', name: 'whole milk', defaultTerms: ['milk'] },
+                { id: 'f-choc', name: 'milk chocolate' },
+            ]);
+
+            const hits = await dao.search('milk chocolate', 'search-it-caller');
+
+            expect(hits[0]?.name).toBe('milk chocolate');
+            expect(hits.find((hit) => hit.name === 'whole milk')?.rung).not.toBe('default');
         });
     });
 

@@ -120,12 +120,14 @@ describe('RecipeListFrame (native) — chrome', () => {
 describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
     // React Native renders a CSS font stack as the system font, silently. `getComputedStyle` does not resolve
     // react-native-web's class-compiled family, so this reads the injected declaration and rejects any stack.
-    it('paints the heading in the registered bold Playfair face, never a CSS font stack', () => {
+    // REWRITTEN: the large title is the registered 600 face since 60cf38d84 (owner rule C1, the redesign's weight cap),
+    // so this reads the face from the role rather than naming a weight.
+    it('paints the heading in the large title role’s registered Playfair face, never a CSS font stack', () => {
         render(frame());
 
         const applied = appliedFontFamily(screen.getByRole('heading', { name: 'Recipes' }));
 
-        expect(applied).toBe(nativeTokens.fontFace.display.bold);
+        expect(applied).toBe(nativeTokens.type.largeTitle.narrow.fontFamily);
         expect(applied).not.toContain(',');
     });
 

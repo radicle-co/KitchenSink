@@ -97,10 +97,19 @@ describe('buildCatalogPlan — an empty catalog', () => {
                 seedKey: 'curated:saffron',
                 name: 'saffron',
                 synonyms: [],
+                defaultFor: [],
                 item: 'curated:saffron',
                 restore: false,
             },
-            { id: null, seedKey: 'fdc:100', name: 'beef brisket', synonyms: [], item: 'fdc:100', restore: false },
+            {
+                id: null,
+                seedKey: 'fdc:100',
+                name: 'beef brisket',
+                synonyms: [],
+                defaultFor: [],
+                item: 'fdc:100',
+                restore: false,
+            },
         ]);
         expect(built.rows.variants.insert).toEqual([{ id: null, item: 'fdc:101', root: 'fdc:100' }]);
         expect(built.rows.items.insert).toEqual([
@@ -165,12 +174,60 @@ describe('buildCatalogPlan — a kept root (AE4)', () => {
         const built = plan(makeContent([{ ...BRISKET, name: 'brisket' }]), makeSnapshot(makeContent([BRISKET])));
 
         expect(built.rows.roots.update).toEqual([
-            { id: 'id:fdc:100', seedKey: 'fdc:100', name: 'brisket', synonyms: [], item: 'fdc:100', restore: false },
+            {
+                id: 'id:fdc:100',
+                seedKey: 'fdc:100',
+                name: 'brisket',
+                synonyms: [],
+                defaultFor: [],
+                item: 'fdc:100',
+                restore: false,
+            },
         ]);
         expect(built.rows.roots.insert).toEqual([]);
         expect(built.changes).toEqual([
             { kind: 'rootRenamed', seedKey: 'fdc:100', from: 'beef brisket', to: 'brisket' },
         ]);
+    });
+
+    it('a default-term change writes the root and says so (ADR-0070 §4)', () => {
+        const built = plan(makeContent([{ ...BRISKET, defaultFor: ['beef'] }]), makeSnapshot(makeContent([BRISKET])));
+
+        expect(built.rows.roots.update).toEqual([
+            {
+                id: 'id:fdc:100',
+                seedKey: 'fdc:100',
+                name: 'beef brisket',
+                synonyms: [],
+                defaultFor: ['beef'],
+                item: 'fdc:100',
+                restore: false,
+            },
+        ]);
+        expect(built.changes).toEqual([{ kind: 'rootDefaultsChanged', seedKey: 'fdc:100', from: [], to: ['beef'] }]);
+    });
+
+    it('a re-ordered default list is a change, because seed order is content', () => {
+        const had = { ...BRISKET, defaultFor: ['beef', 'brisket cut'] };
+        const built = plan(
+            makeContent([{ ...had, defaultFor: ['brisket cut', 'beef'] }]),
+            makeSnapshot(makeContent([had])),
+        );
+
+        expect(built.rows.roots.update).toHaveLength(1);
+        expect(built.changes.map((change) => change.kind)).toEqual(['rootDefaultsChanged']);
+    });
+
+    it('an unchanged default list plans nothing', () => {
+        const kept = makeContent([{ ...BRISKET, defaultFor: ['beef'] }]);
+
+        expect(isEmptyPlan(plan(kept, makeSnapshot(kept)))).toBe(true);
+    });
+
+    it('a new root inserts its default terms', () => {
+        const built = plan(makeContent([{ ...BRISKET, defaultFor: ['beef'] }]), EMPTY_SNAPSHOT);
+
+        expect(built.rows.roots.insert.map((write) => write.defaultFor)).toEqual([['beef']]);
     });
 
     it('a synonym change writes the root and says so', () => {
@@ -372,6 +429,7 @@ describe('buildCatalogPlan — retire and restore (KTD-8, R33)', () => {
                 seedKey: 'fdc:200',
                 name: 'chicken breast',
                 synonyms: [],
+                defaultFor: [],
                 item: 'fdc:200',
                 restore: true,
             },
@@ -410,6 +468,7 @@ describe('buildCatalogPlan — retire and restore (KTD-8, R33)', () => {
                 seedKey: 'fdc:200',
                 name: 'chicken breast',
                 synonyms: [],
+                defaultFor: [],
                 item: 'fdc:200',
                 restore: false,
             },
@@ -571,7 +630,15 @@ describe('buildCatalogPlan — declared changes, by structure (KTD-8, R41)', () 
         );
 
         expect(built.rows.roots.insert).toEqual([
-            { id: null, seedKey: 'fdc:102', name: 'brisket point', synonyms: [], item: 'fdc:102', restore: false },
+            {
+                id: null,
+                seedKey: 'fdc:102',
+                name: 'brisket point',
+                synonyms: [],
+                defaultFor: [],
+                item: 'fdc:102',
+                restore: false,
+            },
         ]);
         expect(built.rows.roots.update).toEqual([]);
         expect(built.rows.variants.delete).toEqual([{ id: 'id:fdc:102', key: 'fdc:102' }]);
@@ -638,6 +705,7 @@ describe('buildCatalogPlan — declared changes, by structure (KTD-8, R41)', () 
                 seedKey: 'curated:saffron',
                 name: 'saffron',
                 synonyms: [],
+                defaultFor: [],
                 item: 'fdc:200',
                 restore: false,
             },
@@ -891,6 +959,7 @@ describe('buildCatalogPlan — an older seed over a newer one restores every id 
                 seedKey: 'fdc:200',
                 name: 'chicken breast',
                 synonyms: [],
+                defaultFor: [],
                 item: 'fdc:200',
                 restore: false,
             },
@@ -955,6 +1024,7 @@ describe('buildCatalogPlan — an aliased root comes back (R33)', () => {
                 seedKey: 'fdc:200',
                 name: 'chicken breast',
                 synonyms: [],
+                defaultFor: [],
                 item: 'fdc:200',
                 restore: false,
             },

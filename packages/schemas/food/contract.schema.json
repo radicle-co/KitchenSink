@@ -621,6 +621,9 @@
                                     "id": {
                                         "type": "string"
                                     },
+                                    "isDefault": {
+                                        "type": "boolean"
+                                    },
                                     "name": {
                                         "anyOf": [
                                             {
@@ -630,17 +633,6 @@
                                                 "type": "null"
                                             }
                                         ]
-                                    },
-                                    "rung": {
-                                        "enum": [
-                                            "base",
-                                            "covered",
-                                            "head",
-                                            "tokenSet",
-                                            "synonym",
-                                            "exact"
-                                        ],
-                                        "type": "string"
                                     },
                                     "score": {
                                         "type": "number"
@@ -726,6 +718,9 @@
                             "id": {
                                 "type": "string"
                             },
+                            "isDefault": {
+                                "type": "boolean"
+                            },
                             "name": {
                                 "anyOf": [
                                     {
@@ -735,17 +730,6 @@
                                         "type": "null"
                                     }
                                 ]
-                            },
-                            "rung": {
-                                "enum": [
-                                    "base",
-                                    "covered",
-                                    "head",
-                                    "tokenSet",
-                                    "synonym",
-                                    "exact"
-                                ],
-                                "type": "string"
                             },
                             "score": {
                                 "type": "number"
@@ -811,6 +795,9 @@
                 "id": {
                     "type": "string"
                 },
+                "isDefault": {
+                    "type": "boolean"
+                },
                 "name": {
                     "anyOf": [
                         {
@@ -820,17 +807,6 @@
                             "type": "null"
                         }
                     ]
-                },
-                "rung": {
-                    "enum": [
-                        "base",
-                        "covered",
-                        "head",
-                        "tokenSet",
-                        "synonym",
-                        "exact"
-                    ],
-                    "type": "string"
                 },
                 "score": {
                     "type": "number"
@@ -1215,6 +1191,9 @@
                                             "id": {
                                                 "type": "string"
                                             },
+                                            "isDefault": {
+                                                "type": "boolean"
+                                            },
                                             "name": {
                                                 "anyOf": [
                                                     {
@@ -1224,17 +1203,6 @@
                                                         "type": "null"
                                                     }
                                                 ]
-                                            },
-                                            "rung": {
-                                                "enum": [
-                                                    "base",
-                                                    "covered",
-                                                    "head",
-                                                    "tokenSet",
-                                                    "synonym",
-                                                    "exact"
-                                                ],
-                                                "type": "string"
                                             },
                                             "score": {
                                                 "type": "number"
@@ -2996,6 +2964,9 @@
                                                     "id": {
                                                         "type": "string"
                                                     },
+                                                    "isDefault": {
+                                                        "type": "boolean"
+                                                    },
                                                     "name": {
                                                         "anyOf": [
                                                             {
@@ -3005,17 +2976,6 @@
                                                                 "type": "null"
                                                             }
                                                         ]
-                                                    },
-                                                    "rung": {
-                                                        "enum": [
-                                                            "base",
-                                                            "covered",
-                                                            "head",
-                                                            "tokenSet",
-                                                            "synonym",
-                                                            "exact"
-                                                        ],
-                                                        "type": "string"
                                                     },
                                                     "score": {
                                                         "type": "number"
@@ -3279,6 +3239,7 @@
                 "covered",
                 "head",
                 "tokenSet",
+                "default",
                 "synonym",
                 "exact"
             ],
@@ -3608,6 +3569,13 @@
                             "id": {
                                 "type": "string"
                             },
+                            "matchedBy": {
+                                "enum": [
+                                    "name",
+                                    "identifier"
+                                ],
+                                "type": "string"
+                            },
                             "name": {
                                 "anyOf": [
                                     {
@@ -3627,6 +3595,7 @@
                                     "covered",
                                     "head",
                                     "tokenSet",
+                                    "default",
                                     "synonym",
                                     "exact"
                                 ],
@@ -3709,6 +3678,13 @@
                 "id": {
                     "type": "string"
                 },
+                "matchedBy": {
+                    "enum": [
+                        "name",
+                        "identifier"
+                    ],
+                    "type": "string"
+                },
                 "name": {
                     "anyOf": [
                         {
@@ -3728,6 +3704,7 @@
                         "covered",
                         "head",
                         "tokenSet",
+                        "default",
                         "synonym",
                         "exact"
                     ],

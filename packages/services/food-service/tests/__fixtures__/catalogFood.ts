@@ -35,6 +35,8 @@ export interface CatalogFoodFields {
     readonly visibility: 'public' | 'private' | 'promoted';
     readonly tombstonedAt: Date | null;
     readonly aliases: string | null;
+    /** The bare nouns this food is the curated default for (`food.default_terms`, ADR-0070 §4). */
+    readonly defaultTerms: readonly string[];
 }
 
 /**
@@ -58,8 +60,8 @@ export async function makeCatalogFood(
     await client.query(
         `WITH item AS (INSERT INTO food_item (id, owner_kind) VALUES ($1, 'root') RETURNING id)
          INSERT INTO food (id, item_id, name, normalized_name, description, status, kind, user_id, visibility,
-                           tombstoned_at, aliases)
-         SELECT $2, item.id, $3, $4, $5, $6::food_status, $7::food_kind, $8, $9, $10, $11 FROM item`,
+                           tombstoned_at, aliases, default_terms)
+         SELECT $2, item.id, $3, $4, $5, $6::food_status, $7::food_kind, $8, $9, $10, $11, $12::text[] FROM item`,
         [
             itemId,
             id,
@@ -72,6 +74,7 @@ export async function makeCatalogFood(
             fields.visibility ?? (userId === null ? 'public' : 'private'),
             fields.tombstonedAt ?? null,
             fields.aliases ?? null,
+            [...(fields.defaultTerms ?? [])],
         ],
     );
 
@@ -108,6 +111,8 @@ export interface SeededRootSpec {
     readonly name: string;
     /** The root's synonyms, stored in `food.aliases`. */
     readonly synonyms?: readonly string[];
+    /** The bare nouns the root is the curated default for, stored in `food.default_terms` (ADR-0070 §4). */
+    readonly defaultTerms?: readonly string[];
     /** The root's own nutrition; no header when absent (GR-019). */
     readonly values?: readonly SeededValue[];
     readonly retired?: boolean;
@@ -277,8 +282,9 @@ export async function makeSeededRoot(db: OwnerScoped, spec: SeededRootSpec): Pro
         const id = newFoodId();
 
         await client.query(
-            `INSERT INTO food (id, item_id, name, normalized_name, status, seed_key, aliases, visibility, retired_at)
-             VALUES ($1, $2, $3, $4, 'RESOLVED', $5, $6, 'public', $7)`,
+            `INSERT INTO food (id, item_id, name, normalized_name, status, seed_key, aliases, visibility, retired_at,
+                               default_terms)
+             VALUES ($1, $2, $3, $4, 'RESOLVED', $5, $6, 'public', $7, $8::text[])`,
             [
                 id,
                 item.id,
@@ -292,6 +298,7 @@ export async function makeSeededRoot(db: OwnerScoped, spec: SeededRootSpec): Pro
                         .replace(/^-|-$/g, '')}-${item.fdc}`,
                 spec.synonyms === undefined ? null : spec.synonyms.join(ALIAS_DELIMITER),
                 spec.retired === true ? new Date() : null,
+                [...(spec.defaultTerms ?? [])],
             ],
         );
 

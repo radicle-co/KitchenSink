@@ -15,10 +15,11 @@ CREATE TEMP TABLE v_seed_placed AS
     SELECT alias_key FROM v_seed_alias;
 
 CREATE TEMP TABLE v_expected_root AS
-    SELECT seed_key, name, synonyms, coalesce(item_key, seed_key) AS item_key, nutrition, 'curated'::text AS origin
+    SELECT seed_key, name, synonyms, default_terms, coalesce(item_key, seed_key) AS item_key, nutrition,
+           'curated'::text AS origin
       FROM v_seed_root
     UNION ALL
-    SELECT supplier_key, name, '[]'::jsonb, supplier_key, NULL, 'baseline'
+    SELECT supplier_key, name, '[]'::jsonb, '{}'::text[], supplier_key, NULL, 'baseline'
       FROM v_baseline_group
      WHERE supplier_key NOT IN (SELECT item_key FROM v_seed_placed);
 

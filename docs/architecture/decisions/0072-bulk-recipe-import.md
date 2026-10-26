@@ -73,6 +73,9 @@ matches request.
 
 - With no client calling, nothing runs. A cook who closes the app pauses the import, and the next `advance` resumes
   from the stored state.
+- Each import view carries a `version`. It is a digest of what the view was built from, including the verdicts it
+  read by key. Nothing stores it and nothing bumps it. The client compares it with the last one to tell whether the
+  view changed.
 - `advance` is safe to repeat. An item already saved is not saved again, and an item that already spent its allowance
   unit does not spend another (§8). That is what makes a restart free of duplicates (017 FR-017).
 - The parse job an import creates admits no paste allowance unit (`createPrepaid` in the blueprint). The import pays
@@ -195,7 +198,7 @@ The owner ruled that bulk import has an allowance of its own, separate from past
 - **A recipe whose source is not a public web page cannot be public.** That is FR-014a's own rule: it is classified
   `imported_paid`, which is private-only.
 - Counsel confirms the attestation wording before launch. It is on 016 FR-050's list.
-- **Two interactions are recorded, not resolved.**
+- **Three interactions are recorded, not resolved.**
     - Private still needs Premium today. A free-tier `user_created` recipe is public-only, and 004 FR-028 gates the
       `imported_paid` channel behind Premium. Whether that gate lifts is 015's open D4a. Until it does, a free-tier
       cook cannot keep a cookbook recipe from a bulk import at all: it cannot be public, and it cannot be private.
@@ -203,6 +206,9 @@ The owner ruled that bulk import has an allowance of its own, separate from past
       `imported_public` (ADR-0023, 004 FR-025). `imported_paid` is private-only. Saving a cited web recipe as
       `user_created` states that the cook wrote it. The value is owed before the Public choice can be built.
       Note also that an `imported_public` recipe cannot be made private before a substantive edit by the cook.
+    - The ruling asks for a citation on every imported recipe. `FR-014a` covers only a recipe the cook attests came
+      from an external source. A cook who moves their own recipes over from another app has nothing to cite. What
+      the source statement says for a cook's own recipe is owed, by the owner and by counsel (016 `FR-050`).
 
 ### 10. When the spend ceiling is reached, matching goes on without the LLM
 

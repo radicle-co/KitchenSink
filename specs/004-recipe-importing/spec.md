@@ -349,9 +349,10 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > private as well as public: each recipe carries its own source statement and citation, and one statement for a
     > whole file does not count. A recipe whose source is not a public web page cannot be public. Counsel confirms
     > the wording before launch (016 FR-050). See
-    > [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9, which also records two open
-    > interactions: Premium still gates private (015's D4a), and a public bulk-imported recipe has no declarable
-    > provenance value yet.
+    > [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9, which also records three open
+    > interactions. Premium still gates private (015's D4a). A public bulk-imported recipe has no declarable
+    > provenance value yet. And this requirement covers only recipes from an external source, so what a cook cites
+    > for a recipe they wrote themselves is still open.
 
 **Failure handling and lifecycle**
 
@@ -863,6 +864,8 @@ The section above decides **who authors** the contract; this one is where it **r
   (`429`) with a `resetsAt`. It is NOT a second registered throttler: `throttle.config.ts` documents that
   `@nestjs/throttler` v6 ANDs every registered throttler across every route, so a daily throttler would apply
   service-wide. Treating the allowance as domain policy also puts it where 010's tier rules will need it.
+    > ⚠️ The daily allowance's count and channels changed by owner ruling, 2026-10-26: paste 200 a rolling day,
+    > bulk import 1,000 recipes a rolling day, each counted on its own. See the note under `FR-022`.
 - **D-005 (Draft & image retention, 2026-08-02)**: Unconfirmed drafts expire **7 days** after creation, and the
   OCR source image shares that lifetime exactly — deleted on confirm, discard, or expiry, whichever is first.
   Seven days covers a user who starts an import, is interrupted, and returns the following weekend, while

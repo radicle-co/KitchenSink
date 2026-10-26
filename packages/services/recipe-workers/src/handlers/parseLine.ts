@@ -512,7 +512,7 @@ async function parseAndLand(deps: ParseLineDeps, message: ParseLineJobMessage, r
         {
             onTierFailure: (tier, error) => {
                 // The pipeline contains throws (KTD-12); the handler decides transience. Everything an
-                // ENGINE throws is transient by construction — the gated leg rejects on a denial, a throttle
+                // ENGINE throws is transient by construction — the gated leg rejects on a throttle (a ceiling denial is the one exception, below)
                 // or a 5xx, and `crfInvoke` rejects only when the invocation produced no engine answer at
                 // all; both return absence for a deterministic per-line outcome instead. So a captured
                 // engine failure re-throws after the run.

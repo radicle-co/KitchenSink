@@ -71,6 +71,11 @@ export const ADVISORY_LOCK_CLASSES = {
      * of one source item make one root.
      */
     foodRemoteAdoption: 11,
+    /**
+     * recipe-service's per-user import allowance (`common/dal/importAllowance.dal.ts`, 004 FR-022): the read of the
+     * trailing window and the insert of the unit are one decision, so two concurrent pastes cannot both take the last one.
+     */
+    recipeImportAllowance: 12,
 } as const;
 
 /**

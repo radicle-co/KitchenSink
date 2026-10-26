@@ -77,3 +77,33 @@ export function requiresPrivateSlotCheck(input: {
         input.sourceType !== RecipeSourceType.IMPORTED_PUBLIC
     );
 }
+
+/**
+ * A cook's private-slot standing at the moment of a write: either one more private recipe fits, or it does not and the
+ * refusal can say how many they hold and what their limit is. The `used` and `limit` exist ONLY in the no-slot arm, so a
+ * refusal cannot be built without them and a free slot cannot be mistaken for a full one.
+ */
+export type PrivateSlotStanding =
+    | { readonly hasAvailablePrivateSlot: true }
+    | { readonly hasAvailablePrivateSlot: false; readonly used: number; readonly limit: number };
+
+/** The standing of a request for which no slot is needed (public, Premium, imported_public, already private): none is lacking. */
+export const SLOT_NOT_NEEDED: PrivateSlotStanding = { hasAvailablePrivateSlot: true };
+
+/**
+ * The standing of a cook who holds `used` private recipes. Pure.
+ *
+ * @param allowance - The cook's allowance ({@link privateSlotAllowanceOf}).
+ * @param used - The live count, read under the per-user lock.
+ * @returns A free slot, or none with the count and the limit.
+ */
+export function privateSlotStandingOf(allowance: PrivateSlotAllowance, used: number): PrivateSlotStanding {
+    if (hasFreePrivateSlot(allowance, used)) {
+        return SLOT_NOT_NEEDED;
+    }
+
+    // Only a limited allowance can run out.
+    return allowance.kind === 'limited'
+        ? { hasAvailablePrivateSlot: false, used, limit: allowance.limit }
+        : SLOT_NOT_NEEDED;
+}

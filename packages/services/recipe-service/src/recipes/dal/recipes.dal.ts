@@ -667,16 +667,17 @@ export class RecipesDal {
      * visibility toggle is a metadata change, not a content revision (C-004 / T050). Authorization and
      * the C-004 policy decision live in `RecipesService`.
      *
-     * @param enlistIn - The open transaction to write in (set-visibility's slot check shares it); omitted, the base client is used.
+     * @param enlistIn - The open transaction to write in. REQUIRED (ADR-0073): a move to private is decided under the per-user
+     *   lock in a transaction, and a write that fell back to the base client would commit outside it.
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row's `visibility` + `updated_at`.
      */
     public async setVisibility(
         id: string,
         visibility: RecipeVisibility,
-        enlistIn?: RecipeTx,
+        enlistIn: RecipeTx,
     ): Promise<RecipeAggregate | undefined> {
-        const writer = enlistIn ?? this.db;
+        const writer = enlistIn;
         const [recipe] = await writer
             .update(recipes)
             .set({ visibility, updatedAt: new Date() })

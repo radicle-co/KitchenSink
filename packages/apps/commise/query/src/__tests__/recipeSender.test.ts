@@ -151,10 +151,8 @@ describe('recipeSender', () => {
      * `classifyFailure` calls it terminal (the cook edits or frees a slot), it parks, and the drain NEVER re-sends it by
      * itself - a second copy would meet the same full slots, and for a create an unknown outcome is never repeated.
      */
-    it.each([
-        ['a create', 'create', 'createRecipe'],
-        ['an update', 'update', 'updateRecipe'],
-    ] as const)(
+    // Only a CREATE can meet it: an update's body carries no visibility, and a visibility write is not a sendable intent.
+    it.each([['a create', 'create', 'createRecipe']] as const)(
         '⛔ %s refused for want of a private slot parks as a terminal 403 and is never re-sent',
         async (_label, kind, method) => {
             const refuse = vi.fn().mockRejectedValue(new PrivateSlotsFullError(50, 50));

@@ -47,13 +47,14 @@ import {
 import type { PrivateSlotUsage } from './recipes.schema.js';
 import { evaluateProvenance } from './domain/provenancePolicy.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
-import { hasFreePrivateSlot, privateSlotAllowanceOf, requiresPrivateSlotCheck } from './domain/privateSlotPolicy.js';
 import {
-    defaultCloneVisibility,
-    evaluateVisibility,
-    type VisibilityDecision,
-    type VisibilityPolicyInput,
-} from './domain/visibilityPolicy.js';
+    SLOT_NOT_NEEDED,
+    privateSlotAllowanceOf,
+    privateSlotStandingOf,
+    requiresPrivateSlotCheck,
+    type PrivateSlotStanding,
+} from './domain/privateSlotPolicy.js';
+import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
@@ -384,55 +385,46 @@ function bylineColumnsOf(byline: Byline): { authorDisplayName?: string; authorUs
 }
 
 /**
- * A cook's private-slot standing at the moment of a write (ADR-0073): either one more private recipe fits, or it does not
- * and the refusal can say how many they hold and what their limit is.
- */
-type SlotStanding =
-    | { readonly hasAvailablePrivateSlot: true }
-    | { readonly hasAvailablePrivateSlot: false; readonly used: number; readonly limit: number };
-
-/** The standing of a request for which no slot is needed (public, Premium, imported_public, or already private): none is lacking. */
-const SLOT_NOT_NEEDED: SlotStanding = { hasAvailablePrivateSlot: true };
-
-/**
- * The error a refused visibility decision becomes. Pure.
+ * The refusal of a move to private for want of a slot (ADR-0073), with the count and the limit the cook is told. Pure.
  *
- * Three denials, three answers: a contained test principal's publish is a 403 of its own (ADR-0040), a full set of private
- * slots is the 403 `PRIVATE_SLOTS_FULL` carrying `used` and `limit` (ADR-0073), and any other C-004 refusal is the 400
- * `INVALID_VISIBILITY`.
+ * ONE place builds it: `create`, `setVisibility` and `clone` all end here, so the three cannot word it differently.
  */
-function visibilityRefusal(
-    decision: Extract<VisibilityDecision, { allowed: false }>,
-    input: Pick<VisibilityPolicyInput, 'requested' | 'sourceType'>,
-    standing: SlotStanding,
-): Error {
-    if (decision.denial === 'contained') {
-        return testPrincipalContained(decision.reason);
-    }
-
-    if (decision.denial === 'privateSlots') {
-        if (standing.hasAvailablePrivateSlot) {
-            // The policy denied for want of a slot the caller said was free: a caller defect, never a user-facing answer.
-            throw new Error('a private-slot denial was reached with a standing that has a free slot');
-        }
-
-        return privateSlotsFull(standing.used, standing.limit);
-    }
-
-    return invalidVisibility(decision.reason, { visibility: input.requested, sourceType: input.sourceType });
+function slotsFullError(standing: Extract<PrivateSlotStanding, { hasAvailablePrivateSlot: false }>): Error {
+    return privateSlotsFull(standing.used, standing.limit);
 }
 
 /**
- * Judge a visibility request and throw its refusal.
+ * Judge a visibility request against the cook's standing and throw its refusal.
  *
- * @throws The error {@link visibilityRefusal} builds, when the policy denies.
+ * The policy's slot fact is DERIVED from `standing` here, never passed beside it: two facts that must agree could be built
+ * to disagree. Three denials, three answers: a contained test principal's publish is a 403 of its own (ADR-0040), a full
+ * set of private slots is the 403 `PRIVATE_SLOTS_FULL` carrying `used` and `limit` (ADR-0073), and any other C-004 refusal
+ * is the 400 `INVALID_VISIBILITY`.
+ *
+ * @param ask - The request, without the slot fact.
+ * @param standing - The cook's standing, read under the per-user lock where a slot matters.
+ * @throws {HttpException} The refusal, when the policy denies.
  */
-function assertVisibilityAllowed(input: VisibilityPolicyInput, standing: SlotStanding): void {
-    const decision = evaluateVisibility(input);
+function assertVisibilityAllowed(
+    ask: Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'>,
+    standing: PrivateSlotStanding,
+): void {
+    const decision = evaluateVisibility({ ...ask, hasAvailablePrivateSlot: standing.hasAvailablePrivateSlot });
 
-    if (!decision.allowed) {
-        throw visibilityRefusal(decision, input, standing);
+    if (decision.allowed) {
+        return;
     }
+
+    if (decision.denial === 'contained') {
+        throw testPrincipalContained(decision.reason);
+    }
+
+    // The policy denies for want of a slot only when the standing it was handed has none, so `used` is there to state.
+    if (decision.denial === 'privateSlots' && !standing.hasAvailablePrivateSlot) {
+        throw slotsFullError(standing);
+    }
+
+    throw invalidVisibility(decision.reason, { visibility: ask.requested, sourceType: ask.sourceType });
 }
 
 @Injectable()
@@ -614,11 +606,12 @@ export class RecipesService {
         };
         // ADR-0073: only a free cook's move to private needs a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
-        // exactly as it always was - a pure refusal must not cost a call to food.
+        // exactly as it always was - a pure refusal must not cost a call to food. (A slot refusal does: it is only known
+        // under the lock, after the planner has run. That is accepted: the cook out of slots pays one round trip per try.)
         const needsSlot = requiresPrivateSlotCheck({ sourceType: provenance.sourceType, requested, isPremium });
 
         if (!needsSlot) {
-            assertVisibilityAllowed({ ...visibilityAsk, hasAvailablePrivateSlot: true }, SLOT_NOT_NEEDED);
+            assertVisibilityAllowed(visibilityAsk, SLOT_NOT_NEEDED);
         }
 
         // ── Then what Publish needs (owner rulings 2026-10-13) ─────────────────────────────────────────
@@ -646,10 +639,7 @@ export class RecipesService {
             if (needsSlot) {
                 const standing = await this.slotStandingIn(tx, principal.userId, isPremium);
 
-                assertVisibilityAllowed(
-                    { ...visibilityAsk, hasAvailablePrivateSlot: standing.hasAvailablePrivateSlot },
-                    standing,
-                );
+                assertVisibilityAllowed(visibilityAsk, standing);
             }
 
             // The author's byline (plan 2026-10-15-010 D8): the read model first, read INSIDE this transaction.
@@ -1263,7 +1253,7 @@ export class RecipesService {
                 const standing = await this.slotStandingIn(tx, ownerId, isPremiumPrincipal(principal));
 
                 if (!standing.hasAvailablePrivateSlot) {
-                    throw privateSlotsFull(standing.used, standing.limit);
+                    throw slotsFullError(standing);
                 }
             }
 
@@ -1355,7 +1345,7 @@ export class RecipesService {
         // ONE TRANSACTION (ADR-0073): set-visibility used to be a single UPDATE; it now needs the per-user lock, the count
         // and the write to be one unit, or two requests racing at 49 both pass.
         const updated = await this.dal.transaction(async (tx) => {
-            let standing: SlotStanding = SLOT_NOT_NEEDED;
+            let standing: PrivateSlotStanding = SLOT_NOT_NEEDED;
 
             if (needsSlot) {
                 const counted = await this.slotStandingIn(tx, principal.userId, isPremium);
@@ -1371,10 +1361,7 @@ export class RecipesService {
                 standing = current === RecipeVisibility.PRIVATE ? SLOT_NOT_NEEDED : counted;
             }
 
-            assertVisibilityAllowed(
-                { ...visibilityAsk, hasAvailablePrivateSlot: standing.hasAvailablePrivateSlot },
-                standing,
-            );
+            assertVisibilityAllowed(visibilityAsk, standing);
 
             return this.dal.setVisibility(id, visibility, tx);
         });
@@ -1423,18 +1410,14 @@ export class RecipesService {
      * @returns Whether one more private recipe fits and, when it does not, the count and the limit.
      * @sideEffect Takes a transaction-scoped advisory lock keyed by the cook (free cooks only).
      */
-    private async slotStandingIn(tx: RecipeTx, ownerId: string, isPremium: boolean): Promise<SlotStanding> {
+    private async slotStandingIn(tx: RecipeTx, ownerId: string, isPremium: boolean): Promise<PrivateSlotStanding> {
         const allowance = privateSlotAllowanceOf({ isPremium });
 
         if (allowance.kind === 'unlimited') {
             return SLOT_NOT_NEEDED;
         }
 
-        const used = await this.dal.lockAndCountPrivateSlots(tx, ownerId);
-
-        return hasFreePrivateSlot(allowance, used)
-            ? SLOT_NOT_NEEDED
-            : { hasAvailablePrivateSlot: false, used, limit: allowance.limit };
+        return privateSlotStandingOf(allowance, await this.dal.lockAndCountPrivateSlots(tx, ownerId));
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

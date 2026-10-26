@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-recipes/form — `PasteMatchNotice` (native): the React Native leaf of
  * `./PasteMatchNotice.tsx`, on the same props and words (`pasteMatchNoticeOf`). On a device the choices are saved on the
- * device. Painted from the theme's roles (D15).
+ * device. A polite `status` live region (U9), as the web leaf, under the same host rule. Painted from the theme's roles
+ * (D15).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
@@ -21,7 +22,13 @@ export const PasteMatchNotice: FC<PasteMatchNoticeProps> = ({ notice }) => {
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.notice, { backgroundColor: colors.surfaceMuted }]}>
+        <View
+            collapsable={false}
+            role="status"
+            accessibilityLiveRegion="polite"
+            aria-live="polite"
+            style={[styles.notice, { backgroundColor: colors.surfaceMuted }]}
+        >
             <Icon name="info" size={20} tone="inkMuted" />
             <Text style={[styles.text, { color: colors.ink }]}>{pasteMatchNoticeOf(notice, m, locale)}</Text>
         </View>
@@ -37,5 +44,5 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.md,
     },
-    text: { ...nativeTokens.type.meta, flex: 1, minWidth: 0 },
+    text: { ...nativeTokens.type.list, flex: 1, minWidth: 0 },
 });

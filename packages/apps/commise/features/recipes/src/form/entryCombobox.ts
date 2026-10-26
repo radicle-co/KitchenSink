@@ -60,6 +60,7 @@ export interface EntryComboboxCopy {
         | 'ingredientAuthoredUnavailable'
         | 'createCustomFoodIconLabel'
         | 'createOwnFoodOptionName'
+        | 'foodSearch'
     >;
     readonly search: IngredientSearchMessages;
     readonly pickerSearch: IngredientPickerSearchMessages;
@@ -361,6 +362,20 @@ const remoteOptionOf = (option: RemoteFoodOption, source: string, copy: EntryCom
 });
 
 /**
+ * The picker's default hint (`editor.foodSearch.defaultHint`, staff-ux U16): a note under the list while it shows a
+ * default — an option carrying the Default tag — and nothing otherwise. The search wire carries no `isDefault` yet
+ * (recipe-service step 5), so no option is tagged today and the slot stands empty until the wiring tags one. Pure.
+ *
+ * @param groups - The list's groups.
+ * @param hint - The localised hint.
+ * @returns The note, or `undefined` while no option is tagged.
+ */
+export const defaultHintOf = (groups: readonly ComboboxGroup[], hint: string): ComboboxStatus | undefined =>
+    groups.some((group) => group.options.some((option) => option.tag !== undefined))
+        ? { kind: 'note', text: hint }
+        : undefined;
+
+/**
  * The combobox's props for one entry field. Pure.
  *
  * @param input - The field, the entry's view and what the row adds.
@@ -456,10 +471,13 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
         options.set(createOption.key, { kind: 'createOwnFood' });
     }
 
+    const hint = defaultHintOf(groups, copy.form.foodSearch.defaultHint);
+
     return {
         groups,
         status: speech.status,
-        trailingStatus: speech.trailing,
+        // The hint qualifies the foods shown, so it leads the lines after the list (system change 11).
+        trailingStatus: hint === undefined ? speech.trailing : [hint, ...speech.trailing],
         countAnnouncement: speech.polite,
         alertAnnouncement: sentences(input.pickFailure, speech.assertive),
         optionFor,

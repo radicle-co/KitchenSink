@@ -24,7 +24,7 @@ import {
 } from '../../__fixtures__/progressiveFrames.js';
 import { entrySearchViewOf, type EntrySearchView, type ProgressiveRead } from '../../hooks/foodSuggestions.model.js';
 import { recipeMessages } from '../../messages.js';
-import { entryComboboxOf, type EntryComboboxCopy, type EntryComboboxInput } from '../entryCombobox.js';
+import { defaultHintOf, entryComboboxOf, type EntryComboboxCopy, type EntryComboboxInput } from '../entryCombobox.js';
 import { recipeFormMessages } from '../messages.js';
 
 const form = recipeFormMessages.en;
@@ -620,5 +620,43 @@ describe('entryComboboxOf — properties over every state', () => {
         expect(silent.trailingStatus).toEqual([]);
         expect(silent.countAnnouncement).toBe('');
         expect(silent.alertAnnouncement).toBe('');
+    });
+});
+
+// U16 (staff-ux): the picker draws `editor.foodSearch.defaultHint` under its list where the board shows it, but only
+// while the list shows a default. The search wire carries no `isDefault` yet, so the slot is built and nothing fills it.
+describe('defaultHintOf — the default hint under the picker’s list', () => {
+    const hint = form.foodSearch.defaultHint;
+
+    it('says the hint when an option carries the Default tag', () => {
+        expect(
+            defaultHintOf(
+                [
+                    {
+                        key: 'catalog',
+                        label: 'Food catalog',
+                        options: [
+                            { key: 'c:1', label: 'Whole milk', tag: 'Default', accessibleName: 'Whole milk, Default' },
+                        ],
+                    },
+                ],
+                hint,
+            ),
+        ).toEqual({ kind: 'note', text: hint });
+    });
+
+    it('says nothing when no option is tagged', () => {
+        expect(
+            defaultHintOf(
+                [{ key: 'catalog', label: 'Food catalog', options: [{ key: 'c:1', label: 'Skim milk' }] }],
+                hint,
+            ),
+        ).toBeUndefined();
+    });
+
+    it('the field never shows it while the wire tags no default', () => {
+        const field = entryComboboxOf(input(), COPY);
+
+        expect(field.trailingStatus.some((line) => line.kind === 'note' && line.text === hint)).toBe(false);
     });
 });

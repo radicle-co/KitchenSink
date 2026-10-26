@@ -37,4 +37,17 @@ describe('PasteMatchNotice (web)', () => {
         expect(screen.getByText(pasteMatchNoticeOf(notice, m, 'en'))).toBeTruthy();
         expect(screen.getByText(/Matching starts again at 12:00 AM/)).toBeTruthy();
     });
+
+    // U9 (staff-ux, WCAG 4.1.3): the notice is a status, so a change to it is spoken; it was not live.
+    it('is a status region holding its sentence', () => {
+        render(<PasteMatchNotice notice={{ kind: 'offline', keep: 'disk' }} />);
+
+        expect(screen.getByRole('status').textContent).toContain('saved on this device');
+    });
+
+    it('its sentence is the 14 px list role', () => {
+        render(<PasteMatchNotice notice={{ kind: 'offline', keep: 'disk' }} />);
+
+        expect(screen.getByText(/saved on this device/).className.split(' ')).toContain('text-list');
+    });
 });

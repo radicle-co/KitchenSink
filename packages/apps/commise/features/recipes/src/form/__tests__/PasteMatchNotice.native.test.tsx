@@ -37,4 +37,14 @@ describe('PasteMatchNotice (native)', () => {
         expect(screen.getByText(pasteMatchNoticeOf(notice, m, 'en'))).toBeTruthy();
         expect(screen.getByText(/Matching starts again at 12:00 AM/)).toBeTruthy();
     });
+
+    // U9 (staff-ux, WCAG 4.1.3): the notice is a polite status, so a change to it is spoken; it was not live.
+    it('is a polite status region holding its sentence', () => {
+        render(<PasteMatchNotice notice={{ kind: 'offline', keep: 'disk' }} />);
+
+        const region = screen.getByRole('status');
+
+        expect(region.getAttribute('aria-live')).toBe('polite');
+        expect(region.textContent).toContain('saved on this device');
+    });
 });

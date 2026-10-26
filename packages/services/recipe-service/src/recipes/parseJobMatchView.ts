@@ -32,7 +32,7 @@ import { FoodRefsGateway } from '../ingredients/foodRefs.gateway.js';
 import type { LineVerdictRow, LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { variantDisplayName } from './domain/lineVerification.js';
 import { isDefaultRung, proposalVerificationDecision } from './domain/matchProposal.js';
-import { matchStateOf } from './domain/matchState.js';
+import { matchStateOf, proposalShownIn } from './domain/matchState.js';
 import type { ParseJobMatch, ParseJobMatchesPort } from './domain/parseJobMatch.js';
 import { PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
 import type { ParseJobResponse, ParseProposalCandidate, ParseProposalMatch } from './parseJobs.schema.js';
@@ -76,9 +76,14 @@ function namedFood(answer: NamedAnswer): {
         : { kind: 'variant', id: answer.variant.id, name: variantDisplayName(answer.name, answer.variant.parts) };
 }
 
-/** Whether an answer is found and named. Pure. */
+/**
+ * Whether an answer is found and carries a NON-EMPTY name. Pure.
+ *
+ * ⛔ Non-empty, not merely present: the wire's `name` is `min(1)`, so one empty name would fail the whole response.
+ * Dropping that one food loses a single option; relaxing the wire would widen a contract installed clients parse.
+ */
 function isNamed(answer: FoodRefAnswer | undefined): answer is NamedAnswer {
-    return answer?.outcome === 'found' && answer.name !== undefined;
+    return answer?.outcome === 'found' && answer.name !== undefined && answer.name.length > 0;
 }
 
 @Injectable()
@@ -237,7 +242,8 @@ export class ParseJobMatchView {
         return {
             state: answer.state,
             reason: answer.reason,
-            proposed,
+            // ⛔ The policy decides: a rejected, contradicted or default proposal is shown only as a candidate.
+            proposed: proposalShownIn(answer.state) ? proposed : null,
             candidates,
             ...(answer.reviewNote === undefined ? {} : { reviewNote: answer.reviewNote }),
         };

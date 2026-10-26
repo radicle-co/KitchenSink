@@ -160,3 +160,26 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
             return { state: 'checking', reason: 'awaitingReview' };
     }
 }
+
+/**
+ * Whether a state may SHOW the proposal as the line's match (ADR-0071).
+ *
+ * ⛔ Only `checking` (the review is in flight; the cook may choose now or keep it) and `confident` (bound unless the cook
+ * changes it). In `default`, `needsChoice` and `noMatch` the proposal was a default that must never be selected, or was
+ * rejected, contradicted or abstained on, so the wire's `proposed` is `null` and the food stays visible only as a
+ * candidate. A client that bound whatever `proposed` held would otherwise select a food the gate refused.
+ *
+ * @param state - The derived state.
+ * @returns Whether `proposed` may carry the proposal. Pure and total.
+ */
+export function proposalShownIn(state: MatchState): boolean {
+    switch (state) {
+        case 'checking':
+        case 'confident':
+            return true;
+        case 'default':
+        case 'needsChoice':
+        case 'noMatch':
+            return false;
+    }
+}

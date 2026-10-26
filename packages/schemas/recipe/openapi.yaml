@@ -6006,7 +6006,6 @@ components:
                       - id
                       - name
                   candidates:
-                    maxItems: 5
                     type: array
                     items:
                       type: object

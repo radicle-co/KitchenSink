@@ -3329,7 +3329,6 @@
                                                                     ],
                                                                     "type": "object"
                                                                 },
-                                                                "maxItems": 5,
                                                                 "type": "array"
                                                             },
                                                             "proposed": {
@@ -3659,7 +3658,6 @@
                                                                                 ],
                                                                                 "type": "object"
                                                                             },
-                                                                            "maxItems": 5,
                                                                             "type": "array"
                                                                         },
                                                                         "proposed": {
@@ -3981,7 +3979,6 @@
                                         ],
                                         "type": "object"
                                     },
-                                    "maxItems": 5,
                                     "type": "array"
                                 },
                                 "proposed": {
@@ -4105,7 +4102,6 @@
                         ],
                         "type": "object"
                     },
-                    "maxItems": 5,
                     "type": "array"
                 },
                 "proposed": {
@@ -4223,7 +4219,6 @@
                                                     ],
                                                     "type": "object"
                                                 },
-                                                "maxItems": 5,
                                                 "type": "array"
                                             },
                                             "proposed": {

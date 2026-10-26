@@ -21,7 +21,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { matchStateOf, type MatchFacts } from '../matchState.js';
+import { MATCH_STATES, matchStateOf, proposalShownIn, type MatchFacts } from '../matchState.js';
 
 const LEXICAL = { matchedBy: 'lexical', rung: 'head' } as const;
 
@@ -180,5 +180,27 @@ describe('matchStateOf — the truth table', () => {
         ],
     ])('%s', (_label, input, expected) => {
         expect(matchStateOf(input)).toStrictEqual(expected);
+    });
+});
+
+/**
+ * Whether the PROPOSAL may be shown as the line's match (ADR-0071 review). Only a proposal the cook may keep as it
+ * stands is shown: `checking` (awaiting review, the cook may choose now) and `confident` (bound unless changed). In
+ * every other state the proposal was rejected, contradicted, abstained on, or a default that must never be selected,
+ * so `proposed` is `null` and the food stays visible only as a candidate.
+ */
+describe('proposalShownIn — the states that may show the proposal', () => {
+    it.each([
+        ['checking', true],
+        ['confident', true],
+        ['default', false],
+        ['needsChoice', false],
+        ['noMatch', false],
+    ] as const)('%s → %s', (state, shown) => {
+        expect(proposalShownIn(state)).toBe(shown);
+    });
+
+    it('answers for every state the enum holds', () => {
+        expect(MATCH_STATES.filter((state) => proposalShownIn(state))).toStrictEqual(['checking', 'confident']);
     });
 });

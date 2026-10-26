@@ -139,7 +139,10 @@ describe('parseProposalSchema', () => {
             expect(parseProposalMatchSchema.safeParse({ ...match, state: 'bound' }).success).toBe(false);
         });
 
-        it('refuses more than five candidates', () => {
+        it('⛔ accepts MORE than five candidates — the bound is the server’s, never a one-way door on installed clients', () => {
+            // Rewritten (ADR-0071 review): the response used to refuse a sixth candidate, so a server that ever raised
+            // its bound would make every installed client throw away the whole job view. The bound lives in the
+            // table's CHECK and `MAX_MATCH_CANDIDATES`, which the server can move without breaking a client.
             const six = Array.from({ length: 6 }, (_, index) => ({
                 kind: 'root',
                 id: `F-${String(index)}`,
@@ -147,7 +150,7 @@ describe('parseProposalSchema', () => {
                 isDefault: false,
             }));
 
-            expect(parseProposalMatchSchema.safeParse({ ...match, candidates: six }).success).toBe(false);
+            expect(parseProposalMatchSchema.safeParse({ ...match, candidates: six }).success).toBe(true);
         });
 
         it('carries no proposal for a needsChoice or noMatch food', () => {

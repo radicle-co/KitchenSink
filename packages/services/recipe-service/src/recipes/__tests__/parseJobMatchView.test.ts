@@ -208,6 +208,58 @@ describe('ParseJobMatchView.decorate', () => {
         expect(metric).toHaveBeenCalledTimes(1);
     });
 
+    it.each([
+        ['the gate contradicted it', { verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' }]]) }],
+        ['the gate abstained', { verdicts: new Map([['v2:milk', { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain' }]]) }],
+        ['the gate gave up', { exhausted: new Set(['v2:milk']) }],
+    ] as const)('⛔ shows NO proposal in `needsChoice` (%s) — the food stays a candidate', async (_label, options) => {
+        const { view } = setup(options as Setup);
+
+        const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
+
+        expect(match?.state).toBe('needsChoice');
+        expect(match?.proposed).toBeNull();
+        expect(match?.candidates.map((candidate) => candidate.id)).toContain('F-whole');
+    });
+
+    it('⛔ shows NO proposal in `default` — a default is listed, never selected', async () => {
+        const { view } = setup({
+            matches: [
+                matchOf({
+                    candidates: [
+                        { kind: 'root', id: 'F-whole', rung: 'head' },
+                        { kind: 'root', id: 'F-default', rung: 'default' },
+                    ],
+                }),
+            ],
+        });
+
+        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.proposed).toBeNull();
+    });
+
+    it('shows the proposal once it is `confident`', async () => {
+        const { view } = setup({
+            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree' }]]),
+        });
+
+        expect(firstMatch(await view.decorate(OWNER, CALLER, viewOf()))?.proposed).toStrictEqual({
+            kind: 'root',
+            id: 'F-whole',
+            name: 'Milk, whole',
+        });
+    });
+
+    it('⛔ drops a candidate food names with an EMPTY name, rather than failing the whole view', async () => {
+        const { view } = setup({
+            answers: { ...NAMED, 'root:F-crackers': { ...found('x', 'F-crackers'), name: '' as never } },
+        });
+
+        const match = firstMatch(await view.decorate(OWNER, CALLER, viewOf()));
+
+        expect(match?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-whole']);
+        expect(match?.candidates.every((candidate) => candidate.name.length > 0)).toBe(true);
+    });
+
     it('reads `needsChoice` when the gate gave up on the key', async () => {
         const { view } = setup({ exhausted: new Set(['v2:milk']) });
 

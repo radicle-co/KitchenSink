@@ -151,12 +151,21 @@ export const parseProposalMatchSchema = z.object({
     state: parseProposalMatchStateSchema,
     /** Why the food is in this state — an opaque key the clients localize (`matchState.ts`'s `MatchReason`). */
     reason: z.string().min(1),
-    /** The proposed food, or `null` when nothing is proposed (a choice is needed, or there is no match). */
+    /**
+     * The proposed food, set ONLY in `checking` and `confident`; `null` in every other state (`matchState.ts`'s
+     * `proposalShownIn`). A default, or a proposal the review contradicted or abstained on, is never shown here: it stays
+     * one of the `candidates`.
+     */
     proposed: z
         .object({ kind: z.enum(['root', 'variant']), id: z.string().min(1), name: z.string().min(1) })
         .nullable(),
-    /** The foods the cook may choose from: at most five, a default first when one applies, then food's order. */
-    candidates: z.array(parseProposalCandidateSchema).max(5),
+    /**
+     * The foods the cook may choose from: a default first when one applies, then food's order.
+     *
+     * ⛔ NO `max` here, deliberately: the server keeps at most five (the table's CHECK and `MAX_MATCH_CANDIDATES`), and a
+     * bound on the RESPONSE would make every installed client discard the whole view the day the server raised it.
+     */
+    candidates: z.array(parseProposalCandidateSchema),
     /** A note that rides beside the state without changing it (`reviewDisagreed`) — an opaque key. */
     reviewNote: z.string().min(1).optional(),
 });

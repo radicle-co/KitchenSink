@@ -20,7 +20,7 @@ import {
 
 const m = editorMessages.en;
 const OUTCOMES = ['firstPublish', 'published', 'changesSaved'] as const;
-const REFUSALS = [undefined, 'final', 'premium'] as const;
+const REFUSALS = [undefined, 'final', 'premium', 'slots'] as const;
 
 describe('outcomeOfExit', () => {
     it('names a first publish, a later publish and Save changes', () => {
@@ -40,7 +40,9 @@ describe('finishedNoticeOf', () => {
     });
 
     it.each(
-        OUTCOMES.flatMap((outcome) => (['final', 'premium'] as const).map((refusal) => [outcome, refusal] as const)),
+        OUTCOMES.flatMap((outcome) =>
+            (['final', 'premium', 'slots'] as const).map((refusal) => [outcome, refusal] as const),
+        ),
     )(
         '⛔ ignores a refusal: %s with %s still says how the editor finished (the page says the refusal inline)',
         (outcome, privateRefused) => {

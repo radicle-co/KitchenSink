@@ -6,7 +6,8 @@
  *
  * The viewer is the session claim's `external_id`, else the profile's `user.id` (owner ruling 2026-10-16).
  */
-import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -63,9 +64,16 @@ function mount(
         readonly onFinishRefusalSeen?: () => void;
         /** A write of this recipe is on the wire (the host's `SyncQueue.entityInFlight`). Defaults to idle. */
         readonly saving?: boolean;
+        /** What the server says about the cook's private slots (ADR-0073). Defaults to a slot free. */
+        readonly slots?: { readonly used: number; readonly limit: number } | 'unlimited';
     } = {},
 ): Mounted {
     const client = createFakeRecipeServiceClient();
+    const slots = over.slots ?? { used: 3, limit: 50 };
+
+    vi.spyOn(client, 'getPrivateSlots').mockResolvedValue(
+        slots === 'unlimited' ? { kind: 'unlimited' } : { kind: 'limited', ...slots },
+    );
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const backend = memoryCookMarksBackend();
     const marks: { current: CookMarksBinding | undefined } = { current: undefined };
@@ -142,11 +150,13 @@ describe('useRecipeDetailController — who the viewer is', () => {
 });
 
 describe('useRecipeDetailController — the action row and the ⋯ menu', () => {
-    it('offers the owner Edit, and Version history then Delete in the menu', () => {
+    // REWRITTEN for ADR-0073: with no paid features known, Make private used to be withheld. A recipe the cook wrote is a
+    // slot, not a Premium feature, so it is offered between Version history and Delete.
+    it('offers the owner Edit, and Version history, Make private then Delete in the menu', () => {
         const { result } = mount({ sessionClaims: { external_id: OWNER } });
 
         expect(result.current.primary).toBe('edit');
-        expect(result.current.menu?.items.map((item) => item.id)).toEqual(['versions']);
+        expect(result.current.menu?.items.map((item) => item.id)).toEqual(['versions', 'makePrivate']);
         expect(result.current.menu?.destructiveItem?.id).toBe('delete');
     });
 
@@ -175,20 +185,101 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         expect(result.current.menu?.items.map((item) => item.id)).toEqual(['versions', 'makePublic']);
     });
 
+    // REWRITTEN for ADR-0073. It said Make private is offered under granted and upsell and not under hidden: the paid
+    // features alone decided. A free cook's own (or book, or paid-site) recipe is now under the SLOTS rule, so Make private
+    // is offered whatever the paid features say; only an imported public-web recipe keeps the Premium rule.
+    it.each(['granted', 'upsell', 'hidden'] as const)(
+        'offers Make private on a recipe the cook wrote under %s: it is a slot, not a Premium feature',
+        (paid) => {
+            const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER, paid) });
+
+            expect(result.current.menu?.items.some((item) => item.id === 'makePrivate')).toBe(true);
+        },
+    );
+
     it.each([
         ['granted', true],
         ['upsell', true],
         ['hidden', false],
-    ] as const)('offers Make private under %s: %s', (paid, offered) => {
-        const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER, paid) });
+    ] as const)(
+        'offers Make private on an imported public-web recipe under %s: %s (Premium is still its rule)',
+        (paid, offered) => {
+            const { result } = mount({
+                sessionClaims: { external_id: OWNER },
+                profile: settledProfile(OWNER, paid),
+                recipe: { sourceType: RecipeSourceType.IMPORTED_PUBLIC },
+            });
 
-        expect(result.current.menu?.items.some((item) => item.id === 'makePrivate')).toBe(offered);
+            expect(result.current.menu?.items.some((item) => item.id === 'makePrivate')).toBe(offered);
+        },
+    );
+
+    it('offers Make private on a recipe the cook wrote while the profile is in flight, and not on an imported public-web one', () => {
+        const wrote = mount({ sessionClaims: { external_id: OWNER }, profile: profileInFlight });
+        const web = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: profileInFlight,
+            recipe: { sourceType: RecipeSourceType.IMPORTED_PUBLIC },
+        });
+
+        expect(wrote.result.current.menu?.items.map((item) => item.id)).toEqual(['versions', 'makePrivate']);
+        expect(web.result.current.menu?.items.map((item) => item.id)).toEqual(['versions']);
     });
 
-    it('does not offer Make private while the profile is in flight: the paid features are the profile’s alone', () => {
-        const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: profileInFlight });
+    it('⛔ Make private with every slot used still SENDS the write: the server, not the count, says no', async () => {
+        const { result, client } = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'upsell'),
+            slots: { used: 50, limit: 50 },
+        });
+        const setVisibility = vi
+            .spyOn(client, 'setRecipeVisibility')
+            .mockRejectedValue(new PrivateSlotsFullError(50, 50));
 
-        expect(result.current.menu?.items.map((item) => item.id)).toEqual(['versions']);
+        // Wait for the count to land: full is KNOWN, and the request must still go out.
+        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        await waitFor(() => {
+            act(() => result.current.menu?.items.find((item) => item.id === 'makePrivate')?.onSelect());
+            expect(setVisibility).toHaveBeenCalled();
+        });
+        await waitFor(() =>
+            expect(result.current.visibilityNotice).toBe(
+                'This recipe is still public: all of your private slots are in use.',
+            ),
+        );
+    });
+
+    it('Make public on a private recipe of a cook with slots asks first, in the "frees a slot" words', async () => {
+        const { result } = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'upsell'),
+            recipe: { visibility: RecipeVisibility.PRIVATE },
+        });
+
+        await waitFor(() => expect(result.current.dialogs.makePublic.consequence).toBeDefined());
+        await waitFor(() => {
+            act(() => result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
+            expect(result.current.dialogs.makePublic).toMatchObject({ open: true, consequence: 'frees' });
+        });
+    });
+
+    it('Premium goes public at once - no slots to free, nothing to say', async () => {
+        const { result, client } = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'granted'),
+            recipe: { visibility: RecipeVisibility.PRIVATE },
+            slots: 'unlimited',
+        });
+        const setVisibility = vi
+            .spyOn(client, 'setRecipeVisibility')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC }));
+
+        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        await waitFor(() => {
+            act(() => result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
+            expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+        });
+        expect(result.current.dialogs.makePublic.open).toBe(false);
     });
 
     it('offers Clear checks once the cook has marked something, and clears them', () => {
@@ -352,20 +443,52 @@ describe('useRecipeDetailController — the rating block', () => {
 });
 
 describe('useRecipeDetailController — the visibility notice', () => {
-    it('says a withheld Private only for the owner of a public recipe whose profile refuses it', () => {
+    // REWRITTEN for ADR-0073: a withheld Private is confirmed against the refusal the page KNOWS for this recipe, which is
+    // the Premium rule's for an imported public-web recipe and "every slot used" for any other. A free cook with a slot
+    // free is not refused, so a forged claim says nothing to them.
+    it('says a withheld Private only for the owner of a public recipe whose Private is known refused', () => {
+        const web = { sourceType: RecipeSourceType.IMPORTED_PUBLIC };
         const refused = mount({
             sessionClaims: { external_id: OWNER },
             profile: settledProfile(OWNER, 'hidden'),
+            recipe: web,
             finishRefused: true,
         });
         const forged = mount({
             sessionClaims: { external_id: 'usr_other' },
             profile: settledProfile('usr_other', 'hidden'),
+            recipe: web,
             finishRefused: true,
         });
 
         expect(refused.result.current.visibilityNotice).toBeDefined();
         expect(forged.result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('⛔ says nothing to a free cook with a slot free who followed a forged claim: their Private was not refused', async () => {
+        const { result, client } = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'hidden'),
+            finishRefused: true,
+        });
+
+        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        await waitFor(() => expect(result.current.visibilityNotice).toBeUndefined());
+    });
+
+    it('says the slots sentence for a withheld Private when every slot is known used', async () => {
+        const { result } = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'upsell'),
+            finishRefused: true,
+            slots: { used: 50, limit: 50 },
+        });
+
+        await waitFor(() =>
+            expect(result.current.visibilityNotice).toBe(
+                'This recipe is still public: all of your private slots are in use.',
+            ),
+        );
     });
 });
 

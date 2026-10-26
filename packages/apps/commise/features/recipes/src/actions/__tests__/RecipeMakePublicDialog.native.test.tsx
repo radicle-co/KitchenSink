@@ -18,7 +18,7 @@ afterEach(cleanup);
 function renderDialog(overrides: Partial<RecipeMakePublicDialogProps> = {}) {
     const props: RecipeMakePublicDialogProps = {
         open: true,
-        consequence: 'final',
+        consequence: 'frees',
         onConfirm: vi.fn(),
         onKeep: vi.fn(),
         ...overrides,
@@ -36,9 +36,8 @@ describe('RecipeMakePublicDialog (native)', () => {
     });
 
     it.each([
-        ['final', m.bodyFinal],
+        ['frees', m.bodyFrees],
         ['premium', m.bodyPremium],
-        ['unknown', m.bodyUnknown],
     ] as const)(
         'under %s, is an interrupting alert titled by the question, saying what it costs',
         (consequence, body) => {

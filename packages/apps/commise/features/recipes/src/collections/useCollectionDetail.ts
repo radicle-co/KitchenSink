@@ -31,7 +31,7 @@ import type { CollectionWithRecipes, CreateCollectionRequest } from '@kitchensin
 import { useCloneCollection, useDeleteCollection, useUpdateCollection } from '@kitchensink/recipe-service-client/hooks';
 import { useMemo, useState } from 'react';
 
-import { offersPrivate } from '../actions/privateGate.js';
+import { makePublicConsequence, offersPrivate, type MakePublicConsequence } from '../actions/privateGate.js';
 import { useMakePublicConfirm, type MakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { cardVariantOf, type CardVariant, type ListViewMode } from '../card/cardVariant.js';
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -95,7 +95,7 @@ export interface CollectionDetail {
     readonly removal: MemberRemoval;
     readonly visibility: CollectionVisibilityControl;
     /** The confirm a downgraded owner answers before a private collection goes public (plan 2026-10-14-009 T1). */
-    readonly makePublic: MakePublicConfirm['dialog'];
+    readonly makePublic: MakePublicConfirm<Exclude<MakePublicConsequence, 'none'>>['dialog'];
     /** Present only when the viewer's menu offers the visibility item. */
     readonly onToggleVisibility: (() => void) | undefined;
     readonly pull: CollectionPull;
@@ -155,8 +155,8 @@ export function useCollectionDetail({
     // The recipe page's own guard, over this surface's Command: the change is optimistic and instant, so the dialog
     // closes with it and a refusal is said by the page's alert, as for every other visibility change here.
     const makePublic = useMakePublicConfirm({
-        state: paidFeatures,
-        saved: collection.visibility,
+        consequence: makePublicConsequence(paidFeatures, collection.visibility),
+        fallback: 'unknown',
         apply: (done) => {
             visibility.change(RecipeVisibility.PUBLIC);
             done();

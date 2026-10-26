@@ -8,6 +8,8 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { PrivateRefusal } from './privateGate.js';
+
 /** Copy for the delete-confirmation dialog (T068). */
 export interface RecipeDeleteDialogMessages {
     /** Dialog title / accessible name. */
@@ -25,18 +27,19 @@ export interface RecipeDeleteDialogMessages {
 }
 
 /**
- * Copy for the confirm a downgraded owner sees before a private recipe goes public (UX SPECIFY 2026-10-15). The body
- * states the cost plainly and per reason (`makePublicConsequence`), describes public recipes in general (a public DRAFT
- * is still the owner's alone), and offers nothing to buy: two verbs, no third choice.
+ * Copy for the confirm a cook sees before a private recipe goes public (UX SPECIFY 2026-10-15, amended by owner ruling
+ * 2026-10-26 / ADR-0073). The body states the cost plainly and per reason (`recipeMakePublicConsequence`), describes public
+ * recipes in general (a public DRAFT is still the owner's alone), and offers nothing to buy: two verbs, no third choice.
+ *
+ * ⛔ Public is NEVER final, so there is no "you won't be able to" body: going public frees a private slot, and a free slot
+ * is all it takes to make the recipe private again.
  */
 interface RecipeMakePublicDialogMessages {
     readonly title: string;
-    /** Under hidden paid features: no copy mentions Premium. */
-    readonly bodyFinal: string;
-    /** Under the upsell. */
+    /** A free cook's recipe going public: it frees one of their private slots. */
+    readonly bodyFrees: string;
+    /** An imported public-web recipe under the upsell, where Premium is still the rule. */
     readonly bodyPremium: string;
-    /** While the paid-feature state loads: true in every state it can settle to. */
-    readonly bodyUnknown: string;
     readonly confirm: string;
     /** The safe action; focus opens on it. */
     readonly keep: string;
@@ -59,7 +62,7 @@ export interface RecipeVisibilityToggleMessages {
      * (`useServerRefusedPrivate`), or the editor withheld it because the server would. Trying again cannot succeed, so it
      * is not offered. `premium` under the upsell; otherwise `final`.
      */
-    readonly privateRefused: { readonly final: string; readonly premium: string };
+    readonly privateRefused: Readonly<Record<PrivateRefusal, string>>;
 }
 
 /** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
@@ -156,12 +159,10 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
         },
         makePublicDialog: {
             title: 'Make this recipe public?',
-            bodyFinal:
-                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            bodyFrees:
+                'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
             bodyPremium:
                 "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
-            bodyUnknown:
-                'Anyone can see a public recipe and save a copy. You may not be able to make this one private again.',
             confirm: 'Make public',
             keep: 'Keep private',
             busy: 'Making public…',
@@ -174,6 +175,8 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
                 premium: 'This recipe is still public. Private recipes are part of Premium.',
+                // No design key exists for this sentence (the boards carry the editor's refusal, not the recipe page's).
+                slots: 'This recipe is still public: all of your private slots are in use.',
             },
         },
         moreMenu: {

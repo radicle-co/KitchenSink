@@ -31,8 +31,10 @@ import {
 import { useEffect, useState } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
+import { recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
+import { useRecipePrivate } from '../actions/useRecipePrivate.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
@@ -145,18 +147,30 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
 
     // Plan 2026-10-14-009 D14: whether Make private is offered, and whether it applies or opens the Premium sheet, is
     // decided in ONE place, `useGatedPrivate`, from the viewer's paid features alone (owner ruling 2026-10-13).
+    //
+    // ADR-0073: for a recipe the cook wrote (or a book or paid-site one) Private is a slot, not a Premium feature; the
+    // paid features still decide an imported public-web recipe. The slot count is a DISPLAY fact, so a Make private with
+    // every slot used is still SENT (`whenFull`) and the server's `PRIVATE_SLOTS_FULL` says no (`useServerRefusedPrivate`).
+    const knownPaidFeatures = knownPaidFeaturesOf(profile);
+    const recipePrivate = useRecipePrivate({ sourceType: recipe.sourceType, knownPaidFeatures });
+    const sendPrivate = (): void => setVisibility.mutate({ id, visibility: RecipeVisibility.PRIVATE });
     const privateGate = useGatedPrivate({
-        state: paidFeatureStateOf(profile),
+        facts: { rule: recipePrivate.rule, standing: recipePrivate.standing, state: paidFeatureStateOf(profile) },
         saved: recipe.visibility,
-        apply: () => setVisibility.mutate({ id, visibility: RecipeVisibility.PRIVATE }),
+        apply: sendPrivate,
+        whenFull: sendPrivate,
     });
     // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
     // change is in flight, and says a failure inside itself.
-    const serverRefusedPrivate = useServerRefusedPrivate(id, knownPaidFeaturesOf(profile));
-    // The confirm's words say what is KNOWN: a failed profile read is "may not", never "won't" (review).
+    const serverRefusedPrivate = useServerRefusedPrivate(id, knownPaidFeatures);
+    // The confirm's words say what is KNOWN, and public is never final: it frees a slot, or (an imported public-web recipe,
+    // upsell only) Premium is needed to return.
     const makePublic = useMakePublicConfirm({
-        state: knownPaidFeaturesOf(profile) ?? 'loading',
-        saved: recipe.visibility,
+        consequence: recipeMakePublicConsequence(
+            { rule: recipePrivate.rule, standing: recipePrivate.standing, state: knownPaidFeatures ?? 'loading' },
+            recipe.visibility,
+        ),
+        fallback: 'frees',
         apply: (done) => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
     });
 
@@ -172,7 +186,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             isPublic,
             serverRefusal: serverRefusedPrivate,
             finishRefused,
-            known: knownPaidFeaturesOf(profile),
+            knownRefusal: recipePrivate.refusal,
             writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
         },
         visibilityCopy,

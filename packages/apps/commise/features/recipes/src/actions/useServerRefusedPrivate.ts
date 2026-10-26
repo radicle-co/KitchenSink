@@ -14,7 +14,7 @@
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { isBadRequestError } from '@kitchensink/recipe-service-client';
+import { isBadRequestError, isPrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
     recipeVisibilityVariablesOf,
@@ -57,10 +57,14 @@ export function useServerRefusedPrivate(
         select: attemptOf,
     });
     const latest = attempts.at(-1);
-    const refused =
-        latest?.variables?.visibility === RecipeVisibility.PRIVATE &&
-        isBadRequestError(latest.error) &&
-        latest.error.code === 'INVALID_VISIBILITY';
+    const wantedPrivate = latest?.variables?.visibility === RecipeVisibility.PRIVATE;
+
+    // ADR-0073: every private slot used is its own refusal and its own words, whatever the profile says.
+    if (wantedPrivate && isPrivateSlotsFullError(latest.error)) {
+        return 'slots';
+    }
+
+    const refused = wantedPrivate && isBadRequestError(latest.error) && latest.error.code === 'INVALID_VISIBILITY';
 
     return refused ? serverRefusalOf(known) : undefined;
 }

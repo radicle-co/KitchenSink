@@ -20,7 +20,7 @@ afterEach(cleanup);
 function renderDialog(overrides: Partial<RecipeMakePublicDialogProps> = {}) {
     const props: RecipeMakePublicDialogProps = {
         open: true,
-        consequence: 'final',
+        consequence: 'frees',
         onConfirm: vi.fn(),
         onKeep: vi.fn(),
         ...overrides,
@@ -37,15 +37,17 @@ describe('RecipeMakePublicDialog (web)', () => {
         expect(screen.queryByRole('alertdialog')).toBeNull();
     });
 
+    // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073): public is NEVER final. The `final` and `unknown` words
+    // ("You won't be able to make this one private again", "You may not be able to...") are gone; a private recipe made
+    // public frees one of the cook's slots, and a free slot is all it takes to make it private again.
     it.each([
-        ['final', "Anyone can see a public recipe and save a copy. You won't be able to make this one private again."],
+        [
+            'frees',
+            'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
+        ],
         [
             'premium',
             "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
-        ],
-        [
-            'unknown',
-            'Anyone can see a public recipe and save a copy. You may not be able to make this one private again.',
         ],
     ] as const)('under %s, asks "Make this recipe public?" and says plainly what it costs', (consequence, body) => {
         renderDialog({ consequence });
@@ -54,6 +56,17 @@ describe('RecipeMakePublicDialog (web)', () => {
 
         expect(dialog.getAttribute('aria-modal')).toBe('true');
         expect(screen.getByText(body)).toBeTruthy();
+    });
+
+    it('⛔ never claims public is final, in any consequence', () => {
+        for (const consequence of ['frees', 'premium'] as const) {
+            const { unmount } = render(
+                <RecipeMakePublicDialog open consequence={consequence} onConfirm={vi.fn()} onKeep={vi.fn()} />,
+            );
+
+            expect(screen.queryByText(/won.t be able|may not be able|never/iu)).toBeNull();
+            unmount();
+        }
     });
 
     it('⛔ offers exactly two verbs — Keep private and Make public — and nothing that sells', () => {

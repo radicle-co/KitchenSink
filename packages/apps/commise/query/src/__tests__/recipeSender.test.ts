@@ -21,13 +21,14 @@ import {
     ForbiddenError,
     InvalidRequestError,
     NotFoundError,
+    PrivateSlotsFullError,
     RecipeServiceClientError,
     SourceUnavailableError,
     VersionConflictError,
 } from '@kitchensink/recipe-service-client';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import { classifyFailure, type OutboxRecord } from '@kitchensink/sync';
+import { classifyFailure, resendsWhenParked, type OutboxRecord } from '@kitchensink/sync';
 
 import { recipeSender } from '../recipeSender.js';
 
@@ -143,6 +144,30 @@ describe('recipeSender', () => {
 
         expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 400 });
     });
+
+    /**
+     * ⛔ ADR-0073 / code owed 9: A QUEUED PRIVATE WRITE THAT MEETS `PRIVATE_SLOTS_FULL` IS FINAL. Offline mode makes this
+     * common: a cook can queue private writes while another device uses the last slot. It is a `403`, so
+     * `classifyFailure` calls it terminal (the cook edits or frees a slot), it parks, and the drain NEVER re-sends it by
+     * itself - a second copy would meet the same full slots, and for a create an unknown outcome is never repeated.
+     */
+    it.each([
+        ['a create', 'create', 'createRecipe'],
+        ['an update', 'update', 'updateRecipe'],
+    ] as const)(
+        '⛔ %s refused for want of a private slot parks as a terminal 403 and is never re-sent',
+        async (_label, kind, method) => {
+            const refuse = vi.fn().mockRejectedValue(new PrivateSlotsFullError(50, 50));
+            const send = recipeSender(() => ({ [method]: refuse }) as never);
+
+            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 403 });
+
+            const failure = { entity: 'recipe', intentKind: kind, localId: 'r1', status: 403 } as const;
+
+            expect(classifyFailure(failure)).toBe('terminal');
+            expect(resendsWhenParked(failure)).toBe(false);
+        },
+    );
 
     /**
      * ⛔ A BODY THE CLIENT REFUSED LOCALLY IS TERMINAL, NOT `unknown`. `InvalidRequestError` is thrown from

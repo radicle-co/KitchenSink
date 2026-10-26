@@ -30,27 +30,28 @@ import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } 
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     values,
     onChange,
-    paidFeatures,
+    facts,
     heldVisibility: held,
     privateRefusal,
     onPremiumRequired,
     onConfirmPublic,
+    onFreeASlot,
 }) => {
     const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
-    const { shown, options } = visibilityFieldOf({
+    const { shown, options, slotsFull } = visibilityFieldOf({
         draft: values.visibility,
         saved: savedVisibility,
-        state: paidFeatures,
+        facts,
         refusal: privateRefusal,
         messages: v,
     });
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(shown, chosen, savedVisibility, paidFeatures);
+        const next = visibilityChoice(shown, chosen, savedVisibility, facts);
 
         if (next === 'premiumRequired') {
             onPremiumRequired?.();
@@ -97,6 +98,25 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     );
                 })}
             </View>
+            {slotsFull === undefined ? null : (
+                // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
+                <View collapsable={false} role="group" aria-label={slotsFull.title} style={styles.ways}>
+                    <Text style={[styles.legend, { color: colors.ink }]}>{slotsFull.title}</Text>
+                    {slotsFull.ways.map((way) => (
+                        <Pressable
+                            key={way.id}
+                            role="button"
+                            onPress={way.id === 'premium' ? onPremiumRequired : onFreeASlot}
+                            style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineControl }]}
+                        >
+                            <View style={styles.words}>
+                                <Text style={[styles.title, { color: colors.ink }]}>{way.label}</Text>
+                                <Text style={[styles.hint, { color: colors.inkMuted }]}>{way.detail}</Text>
+                            </View>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
         </View>
     );
 };
@@ -105,6 +125,7 @@ const styles = StyleSheet.create({
     field: { gap: nativeTokens.spacing[2] },
     legend: nativeTokens.type.label,
     cards: { gap: nativeTokens.spacing[2] },
+    ways: { gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[1] },
     card: {
         minHeight: 56,
         flexDirection: 'row',

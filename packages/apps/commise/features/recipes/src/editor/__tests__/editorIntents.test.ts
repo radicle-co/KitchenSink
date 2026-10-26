@@ -87,7 +87,7 @@ describe('recipeWriteIntent — a create never carries a refused Private', () =>
         visibility: RecipeVisibility.PRIVATE,
     };
 
-    it.each(['final', 'premium'] as const)(
+    it.each(['final', 'premium', 'slots'] as const)(
         'under a %s refusal, a private draft is created public',
         (privateRefusal) => {
             const intent = recipeWriteIntent({
@@ -117,7 +117,7 @@ describe('recipeWriteIntent — a create never carries a refused Private', () =>
     it('a public draft is created public under any refusal', () => {
         const publicDraft = { ...privateDraft, visibility: RecipeVisibility.PUBLIC };
 
-        for (const privateRefusal of ['final', 'premium', undefined] as const) {
+        for (const privateRefusal of ['final', 'premium', 'slots', undefined] as const) {
             expect(
                 recipeWriteIntent({ server: unsaved, draft: publicDraft, ref: LOCAL, publish: true, privateRefusal })
                     .payload,

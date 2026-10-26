@@ -19,10 +19,8 @@
  *
  * @pattern Specification — a pure predicate-and-pick over facts the page already holds
  */
-import type { PaidFeatureState } from '@commise/features-account';
-
 import type { RecipeVisibilityToggleMessages } from './messages.js';
-import { privateRefusalOf, type PrivateRefusal } from './privateGate.js';
+import type { PrivateRefusal } from './privateGate.js';
 
 /** What decides the notice. */
 export interface VisibilityNoticeInput {
@@ -34,8 +32,11 @@ export interface VisibilityNoticeInput {
     readonly serverRefusal: PrivateRefusal | undefined;
     /** Whether the finish said the editor withheld a Private: a claim, confirmed against `known` below. */
     readonly finishRefused: boolean;
-    /** The profile's own answer (`knownPaidFeaturesOf`): `undefined` while unknown or after a failed read. */
-    readonly known: PaidFeatureState | undefined;
+    /**
+     * Why Private is KNOWN to be refused for this viewer on this recipe (`recipePrivateRefusalOf`): `undefined` while
+     * nothing is known, a loading or failed read of the paid features or the slot count included.
+     */
+    readonly knownRefusal: PrivateRefusal | undefined;
     /** Whether the page's own visibility write failed, and no dialog says so itself. */
     readonly writeFailed: boolean;
 }
@@ -67,7 +68,7 @@ export function visibilityNoticeOf(
         return messages.error;
     }
 
-    const claimed = input.finishRefused ? privateRefusalOf(input.known ?? 'loading') : undefined;
+    const claimed = input.finishRefused ? input.knownRefusal : undefined;
 
     return claimed !== undefined && input.isPublic ? messages.privateRefused[claimed] : undefined;
 }

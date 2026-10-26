@@ -17,7 +17,7 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -31,6 +31,7 @@ import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
+import { useRecipePrivate } from '../../actions/useRecipePrivate.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
 afterEach(cleanup);
@@ -57,6 +58,8 @@ interface HarnessProps {
 /** The surface over a real session, as an app's container mounts it. */
 function Harness(props: HarnessProps): ReactElement {
     const { seed, paidFeatures, knownPaidFeatures, renderPhotos, onClose, onOpenMyRecipes } = props;
+    // What the app's container does: the rule, the slot standing and the known refusal, from one hook.
+    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
     const session = useRecipeEditorSession({
         seed,
         locale: 'en',
@@ -66,7 +69,7 @@ function Harness(props: HarnessProps): ReactElement {
         navigation: { finished: vi.fn(), leftForRecipe: vi.fn(), discarded: vi.fn() },
         reportError: vi.fn(),
         openPaste: false,
-        knownPaidFeatures,
+        privateRefusal: recipePrivate.refusal,
     });
 
     return (
@@ -81,6 +84,8 @@ function Harness(props: HarnessProps): ReactElement {
             keep="disk"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
+            privateRule={recipePrivate.rule}
+            slotStanding={recipePrivate.standing}
             renderPhotos={renderPhotos}
             onClose={onClose}
             onOpenMyRecipes={onOpenMyRecipes}
@@ -175,16 +180,65 @@ describe('RecipeEditorSurface — photos', () => {
 });
 
 describe('RecipeEditorSurface — the Private choice', () => {
+    /** The server's read of the cook's slots, which the surface shows and never states itself. */
+    function withSlots(used: number, limit = 50) {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used, limit });
+
+        return client;
+    }
+
     it('offers Private to a viewer whose paid features grant it', () => {
         mount({ paidFeatures: 'granted', knownPaidFeatures: 'granted' });
 
         expect(screen.getByRole('radio', { name: /private/i })).toBeTruthy();
     });
 
-    it('offers no Private choice to a viewer whose paid features hide it', () => {
+    // REWRITTEN for ADR-0073. It used to say a viewer whose paid features hide Private gets no Private choice. A free cook
+    // keeps up to the server's limit of recipes private, paid features or not, so hidden paid features no longer hide it.
+    it('⛔ offers Private to a free cook even when paid features are hidden: a slot, not Premium', () => {
         mount({ paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
 
+        expect(screen.getByRole('radio', { name: /private/i })).toBeTruthy();
+    });
+
+    it('offers no Private choice for an imported public-web recipe to a viewer whose paid features hide it: Premium is still its rule', () => {
+        const recipe = makeRecipeDetail({ sourceType: 'imported_public', visibility: 'public' });
+
+        mount({ seed: { recipe }, paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
+
         expect(screen.queryByRole('radio', { name: /private/i })).toBeNull();
+    });
+
+    it('shows how many private slots are left, from the server`s read', async () => {
+        mount({ paidFeatures: 'upsell', knownPaidFeatures: 'upsell' }, withSlots(38));
+
+        expect(await screen.findByText('12 of 50 private slots left')).toBeTruthy();
+    });
+
+    it('⛔ with every slot used, refuses Private with its three ways forward; the first two go to My recipes, Premium opens the sheet', async () => {
+        const user = userEvent.setup();
+        const { props } = mount({ paidFeatures: 'upsell', knownPaidFeatures: 'upsell' }, withSlots(50));
+
+        expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+        await user.click(screen.getByRole('button', { name: /Delete a private recipe/u }));
+        expect(props.onOpenMyRecipes).toHaveBeenCalledTimes(2);
+
+        await user.click(screen.getByRole('button', { name: /Get Premium/u }));
+        expect(await screen.findByRole('dialog')).toBeTruthy();
+    });
+
+    it('Premium sees no count', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'unlimited' });
+        mount({ paidFeatures: 'granted', knownPaidFeatures: 'granted' }, client);
+
+        // Wait for the read to SETTLE (the "checking" line goes), so the absence below is Premium's, not a read in flight.
+        await waitFor(() => expect(screen.queryByText('Checking your private slots…')).toBeNull());
+
+        expect(screen.queryByText(/private slots/u)).toBeNull();
     });
 });
 

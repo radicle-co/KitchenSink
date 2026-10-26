@@ -7,7 +7,7 @@
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { BadRequestError, ForbiddenError } from '@kitchensink/recipe-service-client';
+import { BadRequestError, ForbiddenError, PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
     RecipeServiceProvider,
@@ -61,6 +61,31 @@ describe('useServerRefusedPrivate', () => {
             await waitFor(() => expect(result.current.refused).toBe(why));
         },
     );
+
+    // ADR-0073: the server's `403 PRIVATE_SLOTS_FULL` is a refusal of its own, said in the slots words whatever the
+    // profile says (Premium would not have been refused, so the profile cannot change the reason).
+    it.each<[string, PaidFeatureState | undefined]>([
+        ['an unknown profile', undefined],
+        ['a viewer who would be offered Premium', 'upsell'],
+        ['a viewer the gate hides Premium from', 'hidden'],
+    ])('⛔ answers `slots` once a Private write for this recipe met PRIVATE_SLOTS_FULL: %s', async (_l, known) => {
+        const { result, client } = mount('rec_1', known);
+        vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+
+        act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
+
+        await waitFor(() => expect(result.current.refused).toBe('slots'));
+    });
+
+    it('a slot refusal of a PUBLIC write is not a refused Private', async () => {
+        const { result, client } = mount('rec_1');
+        vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+
+        act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC }));
+        await waitFor(() => expect(result.current.write.isError).toBe(true));
+
+        expect(result.current.refused).toBeUndefined();
+    });
 
     it('is undefined for another recipe`s refusal', async () => {
         const { result, client } = mount('rec_2');

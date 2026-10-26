@@ -72,20 +72,44 @@ explicit pick. The review gate checks every paste match, whatever its measured e
       queue's contract refuses. It is never claimed, so it is not retried on every poll.
     - A contained test principal (ADR-0040) gets its proposals stored, but no review is sent for them. The save path's
       verification producer follows the same rule.
-9. **The state is derived at read time.** `matchStateOf` is a pure policy, applied in this order:
+9. **The state is derived at read time.** One classifier, `identityReadingOf`, says what a stored verdict means for the
+   food. The paste view and a saved line's badge both derive from it, each with its own exhaustive mapping. Neither
+   reads the verdict's columns itself. The readings are:
 
-    | State         | When                                                                                                |
-    | ------------- | --------------------------------------------------------------------------------------------------- |
-    | `default`     | A candidate sits on the `default` rung, whatever answered (or nothing did), whatever the gate said. |
-    | `noMatch`     | Nothing proposed and no candidates.                                                                 |
-    | `needsChoice` | Nothing proposed, but candidates exist.                                                             |
-    | `confident`   | A curated mapping. A gate contradiction keeps it confident and adds the note `reviewDisagreed`.     |
-    | `needsChoice` | A memo or lexical proposal the gate contradicted on identity.                                       |
-    | `confident`   | A memo, a lexical proposal the gate verified, or an exact-name rung awaiting review.                |
-    | `needsChoice` | The gate abstained, refused the line, gave up, or was never asked for a contained principal.        |
-    | `checking`    | A lexical proposal awaiting review.                                                                 |
-    - Identity is read through one rule, `identityReadingOf`, which a saved line's status shares. A verdict that never
-      asked identity is no verdict about the food. It does not accept or reject the proposal.
+    | Reading      | A verdict that                                                                         |
+    | ------------ | -------------------------------------------------------------------------------------- |
+    | `unasked`    | Never asked identity. It says nothing about the food.                                  |
+    | `agree`      | Itemized identity as agree at medium or high certainty, or a joint `verified`.         |
+    | `contradict` | Itemized identity as disagree at high certainty.                                       |
+    | `doubt`      | Itemized identity as disagree below high certainty.                                    |
+    | `hedged`     | Itemized identity as agree at low certainty. The hedge is kept, not promoted.          |
+    | `abstain`    | Itemized identity as abstain.                                                          |
+    | `unreadable` | Has no itemized identity: an unreadable model reply, or a joint disagree not itemized. |
+
+    The paste view is `matchStateOf`, a pure policy applied in this order:
+
+    | State         | When                                                                                                 |
+    | ------------- | ---------------------------------------------------------------------------------------------------- |
+    | `default`     | A candidate sits on the `default` rung, whatever answered (or nothing did), whatever the gate said.  |
+    | `noMatch`     | Nothing proposed and no candidates.                                                                  |
+    | `needsChoice` | Nothing proposed, but candidates exist.                                                              |
+    | `confident`   | A curated mapping. A `contradict` keeps it confident and adds the note `reviewDisagreed`.            |
+    | `needsChoice` | A memo or lexical proposal read `contradict` or `doubt`.                                             |
+    | `confident`   | A memo, a lexical proposal read `agree`, or an exact-name rung with no readable verdict.             |
+    | `needsChoice` | A lexical proposal read `abstain` or `hedged`, or one the gate refused, gave up on or was not asked. |
+    | `checking`    | A lexical proposal awaiting review.                                                                  |
+    - **The two surfaces differ in one direction, and on purpose.** Asking the cook before a bind is cheap. So the paste
+      view asks on `doubt`, `hedged`, `abstain` and `unreadable`. Badging a line the cook has already bound is a
+      warning. So a saved line shows the AMBIGUOUS badge only for `contradict` (under a contradicted band) and
+      `abstain`, and keeps its catalog status for `doubt`, `hedged` and `unreadable`. A contradicted band still
+      withholds nutrition on a saved line whatever the reading. `contradict` is the only reading that adds
+      `reviewDisagreed` to a curated mapping, because a low-certainty disagreement is noise, not a reason to look at
+      curation.
+    - **An unreadable reply is a review that gave up.** On paste it reads `reviewUnchecked`, like an exhausted review.
+      It never reads `checking` forever, and it does not read as an abstention.
+    - **An exact name is a confident match** (owner ruling). It stays confident when its review was refused, gave up
+      or was never asked, or came back unreadable. A review that disagrees (`contradict` or `doubt`), abstains or
+      hedges still overrides it, because the cook should look when the gate spoke against the food.
     - The proposal is shown as the line's match only in `checking` and `confident`. In every other state the wire's
       `proposed` is `null`, and the food stays one of the candidates.
     - The state enum is closed. A new fact becomes a new field or a new reason key, never a new state. The candidate

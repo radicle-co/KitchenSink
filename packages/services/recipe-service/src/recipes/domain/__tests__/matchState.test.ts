@@ -176,6 +176,11 @@ describe('matchStateOf — the truth table', () => {
             { state: 'confident', reason: 'exactName' },
         ],
         [
+            'Q: an EXACT-name proposal the gate doubted is overridden: the cook is asked',
+            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' }, verdict: DOUBTED }),
+            { state: 'needsChoice', reason: 'reviewContradicted' },
+        ],
+        [
             'a disagreement short of high certainty asks the cook (asking is cheap)',
             facts({ verdict: DOUBTED }),
             { state: 'needsChoice', reason: 'reviewContradicted' },

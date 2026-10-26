@@ -167,7 +167,10 @@ function setup(options: Setup = {}) {
     return { service, matches, chain, refs, queue, getJob };
 }
 
-/** The verdict key the save path computes for "2 cups whole milk" kept on `foodId`. */
+/**
+ * The verdict key the save path computes for "2 cups whole milk" kept on `foodId`. The unit is the cook's word, `cups`
+ * from the parse's `statedMeasure`, because that is what the editor saves (`pastedLineMeasureOf`, ADR-0071).
+ */
 const milkKey = (foodId: string): string =>
     verificationKey(
         {
@@ -175,7 +178,7 @@ const milkKey = (foodId: string): string =>
             foodRefId: foodId,
             quantityLow: 2,
             quantityHigh: null,
-            unit: 'cup',
+            unit: 'cups',
             statedMeasure: null,
         },
         sha256Hex,
@@ -264,7 +267,8 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             candidateFoodName: 'Milk, whole',
             quantityLow: 2,
             quantityHigh: null,
-            unit: 'cup',
+            // The cook's word, as the editor saves it (`pastedLineMeasureOf`), so the kept line's key is this one.
+            unit: 'cups',
             evidenceKind: 'unattributed',
             shortlist: [],
             requestedAt: expect.any(String),

@@ -4,10 +4,10 @@
  * for frying"); this splits that text into the measure the row is committed with, the words the food search is asked,
  * and the preparation.
  *
- * - **The amount** comes from `numeric-quantity`: numbers, mixed numbers, ASCII and unicode fractions, and non-ASCII
- *   decimal digits. Roman numerals stay off. A range is two amounts joined by `-`, `–`, `—` or `to`: these separators,
- *   a known unit glued to its amount (`200g`) and the `of` after a unit (`2 cups of flour`) are this module's only own
- *   grammar. An inverted range is swapped (the owner's rule for the draft's bounds, 2026-09-12).
+ * - **The amount** is read by recipe-core's measure reader (`@kitchensink/recipe-core/parsing/measure-reader`):
+ *   numbers, mixed numbers, fractions, non-ASCII digits, ranges, a known unit glued to its amount (`200g`) and the
+ *   comma rules below. It moved there so a pasted line and recipe-service's paste matcher read a measure the same way
+ *   (ADR-0071). The `of` after a unit (`2 cups of flour`) is this module's own grammar.
  * - **The known unit** (or a size word, `isSizeWord`: "1 large onion") is the next one or two tokens, CASE PRESERVED (`T` is a tablespoon, `t` a teaspoon), known when
  *   recipe-core's `classifyUnit` knows it, and stored as `normalizeUnit` spells it. "Known" has ONE authority:
  *   `parse-ingredient`'s second vocabulary is refused here (A1 rejection 2; `recipe-import-core`'s `ingredientLine.ts`
@@ -16,32 +16,30 @@
  *   cook's word is not lost into the food search. A closed list ({@link TRAILING_COUNT_UNITS}), never when the word is
  *   the whole search, and never when a spice word stands before `cloves` ("2 whole cloves" is the spice, a food search).
  * - **A comma inside an amount** is a decimal point when one or two digits follow it (`1,5 kg`), and groups thousands
- *   only in the `1,000` / `12,345` / `1,000,000` shape. Any other comma inside digits is ambiguous, and no amount is read.
+ *   only in the `1,000` / `12,345` / `1,000,000` shape (the measure reader's rule).
  * - **The preparation** is what follows the first comma that is not inside a number (`1,000 g`, `1,5 kg`).
  * - **The search** is the rest; with no leading amount it is the whole text before the comma.
  *
  * The amount goes through recipe-core's `statedQuantity`, so this cannot produce a quantity the wire refuses. The row
  * editor's Amount field reads each bound with the same amount rules (`readAmountField`).
  *
- * ⚠️ PLATFORM PRECONDITION (A1): `numeric-quantity` compiles `/\p{Nd}/gu` at module load, and the glued-unit split
- * below uses `\p{L}`. Both need Hermes' Unicode property escapes. Proven on the RN 0.86 Hermes Android emulator by the
- * `addIngredientLine` Maestro flow, which types a non-ASCII digit (`٣`) and reads it back as an amount.
+ * ⚠️ PLATFORM PRECONDITION (A1): the measure reader compiles Unicode property escapes at module load, which need
+ * Hermes. Proven on the RN 0.86 Hermes Android emulator by the `addIngredientLine` Maestro flow, which types a non-ASCII
+ * digit (`٣`) and reads it back as an amount.
  *
  * Pure and platform-agnostic.
  *
  * @pattern Parser — parse, don't validate, at the UI boundary
  * @pattern Specification — "known unit" delegated to recipe-core's `classifyUnit`, the single authority
- * @pattern Adapter over numeric-quantity
  */
+import { ABSENT_QUANTITY, classifyUnit, isSizeWord, normalizeUnit, type IngredientQuantity } from '@kitchensink/recipe-core';
 import {
-    ABSENT_QUANTITY,
-    classifyUnit,
-    isSizeWord,
-    normalizeUnit,
-    statedQuantity,
-    type IngredientQuantity,
-} from '@kitchensink/recipe-core';
-import { numericQuantity } from 'numeric-quantity';
+    amountAt,
+    leadingAmount,
+    quantityOf,
+    readStatedMeasure,
+    splitGluedUnit,
+} from '@kitchensink/recipe-core/parsing/measure-reader';
 
 /** What the add field reads from the cook's text. */
 export interface LeadingMeasureReading {
@@ -60,15 +58,6 @@ export interface LeadingMeasureReading {
 /** What the row editor's Amount field reads from one bound's text. */
 export type AmountFieldReading =
     { readonly kind: 'blank' } | { readonly kind: 'amount'; readonly value: number } | { readonly kind: 'unreadable' };
-
-/** The tokens that join two amounts into a range, compared lower-cased. */
-const RANGE_WORDS: ReadonlySet<string> = new Set(['-', '–', '—', 'to']);
-
-/** The dashes that join two amounts inside one token (`2-3`, `2–2.5`). */
-const RANGE_DASH = /[-–—]/u;
-
-/** A token's leading run of non-letters, then letters: `200g` → `200` and `g`. */
-const GLUED_UNIT = /^([^\p{L}]+)(\p{L}.*)$/u;
 
 /** One decimal digit, in any script. */
 const DIGIT = /^\p{Nd}$/u;
@@ -92,116 +81,6 @@ function preparationCommaOf(text: string): number {
     }
 
     return -1;
-}
-
-/**
- * A run of digits, points and commas, and the one shape each comma reading allows. The runs that hold a comma (`1,5`,
- * `1,000`) are the ones read. Matched as one maximal run and FILTERED for a comma, not as `[\p{Nd}.]*,[\p{Nd},.]*`:
- * that pattern retries every position of a run with no comma in it, so it was quadratic in the run (CodeQL
- * `js/polynomial-redos`, alert 483). The two give the same runs: a run holding a comma is matched from its first
- * character either way.
- */
-const NUMBER_RUN = /[\p{Nd},.]+/gu;
-const THOUSANDS = /^\p{Nd}{1,3}(?:,\p{Nd}{3})+$/u;
-const DECIMAL_COMMA = /^\p{Nd}+,\p{Nd}{1,2}$/u;
-
-/**
- * Which character the amount in `text` uses as its decimal point, or `undefined` when a comma in it is ambiguous.
- *
- * A comma followed by one or two digits is a decimal point (`1,5`, `12,50`); only `\d{1,3}(,\d{3})+` groups thousands
- * (`1,000`, `12,345`). Any other comma inside digits (`1,5000`), or decimal and grouping commas in one text, is
- * ambiguous: no amount is read rather than a wrong one. Pure.
- */
-function decimalSeparatorOf(text: string): ',' | '.' | undefined {
-    const runs = (text.match(NUMBER_RUN) ?? []).filter((run) => run.includes(','));
-
-    if (runs.every((run) => THOUSANDS.test(run))) {
-        return '.';
-    }
-
-    return runs.every((run) => DECIMAL_COMMA.test(run)) ? ',' : undefined;
-}
-
-/** A positive, finite amount `numeric-quantity` reads from the whole of `text`, or `undefined`. Pure. */
-function amountOf(text: string): number | undefined {
-    const decimalSeparator = decimalSeparatorOf(text);
-
-    if (decimalSeparator === undefined) {
-        return undefined;
-    }
-
-    const value = numericQuantity(text, { decimalSeparator });
-
-    return Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-/** An amount read from the tokens, and how many tokens it took. */
-interface AmountRead {
-    readonly low: number;
-    readonly high?: number;
-    readonly taken: number;
-}
-
-/**
- * One amount at `tokens[at]`: a mixed number over two tokens (`1 1/2`), else one token, which may be a dash-joined
- * range (`2-3`) or a hyphenated mixed number (`1-1/2`). Pure.
- */
-function amountAt(tokens: readonly string[], at: number): AmountRead | undefined {
-    const first = tokens[at];
-
-    if (first === undefined) {
-        return undefined;
-    }
-
-    const next = tokens[at + 1];
-    const mixed = next === undefined ? undefined : amountOf(`${first} ${next}`);
-
-    if (mixed !== undefined) {
-        return { low: mixed, taken: 2 };
-    }
-
-    const single = amountOf(first);
-
-    if (single !== undefined) {
-        return { low: single, taken: 1 };
-    }
-
-    // `1-1/2` is a mixed number; `2-3` and `2–2.5` are not, so they are ranges.
-    const dash = RANGE_DASH.exec(first);
-
-    if (dash === null || dash.index === 0) {
-        return undefined;
-    }
-
-    const hyphenatedMixed = amountOf(`${first.slice(0, dash.index)} ${first.slice(dash.index + 1)}`);
-
-    if (hyphenatedMixed !== undefined) {
-        return { low: hyphenatedMixed, taken: 1 };
-    }
-
-    const low = amountOf(first.slice(0, dash.index));
-    const high = amountOf(first.slice(dash.index + 1));
-
-    return low === undefined || high === undefined ? undefined : { low, high, taken: 1 };
-}
-
-/** The leading amount, a range over a separator included (`2 to 3`). Pure. */
-function leadingAmount(tokens: readonly string[]): AmountRead | undefined {
-    const first = amountAt(tokens, 0);
-
-    if (first === undefined || first.high !== undefined) {
-        return first;
-    }
-
-    const separator = tokens[first.taken];
-    const second =
-        separator !== undefined && RANGE_WORDS.has(separator.toLowerCase())
-            ? amountAt(tokens, first.taken + 1)
-            : undefined;
-
-    return second === undefined || second.high !== undefined
-        ? first
-        : { low: first.low, high: second.low, taken: first.taken + 1 + second.taken };
 }
 
 /** Whether `token` is a unit recipe-core knows. Pure. */
@@ -266,31 +145,6 @@ function unitAt(tokens: readonly string[], at: number): UnitRead | undefined {
     }
 
     return isStatedUnit(first) ? { unit: normalizeUnit(first), taken: 1 } : undefined;
-}
-
-/** `200g butter` → `200 g butter`: a known unit glued to its amount is split off. Anything else is left whole. Pure. */
-function splitGluedUnit(tokens: readonly string[]): readonly string[] {
-    const [first, ...rest] = tokens;
-    const glued = first === undefined ? null : GLUED_UNIT.exec(first);
-
-    if (glued === null) {
-        return tokens;
-    }
-
-    const [, amount = '', unit = ''] = glued;
-
-    return amountAt([amount], 0) !== undefined && isKnownUnit(unit) ? [amount, unit, ...rest] : tokens;
-}
-
-/** The quantity two bounds state, swapped when inverted. Pure. */
-function quantityOf(read: AmountRead): IngredientQuantity {
-    const { low, high } = read;
-
-    if (high === undefined) {
-        return statedQuantity(low) ?? ABSENT_QUANTITY;
-    }
-
-    return statedQuantity(Math.min(low, high), Math.max(low, high)) ?? ABSENT_QUANTITY;
 }
 
 /**
@@ -374,35 +228,6 @@ export function readAmountField(text: string): AmountFieldReading {
     return read === undefined || read.high !== undefined || read.taken !== tokens.length
         ? UNREADABLE_FIELD
         : { kind: 'amount', value: read.low };
-}
-
-/** A measure phrase as the cook stated it: the amount this module reads at its start, and the words after it. */
-export interface StatedMeasureReading {
-    /** The leading amount, or `ABSENT_QUANTITY` when the phrase states none this module reads ("a handful"). */
-    readonly quantity: IngredientQuantity;
-    /** The words after the amount, as the cook wrote them, a trailing `of` dropped; the whole phrase with no amount. */
-    readonly words: string;
-}
-
-/**
- * Read a measure phrase the cook stated (a parse's `statedMeasure`: "2 tbsp", "1 large", "a handful") with this
- * module's amount rules, keeping the rest in the cook's own words rather than as `normalizeUnit` spells it.
- *
- * @param phrase - The measure phrase.
- * @returns The amount and the cook's words after it. Pure.
- */
-export function readStatedMeasure(phrase: string): StatedMeasureReading {
-    const tokens = splitGluedUnit(
-        phrase
-            .trim()
-            .split(/\s+/u)
-            .filter((token) => token !== ''),
-    );
-    const amount = leadingAmount(tokens);
-    const rest = amount === undefined ? tokens : tokens.slice(amount.taken);
-    const words = rest.at(-1)?.toLowerCase() === 'of' ? rest.slice(0, -1) : rest;
-
-    return { quantity: amount === undefined ? ABSENT_QUANTITY : quantityOf(amount), words: words.join(' ') };
 }
 
 /**

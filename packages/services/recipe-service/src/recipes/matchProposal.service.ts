@@ -218,6 +218,7 @@ export class MatchProposalService {
                 sourceLine: line.sourceLine,
                 quantity: proposal.quantity,
                 unit: proposal.unit,
+                statedMeasure: proposal.statedMeasure,
                 phrases: proposal.foods.map((food) => food.name),
             });
         }

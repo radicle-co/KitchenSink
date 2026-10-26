@@ -6,17 +6,16 @@
  * `verificationRequests.ts` uses for the save path. Three questions, answered from inputs alone:
  *
  *  1. **Which judgement a proposal asks for** ({@link matchJudgementOf}). The key must equal what the save path computes
- *     if the cook keeps this food, so a kept line is never asked about twice. The FIRST food of a line carries the line's
- *     measure and a later food carries none, which is how the editor saves a pasted line (`pastedLines.ts`).
- *     ⚠️ That equality holds only where the editor saves the parse's own measure. Where it saves the measure in the
- *     cook's words instead (`cookMeasureOf` reads `statedMeasure`: "2 tbsp" saves unit `tbsp`, the parse says
- *     `tablespoon`), the keys differ and the save path asks again. ADR-0071 records this as an open gap.
+ *     if the cook keeps this food, so a kept line is never asked about twice. The measure is recipe-core's
+ *     `pastedLineMeasureOf`, the rule the editor saves a pasted row with: the cook's own words (`2 tbsp` keys unit
+ *     `tbsp`, not the parse's `tablespoon`), and only the FIRST food of a line carries it.
  *  2. **Whether the gate may be asked** ({@link proposalVerificationDecision}). Identity is ALWAYS asked for a paste
  *     proposal: no band and no curated skip (ADR-0071, the exception to earned autonomy D1).
  *  3. **Which candidates the cook sees** ({@link candidatesFor}). At most five, the proposal first, and a default that
  *     applies is never cut off, because whether one applies decides the line's state (`matchState.ts`).
  */
-import { ABSENT_QUANTITY, type IngredientQuantity } from '@kitchensink/recipe-core';
+import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import { pastedLineMeasureOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import {
     decideProposalVerification,
     PROVISIONAL_VERIFICATION_THRESHOLDS,
@@ -40,19 +39,21 @@ export const MAX_MATCH_CANDIDATES = 5;
  */
 const DEFAULT_RUNG = 'default';
 
-/** What a parsed line contributes to a judgement: its text and the parse's own measure. */
+/** What a parsed line contributes to a judgement: its text, the parse's own measure and the source's words for it. */
 export interface ParsedLineMeasure {
     readonly sourceLine: string;
     readonly quantity: IngredientQuantity;
     /** The parse's canonical unit, or `null` when the line states none. */
     readonly unit: string | null;
+    /** The source's own words for the measure ("2 tbsp"), when the parse kept them. */
+    readonly statedMeasure?: string | null | undefined;
 }
 
 /**
  * The judgement the proposal for one food of a parsed line asks for, keyed as the save path would key the kept line.
  *
  * @param line - The parsed line: its text and measure.
- * @param foodIndex - Which food of the line. Only the first carries the measure.
+ * @param foodIndex - Which food of the line. Only the first carries the measure (`pastedLineMeasureOf`).
  * @param foodRefId - The proposed food's id at its forward end (root or variant).
  * @returns The identity, or `undefined` for a blank line. Pure.
  */
@@ -61,15 +62,15 @@ export function matchJudgementOf(
     foodIndex: number,
     foodRefId: string,
 ): VerifiedLineIdentity | undefined {
-    const measured = foodIndex === 0;
+    const saved = pastedLineMeasureOf(line, foodIndex);
 
     return verifiedLineIdentity(
         {
             sourceLine: line.sourceLine,
-            quantity: measured ? line.quantity : ABSENT_QUANTITY,
-            unit: measured ? (line.unit ?? '') : '',
-            // A parse's `statedMeasure` is the source's WORDS ("a handful"), not a restatement of a historical unit,
-            // and the editor saves no restatement for a pasted line.
+            quantity: saved.quantity,
+            unit: saved.unit,
+            // The parse's `statedMeasure` is the source's WORDS ("a handful"), already read into the measure above; it is
+            // not a restatement of a historical unit, and the editor saves no restatement for a pasted line.
             statedMeasure: undefined,
         },
         foodRefId,

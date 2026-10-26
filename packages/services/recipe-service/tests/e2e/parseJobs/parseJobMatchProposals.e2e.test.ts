@@ -150,7 +150,8 @@ describe('paste-job match proposals (LOCAL e2e)', () => {
         const message = verifyIngredientLineMessageSchema.parse(JSON.parse(bodies[0] ?? '{}'));
 
         expect(verificationOriginOf(message)).toStrictEqual({ kind: 'parseJob', jobId, lineIndex: 0, foodIndex: 0 });
-        expect(message).toMatchObject({ foodId: 'F-whole', quantityLow: 2, unit: 'cup', evidenceKind: 'unattributed' });
+        // The unit is the cook's word (`cups`, from the parse's statedMeasure), as the editor saves it (ADR-0071).
+        expect(message).toMatchObject({ foodId: 'F-whole', quantityLow: 2, unit: 'cups', evidenceKind: 'unattributed' });
     });
 
     it('⛔ a second call writes and sends nothing more', async () => {

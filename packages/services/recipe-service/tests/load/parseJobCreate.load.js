@@ -19,6 +19,13 @@
 // budget that matters to a cook mid-flow) and `maxPaste` (200 lines at the admission cap — the fan-out
 // worst case that exercises 20 concurrent batches per request).
 //
+// ⛔ THE DAILY IMPORT ALLOWANCE (004 FR-022) BOUNDS THIS SCRIPT. Every create spends one unit of a user's 200-a-day
+// allowance (a trailing 24 hours), and nothing resets a pool user's ledger between k6 runs. A ramp that creates as fast
+// as the pace lets it would spend a pool user's whole day in a minute and then measure 429s. So each VU stops creating
+// once it has used its share of `PASTES_PER_USER` (default 60, so three runs inside a day still fit under 200), and a
+// fourth scenario, `quotaRefusal`, runs LAST on its own reserved pool user to assert the refusal itself: `429`, the code
+// `IMPORT_QUOTA_EXCEEDED`, and a `details.resetsAt` that is a future ISO instant within 24 hours.
+//
 // A third, `pollProgress` (plan 2026-10-15-011), drives the READ every open paste issues every few seconds: since each
 // pending line reports its phase, `GET /recipe-parse-jobs/:id` computes ages with the database clock and a window over
 // the job's lines. It polls a 200-line job, the read's worst case, and checks every pending line carries its progress.
@@ -36,8 +43,10 @@ import {
     BASE_URL,
     jsonHeaders,
     rampStages,
+    rampSeconds,
     PEAK_VUS,
     SC009_P95_MS,
+    TOKEN_POOL,
     whenSubstrate,
     PACE_SECONDS,
     iterationPause,
@@ -54,6 +63,38 @@ const TYPICAL_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_P95_MS'] || SC009_P95_MS);
  * that sub-linearity IS the concurrent-batch property this scenario exists to hold.
  */
 const MAX_PASTE_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_MAX_P95_MS'] || TYPICAL_P95_MS * 2);
+
+/** The service's daily import allowance per user (004 FR-022, plan.md §5). Mirrors `IMPORT_ALLOWANCE_DAILY_LIMIT`. */
+const DAILY_ALLOWANCE = Number(__ENV['RECIPE_IMPORT_DAILY_LIMIT'] || 200);
+
+/**
+ * Pastes a pool user may receive from this run's ramping scenarios. 60 leaves room for three runs inside the allowance's
+ * 24-hour window, because nothing resets a pool user's ledger between runs.
+ */
+const PASTES_PER_USER = Number(__ENV['RECIPE_PARSE_JOB_PASTES_PER_USER'] || 60);
+
+/** Users the ramping scenarios spread over: the pool, minus the one `quotaRefusal` reserves; a hand run has one. */
+const RAMPING_USERS = Math.max(1, TOKEN_POOL.length > 1 ? TOKEN_POOL.length - 1 : TOKEN_POOL.length);
+
+/** Whether the refusal scenario runs: only against a provisioned pool of throwaway users, never a hand run's single token. */
+const QUOTA_SCENARIO = TOKEN_POOL.length > 1 || __ENV['RECIPE_PARSE_JOB_QUOTA'] === '1';
+
+/** The peak of each ramping scenario, exactly as `rampStages` will set it (the deployed profile pins it to the pool). */
+const SCENARIO_PEAKS = [PEAK_VUS, Math.max(1, Math.floor(PEAK_VUS / 4)), PEAK_VUS].map(
+    (peak) => rampStages(peak)[0].target,
+);
+
+/**
+ * Creates one VU may issue. A user's VUs are the ramping VUs spread over `RAMPING_USERS` (VU ids are contiguous, so
+ * no user holds more than `ceil(total / users)` of them), and each VU's share keeps that user under `PASTES_PER_USER`.
+ */
+const CREATES_PER_VU = Math.max(
+    1,
+    Math.floor(PASTES_PER_USER / Math.ceil(SCENARIO_PEAKS.reduce((sum, peak) => sum + peak, 0) / RAMPING_USERS)),
+);
+
+/** Creates THIS VU has issued. Module state is per-VU in k6, which is exactly the scope the budget needs. */
+let createdByThisVu = 0;
 
 /** An identifiable line prefix, so a load run's jobs are recognisable in the parse tables afterwards. */
 const LINE_PREFIX = 'k6-load parse line';
@@ -99,8 +140,25 @@ export const options = {
             stages: rampStages(PEAK_VUS),
             tags: { scenario: 'pollProgress' },
         },
+        // Runs AFTER the ramping scenarios, on the pool's reserved last user: it spends that user's allowance on purpose,
+        // so nothing may still be creating for them. `rampSeconds()` is the idiom for "after", not a hardcoded offset.
+        ...(QUOTA_SCENARIO
+            ? {
+                  quotaRefusal: {
+                      executor: 'per-vu-iterations',
+                      exec: 'quotaRefusal',
+                      vus: 1,
+                      iterations: 1,
+                      startTime: `${String(rampSeconds() + 10)}s`,
+                      maxDuration: '15m',
+                      tags: { scenario: 'quotaRefusal' },
+                  },
+              }
+            : {}),
     },
     thresholds: {
+        // The refusal at the limit is a contract, not a latency: every check in it must hold.
+        ...(QUOTA_SCENARIO ? { 'checks{scenario:quotaRefusal}': ['rate==1'] } : {}),
         // ⛔ The load-bearing threshold: an SQS failure under pressure is a 202 with retryable lines, never a 5xx.
         http_req_failed: ['rate<0.01'],
         // ⚠️ REPORTED, not gated, on the deployed profile — see `whenSubstrate` in lib/common.js.
@@ -120,6 +178,14 @@ export const options = {
  * @returns {void}
  */
 function createJob(text) {
+    // ⛔ THE BUDGET (see the header): past this VU's share the pool user's allowance would be spent, and what followed
+    // would be a measurement of 429s. Idle instead, so the run keeps its shape without spending a unit.
+    if (createdByThisVu >= CREATES_PER_VU) {
+        return undefined;
+    }
+
+    createdByThisVu += 1;
+
     // ⛔ `jsonHeaders()`, NOT `authHeaders()` — this call carries a JSON BODY. k6 sets no `Content-Type`
     // for a string body (MEASURED: an echo server sees `content-type: null` with `authHeaders()` and
     // `application/json` with `jsonHeaders()`), and express's JSON parser only parses that media type. With
@@ -135,7 +201,8 @@ function createJob(text) {
 
     createTrend.add(res.timings.duration);
     check(res, {
-        'parse-job create answers 202': (r) => r.status === 202,
+        'parse-job create answers 202 (a 429 here means the per-user budget above was exceeded)': (r) =>
+            r.status === 202,
         'the job is running or partial, never silently absent': (r) => {
             const body = JSON.parse(r.body || '{}');
 
@@ -189,4 +256,64 @@ export function pollProgress() {
         });
         sleep(PACE_SECONDS);
     }
+}
+
+/** The 24 h window plus clock skew between the runner and the service. */
+const RESETS_AT_SLACK_MS = 24 * 3_600_000 + 5 * 60_000;
+
+/**
+ * Spend the reserved user's allowance to the limit and assert what the refusal says (004 FR-022).
+ *
+ * The user is the pool's LAST member, which the ramping scenarios do not use. Runs at most `DAILY_ALLOWANCE + 1`
+ * creates, and stops at the first `429` — a user already at the limit from an earlier run today is refused on the first.
+ * `responseCallback` makes 202 and 429 both EXPECTED for these requests only, so the one refusal is not counted as a
+ * service failure by `http_req_failed`.
+ *
+ * @returns {void}
+ */
+export function quotaRefusal() {
+    const bearerUser = TOKEN_POOL[TOKEN_POOL.length - 1] || undefined;
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+
+    if (bearerUser !== undefined) {
+        headers['Authorization'] = `Bearer ${bearerUser}`;
+    } else {
+        Object.assign(headers, jsonHeaders());
+    }
+
+    for (let attempt = 0; attempt <= DAILY_ALLOWANCE; attempt += 1) {
+        const res = http.post(
+            `${BASE_URL}/api/v1/recipe-parse-jobs`,
+            JSON.stringify({ text: `1 cup ${LINE_PREFIX} quota-${__VU}-${__ITER}-${String(attempt)}` }),
+            {
+                headers,
+                tags: { operation: 'createParseJob' },
+                responseCallback: http.expectedStatuses(202, 429),
+            },
+        );
+
+        if (res.status !== 429) {
+            sleep(PACE_SECONDS);
+
+            continue;
+        }
+
+        const body = JSON.parse(res.body || '{}');
+        const resetsAt = Date.parse((body.details || {}).resetsAt);
+
+        check(res, {
+            'the spent allowance answers 429': (r) => r.status === 429,
+            'with the distinct code IMPORT_QUOTA_EXCEEDED, not the throttle’s': () =>
+                body.code === 'IMPORT_QUOTA_EXCEEDED',
+            'resetsAt is a future ISO instant within 24 hours': () =>
+                !Number.isNaN(resetsAt) && resetsAt > Date.now() - 60_000 && resetsAt < Date.now() + RESETS_AT_SLACK_MS,
+            'and nothing else about the ledger is on the wire': () =>
+                Object.keys(body.details || {}).join(',') === 'resetsAt',
+        });
+
+        return;
+    }
+
+    // The limit was never reached: the allowance is not enforced (or this user's budget is larger than DAILY_ALLOWANCE).
+    check(null, { 'a 429 IMPORT_QUOTA_EXCEEDED arrives within DAILY_ALLOWANCE + 1 creates': () => false });
 }

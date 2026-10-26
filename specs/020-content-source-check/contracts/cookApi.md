@@ -9,92 +9,75 @@ no wire types.
 ## 1. The recipe response gains `sourceCheck` (owner only)
 
 `GET /api/v1/recipes/{id}` and the editor's save responses carry `sourceCheck` **only when the caller owns the
-recipe**. Any other viewer never sees it, and never sees a held recipe at all (it answers `404`, as for a draft).
+recipe**. Any other viewer never sees it, and never sees a recipe that is checking or in review at all (it answers
+`404`, as for a draft).
 
 ```text
-sourceCheck: null                         // no check owed: private, or a private-only label
+sourceCheck: null                         // no check owed: a draft, private, or a private-only label
            | {
-               contentDigest: string      // the digest this outcome belongs to (opaque to clients)
-               state: 'checking' | 'decided'
-               outcome: 'clear' | 'possible' | 'detected' | 'unchecked' | null   // null while checking
-               reason: 'budgetSpent' | 'tooLong' | 'checkFailed' | null          // set iff outcome is 'unchecked'
+               contentDigest: string      // the digest this state belongs to (opaque to clients)
+               cookState: 'checking' | 'public' | 'inReview' | 'notApproved'   // spec FR-014a
                publiclyVisible: boolean   // the read rule's answer for this recipe now
-               clearedBy: 'reviewer' | null
-               note: 'needsSourceCheck' | null   // "A person will check where this came from" (spec FR-051)
-               parts: {                   // spec FR-013a, over the cook's OWN content only (spec FR-016c)
-                 text:   PartResult
-                 photos: Array<PartResult & { photoId: string }>
-                 source: PartResult       // the cook's source reference; green when none was given
-               }
-               evidence: Array<
-                 | { field: 'title' | 'description' | 'tags' | 'ingredient' | 'step' | 'citation'
-                     kind: 'isbn' | 'publisherImprint' | 'copyrightNotice' | 'pageReference'
-                         | 'paidSiteTemplate' | 'citedPaidSiteHost' | 'modelJudgement'
-                     weight: 'blocking' | 'forAPerson'
-                     start: number, end: number }          // span in the field's text, for highlighting
-                 | { field: 'photo'
-                     kind: 'photoCopyrightText' | 'photoWatermarkOrLogo' | 'photoPrintedPage'
-                         | 'photoIsbnOrBarcode' | 'photoPublisherName'
-                     weight: 'forAPerson'                   // always: a photo signal is never blocking
-                     photoId: string }
-               >
+               evidence: Array<{          // only when cookState is 'notApproved' by the rules (detected); else []
+                 field: 'title' | 'description' | 'tags' | 'ingredient' | 'step' | 'citation'
+                 kind: 'isbn' | 'publisherImprint' | 'copyrightNotice' | 'paidSiteTemplate' | 'citedPaidSiteHost'
+                 start: number, end: number       // span in the field's text, for highlighting
+               }>
                referral: null | {
                  origin: 'check' | 'appeal'
-                 state: 'open' | 'cleared' | 'held' | 'withdrawn' | 'superseded' | 'resolvedByCheck'
+                 state: 'open' | 'cleared' | 'notApproved' | 'withdrawn' | 'superseded' | 'resolvedByCheck'
                                           // a deferred referral (spec FR-030b) reads 'open': the cook sees no cap
-                 createdAt: string        // ISO 8601. No decision time is promised (spec FR-030)
+                 queueSince: string       // ISO 8601: when it first entered review. No decision time is promised
                  decidedAt: string | null
                }
-               canAppeal: boolean         // detected, or held by a person, and no appeal used for this digest
+               canAppeal: boolean         // not approved, and no appeal used for this digest
                statementId: string | null // the statement of reasons, when one was issued
              }
 ```
 
+- **One message for every cause** (owner ruling, 2026-10-26, spec FR-016c). For `inReview` the response carries no
+  outcome value, no reason, no part results and no evidence. Every cause, from a page reference to a photo signal, a
+  match in our database (public or private), a source decision, a spent budget or a failed check, gives the same
+  response. The client shows "In review: a person will check this before it goes public".
+- **`notApproved` by the rules** carries the rule evidence the cook's own text holds, because the rules read only the
+  cook's own content and the statement of reasons names it. A model item is never shown, because it never blocks.
+- **`notApproved` by a person** carries no evidence. The statement of reasons gives a generic ground and never names
+  what matched (spec FR-028).
+- **Checking.** Before the outcome's `reveal_at`, the response reads `cookState: 'checking'` and `publiclyVisible:
+false`, whatever the worker has written (spec FR-051's timing floor). A rule-only `detected` is decided in the save,
+  so its response is `notApproved` at once.
+- A contract test runs one case per cause, including a public and a private earlier recipe, and asserts byte-equal
+  responses apart from ids and times (SC-017).
+- The response never carries the shared `shadow` referral state. In shadow mode nothing is held, so `cookState`
+  follows the stored visibility.
+- Every enum is closed. A new value is a contract change and a new localisation key, so the sets are one-way doors.
+- `cookState` lets the client say "Checking", "Public", "In review" or "Not approved" without re-deriving the rule. It
+  comes from the same classifier as the hold Specification (spec FR-018).
+
+### Refusals the cook can meet (spec FR-018)
+
 ```text
-PartResult: {
-  green: boolean
-  reasons: Array<                        // empty when green
-    | 'ruleItem' | 'modelItem' | 'unprovenQuote'                 // something was raised
-    | 'photoSignal'
-    | 'notRead' | 'overCap' | 'budgetSpent' | 'checkFailed'      // the part was not read
-    | 'citationInvalid' | 'citationHostListed' | 'rightsCheckNotPublic'
-  >
-}
+409 SOURCE_DETECTED_NO_PRIVATE_SLOT   a save the rules block, by a free cook with no free private slot. Carries the
+                                      evidence and ADR-0073's used and limit. Nothing is saved.
+409 SOURCE_CHECK_NOT_APPROVED         a change to public of content whose review ended without approval
+403 PRIVATE_SLOTS_FULL                a move from In review to Private with no free slot (ADR-0073 owns this code)
 ```
 
-- **Non-disclosure (owner ruling 3, spec FR-051).** Every effect of a match or a source decision reaches the cook only
-  as `note: 'needsSourceCheck'`, never as a part reason. The note is the same for a public match, a private match and a
-  source decision. It never says which recipe matched, whose, or whether a recipe matched at all (spec FR-054).
-- There is **no field that says why a part is green**. `PartResult` carries no `greenBy`, and a match never changes a
-  part, so the response never says that an earlier approval made anything green.
-- `parts` reflect the cook's own content: what the rules and the model found in their text, photos and citation. A
-  match changes the outcome and the note, never a part. So a recipe a person's earlier approval made `clear` can show a
-  part that reads not green, with no reason given for the difference (spec FR-037).
-- Before the outcome's `reveal_at`, the response reads `state: 'checking'` and `publiclyVisible: false`, whatever the
-  worker has written (spec FR-051's timing floor).
-- A contract test runs the same case against a public and a private earlier recipe and asserts byte-equal responses,
-  apart from ids and times (SC-017).
-- **Timing.** At save the response is `checking`, or `decided` with `detected` when a rule blocked (rules read only the
-  cook's own content). The lookup runs later, in the worker, and the worker always runs every step before it writes
-  the outcome. So nothing the cook can time depends on a match.
-- The evidence is a discriminated union on `field`. A photo item has no span and `weight` is the literal
-  `'forAPerson'`, so a client cannot render a photo signal as a block. A text item the model found also has `weight`
-  `'forAPerson'`. Only a rule item can be `'blocking'` (spec FR-010).
-- The response carries no marker text the owner does not need, and never the shared `shadow` referral state.
-- Every enum is closed. A new value is a contract change and a new localisation key, so the sets are one-way doors.
-- `publiclyVisible` lets the client say "Public", "Checking before it goes public" or "A person will check this"
-  without re-deriving the rule. It is the hold Specification's answer (spec FR-018), so it already includes the
-  outcome's enforcement stamp.
+- All three apply only while blocking is on. The editor outbox treats each as final and parks the record for the
+  cook (ADR-0057, ADR-0073's owed outbox rule), never re-sending it.
+- Saving a change to the text, photos or source of a recipe in review is never refused. It starts a new check and
+  replaces the open referral, and the editor warns before the save.
 
-## 2. Appeal a hold
+## 2. Appeal a "not approved" decision
 
 `POST /api/v1/recipes/{id}/source-check/appeal`
 
 ```text
 request:  { contentDigest: string, reason?: string (≤ 2,000 characters) }
-201:      the recipe response, with sourceCheck.referral.origin = 'appeal', state = 'open'
+201:      the recipe response, with sourceCheck.referral.origin = 'appeal', state = 'open'. The recipe stays private
+          while the appeal waits; an overturn makes it public
 409 SOURCE_CHECK_STALE          the content changed
-409 SOURCE_CHECK_NOT_APPEALABLE the outcome is not detected and no person held it, or it is already cleared
+409 SOURCE_CHECK_NOT_APPEALABLE the recipe is not "not approved", or it is already cleared
 409 SOURCE_CHECK_APPEAL_USED    an appeal for this digest was already made (spec FR-026a)
 409 SOURCE_CHECK_REFERRAL_OPEN  a person is already deciding this digest
 404                             not the caller's recipe
@@ -111,8 +94,9 @@ request:  {
   sourceType: 'imported_physical' | 'imported_paid'   // nothing else is representable
   citation: string (1–500 characters)                 // book title and page, or the paid site
 }
-200:      the recipe response: label changed, visibility private, sourceCheck null
-409 PRIVATE_SLOTS_EXHAUSTED         no private slot free (ADR-0073 owns this code)
+200:      the recipe response: label changed, visibility private, sourceCheck null. A not-approved recipe is already
+          private, so it needs no free slot
+403 PRIVATE_SLOTS_FULL              no private slot free (ADR-0073 owns this code)
 409 SOURCE_STATEMENT_NOT_DOWNGRADE  the label is already private-only
 404                                 not the caller's recipe
 ```
@@ -125,8 +109,10 @@ request:  {
 
 ## 4. What does NOT change
 
-- `POST`/`PATCH /api/v1/recipes` and `PATCH /api/v1/recipes/{id}/visibility` never fail because of an outcome (spec
-  FR-014, FR-018). They answer as today. The response's `sourceCheck` says what happens next.
-- Setting a held recipe back to draft or private is the ordinary write. It closes an open referral as `withdrawn`.
+- `POST`/`PATCH /api/v1/recipes` and `PATCH /api/v1/recipes/{id}/visibility` fail because of an outcome only in the
+  refusals of section 1 (spec FR-018). Otherwise they answer as today, and the response's `sourceCheck` says what
+  happens next.
+- Setting a recipe in review back to Draft, or to Private, is the ordinary write. It closes the open referral as
+  `withdrawn`. Private needs a free slot, as always.
 - The `status` and `visibility` enums do not gain values.
 - The `source` field on create keeps its two members (ADR-0023).

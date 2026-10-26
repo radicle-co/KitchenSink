@@ -47,8 +47,8 @@ ALTER TABLE account_erasure_jobs ADD COLUMN donation_review_until timestamptz NU
   to the model. NULL means the rendition failed, and that photo then reads `unchecked` (`checkFailed`).
 - `recipe_photos.check_rendition_version` names the resize bound and encoder settings the rendition was made with. It is
   part of the photo's model key (section 2), so a change of bound produces new evidence rather than reusing old.
-- `account_erasure_jobs.donation_review_until` is the donation deadline (spec FR-018a). NULL when no elected recipe
-  needs a person. The job is not claimed for its recipe phase while it is in the future and an elected recipe is still
+- `account_erasure_jobs.donation_review_until` is the donation deadline: the request time plus 14 days (spec FR-018a,
+  owner ruling 2026-10-26). NULL when no elected recipe needs a person. The job is not claimed for its recipe phase while it is in the future and an elected recipe is still
   undecided. It adds no status value to the shipped erasure contract.
 - All are NULL on rows written before the columns existed. Nothing is live, so no backfill is planned.
 
@@ -195,6 +195,20 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
   private recipe hits that cache, so without a floor the time to an outcome could show that such a recipe exists. The
   cook's view reads `checking` until `reveal_at`, and the hold Specification (section 8) does not allow before it. The
   floor is one constant, set from the measured time of an uncached check.
+- **The cook-facing state is derived, never stored** (spec FR-014a). The classifier reads the stored visibility and
+  status, the current digest's row, `reveal_at` and the latest decision, and answers `checking`, `public`, `inReview`
+  or `notApproved` (or `draft` and `private` as today). "In review" is a recipe with stored `visibility = 'public'` and
+  `status = 'published'` that the hold Specification does not allow, and that no decision has ended. It needs no new
+  visibility value: the stored value is what the cook asked for, the read rule hides it, and ADR-0073's count, which
+  reads `visibility = 'private'` only, gives it no slot (owner ruling: review does not take a slot).
+- **Not approved moves the recipe to private.** A `detected` save (with a free slot), a reviewer's `referralNotApproved`
+  and an `appealUpheld` each set `recipes.visibility = 'private'` in the same transaction as the decision, under
+  ADR-0073's per-user lock. For a person's decision the move never refuses: with no free slot, the cook is over the
+  limit, as after a downgrade (ADR-0073 §4). For a `detected` save, no free slot refuses the save
+  (`SOURCE_DETECTED_NO_PRIVATE_SLOT`), because nothing is saved yet. An overturned appeal moves it back to `public`.
+- **A decided content cannot re-enter review.** A change to public on a recipe whose current digest's latest decision
+  is a non-approval is refused (`SOURCE_CHECK_NOT_APPROVED`). Edited content has a new digest, so it gets a new check.
+- These moves and refusals apply only to outcomes stamped `enforced = true` (spec FR-019).
 - **`enforced` is written once.** recipe-service sets it, from the latest enforcement event, at the first moment its
   recipe is headed for public view with this digest (spec FR-001): `true` while the mode is `blocking`, `false` while
   it is `shadow` or `paused`. The write is `… SET enforced = $mode WHERE enforced IS NULL`. A trigger refuses any later
@@ -359,7 +373,7 @@ CREATE TABLE recipe_source_decisions (
     email_attempts            integer      NOT NULL DEFAULT 0,
     purge_after               timestamptz  NOT NULL,
     CONSTRAINT recipe_source_decisions_kind_check CHECK (kind IN (
-        'automatedHold', 'referralCleared', 'referralHeld', 'appealOverturned', 'appealUpheld', 'auditRestriction')),
+        'automatedHold', 'referralCleared', 'referralNotApproved', 'appealOverturned', 'appealUpheld', 'auditRestriction')),
     CONSTRAINT recipe_source_decisions_ground_check CHECK (ground IN (
         'rightsToUpload', 'publishedSourceEvidence', 'sourceNotConfirmed', 'ownWorkConfirmed', 'publicSourceConfirmed')),
     CONSTRAINT recipe_source_decisions_person_unless_automated
@@ -368,7 +382,7 @@ CREATE TABLE recipe_source_decisions (
         CHECK (automated_decision = (kind = 'automatedHold')),
     CONSTRAINT recipe_source_decisions_hash_only_on_holds CHECK (
         text_fingerprint IS NULL
-        OR (kind IN ('automatedHold', 'referralHeld', 'appealUpheld', 'auditRestriction')
+        OR (kind IN ('automatedHold', 'referralNotApproved', 'appealUpheld', 'auditRestriction')
             AND text_fingerprint LIKE 'v1:%')),
     CONSTRAINT recipe_source_decisions_note_length
         CHECK (reviewer_note IS NULL OR char_length(reviewer_note) <= 2000),
@@ -392,7 +406,7 @@ CREATE INDEX recipe_source_decisions_hold_hash ON recipe_source_decisions (text_
   produce FR-047 row 2: a person decides. It is versioned (`v1:`), so a change of normalisation never makes an old hash
   silently match nothing or match the wrong thing.
 - The statement of reasons is derived from this row, as 016 derives its own from `notice_decisions`. It is issued for
-  `automatedHold`, `referralHeld`, `appealUpheld` and `auditRestriction`. Delivery is recorded per channel through
+  `automatedHold`, `referralNotApproved`, `appealUpheld` and `auditRestriction`. Delivery is recorded per channel through
   016's generalised delivery (research R-13). `statement_undeliverable` records that the account was gone first.
 - `purge_after = decided_at + 3 years`. 016's retention sweep honours it, and 016's legal holds can suspend it.
 
@@ -411,6 +425,7 @@ CREATE TABLE recipe_source_referrals (
     import_id         text        NULL,                           -- set when the recipe came from a bulk import
     erasure_job_id    uuid        NULL,                           -- set for a donation review (spec FR-018a)
     cook_reason       text        NULL,                           -- the cook's own words on an appeal, ≤ 2,000 chars
+    queue_since       timestamptz NOT NULL DEFAULT now(),          -- when this recipe FIRST entered review (FR-030a)
     excluded_reviewer text        NULL,                           -- who made the hold being appealed (spec FR-026a)
     state             text        NOT NULL,
     created_at        timestamptz NOT NULL DEFAULT now(),
@@ -432,19 +447,23 @@ CREATE UNIQUE INDEX recipe_source_referrals_one_live
     ON recipe_source_referrals (recipe_id, content_digest) WHERE state IN ('open', 'deferred');
 CREATE UNIQUE INDEX recipe_source_referrals_one_appeal
     ON recipe_source_referrals (recipe_id, content_digest) WHERE origin = 'appeal';
-CREATE INDEX recipe_source_referrals_queue ON recipe_source_referrals (created_at) WHERE state = 'open';
+CREATE INDEX recipe_source_referrals_queue ON recipe_source_referrals (queue_since) WHERE state = 'open';
 CREATE INDEX recipe_source_referrals_cook ON recipe_source_referrals (owner_id, created_at)
     WHERE state IN ('open', 'deferred');
 ```
 
 - There is no due time. The owner set no decision target in this release ("we can deal with SLO/SLA later"). The
-  queue orders by `created_at`, oldest first (spec FR-030).
+  queue orders by `queue_since`, oldest first (spec FR-030).
+- **`queue_since` is carried forward.** When an edit supersedes a live referral, or the cook returns a recipe from
+  Draft to review, the new referral copies the latest earlier referral's `queue_since` for that recipe. So editing,
+  or a trip through Draft, never pushes a recipe back, and review cannot be stretched into a free private store.
 - **The per-cook cap** (spec FR-030b). A new referral is created `deferred` when the cook already has the cap's number
   `open`, counted under a per-cook advisory lock in the same transaction (the ADR-0073 shape). When one closes, the
   cook's oldest `deferred` opens. The cap never publishes, clears or drops anything.
 - `one_appeal` enforces spec FR-026a's "once per version of the content".
-- `superseded`: the content changed while the referral was live. `withdrawn`: the cook set the recipe to draft or
-  private, downgraded the label, deleted it, or erased the account. `resolvedByCheck`: the next-period re-check
+- `superseded`: the content changed while the referral was live (the editor warns before that save). `withdrawn`: the
+  cook set the recipe to Draft or Private, downgraded the label, deleted it, or erased the account. A move to Private
+  out of review needs a free slot and is refused without one. `resolvedByCheck`: the next-period re-check
   returned `clear`. `expired`: a donation review that reached its deadline undecided (spec FR-018a).
 - `import_id` lets the queue group one import's referrals (spec FR-030a).
 
@@ -567,8 +586,9 @@ EXISTS (SELECT 1 FROM recipe_source_checks rsc
 
 1. **At election.** For each elected recipe that is not already allowed, recipe-service creates its check row (stamped
    from the current mode) and sends the check, exactly as for a publish. A recipe all green is donatable. One that is
-   not gets a referral with `origin = 'donation'`. If any such referral exists, the job's `donation_review_until` is set
-   to the deadline.
+   not gets a referral with `origin = 'donation'`, and so does an elected recipe already in review. A not-approved
+   recipe is never donated, because its content has a final decision. If any donation referral exists, the job's
+   `donation_review_until` is set to the request time plus 14 days.
 2. **Waiting.** The job is not claimed for its recipe phase while `donation_review_until` is in the future and a
    donation referral is still live. The account is closed meanwhile. Two things wake it: the decision on its last live
    donation referral re-enqueues the job in the same transaction, and the sweeper claims it once

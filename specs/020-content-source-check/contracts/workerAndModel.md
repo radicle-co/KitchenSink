@@ -166,19 +166,19 @@ the closed unions. Its parts compose as follows:
 - `possible` and `unchecked` both create a referral when the recipe is published and the outcome is decided (spec
   FR-016, FR-020).
 - The function returns two views: the staff view (every part result, match effects included) and the cook view
-  (parts over the cook's own content, plus the one note of spec FR-051).
+  (`cookState` only, plus the rule evidence for a `detected` recipe; spec FR-014a, FR-016c).
 
 ## 4. The statement-of-reasons template
 
 A fixed, localised template (spec FR-029). Its slots:
 
-| Slot      | Filled from                                                                                                                      |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| action    | Always "publication withheld"                                                                                                    |
-| ground    | The localised text of the decision's ground, from the closed set (spec FR-027)                                                   |
-| facts     | One line per evidence item: its kind's localised name and its field (or "photo N"). A match is the one generic fact, never named |
-| automated | "An automated check found this", and, for a person's hold, "A person reviewed it and decided"                                    |
-| redress   | Keep private, change the statement, appeal (once per version), or the contact routes after that                                  |
+| Slot      | Filled from                                                                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| action    | Always "publication withheld, and the recipe kept private"                                                                                                            |
+| ground    | `detected`: the terms clause on rights to upload. A person's decision: the localised text of its ground, from the closed set                                          |
+| facts     | `detected`: one line per rule evidence item, its kind's localised name and its field. A person's decision: only the one generic fact, so the cause cannot be inferred |
+| automated | "An automated check found this", and, for a person's hold, "A person reviewed it and decided"                                                                         |
+| redress   | Keep it private, change the statement, appeal (once per version), edit it, delete it, or the contact routes after that                                                |
 
 No slot takes model text, and no slot takes the reviewer's note. Delivery goes through 016's generalised statement
 delivery, in-app and email (`016-FR-018a`), recorded per channel on `recipe_source_decisions`. A statement that cannot

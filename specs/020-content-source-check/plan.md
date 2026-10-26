@@ -239,9 +239,9 @@ can deal with SLO/SLA later"). The cap's number is set from it.
 
 Research R-18. Erasure's "truly public" predicate uses the hold Specification's SQL text. At election, each elected
 recipe that is not already allowed is checked. One that is not all green gets a `donation` referral, and the erasure
-job waits for its recipe phase until each is decided or the donation deadline passes. The account is closed meanwhile.
-Then the existing transaction runs, and keeps only what the hold Specification allows. The deadline keeps the whole
-erasure inside GDPR Art. 12(3)'s month, and its number is set with counsel. The election screen's amendment is spec
+job waits for its recipe phase until each is decided or the 14-day donation deadline passes. The account is closed
+meanwhile. Then the existing transaction runs, and keeps only what the hold Specification allows. Fourteen days leaves
+about sixteen of GDPR Art. 12(3)'s month for the rest of the erasure. A not-approved recipe is never donated. The election screen's amendment is spec
 FR-044a.
 
 ### Boundaries
@@ -251,7 +251,7 @@ FR-044a.
 | 004                  | `004-FR-014a` amended (spec FR-040). 020 builds the rightsholder list first, as the one table 004's D-004 blocklist also uses                                                                                                                                                                                                                                                              |
 | 016                  | Decision and referral rows live in the recipe database (research R-13). Referrals appear in 016's reviewer queue (`016-FR-053a`), reached only through its review scope (`016-FR-053g`), granted to staff only. 016's statement **delivery** is generalised to take a 020 decision. Its `notice_decisions` table is not. Out of Scope, Assumptions and counsel items amended (spec FR-041) |
 | ADR-0072             | Readiness waits only for the rule-based detectors on items headed public (spec FR-043). Every item that is not `detected` saves as a draft, and its AI check runs after the save. The import still never publishes                                                                                                                                                                         |
-| ADR-0073             | Read only. `keepPrivate` and the downgrade are offered only with a slot free. A held recipe is public but hidden, so it uses no slot. That gap is ADR-0073's open question (research R-15)                                                                                                                                                                                                 |
+| ADR-0073             | Amended (§11). A recipe in review uses no slot. Not approved moves it to private, over the limit if need be. A `detected` save with no free slot is refused. A move from review to Private needs a free slot (research R-15)                                                                                                                                                               |
 | ADR-0024             | New call site, same pool, same grantee. §3 gains a second path that does not retry a denial. §4c names `SPEND_CALL_SITES`. Layer 4b records the photo read scoped by `lambda:SourceFunctionArn`. Layer-2 guard widened, worst-case reservation for photos                                                                                                                                  |
 | ADR-0027             | A third erasure verdict: time-boxed legal retention, with `purge_after`, for decision rows                                                                                                                                                                                                                                                                                                 |
 | ADR-0039             | Table policy: the switch ledger is a `dictionary` table; markers and source decisions use a new `retireOnly` class                                                                                                                                                                                                                                                                         |
@@ -274,7 +274,7 @@ Amended in place with it:
   citation (spec FR-015a, FR-044). Today `source` exists on create only, so without this amendment "change your
   statement" has no route.
 - **ADR-0072 §7**: readiness waits only for the rule-based detectors on items headed public (spec FR-043).
-- **ADR-0073**: its open question gains the held-recipe slot gap.
+- **ADR-0073** §11: in review uses no slot, and not approved becomes private (research R-15).
 
 ## Delivery slices
 
@@ -301,15 +301,15 @@ same-items rule and no passing along (ruling 2), private-recipe non-disclosure (
 (ruling 4). The spec's Clarifications quote them. The third round's defaults for the lookup are now settled by them,
 in spec FR-047.
 
-**Still open**:
+A fifth round the same day answered the rest (spec Clarifications):
 
-- **"Green" for the text includes "the model raised nothing at all"**, even a quote code could not find (spec
-  FR-013a). That is the strict reading of the skip rule. It sends hallucinated quotes to a person.
-- **Held recipes use no private slot** (research R-15). It is ADR-0073's open question.
-- **The donation deadline's length**, inside GDPR Art. 12(3)'s month, with counsel (spec FR-041).
-- **Cover for the non-disclosure residual.** A cook can learn that _something_ sent an otherwise green recipe to a
-  person, without learning what. Sending a random sample of all-green recipes to a person would hide even that, at a
-  staff cost. Not built unless the owner asks (research R-19).
+- **In review uses no slot and is neither public nor private.** Not approved ends review and makes the recipe the
+  cook's private recipe, even over the limit. This resolves ADR-0073's open question (research R-15).
+- **The donation deadline is 14 days.**
+- **No random sampling of green recipes for now.** The residual is accepted.
+- **The strict text rule stands.**
+
+**Still open**: only the counsel items of spec FR-041.
 
 ## What the rulings make infeasible, or costly
 
@@ -362,9 +362,11 @@ in spec FR-047.
   recipe into it later is judged as the earlier of the two. The match is seen only when the original is next checked,
   and then the original is the recipe sent to a person, who sees both. Accepted: ordering by the latest content change
   instead would flag every original whenever a copy is edited first.
-- **Non-disclosure is strong, not perfect.** A cook can learn that something sent their otherwise green recipe to a
-  person, or that a recipe with an item was allowed. They cannot learn whether a private recipe was the cause (research
-  R-19).
+- **Non-disclosure: an accepted residual.** A cook learns only that a person will check, never what or whose. The owner
+  ruled out cover traffic for now (research R-19).
+- **A cook can end up over the private limit.** A person's non-approval makes the recipe private even with no free
+  slot. The cook keeps it and cannot make anything new private until under 50. The number of such recipes is bounded
+  by staff decisions, not by the cook.
 - **Fields the check does not read.** A copy hidden in a field the check does not read can still pass. The checked
   content list is versioned with the digest, so adding a field is a deliberate change.
 

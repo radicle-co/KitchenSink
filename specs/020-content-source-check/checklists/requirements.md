@@ -38,8 +38,9 @@
   employees. A third ruling added the lookup in our own database (section J). A fourth round answered the
   staff-architect REVIEW's four questions (match precedence, the same-items rule, private-recipe non-disclosure, and
   donation at erasure). Every High and Medium finding of that REVIEW is applied, and ADR-0074 records the decision.
-- Three items stay open for the owner or counsel, and none blocks planning: the strict "model raised nothing" reading
-  of a green text, the held-recipe slot gap (ADR-0073's open question), and the donation deadline's length.
+- A fifth round of owner answers (2026-10-26) closed the open items: a recipe in review uses no slot and a
+  not-approved one becomes private, the donation deadline is 14 days, there is no random sampling for now, and the
+  strict text rule stands. Only counsel items remain (FR-041).
 - Some names of existing artefacts appear because the spec amends them: `004-FR-014a`, `016-FR-018`,
   `visibilityPolicy.ts`, `isRecipeViewableBy`, ADR-0024's grantee rule, ADR-0073's slots, `pg_trgm`,
   `normalize-url`, `lambda:SourceFunctionArn`, `first_published_at` and `cloned_from_id`. They name the contract being

@@ -412,7 +412,9 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   account erasure; never hand-write another copy. Only the rule-based detectors block, so `detected` is decided in the
   save; a model item or photo signal only sends a recipe to a person. The enforcement mode is stamped per outcome and
   never returns to `shadow`. A match counts only through a person's own latest decision, by an ordered table, the
-  same-items rule and no passing along. Another cook's private recipe is never disclosed to a cook.
+  same-items rule and no passing along. Another cook's private recipe is never disclosed to a cook. A recipe in review
+  is owner-only, labelled "In review", and uses no private slot; a person's decision always ends review, and "not
+  approved" makes it the cook's private recipe (ADR-0073 §11).
 - **ADR-0032 — an END-TO-END TEST TARGETS A DEPLOYED ENVIRONMENT, and SKIPS when the PR's sandbox is not
   running (owner ruling 2026-09-05, superseding the 2026-09-04 two-tier answer).** Verbatim: _"all end to end
   tests (playwright, e2e, maestro, etc) - which should be hitting remote services - should be skipped if the

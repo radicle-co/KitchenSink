@@ -383,15 +383,40 @@ CHECK cannot see the previous row. Each outcome carries the mode stamped at its 
 `paused` stops new holds and keeps existing ones. The ledger is a `dictionary` table under ADR-0039's table policy:
 the service role holds SELECT and INSERT only.
 
-## R-15. Who can see a held recipe, and private slots
+## R-15. In review, not approved, and private slots (owner ruling, 2026-10-26)
 
-**Decision**: a held recipe is visible only to its owner. ADR-0073 counts a slot as a recipe with
-`visibility = 'private'` that is not deleted, so a held recipe, which is public but hidden, uses no slot. That is the
-same as a public draft.
+Owner, 2026-10-26: "The review process does not take a slot and doesn't become visible as public or private until it's
+been approved. While it's in review it is labeled as such."
 
-**Risk recorded**: held and drafted recipes are owner-only and unmetered. A free cook can keep book recipes that way
-without a slot. ADR-0073 accepted this for public drafts when it counted only `visibility = 'private'`. 020 adds no new
-kind of gap, but more recipes now sit held while a person decides. It is recorded as the open question in ADR-0073.
+**Decision** (spec FR-014a):
+
+- **In review** is a derived state, not a new visibility value. The stored visibility keeps what the cook asked for
+  (`public`), the read rule hides the recipe, and the cook sees "In review". ADR-0073 counts `visibility = 'private'`
+  only, so a recipe in review uses no slot, as the owner ruled. This keeps ADR-0074's "the hold lives in the read rule"
+  design: nothing in the ruling needs a new enum value, and a new value would be a one-way door on a wire enum that
+  installed clients switch over.
+- **Not approved** ends review. The rules blocking a save, a person's non-approval, and an upheld appeal each move the
+  recipe to `private` in the same transaction, so it counts as a slot. It is never published with that content and
+  never deleted by us. A person's decision moves it even with no free slot, and the cook is then over the limit, as
+  after a downgrade (ADR-0073 §4). It keeps one appeal and a statement of reasons.
+- **The one place that refuses**: a `detected` save by a free cook with no free slot. Nothing is saved yet, so
+  refusing loses nothing, and it matches ADR-0073's refusal of a book recipe with no slot and bulk import's refusal of
+  a `detected` item (spec FR-025). Without it, writing "I wrote this" over a book recipe would buy unlimited private
+  storage, because each `detected` save would land private over the limit, while the honest statement is refused.
+- **No re-entry.** A person's decision always ends review, and the same unchanged content cannot enter review again:
+  a change to public of that content is refused. Edited content has a new digest and a new check.
+- **No stretching.** A recipe keeps the queue place it had when it first entered review, across edits and trips
+  through Draft. So review always reaches a person's decision, and it cannot become a free private store.
+
+**Accepted, unchanged**: a public **draft** is owner-only and uses no slot. ADR-0073 accepted that when it counted only
+`visibility = 'private'`, and the owner's answer let a cook move a recipe in review back to Draft. Drafts were never a
+review state, so this feature adds nothing to that gap.
+
+**Rejected**:
+
+- **A new `inReview` visibility value.** A wire one-way door that puts two facts in one field.
+- **Leave a not-approved recipe owner-only until the cook chooses.** That is the free private store the ruling closes.
+- **Delete a not-approved recipe when the cook has no slot.** The owner ruled it is never deleted by us.
 
 ## R-16. The curated public-domain corpus
 
@@ -522,9 +547,10 @@ allowed`.
 - The cook is told all this at election, before they confirm. The election screen is in the account closure plan
   (U3b), and spec FR-044a lists its amendment.
 
-**The deadline.** GDPR Art. 12(3) gives one month from the request. The deadline must leave the whole erasure inside
-it, so the identity half and the Clerk deletion still complete in time. Neither the closure plan nor 016 sets a number
-for this, so the plan sets it with counsel (spec FR-041). We do not invent one here.
+**The deadline: 14 days** (owner ruling, 2026-10-26). GDPR Art. 12(3) gives one month from the request. Fourteen days
+leaves about sixteen for the rest of the erasure, the identity scrub and the Clerk deletion included. A donated recipe
+still waiting for staff after 14 days is deleted. Counsel confirms it is not undue delay (spec FR-041). A not-approved
+recipe is never donated, and an elected recipe already in review waits the same 14 days.
 
 **Rejected**:
 
@@ -542,9 +568,10 @@ After the identity record is scrubbed there is nobody to deliver to, so the deci
 
 **Decision**: private recipes are candidates, and nothing a cook sees depends on whether a match was private.
 
-- **One note, not a part reason.** Every effect of a match or a source decision reaches the cook as one outcome-level
-  note, "A person will check where this came from". It is never attached to a part, so a recipe match and a source
-  decision look the same. There is no `greenBy` field.
+- **One message for every cause** (owner ruling, 2026-10-26). A recipe in review shows the cook "In review: a person
+  will check this before it goes public", and nothing else: no outcome value, no reason, no part result. A match, a
+  source decision, a page reference, a photo signal and a spent budget look the same. There is no `greenBy` field. A
+  person's non-approval gives a generic ground and never names what matched.
 - **The same steps every time.** The lookup runs in the worker. The worker never skips or shortens a model call
   because of a match, and writes the outcome only once every part is read. So the time to an outcome does not depend
   on a match.
@@ -560,11 +587,10 @@ After the identity record is scrubbed there is nobody to deliver to, so the deci
   anything green (FR-047 row 4).
 - **Staff see the match and its earlier decision**, never a private recipe's content.
 
-**What is left, and why it is accepted.** A cook can still learn two coarse facts: that something sent an otherwise
-green recipe to a person, or that a recipe with an item was allowed. They cannot tell whether the cause was a public
-recipe, a private recipe or a source decision. Closing even that would need cover traffic, such as sending a random
-sample of all-green recipes to a person, which costs staff time the owner has not asked to spend. It is recorded in
-ADR-0074 as a residual risk and an option.
+**What is left, and why it is accepted.** A cook learns only that a person will check, never what or whose. They know
+their own text, so they can guess at a cause, but nothing the product shows confirms it. The owner ruled on
+2026-10-26 not to add cover traffic (a random sample of all-green recipes sent to a person) for now, and accepted this
+residual.
 
 ## R-20. Races and shared parts
 

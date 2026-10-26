@@ -31,6 +31,8 @@ The owner ruled on 2026-10-26, in four rounds:
       approved it. A green is never passed along (ruling 2).
     - Another cook's private recipe is never disclosed (ruling 3).
     - A private recipe is donated at erasure only if it passes (ruling 4).
+- Fifth round: a recipe in review uses no slot and is neither public nor private; the donation deadline is 14 days;
+  no random sampling of green recipes for now; and the strict text rule stands.
 
 The REVIEW found nine High defects in the first design. No test in the first design caught five of them:
 
@@ -56,8 +58,9 @@ the text, the sorted photo hashes and the source statement, so a citation change
   A parity test holds the two equal.
 - The read rule's three SQL twins **and account erasure** use the SQL text. A guard fails any other SQL that reads the
   outcome table to decide visibility, because erasure's hand-written copy is the one that went wrong.
-- It is never a write-side refusal. A save, a publish and a visibility change never fail because of an outcome, and
-  the cook's label never changes. A relabel to `imported_paid` makes a false positive permanent.
+- It is not a write-side refusal, with three narrow exceptions that §3a lists. Otherwise a save, a publish and a
+  visibility change never fail because of an outcome, and the cook's label never changes. A relabel to
+  `imported_paid` makes a false positive permanent.
 - **The enforcement mode is stamped on each outcome**, once, when its recipe is first headed for public view with that
   content. The read rule reads the stamp, never the current mode. So no mode change hides or reveals a recipe that
   already has an outcome.
@@ -77,8 +80,8 @@ recipe to a person.
 
 `clear` is the conjunction of one green predicate per part: the text, each photo and the source reference. Three
 things make a part not green: the model did not read it (budget, cap, failure), code did not find a model quote, or
-any item at all.
-Every outcome other than `clear` waits for a staff reviewer. Nothing the cook does, no timer and no curator grant lifts
+any item at all. The owner confirmed this strict reading: text is green only when the model raised nothing at all.
+Every outcome other than `clear` and `detected` waits for a staff reviewer. Nothing the cook does, no timer and no curator grant lifts
 a hold.
 
 `allows` has one author, the pure Policy `allowsPublication`. It is true for `clear`, or when a person cleared **that**
@@ -86,6 +89,36 @@ outcome on **that** evidence. The clearance stores the outcome and an evidence r
 the outcome also withdraws the clearance's effect. The next-period re-check never runs on a cleared outcome. The
 re-check and a reviewer's decision each lock the referral row, then the outcome, and change it only by a
 compare-and-set.
+
+### 3a. In review, then public or not approved: review never becomes a free private store
+
+Owner ruling, 2026-10-26: "The review process does not take a slot and doesn't become visible as public or private
+until it's been approved. While it's in review it is labeled as such." The rest of this section follows from the
+owner's rulings, as the coordinator relayed them the same day.
+
+- **The cook-facing state is derived, not a new visibility value.** The stored visibility keeps what the cook asked
+  for. After a publish the cook sees **Checking** for a short time (the floor of §7), then **Public** when the outcome
+  allows it, or **In review** while a person has not decided. In review is neither public nor private: the read rule
+  hides it, and ADR-0073 counts `visibility = 'private'` only, so it uses no slot. That keeps the hold in the read rule
+  (§1), and it avoids a new value on a wire enum that installed clients switch over.
+- **Not approved ends review.** A `detected` save, a person's non-approval and an upheld appeal each move the recipe to
+  `private` in the same transaction, under ADR-0073's lock. It is never published with that content and never deleted
+  by us. A person's decision moves it even with no free slot, and the cook is then over the limit, as after a
+  downgrade (ADR-0073 §4). It keeps one appeal and a statement of reasons with a generic ground (DSA Art. 17 and 20).
+- **The three write-side refusals**, each only while blocking is on:
+    - bulk import's, for a `detected` item;
+    - a `detected` save by a free cook with no free slot. Nothing is saved yet, and it matches ADR-0073's refusal of a
+      book recipe with no slot. Without it, "I wrote this" over a book recipe would buy unlimited private storage,
+      while the honest statement is refused;
+    - a change to public of content whose review ended without approval. A person's decision always ends review, and
+      the same unchanged content cannot enter it again.
+- **While in review the cook may** switch to Private (a free slot is needed, and the referral is withdrawn), go back to
+  Draft (the referral is withdrawn), edit it (a new check replaces the referral, and the editor warns first), or
+  delete it. A recipe keeps the queue place it had when it first entered review, so edits and trips through Draft
+  never push it back.
+
+So a recipe leaves review only by approval, by a decision that makes it private and costs a slot, by the cook's own
+move to Private or Draft, or by deletion. A public draft stays owner-only and unmetered, as ADR-0073 already accepted.
 
 ### 4. Evidence is stored per part: model evidence shared by content, rule evidence per check
 
@@ -150,8 +183,10 @@ library-first rule forbids a hand-rolled one without that check.
 
 Private recipes are candidates. A cook never learns anything about another cook's private recipe, or that it exists.
 
-- Every effect of a match or a source decision reaches the cook as **one outcome-level note**, "A person will check
-  where this came from", never as a part reason. There is no field that says why a part is green.
+- **One message for every cause** (owner ruling, 2026-10-26). A recipe in review shows "In review: a person will
+  check this before it goes public", with no outcome value, reason or part result. A match, public or private, a
+  source decision, a page reference, a photo signal and a spent budget all look the same. There is no field that says
+  why anything is green or not.
 - The worker runs **the same steps whatever the lookup finds**, and writes the outcome only once every part is read,
   so the time to an outcome does not show whether a match exists.
 - **No outcome is revealed before a floor.** Model evidence is a shared cache, so an exact copy of a recipe checked
@@ -178,9 +213,11 @@ recipe that is already public.
 - Erasure's "truly public" predicate is `public AND published AND` the hold Specification. A held public recipe is
   deleted with the account.
 - A private recipe the cook elects to donate is checked at election. If every part is green it is donated. If not, a
-  person decides, and the erasure waits for that person only until a **donation deadline** that keeps the whole erasure
-  inside GDPR Art. 12(3)'s one month. The account is closed meanwhile. A recipe still undecided at the deadline is
-  deleted. The cook is told all this at election, before they confirm.
+  person decides, and the erasure waits for that person for at most **14 days** (owner ruling, 2026-10-26). That leaves
+  about sixteen days of GDPR Art. 12(3)'s one month for the rest of the erasure. The account is closed meanwhile. A
+  recipe still waiting after 14 days is deleted. An elected recipe already in review waits the same way. A
+  not-approved recipe is never donated, because its content has a final decision. The cook is told all this at
+  election, before they confirm.
 - The existing erasure transaction keeps its shape. It gains the SQL text and a wait before its recipe phase.
 - A deleted recipe is a tombstone. Its match rows go and its live referrals close in the same transaction, so a
   deleted recipe matches nothing.
@@ -226,10 +263,11 @@ recipe that is already public.
 
 - **Unmarked copies pass.** A cookbook recipe typed out without its markers, with a plain dish photo, usually reads
   `clear`. The evaluation reports this, and no claim hides it.
-- **Non-disclosure is strong, not perfect.** A cook can learn that something sent an otherwise green recipe to a
-  person, or that a recipe with an item was allowed. They cannot tell whether a public recipe, a private recipe or a
-  source decision caused it. To hide even that needs cover. One option is to send a random sample of all-green
-  recipes to a person. The owner did not choose that staff cost.
+- **Non-disclosure leaves one accepted residual.** A cook learns only that a person will check, never what or whose.
+  The owner ruled on 2026-10-26 not to add cover traffic, such as a random sample of all-green recipes sent to a
+  person, for now.
+- **A cook can end up over the private limit.** A person's non-approval makes the recipe private even with no free
+  slot. The number of such recipes is bounded by staff decisions, not by the cook.
 - **Publishing first evades the original.** `first_published_at` is set once. A cook who publishes a placeholder early
   and pastes another cook's recipe into it later is treated as the earlier of the two. The honest original is then the
   one sent to a person at its next check. To order by the latest content change instead flags every original each
@@ -240,7 +278,8 @@ recipe that is already public.
 - **The queue has no automatic way out.** With one reviewer, a busy week, a spent AI budget or one curated book can
   hold recipes for a long time. The per-cook cap only defers.
 - **Counsel items stay open:** the standard for a reviewer's clearance, a statement for a pending hold, the generic
-  match fact under DSA Art. 17(3)(b), the donation deadline, and a statement owed to an erased cook.
+  match fact under DSA Art. 17(3)(b), whether 14 days is undue delay for a donation, and a statement owed to an erased
+  cook.
 
 ## Alternatives
 
@@ -248,6 +287,10 @@ recipe that is already public.
   over, and it puts two facts in one field.
 - **Relabel a `detected` recipe to `imported_paid`.** Permanent on a false positive, and it overwrites the cook's
   statement, which spec 016 makes the controlling record.
+- **A new `inReview` visibility value.** A wire one-way door that puts two facts in one field. The derived state does
+  the same job.
+- **Leave a not-approved recipe owner-only until the cook chooses.** That is the free private store the owner's ruling
+  closes.
 - **Read the current mode in the read rule.** One insert back to `shadow` publishes every held recipe.
 - **A switch with no pause.** No rollback short of a release.
 - **Let a proven model quote block.** It makes the model an author of `detected`, and puts a model call in front of a

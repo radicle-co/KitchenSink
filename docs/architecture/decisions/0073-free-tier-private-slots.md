@@ -180,6 +180,24 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
   Premium.
 - It is still derived on read, in one place, and it changes in the same commit as the policy.
 
+### 11. A recipe in review uses no slot, and a recipe not approved becomes private
+
+Owner ruling, 2026-10-26: "The review process does not take a slot and doesn't become visible as public or private
+until it's been approved. While it's in review it is labeled as such." The content source check (ADR-0074 §3a) holds
+some recipes for a person to review.
+
+- **In review uses no slot.** Its stored visibility stays `public`, the read rule hides it, and the count in §2 reads
+  `visibility = 'private'` only. Nothing in §2 changes.
+- **Not approved becomes private, and uses a slot.** When the rules block a save, or a person does not approve a
+  recipe, it moves to `private` in the same transaction, under this ADR's lock. A person's decision never refuses: a
+  free cook with no free slot is then over the limit, exactly as after a downgrade (§4). They keep every recipe and
+  cannot make a new one private until under the limit.
+- **A blocked save with no free slot is refused**, with its own code, as §7 refuses a book recipe with no slot. Nothing
+  is saved yet. Otherwise "I wrote this" over a book recipe would buy more private storage than the honest statement.
+- **Leaving review for Private is an ordinary move to private.** It needs a free slot, as §3 requires.
+- So review is never a free private store: a person's decision always ends it, the same content cannot enter it again,
+  and a recipe keeps its queue place across edits. A public draft is still owner-only and uses no slot, as before.
+
 ## Consequences
 
 - A free cook can keep a recipe private for the first time, up to 50. GDPR Art. 25(2)'s "public by default" concern
@@ -206,7 +224,7 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
 
 - **A cook out of slots can misstate a source to keep a recipe.** "I wrote this" lets a recipe go public, and a book
   recipe cannot. A cook who wants to keep a book recipe and has no slot has a reason to say they wrote it. Spec 020's
-  provenance check exists for this. Until then the cook's statement is the control.
+  provenance check exists for this (ADR-0074). Until it ships, the cook's statement is the control.
 - **Downgraded cooks over 50 cannot make anything new private** until they delete or publish. The refusal copy must
   tell them how many slots they are over.
 - **A contained test principal on a free plan, out of slots, cannot clone a book recipe or make any clone at all.**
@@ -214,15 +232,6 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
   (`e2e-seed/src/provision.ts`), so today's seeded runs are not affected.
 - **The count runs inside the write transaction.** It reads one cook's rows through an existing index. If a cook ever
   holds very many recipes this is the read to watch.
-
-## Open question for the owner
-
-- **A held recipe uses no slot.** A slot counts `visibility = 'private'` only. A recipe the content source check holds
-  (ADR-0074) is a public recipe that is hidden, like a public draft, so it is owner-only and uses no slot. A free cook
-  out of slots can therefore keep a book recipe held, or as a public draft, without a slot. The gap exists for public
-  drafts already, and spec 020 adds no new kind of it, but more recipes now sit held while a person decides. Whether a
-  held recipe, or a public draft, should count against the 50 is the owner's call. Counting either changes what a
-  cook already holds, which the One-way doors section above names.
 
 ## Code owed (builder work, not this ADR's)
 

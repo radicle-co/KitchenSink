@@ -25,7 +25,7 @@
 
 ```text
 decision request: {
-  decision: 'clear' | 'hold'
+  decision: 'approve' | 'notApprove'
   ground: 'rightsToUpload' | 'publishedSourceEvidence' | 'sourceNotConfirmed'   // closed set, cook-facing
         | 'ownWorkConfirmed' | 'publicSourceConfirmed'
   note: string          // required, non-empty, ≤ 2,000 characters: the reviewer's own words, staff only
@@ -42,11 +42,16 @@ decision request: {
 - The decision locks the referral row, then the check row, and changes the outcome only by a compare-and-set on
   `shownOutcome` and `shownEvidenceRef` (spec FR-016d). A re-check that won the race makes this answer
   `SOURCE_CHECK_OUTCOME_MOVED`, never a clearance of an outcome the reviewer did not see.
-- `clear` records the clearance with the outcome and evidence it cleared, recomputes `allows` and writes a
+- `approve` records the clearance with the outcome and evidence it cleared, recomputes `allows` and writes a
   `referralCleared` (or `appealOverturned`) decision. The recipe becomes publicly visible if it is still public and
   published.
-- `hold` writes a `referralHeld` (or `appealUpheld`) decision and issues a statement of reasons that says automated
-  means found the signals and a person decided.
+- `notApprove` writes a `referralNotApproved` (or `appealUpheld`) decision. In the same transaction review ends and the
+  recipe becomes the cook's private recipe, under ADR-0073's lock, even with no free slot (the cook is then over the
+  limit). It issues a statement of reasons that says automated means flagged the recipe and a person decided, with a
+  generic ground and no detail of what matched (spec FR-014a, FR-028). The same unchanged content cannot enter review
+  again.
+- The queue orders by `queue_since`, the time the recipe first entered review, so a cook's edits never push it back
+  (spec FR-030a).
 - **The note never reaches the cook.** The statement takes the ground's localised text and the facts from the check.
   A match fact is always the one generic fact (spec FR-027), so a reviewer cannot disclose another cook's private
   recipe through the statement.

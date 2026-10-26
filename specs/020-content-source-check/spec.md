@@ -57,6 +57,9 @@ The owner's rulings set what happens next:
   these recipes are employees - not users".
 - **Another cook's private recipe is never disclosed.** Private recipes are searched as candidates, but no cook ever
   learns anything about another cook's private recipe, or that it exists (owner ruling, 2026-10-26, Clarifications).
+- **A recipe in review is neither public nor private.** Owner, 2026-10-26: "The review process does not take a slot
+  and doesn't become visible as public or private until it's been approved. While it's in review it is labeled as
+  such." A recipe a person does not approve becomes the cook's private recipe and is never published.
 
 ### What the check does
 
@@ -72,8 +75,10 @@ The owner's rulings set what happens next:
   code finds the same words in the text, and even then it only sends the recipe to a person. What it finds in a photo
   can never be proven by code, so it also only sends the recipe to a person. The model never holds a recipe back on its
   own and never clears one.
-- When the check holds a recipe back, the recipe stays saved, and only its owner can see it. The cook is told what was
-  found, in a statement that says an automated check was used.
+- After the cook publishes, the recipe shows "Checking" for a short time, visible only to them. If every part is
+  green it becomes public. Otherwise it shows "In review" until a person decides. A recipe the rules block, or one a
+  person does not approve, is "Not approved": it becomes the cook's private recipe, and the cook gets a statement of
+  reasons that says an automated check was used.
 
 ### What the check does NOT do
 
@@ -81,7 +86,8 @@ The owner's rulings set what happens next:
   finding 2). Our protection still comes from hosting content at a user's direction and from fast takedown
   (DMCA §512(c), `016-FR-016` to `FR-022`). This check lowers the number of copied recipes that reach the public. It does
   not make us safe. Nobody can present it as a defence.
-- **It does not delete or block a save.** The recipe is always saved. Only public visibility is held back.
+- **It does not delete a recipe, and it blocks a save only in three narrow cases** (FR-018). Otherwise the recipe is
+  always saved, and only public visibility is held back.
 - **It never changes the cook's label.** The statement the cook made stays the record (`016-FR-014`). The hold is a
   separate fact that a person can reverse.
 - **It never publishes an unsure recipe without a person.** No timer, budget state or backlog lets an unsure recipe go
@@ -97,18 +103,21 @@ The owner's rulings set what happens next:
 
 ### Words used in this spec
 
-| Word                 | Meaning                                                                                                                                                                             |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Source check**     | The automated check this feature adds. We never call it a "review". The review gate (ADR-0071) and the review wizard (ADR-0072) use that word                                       |
-| **Checked content**  | What the check reads: title, description, tags, ingredient lines as written, steps, text taken from a photo by OCR, and the photos the cook uploaded                                |
-| **Evidence**         | One thing the check found: its kind, where it is in the recipe, and whether code proved it                                                                                          |
-| **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation |
-| **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it                                              |
-| **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                          |
-| **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                        |
-| **Match**            | A recipe or a source in our own database that the lookup found for this recipe, with what a person decided about it (section J)                                                     |
-| **Enforcement mode** | `shadow`, `blocking` or `paused`. It is stamped on each outcome when the recipe is first headed for public view with that content (FR-019)                                          |
-| **Donation**         | At account erasure, a cook may elect recipes to leave behind as public. A donated recipe passes the same check (FR-018a)                                                            |
+| Word                 | Meaning                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Source check**     | The automated check this feature adds. We never call it a "review". The review gate (ADR-0071) and the review wizard (ADR-0072) use that word                                         |
+| **Checked content**  | What the check reads: title, description, tags, ingredient lines as written, steps, text taken from a photo by OCR, and the photos the cook uploaded                                  |
+| **Evidence**         | One thing the check found: its kind, where it is in the recipe, and whether code proved it                                                                                            |
+| **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation   |
+| **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it. The cook sees it as "Checking" or "In review" |
+| **Checking**         | The short state after a publish, before the outcome is revealed. Visible only to the cook                                                                                             |
+| **In review**        | A recipe the cook wants public that waits for a person. Owner-only, neither public nor private, and it uses no private slot (FR-014a)                                                 |
+| **Not approved**     | A recipe the rules blocked, or that a person did not approve. It becomes the cook's private recipe and is never published with that content (FR-014a)                                 |
+| **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                            |
+| **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                          |
+| **Match**            | A recipe or a source in our own database that the lookup found for this recipe, with what a person decided about it (section J)                                                       |
+| **Enforcement mode** | `shadow`, `blocking` or `paused`. It is stamped on each outcome when the recipe is first headed for public view with that content (FR-019)                                            |
+| **Donation**         | At account erasure, a cook may elect recipes to leave behind as public. A donated recipe passes the same check (FR-018a)                                                              |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -130,14 +139,14 @@ notice. It is saved, never visible to a signed-out viewer, shows the evidence to
 
 1. **Given** a cook who publishes a recipe as public, **When** the check has not finished, **Then** the recipe is saved,
    the cook sees that it is being checked, and no other person can see it.
-2. **Given** a recipe whose text holds blocking evidence that the rule-based detectors found, **When** it is saved,
-   **Then** the outcome is `detected` in the same save, the recipe stays out of public view, no AI call is made, and
-   the cook sees each piece of evidence and where it is.
-3. **Given** a `detected` recipe, **When** the cook chooses to keep it private, **Then** it becomes private under the
-   usual private rules and ADR-0073's slot count, and its label does not change.
+2. **Given** a recipe whose text holds blocking evidence that the rule-based detectors found, and a cook with a free
+   private slot, **When** it is saved, **Then** the outcome is `detected` in the same save, the recipe is "Not
+   approved" and becomes private, no AI call is made, and the cook sees each piece of evidence and where it is.
+3. **Given** the same recipe and a free cook with no private slot free, **When** it is saved, **Then** the save is
+   refused, as ADR-0073 refuses a book recipe with no slot, and the cook is shown the evidence and how to free a slot
+   (FR-018).
 4. **Given** a `detected` recipe, **When** the cook changes their statement to "From a source" with a book citation,
-   **Then** the label becomes `imported_physical` and the recipe becomes private (FR-015a). If the cook has no private
-   slot free, the change is refused, and the cook can appeal or leave the recipe held.
+   **Then** the label becomes `imported_physical` and the recipe stays private (FR-015a).
 5. **Given** a recipe whose content holds no evidence at all, **When** the check finishes, **Then** the outcome is
    `clear` and the recipe becomes publicly visible with no further step.
 6. **Given** a `detected` outcome, **When** it is shown to the cook, **Then** it comes with a statement of reasons
@@ -182,14 +191,16 @@ are saved as drafts without waiting for the AI. The unsure ones are sent to a pe
 
 A cook publishes a recipe as public. The check finds only weak signs: the text says "see page 112", or a photo looks
 like a photographed cookbook page. The AI cannot tell whether this is fine or a copy. The recipe is saved and stays
-hidden. The cook sees "A person will check this before it goes public", with what made the check unsure. A reviewer looks at the recipe, its photos and the signals, and decides. The cook is told.
+hidden. The cook sees "In review: a person will check this before it goes public", the same words whatever the
+cause. A reviewer looks at the recipe, its photos and the signals, and decides. The cook is told.
 
 **Why this priority**: This is the owner's ruling for the unsure case: "A person decides." It is also where the AI is
 most likely to be wrong, in both directions, and photos can only ever land here.
 
 **Independent Test**: Publish, as public, a recipe whose only signal is a page reference. The outcome is `possible`,
-the recipe is hidden, and a referral is in the reviewer queue. Clear it as a reviewer: the recipe becomes public and
-the cook is told. Repeat and hold it: the cook receives a statement of reasons.
+the recipe is "In review", and a referral is in the reviewer queue. Clear it as a reviewer: the recipe becomes public
+and the cook is told. Repeat and do not approve it: the recipe becomes private, and the cook receives a statement of
+reasons.
 
 **Acceptance Scenarios**:
 
@@ -198,11 +209,13 @@ the cook is told. Repeat and hold it: the cook receives a statement of reasons.
 2. **Given** a recipe with any signal in a photo, **When** the check finishes, **Then** the outcome is `possible`,
    whatever the photo signal is (FR-006).
 3. **Given** a `possible` outcome on a recipe the cook published as public, **When** it is recorded, **Then** a
-   referral is created, the recipe stays hidden, and the cook is told a person will decide. No time is promised.
+   referral is created, the recipe is "In review", and the cook sees the one generic message that a person will
+   check it. They see no part results and no cause. No time is promised (FR-016c).
 4. **Given** a referral, **When** a reviewer clears it, **Then** the hold is lifted, the recipe becomes publicly
    visible, and the decision records who decided, when and why.
-5. **Given** a referral, **When** a reviewer holds it, **Then** the cook receives a statement of reasons that names
-   the signals and says an automated check flagged it and a person decided.
+5. **Given** a referral, **When** a reviewer does not approve it, **Then** review ends, the recipe becomes the cook's
+   private recipe, even with no free slot, and the cook receives a statement of reasons. It says an automated check
+   flagged the recipe and a person decided, gives a generic ground, and never names what matched (FR-014a, FR-028).
 6. **Given** a referral nobody has decided yet, however old, **When** anyone reads the recipe, **Then** it is still
    hidden. Age never publishes a recipe.
 7. **Given** a recipe whose text and source reference pass green and whose one photo the AI saw nothing in, **When** the
@@ -222,7 +235,7 @@ own recipe, and EU law expects a way to challenge a restriction. The appeal make
 lost recipe.
 
 **Independent Test**: Appeal a `detected` recipe. As a reviewer, overturn it. The recipe becomes public and the cook is
-told. Repeat and uphold. The recipe stays held and the cook is told why.
+told. Repeat and uphold. The recipe stays private and the cook is told why.
 
 **Acceptance Scenarios**:
 
@@ -232,8 +245,8 @@ told. Repeat and uphold. The recipe stays held and the cook is told why.
    different reviewer where one is available (FR-026a).
 3. **Given** an appeal, **When** a reviewer overturns the hold, **Then** the hold is lifted and the cook is told. If
    the cook still wants the recipe public, it becomes publicly visible.
-4. **Given** an appeal, **When** a reviewer upholds the hold, **Then** the hold stays, and the cook receives a
-   statement of reasons that says a person decided.
+4. **Given** an appeal, **When** a reviewer upholds the hold, **Then** the recipe stays private, and the cook receives
+   a statement of reasons that says a person decided. That decision is final for that content.
 5. **Given** any decision, **When** it is saved, **Then** it records who decided, when, the ground and the facts relied
    on. It cannot be saved without them.
 6. **Given** any hold, upheld or not, **When** the cook's account record is read, **Then** no infringement strike was
@@ -406,9 +419,9 @@ one.
   deliberate operator act.
 - **A cook erases their account and elects recipes to donate.** Donation makes recipes public and published without
   the editor. A public recipe that is already allowed stays. Each elected private recipe is checked. One that is all
-  green is donated. One that is not goes to a person, and the erasure waits for that person only until its deadline.
-  A recipe still undecided at the deadline, a recipe a person holds, and a held public recipe are deleted with the
-  account. The cook is told this when they elect (FR-018a).
+  green is donated. One that is not goes to a person, and the erasure waits for that person for at most 14 days. A
+  recipe still waiting after 14 days, a recipe a person does not approve, a not-approved recipe, and a recipe in
+  review that was not elected are deleted with the account. The cook is told this when they elect (FR-018a).
 - **A curated public-domain import.** The curator path (ADR-0023 §1) imports old cookbooks on purpose. Its recipes are
   checked and reviewed like everyone else's (FR-003a). Old cookbooks are full of page references, so most of a curated
   book will go to staff, and the whole book stays hidden until they decide.
@@ -434,6 +447,13 @@ one.
 - **One cook sends a very large number of recipes to a person.** Each cook has a cap on open referrals. Past it, new
   referrals wait as deferred and open one at a time as the cook's open ones close. The cap never publishes anything
   (FR-030b).
+- **The cook edits a recipe that is in review.** Saving a change to the text, photos or source starts a new check and
+  replaces the open referral. The editor warns before the save. The recipe keeps its place in the queue, so editing
+  never pushes it back, and it never keeps a recipe in review for ever (FR-030a).
+- **The cook wants out of review.** They can switch it to Private, which needs a free slot and is refused without one,
+  or back to Draft. Either way the referral is withdrawn (FR-015).
+- **The cook tries to publish content a person did not approve.** Review ended with that decision. The same unchanged
+  content cannot enter review again, so the change to public is refused. Edited content gets a new check (FR-014a).
 - **Blocking is paused.** Recipes already held stay held. New outcomes are recorded but hold nothing. Turning blocking
   back on does not hide what was published while paused (FR-019).
 - **The cook withdraws a publish while a person has not decided.** The cook can set the recipe back to draft. The
@@ -525,6 +545,32 @@ What else the review changed, without a question to the owner:
 - The lookup runs in the worker, before any spend, at a measured cost (M1). Shared photos fan in (M2). Model evidence
   is keyed by everything that can change it, and rule evidence is worked out fresh on every check (M3). Erasure and
   retention are tightened (M4). A spent budget is not retried (M6).
+
+### Session 2026-10-26 (fifth round: in review, the donation deadline, sampling, strict text)
+
+The owner answered the open points the same day. The answers are quoted as the coordinator relayed them, and they
+bind.
+
+- **In review and slots.** "The review process does not take a slot and doesn't become visible as public or private
+  until it's been approved. While it's in review it is labeled as such." A recipe in review is owner-only, labelled
+  "In review", and uses no private slot. It becomes public only when it is all green or a person approves it
+  (FR-014a). This resolves ADR-0073's open question.
+- **What "not approved" means**, decided from the owner's rulings and relayed by the coordinator:
+    - A not-approved recipe keeps its appeal (FR-026) and its statement of reasons (FR-028), as DSA Art. 17 and 20
+      require. The ground is generic and never names what matched.
+    - It is never published and never deleted by us. It becomes the cook's private recipe even with no free slot,
+      like ADR-0073's downgrade rule, and the cook is then over the limit: no new private recipe until they are under 50. That closes the loophole of review as a free private store, because a not-approved recipe counts as private.
+    - While in review, the cook may switch to Private (it uses a slot, and is refused if none is free, and the referral
+      is withdrawn) or back to Draft (owner-only, and the referral is withdrawn).
+    - The cook sees one generic message for every cause, and no part detail, so the cause cannot be inferred (FR-016c).
+    - After Publish there is a short "Checking" state, hidden from everyone but the cook. All green: public. Otherwise:
+      "In review". Saving a change to the text, photos or source of a recipe in review starts a new check and replaces
+      the open referral. The editor warns before the save.
+- **Donation deadline: 14 days.** A donated private recipe still waiting for staff after 14 days is deleted (FR-018a).
+- **Random sampling of green recipes: no, not for now.** The residual is accepted: a cook learns only that a person
+  will check, never what or whose (FR-051).
+- **The strict text rule stands.** Text is green only when the model raised nothing at all, consistent with the
+  all-green rule (FR-013a).
 
 ## Requirements _(mandatory)_
 
@@ -668,8 +714,8 @@ What else the review changed, without a question to the owner:
     never reads the source reference (FR-008). Only the rules do.
 
 - **FR-014**: A `detected`, `possible` or `unchecked` outcome MUST create a **publication hold** on the recipe. The hold
-  MUST NOT change the recipe's label, MUST NOT delete the recipe, MUST NOT block a save, and MUST be liftable only by a
-  person's decision (FR-016, FR-026).
+  MUST NOT change the recipe's label, MUST NOT delete the recipe, and MUST be liftable only by a person's decision
+  (FR-016, FR-026). It blocks a save in exactly the cases FR-018 lists.
     > **Why the boundary is a hold, not a new label.** We weighed three options.
     >
     > 1. **Reclassify the recipe to `imported_paid`.** Rejected. That label can never be public, so a false positive is
@@ -679,25 +725,39 @@ What else the review changed, without a question to the owner:
     >    for a person to repeat what code already proved. An appeal exists for the case code got wrong.
     > 3. **Hold public visibility, keep the recipe, and let a person reverse it.** Chosen. A false positive costs a wait
     >    and an appeal. A false negative is what happens today, without the check.
-- **FR-015**: A cook with a held recipe MUST be offered these choices:
-    - Keep it private, under the usual private rules and ADR-0073's slots.
-    - Change their statement to "From a source" with a book or paid-site citation (FR-015a).
-    - Appeal a `detected` hold, or a hold a person made (FR-026).
-    - Wait for the person, for a `possible` or `unchecked` hold.
-    - Leave it as it is, or set it back to draft. It stays visible only to them.
-
-    A free cook with no private slot free does not get the first two.
+- **FR-014a**: **The lifecycle the cook sees** (owner ruling, 2026-10-26). The stored visibility keeps what the cook
+  asked for. The cook-facing state is derived from it and from the outcome, by the same classifier as the read rule:
+    - **Checking**: the short time after a publish before the outcome is revealed (FR-051's floor). Only the cook sees
+      the recipe.
+    - **Public**: the outcome allows it (all green, or a person approved it).
+    - **In review**: the cook wants it public and a person has not decided yet. It is neither public nor private. Only
+      the cook sees it, labelled "In review", and it uses **no** private slot (ADR-0073).
+    - **Not approved**: the rules blocked it (`detected`), or a person did not approve it, or a person upheld a hold on
+      appeal. In the same transaction as that decision it becomes the cook's **private** recipe. It is never
+      published with that content and never deleted by us. A free cook with no free slot still gets it as private, and
+      is then over the limit: no new private recipe until under 50 (ADR-0073's downgrade rule). The one exception is
+      the save itself: a `detected` save with no free slot is refused (FR-018), because nothing has been saved yet.
+    - A person's decision always ends review. The same unchanged content cannot enter review again (FR-018).
+    - So review cannot become a free private store: a recipe leaves review only by approval (public), by a decision
+      (private, using a slot), by the cook's own move to Private (using a slot) or Draft, or by deletion.
+- **FR-015**: The cook's choices:
+    - **While in review**: wait for the person; switch to Private, which needs a free slot under ADR-0073 and is
+      refused without one; set it back to Draft; edit it, which starts a new check and replaces the referral (the
+      editor warns first); or delete it. Switching to Private or Draft withdraws the referral.
+    - **When not approved**: keep it as their private recipe; change their statement to "From a source" with a book or
+      paid-site citation (FR-015a); appeal (FR-026); edit it, which makes new content and a new check; or delete it.
 
 - **FR-015a**: Changing the statement after a save MUST be a one-way **downgrade** only: from `user_created` or
   `imported_public` to `imported_physical` or `imported_paid`, with a citation, and the recipe becomes private in the
-  same act. It needs a private slot under ADR-0073. No route can change a label upward or to `imported_public`. Today
+  same act. It needs a private slot under ADR-0073, unless the recipe is already private (a not-approved recipe). No route can change a label upward or to `imported_public`. Today
   provenance cannot change after a save at all (ADR-0023 keeps `source` on create only), so this route MUST be recorded
   as an amendment to ADR-0023. The new label is private-only, so no outcome is needed for it, and any open referral
   closes as withdrawn.
 - **FR-016**: A `possible` outcome on a recipe the cook publishes as public MUST create a **referral** to a person. A
   referral MUST be created only once the outcome is decided, never while it is still `checking`.
-  The recipe MUST stay hidden until a person decides. The person MUST either **clear** it, which lifts the hold, or
-  **hold** it, which keeps the hold and gives the cook a statement of reasons (FR-028). The cook MUST NOT be able to
+  The recipe MUST stay "In review" until a person decides. The person MUST either **clear** it, which lifts the hold
+  and makes it public, or **not approve** it, which ends review, makes it the cook's private recipe (FR-014a) and gives
+  the cook a statement of reasons (FR-028). The cook MUST NOT be able to
   lift it themselves, and nothing automatic MUST lift it (owner ruling, 2026-10-26: "A person decides").
 - **FR-016a**: An outcome allows publication when it is `clear`, or when a person cleared **that** outcome on
   **that** evidence. Nothing else allows it.
@@ -708,10 +768,11 @@ What else the review changed, without a question to the owner:
 - **FR-016b**: A referral MUST be created only when the recipe is actually headed for public view: on publish, or on a
   change to public. A draft, including a bulk-imported draft, records its outcome and creates no referral until the
   cook publishes it (FR-024a). This keeps people's time for recipes a cook wants public.
-- **FR-016c**: The cook MUST be told, for a `possible` or `unchecked` hold, which parts were not green and why, and
-  that a person will decide. No decision time is promised (FR-030). They MUST NOT be asked to confirm their statement
-  instead. The parts the cook sees reflect their own content only. A match or a source decision reaches them only as
-  the one note of FR-051.
+- **FR-016c**: For a recipe in review, the cook MUST see one generic message, "In review: a person will check this
+  before it goes public", the same for every cause: an item in the text, a photo signal, a source reason, a match, a
+  spent budget, a failed check. They MUST NOT see part results, reasons or the outcome value, so the cause cannot be
+  inferred (owner ruling, 2026-10-26). No decision time is promised (FR-030). They MUST NOT be asked to confirm their
+  statement instead.
 - **FR-017**: A person's decision on a referral, and the cook's appeal reason, MUST be recorded with its time, the
   outcome it answered and the evidence shown. They are part of the per-item attestation record (`004-FR-014a`).
 - **FR-018**: The hold MUST be part of the one rule for who can see a recipe (`isRecipeViewableBy` and its SQL
@@ -721,18 +782,31 @@ What else the review changed, without a question to the owner:
   the outcome table's `allows` to decide visibility. It MUST NOT be a refusal on the write side.
   A save, a publish and a visibility change never fail because of an outcome (FR-014), and the C-004 matrix
   (`visibilityPolicy.ts`, with ADR-0073's slot fact) keeps deciding which visibility a recipe may hold. The only
-  write-side refusal is bulk import's (FR-025).
+  write-side refusals are these three, and no other:
+    - bulk import's, for a `detected` item (FR-025);
+    - a `detected` save by a free cook with no free private slot, the editor's twin of FR-025 and of ADR-0073's
+      refusal of a book recipe with no slot. Without it, stating "I wrote this" over a book recipe would buy more
+      private storage than stating the truth;
+    - a change to public of content whose review ended without approval (FR-014a). Editing the content first is
+      always allowed.
+
+    All three apply only while blocking is on, for outcomes stamped `enforced` (FR-019).
+
 - **FR-018a**: Every path that makes a recipe public and published, including account erasure's donation of recipes,
   MUST be subject to FR-002. Because the hold lives in the read rule, no path can go around it. At account erasure
   (owner ruling, 2026-10-26):
     - A public, published recipe whose current content is allowed stays, as today.
     - A private recipe the cook elects to donate MUST be checked, at the moment of election, like any recipe headed
       public. If every part is green it is donated. If not, it goes to a person.
-    - The erasure MUST wait for that person only until a **donation deadline**. The deadline MUST leave the whole
-      erasure inside GDPR Art. 12(3)'s one month from the request. Its length is set in the plan, with counsel.
+    - A recipe already in review that the cook elects waits the same way.
+    - A not-approved recipe is never donated. Its content has a final decision and cannot enter review again.
+    - The erasure MUST wait for that person only until the **donation deadline: 14 days** from the request (owner
+      ruling, 2026-10-26). That leaves about 16 days of GDPR Art. 12(3)'s one month for the rest of the erasure, the
+      identity scrub and the Clerk deletion included.
     - When the deadline comes, or when every elected recipe is decided, whichever is first, the erasure completes.
-      It keeps only recipes the hold Specification allows. Every other recipe is deleted with the account: a held
-      recipe, an elected recipe a person held, and an elected recipe still undecided.
+      It keeps only recipes the hold Specification allows. Every other recipe is deleted with the account: a recipe in
+      review that was not elected, an elected recipe a person did not approve, and an elected recipe still waiting for
+      staff after 14 days.
     - The cook MUST be told all of this when they elect, before they confirm. If no elected recipe needs a person, the
       erasure does not wait at all.
     - While it waits, the account is closed, so the cook cannot sign in, and their recipes are visible only through
@@ -833,22 +907,25 @@ What else the review changed, without a question to the owner:
       never shown to the cook. So a reviewer cannot disclose another cook's private recipe by typing it.
 - **FR-027a**: The reviewer MUST see the recipe's text and photos, each part's green or not-green result, each signal
   and where it is, and the cook's statement and citation. Only the model is kept from the statement (FR-008). A person is not.
-- **FR-028**: A `detected` hold, and a person's hold, MUST each give the cook a **statement of reasons** through 016's
-  mechanism (`016-FR-018`, `016-FR-018a`). It MUST name:
-    - the action: publication withheld
-    - the ground: the terms clause on rights to upload
-    - the facts: the kinds of evidence, and where they are
-    - that automated means were used to find them, and, for a person's hold, that a person decided
-    - the redress: keep private, change the statement (FR-015a), or appeal.
-- **FR-029**: The statement MUST be built from a fixed template filled with the evidence kinds and locations, and, for
-  a person's hold, the ground the person chose from the closed set. It MUST NOT be prose written by the model, and it
+- **FR-028**: Every "not approved" decision (a `detected` hold, a person's non-approval, an upheld appeal) MUST give the
+  cook a **statement of reasons** through 016's mechanism (`016-FR-018`, `016-FR-018a`). It MUST name:
+    - the action: publication withheld, and the recipe kept private
+    - the ground: for `detected`, the terms clause on rights to upload; for a person's decision, the ground chosen
+      from the closed set, which is generic and never names what matched
+    - the facts: for `detected`, the kinds of evidence the rules found in the cook's own text, and where they are; for
+      a person's decision, only the generic fact of FR-027, so the cause cannot be inferred (FR-016c)
+    - that automated means were used, and, for a person's decision, that a person decided
+    - the redress: keep it private, change the statement (FR-015a), appeal, edit it, or delete it.
+- **FR-029**: The statement MUST be built from a fixed template filled, for `detected`, with the rule evidence kinds and
+  locations, and, for a person's decision, with the ground the person chose from the closed set. It MUST NOT be prose written by the model, and it
   MUST NOT carry the reviewer's note.
 - **FR-030**: No decision time target is set in this release (owner, 2026-10-26: "we can deal with SLO/SLA later").
   The queue MUST show each referral's age. However old a referral is, it MUST NOT publish the recipe. A target, when
   the owner sets one, is added then.
 - **FR-030a**: The reviewer queue MUST order referrals oldest first, and MUST let a reviewer see every open referral
   from one cook or one import together, so a large import or a curated book is decided in one sitting. Each recipe still
-  gets its own decision.
+  gets its own decision. A recipe's place in the queue is the time it **first** entered review. An edit that replaces
+  the referral, or a return from Draft, keeps that place, so the cook cannot push a recipe back to stay in review.
 - **FR-030b**: Each cook MUST have a cap on open referrals. Past the cap, a new referral is created as `deferred`. It
   is not in the queue, and it opens, oldest first, when one of the cook's open referrals closes. The cap only defers.
   It MUST NOT publish, clear or drop anything, and the cook sees a deferred referral the same way as an open one. A
@@ -887,10 +964,9 @@ What else the review changed, without a question to the owner:
       and, for a hold decision only, the text fingerprint (FR-052). Never the recipe text or a photo.
     - A statement of reasons owed to a cook whose account has been erased cannot be delivered. The decision record
       MUST say so, and counsel confirms that this is enough (FR-041).
-- **FR-037**: The cook MUST be able to see, for their own recipe, its current outcome, each part's result, the evidence,
-  any open referral, and any decision, within the limits of FR-051. The parts the cook sees read their own content
-  only. So when a person's earlier approval made the outcome `clear`, the cook sees `clear` beside a part that reads
-  not green, with no reason given for the difference.
+- **FR-037**: The cook MUST be able to see, for their own recipe, its state (FR-014a), any open referral and its age,
+  any decision, and its statement of reasons. For a `detected` recipe they also see the rule evidence in their own
+  text. They see no part results and no outcome value for a recipe in review (FR-016c).
 
 #### H. Measurement and operation
 
@@ -941,9 +1017,9 @@ What else the review changed, without a question to the owner:
         - **Facts and non-disclosure.** DSA Art. 17(3)(b) asks for the facts relied on. A hold that rests on a match
           against another cook's private recipe can state only the generic fact (FR-027). Is that enough? **What
           breaks**: if not, a private match cannot be the only ground for a hold, and FR-051 must route it differently.
-        - **The donation deadline.** How long may an erasure wait for a person to decide a donated recipe, inside GDPR
-          Art. 12(3)'s one month (FR-018a)? **What breaks**: a deadline that counsel calls undue delay means donated
-          recipes that need a person are deleted at once instead.
+        - **The donation deadline.** The owner set 14 days, inside GDPR Art. 12(3)'s one month (FR-018a). Counsel
+          confirms it is not undue delay. **What breaks**: if it is, donated recipes that need a person are deleted at
+          once instead.
         - **A statement for an erased cook.** A person's hold during the donation wait, or after the account is gone,
           has nobody to deliver a statement to (FR-036). **What breaks**: if a statement is still owed, it must be sent
           by email before the identity record is scrubbed.
@@ -963,9 +1039,9 @@ What else the review changed, without a question to the owner:
   MUST, before the cook confirms:
     - check each recipe the cook elects to donate, and show which ones are ready to donate now, and which need a
       person first;
-    - say, in plain words, that a recipe a person has not cleared by the donation deadline is deleted with the
-      account, and so is any recipe a person holds;
-    - say that a public recipe that is already held is deleted, not donated.
+    - say, in plain words, that a recipe a person has not cleared within 14 days is deleted with the account, and so
+      is any recipe a person does not approve;
+    - say that a recipe in review that is not elected, and a not-approved recipe, are deleted, not donated.
 
     The screen ships on web and mobile together, through `staff-ux-engineer` SPECIFY. This amendment is NOT applied to
     that plan by this feature. It is listed here and applied with the plan's own next revision, as 016's are.
@@ -1045,10 +1121,11 @@ What else the review changed, without a question to the owner:
 - **FR-051**: **Another cook's private recipe is never disclosed** (owner ruling 3).
     - Private recipes MUST be searched as candidates. Their content MUST NEVER be shown to anyone but a staff reviewer,
       and to a reviewer only as FR-049 allows.
-    - What the cook sees MUST NOT depend on whether a match was private. Every effect that comes from a match or a
-      source decision reaches the cook only as one outcome-level note, "A person will check where this came from". It
-      is never attached to a part, so the cook cannot tell a recipe match from a source decision. There is no field
-      that says why a part is green.
+    - What the cook sees MUST NOT depend on whether a match was private, or on any cause at all. A recipe in review
+      shows one generic message for every cause (FR-016c), with no part results and no field that says why anything
+      is green or not.
+    - **Accepted residual** (owner ruling, 2026-10-26: no random sampling for now). A cook learns only that a person
+      will check, never what or whose.
     - **Timing.** The lookup runs in the worker, never in the request (FR-053). The worker runs the same steps
       whatever the lookup finds. It never skips or shortens a model call because a match already decided a part, and
       it writes the outcome only once every part is read. So the time to an outcome does not show whether a match
@@ -1169,7 +1246,11 @@ What else the review changed, without a question to the owner:
   same-items rule held, and the candidate's own allowing state did not come from a match. Checked by a property test
   over the rows of FR-047.
 - **SC-017**: Zero cook-facing responses carry any detail of another cook's recipe, or differ in any field or wording
-  between a private and a public match. Checked by a contract test that runs the same case against both.
+  between causes of review: a private match, a public match, a page reference, a photo signal or a spent budget.
+  Checked by a contract test that runs each case and compares the responses.
+- **SC-021**: Zero recipes stay in review after a person's decision, zero not-approved recipes are uncounted as
+  private, and zero unchanged contents re-enter review after a decision. Checked by integration tests over every exit
+  from review.
 - **SC-018**: Zero outcomes change because the enforcement mode changed, and zero moves back to `shadow` are
   accepted. Checked by tests over every legal and illegal move.
 - **SC-019**: Zero cleared outcomes are overwritten by a re-check, and zero clearances allow an outcome other than the
@@ -1180,10 +1261,10 @@ What else the review changed, without a question to the owner:
 
 - **ADR-0073 owns the slot rule.** Free cooks hold up to 50 private recipes. A slot is a private, undeleted recipe,
   counted live. 020 does not own it and only reads it.
-- **A held recipe uses no slot.** ADR-0073 counts `visibility = 'private'` only. A held recipe is a public recipe that
-  is hidden, like a public draft. So held and drafted recipes are owner-only and unmetered, and a free cook can keep
-  book recipes that way without a slot. That gap exists for public drafts already, and 020 adds no new kind of it, but
-  more recipes now sit held. It is recorded as the open question in ADR-0073.
+- **A recipe in review uses no slot, and a not-approved one does** (owner ruling, 2026-10-26). ADR-0073 counts
+  `visibility = 'private'` only. A recipe in review keeps its stored `public` visibility and is hidden by the read rule,
+  so it uses no slot. A decision moves it to `private`, so it counts. A public draft stays owner-only and unmetered, as
+  ADR-0073 already accepted.
 - **Nothing is live.** At launch there is no public corpus to check.
 - **016 is planned and not built.** The statement of reasons, the reviewer dashboard and the email channel come from 016. Blocking stays in shadow mode until they exist (FR-019).
 - **The reviewer dashboard inherits 016's open decision A-11** on `002`'s "no admin UI" exclusion.

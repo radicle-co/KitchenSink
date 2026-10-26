@@ -43,7 +43,7 @@ The review's H8 wording ("rules plus the lookup") predates that ruling, and the 
 
 ```text
 409 SOURCE_CHOICE_NOT_OFFERED   the choice is not in the item's sourceChoices
-409 PRIVATE_SLOTS_EXHAUSTED     keepPrivate with no slot free (ADR-0073 owns this code)
+403 PRIVATE_SLOTS_FULL     keepPrivate with no slot free (ADR-0073 owns this code)
 ```
 
 - `skip`: the item is not saved, and spends no allowance unit it has not already spent.

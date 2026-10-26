@@ -1478,6 +1478,21 @@ export const RecipeErrorCode = {
      * and is not. `details.resetsAt` (an ISO instant) says when the allowance reopens, and is always present.
      */
     IMPORT_QUOTA_EXCEEDED: 'IMPORT_QUOTA_EXCEEDED',
+    /**
+     * ADR-0072 — no bulk import with that id owned by the caller. Always a 404 for a stranger, never a 403: a 403 would
+     * confirm another user's import id exists.
+     */
+    IMPORT_NOT_FOUND: 'IMPORT_NOT_FOUND',
+    /**
+     * ADR-0072 — the wizard's cursor is not where the caller said it was: another device moved it. A 409;
+     * `details.cursorOrdinal` is where it is now (`null` when it is done), so the caller can resync without a second read.
+     */
+    IMPORT_CURSOR_MOVED: 'IMPORT_CURSOR_MOVED',
+    /**
+     * ADR-0072 — the item's recipe was already saved, and an item is saved once. A 409 that tells a retrying client its
+     * earlier request landed; `details.ordinal` names the item.
+     */
+    IMPORT_ITEM_ALREADY_SAVED: 'IMPORT_ITEM_ALREADY_SAVED',
 } as const;
 
 /**
@@ -1520,6 +1535,9 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.VERSION_LINE_UNRESTORABLE,
     RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
     RecipeErrorCode.IMPORT_QUOTA_EXCEEDED,
+    RecipeErrorCode.IMPORT_NOT_FOUND,
+    RecipeErrorCode.IMPORT_CURSOR_MOVED,
+    RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
 ]);
 
 /**

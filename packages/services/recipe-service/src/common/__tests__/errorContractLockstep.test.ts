@@ -38,6 +38,8 @@ import {
     BadRequestError,
     ForbiddenError,
     GoneError,
+    ImportCursorMovedError,
+    ImportItemAlreadySavedError,
     ImportQuotaExceededError,
     NotFoundError,
     PublishRequirementsUnmetError,
@@ -54,7 +56,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { apiError } from '../apiError.js';
 import { apiErrorSchema, recipeApiErrorSchema, recipeErrorCodeSchema } from '../apiError.schema.js';
 import { ApiExceptionFilter } from '../filters/apiException.filter.js';
-import { importQuotaExceeded, publishRequirementsUnmet } from '../../recipes/recipe.error.js';
+import {
+    importCursorMoved,
+    importItemAlreadySaved,
+    importNotFound,
+    importQuotaExceeded,
+    publishRequirementsUnmet,
+} from '../../recipes/recipe.error.js';
 import { CreateRecipeDto } from '../../recipes/dto/createRecipe.dto.js';
 
 const BASE = 'https://recipe.example.test';
@@ -193,6 +201,8 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.VERSION_LINE_UNRESTORABLE]: { positions: [2] },
     [RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET]: { missing: ['cuisine'] },
     [RecipeErrorCode.IMPORT_QUOTA_EXCEEDED]: { resetsAt: '2026-10-27T03:30:00.000Z' },
+    [RecipeErrorCode.IMPORT_CURSOR_MOVED]: { cursorOrdinal: 4 },
+    [RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED]: { ordinal: 4 },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */
@@ -404,6 +414,42 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect((error as ImportQuotaExceededError).resetsAt).toBe('2026-10-27T03:30:00.000Z');
         expect((error as ImportQuotaExceededError).status).toBe(429);
         expect((error as ImportQuotaExceededError).code).toBe(CODE.IMPORT_QUOTA_EXCEEDED);
+    });
+
+    it('404 IMPORT_NOT_FOUND → NotFoundError carrying the import code', async () => {
+        const { wire, error } = await throughTheWire(importNotFound('imp-1'), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.NOT_FOUND);
+        expect(error).toBeInstanceOf(NotFoundError);
+        expect((error as NotFoundError).code).toBe(CODE.IMPORT_NOT_FOUND);
+    });
+
+    it('409 IMPORT_CURSOR_MOVED → ImportCursorMovedError carrying where the cursor is now', async () => {
+        const { wire, error } = await throughTheWire(importCursorMoved(4), (client) => client.getRecipeById(RECIPE_ID));
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toBeInstanceOf(ImportCursorMovedError);
+        expect((error as ImportCursorMovedError).cursorOrdinal).toBe(4);
+        expect((error as ImportCursorMovedError).code).toBe(CODE.IMPORT_CURSOR_MOVED);
+    });
+
+    it('409 IMPORT_CURSOR_MOVED with the cursor done → cursorOrdinal null, not undefined', async () => {
+        const { error } = await throughTheWire(importCursorMoved(null), (client) => client.getRecipeById(RECIPE_ID));
+
+        expect((error as ImportCursorMovedError).cursorOrdinal).toBeNull();
+    });
+
+    it('409 IMPORT_ITEM_ALREADY_SAVED → ImportItemAlreadySavedError carrying the item', async () => {
+        const { wire, error } = await throughTheWire(importItemAlreadySaved(4), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toBeInstanceOf(ImportItemAlreadySavedError);
+        expect((error as ImportItemAlreadySavedError).ordinal).toBe(4);
+        expect((error as ImportItemAlreadySavedError).code).toBe(CODE.IMPORT_ITEM_ALREADY_SAVED);
     });
 
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {

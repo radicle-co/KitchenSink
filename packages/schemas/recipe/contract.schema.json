@@ -5546,6 +5546,77 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "IMPORT_CURSOR_MOVED",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "cursorOrdinal": {
+                                    "anyOf": [
+                                        {
+                                            "maximum": 9007199254740991,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "cursorOrdinal"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "IMPORT_ITEM_ALREADY_SAVED",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "ordinal": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "ordinal"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "VERSION_LINE_UNRESTORABLE",
                             "type": "string"
                         },
@@ -5817,6 +5888,23 @@
                     "properties": {
                         "code": {
                             "const": "PARSE_JOB_EXPIRED",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "IMPORT_NOT_FOUND",
                             "type": "string"
                         },
                         "message": {
@@ -6578,6 +6666,9 @@
                 "VERSION_LINE_UNRESTORABLE",
                 "PUBLISH_REQUIREMENTS_UNMET",
                 "IMPORT_QUOTA_EXCEEDED",
+                "IMPORT_NOT_FOUND",
+                "IMPORT_CURSOR_MOVED",
+                "IMPORT_ITEM_ALREADY_SAVED",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",

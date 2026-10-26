@@ -4455,6 +4455,51 @@ components:
             code:
               type: string
               enum:
+                - IMPORT_CURSOR_MOVED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                cursorOrdinal:
+                  nullable: true
+                  type: integer
+                  minimum: 0
+              required:
+                - cursorOrdinal
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IMPORT_ITEM_ALREADY_SAVED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                ordinal:
+                  type: integer
+                  minimum: 0
+              required:
+                - ordinal
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - VERSION_LINE_UNRESTORABLE
             message:
               type: string
@@ -4646,6 +4691,18 @@ components:
               type: string
               enum:
                 - PARSE_JOB_EXPIRED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IMPORT_NOT_FOUND
             message:
               type: string
           required:

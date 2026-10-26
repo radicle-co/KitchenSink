@@ -111,7 +111,7 @@ export function publishRequirementsUnmet(
  * `IMPORT_QUOTA_EXCEEDED` (→ 429) — the caller's daily import allowance is spent (004 FR-022). `details.resetsAt` is the
  * instant it reopens for them, as an ISO string, and is the ONLY detail: the count and the limit are not on the wire.
  *
- * @param resetsAt - When enough of the oldest counted units leave the window for the request to fit.
+ * @param resetsAt - When the next unit of the caller's allowance on that channel becomes available (the oldest counted unit leaves the window).
  * @returns The error.
  */
 export function importQuotaExceeded(resetsAt: Date): RecipeDomainError {
@@ -119,6 +119,48 @@ export function importQuotaExceeded(resetsAt: Date): RecipeDomainError {
         RecipeErrorCode.IMPORT_QUOTA_EXCEEDED,
         'The daily import allowance is spent. It reopens at the time in details.resetsAt.',
         { resetsAt: resetsAt.toISOString() },
+    );
+}
+
+/**
+ * `IMPORT_NOT_FOUND` (→ 404) — no bulk import with that id belongs to the caller (ADR-0072).
+ *
+ * ONE answer for a stranger's import and a missing one: a 403 would confirm another cook's import id exists.
+ *
+ * @param id - The import id the caller asked for.
+ * @returns The error.
+ */
+export function importNotFound(id: string): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.IMPORT_NOT_FOUND, `Import '${id}' not found`);
+}
+
+/**
+ * `IMPORT_CURSOR_MOVED` (→ 409) — the wizard's cursor is not where the caller said it was (ADR-0072): another device
+ * moved it. `details.cursorOrdinal` is where it is now, so the caller can resync without a second read.
+ *
+ * @param cursorOrdinal - The item the cursor is on now, or `null` when it is past the last item.
+ * @returns The error.
+ */
+export function importCursorMoved(cursorOrdinal: number | null): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_CURSOR_MOVED,
+        'The import has moved on from where this request expected it to be.',
+        { cursorOrdinal },
+    );
+}
+
+/**
+ * `IMPORT_ITEM_ALREADY_SAVED` (→ 409) — the item's recipe was already saved (ADR-0072 §2/§3). An item is saved once, so
+ * a request that would change it after the save is refused, and a client that retried a save learns the first landed.
+ *
+ * @param ordinal - The item that is already saved.
+ * @returns The error.
+ */
+export function importItemAlreadySaved(ordinal: number): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
+        `Import item ${String(ordinal)} has already been saved.`,
+        { ordinal },
     );
 }
 

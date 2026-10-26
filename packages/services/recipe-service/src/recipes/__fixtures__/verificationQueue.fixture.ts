@@ -13,7 +13,9 @@ import type { VerificationQueuePort } from '../verification.queue.js';
 
 /** A verification queue whose `enqueue` records its calls. */
 export type FakeVerificationQueue = VerificationQueuePort & {
-    readonly enqueue: Mock<(messages: readonly VerifyIngredientLineMessage[]) => Promise<void>>;
+    readonly enqueue: Mock<
+        (messages: readonly VerifyIngredientLineMessage[], options?: { signal?: AbortSignal }) => Promise<void>
+    >;
 };
 
 /**
@@ -23,6 +25,8 @@ export type FakeVerificationQueue = VerificationQueuePort & {
  */
 export function fakeVerificationQueue(): FakeVerificationQueue {
     return {
-        enqueue: vi.fn<(messages: readonly VerifyIngredientLineMessage[]) => Promise<void>>().mockResolvedValue(),
+        enqueue: vi
+            .fn<(messages: readonly VerifyIngredientLineMessage[], options?: { signal?: AbortSignal }) => Promise<void>>()
+            .mockResolvedValue(),
     };
 }

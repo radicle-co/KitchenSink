@@ -37,11 +37,17 @@ import {
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import { matchJudgementDigestOf } from '../domain/matchProposal.js';
-import { MatchProposalService, type MatchProposalLimits } from '../matchProposal.service.js';
+import {
+    MATCH_PROPOSE_DEADLINE_MS,
+    MatchProposalService,
+    type MatchProposalLimits,
+} from '../matchProposal.service.js';
 import type { ParseJobRecord } from '../parseJobs.service.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 
 const OWNER = '01JMATCHPROPOSALOWNER00001';
+/** The catalog's per-search timeout the suite runs under: the shipped default. */
+const SEARCH_TIMEOUT_MS = 600;
 const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
 
@@ -131,7 +137,7 @@ function foundRecord(name: string, rootId: string): Extract<FoodRefAnswer, { out
 
 /** A refs gateway answering from a table; unlisted refs are `absent`. */
 function refsAnswering(answers: Record<string, FoodRefAnswer>) {
-    const resolve = vi.fn(async (_caller: unknown, refs: readonly FoodRef[]) => ({
+    const resolve = vi.fn(async (_caller: unknown, refs: readonly FoodRef[], _budget?: unknown, _options?: { signal?: AbortSignal }) => ({
         answers: new Map(
             refs.map((ref) => [`${ref.kind}:${ref.id}`, answers[`${ref.kind}:${ref.id}`] ?? { outcome: 'absent' }]),
         ),
@@ -176,7 +182,7 @@ function setup(options: Setup = {}) {
         { getJob },
         matches,
         chain.tiers,
-        { enabled: options.enabled ?? true },
+        { enabled: options.enabled ?? true, searchTimeoutMs: () => SEARCH_TIMEOUT_MS },
         refs.gateway,
         queue,
         options.verdicts ?? fakeLineVerificationsDal(),
@@ -722,32 +728,98 @@ describe('MatchProposalService.propose — ADR-0040 containment', () => {
     });
 });
 
-describe('MatchProposalService.propose — bounded work', () => {
-    it('⛔ stops matching once its budget is spent, and leaves the rest for the next call', async () => {
-        const lines = Array.from({ length: 6 }, (_, index) =>
+/**
+ * Bounded work under ONE request deadline (ADR-0071 review, item 13). The client gives `POST …/matches` 10 s, and the
+ * same response carries the job view's names read after it; so the matcher stops at {@link MATCH_PROPOSE_DEADLINE_MS}.
+ * A wave starts only when it can finish (two catalog searches per food at most) before the tail kept for the refs read
+ * and the send, and both of those carry the deadline too. What is left is matched or sent on the client's next call.
+ */
+describe('MatchProposalService.propose — bounded work under one request deadline', () => {
+    /** A clock the test moves: each lexical search costs `costMs`. */
+    function clockedSetup(lineCount: number, costMs: number, extra: Partial<Setup> = {}) {
+        let now = 1_000_000;
+        const lines = Array.from({ length: lineCount }, (_, index) =>
             makeParseJobLine({ lineIndex: index, lineDigest: `digest-${String(index)}` }),
         );
-        const { service, matches } = setup({
+        const built = setup({
             job: makeParseJobRecord({ lines }),
-            limits: { concurrency: 2, budgetMs: 0 },
+            limits: { concurrency: 1, tailMs: 1_500, now: () => now },
+            ...extra,
         });
+
+        built.chain.lexical.mockImplementation(async () => {
+            now += costMs;
+
+            return {
+                kind: 'resolved',
+                tier: 'lexical',
+                food: { kind: 'root', id: 'F-whole' },
+                evidence: 'lexical',
+                rung: 'head',
+                confidence: 0.2,
+                candidates: [...MILK_RANKED],
+            } as const;
+        });
+
+        return { ...built, advance: (ms: number) => (now += ms) };
+    }
+
+    it('⛔ starts no wave that could end past the cutoff, and leaves the rest for the next call', async () => {
+        // Deadline 4 500 ms; tail 1 500 ms; a wave may need two 600 ms searches: no wave starts after 1 800 ms.
+        // Each search here costs 1 000 ms, so waves start at 0 and 1 000 ms and the third (at 2 000 ms) does not.
+        const { service, matches } = clockedSetup(6, 1_000);
 
         await service.propose(COOK, CALLER, JOB);
 
-        expect(matches.rows.size).toBe(0);
+        expect(matches.rows.size).toBe(2);
+        expect(MATCH_PROPOSE_DEADLINE_MS).toBe(4_500);
     });
 
-    it('matches a long paste over waves of the configured width', async () => {
-        const lines = Array.from({ length: 5 }, (_, index) =>
-            makeParseJobLine({ lineIndex: index, lineDigest: `digest-${String(index)}` }),
-        );
-        const { service, matches } = setup({
-            job: makeParseJobRecord({ lines }),
-            limits: { concurrency: 2, budgetMs: 60_000 },
-        });
+    it('matches a long paste over waves of the configured width while time remains', async () => {
+        const { service, matches } = clockedSetup(5, 0, {});
 
         await service.propose(COOK, CALLER, JOB);
 
         expect(matches.rows.size).toBe(5);
+    });
+
+    it('⛔ hands the refs read and the send the request deadline', async () => {
+        const { service, refs, queue } = clockedSetup(1, 0);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(refs.resolve.mock.calls[0]?.[3]?.signal).toBeInstanceOf(AbortSignal);
+        expect(queue.enqueue.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('⛔ at the catalog timeout’s configured CEILING no wave starts: the deadline wins over the work', async () => {
+        // `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` may be set up to 5 s; two such searches cannot finish inside the deadline,
+        // so the matcher declines to start rather than run past the client's timeout.
+        const matches = inMemoryParseJobMatches(new Map([[JOB, OWNER]]));
+        const chain = tiersOver({ lexical: MILK_RANKED });
+        const slow = new MatchProposalService(
+            { getJob: async () => makeParseJobRecord() },
+            matches,
+            chain.tiers,
+            { enabled: true, searchTimeoutMs: () => 5_000 },
+            refsAnswering({ 'root:F-whole': found('Milk, whole', 'F-whole') }).gateway,
+            fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
+        );
+
+        await slow.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).not.toHaveBeenCalled();
+        expect(matches.rows.size).toBe(0);
+    });
+
+    it('⛔ past the deadline it asks food nothing and sends nothing — the line is matched on the next call', async () => {
+        const { service, refs, queue, matches } = clockedSetup(1, 5_000);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(refs.resolve).not.toHaveBeenCalled();
+        expect(queue.enqueue).not.toHaveBeenCalled();
+        expect(matches.rows.size).toBe(0);
     });
 });

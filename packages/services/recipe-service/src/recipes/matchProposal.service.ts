@@ -28,9 +28,11 @@
  *     queue's contract refuses (logged at error), is stored as `refused` and never claimed, so it is not retried on
  *     every poll and the job view reads the refusal rather than re-running the policy.
  *  8. **Contained test principals send nothing** (ADR-0040): their proposals are stored, the review is not asked.
- *  9. **Bounded work.** Lines are matched in waves of {@link MatchProposalLimits.concurrency} until a time budget is
- *     spent. What is left waits for the client's next call, which the idempotency above makes safe. Food is asked about
- *     every proposal in ONE batched read, before anything is stored.
+ *  9. **Bounded work, under ONE request deadline** ({@link MATCH_PROPOSE_DEADLINE_MS}). Lines are matched in waves of
+ *     {@link MatchProposalLimits.concurrency}; a wave starts only when its catalog searches can finish before the tail
+ *     kept for the refs read and the send, and both of those carry the deadline as an abort signal. What is left
+ *     waits for the client's next call, which the idempotency above makes safe. Food is asked about every proposal in
+ *     ONE batched read, before anything is stored.
  *
  * ⚠️ Residual risk, recorded rather than hidden: a message SQS accepted and then lost leaves its row claimed with no
  * verdict. The line reads `checking` until a matches call arrives after the queue's delivery bound (about nine hours),
@@ -97,19 +99,36 @@ export const PARSE_JOB_MATCHES_DAL = 'PARSE_JOB_MATCHES_DAL';
 /** DI token for the matcher's work bounds. */
 export const MATCH_PROPOSAL_LIMITS = 'MATCH_PROPOSAL_LIMITS';
 
+/**
+ * The deadline `propose` keeps, from its first statement. The same response then reads the job view's names
+ * (`ParseJobMatchView`, under the read deadline, at most `MAX_READ_NUTRITION_DEADLINE_MS`), so this plus that ceiling
+ * must leave margin inside the recipe client's 10 s timeout. `parseJobMatchesBudget.test.ts` asserts the sum against the
+ * client's own constant.
+ */
+export const MATCH_PROPOSE_DEADLINE_MS = 4_500;
+
+/** The catalog searches one food can cost at most: the lexical pass and its one synonym reformulation. */
+const SEARCHES_PER_FOOD = 2;
+
 /** How much work one call may do. */
 export interface MatchProposalLimits {
     /** How many (line, food) pairs are matched at once — each costs up to two catalog searches as the cook. */
     readonly concurrency: number;
-    /** No new wave starts after this many milliseconds; the rest waits for the next call. */
-    readonly budgetMs: number;
+    /** Time kept back from the deadline, after the last wave, for the refs read and the send. */
+    readonly tailMs: number;
+    /** Milliseconds since the epoch; injected so the budget is tested without wall time. */
+    readonly now: () => number;
 }
 
-/**
- * The default bounds. Four at a time keeps a paste's searches within the food client's per-keystroke budget while
- * leaving the request well inside the client's 10 s timeout: four seconds of waves, plus the final wave in flight.
- */
-const DEFAULT_LIMITS: MatchProposalLimits = { concurrency: 4, budgetMs: 4_000 };
+/** The default bounds: four foods at a time, 1.5 s kept for the refs read and the send, the wall clock. */
+const DEFAULT_LIMITS: MatchProposalLimits = { concurrency: 4, tailMs: 1_500, now: () => Date.now() };
+
+/** An abort signal that fires at `deadlineAt`, or one already aborted when that has passed. */
+function signalUntil(deadlineAt: number, now: number): AbortSignal {
+    const remaining = deadlineAt - now;
+
+    return remaining > 0 ? AbortSignal.timeout(remaining) : AbortSignal.abort();
+}
 
 /** One parsed line of the job: its index, its stored digest, the parse's measure and its foods' names. */
 interface ParsedLine extends ParsedLineMeasure {
@@ -182,7 +201,7 @@ export class MatchProposalService {
         @Inject(PARSE_JOBS_DAL) private readonly jobs: Pick<ParseJobsDalPort, 'getJob'>,
         @Inject(PARSE_JOB_MATCHES_DAL) private readonly matches: ParseJobMatchesPort,
         @Inject(PROPOSAL_TIERS) private readonly tiers: readonly ResolutionTier[],
-        @Inject(FoodCatalogGateway) private readonly catalog: Pick<FoodCatalogGateway, 'enabled'>,
+        @Inject(FoodCatalogGateway) private readonly catalog: Pick<FoodCatalogGateway, 'enabled' | 'searchTimeoutMs'>,
         private readonly refs: FoodRefsGateway,
         @Inject(VERIFICATION_QUEUE) private readonly queue: VerificationQueuePort,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
@@ -200,6 +219,8 @@ export class MatchProposalService {
      * @sideEffect Food searches and refs reads as the caller, match writes, verification enqueues.
      */
     public async propose(acting: ActingPrincipal, caller: CallerToken | undefined, jobId: string): Promise<void> {
+        // ⛔ ONE deadline for the whole call (rule 9), taken before any I/O.
+        const deadlineAt = this.limits.now() + MATCH_PROPOSE_DEADLINE_MS;
         const ownerId = acting.userId;
         const job = await this.jobs.getJob(ownerId, jobId);
 
@@ -232,15 +253,19 @@ export class MatchProposalService {
                     : [{ lineIndex: line.lineIndex, foodIndex, line, phrase, judgementDigest }];
             }),
         );
-        const drafts = await this.matchWithinBudget(ownerId, caller, owed);
-        // ONE batched refs read: the new proposals, and the stored ones this call may send (rule 9).
-        const nowMs = Date.now();
-        const answers = await this.askFoodAbout(caller, [
-            ...drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
-            ...[...current.values()].flatMap((match) =>
-                isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
-            ),
-        ]);
+        const drafts = await this.matchWithinBudget(ownerId, caller, owed, deadlineAt);
+        // ONE batched refs read, under the deadline: the new proposals, and the stored ones this call may send (rule 9).
+        const nowMs = this.limits.now();
+        const answers = await this.askFoodAbout(
+            caller,
+            [
+                ...drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
+                ...[...current.values()].flatMap((match) =>
+                    isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
+                ),
+            ],
+            deadlineAt,
+        );
         const fresh = drafts.flatMap((draft) => this.withLiveProposal(jobId, draft, lines, answers));
         // A stored proposal is the LIVE end of what the chain named, so the message lookup is by that end too.
         const known = new Map(answers);
@@ -252,7 +277,7 @@ export class MatchProposalService {
         }
 
         await this.matches.saveMatches(jobId, fresh);
-        await this.sendOwed(acting, jobId, lines, known);
+        await this.sendOwed(acting, jobId, lines, known, deadlineAt);
     }
 
     /**
@@ -285,7 +310,8 @@ export class MatchProposalService {
     }
 
     /**
-     * Match the owed slots in waves until the budget is spent (rule 7).
+     * Match the owed slots in waves while a wave can still finish in time (rule 9): a wave starts only when its searches,
+     * at their transport timeout, end before the tail kept for the refs read and the send.
      *
      * @returns A draft per slot the chain could answer for; a slot it could not look for is left out (rule 4).
      * @sideEffect Runs the proposal chain as the caller.
@@ -294,13 +320,14 @@ export class MatchProposalService {
         ownerId: string,
         caller: CallerToken | undefined,
         owed: readonly OwedSlot[],
+        deadlineAt: number,
     ): Promise<readonly DraftMatch[]> {
-        const deadline = Date.now() + this.limits.budgetMs;
+        const lastStart = deadlineAt - this.limits.tailMs - SEARCHES_PER_FOOD * this.catalog.searchTimeoutMs();
         const drafts: DraftMatch[] = [];
         const width = Math.max(1, this.limits.concurrency);
 
         for (let start = 0; start < owed.length; start += width) {
-            if (Date.now() >= deadline) {
+            if (this.limits.now() > lastStart) {
                 break;
             }
 
@@ -417,19 +444,23 @@ export class MatchProposalService {
     }
 
     /**
-     * Ask food about these refs, as the caller, in one batched read.
+     * Ask food about these refs, as the caller, in one batched read under the request deadline. Past the deadline it asks
+     * nothing: every ref is `unreachable`, so nothing is stored and the next call asks again (rule 4).
      *
      * @sideEffect One batched refs read.
      */
     private async askFoodAbout(
         caller: CallerToken | undefined,
         refs: readonly FoodRef[],
+        deadlineAt: number,
     ): Promise<ReadonlyMap<string, FoodRefAnswer>> {
-        if (refs.length === 0) {
+        const now = this.limits.now();
+
+        if (refs.length === 0 || now >= deadlineAt) {
             return new Map();
         }
 
-        return (await this.refs.resolve(caller, refs, 'postCommit')).answers;
+        return (await this.refs.resolve(caller, refs, 'postCommit', { signal: signalUntil(deadlineAt, now) })).answers;
     }
 
     /**
@@ -522,12 +553,14 @@ export class MatchProposalService {
         jobId: string,
         lines: ReadonlyMap<number, ParsedLine>,
         answers: ReadonlyMap<string, FoodRefAnswer>,
+        deadlineAt: number,
     ): Promise<void> {
-        if (isContained(subject)) {
+        // A contained principal never sends (ADR-0040); past the deadline nothing is claimed, and the next call sends.
+        if (isContained(subject) || this.limits.now() >= deadlineAt) {
             return;
         }
 
-        const nowMs = Date.now();
+        const nowMs = this.limits.now();
         const owed = (await this.matches.findForJob(subject.userId, jobId)).filter(
             (match) => isCurrentFor(lines, match) && isSendable(match, nowMs),
         );
@@ -566,7 +599,11 @@ export class MatchProposalService {
         }
 
         try {
-            await this.queue.enqueue(toSend.map(({ message }) => message));
+            await this.queue.enqueue(
+                toSend.map(({ message }) => message),
+                // ⛔ The deadline reaches SQS: an aborted send is undelivered, and its claims are released below.
+                { signal: signalUntil(deadlineAt, this.limits.now()) },
+            );
         } catch (error) {
             const lost = isBatchEnqueueError(error)
                 ? error.undeliveredIndexes.flatMap((index) => {

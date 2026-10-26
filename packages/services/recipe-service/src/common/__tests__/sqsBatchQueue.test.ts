@@ -187,3 +187,35 @@ describe('createSqsBatchEnqueue — the throw names WHICH messages were lost', (
         expect(send.mock.calls[0]?.[0].Entries).toHaveLength(2);
     });
 });
+
+/**
+ * The CALLER's deadline reaches every batch (ADR-0071 review, item 13): the paste matcher's matches request passes its
+ * one request deadline, so a slow SQS cannot push the request past the client's timeout. An aborted send is reported
+ * like any failed batch, so the caller releases its claims for the next call.
+ */
+describe('createSqsBatchEnqueue — the caller’s deadline', () => {
+    const schema = z.object({ id: z.string() });
+
+    it('hands the caller’s signal to every batch send', async () => {
+        const send = vi.fn<SqsBatchSend>().mockResolvedValue({ $metadata: {} } as SendMessageBatchCommandOutput);
+        const signal = new AbortController().signal;
+        const enqueue = createSqsBatchEnqueue(schema, send, 'https://sqs.example/q', 'verification enqueue');
+
+        await enqueue(
+            Array.from({ length: 11 }, (_, index) => ({ id: String(index) })),
+            { signal },
+        );
+
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(send.mock.calls.every((call) => call[1]?.abortSignal === signal)).toBe(true);
+    });
+
+    it('reports a send the deadline aborted as undelivered', async () => {
+        const send = vi.fn<SqsBatchSend>().mockRejectedValue(new Error('Request aborted'));
+        const enqueue = createSqsBatchEnqueue(schema, send, 'https://sqs.example/q', 'verification enqueue');
+
+        await expect(enqueue([{ id: 'a' }], { signal: AbortSignal.abort() })).rejects.toSatisfy(
+            (error) => isBatchEnqueueError(error) && error.undeliveredIndexes.join() === '0',
+        );
+    });
+});

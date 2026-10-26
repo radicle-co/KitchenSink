@@ -160,6 +160,16 @@ export class FoodCatalogGateway {
     }
 
     /**
+     * The most one {@link FoodCatalogGateway.search} can take: the typeahead client's timeout, enforced at the transport.
+     * The paste matcher starts a wave only when its searches can finish inside its request deadline (ADR-0071).
+     *
+     * @returns Milliseconds. Pure.
+     */
+    public searchTimeoutMs(): number {
+        return this.clients.typeaheadTimeoutMs();
+    }
+
+    /**
      * Search the food-service golden catalog, AS the calling user.
      *
      * **Total by construction — this never rejects.** A slow or unavailable food service yields

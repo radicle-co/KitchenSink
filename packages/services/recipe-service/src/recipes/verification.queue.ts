@@ -37,6 +37,7 @@ import {
     sqsBatchClientConfig,
     type SqsBatchQueueConfig,
     type SqsBatchSend,
+    type SqsEnqueueOptions,
 } from '../common/sqsBatchQueue.js';
 
 /** DI token for the verification queue port — provided by `RecipesModule` via `useFactory` over the env config. */
@@ -48,6 +49,7 @@ export interface VerificationQueuePort {
      * Ask the gate about these lines.
      *
      * @param messages - The requests. An empty list is a no-op and issues no call.
+     * @param options - `signal`: the caller's deadline (a paste matches request's, ADR-0071), reaching every batch.
      * @throws When any message was refused by the contract or failed to send. ⛔ The CALLER swallows it — see
      *   `RecipesService.requestVerification`. It throws rather than swallowing here so the port stays
      *   honest: an adapter that hid its own failures could never be tested for them, and a future caller
@@ -55,7 +57,7 @@ export interface VerificationQueuePort {
      *   throw reports what was lost, it does not abandon the rest.
      * @sideEffect Issues one or more SQS `SendMessageBatch` requests.
      */
-    enqueue(messages: readonly VerifyIngredientLineMessage[]): Promise<void>;
+    enqueue(messages: readonly VerifyIngredientLineMessage[], options?: SqsEnqueueOptions): Promise<void>;
 }
 
 /** Config the SQS adapter needs (sourced from the service's env config). */

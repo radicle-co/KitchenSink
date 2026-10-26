@@ -101,6 +101,16 @@ export class FoodServiceClients {
     }
 
     /**
+     * The per-search bound a {@link FoodServiceClients.typeahead} client applies — what one catalog search can cost at
+     * most. The paste matcher budgets its waves with it (ADR-0071).
+     *
+     * @returns Milliseconds. Pure.
+     */
+    public typeaheadTimeoutMs(): number {
+        return this.options.typeaheadTimeoutMs;
+    }
+
+    /**
      * A client for the NUTRITION READ (plan U10) — the GET detail and the card batch — authenticated as `caller`.
      *
      * Takes the READ deadline, not the typeahead one: this call is on the recipe detail/list read path, not the

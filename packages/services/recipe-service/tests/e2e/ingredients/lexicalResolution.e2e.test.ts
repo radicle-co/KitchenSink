@@ -125,6 +125,7 @@ describe('U4 — the lexical tier inside the real proposal chain', () => {
             typeahead: () => foodClient as unknown as FoodServiceClient,
             readClient: () => foodClient as unknown as FoodServiceClient,
             readDeadlineMs: () => 5_000,
+            typeaheadTimeoutMs: () => 600,
         }) as never;
 
     /** The matcher over the REAL registry, gateway and tables, with a blend switch the test controls. */

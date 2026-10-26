@@ -127,7 +127,9 @@ describe('the lexical tier against a food that publishes no rung (integration)',
     } {
         const clients = new FoodServiceClients({
             baseUrl: origin,
-            typeaheadTimeoutMs: 2_000,
+            // The shipped default: the matcher starts a wave only when two searches at this timeout can finish inside its
+            // request deadline, so a longer one here would leave it nothing to do.
+            typeaheadTimeoutMs: 600,
             postCommitNutritionTimeoutMs: 1_500,
             readNutritionDeadlineMs: 3_000,
         });

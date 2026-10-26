@@ -63,7 +63,7 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
                 {initial === undefined ? null : (
                     <span
                         aria-hidden="true"
-                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill text-overline text-action-text"
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill text-label text-action-text"
                     >
                         {initial}
                     </span>

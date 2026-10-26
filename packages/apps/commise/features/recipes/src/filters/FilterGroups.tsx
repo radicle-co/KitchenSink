@@ -5,8 +5,8 @@
  * ONE facet tree that the Discover panel and the filter sheet both draw. The container renders exactly one of them, so
  * there is one set of names for assistive technology to find.
  *
- * Each group is a named `group` (or, for a time ladder, a `radiogroup`) with its name as an overline above it. The name
- * lives once in the accessibility tree — on the row — and the visible overline is hidden from it, so a screen reader
+ * Each group is a named `group` (or, for a time ladder, a `radiogroup`) with its name as a small heading above it. The name
+ * lives once in the accessibility tree — on the row — and the visible name is hidden from it, so a screen reader
  * does not say "Dietary, Dietary". Total time is a choice with an "Any"; prep and cook time sit behind one native
  * disclosure; a chip group shows twelve chips then "Show all ({n})", and a chosen chip is never behind it; the
  * ingredient typeahead is a search field with its results and its chosen ingredients as removable chips.
@@ -36,14 +36,14 @@ import type { FilterGroupsProps } from './filtersModel.js';
 import { filterMessages } from './messages.js';
 import type { FilterAction } from './model.js';
 
-/** A group's visible name: an overline above the row, hidden from assistive tech (the row carries the name). */
+/** A group's visible name: a label above the row, hidden from assistive tech (the row carries the name). */
 const GroupName: FC<{ readonly children: string }> = ({ children }) => (
-    <span aria-hidden="true" className="text-overline uppercase text-ink-muted">
+    <span aria-hidden="true" className="text-label text-ink-muted">
         {children}
     </span>
 );
 
-/** A group's frame: its overline, then its body. */
+/** A group's frame: its label, then its body. */
 const GroupFrame: FC<{ readonly name: string; readonly children: ReactNode }> = ({ name, children }) => (
     <div className="flex flex-col gap-2">
         <GroupName>{name}</GroupName>

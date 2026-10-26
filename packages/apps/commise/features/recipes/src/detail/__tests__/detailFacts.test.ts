@@ -240,7 +240,7 @@ describe('detailNativeLayoutOf', () => {
 
 /**
  * F9 (`evaluateFinal.md`): the recipe page dropped the ingredient groups the editor shows. The page draws a group as an
- * overline over each CONSECUTIVE run of lines with one label (§6.1), the editor's fold: `[A][B][A]` is three runs in
+ * label over each CONSECUTIVE run of lines with one label (§6.1), the editor's fold: `[A][B][A]` is three runs in
  * that order, never two, because grouping by label would reorder the recipe.
  */
 describe('ingredientGroupRuns', () => {

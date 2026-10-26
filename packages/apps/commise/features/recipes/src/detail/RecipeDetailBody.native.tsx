@@ -155,7 +155,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
             {...(heroControls === undefined ? {} : { overlay: heroControls })}
         />,
         <View key="top" style={styles.top}>
-            {meta.length > 0 && <Text style={[styles.overline, muted]}>{meta.join(' · ')}</Text>}
+            {meta.length > 0 && <Text style={[styles.meta, muted]}>{meta.join(' · ')}</Text>}
             <Text
                 ref={titleRef}
                 accessibilityRole="header"

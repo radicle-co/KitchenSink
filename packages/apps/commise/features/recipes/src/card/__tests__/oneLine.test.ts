@@ -11,7 +11,7 @@ describe('metaLineHeightOf', () => {
         [1, 20],
         [1.3, 26],
         [2, 40],
-    ])('rounds the 19.6 pt meta leading × %s up to %s', (fontScale, expected) => {
+    ])('uses the 20 pt meta leading × %s up to %s', (fontScale, expected) => {
         expect(metaLineHeightOf(fontScale)).toBe(expected);
     });
 });
@@ -22,8 +22,9 @@ describe('badgeLineHeightOf', () => {
     });
 
     it('grows with the larger of the badge word (caption + 4 pt padding) and the meta text beside it', () => {
-        // caption 16.8 × 2 + 4 = 37.6 → 38, meta 19.6 × 2 = 39.2 → 40: the meta text beside the badge decides.
-        expect(badgeLineHeightOf(2)).toBe(40);
+        // REWRITTEN for the px type scale (2026-10-25): caption is 20 pt now, as meta is (it was 16.8 against 19.6), so
+        // the badge word decides: 20 × 2 + 4 = 44, above the meta line's 20 × 2 = 40.
+        expect(badgeLineHeightOf(2)).toBe(44);
     });
 
     it('never answers less than the meta line it can hold', () => {

@@ -88,5 +88,5 @@ const styles = StyleSheet.create({
     // `sectionTitle`, like every sibling H2 (`buildSpec.md` §1.5, F8).
     heading: { ...nativeTokens.type.sectionTitle },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    unrated: { fontSize: 13 },
+    unrated: { ...nativeTokens.type.meta },
 });

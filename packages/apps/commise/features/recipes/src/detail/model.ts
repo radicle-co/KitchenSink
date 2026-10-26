@@ -842,7 +842,7 @@ export interface RecipeHeroProps {
     readonly recipeId: string;
     /** The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram. */
     readonly title: string;
-    /** The cuisine, the monogram band's overline. */
+    /** The cuisine, the monogram band's caption. */
     readonly cuisine?: string;
     /**
      * The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the

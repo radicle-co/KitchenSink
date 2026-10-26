@@ -53,7 +53,6 @@ const PROBES = [
     'text-body-sm',
     'text-display-md',
     'text-caption',
-    'leading-body',
     'text-sm',
     'bg-hero',
     'animate-pending-bar-reveal',
@@ -69,7 +68,7 @@ const PROBES = [
     'text-card-title',
     'text-list',
     'text-large-title',
-    'text-overline',
+    'text-label',
     'bg-paper',
     'text-ink-muted',
     'border-line-control',
@@ -212,11 +211,13 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         expect(css).not.toMatch(/--line-height-[a-z-]+\s*:/);
     });
 
-    it('ships the DS line-height ramp as real leading utilities', async () => {
+    // REWRITTEN for the px type scale (owner ruling 2026-10-25): the `--leading-heading/body/caption` ratios (1.2, 1.5,
+    // 1.4) gave 21, 21.6 and 33.6 px, off the 4 px grid, and nothing used them. A line height now comes from a type
+    // role, as `calc(px / size)`; no ratio ramp is emitted.
+    it('ships no ratio-based leading ramp: a line height comes from a type role', async () => {
         const css = await cssPromise;
 
-        expect(ruleFor(css, 'leading-body')).toBe('--tw-leading:var(--leading-body);line-height:var(--leading-body)');
-        expect(css).toMatch(/--leading-body:\s*1\.5/);
+        expect(css).not.toMatch(/--leading-(?:heading|body|caption):/u);
     });
 
     it('leaves Tailwind’s own type scale intact (the DS ADDS names, it does not replace the namespace)', async () => {
@@ -470,27 +471,28 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(css).toMatch(/color-scheme:\s*light dark/u);
     });
 
-    it('sets the card title at 1rem / 1.3 / 600 from one utility', async () => {
+    it('sets the card title at 1rem / 20 px leading / 600 from one utility', async () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'text-card-title')).toBe(
             'font-size:var(--text-card-title);line-height:var(--tw-leading,var(--text-card-title--line-height));font-weight:var(--tw-font-weight,var(--text-card-title--font-weight))',
         );
         expect(css).toMatch(/--text-card-title:\s*1rem/u);
-        expect(css).toMatch(/--text-card-title--line-height:\s*1\.3/u);
+        // REWRITTEN: it was the ratio 1.3 (20.8 px); the leading is 20 px, written as the unitless `calc(20 / 16)`.
+        expect(css).toMatch(/--text-card-title--line-height:\s*calc\(20 \/ 16\)/u);
         expect(css).toMatch(/--text-card-title--font-weight:\s*600/u);
     });
 
     // REWRITTEN for the owner's type-scale ruling (2026-10-25): lists are 14 px, the unit scale's step (they were 13 px
     // / 1.35 under rule C5, which the owner found "rather small").
-    it('sets the list role at 0.875rem / 1.4 / 400 from one utility', async () => {
+    it('sets the list role at 0.875rem / 20 px leading / 400 from one utility', async () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'text-list')).toBe(
             'font-size:var(--text-list);line-height:var(--tw-leading,var(--text-list--line-height));font-weight:var(--tw-font-weight,var(--text-list--font-weight))',
         );
         expect(css).toMatch(/--text-list:\s*0\.875rem/u);
-        expect(css).toMatch(/--text-list--line-height:\s*1\.4;/u);
+        expect(css).toMatch(/--text-list--line-height:\s*calc\(20 \/ 14\);/u);
         expect(css).toMatch(/--text-list--font-weight:\s*400/u);
     });
 
@@ -503,10 +505,14 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*1\.75rem\)/u);
     });
 
-    it('tracks the overline from its letter-spacing sub-property', async () => {
-        expect(ruleFor(await cssPromise, 'text-overline')).toContain(
-            'letter-spacing:var(--tw-tracking,var(--text-overline--letter-spacing))',
-        );
+    // REWRITTEN: this asserted the overline's tracking. The role is retired and no role tracks its letters (owner
+    // ruling 2026-10-25), so the compiled sheet carries no letter-spacing sub-property and no overline utility.
+    it('tracks no role’s letters and has no overline utility', async () => {
+        const css = await cssPromise;
+
+        expect(css).not.toMatch(/--text-[a-z-]+--letter-spacing/u);
+        expect(css).not.toMatch(/--text-overline/u);
+        expect(ruleFor(css, 'text-label')).toContain('font-size:var(--text-label)');
     });
 
     it('resolves the colour roles to real utilities', async () => {

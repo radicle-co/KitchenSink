@@ -10,6 +10,7 @@
  *     orchestrating container so the gate stays structural on both platforms.
  */
 import { useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
@@ -36,5 +37,5 @@ export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, rat
 };
 
 const styles = StyleSheet.create({
-    note: { fontSize: 13 },
+    note: { ...nativeTokens.type.meta },
 });

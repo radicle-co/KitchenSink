@@ -135,7 +135,7 @@ describe('RecipeDetailView (web) — header', () => {
             />,
         );
 
-        // The no-photo band repeats the cuisine as its overline, hidden from assistive tech; the meta line says it.
+        // The no-photo band repeats the cuisine as its caption, hidden from assistive tech; the meta line says it.
         const exposed = screen.getAllByText('Moroccan').filter((node) => node.closest('[aria-hidden="true"]') === null);
         expect(exposed).toHaveLength(1);
         expect(screen.getByText('by \u2068@braise\u2069 (\u2068Eliza Moreno\u2069)')).toBeTruthy();
@@ -174,8 +174,8 @@ describe('RecipeDetailView (web) — header', () => {
         expect(strip.className).not.toContain('22.5rem');
     });
 
-    // F9: the page draws each group of lines under an overline, as the editor does.
-    it('draws each ingredient group under its overline heading, in stored order', () => {
+    // F9: the page draws each group of lines under a label, as the editor does.
+    it('draws each ingredient group under its label heading, in stored order', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -192,7 +192,7 @@ describe('RecipeDetailView (web) — header', () => {
         const lamb = screen.getByRole('heading', { level: 3, name: 'For the lamb' });
         const chickpeas = screen.getByRole('heading', { level: 3, name: 'For the chickpeas' });
 
-        expect(lamb.className).toContain('text-overline');
+        expect(lamb.className).toContain('text-label');
         expect(
             lamb.compareDocumentPosition(screen.getByText('Lamb shoulder')) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();

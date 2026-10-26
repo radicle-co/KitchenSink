@@ -534,6 +534,6 @@ const styles = StyleSheet.create({
     iconItem: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     trailing: { marginStart: 'auto', flexShrink: 1 },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-    star: { fontSize: 14, lineHeight: 18 },
+    star: { ...nativeTokens.type.meta },
     ratingFigure: { marginStart: nativeTokens.spacing[1] },
 });

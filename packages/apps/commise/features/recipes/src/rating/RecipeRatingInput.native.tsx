@@ -13,6 +13,7 @@
  * remove is revealed on load; the stars in the aggregate remain the COMMUNITY `average`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -103,11 +104,11 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
 const styles = StyleSheet.create({
     stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     rateBlock: { gap: 10 },
-    rateHeading: { fontSize: 14, fontWeight: '500' },
+    rateHeading: { ...nativeTokens.type.caption },
     // B10 — a ≥44×44 touch target around the 30px glyph (WCAG 2.5.5 / Apple + Android minimums).
     starOption: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     optionDisabled: { opacity: 0.6 },
-    removeLabel: { fontSize: 14, fontWeight: '600' },
-    status: { fontSize: 13 },
-    error: { fontSize: 13 },
+    removeLabel: { ...nativeTokens.type.label },
+    status: { ...nativeTokens.type.meta },
+    error: { ...nativeTokens.type.meta },
 });

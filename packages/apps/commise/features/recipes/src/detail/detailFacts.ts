@@ -229,7 +229,7 @@ export interface IngredientGroupRun<T> {
 }
 
 /**
- * Fold the lines into consecutive runs by group label (§6.1, F9): the page draws an overline over each labelled run.
+ * Fold the lines into consecutive runs by group label (§6.1, F9): the page draws a label over each labelled run.
  *
  * ⛔ By CONSECUTIVE run, never by label identity: `[A][B][A]` is three runs in that order, because grouping by label
  * would reorder the recipe. A blank label is no group. This is the read side of the editor's fold over form values

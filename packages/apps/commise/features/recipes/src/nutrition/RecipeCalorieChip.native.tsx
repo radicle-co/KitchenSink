@@ -6,6 +6,7 @@
  * a `known` reading of 0 renders "0 cal". Only the primitives differ.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
@@ -58,9 +59,9 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
 
 const styles = StyleSheet.create({
     // Matches the card meta row's own `metaText` (13pt `inkMuted`) so the chip sits in the row rather than on it.
-    figure: { fontSize: 13 },
+    figure: { ...nativeTokens.type.meta },
     // The sighted reader's half of "serve stale, MARKED" — the italic is the cue, the accessible name carries
     // the caveat itself. The colour is deliberately UNCHANGED: dimming it further would trade a contrast
     // ratio the meta row was tuned to for a signal the accessible name already delivers.
-    stale: { fontSize: 13, fontStyle: 'italic' },
+    stale: { ...nativeTokens.type.meta, fontStyle: 'italic' },
 });

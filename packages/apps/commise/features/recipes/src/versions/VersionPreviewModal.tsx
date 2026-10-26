@@ -95,7 +95,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-paper p-6 shadow-lg md:max-w-2xl"
                 >
-                    <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">{title}</Dialog.Title>
+                    <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 
                     {showLoading && (
                         <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">

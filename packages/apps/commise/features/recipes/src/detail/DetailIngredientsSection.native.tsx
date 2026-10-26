@@ -129,13 +129,13 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
             )}
             {hasIngredients ? (
                 <View>
-                    {/* A group is an overline over its run of lines (§6.1, F9); an ungrouped recipe draws one list. */}
+                    {/* A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list. */}
                     {ingredientGroupRuns(scaled.ingredients).map((run, index) => (
                         <View key={`${run.label ?? ''}-${String(index)}`}>
                             {run.label !== undefined && (
                                 <Text
                                     accessibilityRole="header"
-                                    style={[styles.overline, styles.groupHeading, { color: colors.inkMuted }]}
+                                    style={[styles.groupLabel, styles.groupHeading, { color: colors.inkMuted }]}
                                 >
                                     {run.label}
                                 </Text>

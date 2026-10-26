@@ -143,7 +143,7 @@ const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndCl
  */
 const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => (
     <div className="flex-1 rounded-2xl bg-paper p-4 ring-1 ring-line-divider">
-        <p className="text-caption font-semibold uppercase tracking-wide text-ink">{heading}</p>
+        <p className="text-label text-ink">{heading}</p>
         {savedLine !== undefined && <p className="text-body-sm text-ink-muted">{savedLine}</p>}
     </div>
 );
@@ -214,7 +214,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
         return (
             <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
-                <h2 className="font-display text-heading-lg font-semibold text-ink">{conflict.mergeHeading}</h2>
+                <h2 className="text-section-title text-ink">{conflict.mergeHeading}</h2>
                 <p className="text-body-md text-ink-muted">{conflict.mergeExplanation}</p>
                 {staleWarning}
                 <div className="flex flex-col gap-3">
@@ -230,7 +230,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 aria-label={conflictRowName(row, conflict)}
                                 className="flex flex-col gap-2 rounded-2xl bg-paper p-4 ring-1 ring-line-divider"
                             >
-                                <legend className="text-caption uppercase tracking-wide text-ink-muted">{label}</legend>
+                                <legend className="text-label text-ink-muted">{label}</legend>
                                 {/* Server FIRST, then Yours (X7). */}
                                 {(['theirs', 'mine'] as const).map((side) => (
                                     <label key={side} className="flex items-start gap-2 text-body-md text-ink">
@@ -281,7 +281,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     return (
         <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
             <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
-            <h2 className="font-display text-heading-lg font-semibold text-ink">{conflict.heading}</h2>
+            <h2 className="text-section-title text-ink">{conflict.heading}</h2>
             <p className="text-body-md text-ink-muted">{conflict.explanation}</p>
 
             {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
@@ -338,7 +338,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
             {diff.rows.length > 0 ? (
                 <section aria-label={conflict.changedFieldsHeading} className="flex flex-col gap-3">
-                    <h3 className="font-display text-heading-sm font-semibold text-ink">
+                    <h3 className="text-section-title text-ink">
                         {conflict.changedFieldsHeading}
                     </h3>
                     <ul className="flex flex-col gap-2">
@@ -355,7 +355,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                     >
                                         {conflictMarkerGlyph(row.marker, conflict)}
                                     </span>
-                                    <span className="text-caption uppercase tracking-wide text-ink-muted">
+                                    <span className="text-label text-ink-muted">
                                         {conflictRowLabel(row, conflict)}
                                     </span>
                                 </div>

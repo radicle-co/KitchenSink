@@ -307,7 +307,7 @@ for (const [scheme, colors] of THEMES) {
                         ).toBe(true);
                     }
 
-                    // F9: the group overlines.
+                    // F9: the group labels.
                     await expect(page.getByRole('heading', { level: 3, name: 'For the lamb' })).toBeVisible();
 
                     // F15: below 600 the page gutter is 16 px, the same as a top-level screen.

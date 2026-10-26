@@ -28,6 +28,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -138,11 +139,11 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
 
 const styles = StyleSheet.create({
     header: { gap: 4 },
-    title: { fontSize: 20, fontWeight: '600' },
-    attribution: { fontSize: 14 },
-    body: { fontSize: 15, lineHeight: 22 },
+    title: { ...nativeTokens.type.sectionTitle },
+    attribution: { ...nativeTokens.type.meta },
+    body: { ...nativeTokens.type.body },
     counts: { gap: 8 },
-    note: { fontSize: 13, fontStyle: 'italic' },
-    error: { fontSize: 15 },
+    note: { ...nativeTokens.type.meta, fontStyle: 'italic' },
+    error: { ...nativeTokens.type.body },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
 });

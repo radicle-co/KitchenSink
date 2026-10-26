@@ -230,7 +230,7 @@ const TARGET_DP = 48;
 const styles = StyleSheet.create({
     section: { gap: 10 },
     banner: { borderRadius: 12, flexDirection: 'row', gap: 10, padding: 12 },
-    bannerText: { flex: 1, fontSize: 13 },
+    bannerText: { ...nativeTokens.type.meta, flex: 1 },
     entry: {
         alignItems: 'center',
         borderRadius: 12,
@@ -239,11 +239,11 @@ const styles = StyleSheet.create({
         gap: 8,
         padding: 12,
     },
-    entryText: { flex: 1, fontSize: 13, fontWeight: '500' },
+    entryText: { ...nativeTokens.type.caption, flex: 1 },
     entryBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-    entryBadgeLabel: { fontSize: 12, fontWeight: '600' },
+    entryBadgeLabel: { ...nativeTokens.type.label },
     row: { borderRadius: 10, borderWidth: 1, gap: 8, padding: 10 },
-    rowPhrase: { fontSize: 13, fontWeight: '600' },
+    rowPhrase: { ...nativeTokens.type.label },
     candidates: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     candidate: {
         borderRadius: nativeTokens.radius.full,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     candidateLabel: { fontSize: nativeTokens.fontSize.bodySm },
     disabled: { opacity: 0.6 },
     failedRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    muted: { fontSize: 12 },
-    saved: { fontSize: 13 },
-    error: { fontSize: 13 },
+    muted: { ...nativeTokens.type.meta },
+    saved: { ...nativeTokens.type.meta },
+    error: { ...nativeTokens.type.meta },
 });

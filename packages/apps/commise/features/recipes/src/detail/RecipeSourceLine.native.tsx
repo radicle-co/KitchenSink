@@ -71,22 +71,17 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[1],
     },
-    label: {
-        fontSize: nativeTokens.fontSize.overline,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
+    label: { ...nativeTokens.type.label },
     // RN defaults `flexShrink` to 0, so unbounded user text (`sourceAttribution` has a `min`, no `max`)
     // would take its full intrinsic width and push the link past the screen edge — the same failure the
     // detail's ingredient row already documents.
-    attribution: { flexShrink: 1, fontSize: nativeTokens.fontSize.bodySm },
+    attribution: { ...nativeTokens.type.meta, flexShrink: 1 },
     linkTouch: { flexShrink: 1, minHeight: 44, justifyContent: 'center' },
     // Contrast (WCAG AA): `actionText` is 6.20:1 on the light page, 9.61:1 on the dark one (`darkTheme.md` §3.1). Underlined so the affordance does not
     // ride on colour alone (SC 1.4.1).
     link: {
+        ...nativeTokens.type.caption,
         flexShrink: 1,
-        fontSize: nativeTokens.fontSize.bodySm,
-        fontWeight: '500',
         textDecorationLine: 'underline',
     },
 });

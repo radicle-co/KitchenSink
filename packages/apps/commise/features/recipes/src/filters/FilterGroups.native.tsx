@@ -40,7 +40,7 @@ const GroupName: FC<{ readonly children: string; readonly nameRef?: React.Ref<Te
     const { colors } = useTheme();
 
     return (
-        <Text ref={nameRef} accessibilityRole="header" style={[styles.overline, { color: colors.inkMuted }]}>
+        <Text ref={nameRef} accessibilityRole="header" style={[styles.label, { color: colors.inkMuted }]}>
             {children}
         </Text>
     );
@@ -269,7 +269,6 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
 const styles = StyleSheet.create({
     groups: { gap: nativeTokens.spacing[5] },
     group: { gap: nativeTokens.spacing[2] },
-    overline: { ...nativeTokens.type.overline },
     label: { ...nativeTokens.type.label },
     body: { ...nativeTokens.type.body },
     meta: { ...nativeTokens.type.meta },

@@ -86,7 +86,8 @@ export function typeScaleLiterals(
     const visit = (node: ts.Node): void => {
         if (ts.isPropertyAssignment(node)) {
             const key = nameOf(node.name);
-            const literal = key !== undefined && SIZE_PROPERTIES.has(key) ? numericLiteralOf(node.initializer) : undefined;
+            const literal =
+                key !== undefined && SIZE_PROPERTIES.has(key) ? numericLiteralOf(node.initializer) : undefined;
 
             if (literal !== undefined) {
                 report(node, `${key ?? ''}: ${node.initializer.getText(file)}`);
@@ -109,7 +110,7 @@ export function typeScaleLiterals(
                 ts.isJsxText(node)) &&
             ARBITRARY_TEXT_SIZE.test(node.text)
         ) {
-            report(node, (ARBITRARY_TEXT_SIZE.exec(node.text)?.[0] ?? '').trim());
+            report(node, (ARBITRARY_TEXT_SIZE.exec(node.text)?.[0] ?? '').replace(/^[\s"'`:]+/u, ''));
         }
 
         ts.forEachChild(node, visit);
@@ -125,19 +126,35 @@ describe('the type-scale literal reader', () => {
         { shape: 'a literal font size', source: `const s = { fontSize: 13 };`, found: ['fontSize: 13'] },
         { shape: 'a literal line height', source: `const s = { lineHeight: 22 };`, found: ['lineHeight: 22'] },
         { shape: 'a decimal line height', source: `const s = { lineHeight: 1.5 };`, found: ['lineHeight: 1.5'] },
-        { shape: 'a string-keyed size', source: `const s = { 'fontSize': 13 };`, found: ["fontSize: 13"] },
-        { shape: 'a size behind `as const`', source: `const s = { fontSize: 13 as const };`, found: ['fontSize: 13 as const'] },
+        { shape: 'a string-keyed size', source: `const s = { 'fontSize': 13 };`, found: ['fontSize: 13'] },
+        {
+            shape: 'a size behind `as const`',
+            source: `const s = { fontSize: 13 as const };`,
+            found: ['fontSize: 13 as const'],
+        },
         { shape: 'a size behind parentheses', source: `const s = { fontSize: (13) };`, found: ['fontSize: (13)'] },
-        { shape: 'a nested style', source: `StyleSheet.create({ a: { color: C }, b: { fontSize: 11 } });`, found: ['fontSize: 11'] },
+        {
+            shape: 'a nested style',
+            source: `StyleSheet.create({ a: { color: C }, b: { fontSize: 11 } });`,
+            found: ['fontSize: 11'],
+        },
         { shape: 'a JSX size attribute', source: `const e = <Text fontSize={13} />;`, found: ['fontSize={13}'] },
         { shape: 'an arbitrary px class', source: `const c = 'flex text-[13px] gap-2';`, found: ['text-[13px]'] },
         { shape: 'an arbitrary rem class', source: 'const c = `text-[0.8125rem] ${x}`;', found: ['text-[0.8125rem]'] },
         { shape: 'a variant arbitrary class', source: `const c = "medium:text-[15px]";`, found: ['text-[15px]'] },
-        { shape: 'an arbitrary class in JSX text', source: `const e = <p className="text-[12px]">x</p>;`, found: ['text-[12px]'] },
+        {
+            shape: 'an arbitrary class in JSX text',
+            source: `const e = <p className="text-[12px]">x</p>;`,
+            found: ['text-[12px]'],
+        },
         { shape: 'a token size', source: `const s = { fontSize: nativeTokens.fontSize.bodySm };`, found: [] },
         { shape: 'a role spread', source: `const s = { ...nativeTokens.type.meta };`, found: [] },
         { shape: 'a computed size', source: `const s = { fontSize: base * 2 };`, found: [] },
-        { shape: 'an unrelated number', source: `const s = { fontWeight: 600, flexShrink: 1, minWidth: 96 };`, found: [] },
+        {
+            shape: 'an unrelated number',
+            source: `const s = { fontWeight: 600, flexShrink: 1, minWidth: 96 };`,
+            found: [],
+        },
         { shape: 'a size in a comment', source: `// { fontSize: 13 } text-[13px]\nconst s = {};`, found: [] },
         { shape: 'a size in a string', source: `const s = "{ fontSize: 13 }";`, found: [] },
         { shape: 'a role class', source: `const c = 'text-meta text-body-sm';`, found: [] },

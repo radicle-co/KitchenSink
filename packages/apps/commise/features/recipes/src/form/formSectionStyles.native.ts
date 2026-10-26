@@ -17,17 +17,11 @@ export const styles = StyleSheet.create({
     fieldLabel: { ...nativeTokens.type.label },
     input: { ...fieldGeometry },
     // Plan 002 V1 — a row's explanation in its status sheet: body copy.
-    panelText: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        lineHeight: nativeTokens.fontSize.bodySm * nativeTokens.lineHeight.body,
-    },
+    panelText: { ...nativeTokens.type.meta },
     // Plan 002 V1 B5 — the nutrition panel's layout: a stack, and one row per labelled figure.
     panelStack: { gap: nativeTokens.spacing[2] },
     panelFigures: { gap: nativeTokens.spacing[1] },
     panelFigureRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: nativeTokens.spacing[4] },
-    panelFigureLabel: {
-        fontSize: nativeTokens.fontSize.caption,
-        lineHeight: nativeTokens.fontSize.caption * nativeTokens.lineHeight.caption,
-    },
+    panelFigureLabel: { ...nativeTokens.type.caption },
     addAction: { alignSelf: 'flex-start' },
 });

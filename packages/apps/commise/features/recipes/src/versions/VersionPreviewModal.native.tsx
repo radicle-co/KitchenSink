@@ -21,6 +21,7 @@
  *     padding, rendering the same controlled contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Button } from '@commise/ui/button';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
@@ -236,17 +237,17 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-    title: { fontSize: 20, fontWeight: '600' },
-    body: { fontSize: 15, lineHeight: 22 },
-    error: { fontSize: 15 },
+    title: { ...nativeTokens.type.sectionTitle },
+    body: { ...nativeTokens.type.body },
+    error: { ...nativeTokens.type.body },
     cannotRestore: { fontWeight: '600' },
     scroll: { flex: 1 },
     scrollContent: { gap: 16 },
     fields: { gap: 6 },
     field: { flexDirection: 'row', gap: 8 },
-    fieldLabel: { fontSize: 14, fontWeight: '600', minWidth: 96 },
-    fieldValue: { fontSize: 14, flexShrink: 1 },
-    sectionHeading: { fontSize: 16, fontWeight: '600' },
+    fieldLabel: { ...nativeTokens.type.label, minWidth: 96 },
+    fieldValue: { ...nativeTokens.type.meta, flexShrink: 1 },
+    sectionHeading: { ...nativeTokens.type.cardTitle },
     ingredients: { gap: 4 },
     ingredientRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
     // RN defaults `flexShrink` to 0, so a long composed line (quantity + unit + a user-supplied ingredient
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
     stepText: { flexShrink: 1 },
     // The line and its dotted line stack, 4 dp apart (§S4a), and yield width to the calorie chip together.
     ingredientLine: { flexShrink: 1, gap: 4 },
-    calories: { flexShrink: 0, fontSize: 14 },
-    changedNote: { fontSize: 13, fontStyle: 'italic' },
+    calories: { ...nativeTokens.type.meta, flexShrink: 0 },
+    changedNote: { ...nativeTokens.type.meta, fontStyle: 'italic' },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
 });

@@ -32,7 +32,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fillTemplate } from '../format/fillTemplate.js';

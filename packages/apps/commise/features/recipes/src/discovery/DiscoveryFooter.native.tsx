@@ -55,7 +55,7 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
             <View style={styles.row}>
                 {initial === undefined ? null : (
                     <View style={[styles.avatar, { backgroundColor: colors.selectedFill }]}>
-                        <Text accessible={false} style={[styles.overline, { color: colors.actionText }]}>
+                        <Text accessible={false} style={[styles.initial, { color: colors.actionText }]}>
                             {initial}
                         </Text>
                     </View>
@@ -101,7 +101,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    overline: { fontSize: 11, fontWeight: '600' },
+    // `label` is 14 / 20: the 20 px leading fills the 20 px disc exactly.
+    initial: { ...nativeTokens.type.label },
     by: { ...nativeTokens.type.meta, flex: 1, minWidth: 0 },
     button: {
         width: 44,

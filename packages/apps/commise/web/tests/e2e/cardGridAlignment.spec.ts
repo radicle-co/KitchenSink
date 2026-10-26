@@ -147,7 +147,7 @@ test.describe('recipe cards — W-06: a one-line meta row is exactly one line', 
         const card = page.getByRole('article', { name: 'Lamb' });
         await expect(card).toHaveAttribute('data-card-variant', 'row');
 
-        // The visible cuisine is the meta line's. The 80 px cover's monogram holds the cuisine too, as an overline it shows
+        // The visible cuisine is the meta line's. The 80 px cover's monogram holds the cuisine too, as a caption it shows
         // only on a cover 96 px tall or more, so here it is in the DOM and hidden.
         const line = card
             .getByText('Mediterranean')

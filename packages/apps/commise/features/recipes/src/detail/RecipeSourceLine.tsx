@@ -38,7 +38,7 @@ export const RecipeSourceLine: FC<RecipeSourceLineProps> = ({ sourceUrl, sourceA
 
     return (
         <section aria-label={detail.sourceHeading} className="flex flex-wrap items-baseline gap-2 px-1">
-            <span className="text-caption uppercase tracking-wide text-ink-muted">{detail.sourceHeading}</span>
+            <span className="text-label text-ink-muted">{detail.sourceHeading}</span>
             {/* `min-w-0 break-words`: attribution is unbounded user text (`z.string().min(1)`, no ceiling),
                 so it must yield the row's width rather than push the link off the edge. */}
             {attribution !== undefined && (

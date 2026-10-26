@@ -45,7 +45,7 @@ export const DiscoveryRecentSearches: FC<DiscoveryRecentSearchesProps> = ({
     return (
         <View style={[styles.panel, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
             <View style={styles.header}>
-                <Text accessibilityRole="header" style={[styles.overline, { color: colors.inkMuted }]}>
+                <Text accessibilityRole="header" style={[styles.heading, { color: colors.inkMuted }]}>
                     {discovery.recentSearchesLabel}
                 </Text>
                 <Button
@@ -77,7 +77,7 @@ export const DiscoveryRecentSearches: FC<DiscoveryRecentSearchesProps> = ({
 };
 
 const styles = StyleSheet.create({
-    overline: { ...nativeTokens.type.overline },
+    heading: { ...nativeTokens.type.label },
     body: { ...nativeTokens.type.body },
     panel: {
         flexShrink: 1,

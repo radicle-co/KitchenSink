@@ -188,8 +188,8 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('1.5 lbs')).toBeTruthy();
     });
 
-    // F9 (`evaluateFinal.md`), parity with web: each group of lines sits under its overline heading, in stored order.
-    it('draws each ingredient group under its overline heading, in stored order', () => {
+    // F9 (`evaluateFinal.md`), parity with web: each group of lines sits under its label heading, in stored order.
+    it('draws each ingredient group under its label heading, in stored order', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}

@@ -409,8 +409,9 @@ describe('RecipeCard (native) — W-06 / A-028: a one-line row is exactly one li
         );
 
         expect(getComputedStyle(metaLineOf('Moroccan')).height).toBe('40px');
-        // The badge line also holds the rating's meta text, which is taller than the badge's word at this scale.
-        expect(getComputedStyle(badgeLineOf('Easy')).height).toBe('40px');
+        // REWRITTEN for the px type scale (2026-10-25): the badge's word (caption, 20 pt like meta) plus its padding,
+        // 20 × 2 + 4, is taller than the meta text beside it at this scale. It was the meta text that decided (40).
+        expect(getComputedStyle(badgeLineOf('Easy')).height).toBe('44px');
     });
 
     it('keeps the 24 pt badge line at the default scale', () => {

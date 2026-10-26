@@ -94,7 +94,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                     className="flex flex-col gap-2 rounded-md border border-line-divider bg-paper p-3 shadow-sm"
                 >
                     <div className="flex items-center justify-between gap-3">
-                        <p className="text-overline uppercase text-ink-muted">{discovery.recentSearchesLabel}</p>
+                        <p className="text-label text-ink-muted">{discovery.recentSearchesLabel}</p>
                         <Button
                             variant="ghost"
                             size="sm"

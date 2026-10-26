@@ -23,6 +23,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 import { Button } from '@commise/ui/button';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -418,16 +419,16 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
 const styles = StyleSheet.create({
     container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
-    heading: { fontSize: 20, fontWeight: '600' },
-    explanation: { fontSize: 14 },
+    heading: { ...nativeTokens.type.sectionTitle },
+    explanation: { ...nativeTokens.type.meta },
     banner: {
         borderRadius: 16,
         borderWidth: 1,
         padding: 16,
         gap: 4,
     },
-    bannerLine: { fontSize: 15 },
-    discardLabel: { fontSize: 14, fontWeight: '600' },
+    bannerLine: { ...nativeTokens.type.body },
+    discardLabel: { ...nativeTokens.type.label },
     versionCardRow: { flexDirection: 'row', gap: 12 },
     versionCard: {
         flex: 1,
@@ -436,20 +437,15 @@ const styles = StyleSheet.create({
         padding: 16,
         gap: 4,
     },
-    versionCardHeading: {
-        fontSize: 11,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    versionCardLine: { fontSize: 14 },
+    versionCardHeading: { ...nativeTokens.type.label },
+    versionCardLine: { ...nativeTokens.type.meta },
     staleWarning: {
         borderRadius: 16,
         borderWidth: 1,
         padding: 16,
         gap: 8,
     },
-    staleWarningText: { fontSize: 14 },
+    staleWarningText: { ...nativeTokens.type.meta },
     optionCard: {
         borderRadius: 16,
         borderWidth: 1,
@@ -457,17 +453,17 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     optionCardDisabled: { opacity: 0.5 },
-    optionTitle: { fontSize: 17, fontWeight: '600' },
-    optionDescription: { fontSize: 13 },
+    optionTitle: { ...nativeTokens.type.cardTitle },
+    optionDescription: { ...nativeTokens.type.meta },
     group: {
         borderRadius: 16,
         borderWidth: 1,
         padding: 16,
         gap: 8,
     },
-    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
-    summary: { fontSize: 14, fontWeight: '600' },
-    subheading: { fontSize: 15, fontWeight: '600' },
+    fieldLabel: { ...nativeTokens.type.label },
+    summary: { ...nativeTokens.type.label },
+    subheading: { ...nativeTokens.type.cardTitle },
     changedFields: { gap: 8 },
     changedFieldRow: {
         borderRadius: 16,
@@ -476,10 +472,10 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     changedFieldRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    marker: { fontSize: 13, fontVariant: ['tabular-nums'] },
-    changedFieldValue: { fontSize: 14 },
+    marker: { ...nativeTokens.type.meta, fontVariant: ['tabular-nums'] },
+    changedFieldValue: { ...nativeTokens.type.meta },
     legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
-    legendEntry: { fontSize: 12 },
+    legendEntry: { ...nativeTokens.type.meta },
     // `flex-start`: the dot sits on the first line when the value wraps or a dotted line follows it.
     option: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
     // `flexShrink: 1`: React Native defaults it to 0, so beside the dot the text would not wrap inside the row.
@@ -490,6 +486,6 @@ const styles = StyleSheet.create({
         borderRadius: 9,
         borderWidth: 2,
     },
-    optionLabel: { fontSize: 15, flexShrink: 1 },
+    optionLabel: { ...nativeTokens.type.body, flexShrink: 1 },
     action: { alignSelf: 'flex-start', marginTop: 4 },
 });

@@ -232,7 +232,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 <header className={`flex min-w-0 flex-col gap-3 ${noPhoto ? HEADER_UNDER_BAND : HEADER_BESIDE_PHOTO}`}>
                     {back}
                     {meta.length > 0 && (
-                        <p className="flex flex-wrap gap-x-2 text-overline text-ink-muted">
+                        <p className="flex flex-wrap gap-x-2 text-meta text-ink-muted">
                             {meta.map((item, index) => (
                                 <span key={item}>
                                     {index > 0 && <span aria-hidden="true">· </span>}
@@ -455,11 +455,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             actionLabel={detail.addIngredients}
                         />
                     ) : (
-                        // A group is an overline over its run of lines (§6.1, F9); an ungrouped recipe draws one list.
+                        // A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list.
                         ingredientGroupRuns(scaled.ingredients).map((run, index) => (
                             <div key={`${run.label ?? ''}-${String(index)}`} className="flex flex-col gap-1">
                                 {run.label !== undefined && (
-                                    <h3 className="pt-2 text-overline text-ink-muted">{run.label}</h3>
+                                    <h3 className="pt-2 text-label text-ink-muted">{run.label}</h3>
                                 )}
                                 <ul className="flex flex-col">
                                     {run.lines.map((ingredient) => (

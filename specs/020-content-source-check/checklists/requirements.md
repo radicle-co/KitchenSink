@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,10 +31,9 @@
 
 ## Notes
 
-- Two markers remain on purpose, both owner choices with a recommended answer: Q1 (FR-006, are uploaded images
-  checked) and Q2 (FR-016, what a `possible` outcome does). The plan uses the recommended answers as labelled working
-  assumptions until the owner answers.
+- Both markers are resolved by the owner (2026-10-26). Q1: photos are in scope, and any photo signal goes to a person.
+  Q2: a person decides the unsure case. The spec also routes `unchecked` to a person, as a reading of the Q1 ruling,
+  and says so in Clarifications.
 - Some names of existing artefacts appear because the spec amends them: `004-FR-014a`, `016-FR-018`,
-  `visibilityPolicy.ts`, `isRecipeViewableBy`, ADR-0024's grantee rule. They name the contract being changed, not a
-  design choice, so they are kept.
-- The spent-budget case is not a marker. The owner already ruled that AI steps stop and the cook is asked (FR-020).
+  `visibilityPolicy.ts`, `isRecipeViewableBy`, ADR-0024's grantee rule, ADR-0073's slots. They name the contract being
+  changed, not a design choice, so they are kept.

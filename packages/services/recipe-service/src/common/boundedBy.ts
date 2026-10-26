@@ -52,6 +52,7 @@ export async function boundedBy<T>(
             gaveUp = true;
             reject(new DeadlineExceededError());
         };
+
         deadline.addEventListener('abort', onAbort, { once: true });
     });
 

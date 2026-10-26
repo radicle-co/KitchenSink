@@ -8357,7 +8357,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The cuisine, the monogram band's overline.",
+                            "description": "The cuisine, the monogram band's caption.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8431,7 +8431,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The cuisine, the monogram band's overline.",
+                            "description": "The cuisine, the monogram band's caption.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -14566,7 +14566,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/filters/FilterGroups.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/filters",
-                    "moduleDoc": "@commise/features-recipes/filters — the web filter groups (`docs/design/uiOverhaul/buildSpec.md` §4.4): the\nONE facet tree that the Discover panel and the filter sheet both draw. The container renders exactly one of them, so\nthere is one set of names for assistive technology to find.\n\nEach group is a named `group` (or, for a time ladder, a `radiogroup`) with its name as an overline above it. The name\nlives once in the accessibility tree — on the row — and the visible overline is hidden from it, so a screen reader\ndoes not say \"Dietary, Dietary\". Total time is a choice with an \"Any\"; prep and cook time sit behind one native\ndisclosure; a chip group shows twelve chips then \"Show all ({n})\", and a chosen chip is never behind it; the\ningredient typeahead is a search field with its results and its chosen ingredients as removable chips.\n\nIts state is UI state only: which groups were opened to show all, and focus intent (SC 2.4.3). The result or chip the\ncook pressed unmounts on every ingredient add and removal, so focus moves to whatever then holds the search slot once\nthe press lands (`useIngredientPressLanding`); a filter a URL fills moves nothing.\n\nPresentational: it draws the facet groups from the view and reports every change.",
+                    "moduleDoc": "@commise/features-recipes/filters — the web filter groups (`docs/design/uiOverhaul/buildSpec.md` §4.4): the\nONE facet tree that the Discover panel and the filter sheet both draw. The container renders exactly one of them, so\nthere is one set of names for assistive technology to find.\n\nEach group is a named `group` (or, for a time ladder, a `radiogroup`) with its name as a small heading above it. The name\nlives once in the accessibility tree — on the row — and the visible name is hidden from it, so a screen reader\ndoes not say \"Dietary, Dietary\". Total time is a choice with an \"Any\"; prep and cook time sit behind one native\ndisclosure; a chip group shows twelve chips then \"Show all ({n})\", and a chosen chip is never behind it; the\ningredient typeahead is a search field with its results and its chosen ingredients as removable chips.\n\nIts state is UI state only: which groups were opened to show all, and focus intent (SC 2.4.3). The result or chip the\ncook pressed unmounts on every ingredient add and removal, so focus moves to whatever then holds the search slot once\nthe press lands (`useIngredientPressLanding`); a filter a URL fills moves nothing.\n\nPresentational: it draws the facet groups from the view and reports every change.",
                     "moduleTags": [
                         {
                             "name": "module",

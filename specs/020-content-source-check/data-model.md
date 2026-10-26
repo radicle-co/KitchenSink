@@ -205,7 +205,9 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
   and an `appealUpheld` each set `recipes.visibility = 'private'` in the same transaction as the decision, under
   ADR-0073's per-user lock. For a person's decision the move never refuses: with no free slot, the cook is over the
   limit, as after a downgrade (ADR-0073 §4). For a `detected` save, no free slot refuses the save
-  (`403 SOURCE_DETECTED_NO_PRIVATE_SLOT`, with ADR-0073's `used` and `limit`), because nothing is saved yet. An overturned appeal moves it back to `public`.
+  (`403 SOURCE_DETECTED_NO_PRIVATE_SLOT`, with ADR-0073's `used` and `limit`), because nothing is saved yet. Only a
+  publish is refused: the same recipe saved as a draft uses no slot (`001-FR-003b`). An overturned appeal moves it back
+  to `public`.
 - **A decided content cannot re-enter review.** A change to public on a recipe whose current digest's latest decision
   is a non-approval is refused (`403 SOURCE_CHECK_NOT_APPROVED`). Edited content has a new digest, so it gets a new check.
 - These moves and refusals apply only to outcomes stamped `enforced = true` (spec FR-019).
@@ -362,9 +364,10 @@ CREATE TABLE recipe_source_decisions (
     automated_detection       boolean      NOT NULL,
     automated_decision        boolean      NOT NULL,
     decided_by                text         NULL,                      -- staff identity; NULL only when automated
-    ground                    text         NOT NULL,                  -- closed set, cook-facing (spec FR-027)
+    rejection_reason          text         NULL,                      -- a person's rejection: one of spec FR-027's keys
     facts                     jsonb        NOT NULL,                  -- evidence kinds, fields and listed markers
-    reviewer_note             text         NULL,                      -- staff only; never shown to the cook
+    cook_note                 text         NULL,                      -- shown to the cook word for word (FR-027)
+    staff_note                text         NULL,                      -- staff only; never shown to the cook
     appeal_reason             text         NULL,                      -- the cook's words on the appeal decided here
     decided_at                timestamptz  NOT NULL,
     statement_in_app_at       timestamptz  NULL,
@@ -374,8 +377,12 @@ CREATE TABLE recipe_source_decisions (
     purge_after               timestamptz  NOT NULL,
     CONSTRAINT recipe_source_decisions_kind_check CHECK (kind IN (
         'automatedHold', 'referralCleared', 'referralNotApproved', 'appealOverturned', 'appealUpheld', 'auditRestriction')),
-    CONSTRAINT recipe_source_decisions_ground_check CHECK (ground IN (
-        'rightsToUpload', 'publishedSourceEvidence', 'sourceNotConfirmed', 'ownWorkConfirmed', 'publicSourceConfirmed')),
+    CONSTRAINT recipe_source_decisions_reason_check CHECK (rejection_reason IS NULL OR rejection_reason IN (
+        'book', 'paidSite', 'notYours', 'printedPage', 'other')),
+    CONSTRAINT recipe_source_decisions_reason_iff_person_rejection CHECK (
+        (rejection_reason IS NOT NULL) = (kind IN ('referralNotApproved', 'appealUpheld', 'auditRestriction'))),
+    CONSTRAINT recipe_source_decisions_notes_only_from_a_person CHECK (
+        automated_decision = false OR (cook_note IS NULL AND staff_note IS NULL)),
     CONSTRAINT recipe_source_decisions_person_unless_automated
         CHECK (automated_decision = (decided_by IS NULL)),
     CONSTRAINT recipe_source_decisions_only_detected_is_automated
@@ -384,8 +391,10 @@ CREATE TABLE recipe_source_decisions (
         text_fingerprint IS NULL
         OR (kind IN ('automatedHold', 'referralNotApproved', 'appealUpheld', 'auditRestriction')
             AND text_fingerprint LIKE 'v1:%')),
-    CONSTRAINT recipe_source_decisions_note_length
-        CHECK (reviewer_note IS NULL OR char_length(reviewer_note) <= 2000),
+    CONSTRAINT recipe_source_decisions_cook_note_length
+        CHECK (cook_note IS NULL OR char_length(cook_note) <= 2000),
+    CONSTRAINT recipe_source_decisions_staff_note_length
+        CHECK (staff_note IS NULL OR char_length(staff_note) <= 2000),
     CONSTRAINT recipe_source_decisions_appeal_length
         CHECK (appeal_reason IS NULL OR char_length(appeal_reason) <= 2000)
 );
@@ -397,11 +406,19 @@ CREATE INDEX recipe_source_decisions_hold_hash ON recipe_source_decisions (text_
 - Two automated-means facts, because DSA Art. 17(3)(c) asks about both: was the content found by automated means, and
   was the decision taken by them. A person's hold after a check referral is `automated_detection = true`,
   `automated_decision = false`.
-- **The ground is a closed set** with a localised cook-facing text each. The reviewer's own words go in
-  `reviewer_note`, a string in the request and `text` here, the same type at both ends (review M4). The note never
-  reaches the cook, so a reviewer cannot disclose another cook's private recipe by typing it (spec FR-027, FR-051).
-- **`facts` never names a match.** A match fact is the one generic fact, "our records do not confirm where this recipe
-  came from", whether the match was public, private or a source decision.
+- **A rejection carries one reason** (spec FR-027, owner ruling 2026-10-26): `book`, `paidSite`, `notYours`,
+  `printedPage` or `other`, each a localisation key under `recipe.review.reason.*`. A CHECK ties the reason to a
+  person's rejection, so an approval and an automated hold carry none.
+- **`notYours` is only for a public match.** The decision route accepts it only when the referral has a recipe match
+  whose matched recipe is another cook's and is public when the decision is saved. It refuses any reason it did not
+  offer with `422 SOURCE_CHECK_REASON_NOT_OFFERED`. The check reads `recipes.visibility` and `status` of
+  `recipe_source_check_matches.matched_recipe_id` inside the decision's transaction, so a recipe made private after
+  the screen loaded is caught.
+- **Two notes, one for the cook and one for staff.** `cook_note` is shown to the cook word for word, under a staff
+  guideline never to name, link or describe another cook or recipe. `staff_note` never reaches the cook. Both are
+  strings in the request and `text` here (review M4).
+- **`facts` never names a match.** It holds evidence kinds, fields and listed markers. The cook-facing statement takes
+  the reason's text and the cook note, never a matched recipe.
 - **The hash is kept only on a hold** (review M4). A clearance keeps none, so after erasure a kept hash can only ever
   produce FR-047 row 2: a person decides. It is versioned (`v1:`), so a change of normalisation never makes an old hash
   silently match nothing or match the wrong thing.

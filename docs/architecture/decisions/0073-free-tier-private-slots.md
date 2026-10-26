@@ -41,7 +41,7 @@ This reverses 001 FR-003's "free-tier recipes are always public". It decides D4a
 
 ### 2. A slot is a private recipe the cook owns, counted live
 
-A used slot is one row in `recipes` where all three hold:
+A used slot is one row in `recipes` where all of these hold:
 
 - `owner_id` is the cook.
 - `visibility = 'private'`.
@@ -49,9 +49,9 @@ A used slot is one row in `recipes` where all three hold:
   its slot at once.
 
 Every label counts: `user_created`, `imported_physical`, `imported_paid`, and an `imported_public` recipe made private
-while the cook had Premium. Status does not matter. A private draft holds a slot, because a draft is still a recipe the
-cook holds as private. Bulk import saves each recipe as a draft (ADR-0072 §3), so this is what makes the import pause
-work.
+while the cook had Premium. **Status matters: a draft holds no slot** (owner ruling, 2026-10-26, §12). So a fourth
+condition holds for every used slot: `status = 'published'`. The existing index serves it, because a cook's own rows
+are few.
 
 **The count is a live `COUNT(*)` over those rows.** It is never a stored counter. A counter is a second copy of a
 fact that the `recipes` table already holds. Each path that writes a recipe must then keep the counter in step: create,
@@ -62,10 +62,10 @@ delete, erase, purge, clone and every change of visibility. One missed path make
 
 The slot fact matters only on a move **to** private. These are the moves:
 
-- A new recipe created private, by the editor, a paste, a photo import or a URL import.
-- A recipe set to private by the set-visibility endpoint.
-- A clone or an owner's own copy that lands private.
-- A bulk import item saved private.
+- A new recipe created private and published, by the editor, a paste, a photo import or a URL import.
+- A published recipe set to private by the set-visibility endpoint.
+- A private draft published, which is how a private clone, an owner's own copy and a bulk import item come to hold a
+  slot (§12). Saving any of them as a draft never checks slots.
 
 Editing a recipe that is already private never checks slots. Making a recipe public never checks slots. It frees one.
 When the live count is below the limit, a free cook has a free slot.
@@ -144,6 +144,12 @@ compile until it decides what the fact is. With a default, a site can keep the o
 
 This extends ADR-0072 §9.
 
+⚠️ **Owner ruling, 2026-10-26 (§12): a draft holds no slot, and bulk import saves every item as a draft** (ADR-0072
+§3). So `advance` never takes a slot, and there is nothing for this pause to count at import time. The slot is taken
+when the cook publishes a private item, and that publish is refused with `PRIVATE_SLOTS_FULL` when no slot is free.
+Whether the import should still warn ahead of time is for the owner to confirm. The rules below describe the pause as
+first ruled.
+
 - When `advance` reaches an item the cook chose to keep private, it counts slots under the lock (§5). If the cook has
   no free slot, it does not save that item or any later private item. It still saves items chosen public.
 - The import view reports the pause, with `used` and `limit`. The pause is **derived** from the live count on each
@@ -199,8 +205,24 @@ some recipes for a person to review.
 - **Leaving review for Private is an ordinary move to private.** It needs a free slot, as §3 requires.
 - So review is never a free private store: a person's decision always ends it, the same content cannot enter it again,
   and a recipe keeps its queue place across edits.
-- **Open, for the owner.** A public draft is still owner-only and uses no slot, and a cook may move a recipe from review
-  back to Draft. Whether a public draft should count against the private limit is OPEN, for the owner: counting it changes what a slot means, which this ADR calls a one-way door.
+- **The Draft exit is closed by §12.** A cook may move a recipe from review back to Draft, and a draft uses no slot,
+  but a draft can be used for nothing except editing. So it is not a free private store.
+
+### 12. A draft uses no slot, and a draft can be used for nothing but editing
+
+Owner ruling, 2026-10-26, recorded in spec 001 FR-003b:
+
+- A draft (status `draft`, any visibility) uses no private slot.
+- It cannot be used in meal planning, collections, the planned AI assistant, cooking mode, or sending its ingredients
+  to a shopping list. Opening a draft always opens the editor.
+- Drafts are hidden, with no note, in the plan, collection and shopping-list pickers.
+- "AI features" means the planned AI assistant only. Parsing and the ingredient-match review keep working on drafts.
+
+This reverses §2's earlier "a private draft holds a slot". It also answers the reason the Alternatives below gave for
+refusing to exempt drafts, that a cook could keep any number of private recipes by never publishing them. They still
+can, but only as text in an editor. A recipe they can plan, cook, collect or shop from is published, and a private
+published recipe holds a slot. The slot is now checked when a private draft is published (§3). Nothing is live, so no
+cook holds a recipe whose slot status this changes.
 
 ## Consequences
 
@@ -219,7 +241,8 @@ some recipes for a person to review.
 
 - **`PRIVATE_SLOTS_FULL`, its status and its `used` and `limit` fields.** Installed clients read them. A new fact is
   a new field.
-- **The meaning of a slot**: a private recipe that is not deleted. Cooks plan around it. A change to what counts,
+- **The meaning of a slot**: a private, published recipe that is not deleted (§12 left drafts out before anything was
+  live). Cooks plan around it. A change to what counts,
   such as leaving out drafts or book recipes, changes what a cook already holds.
 - **The 50.** Raising it is free. Lowering it leaves cooks over the limit. They keep their recipes but cannot add
   more.
@@ -277,8 +300,9 @@ some recipes for a person to review.
   for serialization failures. The advisory lock is the house pattern and needs no retry.
 - **Exempting book and paid-site recipes from slots.** 015's FR-007d proposed it, marked "flag for confirmation". The
   owner ruled the other way.
-- **Exempting drafts.** A private draft is still a recipe nobody else can see. With drafts exempt, a cook keeps
-  any number of private recipes by never publishing them.
+- **Counting drafts.** Chosen first, and reversed by the owner (§12). A draft held a slot because, with drafts exempt,
+  a cook could keep any number of private recipes by never publishing them. The owner instead made a draft usable for
+  nothing but editing, which removes that store without metering a recipe the cook is still writing.
 - **Making recipes public on a downgrade.** It publishes content the cook chose to keep private, on a billing event.
 - **Making a book or paid-site item public as a way out of the pause.** FR-014a's own rule forbids it. Such a
   recipe can never go public.

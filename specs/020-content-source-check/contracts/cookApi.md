@@ -30,6 +30,10 @@ sourceCheck: null                         // only when the current digest has no
                  queueSince: string       // ISO 8601: when it first entered review. No decision time is promised
                  decidedAt: string | null
                }
+               rejection: null | {        // only when a PERSON did not approve it (spec FR-027)
+                 reason: 'book' | 'paidSite' | 'notYours' | 'printedPage' | 'other'   // recipe.review.reason.*
+                 note: string | null      // the reviewer's note, word for word
+               }
                canAppeal: boolean         // not approved, and no appeal used for this digest
                statementId: string | null // the statement of reasons, when one was issued
              }
@@ -39,14 +43,15 @@ sourceCheck: null                         // only when the current digest has no
   a check, not approved (which is private, and still carries `cookState: 'notApproved'`, `canAppeal` and
   `statementId`), or a bulk-imported draft whose check has run (spec FR-024a). It is `null` only for a recipe never
   headed public, such as a plain private recipe or a draft the cook never meant to publish.
-- **One message for every cause** (owner ruling, 2026-10-26, spec FR-016c). For `inReview` the response carries no
+- **One message for every cause while in review** (owner ruling, 2026-10-26, spec FR-016c). For `inReview` the response carries no
   outcome value, no reason, no part results and no evidence. Every cause, from a page reference to a photo signal, a
   match in our database (public or private), a source decision, a spent budget or a failed check, gives the same
   response. The client shows "In review: a person will check this before it goes public".
 - **`notApproved` by the rules** carries the rule evidence the cook's own text holds, because the rules read only the
   cook's own content and the statement of reasons names it. A model item is never shown, because it never blocks.
-- **`notApproved` by a person** carries no evidence. The statement of reasons gives a generic ground and never names
-  what matched (spec FR-028).
+- **`notApproved` by a person** carries `rejection`: the one reason the reviewer chose and their note, word for word
+  (owner ruling, 2026-10-26, spec FR-027). It never names or links another recipe, and `notYours` can only come from a
+  match against a public recipe. "In review" and "Checking" stay generic.
 - **Checking.** Before the outcome's `reveal_at`, the response reads `cookState: 'checking'` and `publiclyVisible:
 false`, whatever the worker has written (spec FR-051's timing floor). A rule-only `detected` is decided in the save,
   so its response is `notApproved` at once.
@@ -61,8 +66,9 @@ false`, whatever the worker has written (spec FR-051's timing floor). A rule-onl
 ### Refusals the cook can meet (spec FR-018)
 
 ```text
-403 SOURCE_DETECTED_NO_PRIVATE_SLOT   a save the rules block, by a free cook with no free private slot. Carries the
-                                      evidence and ADR-0073's used and limit. Nothing is saved.
+403 SOURCE_DETECTED_NO_PRIVATE_SLOT   a publish the rules block, by a free cook with no free private slot. Carries
+                                      the evidence and ADR-0073's used and limit. Nothing is saved. Saving it as a
+                                      draft is always allowed, because a draft uses no slot (001-FR-003b).
 403 SOURCE_CHECK_NOT_APPROVED         a change to public of content whose review ended without approval
 403 PRIVATE_SLOTS_FULL                a move from In review to Private with no free slot (ADR-0073 owns this code)
 ```

@@ -144,7 +144,7 @@ notice. It is saved, never visible to a signed-out viewer, shows the evidence to
    approved" and becomes private, no AI call is made, and the cook sees each piece of evidence and where it is.
 3. **Given** the same recipe and a free cook with no private slot free, **When** it is saved, **Then** the save is
    refused, as ADR-0073 refuses a book recipe with no slot, and the cook is shown the evidence and how to free a slot
-   (FR-018).
+   (FR-018). They can still save it as a draft, which uses no slot.
 4. **Given** a `detected` recipe, **When** the cook changes their statement to "From a source" with a book citation,
    **Then** the label becomes `imported_physical` and the recipe stays private (FR-015a).
 5. **Given** a recipe whose content holds no evidence at all, **When** the check finishes, **Then** the outcome is
@@ -215,7 +215,8 @@ reasons.
    visible, and the decision records who decided, when and why.
 5. **Given** a referral, **When** a reviewer does not approve it, **Then** review ends, the recipe becomes the cook's
    private recipe, even with no free slot, and the cook receives a statement of reasons. It says an automated check
-   flagged the recipe and a person decided, gives a generic ground, and never names what matched (FR-014a, FR-028).
+   flagged the recipe and a person decided, gives the one reason the reviewer chose and any note they added, and never
+   names or links another recipe (FR-014a, FR-027, FR-028).
 6. **Given** a referral nobody has decided yet, however old, **When** anyone reads the recipe, **Then** it is still
    hidden. Age never publishes a recipe.
 7. **Given** a recipe whose text and source reference pass green and whose one photo the AI saw nothing in, **When** the
@@ -572,6 +573,23 @@ bind.
 - **The strict text rule stands.** Text is green only when the model raised nothing at all, consistent with the
   all-green rule (FR-013a).
 
+### Session 2026-10-26 (sixth round: rejection reasons and drafts)
+
+The owner ruled the same day. The rulings are quoted as the coordinator relayed them, and they bind.
+
+- **A person's rejection tells the cook why.** It overrides "one generic message for every cause" for the rejection
+  only. "In review" and "Checking" stay generic. The reviewer picks one reason from a fixed list and may add a note.
+  The other recipe is never named or linked. The label stays "Not approved", and the appeal is unchanged. The list is
+  in FR-027. The coordinator added one constraint to keep the private-recipe ruling: `notYours` may be chosen only
+  when the matched recipe is public, and the reviewer screen does not offer it for a match against another cook's
+  private recipe. The note is shown to the cook word for word, with a staff guideline never to identify another cook
+  or recipe (FR-027, FR-028).
+- **Drafts.** A draft uses no private slot. It cannot be used in meal planning, collections, the planned AI assistant,
+  cooking mode, or sending its ingredients to a shopping list, and opening it always opens the editor. Drafts are
+  hidden, with no note, in the plan, collection and shopping-list pickers. "AI features" means the planned AI
+  assistant only; parsing and the ingredient-match review keep working on drafts. This is recorded in
+  `001-FR-003b` and ADR-0073 §12, and it closes the Draft-path question.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -777,7 +795,8 @@ bind.
   before it goes public", the same for every cause: an item in the text, a photo signal, a source reason, a match, a
   spent budget, a failed check. They MUST NOT see part results, reasons or the outcome value, so the cause cannot be
   inferred (owner ruling, 2026-10-26). No decision time is promised (FR-030). They MUST NOT be asked to confirm their
-  statement instead.
+  statement instead. "Checking" is generic in the same way. A person's **rejection** is the one exception: it tells the
+  cook why (FR-027).
 - **FR-017**: A person's decision on a referral, and the cook's appeal reason, MUST be recorded with its time, the
   outcome it answered and the evidence shown. They are part of the per-item attestation record (`004-FR-014a`).
 - **FR-018**: The hold MUST be part of the one rule for who can see a recipe (`isRecipeViewableBy` and its SQL
@@ -791,7 +810,8 @@ bind.
     - bulk import's, for a `detected` item (FR-025);
     - a `detected` save by a free cook with no free private slot, the editor's twin of FR-025 and of ADR-0073's
       refusal of a book recipe with no slot. It answers `403 SOURCE_DETECTED_NO_PRIVATE_SLOT` with ADR-0073's `used`
-      and `limit`. Without it, stating "I wrote this" over a book recipe would buy more
+      and `limit`. It refuses a **publish** only: saving the same recipe as a draft is always allowed, because a draft
+      uses no slot (`001-FR-003b`); Without it, stating "I wrote this" over a book recipe would buy more
       private storage than stating the truth;
     - a change to public of content whose review ended without approval (FR-014a). It answers
       `403 SOURCE_CHECK_NOT_APPROVED`. Editing the content first is always allowed.
@@ -888,9 +908,9 @@ bind.
 - **FR-024a**: An item headed public that is not `detected` MUST be saved as a draft. Its AI check then runs, and its
   outcome is shown when it lands. A `possible` or `unchecked` item creates no referral until the cook publishes it
   (FR-016b).
-- **FR-025**: In a bulk import, a `detected` item MUST NOT be saved as public. The cook MUST be able to keep it private
-  if they have a private slot free (ADR-0073), skip it, or stop the import. With no slot free, only skip and stop are
-  offered. This follows the owner's ruling: a recipe known to be from a book or paid site can only be stopped or
+- **FR-025**: In a bulk import, a `detected` item MUST NOT be saved as public. The cook MUST be able to keep it as a
+  private draft, skip it, or stop the import. A draft uses no private slot (`001-FR-003b`), so keeping it needs no free
+  slot. Publishing it later as private needs one (ADR-0073). This follows the owner's ruling: a recipe known to be from a book or paid site can only be stopped or
   skipped, never made public.
 
 #### F. People, referrals, appeals and statements of reasons
@@ -905,28 +925,47 @@ bind.
   reputation or volunteer path MAY lead to it. Every action is attributed to the individual employee
   (`016-FR-053f`). A staff reviewer's read of a cook's held recipe and its photos is new access to another person's
   content. It MUST pass a security review before it ships, and every read MUST be logged.
-- **FR-027**: Every person's decision MUST record who decided, when, the ground and the facts relied on, and MUST NOT
+- **FR-027**: Every person's decision MUST record who decided, when, the reason and the facts relied on, and MUST NOT
   be saved without them (`016-FR-017`, `016-FR-053b`). No referral is ever decided by the check.
-    - The **ground** is one of a closed set, each with a localised cook-facing text. It is what the cook is told.
-    - The **facts** are the evidence kinds and where they are, taken from the check. A match fact is always the one
-      generic fact "our records do not confirm where this recipe came from", the same for a public match,
-      a private match and a source decision (FR-051).
-    - The reviewer's own words are a **note**: a string, kept on the decision for staff and for 016's evidence, and
-      never shown to the cook. So a reviewer cannot disclose another cook's private recipe by typing it.
+    - **A rejection tells the cook why** (owner ruling, 2026-10-26). A reviewer who does not approve a recipe MUST pick
+      exactly one reason from this fixed list, and MAY add a note:
+
+        | Key (`recipe.review.reason.*`) | What the cook reads                           |
+        | ------------------------------ | --------------------------------------------- |
+        | `book`                         | It is from a published book.                  |
+        | `paidSite`                     | It is from a paid site.                       |
+        | `notYours`                     | It copies a recipe that is not yours.         |
+        | `printedPage`                  | A photo shows a page from a book or magazine. |
+        | `other`                        | Its source does not allow sharing.            |
+
+    - The label the cook sees stays "Not approved". The appeal is unchanged (FR-026, FR-026a).
+    - **The other recipe is never named or linked**, in the reason, the note or anywhere the cook sees.
+    - **`notYours` only for a public match.** The reviewer screen offers `notYours` only when the referral has a recipe
+      match whose matched recipe is **public now**: another cook's, re-read at the moment the screen loads and again at
+      the moment the decision is saved. For a match against another cook's private recipe the screen does not offer
+      it. The server enforces it, not only the screen: the referral detail returns the reasons it offers, and a
+      decision with a reason not offered is refused with `422 SOURCE_CHECK_REASON_NOT_OFFERED`. So a cook told "It
+      copies a recipe that is not yours" can only ever be pointing at a recipe they could find themselves, and the
+      non-disclosure rule of FR-051 holds.
+    - **The note is shown to the cook word for word.** Staff follow a written guideline never to name, link or
+      describe another cook or another recipe in it. The reviewer also has a separate **staff note**, kept on the
+      decision for staff and for 016's evidence and never shown to the cook, for anything that must not reach them.
+    - An approval needs no reason. It records who decided, when, and the facts shown.
+    - For `detected` (no person), the statement names the rule evidence in the cook's own text, as before.
 - **FR-027a**: The reviewer MUST see the recipe's text and photos, each part's green or not-green result, each signal
   and where it is, and the cook's statement and citation. Only the model is kept from the statement (FR-008). A person is not.
 - **FR-028**: Every "not approved" decision (a `detected` hold, a person's non-approval, an upheld appeal) MUST give the
   cook a **statement of reasons** through 016's mechanism (`016-FR-018`, `016-FR-018a`). It MUST name:
     - the action: publication withheld, and the recipe kept private
-    - the ground: for `detected`, the terms clause on rights to upload; for a person's decision, the ground chosen
-      from the closed set, which is generic and never names what matched
-    - the facts: for `detected`, the kinds of evidence the rules found in the cook's own text, and where they are; for
-      a person's decision, only the generic fact of FR-027, so the cause cannot be inferred (FR-016c)
+    - the ground: for `detected`, the terms clause on rights to upload; for a person's decision, the reason the person
+      chose (FR-027), in its localised text
+    - the facts: for `detected`, the kinds of evidence the rules found in the cook's own text, and where they are; for a
+      person's decision, the reviewer's note, word for word, when there is one. It never names or links another recipe
     - that automated means were used, and, for a person's decision, that a person decided
     - the redress: keep it private, change the statement (FR-015a), appeal, edit it, or delete it.
 - **FR-029**: The statement MUST be built from a fixed template filled, for `detected`, with the rule evidence kinds and
-  locations, and, for a person's decision, with the ground the person chose from the closed set. It MUST NOT be prose written by the model, and it
-  MUST NOT carry the reviewer's note.
+  locations, and, for a person's decision, with the chosen reason's localised text and the reviewer's note. It MUST NOT
+  be prose written by the model, and it MUST NOT carry the staff note.
 - **FR-030**: No decision time target is set in this release (owner, 2026-10-26: "we can deal with SLO/SLA later").
   The queue MUST show each referral's age. However old a referral is, it MUST NOT publish the recipe. A target, when
   the owner sets one, is added then.
@@ -976,7 +1015,7 @@ bind.
       MUST say so, and counsel confirms that this is enough (FR-041).
 - **FR-037**: The cook MUST be able to see, for their own recipe, its state (FR-014a), any open referral and its age,
   any decision, and its statement of reasons. For a `detected` recipe they also see the rule evidence in their own
-  text. They see no part results and no outcome value for a recipe in review (FR-016c).
+  text. For a person's rejection they see the chosen reason and the reviewer's note (FR-027). They see no part results and no outcome value for a recipe in review (FR-016c).
 
 #### H. Measurement and operation
 
@@ -1024,9 +1063,10 @@ bind.
         - **The region.** The owner approves a region for recipe content sent to the model at this call site (FR-033).
           **What breaks**: without it, the model detector cannot run, and every publish without rule evidence goes to a
           person.
-        - **Facts and non-disclosure.** DSA Art. 17(3)(b) asks for the facts relied on. A hold that rests on a match
-          against another cook's private recipe can state only the generic fact (FR-027). Is that enough? **What
-          breaks**: if not, a private match cannot be the only ground for a hold, and FR-051 must route it differently.
+        - **Facts and non-disclosure.** DSA Art. 17(3)(b) asks for the facts relied on. A rejection that rests on a
+          match against another cook's private recipe can give a reason and a note, but never `notYours` and never the
+          match (FR-027). Is that enough? **What breaks**: if not, a private match cannot be the only ground for a
+          rejection, and FR-051 must route it differently.
         - **The donation deadline.** The owner set 14 days, inside GDPR Art. 12(3)'s one month (FR-018a). Counsel
           confirms it is not undue delay. **What breaks**: if it is, donated recipes that need a person are deleted at
           once instead.
@@ -1134,8 +1174,9 @@ bind.
     - What the cook sees MUST NOT depend on whether a match was private, or on any cause at all. A recipe in review
       shows one generic message for every cause (FR-016c), with no part results and no field that says why anything
       is green or not.
-    - **Accepted residual** (owner ruling, 2026-10-26: no random sampling for now). A cook learns only that a person
-      will check, never what or whose.
+    - **Accepted residual** (owner ruling, 2026-10-26: no random sampling for now). While a recipe is in review, a cook
+      learns only that a person will check, never what or whose. A rejection gives one reason from FR-027's list, and
+      `notYours` is never offered for a private match, so no cook learns that another cook's private recipe exists.
     - **Timing.** The lookup runs in the worker, never in the request (FR-053). The worker runs the same steps
       whatever the lookup finds. It never skips or shortens a model call because a match already decided a part, and
       it writes the outcome only once every part is read. So the time to an outcome does not show whether a match
@@ -1255,9 +1296,11 @@ bind.
 - **SC-016**: Zero matches make a part green unless a person's latest decision on the matched content cleared it, the
   same-items rule held, and the candidate's own allowing state did not come from a match. Checked by a property test
   over the rows of FR-047.
-- **SC-017**: Zero cook-facing responses carry any detail of another cook's recipe, or differ in any field or wording
-  between causes of review: a private match, a public match, a page reference, a photo signal or a spent budget.
+- **SC-017**: Zero cook-facing responses carry any detail of another cook's recipe, and zero responses for a recipe in
+  review differ in any field or wording between causes of review: a private match, a public match, a page reference, a photo signal or a spent budget.
   Checked by a contract test that runs each case and compares the responses.
+- **SC-022**: Zero rejections reach a cook with the reason `notYours` when the only recipe match was another cook's
+  private recipe, checked by an integration test against the decision route, not only the screen.
 - **SC-021**: Zero recipes stay in review after a person's decision, zero not-approved recipes are uncounted as
   private, and zero unchanged contents re-enter review after a decision. Checked by integration tests over every exit
   from review.
@@ -1274,10 +1317,9 @@ bind.
 - **A recipe in review uses no slot, and a not-approved one does** (owner ruling, 2026-10-26). ADR-0073 counts
   `visibility = 'private'` only. A recipe in review keeps its stored `public` visibility and is hidden by the read rule,
   so it uses no slot. A decision moves it to `private`, so it counts.
-- **Open, for the owner: the Draft path.** A cook can move a recipe from In review back to Draft and keep it there,
-  owner-only and using no slot, with no time limit. ADR-0073 counts only `visibility = 'private'`, so a public draft
-  is unmetered. Counting public drafts would close it, but it changes what a slot means, which ADR-0073 calls a
-  one-way door.
+- **The Draft path is closed** (owner ruling, 2026-10-26, `001-FR-003b`). A cook can move a recipe from In review
+  back to Draft, and a draft uses no slot. But a draft cannot be used in meal planning, collections, the planned AI
+  assistant, cooking mode or a shopping list, and opening it opens the editor. So a draft is not a free private store.
 - **Nothing is live.** At launch there is no public corpus to check.
 - **016 is planned and not built.** The statement of reasons, the reviewer dashboard and the email channel come from 016. Blocking stays in shadow mode until they exist (FR-019).
 - **The reviewer dashboard inherits 016's open decision A-11** on `002`'s "no admin UI" exclusion.

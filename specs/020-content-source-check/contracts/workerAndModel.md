@@ -172,14 +172,14 @@ the closed unions. Its parts compose as follows:
 
 A fixed, localised template (spec FR-029). Its slots:
 
-| Slot      | Filled from                                                                                                                                                           |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| action    | Always "publication withheld, and the recipe kept private"                                                                                                            |
-| ground    | `detected`: the terms clause on rights to upload. A person's decision: the localised text of its ground, from the closed set                                          |
-| facts     | `detected`: one line per rule evidence item, its kind's localised name and its field. A person's decision: only the one generic fact, so the cause cannot be inferred |
-| automated | "An automated check found this", and, for a person's hold, "A person reviewed it and decided"                                                                         |
-| redress   | Keep it private, change the statement, appeal (once per version), edit it, delete it, or the contact routes after that                                                |
+| Slot      | Filled from                                                                                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| action    | Always "publication withheld, and the recipe kept private"                                                                                                                             |
+| ground    | `detected`: the terms clause on rights to upload. A person's decision: the chosen reason's localised text (`recipe.review.reason.*`, spec FR-027)                                      |
+| facts     | `detected`: one line per rule evidence item, its kind's localised name and its field. A person's decision: the reviewer's note, word for word, when there is one; never another recipe |
+| automated | "An automated check found this", and, for a person's hold, "A person reviewed it and decided"                                                                                          |
+| redress   | Keep it private, change the statement, appeal (once per version), edit it, delete it, or the contact routes after that                                                                 |
 
-No slot takes model text, and no slot takes the reviewer's note. Delivery goes through 016's generalised statement
+No slot takes model text, and no slot takes the staff note. Delivery goes through 016's generalised statement
 delivery, in-app and email (`016-FR-018a`), recorded per channel on `recipe_source_decisions`. A statement that cannot
 be delivered because the account was erased first is recorded as undeliverable (spec FR-036).

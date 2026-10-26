@@ -309,10 +309,15 @@ A fifth round the same day answered the rest (spec Clarifications):
 - **No random sampling of green recipes for now.** The residual is accepted.
 - **The strict text rule stands.**
 
+A sixth round the same day: a person's rejection now tells the cook why, from a fixed list of five reasons, with
+`notYours` offered only for a public match (spec FR-027); and a draft uses no slot and can be used for nothing but
+editing (`001-FR-003b`), which closes the Draft path.
+
 **Still open**:
 
-- **The Draft path**, for the owner. A recipe moved from In review back to Draft is owner-only and uses no slot, with
-  no time limit. Counting public drafts as slots would close it, and it changes what a slot means (research R-15).
+- **The bulk import slot pause** (ADR-0073 §8), for the owner. Every import item is saved as a draft, and a draft now
+  uses no slot, so the pause has nothing to count at import time. The slot is taken when the cook publishes a private
+  item. Whether the import should still warn ahead of time is the owner's call.
 - The counsel items of spec FR-041.
 
 ## What the rulings make infeasible, or costly

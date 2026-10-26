@@ -403,7 +403,7 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   grant. With the spend ceiling reached, nothing binds without the cook.
 - **ADR-0073 — a free cook holds up to 50 private recipes; Premium has no limit.** Every private recipe a free cook
   holds uses a slot, from any route, book and paid-site recipes included. The count is a live `COUNT(*)` of private,
-  undeleted recipes, taken under a per-user advisory lock in the same transaction as the write; never a stored
+  published, undeleted recipes (a draft uses no slot), taken under a per-user advisory lock in the same transaction as the write; never a stored
   counter. A downgraded cook keeps every private recipe but cannot add one until under the limit. A book or paid-site
   recipe never goes public, so a free cook out of slots cannot keep a new one, and bulk import pauses. 015's earned
   slots add to the 50 later.
@@ -414,7 +414,9 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   never returns to `shadow`. A match counts only through a person's own latest decision, by an ordered table, the
   same-items rule and no passing along. Another cook's private recipe is never disclosed to a cook. A recipe in review
   is owner-only, labelled "In review", and uses no private slot; a person's decision always ends review, and "not
-  approved" makes it the cook's private recipe (ADR-0073 §11).
+  approved" makes it the cook's private recipe (ADR-0073 §11). A rejection gives one fixed reason and the reviewer's
+  note; `notYours` is offered only for a public match. A draft uses no slot and can be used for nothing but editing
+  (ADR-0073 §12).
 - **ADR-0032 — an END-TO-END TEST TARGETS A DEPLOYED ENVIRONMENT, and SKIPS when the PR's sandbox is not
   running (owner ruling 2026-09-05, superseding the 2026-09-04 two-tier answer).** Verbatim: _"all end to end
   tests (playwright, e2e, maestro, etc) - which should be hitting remote services - should be skipped if the

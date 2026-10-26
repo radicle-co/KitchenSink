@@ -408,9 +408,10 @@ been approved. While it's in review it is labeled as such."
 - **No stretching.** A recipe keeps the queue place it had when it first entered review, across edits and trips
   through Draft. So review always reaches a person's decision, and it cannot become a free private store.
 
-**Open, for the owner: the Draft path.** A public draft is owner-only and uses no slot, because ADR-0073 counts only
-`visibility = 'private'`. A cook may move a recipe from In review back to Draft, so a recipe can leave review and sit
-there with no time limit and no slot. Whether a public draft should count against the private limit is OPEN, for the owner: counting it changes what a slot means, which ADR-0073 calls a one-way door.
+**The Draft path is closed** (owner ruling, 2026-10-26, `001-FR-003b`, ADR-0073 §12). A draft uses no slot, and a
+cook may move a recipe from In review back to Draft. But a draft cannot be used in meal planning, collections, the
+planned AI assistant, cooking mode or a shopping list, and opening it opens the editor. So a draft is somewhere to
+write, not somewhere to keep a usable library, and it is not a free private store.
 
 **Rejected**:
 
@@ -571,7 +572,12 @@ After the identity record is scrubbed there is nobody to deliver to, so the deci
 - **One message for every cause** (owner ruling, 2026-10-26). A recipe in review shows the cook "In review: a person
   will check this before it goes public", and nothing else: no outcome value, no reason, no part result. A match, a
   source decision, a page reference, a photo signal and a spent budget look the same. There is no `greenBy` field. A
-  person's non-approval gives a generic ground and never names what matched.
+  person's **rejection** is the one exception (owner ruling, 2026-10-26): it gives one reason from a fixed list and
+  the reviewer's note, word for word, and never names or links another recipe.
+- **`notYours` only for a public match.** "It copies a recipe that is not yours" could otherwise tell a cook that a
+  private recipe like theirs exists. So the decision route offers it only when the matched recipe is another cook's
+  and is public at the moment of the decision, and refuses it otherwise, whatever the screen sent. A cook told
+  `notYours` is always pointing at a recipe they could find themselves.
 - **The same steps every time.** The lookup runs in the worker. The worker never skips or shortens a model call
   because of a match, and writes the outcome only once every part is read. So the time to an outcome does not depend
   on a match.
@@ -587,7 +593,10 @@ After the identity record is scrubbed there is nobody to deliver to, so the deci
   anything green (FR-047 row 4).
 - **Staff see the match and its earlier decision**, never a private recipe's content.
 
-**What is left, and why it is accepted.** A cook learns only that a person will check, never what or whose. They know
+**What is left, and why it is accepted.** While a recipe is in review, a cook learns only that a person will check,
+never what or whose. A rejection tells them which of five reasons applied, and the note is written under a guideline
+never to identify another cook or recipe. A note is free text, so that guideline is a staff control, not a technical
+one. They know
 their own text, so they can guess at a cause, but nothing the product shows confirms it. The owner ruled on
 2026-10-26 not to add cover traffic (a random sample of all-green recipes sent to a person) for now, and accepted this
 residual.

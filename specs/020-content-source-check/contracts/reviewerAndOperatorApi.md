@@ -26,9 +26,9 @@
 ```text
 decision request: {
   decision: 'approve' | 'notApprove'
-  ground: 'rightsToUpload' | 'publishedSourceEvidence' | 'sourceNotConfirmed'   // closed set, cook-facing
-        | 'ownWorkConfirmed' | 'publicSourceConfirmed'
-  note: string          // required, non-empty, ≤ 2,000 characters: the reviewer's own words, staff only
+  reason?: 'book' | 'paidSite' | 'notYours' | 'printedPage' | 'other'   // required iff notApprove (spec FR-027)
+  note?: string         // ≤ 2,000 characters: shown to the cook WORD FOR WORD; never name or link another recipe
+  staffNote?: string    // ≤ 2,000 characters: staff only, never shown to the cook
   shownOutcome: 'possible' | 'detected' | 'unchecked'   // what the reviewer saw (compare-and-set, spec FR-016d)
   shownEvidenceRef: string
 }
@@ -36,7 +36,8 @@ decision request: {
 409 SOURCE_CHECK_REFERRAL_CLOSED   already decided, withdrawn, superseded, expired or resolved by the check
 409 SOURCE_CHECK_OUTCOME_MOVED     the outcome or its evidence changed since the reviewer opened it: re-read
 409 SOURCE_CHECK_SAME_REVIEWER     an appeal of this reviewer's own hold, while another reviewer is on duty (FR-026a)
-422                                ground or note missing (an incomplete decision is never saved, 016-FR-053b)
+422                                reason missing on notApprove, or present on approve (016-FR-053b)
+422 SOURCE_CHECK_REASON_NOT_OFFERED a reason the referral detail did not offer, notably notYours for a private match
 ```
 
 - The decision locks the referral row, then the check row, and changes the outcome only by a compare-and-set on
@@ -54,9 +55,13 @@ decision request: {
   push it back. After a decision, a new review starts a fresh date (spec FR-030a).
 - The referral detail lists the recipe's own earlier decisions, so a reviewer sees that a resubmitted recipe was
   refused before.
-- **The note never reaches the cook.** The statement takes the ground's localised text and the facts from the check.
-  A match fact is always the one generic fact (spec FR-027), so a reviewer cannot disclose another cook's private
-  recipe through the statement.
+- **What reaches the cook.** The statement takes the reason's localised text (`recipe.review.reason.*`) and the
+  `note`, word for word. The `staffNote` never reaches the cook. Staff follow a written guideline never to name, link
+  or describe another cook or recipe in a `note`.
+- **`notYours` is offered only for a public match.** `GET …/referrals/{referralId}` returns `offeredReasons`. It
+  contains `notYours` only when the referral has a recipe match whose matched recipe is another cook's and is public
+  now. The decision route re-checks this in its own transaction and refuses any reason it did not offer, so the rule
+  holds even against a stale screen or a hand-built request (spec FR-027, SC-022).
 - A `donation` referral (spec FR-018a) shows the erasure deadline. Its decision delivers no in-app statement, because
   the account is closed, and records `statement_undeliverable` if the account is gone before email can be sent.
 - A queue entry shows `origin`, how long it has waited, and each part's result. No due time exists (spec FR-030).

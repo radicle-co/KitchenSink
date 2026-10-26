@@ -12,12 +12,13 @@ sourceFlag: 'notNeeded'   // the item is headed private, or its label is private
           | 'clear'
           | 'forAPerson'  // possible or unchecked: a draft; a person decides when the cook publishes it
           | 'detected'    // the rules blocked it before the save; cannot be public; choices below
-sourceChoices: Array<'keepPrivate' | 'skip'>   // empty unless the item is detected
+sourceChoices: Array<'keepPrivate' | 'skip'>   // empty unless the item is detected; keepPrivate = a private draft
 ```
 
 - `sourceFlag` is a mapping over the same classifier as the recipe's `sourceCheck` (`sourceCheckReadingOf`), the
   way ADR-0072 §6's `importFlagOf` maps `identityReadingOf`. It is derived at read time and never stored.
-- `keepPrivate` is offered only while the cook has a private slot free (ADR-0073 §8).
+- `keepPrivate` saves the item as a **private draft**. A draft uses no private slot (owner ruling 2026-10-26,
+  `001-FR-003b`, ADR-0073 §12), so it is always offered. Publishing it later as private needs a free slot.
 - There is no `confirm` choice. A `forAPerson` item is not the cook's to clear (owner ruling, 2026-10-26).
 - The import view's `version` digest (ADR-0072 §2) includes each item's source flag, so a client sees the change when
   an outcome lands.
@@ -43,7 +44,6 @@ The review's H8 wording ("rules plus the lookup") predates that ruling, and the 
 
 ```text
 409 SOURCE_CHOICE_NOT_OFFERED   the choice is not in the item's sourceChoices
-403 PRIVATE_SLOTS_FULL     keepPrivate with no slot free (ADR-0073 owns this code)
 ```
 
 - `skip`: the item is not saved, and spends no allowance unit it has not already spent.

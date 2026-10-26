@@ -122,8 +122,16 @@ owner's rulings, as the coordinator relayed them the same day.
   never push it back.
 
 So a recipe leaves review only by approval, by a decision that makes it private and costs a slot, by the cook's own
-move to Private or Draft, or by deletion. A public draft is owner-only and unmetered under ADR-0073, so the Draft exit
-is not closed. Whether to count public drafts as slots is open for the owner (ADR-0073 §11).
+move to Private or Draft, or by deletion. A draft uses no slot, but it can be used for nothing except editing (owner
+ruling, 2026-10-26, ADR-0073 §12), so the Draft exit is not a free private store either. The rule-blocked publish
+refusal never stops a draft save, for the same reason.
+
+**A rejection tells the cook why** (owner ruling, 2026-10-26). "In review" and "Checking" stay generic. A person who
+does not approve a recipe picks one reason from a fixed list (`book`, `paidSite`, `notYours`, `printedPage`, `other`,
+localised under `recipe.review.reason.*`) and may add a note, which the cook sees word for word. A separate staff note
+never reaches the cook. The other recipe is never named or linked. `notYours` is offered only when the matched recipe
+is another cook's and is public at the moment of the decision. The decision route enforces this, not only the screen,
+so the rule of §7 holds.
 
 ### 4. Evidence is stored per part: model evidence shared by content, rule evidence per check
 
@@ -188,7 +196,7 @@ library-first rule forbids a hand-rolled one without that check.
 
 Private recipes are candidates. A cook never learns anything about another cook's private recipe, or that it exists.
 
-- **One message for every cause** (owner ruling, 2026-10-26). A recipe in review shows "In review: a person will
+- **One message for every cause while in review** (owner ruling, 2026-10-26). A recipe in review shows "In review: a person will
   check this before it goes public", with no outcome value, reason or part result. A match, public or private, a
   source decision, a page reference, a photo signal and a spent budget all look the same. There is no field that says
   why anything is green or not.
@@ -199,8 +207,8 @@ Private recipes are candidates. A cook never learns anything about another cook'
   worker produces carries a `reveal_at`, the start of its check plus a floor measured from an uncached check. Neither
   the cook's view nor the hold Specification moves before it. A rule-only `detected` is exempt, because it reads only
   the cook's own content.
-- The statement of reasons takes a ground from a closed set and states a match only as one generic fact. The
-  reviewer's own words are an internal note that never reaches the cook.
+- A rejection's statement of reasons takes one reason from a fixed list and the reviewer's note. It never names or
+  links another recipe, and `notYours` is refused for a private match (§3a). The staff note never reaches the cook.
 - A private candidate with no person decision can only send a recipe to a person.
 - Staff see the match and its earlier decision, never a private recipe's content.
 
@@ -268,7 +276,8 @@ recipe that is already public.
 
 - **Unmarked copies pass.** A cookbook recipe typed out without its markers, with a plain dish photo, usually reads
   `clear`. The evaluation reports this, and no claim hides it.
-- **Non-disclosure leaves one accepted residual.** A cook learns only that a person will check, never what or whose.
+- **Non-disclosure leaves one accepted residual.** While in review, a cook learns only that a person will check, never
+  what or whose. A rejection gives one of five reasons, and its note rests on a staff guideline, not on code.
   The owner ruled on 2026-10-26 not to add cover traffic, such as a random sample of all-green recipes sent to a
   person, for now.
 - **A cook can end up over the private limit.** A person's non-approval makes the recipe private even with no free

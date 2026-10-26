@@ -168,7 +168,6 @@ const GROUP_SOURCES: readonly GroupSource[] = [
     { id: 'scale.fontSize', module: 'scale.ts', exportName: 'fontSize', values: scale.fontSize },
     { id: 'scale.fontWeight', module: 'scale.ts', exportName: 'fontWeight', values: scale.fontWeight },
     { id: 'scale.lineHeightPx', module: 'scale.ts', exportName: 'lineHeightPx', values: scale.lineHeightPx },
-    { id: 'scale.lineHeightRatio', module: 'scale.ts', exportName: 'lineHeightRatio', values: scale.lineHeightRatio },
     { id: 'scale.elevation', module: 'scale.ts', exportName: 'elevation', values: scale.elevation },
     { id: 'scale.mediaHeight', module: 'scale.ts', exportName: 'mediaHeight', values: scale.mediaHeight },
     { id: 'scale.fontFamily', module: 'scale.ts', exportName: 'fontFamily', values: scale.fontFamily },

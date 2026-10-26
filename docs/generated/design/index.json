@@ -216,14 +216,6 @@
             ]
         },
         {
-            "id": "scale.lineHeightRatio",
-            "source": "packages/apps/commise/ui/src/tokens/scale.ts",
-            "tokenCount": 3,
-            "kinds": [
-                "number"
-            ]
-        },
-        {
             "id": "scale.elevation",
             "source": "packages/apps/commise/ui/src/tokens/scale.ts",
             "tokenCount": 5,

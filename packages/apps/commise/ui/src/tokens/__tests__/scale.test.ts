@@ -14,7 +14,6 @@ import {
     fontSize,
     fontWeight,
     lineHeightPx,
-    lineHeightRatio,
     radius,
     spacing,
 } from '../scale.js';
@@ -48,11 +47,6 @@ describe('scale — type', () => {
 
     it('exposes numeric font weights', () => {
         expect(fontWeight).toEqual({ normal: 400, medium: 500, semibold: 600, bold: 700 });
-    });
-
-    // The ratios are deprecated (only designArtifact reads them); the px table is the source of truth.
-    it('exposes the deprecated line-height ratios for designArtifact alone', () => {
-        expect(lineHeightRatio).toEqual({ heading: 1.2, body: 1.5, caption: 1.4 });
     });
 
     it('exposes a px line height for each allowed font size, on the 4 px grid', () => {

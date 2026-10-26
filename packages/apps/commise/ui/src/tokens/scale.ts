@@ -103,18 +103,6 @@ export const fontWeight = {
 } as const;
 
 /**
- * Unitless line-height ratios — **DEPRECATED, and not a way to set a line height.** A ratio times a size gives 21,
- * 21.6 or 33.6 px, which cannot sit on the 4 px grid; use {@link lineHeightPx} or a type role. It stays for one
- * consumer, `tools/designArtifact` (`buildTokens.ts`, `heading`), which is not edited from this package. Delete it with
- * that consumer.
- */
-export const lineHeightRatio = {
-    heading: 1.2,
-    body: 1.5,
-    caption: 1.4,
-} as const;
-
-/**
  * Line height in px for each allowed font size (owner ruling 2026-10-25: line heights are whole px on a 4 px grid).
  * A pixel value is the source of truth: native uses it as is, and web writes it as the unitless `calc(px / size)`.
  * 18 is 24 for a heading or figure; reading text sets itself at 28 (`typeRole.readingBody`).
@@ -176,7 +164,6 @@ export type FontFamily = typeof fontFamily;
 export type DisplayFontFace = typeof displayFontFace;
 export type BodyFontFace = typeof bodyFontFace;
 export type FontWeight = typeof fontWeight;
-export type LineHeightRatio = typeof lineHeightRatio;
 export type FontSize = typeof fontSize;
 export type Elevation = typeof elevation;
 

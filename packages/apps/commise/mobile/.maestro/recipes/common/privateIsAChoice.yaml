@@ -22,7 +22,8 @@ appId: ${APP_ID}
 # Premium has no slot limit, so the server reports no count and none is shown (ADR-0073).
 - assertNotVisible: '.*private slots left.*'
 - tapOn: 'Private, Only you can see it'
-- assertNotVisible: 'Private recipes are part of Premium.'
+- assertNotVisible: 'Keep more recipes private'
+- assertNotVisible: 'Private needs Premium for this recipe'
 # Maestro reads `checked` on iOS only from a switch's `1`/`0` value; a React Native radio's value is the phrase
 # `radio button, checked` (`visibility.yaml`). So iOS asserts that phrase on the radio below Public.
 - runFlow:

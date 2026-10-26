@@ -75,7 +75,8 @@ test.describe('clone + visibility (T080)', () => {
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
         await expect(page.getByText('Private', { exact: true })).toBeVisible();
 
         await page.getByRole('button', { name: /^More actions for /u }).click();
@@ -112,8 +113,6 @@ test.describe('clone + visibility (T080)', () => {
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(
-            page.getByText('This recipe is still public: all of your private slots are in use.'),
-        ).toBeVisible();
+        await expect(page.getByText('Not available. All 50 of your private slots are in use.')).toBeVisible();
     });
 });

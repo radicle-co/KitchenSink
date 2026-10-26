@@ -378,6 +378,82 @@ describe('Free-tier private slots (ADR-0073)', () => {
         });
     });
 
+    describe('⛔ a downgrade never publishes (owner ruling 2026-10-26)', () => {
+        /** How many of the cook's undeleted recipes are public: the number that must stay zero. */
+        async function publicCount(ownerId: string): Promise<number> {
+            const [row] = await db
+                .select({ n: sql<number>`count(*)::int` })
+                .from(recipes)
+                .where(
+                    sql`${recipes.ownerId} = ${ownerId} AND ${recipes.visibility} = 'public' AND ${recipes.deletedAt} IS NULL`,
+                );
+
+            return row?.n ?? 0;
+        }
+
+        it('60 private recipes of every label stay private through every path a downgraded cook can take', async () => {
+            const cook = newCook();
+            // 56 bare rows plus one complete recipe per label: the labels a lapsed Premium cook can hold privately.
+            await seed(cook, 56);
+            const complete = await Promise.all(
+                (['user_created', 'imported_public', 'imported_physical', 'imported_paid'] as const).map((sourceType) =>
+                    seedComplete(cook, { sourceType }),
+                ),
+            );
+
+            expect(await usage()).toEqual({ kind: 'limited', used: 60, limit: 50 });
+            expect(await privateCount(cook)).toBe(60);
+
+            // 1. A new private recipe is refused, and the refusal leaves everything as it was.
+            expect((await postRecipe('private')).status).toBe(403);
+
+            // 2. Asking for private on a recipe that is already private changes nothing: a success, except for a
+            //    web-imported one, where a free cook is refused (400) for want of Premium - and it stays private.
+            for (const [index, id] of complete.entries()) {
+                expect((await patchVisibility(id, 'private')).status).toBe(index === 1 ? 400 : 200);
+            }
+
+            // 3. A SUBSTANTIVE edit (new steps and ingredients) of each: the update path carries no visibility, and the
+            //    server must not re-judge a recipe it already holds private.
+            for (const id of complete) {
+                const edit = await fetch(`${baseUrl}/api/v1/recipes/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({
+                        expectedVersion: 1,
+                        steps: [{ instruction: 'Stir for a different reason' }],
+                        ingredients: CREATE_BODY.ingredients,
+                    }),
+                });
+
+                expect(edit.status, await edit.clone().text()).toBe(200);
+                expect(((await edit.json()) as RecipeBody).visibility).toBe('private');
+            }
+
+            // 4. A copy of each is refused (the cook has no slot), and writes no row.
+            for (const id of complete) {
+                expect((await fetch(`${baseUrl}/api/v1/recipes/${id}/clone`, { method: 'POST' })).status).toBe(403);
+            }
+
+            // 5. Reads, and the slot read itself, change nothing.
+            expect((await fetch(`${baseUrl}/api/v1/recipes?limit=5`)).status).toBe(200);
+            await usage();
+
+            expect(await privateCount(cook)).toBe(60);
+            expect(await publicCount(cook)).toBe(0);
+        });
+
+        it('deleting one frees a slot but still publishes nothing: 59 stay private', async () => {
+            const cook = newCook();
+            const ids = await seed(cook, 60);
+
+            expect((await fetch(`${baseUrl}/api/v1/recipes/${ids[0]}`, { method: 'DELETE' })).status).toBe(204);
+
+            expect(await privateCount(cook)).toBe(59);
+            expect(await publicCount(cook)).toBe(0);
+        });
+    });
+
     describe('clone is not a side door', () => {
         it('refuses an owner cloning their own private book recipe at 50, and writes no row', async () => {
             const cook = newCook();

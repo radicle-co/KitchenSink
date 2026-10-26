@@ -103,6 +103,24 @@ export function privateRuleOf(sourceType: RecipeSourceType | undefined): Private
     }
 }
 
+/**
+ * Whether a recipe under `rule` may ever be public. Pure.
+ *
+ * @returns `false` only for a book or paid-site recipe (`privateOnly`, 004 FR-014a): the server refuses Public for it, so no
+ *   surface offers it.
+ */
+export function mayBePublic(rule: PrivateRule): boolean {
+    return rule !== 'privateOnly';
+}
+
+/**
+ * Whether the cook holds MORE private recipes than they have slots (a downgrade). Pure. At exactly the limit they are
+ * "all in use", not over it.
+ */
+export function isOverLimit(standing: SlotStanding): standing is Extract<SlotStanding, { kind: 'full' }> {
+    return standing.kind === 'full' && standing.used > standing.limit;
+}
+
 /** What a recipe surface decides Private from. */
 export interface RecipePrivateFacts {
     readonly rule: PrivateRule;

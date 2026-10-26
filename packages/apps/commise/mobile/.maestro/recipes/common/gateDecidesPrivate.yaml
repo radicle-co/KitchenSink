@@ -32,6 +32,7 @@ appId: ${APP_ID}
 - tapOn: 'Private, Only you can see it.*'
 # Choosing it uses a slot; it never opens the Premium sheet, and nothing on the card sells Premium.
 - assertVisible: '.*This recipe uses 1 slot\. \d+ of \d+ left after it\..*'
-- assertNotVisible: 'Private recipes are part of Premium.'
+- assertNotVisible: 'Keep more recipes private'
+- assertNotVisible: 'Private needs Premium for this recipe'
 - assertNotVisible: '.*Premium.*'
 - tapOn: 'Close editor'

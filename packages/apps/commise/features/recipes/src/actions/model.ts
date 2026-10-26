@@ -52,13 +52,38 @@ export interface RecipeMakePublicDialogProps {
 }
 
 /**
+ * What the Premium sheet says (ADR-0073): `noSlot` when every private slot is used (`total` is the SERVER's limit, never a
+ * number of this package's own), `webImport` when the recipe is from a public web page, where Premium is still the rule.
+ */
+export type RecipeUpsellVariant = { readonly kind: 'noSlot'; readonly total: number } | { readonly kind: 'webImport' };
+
+/**
  * Props for the Premium sheet a free-tier cook gets for "Private" in the recipe editor (build spec §6.4, §7.7 item 2):
  * controlled and presentational, like the collection twin (`CollectionUpsellSheetProps`).
  */
 export interface RecipeUpsellSheetProps {
     readonly open: boolean;
+    /** Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe. */
+    readonly variant: RecipeUpsellVariant;
     /** Every close route calls this with `false`. */
     readonly onOpenChange: (open: boolean) => void;
     /** "See Premium". The subscription surface is not built yet (010), so the host closes the sheet. */
     readonly onSeePremium: () => void;
+}
+
+/**
+ * Props for the refusal of a copy that would be private with every private slot in use (ADR-0073; redesign canvas v44):
+ * controlled and presentational. `total` is the SERVER's limit. `offer` is a union rather than a flag, so the Premium
+ * button cannot exist without its command: `premium` only where paid features are shown, `none` (one OK) where they are
+ * hidden.
+ */
+export interface RecipeSaveCopyNoSlotProps {
+    /** Whether the refusal is shown. When `false` the component renders nothing. */
+    readonly open: boolean;
+    /** The cook's private-slot limit as the SERVER stated it (the 403's `limit`); the body names it. */
+    readonly total: number;
+    /** The offer under the fact: Not now and See Premium where paid features are shown, a single OK where they are hidden. */
+    readonly offer: { readonly kind: 'premium'; readonly onSeePremium: () => void } | { readonly kind: 'none' };
+    /** Not now, OK, Close and Escape. */
+    readonly onClose: () => void;
 }

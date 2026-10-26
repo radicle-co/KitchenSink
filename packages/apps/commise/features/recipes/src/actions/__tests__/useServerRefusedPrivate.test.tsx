@@ -58,7 +58,7 @@ describe('useServerRefusedPrivate', () => {
 
             act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
 
-            await waitFor(() => expect(result.current.refused).toBe(why));
+            await waitFor(() => expect(result.current.refused).toEqual({ reason: why }));
         },
     );
 
@@ -74,7 +74,7 @@ describe('useServerRefusedPrivate', () => {
 
         act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
 
-        await waitFor(() => expect(result.current.refused).toBe('slots'));
+        await waitFor(() => expect(result.current.refused).toEqual({ reason: 'slots', slotLimit: 50 }));
     });
 
     it('a slot refusal of a PUBLIC write is not a refused Private', async () => {
@@ -116,7 +116,7 @@ describe('useServerRefusedPrivate', () => {
         const setVisibility = vi.spyOn(client, 'setRecipeVisibility').mockRejectedValueOnce(REFUSED);
 
         act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
-        await waitFor(() => expect(result.current.refused).toBe('final'));
+        await waitFor(() => expect(result.current.refused).toEqual({ reason: 'final' }));
 
         setVisibility.mockResolvedValueOnce(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC }));
         act(() => result.current.write.mutate({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC }));

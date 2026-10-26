@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 179,
-        "implementations": 309,
-        "props": 1631,
-        "documentedComponents": 179,
-        "implementationsWithModuleDoc": 309,
-        "implementationsWithComponentDoc": 202,
-        "documentedProps": 1352,
-        "classifiedComponents": 159,
-        "componentsWithPatternTag": 82,
-        "crossPlatformComponents": 130
+        "components": 180,
+        "implementations": 311,
+        "props": 1642,
+        "documentedComponents": 180,
+        "implementationsWithModuleDoc": 311,
+        "implementationsWithComponentDoc": 204,
+        "documentedProps": 1363,
+        "classifiedComponents": 160,
+        "componentsWithPatternTag": 83,
+        "crossPlatformComponents": 131
     },
     "components": [
         {
@@ -235,6 +235,157 @@
             ]
         },
         {
+            "id": "featuresRecipes/actions/RecipeSaveCopyNoSlot",
+            "name": "RecipeSaveCopyNoSlot",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/actions",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `Sheet`"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeSaveCopyNoSlot",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeSaveCopyNoSlot.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/actions",
+                    "moduleDoc": "@commise/features-recipes/actions - the web refusal of \"Save a copy\" when the copy would be private and every\nprivate slot is in use (ADR-0073; redesign canvas v44, board `RecipeSaveCopyNoSlot`). It says the fact, how to free a\nslot, and - only where paid features are shown - that Premium has no limit: **Not now** and **See Premium** (primary),\nor a single **OK** where they are hidden. It offers no way to make the copy public: the source is private and FR-005c\nkeeps the copy as private as the original.\n\nPresentational: it sends nothing; the host decides what follows. The server's refusal (`PRIVATE_SLOTS_FULL`) comes\nBEFORE any row is written, so there is no half-made copy to clean up.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/actions - the web refusal of \"Save a copy\" when the copy would be private and every"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet`"
+                        }
+                    ],
+                    "description": "The web refusal of a copy that has no private slot to land in.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "offer",
+                            "type": "{ readonly kind: \"premium\"; readonly onSeePremium: () => void; } | { readonly kind: \"none\"; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The offer under the fact: Not now and See Premium where paid features are shown, a single OK where they are hidden.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "onClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Not now, OK, Close and Escape.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the refusal is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's private-slot limit as the SERVER stated it (the 403's `limit`); the body names it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "RecipeSaveCopyNoSlot",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeSaveCopyNoSlot.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/actions",
+                    "moduleDoc": "@commise/features-recipes/actions - the native refusal of \"Save a copy\" when the copy would be private and every\nprivate slot is in use, the twin of `RecipeSaveCopyNoSlot.tsx` (board `RecipeSaveCopyNoSlotMobile`): a bottom sheet with\nthe fact, **Not now** and **See Premium** (primary) where paid features are shown, a single **OK** where they are hidden.\n\nPresentational: it sends nothing; the host decides what follows.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/actions - the native refusal of \"Save a copy\" when the copy would be private and every"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet`"
+                        }
+                    ],
+                    "description": "The native refusal of a copy that has no private slot to land in.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "offer",
+                            "type": "{ readonly kind: \"premium\"; readonly onSeePremium: () => void; } | { readonly kind: \"none\"; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The offer under the fact: Not now and See Premium where paid features are shown, a single OK where they are hidden.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "onClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Not now, OK, Close and Escape.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the refusal is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "total",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's private-slot limit as the SERVER stated it (the 403's `limit`); the body names it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/actions/RecipeUpsellSheet",
             "name": "RecipeUpsellSheet",
             "group": "featuresRecipes",
@@ -258,7 +409,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeUpsellSheet.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes/actions — the web Premium sheet for \"Private\" in the recipe editor (build spec §6.4,\n§7.7 item 2). A free-tier cook choosing Private is told the plain fact — \"Private recipes are part of Premium.\" — and\noffered **See Premium** and **Not now**: both secondary `md` buttons, equal in size and weight, side by side, nothing\npre-selected (DSA Art. 25: it is true, and it does not distort the choice). The subscription surface is not built yet\n(010), so the host closes the sheet on See Premium. The twin of `CollectionUpsellSheet`; the detail menu's Make private\nreuses this one (D10).\n\nPresentational: it sends nothing; the host decides what follows.",
+                    "moduleDoc": "@commise/features-recipes/actions — the web Premium sheet for \"Private\" in the recipe editor (build spec §6.4,\n§7.7 item 2). A free-tier cook who cannot have Private is told the plain fact for their case (every slot used, or a\nrecipe from a public web page; `variant`) and offered **See Premium** and **Not now**: both secondary `md` buttons, equal in size and weight, side by side, nothing\npre-selected (DSA Art. 25: it is true, and it does not distort the choice). The subscription surface is not built yet\n(010), so the host closes the sheet on See Premium. The twin of `CollectionUpsellSheet`; the detail menu's Make private\nreuses this one (D10).\n\nPresentational: it sends nothing; the host decides what follows.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -299,6 +450,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "variant",
+                            "type": "RecipeUpsellVariant",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -355,6 +515,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "variant",
+                            "type": "RecipeUpsellVariant",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -7641,11 +7810,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets: the Premium sheet for a Private\nthey may not have, the make-public confirm, and the delete confirm. Written once; the leaves are platform pairs, so\nthe bundler resolves each to its web or native form. Each app places the result where its page wants it (web: beside\nthe page; mobile: in the view's scroll footer).\n\n⛔ None of them lives in the ⋯ menu: they are siblings of it, so they survive the menu closing while they are open.",
+                    "moduleDoc": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets (and, for anyone, the refusal of a copy): the Premium sheet for a Private\nthey may not have, the make-public confirm, and the delete confirm. Written once; the leaves are platform pairs, so\nthe bundler resolves each to its web or native form. Each app places the result where its page wants it (web: beside\nthe page; mobile: in the view's scroll footer).\n\n⛔ None of them lives in the ⋯ menu: they are siblings of it, so they survive the menu closing while they are open.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets: the Premium sheet for a Private"
+                            "text": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets (and, for anyone, the refusal of a copy): the Premium sheet for a Private"
                         }
                     ],
                     "description": "The owner-only dialogs of the recipe page: presentational, props → JSX.",
@@ -7653,6 +7822,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "cloneRefusal",
+                            "type": "RecipeSaveCopyNoSlotProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The refusal of a copy with no private slot to land in. Shown to whoever pressed Save a copy, owner or not.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
                         {
                             "name": "delete",
                             "type": "Omit<RecipeDeleteDialogProps, \"recipeTitle\">",
@@ -7695,7 +7873,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Only the owner meets these dialogs; for anyone else this renders nothing.",
+                            "description": "Only the owner meets the Premium, make-public and delete dialogs.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
                         }
                     ],
@@ -13638,7 +13816,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"premium\"",
-                                "\"slots\""
+                                "\"slots\"",
+                                "\"privateOnly\""
                             ],
                             "required": true,
                             "defaultValue": null,

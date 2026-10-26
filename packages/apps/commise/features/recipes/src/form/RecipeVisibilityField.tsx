@@ -31,6 +31,7 @@ const card =
     'flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 focus-within:ring-2 focus-within:ring-focus-ring';
 const cardResting = 'border-line-control bg-paper';
 const cardChosen = 'border-selected-edge bg-selected-fill';
+const cardRefused = 'cursor-not-allowed';
 
 /** "Who can see it": Public or Private. */
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
@@ -77,14 +78,20 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     const hintId = `${titleId}-hint`;
                     const badgeId = `${titleId}-badge`;
                     const noteId = `${titleId}-note`;
-                    const describedBy = [
-                        hintId,
-                        ...(option.note === undefined ? [] : [noteId]),
-                        ...(option.premium ? [badgeId] : []),
-                    ].join(' ');
+                    // A refused card is described by its reason alone: the hint ("Anyone can find it in Discover") is not true of it.
+                    const describedBy = option.refused
+                        ? noteId
+                        : [
+                              hintId,
+                              ...(option.note === undefined ? [] : [noteId]),
+                              ...(option.premium ? [badgeId] : []),
+                          ].join(' ');
 
                     return (
-                        <label key={option.value} className={`${card} ${chosen ? cardChosen : cardResting}`}>
+                        <label
+                            key={option.value}
+                            className={`${card} ${chosen ? cardChosen : cardResting} ${option.refused ? cardRefused : ''}`}
+                        >
                             <input
                                 type="radio"
                                 name="recipe-visibility"
@@ -93,6 +100,8 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 onChange={() => choose(option.value)}
                                 aria-labelledby={titleId}
                                 aria-describedby={describedBy}
+                                // Refused, not disabled: a natively disabled radio leaves the tab order and the reason with it.
+                                aria-disabled={option.refused ? true : undefined}
                                 className="size-5 shrink-0 accent-action"
                             />
                             <span className="flex min-w-0 flex-1 flex-col">
@@ -123,6 +132,20 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     <p id="recipe-visibility-ways" className="text-label text-ink">
                         {slotsFull.title}
                     </p>
+                    {slotsFull.overLimit === undefined ? null : (
+                        <div className="flex flex-col items-start gap-1">
+                            <p className="text-meta text-ink-muted">{slotsFull.overLimit.text}</p>
+                            {slotsFull.overLimit.premiumLink === undefined ? null : (
+                                <button
+                                    type="button"
+                                    onClick={onPremiumRequired}
+                                    className="cursor-pointer text-meta font-semibold text-action underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                >
+                                    {slotsFull.overLimit.premiumLink}
+                                </button>
+                            )}
+                        </div>
+                    )}
                     <ul className="flex flex-col gap-2">
                         {slotsFull.ways.map((way) => (
                             <li key={way.id}>

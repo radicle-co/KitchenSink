@@ -6,7 +6,7 @@
  * action. Another cook: Clear checks. Clear checks only while a mark is set. Make private is offered whenever the host
  * says Private is offered (`offersPrivate` — granted or upsell; owner rulings 2026-10-13: under `hidden` no paid feature
  * and no upsell is visible). What choosing it does is the host's (`useGatedPrivate`): it applies, or opens the Premium
- * sheet. Make public is always offered on a private recipe.
+ * sheet. Make public is offered on a private recipe, unless it can never be public (a book or paid-site recipe).
  *
  * @pattern Policy — one rule over the viewer and the recipe; the containers receive the decided entries
  */
@@ -28,6 +28,11 @@ export interface DetailMenuInput {
     readonly hasMarks: boolean;
     /** Whether Private is offered to this viewer (`offersPrivate` over their paid-feature state). */
     readonly offersPrivate: boolean;
+    /**
+     * Whether the recipe may ever be public (`mayBePublic`). `false` for a book or paid-site recipe: the server refuses
+     * Public for it (004 FR-014a), so the menu does not offer it. REQUIRED, so no host can forget to decide.
+     */
+    readonly mayBePublic: boolean;
 }
 
 /**
@@ -36,14 +41,16 @@ export interface DetailMenuInput {
  * @param input - The viewer's and the recipe's facts.
  * @returns The entries, in order, and the destructive action.
  */
-export function detailMenuOf({ owner, isPublic, hasMarks, offersPrivate }: DetailMenuInput): DetailMenu {
+export function detailMenuOf({ owner, isPublic, hasMarks, offersPrivate, mayBePublic }: DetailMenuInput): DetailMenu {
     const items: DetailMenuItem[] = [];
 
     if (owner) {
         items.push('versions');
 
         if (!isPublic) {
-            items.push('makePublic');
+            if (mayBePublic) {
+                items.push('makePublic');
+            }
         } else if (offersPrivate) {
             items.push('makePrivate');
         }

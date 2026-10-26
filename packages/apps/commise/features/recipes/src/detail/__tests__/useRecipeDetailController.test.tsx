@@ -243,9 +243,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
             expect(setVisibility).toHaveBeenCalled();
         });
         await waitFor(() =>
-            expect(result.current.visibilityNotice).toBe(
-                'This recipe is still public: all of your private slots are in use.',
-            ),
+            expect(result.current.visibilityNotice).toBe('Not available. All 50 of your private slots are in use.'),
         );
     });
 
@@ -263,22 +261,39 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         });
     });
 
-    it('⛔ a private book recipe made public promises no way back: it can never go public, so no "frees a slot" dialog opens', async () => {
-        const { result, client } = mount({
-            sessionClaims: { external_id: OWNER },
-            profile: settledProfile(OWNER, 'upsell'),
-            recipe: { visibility: RecipeVisibility.PRIVATE, sourceType: RecipeSourceType.IMPORTED_PHYSICAL },
-        });
+    // REWRITTEN: the menu used to offer Make public on a book recipe and rely on the dialog saying nothing. A book or
+    // paid-site recipe can never be public (004 FR-014a), so the entry is not offered at all.
+    it.each([RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
+        '⛔ offers NO Make public on a private %s recipe: it can never go public',
+        async (sourceType) => {
+            const { result, client } = mount({
+                sessionClaims: { external_id: OWNER },
+                profile: settledProfile(OWNER, 'upsell'),
+                recipe: { visibility: RecipeVisibility.PRIVATE, sourceType },
+            });
 
-        // Let the slot read land first: a consequence that only appears once the standing is known must have had its chance.
-        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        });
-        act(() => result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
+            await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            });
 
-        expect(result.current.dialogs.makePublic.open).toBe(false);
-    });
+            expect(result.current.menu?.items.map((item) => item.id)).toEqual(['versions']);
+            expect(result.current.dialogs.makePublic.open).toBe(false);
+        },
+    );
+
+    it.each([RecipeSourceType.USER_CREATED, RecipeSourceType.IMPORTED_PUBLIC])(
+        'still offers Make public on a private %s recipe',
+        (sourceType) => {
+            const { result } = mount({
+                sessionClaims: { external_id: OWNER },
+                profile: settledProfile(OWNER, 'upsell'),
+                recipe: { visibility: RecipeVisibility.PRIVATE, sourceType },
+            });
+
+            expect(result.current.menu?.items.map((item) => item.id)).toContain('makePublic');
+        },
+    );
 
     it('Premium goes public at once - no slots to free, nothing to say', async () => {
         const { result, client } = mount({
@@ -360,6 +375,77 @@ describe('useRecipeDetailController — Delete while the recipe is saving', () =
 
         expect(result.current.menu?.destructiveItem?.unavailable).toBeUndefined();
         expect(result.current.dialogs.delete.unavailable).toBeUndefined();
+    });
+});
+
+describe('useRecipeDetailController — Save a copy with no private slot (ADR-0073)', () => {
+    const refuseClone = (known: 'upsell' | 'hidden' | 'granted', limit = 50) => {
+        const view = mount({
+            sessionClaims: { external_id: 'usr_other' },
+            profile: settledProfile('usr_other', known),
+        });
+
+        vi.spyOn(view.client, 'cloneRecipe').mockRejectedValue(new PrivateSlotsFullError(limit, limit));
+
+        return view;
+    };
+
+    it('is shut until a copy is refused', () => {
+        const { result } = mount({ sessionClaims: { external_id: 'usr_other' } });
+
+        expect(result.current.dialogs.cloneRefusal.open).toBe(false);
+    });
+
+    it('⛔ opens the refusal with the server`s limit and the Premium offer, and opens no copy', async () => {
+        const { result, nav } = refuseClone('upsell', 75);
+
+        act(() => result.current.clone.run());
+
+        await waitFor(() => expect(result.current.dialogs.cloneRefusal.open).toBe(true));
+        expect(result.current.dialogs.cloneRefusal.total).toBe(75);
+        expect(result.current.dialogs.cloneRefusal.offer.kind).toBe('premium');
+        expect(nav.onCloned).not.toHaveBeenCalled();
+    });
+
+    it('⛔ with paid features hidden, offers no Premium: the refusal is one OK', async () => {
+        const { result } = refuseClone('hidden');
+
+        act(() => result.current.clone.run());
+
+        await waitFor(() => expect(result.current.dialogs.cloneRefusal.open).toBe(true));
+        expect(result.current.dialogs.cloneRefusal.offer.kind).toBe('none');
+    });
+
+    it('closing it forgets the refusal, so a later copy is judged afresh', async () => {
+        const { result } = refuseClone('upsell');
+
+        act(() => result.current.clone.run());
+        await waitFor(() => expect(result.current.dialogs.cloneRefusal.open).toBe(true));
+        act(() => result.current.dialogs.cloneRefusal.onClose());
+
+        await waitFor(() => expect(result.current.dialogs.cloneRefusal.open).toBe(false));
+    });
+
+    it('is not opened by a refusal that is not the slots one', async () => {
+        const { result, client } = mount({ sessionClaims: { external_id: 'usr_other' } });
+        vi.spyOn(client, 'cloneRecipe').mockRejectedValue(new Error('network down'));
+
+        act(() => result.current.clone.run());
+        await waitFor(() => expect(client.cloneRecipe).toHaveBeenCalled());
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+
+        expect(result.current.dialogs.cloneRefusal.open).toBe(false);
+    });
+
+    it('is shown to a viewer who does not own the recipe: it is not one of the owner-only dialogs', async () => {
+        const { result } = refuseClone('upsell');
+
+        expect(result.current.viewerIsOwner).toBe(false);
+        act(() => result.current.clone.run());
+
+        await waitFor(() => expect(result.current.dialogs.cloneRefusal.open).toBe(true));
     });
 });
 
@@ -502,9 +588,7 @@ describe('useRecipeDetailController — the visibility notice', () => {
         });
 
         await waitFor(() =>
-            expect(result.current.visibilityNotice).toBe(
-                'This recipe is still public: all of your private slots are in use.',
-            ),
+            expect(result.current.visibilityNotice).toBe('Not available. All 50 of your private slots are in use.'),
         );
     });
 });

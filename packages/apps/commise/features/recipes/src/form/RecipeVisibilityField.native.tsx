@@ -77,6 +77,14 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                             key={option.value}
                             role="radio"
                             aria-checked={chosen}
+                            // Refused, NOT disabled: the `disabled` prop would take the card out of the focus order and the reason
+                            // with it. A screen reader lands on it, hears it dimmed, and reads the reason as its hint; the
+                            // press is a no-op (`visibilityChoice`). The label is the title alone so the reason (also drawn
+                            // as text) is not read twice.
+                            accessibilityState={option.refused ? { disabled: true } : undefined}
+                            aria-disabled={option.refused ? true : undefined}
+                            accessibilityLabel={option.refused ? option.title : undefined}
+                            accessibilityHint={option.refused ? option.note : undefined}
                             onPress={() => choose(option.value)}
                             style={[
                                 styles.card,
@@ -104,6 +112,18 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     <Text accessibilityRole="header" style={[styles.legend, { color: colors.ink }]}>
                         {slotsFull.title}
                     </Text>
+                    {slotsFull.overLimit === undefined ? null : (
+                        <View style={styles.overLimit}>
+                            <Text style={[styles.hint, { color: colors.inkMuted }]}>{slotsFull.overLimit.text}</Text>
+                            {slotsFull.overLimit.premiumLink === undefined ? null : (
+                                <Pressable role="button" onPress={onPremiumRequired} style={styles.link}>
+                                    <Text style={[styles.linkText, { color: colors.action }]}>
+                                        {slotsFull.overLimit.premiumLink}
+                                    </Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    )}
                     {slotsFull.ways.map((way) => (
                         <Pressable
                             key={way.id}
@@ -127,6 +147,9 @@ const styles = StyleSheet.create({
     field: { gap: nativeTokens.spacing[2] },
     legend: nativeTokens.type.label,
     cards: { gap: nativeTokens.spacing[2] },
+    overLimit: { gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
+    link: { minHeight: 44, justifyContent: 'center' },
+    linkText: { ...nativeTokens.type.label, textDecorationLine: 'underline' },
     ways: { gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[1] },
     card: {
         minHeight: 56,

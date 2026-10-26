@@ -743,8 +743,9 @@ describe('RecipeDetailContainer', () => {
 
         describe('the refused Private, said inline on the page (§6.4)', () => {
             const FINAL = 'This recipe is still public: it couldn’t be made private.';
-            const PREMIUM = 'This recipe is still public. Private recipes are part of Premium.';
-            const SLOTS = 'This recipe is still public: all of your private slots are in use.';
+            const PREMIUM =
+                'This recipe is still public. A recipe from a public web page needs Premium and a change of your own to be private.';
+            const SLOTS = 'Not available. All 50 of your private slots are in use.';
 
             /** The recipe page for `ownerId` with `visibility`, arrived at through the editor's hand-off. */
             const renderArrival = async (
@@ -1075,7 +1076,7 @@ describe('RecipeDetailContainer', () => {
             visibility: RecipeVisibility = RecipeVisibility.PUBLIC,
             options: {
                 /** An imported public-web recipe is under the Premium rule; every other label is under the slots rule. */
-                readonly sourceType?: 'user_created' | 'imported_public';
+                readonly sourceType?: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid';
                 /** What the server says about the cook's slots; the page has it before the menu opens (a warm cache). */
                 readonly slots?: { readonly used: number; readonly limit: number } | 'unlimited';
             } = {},
@@ -1186,6 +1187,85 @@ describe('RecipeDetailContainer', () => {
 
             expect(screen.getByRole('button', { name: 'Save a copy' })).toHaveAttribute('aria-disabled', 'true');
             expect(screen.getByRole('button', { name: 'Save a copy' })).not.toBeDisabled();
+        });
+
+        it.each(['imported_physical', 'imported_paid'] as const)(
+            '⛔ offers NO Make public on a private %s recipe: it can never be public',
+            async (sourceType) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith('upsell'));
+                renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType });
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeInTheDocument();
+                expect(screen.queryByRole('menuitem', { name: 'Make public' })).not.toBeInTheDocument();
+            },
+        );
+
+        it.each(['user_created', 'imported_public'] as const)(
+            'still offers Make public on a private %s recipe',
+            async (sourceType) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith('upsell'));
+                renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType });
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeInTheDocument();
+            },
+        );
+
+        describe('Save a copy with no private slot (ADR-0073)', () => {
+            const TITLE = 'No private slot for this copy';
+
+            const refusedClone = async (paid: 'upsell' | 'hidden') => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith(paid));
+                const client = renderOthersDetail();
+                vi.spyOn(client, 'cloneRecipe').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+
+                await user.click(await screen.findByRole('button', { name: 'Save a copy' }));
+
+                return { user, client, dialog: await screen.findByRole('dialog', { name: TITLE }) };
+            };
+
+            it('⛔ opens the refusal, opens no copy, and offers Not now and See Premium', async () => {
+                const { dialog } = await refusedClone('upsell');
+
+                expect(
+                    within(dialog).getByText(
+                        'This copy would be private, and all 50 of your private slots are in use. To free a slot, make a private recipe public or delete one. Premium has no limit.',
+                    ),
+                ).toBeInTheDocument();
+                expect(within(dialog).getByRole('button', { name: 'See Premium' })).toBeInTheDocument();
+                expect(within(dialog).getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+                expect(within(dialog).queryByRole('button', { name: /public/iu })).not.toBeInTheDocument();
+                expect(pushMock).not.toHaveBeenCalled();
+            });
+
+            it('⛔ with paid features hidden, says no word of Premium and offers one OK', async () => {
+                const { dialog, user } = await refusedClone('hidden');
+
+                expect(within(dialog).queryByText(/Premium/u)).not.toBeInTheDocument();
+                expect(within(dialog).queryByRole('button', { name: 'Not now' })).not.toBeInTheDocument();
+
+                await user.click(within(dialog).getByRole('button', { name: 'OK' }));
+
+                await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: TITLE })).not.toBeInTheDocument());
+            });
+
+            it('Not now closes it', async () => {
+                const { dialog, user } = await refusedClone('upsell');
+
+                await user.click(within(dialog).getByRole('button', { name: 'Not now' }));
+
+                await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: TITLE })).not.toBeInTheDocument());
+            });
         });
 
         it('offers Clear checks while a check is set, and it clears them', async () => {
@@ -1509,7 +1589,7 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            const sheet = await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' });
+            const sheet = await screen.findByRole('dialog', { name: 'Private needs Premium for this recipe' });
             expect(sheet).toBeInTheDocument();
             await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
             expect(setVisibilitySpy).not.toHaveBeenCalled();
@@ -1527,7 +1607,8 @@ describe('RecipeDetailContainer', () => {
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
-            expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeNull();
         });
 
         it('⛔ with every slot used, Make private still SENDS the write, and the server`s refusal is said on the page', async () => {
@@ -1543,7 +1624,7 @@ describe('RecipeDetailContainer', () => {
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
             expect(
-                await screen.findByText('This recipe is still public: all of your private slots are in use.'),
+                await screen.findByText('Not available. All 50 of your private slots are in use.'),
             ).toBeInTheDocument();
             expect(screen.queryByText('We couldn’t change who can see this recipe. Please try again.')).toBeNull();
         });
@@ -1560,7 +1641,8 @@ describe('RecipeDetailContainer', () => {
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
-            expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeNull();
         });
     });
 

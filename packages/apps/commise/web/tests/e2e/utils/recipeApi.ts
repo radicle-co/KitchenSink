@@ -1773,6 +1773,19 @@ export async function mockRecipeApi(
 
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
+
+            // The service refuses a copy that would land PRIVATE when a free cook has no slot, BEFORE any recipe is made
+            // (`defaultCloneVisibility`, then the slot check; ADR-0073 section 3). It lands private when the source is private
+            // or is a book or paid-site recipe; a public copy takes no slot. (This double's own copy is always private, below.)
+            const landsPrivate =
+                source?.visibility === 'private' ||
+                source?.sourceType === 'imported_physical' ||
+                source?.sourceType === 'imported_paid';
+
+            if (landsPrivate && tier === 'free' && privateSlotsUsed() >= privateSlotLimit) {
+                return route.fulfill({ status: 403, json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit) });
+            }
+
             // Plan 002: mirror the service's clone — the source's private-food lines (the ones a stranger sees as
             // RESOLVED_UNAVAILABLE, with no name) KEEP their binding on the clone, and the response carries the
             // banner's count of them. Only when there is one, like the real wire.

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The Premium sheet a free-tier cook gets for "Private" in the editor (E1; build spec §7.7 item 2, §6.4): "Private
- * recipes are part of Premium.", **See Premium** and **Not now**, equal in size and weight, side by side, nothing
+ * The Premium sheet a free-tier cook gets for "Private" in the editor (E1; build spec §7.7 item 2, §6.4): **See Premium** and **Not now**, equal in size and weight, side by side, nothing
  * pre-selected — true, and not a distortion of the choice (DSA Art. 25). The twin of `CollectionUpsellSheet`.
  */
 import { LocaleProvider } from '@commise/i18n/react';
@@ -15,7 +14,13 @@ import { RecipeUpsellSheet } from '../RecipeUpsellSheet.js';
 afterEach(cleanup);
 
 function upsell(over: Partial<RecipeUpsellSheetProps> = {}) {
-    const props: RecipeUpsellSheetProps = { open: true, onOpenChange: vi.fn(), onSeePremium: vi.fn(), ...over };
+    const props: RecipeUpsellSheetProps = {
+        open: true,
+        variant: { kind: 'noSlot', total: 50 },
+        onOpenChange: vi.fn(),
+        onSeePremium: vi.fn(),
+        ...over,
+    };
 
     render(
         <LocaleProvider locale="en">
@@ -27,17 +32,44 @@ function upsell(over: Partial<RecipeUpsellSheetProps> = {}) {
 }
 
 describe('RecipeUpsellSheet (web)', () => {
-    it('is titled with the plain fact', () => {
+    it('noSlot: is titled for a full set of slots and says how to free one', () => {
         upsell();
 
-        expect(screen.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        expect(screen.getByRole('dialog', { name: 'Keep more recipes private' })).toBeTruthy();
+        expect(
+            screen.getByText(
+                'All 50 of your private slots are in use. Premium has no limit. To free a slot, make a private recipe public or delete one.',
+            ),
+        ).toBeTruthy();
     });
 
-    it('says what stays free', () => {
-        upsell();
+    it('noSlot: states the limit the server gave, never a number of its own', () => {
+        upsell({ variant: { kind: 'noSlot', total: 75 } });
 
-        expect(screen.getByText(/Public recipes are free/u)).toBeTruthy();
+        expect(screen.getByText(/^All 75 of your private slots are in use\./u)).toBeTruthy();
     });
+
+    it('webImport: is titled for a recipe from a public web page', () => {
+        upsell({ variant: { kind: 'webImport' } });
+
+        expect(screen.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
+        expect(
+            screen.getByText(
+                'This recipe is from a public web page. To keep it private, you need Premium and a change of your own to the recipe.',
+            ),
+        ).toBeTruthy();
+    });
+
+    it.each([{ kind: 'noSlot', total: 50 } as const, { kind: 'webImport' } as const])(
+        '⛔ %o never uses the retired Premium lines',
+        (variant) => {
+            upsell({ variant });
+
+            expect(screen.queryByText(/part of Premium/u)).toBeNull();
+            expect(screen.queryByText(/keep a recipe to yourself/u)).toBeNull();
+            expect(screen.queryByText(/Public recipes are free/u)).toBeNull();
+        },
+    );
 
     it('offers See Premium and Not now as equals: the same tier, side by side, neither the primary', () => {
         upsell();

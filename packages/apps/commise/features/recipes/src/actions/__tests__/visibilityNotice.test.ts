@@ -21,7 +21,8 @@ import { visibilityNoticeOf, type VisibilityNoticeInput } from '../visibilityNot
 const copy = recipeActionMessages.en.visibility;
 const FINAL = copy.privateRefused.final;
 const PREMIUM = copy.privateRefused.premium;
-const SLOTS = copy.privateRefused.slots;
+// The slots sentence is filled with the SERVER's limit; this package states no number of its own.
+const SLOTS = 'Not available. All 50 of your private slots are in use.';
 
 const base: VisibilityNoticeInput = {
     viewerIsOwner: true,
@@ -30,6 +31,7 @@ const base: VisibilityNoticeInput = {
     finishRefused: false,
     knownRefusal: 'final',
     writeFailed: false,
+    slotLimit: 50,
 };
 const noticeOf = (overrides: Partial<VisibilityNoticeInput>): string | undefined =>
     visibilityNoticeOf({ ...base, ...overrides }, copy);
@@ -63,7 +65,9 @@ describe('visibilityNoticeOf — a refusal the server gave', () => {
     it.each(['final', 'premium', 'slots'] as const)(
         'says the %s reason for an owner of a public recipe',
         (serverRefusal) => {
-            expect(noticeOf({ serverRefusal, knownRefusal: undefined })).toBe(copy.privateRefused[serverRefusal]);
+            expect(noticeOf({ serverRefusal, knownRefusal: undefined })).toBe(
+                serverRefusal === 'slots' ? SLOTS : copy.privateRefused[serverRefusal],
+            );
         },
     );
 
@@ -99,5 +103,22 @@ describe('visibilityNoticeOf — the generic failure', () => {
 
     it('is silent when nothing happened', () => {
         expect(noticeOf({})).toBeUndefined();
+    });
+});
+
+describe('visibilityNoticeOf — the slots sentence', () => {
+    it('replaces the retired "still public" line with the editor board`s words', () => {
+        expect(noticeOf({ serverRefusal: 'slots' })).toBe('Not available. All 50 of your private slots are in use.');
+    });
+
+    it('states the limit it is given, whatever it is', () => {
+        expect(noticeOf({ serverRefusal: 'slots', slotLimit: 75 })).toBe(
+            'Not available. All 75 of your private slots are in use.',
+        );
+    });
+
+    it('⛔ with no limit to state, says the generic failure rather than a number it made up', () => {
+        expect(noticeOf({ serverRefusal: 'slots', slotLimit: undefined })).toBe(copy.error);
+        expect(noticeOf({ finishRefused: true, knownRefusal: 'slots', slotLimit: undefined })).toBe(copy.error);
     });
 });

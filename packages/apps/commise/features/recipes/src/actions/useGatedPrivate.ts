@@ -15,8 +15,8 @@
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
-import type { RecipeUpsellSheetProps } from './model.js';
-import { recipeOffersPrivate, recipePrivateChoice, type RecipePrivateFacts } from './recipePrivateGate.js';
+import type { RecipeUpsellSheetProps, RecipeUpsellVariant } from './model.js';
+import { recipeOffersPrivate, recipePrivateChoice, usesSlots, type RecipePrivateFacts } from './recipePrivateGate.js';
 
 /** Options for {@link useGatedPrivate}. */
 export interface UseGatedPrivateOptions {
@@ -56,6 +56,7 @@ export interface GatedPrivate {
 export function useGatedPrivate(options: UseGatedPrivateOptions): GatedPrivate {
     const { facts, saved, apply, whenFull } = options;
     const [open, setOpen] = useState(false);
+    const sheetVariant = sheetVariantOf(facts);
 
     return {
         offersPrivate: recipeOffersPrivate(facts, saved),
@@ -71,7 +72,34 @@ export function useGatedPrivate(options: UseGatedPrivateOptions): GatedPrivate {
             }
         },
         showPremium: () => setOpen(true),
-        // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.
-        sheet: { open: open && facts.state === 'upsell', onOpenChange: setOpen, onSeePremium: () => setOpen(false) },
+        // Derived, never stored: a refetch that moves the state off `upsell` (or a slot freeing up) closes the sheet in the
+        // same render.
+        sheet: {
+            open: open && sheetVariant !== undefined,
+            variant: sheetVariant ?? WEB_IMPORT,
+            onOpenChange: setOpen,
+            onSeePremium: () => setOpen(false),
+        },
     };
+}
+
+const WEB_IMPORT: RecipeUpsellVariant = { kind: 'webImport' };
+
+/**
+ * Which fact the Premium sheet may state, or `undefined` when it may not open at all. Pure.
+ *
+ * ⛔ Only where paid features are shown (`upsell`), and only when it is TRUE: an imported public-web recipe needs Premium
+ * (`webImport`); a slots-rule recipe needs it only with every slot KNOWN used (`noSlot`). A free cook with a slot free,
+ * or whose count is unknown, is never shown it - Private just works for them.
+ */
+function sheetVariantOf(facts: RecipePrivateFacts): RecipeUpsellVariant | undefined {
+    if (facts.state !== 'upsell') {
+        return undefined;
+    }
+
+    if (!usesSlots(facts.rule)) {
+        return WEB_IMPORT;
+    }
+
+    return facts.standing.kind === 'full' ? { kind: 'noSlot', total: facts.standing.limit } : undefined;
 }

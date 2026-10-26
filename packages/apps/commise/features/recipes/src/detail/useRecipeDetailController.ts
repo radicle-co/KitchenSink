@@ -21,6 +21,7 @@ import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from 
 import { useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
 import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
+import { isPrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
@@ -31,7 +32,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
-import { recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
+import { mayBePublic, recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
@@ -163,6 +164,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     // Q5 (UX SPECIFY 2026-10-15): a downgraded owner confirms Make public first; the confirm stays up, busy, while the
     // change is in flight, and says a failure inside itself.
     const serverRefusedPrivate = useServerRefusedPrivate(id, knownPaidFeatures);
+    const knownStanding = recipePrivate.standing;
     // The confirm's words say what is KNOWN, and public is never final: it frees a slot, or (an imported public-web recipe,
     // upsell only) Premium is needed to return.
     const makePublic = useMakePublicConfirm({
@@ -184,10 +186,13 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         {
             viewerIsOwner,
             isPublic,
-            serverRefusal: serverRefusedPrivate,
+            serverRefusal: serverRefusedPrivate?.reason,
             finishRefused,
             knownRefusal: recipePrivate.refusal,
             writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
+            // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
+            slotLimit:
+                serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),
         },
         visibilityCopy,
     );
@@ -201,6 +206,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         isPublic,
         hasMarks: marks.hasMarks,
         offersPrivate: privateGate.offersPrivate,
+        mayBePublic: mayBePublic(recipePrivate.rule),
     });
 
     const menuItem = (item: DetailMenuItem): ActionMenuItem => {
@@ -281,6 +287,18 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             recipeTitle: recipe.title,
             upsell: privateGate.sheet,
             makePublic: { ...makePublic.dialog, busy: setVisibility.isPending, error: setVisibility.error !== null },
+            cloneRefusal: {
+                // Driven by the SERVER's answer, never predicted here: whether a copy lands private is the server's rule
+                // (`defaultCloneVisibility`), and it refuses before any row is written.
+                open: isPrivateSlotsFullError(cloneRecipe.error),
+                total: isPrivateSlotsFullError(cloneRecipe.error) ? cloneRecipe.error.limit : 0,
+                // Premium is offered only where paid features are shown (DSA Art. 25: no sale where none is shown).
+                offer:
+                    paidFeatureStateOf(profile) === 'upsell'
+                        ? { kind: 'premium', onSeePremium: cloneRecipe.reset }
+                        : { kind: 'none' },
+                onClose: cloneRecipe.reset,
+            },
             delete: {
                 open: deleteOpen,
                 deleting: deleteRecipe.isPending,

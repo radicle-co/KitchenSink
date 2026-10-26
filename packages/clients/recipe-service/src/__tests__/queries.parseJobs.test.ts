@@ -43,7 +43,13 @@ import {
     parseJobQueries,
     recipeServiceKeys,
 } from '../index.js';
-import { FIXTURE_PARSE_JOB_UUID, makeParseJob, makeParseJobLine } from '../__fixtures__/parseJobs.js';
+import {
+    FIXTURE_PARSE_JOB_UUID,
+    makeParseJob,
+    makeParseJobLine,
+    makeParseProposal,
+    makeParseProposalFood,
+} from '../__fixtures__/parseJobs.js';
 
 /** A client stand-in carrying only the methods these factories call. */
 function makeFakeClient(methods: Partial<RecipeServiceClient>): RecipeServiceClient {
@@ -205,5 +211,83 @@ describe('parseJobPollIntervalOf — no time limit, but no storm', () => {
         expect(parseJobPollIntervalOf(makeParseJob({ status: 'partial', expiresAt: LIVE }), NOW, 4000)).toBe(
             PARSE_JOB_SETTLING_POLL_INTERVAL_MS,
         );
+    });
+});
+
+/**
+ * ADR-0071 §4/§9: a job can be `complete` (every line parsed) while a proposal is still `checking`, or has no match yet.
+ * The job view is the only change notice there is, so the poll must keep reading until every parsed food has a settled
+ * match - or the deadline passes. Seen red first: `complete` stopped the poll, so a verdict that landed afterwards never
+ * reached the cook.
+ */
+describe('parseJobPollIntervalOf - a parsed food still waiting on its match', () => {
+    const NOW = Date.parse('2026-10-15T10:00:00.000Z');
+    const LIVE = '2026-10-16T10:00:00.000Z';
+    const settled = { state: 'confident', reason: 'exactName', proposed: null, candidates: [] } as const;
+
+    const withFoods = (status: ParseJobResponse['status'], matches: readonly (object | null | undefined)[]) =>
+        makeParseJob({
+            status,
+            expiresAt: LIVE,
+            lines: [
+                makeParseJobLine({
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        foods: matches.map((match) => ({
+                            ...makeParseProposalFood(),
+                            ...(match === undefined ? {} : { match }),
+                        })) as never,
+                    }),
+                }),
+            ],
+        });
+
+    it('keeps polling a complete job at the settling cadence while a food is checking', () => {
+        const job = withFoods('complete', [settled, { ...settled, state: 'checking' }]);
+
+        expect(parseJobPollIntervalOf(job, NOW, 4000)).toBe(PARSE_JOB_SETTLING_POLL_INTERVAL_MS);
+    });
+
+    it.each([
+        { why: 'null', match: null },
+        { why: 'absent', match: undefined },
+    ])('keeps polling a complete job while a parsed food has a $why match', ({ match }) => {
+        expect(parseJobPollIntervalOf(withFoods('complete', [settled, match]), NOW, 4000)).toBe(
+            PARSE_JOB_SETTLING_POLL_INTERVAL_MS,
+        );
+    });
+
+    it('stops on a complete job once every parsed food has a settled match', () => {
+        const states = ['confident', 'default', 'needsChoice', 'noMatch'] as const;
+        const job = withFoods(
+            'complete',
+            states.map((state) => ({ ...settled, state })),
+        );
+
+        expect(parseJobPollIntervalOf(job, NOW, 4000)).toBe(false);
+    });
+
+    it('ignores lines that carry no proposal (withdrawn, unparseable): they will never be matched', () => {
+        const job = makeParseJob({
+            status: 'complete',
+            expiresAt: LIVE,
+            lines: [
+                makeParseJobLine({ lineIndex: 0, status: 'withdrawn', progress: null }),
+                makeParseJobLine({ lineIndex: 1, status: 'unparseable', progress: null }),
+            ],
+        });
+
+        expect(parseJobPollIntervalOf(job, NOW, 4000)).toBe(false);
+    });
+
+    it('is bounded by expiresAt even while a food is still checking', () => {
+        const job = withFoods('complete', [{ ...settled, state: 'checking' }]);
+
+        expect(parseJobPollIntervalOf(job, Date.parse(LIVE) - 1, 4000)).toBe(PARSE_JOB_SETTLING_POLL_INTERVAL_MS);
+        expect(parseJobPollIntervalOf(job, Date.parse(LIVE), 4000)).toBe(false);
+    });
+
+    it('an expired job stops whatever its foods read', () => {
+        expect(parseJobPollIntervalOf(withFoods('expired', [null]), NOW, 4000)).toBe(false);
     });
 });

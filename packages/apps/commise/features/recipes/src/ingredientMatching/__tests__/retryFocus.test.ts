@@ -17,6 +17,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     lowerRetryRequest,
+    noteAttention,
+    ownsFocus,
     retryFocusOf,
     startRetryMemory,
     stepRetryMemory,
@@ -136,5 +138,79 @@ describe('lowerRetryRequest', () => {
         const memory = startRetryMemory([IDLE]);
 
         expect(lowerRetryRequest(memory, 'milk', 'landing')).toBe(memory);
+    });
+});
+
+/**
+ * ATTENTION (blueprint "Host gap rules" 1): Try again must not steal focus. A retry's focus is a promise to the cook who
+ * pressed it; once the cook has acted on ANOTHER line the promise is void, and so is the host's `pickFocusOf` move for
+ * the line that was left behind. Seen red first: with no attention in the memory, a retry that landed after the cook had
+ * moved on pulled focus back to the old line.
+ */
+describe('attention', () => {
+    const BREAD_FAILED = send({ key: 'bread', failed: true });
+    const BREAD_RETRYING = send({ key: 'bread', failed: true, sending: true });
+
+    it('starts with no attention: every line owns focus', () => {
+        const memory = startRetryMemory([FAILED, BREAD_FAILED]);
+
+        expect(memory.attention).toBeUndefined();
+        expect(ownsFocus(memory, 'milk')).toBe(true);
+        expect(ownsFocus(memory, 'bread')).toBe(true);
+    });
+
+    it('noteAttention hands focus ownership to that line alone', () => {
+        const memory = noteAttention(startRetryMemory([FAILED, BREAD_FAILED]), 'bread');
+
+        expect(memory.attention).toBe('bread');
+        expect(ownsFocus(memory, 'bread')).toBe(true);
+        expect(ownsFocus(memory, 'milk')).toBe(false);
+    });
+
+    it("noteAttention drops every standing request that belongs to another line, and keeps the line's own", () => {
+        const raised = stepRetryMemory(startRetryMemory([FAILED, BREAD_FAILED]), [RETRYING, BREAD_RETRYING]);
+
+        expect([...raised.requests.keys()].sort()).toEqual(['bread', 'milk']);
+
+        const moved = noteAttention(raised, 'bread');
+
+        expect([...moved.requests.keys()]).toEqual(['bread']);
+        expect(moved.requests.get('bread')).toBe('landing');
+    });
+
+    it('a retry that fails again on a line the cook has left raises no Try again request', () => {
+        const retrying = stepRetryMemory(startRetryMemory([FAILED, BREAD_FAILED]), [RETRYING, BREAD_FAILED]);
+        const moved = noteAttention(retrying, 'bread');
+        const failedAgain = stepRetryMemory(moved, [FAILED, BREAD_FAILED]);
+
+        expect(failedAgain.requests.has('milk')).toBe(false);
+        expect(failedAgain.attention).toBe('bread');
+    });
+
+    it('a retry that STARTS on a line the cook has left raises no landing request', () => {
+        const moved = noteAttention(startRetryMemory([FAILED, BREAD_FAILED]), 'bread');
+        const next = stepRetryMemory(moved, [RETRYING, BREAD_FAILED]);
+
+        expect(next.requests.has('milk')).toBe(false);
+    });
+
+    it('requests still rise for the line the cook IS on', () => {
+        const moved = noteAttention(startRetryMemory([FAILED, BREAD_FAILED]), 'milk');
+
+        expect(stepRetryMemory(moved, [RETRYING, BREAD_FAILED]).requests.get('milk')).toBe('landing');
+    });
+
+    it('returns the SAME memory when attention already rests on the line and no other request stands', () => {
+        const memory = noteAttention(startRetryMemory([FAILED]), 'milk');
+
+        expect(noteAttention(memory, 'milk')).toBe(memory);
+    });
+
+    it('lowering a request and stepping keep the attention', () => {
+        const memory = noteAttention(startRetryMemory([FAILED]), 'milk');
+        const raised = stepRetryMemory(memory, [RETRYING]);
+
+        expect(lowerRetryRequest(raised, 'milk', 'landing').attention).toBe('milk');
+        expect(stepRetryMemory(raised, [IDLE]).attention).toBe('milk');
     });
 });

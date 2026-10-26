@@ -35,6 +35,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     announcement,
     onUseSuggestion,
     onChooseAnother,
+    onRetry,
     detail,
 }) => {
     const { flagged: f } = useMessages(importMessages);
@@ -96,7 +97,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                 {view.failure === undefined ? null : (
                                     <MatchFailureLine
                                         failure={view.failure}
-                                        onRetry={() => onUseSuggestion(line.key)}
+                                        onRetry={() => onRetry(line.key)}
                                         focus={retry.tryAgain}
                                     />
                                 )}

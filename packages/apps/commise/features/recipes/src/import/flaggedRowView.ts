@@ -22,6 +22,17 @@ import type { ImportFlaggedLineItem } from './props.js';
 /** The control of a flagged row a retry lands on. */
 export type FlaggedLanding = 'use' | 'chooseAnother';
 
+/**
+ * The control a retry or a focus move lands on for a flagged row: its Use when the check offered a food, else Choose
+ * another. The one place that rule lives. Pure.
+ *
+ * @param line - The row.
+ * @returns The landing control.
+ */
+export function flaggedLandingOf(line: ImportFlaggedLineItem): FlaggedLanding {
+    return line.suggestion === undefined ? 'chooseAnother' : 'use';
+}
+
 /** What a flagged row shows about a send. */
 export interface FlaggedRowView {
     /** The row's failed Use, in the matched-line list's words; `undefined` when it did not fail or a retry is in flight. */
@@ -48,6 +59,6 @@ export function flaggedRowViewOf(
     return {
         failure: lineFailureOf(line.text, place, copy),
         send: sendStateOf(line.key, place),
-        landing: line.suggestion === undefined ? 'chooseAnother' : 'use',
+        landing: flaggedLandingOf(line),
     };
 }

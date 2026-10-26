@@ -598,8 +598,11 @@ export function parseJobIsLive(job: Pick<ParseJobResponse, 'expiresAt'>, now: nu
 /**
  * How often to read a parse job again, or `false` to stop — the poll's whole rule, as a pure decision.
  *
- * - not live (`expiresAt` passed or unreadable), `complete` or `expired`: stop — nothing more can be learned;
+ * - not live (`expiresAt` passed or unreadable) or `expired`: stop — nothing more can be learned;
  * - `partial`: the settling cadence (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS});
+ * - `complete`: stop - UNLESS a parsed food has no match yet or one still `checking` (ADR-0071: the job view is the
+ *   only change notice, and a verdict can land after every line has parsed), when the settling cadence applies until
+ *   they settle or `expiresAt` passes;
  * - `running`: the running cadence, UNLESS every pending line reads `stalled`, when nothing is moving and the settling
  *   cadence applies. A running job with no pending line is waiting on its aggregate, which the next landing or read
  *   settles, so it keeps the running cadence.
@@ -625,9 +628,23 @@ export function parseJobPollIntervalOf(job: ParseJobResponse, now: number, runni
         case 'partial':
             return PARSE_JOB_SETTLING_POLL_INTERVAL_MS;
         case 'complete':
+            return hasFoodAwaitingMatch(job) ? PARSE_JOB_SETTLING_POLL_INTERVAL_MS : false;
         case 'expired':
             return false;
     }
+}
+
+/**
+ * Whether a parsed food is still waiting on its match: it has none yet (`match` null or absent) or the review is still
+ * deciding (`checking`). Lines that carry no proposal (pending, withdrawn, unparseable) have no food to wait on. Pure.
+ *
+ * @param job - The job as last read.
+ * @returns `true` while any parsed food's match can still change.
+ */
+function hasFoodAwaitingMatch(job: ParseJobResponse): boolean {
+    return job.lines.some((line) =>
+        (line.proposal?.foods ?? []).some((food) => food.match == null || food.match.state === 'checking'),
+    );
 }
 
 /**
@@ -643,7 +660,7 @@ export function parseJobQueries(client: RecipeServiceClient) {
          *
          * The poll is SELF-LIMITING, and it runs while the job can still MOVE — `running` (work in
          * progress) and `partial` (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS} for why that one is not
-         * terminal). It stops on `complete`, on `expired`, before the first response has landed, and —
+         * terminal). It stops on `complete` (once every parsed food has a settled match), on `expired`, before the first response has landed, and —
          * the case a status-only rule misses — once `expiresAt` has passed.
          *
          * ⛔ EXPIRY IS THE TIMESTAMP, NOT THE STATUS. The TTL sweep rides a 15-minute tick while

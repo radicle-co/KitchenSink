@@ -34,6 +34,7 @@ afterEach(() => {
 function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
     const onUseSuggestion = vi.fn();
     const onChooseAnother = vi.fn();
+    const onRetry = vi.fn();
     render(
         <ImportFlaggedList
             total={23}
@@ -51,11 +52,12 @@ function renderList(overrides: Partial<ImportFlaggedListProps> = {}) {
             announcement={{ text: '', occurrence: 0 }}
             onUseSuggestion={onUseSuggestion}
             onChooseAnother={onChooseAnother}
+            onRetry={onRetry}
             {...overrides}
         />,
     );
 
-    return { onUseSuggestion, onChooseAnother };
+    return { onUseSuggestion, onChooseAnother, onRetry };
 }
 
 describe('ImportFlaggedList (native)', () => {
@@ -102,8 +104,8 @@ describe('ImportFlaggedList (native)', () => {
         expect(screen.getByText('the pane')).toBeTruthy();
     });
 
-    it('⛔ M6: a Use that did not save says so on its row, with Try again naming the line; Try again sends Use again', () => {
-        const { onUseSuggestion } = renderList({ failed: new Set(['milk']) });
+    it('⛔ M6: a Use that did not save says so on its row, with Try again naming the line; Try again reports the row to the host', () => {
+        const { onUseSuggestion, onRetry } = renderList({ failed: new Set(['milk']) });
 
         expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
 
@@ -113,10 +115,36 @@ describe('ImportFlaggedList (native)', () => {
 
         fireEvent.click(retry);
 
-        expect(onUseSuggestion).toHaveBeenCalledExactlyOnceWith('milk');
+        // The host repeats the action that failed (`sendLedger.retryOf`); Try again is NOT the Use again.
+        expect(onRetry).toHaveBeenCalledExactlyOnceWith('milk');
+        expect(onUseSuggestion).not.toHaveBeenCalled();
         expect(
             screen.getByRole('button', { name: 'Use Whole milk for 1 1/4 cups milk' }).hasAttribute('disabled'),
         ).toBe(false);
+    });
+
+    it('⛔ replay: Try again on each failed row reports THAT row, whatever the failed action was', () => {
+        const { onRetry, onUseSuggestion, onChooseAnother } = renderList({
+            total: 2,
+            failed: new Set(['milk', 'spice']),
+            lines: [
+                {
+                    key: 'milk',
+                    text: '1 1/4 cups milk',
+                    recipeTitle: 'Pancakes',
+                    matchedFood: 'milk crackers',
+                    suggestion: { foodId: 'f-whole', name: 'Whole milk' },
+                },
+                { key: 'spice', text: '1 tsp mixed spice', recipeTitle: 'Hot cross buns', matchedFood: 'Spice cake' },
+            ],
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 1 tsp mixed spice' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 1 1/4 cups milk' }));
+
+        expect(onRetry.mock.calls).toEqual([['spice'], ['milk']]);
+        expect(onUseSuggestion).not.toHaveBeenCalled();
+        expect(onChooseAnother).not.toHaveBeenCalled();
     });
 
     it('M6: a retry in flight hides the failure, and no failure shows when nothing failed', () => {
@@ -165,6 +193,7 @@ describe('ImportFlaggedList (native): Try again keeps the screen-reader cursor (
             announcement={{ text: '', occurrence: 0 }}
             onUseSuggestion={vi.fn()}
             onChooseAnother={vi.fn()}
+            onRetry={vi.fn()}
             {...props}
         />
     );

@@ -1,5 +1,6 @@
 /**
- * Doubles for the three resolution-side collaborators `RecipesService` requires.
+ * The double for the resolution-side collaborator `IngredientsService` requires: the event log (ADR-0071 removed the
+ * band-authority one with the ranked event it served).
  *
  * ⛔ They are REQUIRED on the constructor, which is why these exist. An optional collaborator means a null
  * branch per site that production never reaches and only under-specified suites rely on — and it is how a
@@ -10,9 +11,7 @@
  */
 import { vi } from 'vitest';
 
-import type { IngredientResolutionsDal, LatestResolution } from '../resolution/ingredientResolutions.dal.js';
-import type { ResolutionBandsDal } from '../resolution/resolutionBands.dal.js';
-import type { VerificationRedriveDal } from '../resolution/verificationRedrive.dal.js';
+import type { IngredientResolutionsDal } from '../resolution/ingredientResolutions.dal.js';
 
 /**
  * A resolutions DAL that has no events — the shape a fresh database has.
@@ -25,7 +24,7 @@ import type { VerificationRedriveDal } from '../resolution/verificationRedrive.d
  * use this double stayed green.
  *
  * ⚠️ The cast cannot simply be dropped: a `Partial` spread over a class type is not assignable to it, and
- * the honest alternative — listing every method — is what this now does for the two the service calls.
+ * the honest alternative — listing every method — is what this does for the one the service calls.
  *
  * @param overrides - Methods a suite asserts on.
  * @returns The double.
@@ -34,39 +33,7 @@ export function makeFakeIngredientResolutionsDal(
     overrides: Partial<IngredientResolutionsDal> = {},
 ): IngredientResolutionsDal {
     return {
-        latestResolutionsByLookupIds: vi.fn().mockResolvedValue(new Map<string, LatestResolution>()),
         record: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     } as unknown as IngredientResolutionsDal;
-}
-
-/**
- * A bands DAL that grants no authority, so every line verifies — the safe direction.
- *
- * @param overrides - Methods a suite asserts on.
- * @returns The double.
- */
-export function makeFakeResolutionBandsDal(overrides: Partial<ResolutionBandsDal> = {}): ResolutionBandsDal {
-    return {
-        authorityFor: vi.fn().mockResolvedValue(undefined),
-        observationsSinceGrant: vi.fn().mockResolvedValue(0),
-        recordSkip: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    } as unknown as ResolutionBandsDal;
-}
-
-/**
- * A redrive DAL that accepts every write — without it a withholding line simply is not re-drivable, which
- * is a fact about the drain, not about the save under test.
- *
- * @param overrides - Methods a suite asserts on.
- * @returns The double.
- */
-export function makeFakeVerificationRedriveDal(
-    overrides: Partial<VerificationRedriveDal> = {},
-): VerificationRedriveDal {
-    return {
-        record: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    } as unknown as VerificationRedriveDal;
 }

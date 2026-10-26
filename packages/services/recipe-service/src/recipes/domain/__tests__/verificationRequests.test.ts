@@ -31,14 +31,7 @@ import {
     type VerifyIngredientLineMessage,
 } from '@kitchensink/recipe-core/resolution/verification-message';
 
-import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
-
-import {
-    bandKeyOf,
-    buildVerificationRequests,
-    type VerifiableLine,
-    type VerificationRequestInput,
-} from '../verificationRequests.js';
+import { buildVerificationRequests, type VerifiableLine } from '../verificationRequests.js';
 
 const RECIPE_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 const REQUESTED_AT = '2026-08-22T10:00:00.000Z';
@@ -73,104 +66,18 @@ const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     quantity: amount(2),
     unit: 'cup',
     statedMeasure: undefined,
-    resolution: undefined,
     ...overrides,
 });
 
-/** A latest-resolution event for a tier, ranked fields defaulted off. */
-const resolutionOf = (
-    tier: 'curated' | 'lexical' | 'memo' | 'llm',
-    overrides: Partial<NonNullable<VerifiableLine['resolution']>> = {},
-): NonNullable<VerifiableLine['resolution']> => ({
-    tier,
-    rung: null,
-    margin: null,
-    shortlist: null,
-    queryShape: null,
-    rankerVersion: null,
-    bandEpoch: null,
-    authorAugmented: false,
-    createdAt: new Date('2026-08-31T00:00:00.000Z'),
-    ...overrides,
-});
-
-/** A lexical event whose stored shortlist satisfies the wire schema, wide margin, agreeing nutrients. */
-const RANKED_SHORTLIST = [
-    // All four macros on every candidate: an absent macro reads as UNKNOWN agreement, which (correctly)
-    // keeps D4a's second conjunct unsatisfied — these fixtures probe the AUTHORITY conjunct.
-    {
-        foodId: '01JFOOD000000000000000000',
-        score: 0.9,
-        energyKcalPer100g: 364,
-        proteinGPer100g: 10,
-        fatGPer100g: 1,
-        carbohydrateGPer100g: 76,
-    },
-    {
-        foodId: '01JFOOD000000000000000001',
-        score: 0.2,
-        energyKcalPer100g: 364,
-        proteinGPer100g: 10,
-        fatGPer100g: 1,
-        carbohydrateGPer100g: 76,
-    },
-];
-const lexicalResolution = (overrides: Partial<NonNullable<VerifiableLine['resolution']>> = {}) =>
-    resolutionOf('lexical', {
-        rung: 'head',
-        margin: 0.7,
-        shortlist: RANKED_SHORTLIST,
-        queryShape: 'single-token',
-        rankerVersion: 'ladder-v2-comma-head',
-        bandEpoch: null,
-        ...overrides,
-    });
-
-describe('resolution provenance reaches the gate as evidence (plan U2)', () => {
-    // ⛔ Before U2 every line enqueued `unattributedEvidence()` — the cascade kept only the foodId and no
-    // column recorded which tier answered, so a curated hit paid for an identity check its tier had already
-    // established. The producer now maps the persisted resolution tier onto the evidence the policy reads.
-    it('a curated resolution sends curated-exact evidence, and the identity aspect is excused', () => {
-        const { requests } = plan([makeLine({ resolution: resolutionOf('curated') })]);
-
-        expect(requests).toHaveLength(1);
-        expect(requests[0]?.evidenceKind).toBe('curated-exact');
-    });
-
-    it('a memo resolution sends remembered evidence, which establishes nothing on its own', () => {
-        const { requests } = plan([makeLine({ resolution: resolutionOf('memo') })]);
-
-        expect(requests[0]?.evidenceKind).toBe('remembered');
-    });
-
-    it('a line with no recorded resolution stays unattributed — absence is not evidence', () => {
-        const { requests } = plan([makeLine({ resolution: undefined })]);
-
-        expect(requests[0]?.evidenceKind).toBe('unattributed');
-    });
-
-    it('a lexical resolution with a VALID stored shortlist sends ranked evidence — and the shortlist', () => {
-        // ⚠️ REWRITTEN in U4 (this was "stays unattributed UNTIL the tier ships shortlists" — the tier now
-        // ships them). The stored jsonb is zod-validated at this boundary; only a shape the wire schema
-        // accepts may claim `ranked`.
-        const { requests } = plan([makeLine({ resolution: lexicalResolution() })]);
-
-        expect(requests[0]?.evidenceKind).toBe('ranked');
-        expect(requests[0]?.shortlist).toEqual(RANKED_SHORTLIST);
-    });
-
-    it('⛔ a lexical resolution whose stored shortlist does not parse stays unattributed', () => {
-        const { requests } = plan([makeLine({ resolution: lexicalResolution({ shortlist: [{ mangled: true }] }) })]);
-
-        expect(requests[0]?.evidenceKind).toBe('unattributed');
-        expect(requests[0]?.shortlist).toEqual([]);
-    });
-});
+// ⛔ DELETED (ADR-0071): "resolution provenance reaches the gate as evidence (plan U2)". The producer no longer reads
+// the latest event on a line's BINDING, which every cook shares, so a line carries no provenance and the cases that
+// mapped curated/memo/lexical events onto evidence have nothing to map. Their replacement is the case "declares
+// UNATTRIBUTED evidence and an empty shortlist" below, and the service-level case in
+// `__tests__/verificationEnqueue.service.test.ts` that pins the provenance read is gone.
 
 const plan = (
     lines: readonly VerifiableLine[],
     alreadyRequested: readonly VerifiableLine[] = [],
-    bands: VerificationRequestInput['bands'] = new Map(),
 ): ReturnType<typeof buildVerificationRequests> =>
     buildVerificationRequests({
         recipeId: RECIPE_ID,
@@ -178,7 +85,6 @@ const plan = (
         alreadyRequested,
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
         requestedAt: REQUESTED_AT,
-        bands,
     });
 
 /** Just the messages, for the many cases that are only about what reaches the queue. */
@@ -552,129 +458,7 @@ describe('buildVerificationRequests — what the SOURCE printed travels with the
     });
 });
 
-describe('band consultation — earned autonomy at the producer (plan U4b, KTD-A)', () => {
-    const KEY = bandKeyText({
-        rung: 'head',
-        marginBand: 'ge-0.9-rung',
-        queryShape: 'single-token',
-        rankerVersion: 'ladder-v2-comma-head',
-    });
-    const authorized = { authority: { state: 'authorized', epoch: 2 } as const, shadow: false };
-
-    it('day one — no consultation entries — every ranked line asks identity and nothing is skipped', () => {
-        const { requests, bandSkips } = plan([makeLine({ resolution: lexicalResolution() })]);
-
-        expect(requests).toHaveLength(1);
-        expect(requests[0]?.shadowSample).toBeUndefined();
-        expect(bandSkips).toEqual([]);
-    });
-
-    it('an AUTHORIZED band with the floors met records a skip carrying the READY message and its epoch', () => {
-        const { requests, bandSkips } = plan(
-            [makeLine({ resolution: lexicalResolution() })],
-            [],
-            new Map([[KEY, authorized]]),
-        );
-
-        // The message is STILL SENT — quantity is never skippable; the skip row is the audit that identity
-        // settlement was granted, and the drain re-sends this exact message if the band is ever revoked.
-        expect(requests).toHaveLength(1);
-        expect(bandSkips).toHaveLength(1);
-        expect(bandSkips[0]?.epoch).toBe(2);
-        expect(bandSkips[0]?.message).toEqual(requests[0]);
-    });
-
-    it('⛔ a VARIANT line on the same authorized band records NO skip — its shortlist ranked roots (curated U9)', () => {
-        const { requests, bandSkips } = plan(
-            [
-                makeLine({
-                    food: { kind: 'variant', id: '01JVARIANT0000000000000000' },
-                    resolution: lexicalResolution(),
-                }),
-            ],
-            [],
-            new Map([[KEY, authorized]]),
-        );
-
-        expect(requests).toHaveLength(1);
-        expect(bandSkips).toEqual([]);
-    });
-
-    it('a SHADOW-sampled line asks identity anyway, is flagged on the wire, and records NO skip', () => {
-        const { requests, bandSkips } = plan(
-            [makeLine({ resolution: lexicalResolution() })],
-            [],
-            new Map([[KEY, { ...authorized, shadow: true }]]),
-        );
-
-        expect(requests[0]?.shadowSample).toBe(true);
-        expect(bandSkips).toEqual([]);
-    });
-
-    it('⛔ an authorized band whose line fails the FLOORS records no skip — authority is not a bypass', () => {
-        // A singleton shortlist: no margin, so D4a's first conjunct fails whatever the band says.
-        const singleton = lexicalResolution({ shortlist: [RANKED_SHORTLIST[0]], margin: null });
-        const { bandSkips } = plan([makeLine({ resolution: singleton })], [], new Map([[KEY, authorized]]));
-
-        expect(bandSkips).toEqual([]);
-    });
-});
-
-describe("pending re-drives — the withholding lines' stored messages (plan U4c, KTD-A)", () => {
-    it('emits a redrive judgement+message for a ranked line that will WITHHOLD', () => {
-        const { requests, pendingRedrives } = plan([makeLine({ resolution: lexicalResolution() })]);
-
-        expect(pendingRedrives).toHaveLength(1);
-        expect(pendingRedrives[0]?.message).toEqual(requests[0]);
-        expect(pendingRedrives[0]?.judgement.foodRefId).toBe('01JFOOD000000000000000000');
-    });
-
-    it('⛔ a band-EXCUSED line emits none — it is not pending, it settled instantly', () => {
-        const KEY = bandKeyText({
-            rung: 'head',
-            marginBand: 'ge-0.9-rung',
-            queryShape: 'single-token',
-            rankerVersion: 'ladder-v2-comma-head',
-        });
-        const { pendingRedrives } = plan(
-            [makeLine({ resolution: lexicalResolution() })],
-            [],
-            new Map([[KEY, { authority: { state: 'authorized', epoch: 2 }, shadow: false }]]),
-        );
-
-        expect(pendingRedrives).toEqual([]);
-    });
-
-    it('a curated line emits none — absence-means-publish changes for lexical binds only', () => {
-        const { pendingRedrives } = plan([makeLine({ resolution: resolutionOf('curated') })]);
-
-        expect(pendingRedrives).toEqual([]);
-    });
-
-    it('an unattributed line emits none, even though it verifies identity', () => {
-        const { pendingRedrives } = plan([makeLine({ resolution: undefined })]);
-
-        expect(pendingRedrives).toEqual([]);
-    });
-});
-
-describe('U11/R20 — an author-augmented or private-food line stays OUT of the shared band machinery', () => {
-    it('bandKeyOf answers no key for an author-augmented resolution, even a fully-keyed lexical one', () => {
-        // The one change covers consult, skip-record and shadow at once: no key, no band, the line verifies.
-        expect(bandKeyOf(lexicalResolution({ authorAugmented: true }))).toBeUndefined();
-    });
-
-    it('bandKeyOf still answers a key for the same resolution without the flag — the exclusion reads the flag', () => {
-        expect(bandKeyOf(lexicalResolution())).toBeDefined();
-    });
-
-    it("stamps authorAugmented on the message when the shortlist ranked the author's own food", () => {
-        const requests = build([makeLine({ resolution: lexicalResolution({ authorAugmented: true }) })]);
-
-        expect(requests).toHaveLength(1);
-        expect(requests[0]?.authorAugmented).toBe(true);
-    });
-
+describe('U11/R20 — a private-food line stays OUT of the shared memo tier', () => {
     it("stamps privateFood on the message when the bound food is the author's private one", () => {
         const requests = build([makeLine({ privateFood: true })]);
 
@@ -683,7 +467,7 @@ describe('U11/R20 — an author-augmented or private-food line stays OUT of the 
     });
 
     it('an ordinary line carries NEITHER key — the wire bytes of the common case are unchanged', () => {
-        const requests = build([makeLine({ resolution: lexicalResolution() })]);
+        const requests = build([makeLine()]);
 
         expect(requests).toHaveLength(1);
         expect('authorAugmented' in (requests[0] ?? {})).toBe(false);

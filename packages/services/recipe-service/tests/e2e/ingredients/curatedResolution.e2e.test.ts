@@ -53,10 +53,7 @@ import {
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
 import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import {
-    makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
 const MAPPED_FOOD = '01JU10LOOP0000000000MAPPED';
@@ -121,7 +118,6 @@ describe('the curated-resolution learning loop', () => {
             new FoodRefsGateway(clients),
             [createCuratedTier(mappings), createMemoTier(mappings)],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     });
 

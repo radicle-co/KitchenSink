@@ -56,6 +56,10 @@ export type {
     NewRecipeParseJobLineRow,
 } from './parseJobs.js';
 
+// ── recipe_parse_job_matches (ADR-0071, 0057) — a paste job's match proposals ──────────────────
+export { recipeParseJobMatches, MATCH_PROPOSING_TIERS } from './parseJobMatches.js';
+export type { MatchProposingTier, RecipeParseJobMatchRow, NewRecipeParseJobMatchRow } from './parseJobMatches.js';
+
 // ── recipe_ingredient_verification_redrive (plan U4c, 0037) — the pending re-drive substrate ─────
 export { verificationAttempts } from './verificationAttempts.js';
 export type { VerificationAttemptRow, NewVerificationAttemptRow } from './verificationAttempts.js';

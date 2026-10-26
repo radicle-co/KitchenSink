@@ -159,6 +159,42 @@ describe('FoodRefsGateway.resolve', () => {
         expect(lookup.degraded).toBe(true);
     });
 
+    it('⛔ honours the CALLER’s deadline as well as its own budget — the request deadline of a matches call', async () => {
+        // ADR-0071 review (item 13): the paste matcher's one request deadline reaches this read, so a slow food cannot
+        // push `POST …/matches` past the client's timeout. An already-passed deadline sends nothing.
+        const resolveRefs = vi.fn();
+        const spent = AbortSignal.abort();
+
+        const lookup = await new FoodRefsGateway(makeClients(resolveRefs)).resolve(
+            CALLER,
+            [{ kind: 'root', id: 'f1' }],
+            'postCommit',
+            { signal: spent },
+        );
+
+        expect(resolveRefs).not.toHaveBeenCalled();
+        expect(lookup.answers.get('root:f1')).toStrictEqual({ outcome: 'unreachable' });
+        expect(lookup.degraded).toBe(true);
+    });
+
+    it('aborts an in-flight chunk when the caller’s deadline fires before its own budget', async () => {
+        const resolveRefs = vi.fn(
+            (_chunk: unknown, options?: { signal?: AbortSignal }) =>
+                new Promise((_resolve, reject) => {
+                    options?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+                }),
+        );
+
+        const lookup = await new FoodRefsGateway(makeClients(resolveRefs)).resolve(
+            CALLER,
+            [{ kind: 'root', id: 'f1' }],
+            'postCommit',
+            { signal: AbortSignal.timeout(20) },
+        );
+
+        expect(lookup.answers.get('root:f1')).toStrictEqual({ outcome: 'unreachable' });
+    });
+
     it('asks for nothing when there is nothing to name', async () => {
         const resolveRefs = vi.fn();
 

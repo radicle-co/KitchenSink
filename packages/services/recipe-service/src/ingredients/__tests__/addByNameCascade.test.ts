@@ -1,11 +1,14 @@
 /**
- * `IngredientsService.addByName` records a RANKED resolution's full band-keyed event (plan U4, KTD-C) on the
- * binding it produced.
+ * `IngredientsService.addByName` records WHICH TIER bound a line, and nothing else (ADR-0071).
  *
- * ⚠️ REWRITTEN for plan 002 (0051). The cascade-first, stale-mapping and exhausted-cascade cases this file used
- * to hold moved to `ingredients.service.test.ts` in the binding model's terms. What stays here is the event: a
- * ranked resolution persists its confidence shape so the band log and the verification producer have a
- * substrate, keyed by the `food_lookups` row the resolution bound.
+ * ⚠️ REWRITTEN for ADR-0071. This file used to prove that a RANKED resolution persisted its full band-keyed event
+ * (rung, margin, shortlist, query shape, ranker version, observed band epoch) and read band authority for the epoch.
+ * By-name now runs the settled chain `[curated, memo]` only, so no production resolution on this path is ranked, and
+ * the ranked branch, its band-authority read and the `bands` constructor parameter were deleted as unreachable. The
+ * lexical tier's rung-less coverage moved to the proposal path: `matchProposal.service.test.ts` (unit) and
+ * `lexicalRungTolerance.integration.test.ts` (integration), both through `MatchProposalService`.
+ *
+ * What stays: the event is telemetry, keyed by the `food_lookups` row the resolution bound, and it carries the tier.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -28,23 +31,34 @@ const BOUND: RootArm = {
     createdAt: new Date('2026-09-30T00:00:00.000Z'),
 };
 
-const rankedTier: ResolutionTier = {
-    id: 'lexical',
+const curatedTier: ResolutionTier = {
+    id: 'curated',
     resolve: async () => ({
         kind: 'resolved',
-        tier: 'lexical',
+        tier: 'curated',
         food: { kind: 'root', id: MAPPED_FOOD },
-        evidence: 'lexical shortlist (rung head, 2 candidates, margin 0.290)',
+        evidence: 'curated mapping',
+    }),
+};
+
+/**
+ * A tier answering with a RANKED shape. No production by-name chain holds one (ADR-0071); it is here to prove the
+ * event write no longer carries a ranked shape whatever a tier hands it.
+ */
+const rankedShapedTier: ResolutionTier = {
+    id: 'memo',
+    resolve: async () => ({
+        kind: 'resolved',
+        tier: 'memo',
+        food: { kind: 'root', id: MAPPED_FOOD },
+        evidence: 'memo',
         confidence: 0.29,
-        shortlist: [
-            { foodId: MAPPED_FOOD, score: 0.91 },
-            { foodId: '01JU10WIRE000000000RUNNER0', score: 0.62 },
-        ],
+        shortlist: [{ foodId: MAPPED_FOOD, score: 0.91 }],
         rung: 'head',
     }),
 };
 
-function build(record: ReturnType<typeof vi.fn>, authorityFor: ReturnType<typeof vi.fn>): IngredientsService {
+function build(record: ReturnType<typeof vi.fn>, tier: ResolutionTier): IngredientsService {
     const lookups = { findOrCreateBound: vi.fn().mockResolvedValue(BOUND) } as unknown as FoodLookupsDal;
     const refs = {
         resolveForBind: vi.fn().mockResolvedValue({
@@ -61,44 +75,33 @@ function build(record: ReturnType<typeof vi.fn>, authorityFor: ReturnType<typeof
         makeFoodClients().clients,
         { search: vi.fn() } as unknown as FoodCatalogGateway,
         refs,
-        [rankedTier],
+        [tier],
         { record } as never,
-        { authorityFor } as never,
     );
 }
 
-describe('addByName — a RANKED resolution records the full band-keyed event (plan U4, KTD-C)', () => {
-    it('persists rung, margin, shortlist, query shape, ranker version and the observed band epoch, on the binding', async () => {
+describe('addByName — the resolution event names the tier, on the binding (ADR-0071)', () => {
+    it('records the binding and the tier that bound it, and nothing more', async () => {
         const record = vi.fn().mockResolvedValue(undefined);
-        const authorityFor = vi.fn().mockResolvedValue({ state: 'observing', epoch: 0 });
 
-        await build(record, authorityFor).addByName(CALLER, NAME, AUTHOR);
+        await build(record, curatedTier).addByName(CALLER, NAME, AUTHOR);
 
-        expect(record).toHaveBeenCalledWith(
-            expect.objectContaining({
-                foodLookupId: 'lookup-mapped',
-                tier: 'lexical',
-                rung: 'head',
-                margin: 0.29,
-                queryShape: 'multi-word',
-                rankerVersion: expect.any(String),
-                bandEpoch: '0',
-                shortlist: [
-                    { foodId: MAPPED_FOOD, score: 0.91 },
-                    { foodId: '01JU10WIRE000000000RUNNER0', score: 0.62 },
-                ],
-            }),
-        );
-        expect(authorityFor).toHaveBeenCalledWith(expect.objectContaining({ rung: 'head', queryShape: 'multi-word' }));
+        expect(record).toHaveBeenCalledWith({ foodLookupId: 'lookup-mapped', tier: 'curated' });
     });
 
-    it('⚠️ an unreadable band authority degrades to an event with NO epoch — never a failed resolution', async () => {
+    it('⛔ writes no ranked shape and no band epoch, whatever the tier handed over', async () => {
         const record = vi.fn().mockResolvedValue(undefined);
-        const authorityFor = vi.fn().mockRejectedValue(new Error('band table unreachable'));
 
-        const admitted = await build(record, authorityFor).addByName(CALLER, NAME, AUTHOR);
+        await build(record, rankedShapedTier).addByName(CALLER, NAME, AUTHOR);
+
+        expect(record).toHaveBeenCalledWith({ foodLookupId: 'lookup-mapped', tier: 'memo' });
+    });
+
+    it('⚠️ a lost event never fails a resolution that succeeded', async () => {
+        const record = vi.fn().mockRejectedValue(new Error('insert refused'));
+
+        const admitted = await build(record, curatedTier).addByName(CALLER, NAME, AUTHOR);
 
         expect(admitted.foodId).toBe(MAPPED_FOOD);
-        expect(record).toHaveBeenCalledWith(expect.objectContaining({ bandEpoch: undefined }));
     });
 });

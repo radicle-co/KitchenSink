@@ -27,11 +27,11 @@
  * @pattern Adapter — the parse job's answer to draft rows
  * @pattern Visitor — an exhaustive switch over the job line's status
  */
-import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
+import { pastedLineMeasureOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import { parseJobIsLive } from '@kitchensink/recipe-service-client';
 import type { ParseJobLinePhase, ParseJobLineView, ParseJobResponse, ParseProposal } from '@kitchensink/schema-recipe';
 
-import { readLeadingMeasure, readStatedMeasure, statedUnitOf } from '../form/leadingMeasure.js';
+import { readLeadingMeasure, statedUnitOf } from '../form/leadingMeasure.js';
 import type { LineMeasure } from '../hooks/lineCommit.js';
 
 /** One row a settled line adds. */
@@ -82,41 +82,14 @@ export interface PastedLinesInput {
     readonly typedByCook: ReadonlySet<number>;
 }
 
-const NO_MEASURE: LineMeasure = { quantity: ABSENT_QUANTITY, unit: '', preparation: '' };
-
 /**
- * The line's measure in the cook's own words (spec §7.5.3: the amount and unit the cook typed are the cook's own
- * statement). Read from the parse's `statedMeasure` with the add field's amount rules; the parse's own reading stands
- * only where those words state no amount the reader reads but the parse read one ("one cup"), or when the parse kept
- * no words. Pure.
+ * The rows a parsed proposal adds: one per food. Each row's measure is recipe-core's `pastedLineMeasureOf` (the cook's
+ * own words, the first food only), the rule recipe-service's paste matcher keys its verdict with (ADR-0071). Pure.
  */
-function cookMeasureOf(proposal: ParseProposal): Pick<LineMeasure, 'quantity' | 'unit'> {
-    const parsed = { quantity: proposal.quantity, unit: proposal.unit ?? '' };
-    const phrase = proposal.statedMeasure?.trim() ?? '';
-
-    if (phrase === '') {
-        return parsed;
-    }
-
-    const stated = readStatedMeasure(phrase);
-
-    if (stated.quantity.kind !== 'absent') {
-        return { quantity: stated.quantity, unit: stated.words };
-    }
-
-    return proposal.quantity.kind === 'absent' ? { quantity: ABSENT_QUANTITY, unit: stated.words } : parsed;
-}
-
-/** The rows a parsed proposal adds: one per food, the first carrying the line's measure. Pure. */
 function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
-    const measure = cookMeasureOf(proposal);
-
     return proposal.foods.map((food, index) => ({
         name: food.name,
-        measure:
-            index === 0
-                ? { ...measure, preparation: food.prep ?? '' }
-                : { ...NO_MEASURE, preparation: food.prep ?? '' },
+        measure: { ...pastedLineMeasureOf(proposal, index), preparation: food.prep ?? '' },
         sourcePhrase: food.name,
     }));
 }

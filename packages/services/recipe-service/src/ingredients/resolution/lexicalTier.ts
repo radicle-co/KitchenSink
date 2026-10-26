@@ -1,18 +1,20 @@
 /**
- * THE LAST tier of the resolution cascade — the lexical shortlist-builder (plan U4 / origin R1, KTD-A).
+ * THE LAST tier of the paste matcher's PROPOSAL chain — the lexical shortlist-builder (plan U4 / origin R1; ADR-0071).
  *
  * DESIGN PATTERN: **Strategy**, split into a pure `decide` and an impure adapter — the `curatedTier.ts` /
  * `memoTier.ts` convention (pure `decide` + impure `evaluate`, as in `deployGate.sh`).
  *
- * ## ⛔ ZERO INITIAL AUTHORITY — the tier has NO confidence threshold, deliberately
+ * ## ⛔ ZERO AUTHORITY — the tier has NO confidence threshold, deliberately
  *
- * The tier proposes its top-ranked candidate on ANY non-empty candidate set. That looks reckless next to
- * the owner's "very clear go and no go" constraint until the second half is in view: a lexical resolution
- * carries `ranked` evidence, and under KTD-A every zero-authority lexical bind WITHHOLDS as
- * `pending-verification` until the verification gate agrees — so a wrong top hit costs a pending line and
- * one gate call (~$0.000034), never a published wrong bind. Safety lives at the gate; what this tier owes
- * it is EVIDENCE: the structured shortlist, the measured margin, and the top hit's ladder rung — the band
- * key under which skips are later EARNED (plan U3), not designed in here.
+ * The tier proposes its top-ranked candidate on ANY non-empty candidate set. That is safe for one reason only, and
+ * it is a structural one (ADR-0071's two chains): this tier sits in the PROPOSAL chain, which binds NOTHING. By-name
+ * binds through the settled chain `[curated, memo]` and never reaches it. A lexical top hit becomes a stored proposal
+ * the cook confirms, reviewed by the gate on identity, so a wrong top hit costs a `checking` or `needsChoice` line and
+ * one gate call, never a wrong bind. What this tier owes the matcher is EVIDENCE: the shortlist (the cook's
+ * candidates), the measured margin, and the top hit's ladder rung (`default` among them decides the line's state).
+ *
+ * ⛔ Do NOT wire it into a binding chain to "help" a phrase nobody has curated: the pending state that once made a bound
+ * lexical guess safe read a row every cook shares, and it was removed (ADR-0071).
  *
  * ⛔ **THAT IS ALSO WHY IT RUNS LAST, and why R11's literal "curated, lexical, knowledge base" order is NOT
  * what ships.** A tier that answers on any non-empty candidate set consumes every query the catalog can
@@ -25,13 +27,13 @@
  *
  * `FoodCatalogGateway.search` returns hits already ordered by food-service's tiered relevance and re-sorted by
  * score at the gateway, each carrying the rung food ranked it on (ADR-0070). This tier neither re-ranks nor
- * re-classifies: it records the published rung, so the rung in the event log is the rung the ranking used. It used
- * to classify the top hit again in TypeScript, which was a second copy of a rule whose authority is food's SQL.
+ * re-classifies: it passes the published rung on, so the rung a proposal records is the rung the ranking used.
  *
  * ## The synonym-reformulation retry (origin D11)
  *
- * On an empty or all-`base` candidate set the tier retries ONCE through a small curated synonym map
- * ("aubergine" → "eggplant"): deterministic, no LLM, one extra query. The map is a vocabulary, not a
+ * On an empty candidate set, or one where no hit is KNOWN to match structurally (every hit `base` or carrying no
+ * rung), the tier retries ONCE through a small curated synonym map ("aubergine" → "eggplant"): deterministic, no
+ * LLM, one extra query. A crosswalk hit (no rung, score 1) never earns a retry. The map is a vocabulary, not a
  * tagger — entries are added by a human who has seen the miss, the same discipline as
  * `modifierLexicon.ts` (ADR-0026).
  *
@@ -54,10 +56,9 @@
  * caller (#120) rather than under a service credential — the forwarded bearer IS the scoping argument.
  * Nothing here re-filters, because a row this tier can see is a row the caller was entitled to see.
  *
- * What this tier owes R20 is the SIGNAL, not the filter: {@link isAuthorAugmented} flags a shortlist
- * containing the caller's own `private` hit, and `IngredientsService` then records the resolution as
- * author-augmented and observes NO band epoch for it — margins drawn from one user's catalog are facts about
- * that user, not about the shared ranker, and must not feed shared band statistics (plan U11).
+ * What this tier owes R20 is the SIGNAL, not the filter: {@link isAuthorAugmented} flags a shortlist containing the
+ * caller's own `private` hit, so margins drawn from one user's catalog are never mistaken for facts about the shared
+ * ranker (plan U11). The band subsystem that would consume them is dormant by decision (ADR-0071).
  *
  * `ResolutionContext.userId` stays threaded for the tiers that key on an author (curated); this one keys on
  * the CREDENTIAL.
@@ -65,6 +66,7 @@
 import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 
 import type { CatalogHit, FoodCatalogGateway } from '../foodCatalog.gateway.js';
+import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
 
 /**
@@ -116,14 +118,67 @@ export function reformulateQuery(phrase: string): string | undefined {
 }
 
 /**
- * Whether the candidate set earns a reformulation retry: empty, or nothing structural matched. A crosswalk hit carries
- * no rung, and an identifier match is not a weak one, so it never earns a retry.
+ * The score food gives an identifier (barcode or external key) crosswalk hit. `foodRelevance.ts` keeps every name hit
+ * below it, so it is the one way to tell a crosswalk hit from a name hit whose rung is missing.
+ */
+const CROSSWALK_SCORE = 1;
+
+/**
+ * A hit that matched an identifier rather than a name. Food says so with `matchedBy` (ADR-0070), and that flag decides;
+ * only a hit with no flag at all (an older food) falls back to "no rung, at the crosswalk score". Pure.
+ */
+function isCrosswalkHit(hit: CatalogHit): boolean {
+    if (hit.matchedBy !== undefined) {
+        return hit.matchedBy === 'identifier';
+    }
+
+    return hit.rung === undefined && hit.score >= CROSSWALK_SCORE;
+}
+
+/**
+ * Whether a hit is KNOWN to have matched structurally: it carries a rung above `base`, or it is a crosswalk hit.
+ *
+ * ⛔ An absent rung below the crosswalk score is UNKNOWN, not structural. Food publishes no rung when it is older than
+ * this service, and the food client reads a rung it does not know as absent. Treating unknown as structural would
+ * switch the D11 retry off for every query the day food rolled back, with nothing to show it happened.
+ *
+ * @param hit - One ranked hit.
+ * @returns Whether it is known to be a structural match. Pure.
+ */
+function isKnownStructural(hit: CatalogHit): boolean {
+    return isCrosswalkHit(hit) || (hit.rung !== undefined && hit.rung !== 'base');
+}
+
+/**
+ * Whether the candidate set earns a reformulation retry: empty, or no hit is KNOWN to be a structural match (every hit
+ * is `base` or has an unknown rung). A crosswalk hit never earns a retry, since an identifier match is not a weak one.
  *
  * @param hits - The ranked hits, each with the rung food published.
  * @returns Whether to retry through the synonym map. Pure.
  */
 export function shouldReformulate(hits: readonly CatalogHit[]): boolean {
-    return hits.length === 0 || hits.every((hit) => hit.rung === 'base');
+    return !hits.some(isKnownStructural);
+}
+
+/**
+ * How many hits are NAME hits that arrived with no rung. Each one means food sent no rung, or one this build cannot
+ * read. The tier reports the count so the condition shows in logs and metrics instead of passing silently.
+ *
+ * @param hits - The ranked hits.
+ * @returns The count of rung-less hits below the crosswalk score. Pure.
+ */
+export function countUnrankedHits(hits: readonly CatalogHit[]): number {
+    return hits.filter((hit) => hit.rung === undefined && !isCrosswalkHit(hit)).length;
+}
+
+/** Where the tier reports what it saw that an operator needs to know. */
+export interface LexicalTierObserver {
+    /**
+     * Called with the number of name hits that arrived with no rung, when there are any.
+     *
+     * Required, not optional-with-default, so no wiring acquires a silent tier by omission.
+     */
+    readonly onUnrankedHits: (count: number) => void;
 }
 
 /**
@@ -137,6 +192,11 @@ export function shouldReformulate(hits: readonly CatalogHit[]): boolean {
  */
 function isAuthorAugmented(hits: readonly CatalogHit[]): boolean {
     return hits.some((hit) => hit.visibility === 'private');
+}
+
+/** The food a hit names: its variant when food named exactly one (R23), else its root. Pure. */
+function foodOfHit(hit: CatalogHit): FoodRef {
+    return hit.variantId === undefined ? { kind: 'root', id: hit.foodId } : { kind: 'variant', id: hit.variantId };
 }
 
 /**
@@ -172,12 +232,14 @@ export function decideLexicalTier(hits: readonly CatalogHit[]): TierOutcome {
         tier: 'lexical',
         // R23 (curated U9): food names a hit's variant only when the query names exactly one live variant of it, so
         // the top hit's variant IS "the words name exactly one variant". The shortlist above still ranks roots.
-        food: top.variantId === undefined ? { kind: 'root', id: top.foodId } : { kind: 'variant', id: top.variantId },
+        food: foodOfHit(top),
         evidence: `lexical shortlist (rung ${rung ?? 'none'}, ${String(hits.length)} candidates, margin ${
             margin === undefined ? 'none' : margin.toFixed(3)
         })`,
         confidence: margin,
         shortlist,
+        // ADR-0071: what the paste matcher offers the cook, each with the rung food ranked it on.
+        candidates: hits.slice(0, LEXICAL_SHORTLIST_LIMIT).map((hit) => ({ food: foodOfHit(hit), rung: hit.rung })),
         rung,
     };
 }
@@ -186,9 +248,23 @@ export function decideLexicalTier(hits: readonly CatalogHit[]): TierOutcome {
  * Build the lexical tier over the catalog gateway.
  *
  * @param gateway - The availability-disciplined food-service search gateway.
+ * @param observer - Where rung-less hits are reported.
  * @returns The tier, for the LAST slot of the cascade's ordered registry.
  */
-export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
+export function createLexicalTier(gateway: FoodCatalogGateway, observer: LexicalTierObserver): ResolutionTier {
+    /** Report rung-less hits; the report itself never fails a resolution. */
+    const observe = (hits: readonly CatalogHit[]): void => {
+        const unranked = countUnrankedHits(hits);
+
+        if (unranked > 0) {
+            try {
+                observer.onUnrankedHits(unranked);
+            } catch {
+                // Observability must not become an availability dependency (the cascade's own rule).
+            }
+        }
+    };
+
     return {
         id: 'lexical',
         /**
@@ -201,6 +277,7 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
         resolve: async (query, context) => {
             const first = await gateway.search(context.caller, query.phrase, LEXICAL_SHORTLIST_LIMIT, {
                 withNutrition: true,
+                signal: context.signal,
             });
 
             if (first.availability === 'disabled') {
@@ -210,6 +287,8 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
             if (first.availability === 'unavailable') {
                 throw new Error('The food catalog was unavailable; the lexical tier could not look.');
             }
+
+            observe(first.hits);
 
             if (!shouldReformulate(first.hits)) {
                 return decideLexicalTier(first.hits);
@@ -223,7 +302,10 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
 
             const second = await gateway.search(context.caller, reformulated, LEXICAL_SHORTLIST_LIMIT, {
                 withNutrition: true,
+                signal: context.signal,
             });
+
+            observe(second.hits);
 
             if (second.availability !== 'ok' || second.hits.length === 0) {
                 // The retry is best-effort: a degraded or empty second pass falls back to whatever the

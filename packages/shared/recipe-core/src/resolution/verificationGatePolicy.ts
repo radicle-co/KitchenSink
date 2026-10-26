@@ -117,13 +117,9 @@ export type IdentityEvidence =
           /**
            * ⛔ NO PROVENANCE WAS RECORDED FOR THIS LINE — not a placeholder, and not the ordinary case.
            *
-           * ⚠️ Provenance IS recorded: `0035_ingredient_resolutions.sql` is the event store,
-           * `resolveThroughCascade` writes to it through `IngredientResolutionsDal.record`, and the producer's
-           * `evidenceFor` (`recipes/domain/verificationRequests.ts`) reads it back as `curated-exact`,
-           * `remembered` or `ranked`. What lands here is a line with NO usable event: the write is deliberately
-           * best-effort (a lost event must never fail a resolution that already succeeded), a stored
-           * shortlist that fails the wire schema degrades to this, and the `llm` tier has no evidence
-           * member of its own.
+           * ⚠️ Since ADR-0071 it IS what both producers send for every line: the save path reads no provenance
+           * from the shared binding, and a paste review always asks identity. The resolution events are still
+           * written, as telemetry, and read by nothing.
            *
            * ⚠️ IT EXISTS BECAUSE THE WIRE ENUM IS A ONE-WAY DOOR, not because the two decide differently.
            * `rankedEvidence([])` decides identically TODAY and — checked, not assumed — produces a

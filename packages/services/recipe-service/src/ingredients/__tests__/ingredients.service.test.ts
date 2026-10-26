@@ -33,10 +33,7 @@ import {
     makeFoodClients,
     type FoodClientMocks,
 } from '../__fixtures__/ingredients.fixtures.js';
-import {
-    makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
-} from '../__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../__fixtures__/resolutionDals.fixture.js';
 
 const AT = new Date('2026-09-30T00:00:00.000Z');
 const COOK = '01JINGSVC000000000000COOKA';
@@ -136,7 +133,6 @@ function build(tiers: readonly ResolutionTier[] = []): Harness {
             refs as unknown as FoodRefsGateway,
             tiers,
             resolutions,
-            makeFakeResolutionBandsDal(),
         ),
         lookups,
         refs,

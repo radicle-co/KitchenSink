@@ -1,12 +1,12 @@
 /**
  * A PASTE-JOB line through the verification gate, against real PostgreSQL (ADR-0071).
  *
- * ⛔ WHY THIS TIER. The claim this file proves is about the SHARED tables, and only a real database can show it:
- * the band store finds the band a verdict belongs to by reading the food's latest LEXICAL `ingredient_resolutions`
- * event, not the message. A paste proposal writes no such event, so when one EXISTS for the food it belongs to some
- * other cook's saved line — and the real `createBandFeedback` would happily file the paste verdict under that
- * stranger's band. Seeding exactly that event and observing no row land is the proof that the worker declines;
- * the recipe-origin control, through the same real store and the same seeded event, shows the row WOULD land.
+ * ⛔ WHY THIS TIER. The claim this file proves is about the SHARED tables, and only a real database can show it. The
+ * band store used to find a verdict's band from the food's latest LEXICAL `ingredient_resolutions` event, a row some
+ * other cook's saved line wrote, and file the verdict under that stranger's band. Since ADR-0071 a band is only the one
+ * a message NAMES (the band subsystem is dormant by decision). Seeding exactly that shared event and observing no row
+ * land, for a paste line and a saved line alike, is the proof the event is never read; the case that names its band
+ * shows the row DOES land, through the same real store.
  *
  * The same applies to the memo: `ingredient_resolution_memos` answers for every cook, and a paste proposal must not
  * write to it (the message cannot say the proposal was not a `default`).
@@ -157,14 +157,28 @@ describe('a paste-job line through the gate (LOCAL e2e)', () => {
         expect(await memos()).toBe(0);
     });
 
-    it('the control: the same line from a SAVED recipe files the observation and remembers the phrase', async () => {
+    it('the control: the same line from a SAVED recipe remembers the phrase — and files NO observation either', async () => {
+        // REWRITTEN (ADR-0071, band subsystem dormant by decision). This control used to prove a saved line filed its
+        // observation under the band read from the shared event below: exactly the cross-cook read that was removed.
+        // A message that names no band of its own now feeds no band, whatever origin it has.
         await seedSomeoneElsesLexicalResolution();
 
         await processVerification(deps(), RECIPE);
 
         expect(await verdicts()).toBe(1);
-        expect(await observations()).toBe(1);
+        expect(await observations()).toBe(0);
         expect(await memos()).toBe(1);
+    });
+
+    it('a saved line that NAMES its own band files the observation under that band, in the real tables', async () => {
+        await processVerification(deps(), {
+            ...RECIPE,
+            evidenceKind: 'ranked',
+            shortlist: [{ foodId: FOOD_ID, score: 0.9 }],
+            bandKey: { rung: 'head', marginBand: 'none', queryShape: 'multi-word', rankerVersion: RANKER_VERSION },
+        });
+
+        expect(await observations()).toBe(1);
     });
 
     it('⛔ the saved line finds the paste verdict already there — one judgement, paid once', async () => {

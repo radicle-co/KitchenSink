@@ -116,9 +116,22 @@ const lineDigestSchema = z.string().min(1).brand<'LineDigest'>();
  * that is ever persisted.
  *
  * Structurally a `string` at runtime (it serializes, logs and binds as a query parameter as one); a distinct
- * type at compile time, so it cannot be produced by anything but {@link lineDigest}.
+ * type at compile time, so it is produced only by {@link lineDigest}, from a raw line, and by
+ * {@link parseStoredLineDigest}, from a digest read back from storage. A raw source line can reach neither.
  */
 export type LineDigest = z.infer<typeof lineDigestSchema>;
+
+/**
+ * A line digest READ BACK from storage, parsed into the brand at the repository boundary (ADR-0071: the match store
+ * and the job view compare the line's STORED digest rather than recomputing it).
+ *
+ * @param stored - The column's value, as the database returned it.
+ * @returns The branded digest. Pure.
+ * @throws If the value is empty — see {@link lineDigestSchema}.
+ */
+export function parseStoredLineDigest(stored: string): LineDigest {
+    return lineDigestSchema.parse(stored);
+}
 
 /** Everything a cached parse is ABOUT — change any of it and it is a different parse. */
 export interface ParsedLineIdentity {

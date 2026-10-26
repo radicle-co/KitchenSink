@@ -106,6 +106,52 @@ describe('RecipeServiceClient — parse jobs', () => {
         expect(req.url).toBe(`${BASE}/api/v1/recipe-parse-jobs/${FIXTURE_PARSE_JOB_UUID}/retry`);
     });
 
+    it('proposeParseJobMatches POSTs /{id}/matches with no body and returns the job view with matches (202)', async () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw: '2 cups milk',
+                        quantity: { kind: 'exact', value: 2 },
+                        unit: 'cup',
+                        statedMeasure: '2 cups',
+                        reviewReasons: [],
+                        foods: [
+                            {
+                                name: 'milk',
+                                prep: null,
+                                match: {
+                                    state: 'default',
+                                    reason: 'defaultApplies',
+                                    proposed: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
+                                    candidates: [{ kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: true }],
+                                },
+                            },
+                        ],
+                    },
+                }),
+            ],
+        });
+        const fetchMock = stubFetch(202, job);
+
+        const result = await makeClient(fetchMock).proposeParseJobMatches(FIXTURE_PARSE_JOB_UUID);
+
+        expect(result.lines[0]?.proposal?.foods[0]?.match?.state).toBe('default');
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/api/v1/recipe-parse-jobs/${FIXTURE_PARSE_JOB_UUID}/matches`);
+    });
+
+    it('proposeParseJobMatches surfaces the expiry refusal', async () => {
+        const fetchMock = stubFetch(409, { code: 'PARSE_JOB_EXPIRED', message: 'expired' });
+
+        await expect(makeClient(fetchMock).proposeParseJobMatches(FIXTURE_PARSE_JOB_UUID)).rejects.toBeInstanceOf(
+            ParseJobExpiredError,
+        );
+    });
+
     it('withdrawParseJobLines POSTs /{id}/withdraw-lines with the indexes and returns the job view (200)', async () => {
         const job = makeParseJob({ lines: [makeParseJobLine({ lineIndex: 3, status: 'withdrawn', progress: null })] });
         const fetchMock = stubFetch(200, job);

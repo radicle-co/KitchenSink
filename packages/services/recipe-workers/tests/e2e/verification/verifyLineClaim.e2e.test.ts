@@ -28,6 +28,9 @@ const MODEL = 'amazon.nova-micro-v1:0';
 const NEWER_MODEL = 'amazon.nova-2-lite-v1:0';
 const FOOD_ID = '01M13XKKV183RCVG7NB8T0NFKF';
 
+/** The aspects a delivery asks — identity, which every producer now asks (ADR-0071). */
+const IDENTITY = ['identity'] as const;
+
 /** A lease long enough that nothing in a test run ages out of it — the concurrent-duplicate case. */
 const LEASE = 600;
 
@@ -50,13 +53,13 @@ describe('the verification claim (integration)', () => {
     });
 
     /** Land a verdict under `modelId`, as a completed verification would. */
-    async function landVerdict(modelId: string): Promise<void> {
+    async function landVerdict(modelId: string, aspects: readonly string[] = ['identity']): Promise<void> {
         await store.recordVerdict({
             verificationKey: KEY,
             verdict: 'agree',
             certainty: 'high',
             band: 'verified',
-            aspects: ['identity'],
+            aspects: aspects as never,
             modelId,
             food: { kind: 'root', id: FOOD_ID },
         });
@@ -73,14 +76,14 @@ describe('the verification claim (integration)', () => {
     }
 
     it('a first delivery CLAIMS the attempt', async () => {
-        expect(await store.claimVerification(KEY, MODEL, LEASE)).toEqual({ kind: 'claimed', attempts: 1 });
+        expect(await store.claimVerification(KEY, MODEL, LEASE, IDENTITY)).toEqual({ kind: 'claimed', attempts: 1 });
         expect((await attemptRow())?.attempts).toBe(1);
     });
 
     it('⛔ a duplicate whose verdict already exists claims NOTHING — no reservation, no model call', async () => {
         await landVerdict(MODEL);
 
-        expect(await store.claimVerification(KEY, MODEL, LEASE)).toEqual({ kind: 'already-verified' });
+        expect(await store.claimVerification(KEY, MODEL, LEASE, IDENTITY)).toEqual({ kind: 'already-verified' });
         // No attempt row was written either: there is nothing to count for a line that is already judged.
         expect(await attemptRow()).toBeUndefined();
     });
@@ -90,10 +93,32 @@ describe('the verification claim (integration)', () => {
      * a NEWER model replaces an older judgement rather than being dropped — so the claim's verdict read must
      * be keyed on the model too, or last quarter's answer would suppress this quarter's check forever.
      */
+    it('⛔ a verdict that asked FEWER aspects does not suppress a delivery that asks identity (ADR-0071)', async () => {
+        // A quantity-only judgement under the same key says nothing about the food. Answering `already-verified` here
+        // would spend nothing and write nothing, and a paste proposal waiting on identity would read `checking` forever.
+        await landVerdict(MODEL, ['quantity']);
+
+        expect(await store.claimVerification(KEY, MODEL, LEASE, ['identity', 'quantity'])).toEqual({
+            kind: 'claimed',
+            attempts: 1,
+        });
+    });
+
+    it('a verdict that asked EVERY aspect this delivery asks answers it for free', async () => {
+        await landVerdict(MODEL, ['identity', 'quantity']);
+
+        expect(await store.claimVerification(KEY, MODEL, LEASE, ['identity', 'quantity'])).toEqual({
+            kind: 'already-verified',
+        });
+    });
+
     it('⛔ a verdict from an OLDER model does not suppress re-verification under the current one', async () => {
         await landVerdict(MODEL);
 
-        expect(await store.claimVerification(KEY, NEWER_MODEL, LEASE)).toEqual({ kind: 'claimed', attempts: 1 });
+        expect(await store.claimVerification(KEY, NEWER_MODEL, LEASE, IDENTITY)).toEqual({
+            kind: 'claimed',
+            attempts: 1,
+        });
     });
 
     /**
@@ -102,8 +127,8 @@ describe('the verification claim (integration)', () => {
      */
     it('⛔ two CONCURRENT duplicates produce exactly ONE claim', async () => {
         const [first, second] = await Promise.all([
-            store.claimVerification(KEY, MODEL, LEASE),
-            store.claimVerification(KEY, MODEL, LEASE),
+            store.claimVerification(KEY, MODEL, LEASE, IDENTITY),
+            store.claimVerification(KEY, MODEL, LEASE, IDENTITY),
         ]);
 
         const kinds = [first?.kind, second?.kind].sort();
@@ -112,9 +137,9 @@ describe('the verification claim (integration)', () => {
     });
 
     it('a delivery after the lease has lapsed claims again, and the counter advances', async () => {
-        await store.claimVerification(KEY, MODEL, LEASE);
+        await store.claimVerification(KEY, MODEL, LEASE, IDENTITY);
 
-        expect(await store.claimVerification(KEY, MODEL, 0)).toEqual({ kind: 'claimed', attempts: 2 });
+        expect(await store.claimVerification(KEY, MODEL, 0, IDENTITY)).toEqual({ kind: 'claimed', attempts: 2 });
     });
 
     /**
@@ -123,7 +148,7 @@ describe('the verification claim (integration)', () => {
      * quietly never got checked.
      */
     it('records why the gate stopped trying, leaving no verdict behind', async () => {
-        await store.claimVerification(KEY, MODEL, LEASE);
+        await store.claimVerification(KEY, MODEL, LEASE, IDENTITY);
         await store.recordAttemptFailure(KEY, MODEL, 'attempt_allowance_exhausted');
 
         expect((await attemptRow())?.failure_code).toBe('attempt_allowance_exhausted');
@@ -139,10 +164,10 @@ describe('the verification claim (integration)', () => {
      * and the next delivery of this line reads the verdict and stops, which is the whole point of the claim.
      */
     it('⛔ recording the verdict CLEARS the attempt row, and the next delivery is answered for free', async () => {
-        await store.claimVerification(KEY, MODEL, LEASE);
+        await store.claimVerification(KEY, MODEL, LEASE, IDENTITY);
         await landVerdict(MODEL);
 
         expect(await attemptRow()).toBeUndefined();
-        expect(await store.claimVerification(KEY, MODEL, LEASE)).toEqual({ kind: 'already-verified' });
+        expect(await store.claimVerification(KEY, MODEL, LEASE, IDENTITY)).toEqual({ kind: 'already-verified' });
     });
 });

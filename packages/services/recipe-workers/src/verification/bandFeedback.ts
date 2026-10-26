@@ -4,30 +4,21 @@
  * it is also the gate's AUTHORITY READ: the worker re-runs the verification policy with its OWN view of
  * band authority, never the message's claim (KTD-A).
  *
- * The state machine's SQL lives ONCE in `@kitchensink/recipe-core/resolution/band-authority-store`
- * (see its header for why — recipe-service is the second writer, via R16 corrections, and the worker seam
- * forbids sharing a DAL). This module owns only what is local to the gate:
+ * The state machine's SQL lives ONCE in `@kitchensink/recipe-core/resolution/band-authority-store`. This module owns
+ * only what is local to the gate: the verdict mapping ({@link bandVerdictFor}), which verdicts are observations at all.
  *
- *  - **The verdict mapping** ({@link bandVerdictFor}) — which verdicts are observations at all.
- *  - **The band lookup** — a verdict names a `foodId`; the band it feeds back into (and whose authority
- *    the policy re-run consults) is the one the RESOLUTION was made in, read from the latest lexical
- *    `ingredient_resolutions` event. Its `ranker_version` is the version that produced the shortlist,
- *    deliberately NOT the currently deployed constant: a deploy between resolve and verdict must not
- *    pollute the new version's fresh record.
+ * ⛔ THE BAND IS THE ONE THE MESSAGE NAMES, never one looked up from the shared resolution events (ADR-0071 records
+ * why). With no key there is nothing to record or read, and no producer sends one: the band subsystem is DORMANT BY
+ * DECISION.
  *
  * ⚠️ Every failure is swallowed: by the time feedback runs the Bedrock call is billed and the verdict is
- * stored, so a throw here would redeliver a message that then reserves and calls AGAIN. A lost observation
- * costs one data point; bands converge from the rest. The authority READ degrades to `undefined` for the
- * same reason plus KTD-B's stale-read rule — an unreadable band table VERIFIES identity, the direction
- * that costs money rather than correctness.
+ * stored, so a throw here would redeliver a message that then reserves and calls AGAIN. The authority READ
+ * degrades to `undefined` for the same reason plus KTD-B's stale-read rule — an unreadable band table VERIFIES
+ * identity, the direction that costs money rather than correctness.
  */
-import { BandAuthorityStore } from '@kitchensink/recipe-core/resolution/band-authority-store';
-import { marginBandOf, type BandAuthority } from '@kitchensink/recipe-core/resolution/band-policy';
+import { BandAuthorityStore, type BandKey } from '@kitchensink/recipe-core/resolution/band-authority-store';
+import type { BandAuthority } from '@kitchensink/recipe-core/resolution/band-policy';
 import type { ConfidenceBand } from '@kitchensink/recipe-core/resolution/confidence';
-import {
-    verificationFoodFieldsOf,
-    type VerificationFood,
-} from '@kitchensink/recipe-core/resolution/verification-message';
 
 import { logger } from '../common/logger.js';
 
@@ -38,8 +29,8 @@ export interface BandQueryable {
 
 /** What the handler reports after each TERMINAL verdict. */
 export interface BandFeedbackInput {
-    /** The food the line is bound to: a root or a variant (curated U9). */
-    readonly food: VerificationFood;
+    /** The band the message named: the ranking that produced this line, never one looked up (ADR-0071). */
+    readonly bandKey: BandKey;
     readonly band: ConfidenceBand;
     /** Which aspects the gate actually asked about — a verdict that skipped identity is not a bind verdict. */
     readonly aspects: readonly string[];
@@ -51,14 +42,14 @@ export interface BandFeedbackInput {
 export interface BandFeedback {
     record(input: BandFeedbackInput): Promise<void>;
     /**
-     * The authority of the band this food's latest lexical resolution was made in, for the gate's own
-     * policy re-run (KTD-A: the worker reads its OWN authority, never the message's claim).
+     * The authority of the band the message named, for the gate's own policy re-run (KTD-A: the worker reads its OWN
+     * authority from the store, never a claim of authority off the message).
      *
-     * @param food - The line's food: a root or a variant.
+     * @param bandKey - The band the message named.
      * @returns The authority, or `undefined` — including on ANY failure, which verifies identity (the
      *   stale-read direction is fixed: revocation wins races).
      */
-    authorityForFood(food: VerificationFood): Promise<BandAuthority | undefined>;
+    authorityFor(bandKey: BandKey): Promise<BandAuthority | undefined>;
 }
 
 /**
@@ -104,50 +95,6 @@ export function createBandFeedback(client: BandQueryable): BandFeedback {
         return result.rows as readonly Record<string, unknown>[];
     });
 
-    /**
-     * The band key of the food's latest lexical resolution, or `undefined` when there is none.
-     *
-     * A binding is deduped one row per root and one per variant (`food_lookups`, 0051), so the join is at most
-     * one binding — on the arm the food names (curated U9): the other arm's parameter is NULL, and `= NULL`
-     * matches nothing. Latest-first picks the event this verdict is plausibly about (an aggregate log tolerates
-     * the rare misattribution across admissions).
-     *
-     * @sideEffect One SELECT. Throws on I/O failure — the two callers degrade differently.
-     */
-    async function latestLexicalBandKey(
-        food: VerificationFood,
-    ): Promise<{ rung: string; marginBand: string; queryShape: string; rankerVersion: string } | undefined> {
-        const fields = verificationFoodFieldsOf(food);
-        const rows = await client.query(
-            `SELECT r.rung, r.margin, r.query_shape, r.ranker_version
-               FROM ingredient_resolutions r
-               JOIN food_lookups fl ON fl.id = r.food_lookup_id
-              WHERE (fl.food_id = $1 OR fl.food_variant_id = $2) AND r.tier = 'lexical'
-              ORDER BY r.created_at DESC
-              LIMIT 1`,
-            [fields.foodId ?? null, fields.foodVariantId ?? null],
-        );
-        const resolution = rows.rows[0] as
-            | { rung: string | null; margin: string | null; query_shape: string | null; ranker_version: string | null }
-            | undefined;
-
-        if (
-            resolution === undefined ||
-            resolution.rung === null ||
-            resolution.query_shape === null ||
-            resolution.ranker_version === null
-        ) {
-            return undefined;
-        }
-
-        return {
-            rung: resolution.rung,
-            marginBand: marginBandOf(resolution.margin === null ? undefined : Number(resolution.margin)),
-            queryShape: resolution.query_shape,
-            rankerVersion: resolution.ranker_version,
-        };
-    }
-
     return {
         async record(input: BandFeedbackInput): Promise<void> {
             try {
@@ -157,21 +104,14 @@ export function createBandFeedback(client: BandQueryable): BandFeedback {
                     return;
                 }
 
-                const band = await latestLexicalBandKey(input.food);
-
-                if (band === undefined) {
-                    // No lexical bind to give feedback on — the verdict was about some other tier's work.
-                    return;
-                }
-
                 const transition = await store.recordObservationAndEvaluate(
-                    band,
+                    input.bandKey,
                     verdict,
                     input.shadowSample === true ? 'shadow' : 'gate',
                 );
 
                 if (transition !== 'hold') {
-                    logger.info('band authority transition', { transition, rung: band.rung });
+                    logger.info('band authority transition', { transition, rung: input.bandKey.rung });
                 }
             } catch (error) {
                 logger.error('band feedback failed; the observation is lost', {
@@ -180,15 +120,9 @@ export function createBandFeedback(client: BandQueryable): BandFeedback {
             }
         },
 
-        async authorityForFood(food: VerificationFood): Promise<BandAuthority | undefined> {
+        async authorityFor(bandKey: BandKey): Promise<BandAuthority | undefined> {
             try {
-                const band = await latestLexicalBandKey(food);
-
-                if (band === undefined) {
-                    return undefined;
-                }
-
-                return await store.authorityFor(band);
+                return await store.authorityFor(bandKey);
             } catch (error) {
                 logger.warn('band-authority read failed; the line verifies identity', {
                     error: error instanceof Error ? error.message : String(error),

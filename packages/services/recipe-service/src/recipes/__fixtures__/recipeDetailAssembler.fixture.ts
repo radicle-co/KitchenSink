@@ -14,14 +14,12 @@
 import { vi } from 'vitest';
 
 import type { FoodLookupArm, FoodRef } from '../../database/schema/foodLookupArm.js';
-import { makeFakeIngredientResolutionsDal } from '../../ingredients/__fixtures__/resolutionDals.fixture.js';
 import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
 import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
 import type { FoodNutritionGateway, FoodNutritionLookup } from '../../ingredients/foodNutrition.gateway.js';
 import type { FoodRefLookup, FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
 import { LineIdentityReader } from '../../ingredients/lineIdentity.reader.js';
-import type { IngredientResolutionsDal } from '../../ingredients/resolution/ingredientResolutions.dal.js';
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import type { RecipesDal } from '../dal/recipes.dal.js';
@@ -39,7 +37,6 @@ export interface RecipeDetailAssemblerCollaborators {
     readonly photosCdnUrl: string;
     readonly foodNutrition: FoodNutritionGateway;
     readonly lineVerificationsDal: LineVerificationsDal;
-    readonly ingredientResolutions: IngredientResolutionsDal;
 }
 
 /**
@@ -133,7 +130,6 @@ export function makeRecipeDetailAssembler(
         photosCdnUrl: RECIPE_PHOTOS_CDN,
         foodNutrition: emptyFoodNutrition(),
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
-        ingredientResolutions: makeFakeIngredientResolutionsDal(),
         ...overrides,
     };
 
@@ -145,6 +141,5 @@ export function makeRecipeDetailAssembler(
         collaborators.photosCdnUrl,
         collaborators.foodNutrition,
         collaborators.lineVerificationsDal,
-        collaborators.ingredientResolutions,
     );
 }

@@ -18,7 +18,7 @@
         "test": "vitest run",
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "test:load": "k6 run tests/load/searchLatency.load.js && k6 run tests/load/ingredientFoodNutrition.load.js && k6 run tests/load/sc009ReadWrite.load.js && k6 run tests/load/versionArchiveRead.load.js && k6 run tests/load/saveUnderArchive.load.js && k6 run tests/load/pullFromSource.load.js && k6 run tests/load/parseJobCreate.load.js && k6 run tests/load/analyticsIngest.load.js && k6 run tests/load/nutritionBatch.load.js && k6 run tests/load/serviceErasure.load.js",
+        "test:load": "k6 run tests/load/searchLatency.load.js && k6 run tests/load/ingredientFoodNutrition.load.js && k6 run tests/load/sc009ReadWrite.load.js && k6 run tests/load/versionArchiveRead.load.js && k6 run tests/load/saveUnderArchive.load.js && k6 run tests/load/pullFromSource.load.js && k6 run tests/load/parseJobCreate.load.js && k6 run tests/load/parseJobMatches.load.js && k6 run tests/load/analyticsIngest.load.js && k6 run tests/load/nutritionBatch.load.js && k6 run tests/load/serviceErasure.load.js",
         "test:mutation": "stryker run",
         "typecheck": "tsc --noEmit"
     },

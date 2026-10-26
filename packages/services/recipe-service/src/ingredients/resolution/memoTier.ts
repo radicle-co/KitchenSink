@@ -37,13 +37,12 @@ import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
  * same epistemic class as a lexical top hit, at a floor (`MEMO_SIMILARITY_FLOOR = 0.5`) the DAL's own
  * docstring calls the midpoint of the trigram scale.
  *
- * KTD-A's answer to that class is to WITHHOLD until the gate agrees — but the withholding machinery keys on
- * the TIER, not on the evidence: `pendingStateOf` (`recipes/domain/lineVerification.ts`) returns `'none'` for
- * every tier but `lexical`, and `pendingRedrives` (`recipes/domain/verificationRequests.ts`) only covers
- * `ranked` evidence. A near memo that RESOLVED would therefore publish immediately, counted, with no verdict
- * and no re-drive if the verification were lost — exactly the published wrong bind KTD-A exists to prevent.
- * PASSING hands the phrase to the lexical tier instead, which withholds as `pending-verification` and gets a
- * real verdict. One gate call, and the answer is checked.
+ * Against ADR-0071's two chains, a near memo that RESOLVED would be wrong in both. In the BINDING chain
+ * (`[curated, memo]`, by-name) it would bind a retrieval guess with settled-evidence authority: nothing downstream holds
+ * a memo bind back, so it would publish a wrong food at once. In the PROPOSAL chain (the paste matcher) it would be
+ * proposed as `memo`, which `matchStateOf` reads as `confident` (a remembered match is settled), auto-selecting a guess
+ * for the cook. PASSING instead hands the phrase on: by-name falls through to food's own add by name, and the paste
+ * matcher reaches the lexical tier, whose proposal binds nothing and is reviewed by the gate on identity.
  *
  * ⚠️ This became load-bearing when the memo tier was promoted ahead of the lexical tier
  * (`resolutionRegistry.ts`): before that, the near branch needed an empty catalog and was nearly
@@ -52,9 +51,9 @@ import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
  * ⚠️ **A DEFERRAL OF AE8, NOT A REJECTION OF IT — and the one open owner ruling here.** AE8 wants a near-twin
  * to resolve from the knowledge base without an LLM call. R14's "equality-only matching does not satisfy this
  * requirement" is still honoured: `findMemo`'s exact-then-k-NN lookup is UNCHANGED, and only this tier's
- * verdict on its result moved. Flip the near branch back to `resolved` the day `MemoHit.match` is persisted
- * on the resolution and the two predicates above treat a near memo as a withholding class — the precedent is
- * ADR-0026 §3, `single-engine` is not `differ`, one field over.
+ * verdict on its result moved. Flip the near branch back to `resolved` the day a near hit can travel as its own
+ * evidence class: a proposal state that reads it as unsettled, and a binding chain that does not bind it. The precedent
+ * is ADR-0026 §3, `single-engine` is not `differ`, one field over.
  *
  * @param hit - The remembered resolution, or `undefined` when nothing is remembered close enough.
  * @returns A resolution naming the remembered food on an EXACT key; a pass otherwise.

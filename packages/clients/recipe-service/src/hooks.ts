@@ -147,6 +147,7 @@ export type { ParseJobOptions } from './hooks/useParseJob.js';
 export { useCreateParseJob } from './hooks/useCreateParseJob.js';
 export type { CreateParseJobOptions } from './hooks/useCreateParseJob.js';
 export { useRetryParseJob } from './hooks/useRetryParseJob.js';
+export { useProposeParseJobMatches } from './hooks/useProposeParseJobMatches.js';
 export { useWithdrawParseJobLines } from './hooks/useWithdrawParseJobLines.js';
 export { useEditParseJobLine } from './hooks/useEditParseJobLine.js';
 

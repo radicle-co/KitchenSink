@@ -1,5 +1,17 @@
 /**
- * THE CASCADE REGISTRY — the ordered chain `IngredientsService` is wired with (plan U10 / R11, R12, R19).
+ * THE CASCADE REGISTRIES — the ordered chains production runs (plan U10 / R11, R12, R19; ADR-0071).
+ *
+ * ## ⛔ TWO CHAINS, because binding and proposing are different acts (ADR-0071)
+ *
+ *  - {@link createBindingRegistry} = `[curated, memo]` — what `POST /api/v1/ingredients/by-name` runs. That path
+ *    BINDS, so only SETTLED evidence may answer: a person's ruling or a gate-agreed memo. The lexical tier left it
+ *    after a production paste bound "milk" to milk crackers (ADR-0071 records why). A phrase neither tier knows falls
+ *    through to food's own add-by-name, as it always has.
+ *  - {@link createProposalRegistry} = `[curated, memo, lexical]` — what the paste-job matcher runs. It never binds:
+ *    it stores a PROPOSAL that the cook confirms and the gate reviews, so a ranked guess is a fine thing to offer.
+ *
+ * Both are held to the precedence ladder below by the same guard (`resolutionRegistry.test.ts`, parametrized over
+ * both). The binding chain is a prefix of the proposal chain, so their order cannot disagree.
  *
  * DESIGN PATTERN: **Registry over the Chain of Responsibility's ordered Strategies.** ⛔ THE ORDER IS THE
  * CONFIGURATION — it is a PRECEDENCE, not an implementation detail — which is why it lives as one explicit,
@@ -15,8 +27,8 @@
  * shipped in exactly that order. That order was only coherent alongside R12's second fall-through condition
  * — "each tier falls through only on a miss **or on confidence below its threshold**". KTD-A then removed
  * tier 2's threshold on purpose: `decideLexicalTier` proposes its top candidate on ANY non-empty candidate
- * set, because under withhold semantics a wrong top hit costs a `pending-verification` line and one gate
- * call, never a published wrong bind. Safety moved to the gate — and the ordering premise moved with it.
+ * set. That is safe only where a proposal binds nothing, which is why the lexical tier now sits in the proposal
+ * chain alone (ADR-0071) — and the ordering premise moved with it.
  *
  * What was left was a chain in which **the memo tier was reachable only when the catalog returned nothing at
  * all**. For every phrase the catalog can find — which is the overwhelming majority — it was dead.
@@ -51,8 +63,8 @@
  *  - **Give tier 2 a confidence threshold again.** This is undoing KTD-A rather than living with it, and the
  *    threshold would be a number invented here — R16 ("an ordinal ranking score is not a confidence value
  *    until the document says how it becomes one") and R17 ("bands are MEASURED, not chosen") both forbid
- *    that. Earned autonomy (plan U3) is where a lexical bind acquires the right to skip, from measured band
- *    statistics; a constant typed in here would be a second, unmeasured authority beside it.
+ *    that. Measured band statistics (plan U3) are where a skip would be earned, and that subsystem is dormant
+ *    by decision (ADR-0071); a constant typed in here would be a second, unmeasured authority beside it.
  *  - **Make tier 2 defer when a memo exists.** This breaks the chain's own contract — a link would have to
  *    know about a later link — duplicates the memo read inside the lexical tier, and puts a precedence rule
  *    inside a Strategy whose job is retrieval. Precedence belongs to the registry, which is this file.
@@ -74,16 +86,10 @@
  *  1. **⛔ THE NEAR-MEMO BRANCH HAD TO BE CLOSED IN THE SAME CHANGE — see `decideMemoTier`.** `findMemo`
  *     answers on an exact key OR a trigram neighbour at `MEMO_SIMILARITY_FLOOR` (0.5), and the tier used to
  *     return `resolved` for both. `verifiedBy` is a fact about the STORED key, so on the near branch nobody
- *     ever agreed that the QUERY phrase means that food. Downstream, `pendingStateOf`
- *     (`recipes/domain/lineVerification.ts`) withholds only `tier === 'lexical'` and `pendingRedrives`
- *     (`recipes/domain/verificationRequests.ts`) is gated on `evidence.kind === 'ranked'` — both deliberate,
- *     both correct for an EXACT memo. Under the old order the near branch needed an empty catalog and was
- *     nearly unreachable; promoting this tier would have made it the COMMON path, publishing unverified,
- *     un-redriveable binds. So the near branch now PASSES and the phrase falls to the lexical tier, whose
- *     binds are withheld until a verdict lands. ⚠️ That defers AE8 and is the ONE open owner ruling in this
- *     change; `decideMemoTier`'s docstring carries the argument and the exact condition for reverting it
- *     (persist `MemoHit.match`, then teach the two predicates above that a near memo withholds — ADR-0026
- *     §3's `single-engine` is not `differ`, one field over).
+ *     ever agreed that the QUERY phrase means that food. Under ADR-0071's two chains a resolved near memo would
+ *     bind a guess with settled authority (by-name) or propose it as a `confident` remembered match (the paste
+ *     matcher). So the near branch PASSES. ⚠️ That defers AE8 and is the ONE open owner ruling here;
+ *     `decideMemoTier`'s docstring carries the argument and the condition for reverting it.
  *  2. **A stale memo now costs a request its lexical answer.** `resolveThroughCascade` treats a food it
  *     cannot admit as a miss and returns `undefined`; it does NOT resume the chain. So a memo naming a food
  *     U12's reseed killed drops the request to the ordinary `foodClient.addByName` path rather than to the
@@ -92,35 +98,48 @@
  *     question the caller is about to answer anyway), the fallback is exactly the pre-cascade behaviour, and
  *     making inadmissibility resume the chain would give the cascade knowledge of admission. Pinned by the
  *     integration suite so it stays a decision.
- *  3. **⚠️ Band populations change shape, and that is an OPEN calibration question (plan U3, R17).**
- *     `bandKeyOf` only produces a key for `tier === 'lexical'`, so a memo win contributes no band
- *     observation and can never earn a band skip. With repeat phrases now absorbed by the memo tier, band
- *     statistics accrue from FIRST-TIME phrases only: autonomy is earned more slowly. The counter-argument
- *     is that N observations of one popular phrase INFLATE a band's record, so deduplicating is arguably
- *     more honest against R17's "measured, not chosen". Either way it changes the sample the bands are
- *     calibrated on, and it is the owner's ruling to make, not this file's.
+ *  3. **⚠️ Band calibration (plan U3, R17) is dormant by decision (ADR-0071).** No band is observed from a memo win,
+ *     and none from anything else while no producer names a band; the question of which phrases a band should be
+ *     calibrated on reopens when the paste origin carries the match row's band key (ADR-0071 records it).
  *
  * ⚠️ Cost, minor and priced: `findMemo` issues two statements on a miss (exact, then the GiST k-NN scan), so
  * every non-curated `addByName` now pays them before reaching the catalog. Two local indexed reads against
  * one or two cross-service searches under a 600ms budget — the order is cheaper on a hit and marginally
  * dearer on a full miss.
  *
- * ## ⛔ THE CASCADE'S REACH IS THE WRITE PATH, AND ONLY THE WRITE PATH — unchanged by any of the above
+ * ## ⛔ THE CASCADE'S REACH IS THE WRITE PATH AND THE PASTE MATCHER, AND NOTHING ELSE
  *
- * `resolveThroughCascade` has exactly one caller: `IngredientsService.addByName`. The cascade is deliberately
+ * The binding chain has exactly one caller, `IngredientsService.addByName`; the proposal chain has one,
+ * `MatchProposalService`. The cascade is deliberately
  * NOT wired into `GET /api/v1/ingredients/search`. R13 is explicit that only the lexical tier runs synchronously on the
  * search-ahead, and `/search` is the filter's read of bound foods. Reordering the tiers changes nothing about that; do
  * not treat "the memo tier is cheap now" as a licence to add the cascade to a read path.
  */
 import type { FoodCatalogGateway } from '../foodCatalog.gateway.js';
 import { createCuratedTier } from './curatedTier.js';
-import { createLexicalTier } from './lexicalTier.js';
+import { createLexicalTier, type LexicalTierObserver } from './lexicalTier.js';
 import { createMemoTier } from './memoTier.js';
 import type { ResolutionMappingsDal } from './resolutionMappings.dal.js';
 import type { ResolutionTier } from './resolutionCascade.js';
 
+/** DI token for the proposal chain, which `IngredientsModule` provides and the paste matcher consumes. */
+export const PROPOSAL_TIERS = 'RESOLUTION_PROPOSAL_TIERS';
+
 /**
- * Build the cascade in precedence order.
+ * Build the BINDING chain: settled evidence only, in precedence order (ADR-0071).
+ *
+ * ⛔ No `catalog-ranking` tier may join it: this chain's answer is bound for the cook with no review in between.
+ * `resolutionRegistry.test.ts` asserts that, and the precedence, against the array returned here.
+ *
+ * @param mappings - The knowledge-base repository the curated and memo tiers read through.
+ * @returns The tiers, in precedence order. Pure — each tier is constructed, none is consulted.
+ */
+export function createBindingRegistry(mappings: ResolutionMappingsDal): readonly ResolutionTier[] {
+    return [createCuratedTier(mappings), createMemoTier(mappings)];
+}
+
+/**
+ * Build the PROPOSAL chain: the binding chain, then the lexical shortlist (ADR-0071).
  *
  * ⛔ The order in the returned array is the whole point of this module — read the file docstring before
  * changing it, and note that `__tests__/resolutionRegistry.test.ts` checks it against the evidence-class
@@ -128,11 +147,13 @@ import type { ResolutionTier } from './resolutionCascade.js';
  *
  * @param mappings - The knowledge-base repository the curated and memo tiers read through.
  * @param catalog - The availability-disciplined search gateway the lexical tier retrieves through (plan U4).
+ * @param lexicalObserver - Where the lexical tier reports name hits that arrived with no rung.
  * @returns The tiers, in precedence order. Pure — each tier is constructed, none is consulted.
  */
-export function createResolutionRegistry(
+export function createProposalRegistry(
     mappings: ResolutionMappingsDal,
     catalog: FoodCatalogGateway,
+    lexicalObserver: LexicalTierObserver,
 ): readonly ResolutionTier[] {
-    return [createCuratedTier(mappings), createMemoTier(mappings), createLexicalTier(catalog)];
+    return [...createBindingRegistry(mappings), createLexicalTier(catalog, lexicalObserver)];
 }

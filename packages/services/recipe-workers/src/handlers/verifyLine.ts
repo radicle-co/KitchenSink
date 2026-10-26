@@ -71,11 +71,13 @@ import {
 import {
     verificationFoodOf,
     verificationOriginOf,
+    verifiedLineIdentityOfMessage,
     verifyIngredientLineMessageSchema,
     type VerificationFood,
     type VerificationOrigin,
     type VerifyIngredientLineMessage,
 } from '@kitchensink/recipe-core/resolution/verification-message';
+import type { BandKey } from '@kitchensink/recipe-core/resolution/band-authority-store';
 import { bandFor, type ConfidenceBand } from '@kitchensink/recipe-core/resolution/confidence';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
@@ -193,7 +195,10 @@ export interface VerificationDeps {
     readonly ledger: SpendLedger;
     readonly bedrock: BedrockConverseClient;
     readonly store: VerdictStore;
-    /** Where TERMINAL verdicts are reported so lexical bands earn or lose autonomy (plan U3). */
+    /**
+     * Where TERMINAL verdicts are reported so lexical bands earn or lose autonomy (plan U3) — only for a message that
+     * names its own band, which no producer does today (ADR-0071: dormant by decision).
+     */
     readonly bands: BandFeedback;
     /** Metric sink, injected so the unit suite can read what was published. */
     readonly emit: (metric: EmfMetric) => void;
@@ -233,30 +238,18 @@ const VERIFICATION_ATTEMPTS_EXHAUSTED_METRIC_NAME = 'VerificationAttemptsExhaust
 /**
  * The verification key for a message — the content hash a verdict lands under.
  *
- * ⛔ EVERY INPUT COMES FROM THE MESSAGE, which is what makes U7 possible at all: the key was computed after
- * the model had answered, purely because that is where it was first needed, so a duplicate delivery paid
- * Bedrock to reach a judgement already stored under the very key it could have computed for free.
+ * ⛔ EVERY INPUT COMES FROM THE MESSAGE, which is what makes U7 possible at all: a duplicate delivery is refused by a
+ * keyed read before anything is reserved. ⛔ AND IT IS RECIPE-CORE'S DERIVATION (`verifiedLineIdentityOfMessage`), not a
+ * copy: the save path's dedup read and the paste matcher's stored key (ADR-0071) use the same one, so a verdict this
+ * worker writes is the verdict they read back. `statedMeasure` is in the key (`null` when not restated), which is why
+ * `VERIFICATION_KEY_VERSION` is `v2`.
  *
  * @param message - The delivered line.
  * @returns The key.
  */
 function keyFor(message: VerifyIngredientLineMessage): string {
-    return verificationKey(
-        {
-            sourceLine: message.sourceLine,
-            // The bound food's id, root or variant (curated U9) — the bytes the producer keyed it under.
-            foodRefId: verificationFoodOf(message).id,
-            quantityLow: message.quantityLow,
-            quantityHigh: message.quantityHigh,
-            unit: message.unit,
-            // ⛔ IN THE KEY, not merely in the prompt, and `null` — never omitted — when the line was not
-            // restated. It changes what the model was SHOWN and therefore what it concluded, so a restated
-            // line and its un-restated self are different judgements. Sharing a key across them would serve
-            // the pre-0027 false DISAGREE to the corrected line forever, because absence of a verdict is the
-            // only thing that publishes. This is why `VERIFICATION_KEY_VERSION` is `v2`.
-            statedMeasure: message.statedMeasure ?? null,
-        },
-        (input) => createHash('sha256').update(input).digest('hex'),
+    return verificationKey(verifiedLineIdentityOfMessage(message), (input) =>
+        createHash('sha256').update(input).digest('hex'),
     );
 }
 
@@ -397,24 +390,25 @@ function excludedFromBands(message: VerifyIngredientLineMessage): boolean {
 }
 
 /**
- * Whether this verdict is reported to the shared band statistics (plan U3): a BINDING's line, not excluded above.
+ * The band this message's verdict is observed in and its authority read from, or `undefined` for none (plan U3, U4b).
  *
- * ⛔ A paste PROPOSAL (ADR-0071) reports nothing, and the reason is the band KEY rather than the data. The store
- * finds the band a verdict belongs to from the food's latest LEXICAL `ingredient_resolutions` event, not from the
- * message. A proposal writes no such event, so for a proposal that event is some other cook's resolution of the
- * same food — another rung, another margin, another query shape — and the observation would move a band this line
- * was never ranked in. Until the message carries the proposal's own key (rung, margin, query shape, ranker version)
- * the honest record is none. Pure.
+ * ⛔ ONLY a message with `ranked` evidence that NAMES ITS OWN BAND (ADR-0071; the band is never looked up from the
+ * shared resolution events). A band key on any other evidence describes a ranking that did not happen, and an
+ * excluded message (above) never reaches the shared statistics.
+ *
+ * ⚠️ No producer sends a band key today, so the band subsystem is DORMANT BY DECISION: nothing is observed and no
+ * authority is read. It is fed again when the paste origin carries the match row's rung, margin, query shape and ranker
+ * version. Pure.
  */
-function reportsToBands(message: VerifyIngredientLineMessage, origin: VerificationOrigin): boolean {
-    return origin.kind === 'recipe' && !excludedFromBands(message);
+function observedBandOf(message: VerifyIngredientLineMessage): BandKey | undefined {
+    return message.evidenceKind === 'ranked' && !excludedFromBands(message) ? message.bandKey : undefined;
 }
 
 /**
  * Decide what the gate asks about this line — the policy for a BINDING or for a PROPOSAL (ADR-0071).
  *
- * A saved recipe's line re-runs {@link decideVerification} with the worker's OWN band authority (KTD-A): a
- * shadow-sampled or excluded message reads none. A paste proposal re-runs {@link decideProposalVerification},
+ * A saved recipe's line re-runs {@link decideVerification} with the worker's OWN band authority (KTD-A), read for
+ * the band the message names ({@link observedBandOf}); a shadow-sampled message, or one naming no band, reads none. A paste proposal re-runs {@link decideProposalVerification},
  * which asks identity whatever the evidence ("the review LLM checks every paste-import match", owner ruling
  * 2026-10-25) and takes no band authority, so none is read.
  *
@@ -422,7 +416,7 @@ function reportsToBands(message: VerifyIngredientLineMessage, origin: Verificati
  * @param message - The parsed message.
  * @param origin - Where the line came from.
  * @param food - The line's food.
- * @returns The decision. @sideEffect Reads the band tables for a recipe line that may consult them.
+ * @returns The decision. @sideEffect Reads the band tables for a recipe line that names its band.
  */
 async function policyDecision(
     deps: VerificationDeps,
@@ -442,8 +436,8 @@ async function policyDecision(
         return decideProposalVerification(gateInput);
     }
 
-    const bandAuthority =
-        message.shadowSample === true || excludedFromBands(message) ? undefined : await authorityQuietly(deps, food);
+    const band = message.shadowSample === true ? undefined : observedBandOf(message);
+    const bandAuthority = band === undefined ? undefined : await authorityQuietly(deps, band);
 
     return decideVerification({ ...gateInput, bandAuthority });
 }
@@ -456,15 +450,15 @@ async function policyDecision(
  * answer — verify identity — is always available.
  *
  * @param deps - The handler's collaborators.
- * @param food - The line's food: a root or a variant.
+ * @param band - The band the message named.
  * @returns The authority, or `undefined`. @sideEffect Reads the band tables.
  */
 async function authorityQuietly(
     deps: VerificationDeps,
-    food: VerificationFood,
-): Promise<Awaited<ReturnType<BandFeedback['authorityForFood']>>> {
+    band: BandKey,
+): Promise<Awaited<ReturnType<BandFeedback['authorityFor']>>> {
     try {
-        return await deps.bands.authorityForFood(food);
+        return await deps.bands.authorityFor(band);
     } catch (error) {
         logger.warn('band-authority read failed; the line verifies identity', {
             error: error instanceof Error ? error.message : String(error),
@@ -514,6 +508,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     const origin = verificationOriginOf(message);
     const callSite = callSiteFor(origin);
     const decision = await policyDecision(deps, message, origin, food);
+    const observedBand = observedBandOf(message);
 
     if (decision.kind === 'skip') {
         logger.info('verification skipped', { reason: decision.reason });
@@ -632,7 +627,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     //     to spend — inflating a counter whose only job is to bound real attempts, and doing so on the two
     //     branches (unpriced, residency-refused) that are deterministic in the model rather than the line.
     const key = keyFor(message);
-    const claim = await deps.store.claimVerification(key, plan.modelId, deps.claimLeaseSeconds);
+    const claim = await deps.store.claimVerification(key, plan.modelId, deps.claimLeaseSeconds, decision.aspects);
 
     if (claim.kind === 'already-verified') {
         logger.info('verification already recorded for this key and model; nothing was spent', { food });
@@ -754,9 +749,9 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         logger.warn('verification answer was unreadable', { reason: reading.reason });
         await recordQuietly(deps, verdictRow(message, plan, decision.aspects, 'abstain', 'low', 'inconclusive', key));
 
-        if (reportsToBands(message, origin)) {
+        if (observedBand !== undefined) {
             await reportBandQuietly(deps, {
-                food,
+                bandKey: observedBand,
                 band: 'inconclusive',
                 aspects: decision.aspects,
                 shadowSample: message.shadowSample === true,
@@ -774,9 +769,9 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         ...aspectVerdictColumns(reading.outcome),
     });
 
-    if (reportsToBands(message, origin)) {
+    if (observedBand !== undefined) {
         await reportBandQuietly(deps, {
-            food,
+            bandKey: observedBand,
             band,
             aspects: decision.aspects,
             shadowSample: message.shadowSample === true,

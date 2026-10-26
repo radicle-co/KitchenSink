@@ -17,7 +17,6 @@ import { makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/inde
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import {
     RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -78,8 +77,10 @@ beforeAll(async () => {
             { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: { findBandsByKeys: async () => new Map() } },
-            { provide: IngredientResolutionsDal, useValue: { latestResolutionsByLookupIds: async () => new Map() } },
+            {
+                provide: RECIPE_LINE_VERIFICATIONS_DAL,
+                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+            },
             { provide: FoodLookupsDal, useValue: { findByIds: async () => new Map() } },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             { provide: AuthorHandlesDal, useValue: { findByline } },

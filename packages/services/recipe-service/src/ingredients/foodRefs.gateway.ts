@@ -127,6 +127,8 @@ export class FoodRefsGateway {
      *   is `unreachable`, because no other credential may be substituted.
      * @param refs - The refs a recipe (or a batch of them) binds. Order and repeats are irrelevant.
      * @param budget - The latency contract the read runs under, shared with the nutrition lookup.
+     * @param options - `signal`: the CALLER's own deadline (a matches request's, ADR-0071), honoured beside the budget's.
+     *   Whichever fires first ends the read; what was not answered is `unreachable`.
      * @returns An answer for every distinct ref.
      * @sideEffect Performs batched food-service HTTP requests.
      */
@@ -134,6 +136,7 @@ export class FoodRefsGateway {
         caller: CallerToken | undefined,
         refs: readonly FoodRef[],
         budget: NutritionReadBudget,
+        options: { readonly signal?: AbortSignal } = {},
     ): Promise<FoodRefLookup> {
         const byKey = new Map(refs.map((ref) => [foodRefKey(ref), { kind: ref.kind, id: ref.id }] as const));
         const wanted = [...byKey.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, ref]) => ref);
@@ -158,7 +161,10 @@ export class FoodRefsGateway {
 
         const client = this.clients.readClient(caller, budget);
         const deadlineMs = this.clients.readDeadlineMs(budget);
-        const deadline = AbortSignal.timeout(deadlineMs);
+        const deadline =
+            options.signal === undefined
+                ? AbortSignal.timeout(deadlineMs)
+                : AbortSignal.any([AbortSignal.timeout(deadlineMs), options.signal]);
         let degraded = false;
 
         for (let wave = 0; wave < chunks.length; wave += MAX_CONCURRENT_CHUNKS) {

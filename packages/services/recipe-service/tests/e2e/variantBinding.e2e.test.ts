@@ -3,15 +3,15 @@
  * plan U9; R20–R23, R29; AE1; LOCAL e2e under the 2026-09-20 ruling).
  *
  * What only this tier proves: the variant arm really lands in `food_lookups` and in the resolution memory, a detail
- * read really composes the variant and its own numbers from food's answers, and the cascade really binds a variant
- * from a correction, a memo and a search hit.
+ * read really composes the variant and its own numbers from food's answers, the cascade really binds a variant
+ * from a correction and a memo, and the paste matcher proposes one from a search hit (ADR-0071).
  *
  * | Requirement | Pinned here |
  * | --- | --- |
  * | AE1, R20 | binding a variant stores the variant arm; the line shows its root's name, the live root and its parts |
  * | R21 | a variant line counts the variant's own numbers, and a change to its root's numbers leaves it alone |
  * | R22 | changing and removing a line's variant persist |
- * | R23 | a phrase whose words name exactly one variant binds that variant |
+ * | R23 | a phrase whose words name exactly one variant is proposed as that variant (ADR-0071: by the paste matcher) |
  * | R29 | a line bound to a variant or root the seed retired with no successor keeps its name and numbers |
  * | forward | a binding made before food forwarded the variant reads the forward's target |
  * | the memory's arc | a correction and a memo naming a variant bind that variant on the next add |
@@ -21,7 +21,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
+import { sha256Hex } from '../../src/common/sha256.js';
 import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { asPrincipal } from '../support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FakeFood, type FoodFake } from '../support/foodFake.js';
@@ -142,6 +144,46 @@ function amend(id: string, change: Partial<FakeFood>): void {
     food.foods.set(id, { ...current, ...change });
 }
 
+/**
+ * The food the paste matcher proposes for a one-food parsed line naming `phrase` (ADR-0071).
+ *
+ * The parse worker does not run here, so the parsed line is written as the worker lands it, with the real digest of its
+ * text, and the match is asked for over the wire.
+ *
+ * @param phrase - The food's name as the parse read it.
+ * @returns The proposed food, as the job view shows it.
+ * @sideEffect Inserts a parse job and line; one HTTP request; one view read.
+ */
+async function proposalFor(phrase: string): Promise<{ kind: string; id: string } | undefined> {
+    const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO recipe_parse_jobs (owner_id, expires_at, status) VALUES ($1, now() + interval '1 day', 'complete')
+         RETURNING id`,
+        [COOK],
+    );
+    const jobId = rows[0]?.id ?? '';
+    const proposal = {
+        raw: phrase,
+        quantity: { kind: 'absent' },
+        unit: null,
+        statedMeasure: null,
+        foods: [{ name: phrase, prep: null }],
+        reviewReasons: [],
+    };
+
+    await pool.query(
+        `INSERT INTO recipe_parse_job_lines (job_id, line_index, source_line, line_digest, status, proposal)
+         VALUES ($1, 0, $2, $3, 'parsed', $4::jsonb)`,
+        [jobId, phrase, lineDigest(phrase, sha256Hex), JSON.stringify(proposal)],
+    );
+
+    const view = await json<{
+        lines: { proposal: { foods: { match: { proposed: { kind: string; id: string } } | null }[] } }[];
+    }>('POST', `/api/v1/recipe-parse-jobs/${jobId}/matches`, 202);
+    const proposed = view.lines[0]?.proposal.foods[0]?.match?.proposed;
+
+    return proposed === undefined ? undefined : { kind: proposed.kind, id: proposed.id };
+}
+
 describe('variant-bound recipe lines (e2e, LOCAL: assembled app, real Postgres, food fake)', () => {
     beforeAll(async () => {
         food = await startFoodFake();
@@ -181,6 +223,7 @@ describe('variant-bound recipe lines (e2e, LOCAL: assembled app, real Postgres, 
     afterAll(async () => {
         if (pool !== undefined) {
             await pool.query(`DELETE FROM recipes WHERE owner_id = $1`, [COOK]);
+            await pool.query(`DELETE FROM recipe_parse_jobs WHERE owner_id = $1`, [COOK]);
             await pool.query(`DELETE FROM ingredient_resolution_mappings WHERE user_id = $1`, [COOK]);
             await pool.query(`DELETE FROM ingredient_resolution_memos WHERE normalized_key LIKE $1`, [`${SCOPE}%`]);
             await deleteBindingsMatching(pool, `${SCOPE}%`);
@@ -294,21 +337,15 @@ describe('variant-bound recipe lines (e2e, LOCAL: assembled app, real Postgres, 
         expect(removedRead.nutrition?.calories).toBe(170);
     });
 
-    it('R23: a phrase whose words name exactly one variant binds that variant through the search tier', async () => {
-        const bound = await json<IngredientBody>('POST', '/api/v1/ingredients/by-name', 202, {
-            name: `${SCOPE} brisket flat`,
-        });
-
-        expect(bound).toMatchObject({ foodId: BRISKET, variant: { id: FLAT, parts: FLAT_PARTS } });
+    // ⚠️ REWRITTEN for ADR-0071. These two cases drove `POST /api/v1/ingredients/by-name`, which ran the search tier and
+    // BOUND its top hit. By-name now binds settled evidence only; the search tier runs in the paste matcher, which
+    // PROPOSES. So R23 is proved where the search tier now lives: the proposal names the variant, and binds nothing.
+    it('R23: a phrase whose words name exactly one variant is PROPOSED as that variant by the paste matcher', async () => {
+        expect(await proposalFor(`${SCOPE} brisket flat`)).toStrictEqual({ kind: 'variant', id: FLAT });
     });
 
-    it('the positive control for R23: a phrase naming the root alone binds the root, with no variant', async () => {
-        const bound = await json<IngredientBody>('POST', '/api/v1/ingredients/by-name', 202, {
-            name: `${SCOPE} brisket`,
-        });
-
-        expect(bound).toMatchObject({ foodId: BRISKET });
-        expect(bound).not.toHaveProperty('variant');
+    it('the positive control for R23: a phrase naming the root alone is proposed as the root', async () => {
+        expect(await proposalFor(`${SCOPE} brisket`)).toStrictEqual({ kind: 'root', id: BRISKET });
     });
 
     it('a binding made before food forwarded its variant reads the forward’s TARGET, parts and numbers', async () => {

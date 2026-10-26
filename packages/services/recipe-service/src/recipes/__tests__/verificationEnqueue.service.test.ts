@@ -55,8 +55,6 @@ import { fakeFoodLookupsDal, makeRootArm } from '../../ingredients/__fixtures__/
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
 import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
-import { makeFakeIngredientResolutionsDal } from '../../ingredients/__fixtures__/resolutionDals.fixture.js';
-import type { IngredientResolutionsDal } from '../../ingredients/resolution/ingredientResolutions.dal.js';
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
@@ -87,6 +85,19 @@ const RECIPE_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 const FLOUR_INGREDIENT_ID = '00000000-0000-4000-8000-00000000f10a';
 const FLOUR_FOOD_ID = '01JFOOD000000000000000000';
 const SOURCE_LINE = '2 cups all-purpose flour, sifted';
+
+/** The verdict key the flour line's judgement is stored under — derived the way production derives it. */
+const FLOUR_KEY = verificationKey(
+    {
+        sourceLine: SOURCE_LINE,
+        foodRefId: FLOUR_FOOD_ID,
+        quantityLow: 2,
+        quantityHigh: null,
+        unit: 'cup',
+        statedMeasure: null,
+    },
+    sha256Hex,
+);
 
 /** The line's binding: a shared root food, so the gate has an identity to check. */
 const FLOUR = makeRootArm({ lookupId: FLOUR_INGREDIENT_ID, foodId: FLOUR_FOOD_ID });
@@ -150,7 +161,6 @@ function makeService(
     options: {
         readonly arm?: FoodLookupArm;
         readonly answer?: FoodRefAnswer;
-        readonly resolutions?: IngredientResolutionsDal;
         readonly verdicts?: LineVerificationsDal;
     } = {},
 ): RecipesService {
@@ -160,7 +170,6 @@ function makeService(
         dal,
         lookups: fakeFoodLookupsDal(options.arm ?? FLOUR),
         refs: refsAnswering(options.answer ?? FLOUR_NAMED),
-        ingredientResolutions: options.resolutions ?? makeFakeIngredientResolutionsDal(),
         ...(options.verdicts === undefined ? {} : { lineVerificationsDal: options.verdicts }),
         foodNutrition: nutritionGatewayDouble,
         verificationQueue: queue,
@@ -214,10 +223,11 @@ describe('RecipesService.create — the verification producer', () => {
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
-    it('⛔ asks about the SAME food the detail read looks its verdict up under — one derivation, both ends', async () => {
-        // The verdict the detail read finds is keyed on the identity THIS test derives from the binding's root
-        // food. If the producer or the reader derived the food id another way, the verdict below would not be
-        // found and the line would publish unjudged — silently, since a missing verdict publishes.
+    it('⛔ finds the verdict under the SAME key the detail read looks it up under — one derivation, both ends', async () => {
+        // REWRITTEN for ADR-0071: it used to assert the message was SENT beside a stored verdict. The save path now
+        // reads the verdict table by key before it enqueues, so a stored verdict means NO message. The key below is
+        // derived from the binding's root food; if the producer's dedup or the reader derived it another way, the
+        // line would be asked about again (paid twice) or would publish unjudged.
         const queue = fakeVerificationQueue();
         const key = verificationKey(
             {
@@ -235,8 +245,46 @@ describe('RecipesService.create — the verification producer', () => {
             verdicts: fakeLineVerificationsDal(new Map([[key, 'contradicted']])),
         }).create(OWNER_PRINCIPAL, createDto(), undefined);
 
-        expect(queue.enqueue.mock.calls[0]?.[0]?.[0]?.foodId).toBe(FLOUR_FOOD_ID);
+        expect(queue.enqueue).not.toHaveBeenCalled();
         expect(response.ingredients[0]?.resolutionStatus).toBe(FoodResolutionStatus.NEEDS_REVIEW);
+    });
+
+    it('⛔ asks NOTHING about a line whose verdict is already on record — a pasted line is never paid for twice', async () => {
+        const queue = fakeVerificationQueue();
+        const verdicts = fakeLineVerificationsDal(new Map([[FLOUR_KEY, 'verified']]));
+
+        await makeService(fakeRecipesDal(), queue, { verdicts }).create(OWNER_PRINCIPAL, createDto(), undefined);
+
+        expect(vi.mocked(verdicts.findExistingKeys)).toHaveBeenCalledWith([FLOUR_KEY]);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ fails OPEN when the dedup read fails: every request is still sent', async () => {
+        const queue = fakeVerificationQueue();
+        const verdicts = fakeLineVerificationsDal();
+
+        vi.mocked(verdicts.findExistingKeys).mockRejectedValue(new Error('verdict table unreachable'));
+
+        const response = await makeService(fakeRecipesDal(), queue, { verdicts }).create(
+            OWNER_PRINCIPAL,
+            createDto(),
+            undefined,
+        );
+
+        expect(response.id).toBe(RECIPE_ID);
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ declares UNATTRIBUTED evidence and never reads the SHARED binding’s provenance (ADR-0071)', async () => {
+        // A binding row is shared by every cook. Reading its latest event let one cook's later curated bind of food X
+        // mark another cook's wrong lexical "milk → X" line as settled. The producer now verifies every line.
+        const queue = fakeVerificationQueue();
+
+        await makeService(fakeRecipesDal(), queue).create(OWNER_PRINCIPAL, createDto(), undefined);
+
+        // The structural half: the service holds no provenance reader at all, so it cannot consult one.
+        expect(queue.enqueue.mock.calls[0]?.[0]?.[0]).toMatchObject({ evidenceKind: 'unattributed', shortlist: [] });
+        expect(Object.keys(makeRecipesService())).not.toContain('ingredientResolutions');
     });
 
     it('enqueues one request for the transcribed, catalog-backed line, AFTER the write', async () => {
@@ -300,11 +348,11 @@ describe('RecipesService.create — the verification producer', () => {
         // because it cannot be cleaned up. The save itself still lands: absence of a verdict means PUBLISH (0023).
         it('enqueues nothing, and reads nothing for it, for a TEST principal on an ENFORCING stage', async () => {
             const queue = fakeVerificationQueue();
-            const resolutions = makeFakeIngredientResolutionsDal();
+            const verdicts = fakeLineVerificationsDal();
 
             // A PREMIUM principal saving `private`, because a contained principal may not PUBLISH and a free-tier recipe
             // is public-only — the save must land for this case to prove anything about the enqueue that follows it.
-            const response = await makeService(fakeRecipesDal(), queue, { resolutions }).create(
+            const response = await makeService(fakeRecipesDal(), queue, { verdicts }).create(
                 { ...PREMIUM_OWNER, principalKind: 'test', containment: 'enforce' },
                 { ...createDto(), visibility: 'private' },
                 undefined,
@@ -312,9 +360,8 @@ describe('RecipesService.create — the verification producer', () => {
 
             expect(response.id).toBe(RECIPE_ID);
             expect(queue.enqueue).not.toHaveBeenCalled();
-            // The early return is at the TOP: no provenance read is paid for a request never sent. Exactly ONE read
-            // happens — the detail response's own pending read — so a producer read would be a second.
-            expect(vi.mocked(resolutions.latestResolutionsByLookupIds).mock.calls).toHaveLength(1);
+            // The early return is at the TOP: no dedup read is paid for a request never sent.
+            expect(vi.mocked(verdicts.findExistingKeys)).not.toHaveBeenCalled();
         });
 
         it.each([

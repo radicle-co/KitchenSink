@@ -443,11 +443,13 @@ export class FoodServiceClient {
      * @param query - The search query.
      * @param withNutrition - Opt-in per-100g macro enrichment (plan U4b). Leave unset on a typeahead path —
      *   the flag adds a nutrient-view scan the keystroke budget must not carry.
+     * @param options - `signal`: the caller's deadline, composed with this client's own timeout (see {@link RequestOptions}).
      * @returns Ranked results, or an empty set on no local match.
      * @throws {UnauthorizedError}/{@link ForbiddenError} on auth failure.
+     * @throws {FetchUnavailableError} when this request's timeout or the caller's signal aborts it.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async search(query: string, withNutrition = false): Promise<SearchResponse> {
+    public async search(query: string, withNutrition = false, options: RequestOptions = {}): Promise<SearchResponse> {
         // The QUERY is validated too, against the same `searchFoodQuerySchema` the service parses it with, so a
         // term this client cannot legally send never costs a round trip.
         const { query: validated } = this.request('search', searchFoodQuerySchema, {
@@ -457,6 +459,8 @@ export class FoodServiceClient {
         const res = await this.send(
             'GET',
             `/api/v1/foods/search?query=${this.encodeTerm('search', validated)}${withNutrition ? '&withNutrition=true' : ''}`,
+            undefined,
+            options.signal,
         );
 
         return this.expect(res, 200, searchResponseSchema);

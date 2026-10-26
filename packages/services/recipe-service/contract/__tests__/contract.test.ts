@@ -292,15 +292,24 @@ describe('the leaf property', () => {
         ]);
     });
 
-    // `recipe-core` is admitted to the allowlist ON THE GROUND that it is itself a zod-only leaf. That claim is
-    // the reason web and mobile can bundle this package, so it is CHECKED rather than trusted: the day
-    // `recipe-core` grows a runtime dependency, this fails and the allowlist entry has to be re-justified.
-    it('is only safe because recipe-core is ITSELF a zod-only leaf, so that is asserted too', async () => {
+    // `recipe-core` is admitted to the allowlist ON THE GROUND that it is itself a leaf web and mobile can bundle.
+    // That claim is CHECKED rather than trusted: the day `recipe-core` grows a runtime dependency, this fails and the
+    // allowlist entry has to be re-justified.
+    //
+    // ⚠️ Re-justified for ADR-0071: `numeric-quantity` joined `zod`. It is the measure reader's amount parser, moved
+    // into recipe-core with that reader so the editor and the paste matcher read a pasted line's measure one way. It
+    // is pure, has NO dependencies of its own (asserted below), and web and mobile already bundled it through
+    // `@commise/features-recipes` before the move. Anything else still fails here.
+    it('is only safe because recipe-core is ITSELF a leaf of zod and a dependency-free parser', async () => {
         const manifest = JSON.parse(
             await readFile(join(SERVICE_ROOT, '../../shared/recipe-core/package.json'), 'utf8'),
         ) as { dependencies: Record<string, string> };
+        const parser = JSON.parse(
+            await readFile(join(SERVICE_ROOT, '../../../node_modules/numeric-quantity/package.json'), 'utf8'),
+        ) as { dependencies?: Record<string, string>; peerDependencies?: Record<string, string> };
 
-        expect(Object.keys(manifest.dependencies)).toStrictEqual(['zod']);
+        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual(['numeric-quantity', 'zod']);
+        expect(Object.keys({ ...parser.dependencies, ...parser.peerDependencies })).toStrictEqual([]);
     });
 });
 

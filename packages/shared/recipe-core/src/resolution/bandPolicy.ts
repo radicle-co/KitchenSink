@@ -126,7 +126,10 @@ export function shadowRateFor(observationsSinceGrant: number): number {
 }
 
 /** The margin-band labels — the band key's second axis, in rung units. Provisional bucket edges (Q2). */
-export type MarginBand = 'none' | 'lt-0.3-rung' | '0.3-0.9-rung' | 'ge-0.9-rung';
+export const MARGIN_BANDS = ['none', 'lt-0.3-rung', '0.3-0.9-rung', 'ge-0.9-rung'] as const;
+
+/** One margin-band label. */
+export type MarginBand = (typeof MARGIN_BANDS)[number];
 
 /**
  * One rung of the ladder on the score scale: the score lead one rung gives at an equal base metric.
@@ -170,7 +173,10 @@ export function marginBandOf(margin: number | undefined): MarginBand {
 }
 
 /** The query-shape labels — the band key's third axis (single-token and multi-word rank differently). */
-export type QueryShape = 'single-token' | 'multi-word';
+export const QUERY_SHAPES = ['single-token', 'multi-word'] as const;
+
+/** One query-shape label. */
+export type QueryShape = (typeof QUERY_SHAPES)[number];
 
 /**
  * Classify a resolution query's shape for the band key.

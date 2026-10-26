@@ -95,17 +95,17 @@ export type CascadeTierId = Exclude<ResolutionTierId, 'llm'>;
  *
  * ⛔ **THIS IS AN ORDERING KEY, NOT A TRUST LEVEL, and the distinction is load-bearing.** It answers "which
  * tier gets asked first"; it says nothing about whether the resulting bind may be PUBLISHED. Publish-trust
- * is KTD-A's question and it has its own home — `pendingStateOf` in `recipes/domain/lineVerification.ts`,
- * the policy layer ADR-0023 rules on. The two were nearly conflated here, and the conflation would have
- * made the type lie: a memo tier declared "gate-agreed" is telling the truth about its SOURCE and a lie
+ * is a question of which CHAIN a tier sits in (ADR-0071): the binding chain holds settled evidence only, and the
+ * proposal chain binds nothing, its state derived by `matchStateOf`, the policy layer ADR-0023 rules on. The two were
+ * nearly conflated here, and the conflation would have made the type lie: a memo tier declared "gate-agreed" is telling the truth about its SOURCE and a lie
  * about its NEAR-match branch, where nobody ever agreed the query phrase means that food. Naming the
  * classes after the SOURCE keeps every branch of every tier honest.
  *
  * ⛔ The order is the repair for a real defect. The registry shipped as `[curated, lexical, memo]` —
  * R11's literal order, written when R12 still gave tier 2 a confidence threshold to fall through on. KTD-A
- * then removed that threshold (the lexical tier resolves on ANY non-empty candidate set, because a wrong
- * top hit costs a withheld `pending-verification` line rather than a published bind), and with it the only
- * route to the memo tier for any phrase the catalog can find. That tier was dead and nothing went red,
+ * then removed that threshold (the lexical tier resolves on ANY non-empty candidate set; since ADR-0071 it runs only
+ * in the proposal chain, which binds nothing), and with it the only route to the memo tier for any phrase the
+ * catalog can find. That tier was dead and nothing went red,
  * because the order was a literal nobody could compare against its own reason.
  *
  * The classes, and why they are in this order:
@@ -262,6 +262,11 @@ export type TierOutcome =
           /** The top hit's ladder rung — the band key's first axis. Ranking tiers only. */
           readonly rung?: string | undefined;
           /**
+           * ADR-0071: the ranked foods a cook may choose from, each with its own rung — what the paste matcher shows
+           * and marks the default in. Ranking tiers only; the scored `shortlist` above ranks root ids alone.
+           */
+          readonly candidates?: readonly RankedCandidate[] | undefined;
+          /**
            * U11 (R20): the shortlist contained the CALLER's own private authored food, so its margins are
            * facts about one user's catalog rather than the shared ranker. The event records the flag, no
            * band epoch is observed, and the verification is excluded from band feedback on both sides.
@@ -274,6 +279,13 @@ export type TierOutcome =
           /** Why this tier declined: a miss, or a hit it did not trust enough to answer with. */
           readonly reason: string;
       };
+
+/** One ranked food a cook may choose (ADR-0071): the hit's food (its named variant when food named one) and rung. */
+export interface RankedCandidate {
+    readonly food: FoodRef;
+    /** The rung food ranked the hit on, or `undefined` when food sent none (a crosswalk hit, or an older food). */
+    readonly rung: string | undefined;
+}
 
 /** The phrase being resolved, parsed once at the boundary and passed down. */
 export interface ResolutionQuery {
@@ -302,6 +314,15 @@ export interface ResolutionContext {
      * discipline `VerifiableLine.resolutionTier` applies (plan U2).
      */
     readonly caller: CallerToken | undefined;
+    /**
+     * The request deadline a tier's outbound calls must end with, or `undefined` when the request has none (by-name,
+     * the typeahead: each call is already bounded by its own transport timeout). The paste matcher's request has one
+     * (ADR-0071), so a catalog search cannot outlive it.
+     *
+     * ⛔ REQUIRED, not optional: like `caller`, every construction site decides, so a new site cannot silently run
+     * unbounded work under a deadline it forgot to forward.
+     */
+    readonly signal: AbortSignal | undefined;
 }
 
 /**
@@ -341,6 +362,7 @@ export type CascadeOutcome =
           readonly confidence?: number | undefined;
           readonly shortlist?: readonly ScoredCandidate[] | undefined;
           readonly rung?: string | undefined;
+          readonly candidates?: readonly RankedCandidate[] | undefined;
           readonly authorAugmented?: boolean | undefined;
           /** The tiers consulted, in order, up to and including the one that answered. */
           readonly consulted: readonly ResolutionTierId[];
@@ -419,6 +441,7 @@ export async function runResolutionCascade(
                 confidence: outcome.confidence,
                 shortlist: outcome.shortlist,
                 rung: outcome.rung,
+                candidates: outcome.candidates,
                 authorAugmented: outcome.authorAugmented,
                 consulted,
                 unavailable,

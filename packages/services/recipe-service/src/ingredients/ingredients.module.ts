@@ -50,10 +50,9 @@
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
 import { Logger, Module } from '@nestjs/common';
-import type pg from 'pg';
 import { ConfigService } from '@nestjs/config';
 
-import { DrizzleProvider, PgPoolProvider, type RecipeDrizzle } from '../database/database.module.js';
+import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
@@ -63,12 +62,12 @@ import { FoodLookupsDal } from './dal/foodLookups.dal.js';
 import { FoodRefsGateway } from './foodRefs.gateway.js';
 import { IngredientNutritionReader } from './ingredientNutrition.reader.js';
 import { LineIdentityReader } from './lineIdentity.reader.js';
-import { createResolutionRegistry } from './resolution/resolutionRegistry.js';
+import { createBindingRegistry, createProposalRegistry, PROPOSAL_TIERS } from './resolution/resolutionRegistry.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
 import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
-import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
+import { UnrankedHitsReporter } from './resolution/unrankedHitsReporter.js';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -105,6 +104,17 @@ const POST_COMMIT_NUTRITION_TIMEOUT_MS = 1_500;
  * `MAX_READ_NUTRITION_DEADLINE_MS`, by `FOOD_NUTRITION_READ_DEADLINE_MS`.
  */
 const READ_NUTRITION_DEADLINE_MS = 3_000;
+
+/**
+ * The lexical tier's rung-less-hit reporter: its warning goes through Nest's `Logger`, its metric to stdout as EMF.
+ *
+ * @returns The reporter.
+ */
+function unrankedHitsReporter(): UnrankedHitsReporter {
+    const logger = new Logger('LexicalTier');
+
+    return new UnrankedHitsReporter({ warn: (message) => logger.warn(message) });
+}
 
 @Module({
     controllers: [IngredientsController],
@@ -180,11 +190,6 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
             useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
         },
         {
-            provide: ResolutionBandsDal,
-            inject: [PgPoolProvider],
-            useFactory: (pool: pg.Pool): ResolutionBandsDal => new ResolutionBandsDal(pool),
-        },
-        {
             // The promotion audit's log half goes through Nest's `Logger`, so the identifiers it carries are
             // scrubbed on the way out; the metric half writes EMF straight to stdout by default.
             provide: MappingPromotionAudit,
@@ -198,6 +203,13 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
         },
         ResolutionMappingsService,
         {
+            // ADR-0071: the paste matcher's NON-binding chain, ending in the lexical shortlist.
+            provide: PROPOSAL_TIERS,
+            inject: [ResolutionMappingsDal, FoodCatalogGateway],
+            useFactory: (mappings: ResolutionMappingsDal, catalog: FoodCatalogGateway) =>
+                createProposalRegistry(mappings, catalog, unrankedHitsReporter()),
+        },
+        {
             provide: IngredientsService,
             inject: [
                 FoodLookupsDal,
@@ -206,7 +218,6 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
                 FoodRefsGateway,
                 ResolutionMappingsDal,
                 IngredientResolutionsDal,
-                ResolutionBandsDal,
             ],
             useFactory: (
                 lookups: FoodLookupsDal,
@@ -215,16 +226,15 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
                 refs: FoodRefsGateway,
                 mappings: ResolutionMappingsDal,
                 resolutions: IngredientResolutionsDal,
-                bands: ResolutionBandsDal,
             ): IngredientsService =>
                 new IngredientsService(
                     lookups,
                     clients,
                     catalog,
                     refs,
-                    createResolutionRegistry(mappings, catalog),
+                    // ADR-0071: by-name BINDS, so it runs the settled-evidence chain only.
+                    createBindingRegistry(mappings),
                     resolutions,
-                    bands,
                 ),
         },
     ],
@@ -238,7 +248,9 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
         LineIdentityReader,
         ResolutionMappingsService,
         IngredientResolutionsDal,
-        ResolutionBandsDal,
+        PROPOSAL_TIERS,
+        // ADR-0071: the paste matcher asks whether the blend is switched on before it proposes anything.
+        FoodCatalogGateway,
     ],
 })
 export class IngredientsModule {}

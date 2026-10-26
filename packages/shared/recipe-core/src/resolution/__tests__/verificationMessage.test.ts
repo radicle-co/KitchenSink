@@ -19,6 +19,7 @@ import {
     verificationFoodFieldsOf,
     verificationFoodOf,
     verificationOriginOf,
+    verifiedLineIdentityOfMessage,
     verifyIngredientLineMessageSchema,
 } from '../verificationMessage.js';
 
@@ -400,6 +401,74 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
                     verifyLine({ statedMeasure: { ...GILL, quantityLow: Number.NaN } }),
                 ),
             ).toThrow();
+        });
+    });
+
+    /**
+     * The band a verdict is observed in, carried BY THE MESSAGE (ADR-0071: the band subsystem is dormant by decision).
+     *
+     * The worker used to find a verdict's band from the food's latest lexical `ingredient_resolutions` event, a row every
+     * cook who bound that food shares, so one cook's verdict moved a band another cook's resolution was ranked in. A
+     * band observation is now made only from the key the message itself names, and no producer sends one today.
+     */
+    describe('bandKey — the band named by the message itself', () => {
+        const BAND = {
+            rung: 'head',
+            marginBand: 'ge-0.9-rung',
+            queryShape: 'single-token',
+            rankerVersion: 'ladder-v2',
+        };
+
+        it('is optional: a message without one parses, and names no band', () => {
+            expect(verifyIngredientLineMessageSchema.parse(verifyLine()).bandKey).toBeUndefined();
+        });
+
+        it('carries the four parts of a band key when the producer names one', () => {
+            expect(verifyIngredientLineMessageSchema.parse(verifyLine({ bandKey: BAND })).bandKey).toStrictEqual(BAND);
+        });
+
+        it.each([
+            ['an unknown margin band', { ...BAND, marginBand: 'wide' }],
+            ['an unknown query shape', { ...BAND, queryShape: 'sentence' }],
+            ['a blank rung', { ...BAND, rung: '' }],
+            ['a blank ranker version', { ...BAND, rankerVersion: '' }],
+            ['a missing part', { rung: 'head', marginBand: 'none', queryShape: 'multi-word' }],
+        ])('REFUSES %s: half a key would file the verdict under a band nobody ranked in', (_label, bandKey) => {
+            expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ bandKey }))).toThrow();
+        });
+    });
+
+    describe('verifiedLineIdentityOfMessage — the judgement a message asks for (ADR-0071)', () => {
+        // The save path's dedup reads the verdict table by this identity's key BEFORE it enqueues, and the worker keys
+        // the verdict it writes on the same fields. One mapping, so the read and the write meet.
+        it('maps a root message onto its identity, a missing stated measure as null', () => {
+            const message = verifyIngredientLineMessageSchema.parse(verifyLine());
+
+            expect(verifiedLineIdentityOfMessage(message)).toStrictEqual({
+                sourceLine: '2 cups all-purpose flour',
+                foodRefId: '01JFOOD000000000000000000',
+                quantityLow: 2,
+                quantityHigh: null,
+                unit: 'cup',
+                statedMeasure: null,
+            });
+        });
+
+        it('keys a variant message on the VARIANT id, and carries the stated measure', () => {
+            const message = verifyIngredientLineMessageSchema.parse(
+                verifyLine({
+                    foodId: undefined,
+                    foodVariantId: 'VAR-1',
+                    quantityLow: 0.5,
+                    unit: 'cup',
+                    statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gill' },
+                }),
+            );
+
+            expect(verifiedLineIdentityOfMessage(message)).toMatchObject({
+                foodRefId: 'VAR-1',
+                statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gill' },
+            });
         });
     });
 });

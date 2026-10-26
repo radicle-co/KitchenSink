@@ -352,7 +352,7 @@ export const AMBIGUITY_GATE_MEASUREMENT = Object.freeze({
  * ## How an HTTP caller can make a line AMBIGUOUS
  *
  * It cannot say so. `AMBIGUOUS` is DERIVED at read (`resolveLineStatus`): the worker's verdict for the line is a
- * `contradicted` band, at `high` certainty, with the identity aspect in `disagree` (`identityContradictedOf`). What the
+ * `contradicted` band, at `high` certainty, with the identity aspect in `disagree` (`identityReadingOf`). What the
  * caller controls is the input the verdict is made from. Each line is bound to the signer's authored food named
  * `foodName` while its `sourceLine` names a plainly different food, so the gate is asked "is this <word>?" of a line that
  * says chicken stock, and answers `disagree` with high certainty.

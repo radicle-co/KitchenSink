@@ -162,6 +162,16 @@ const DELIBERATE_SILENCE: ReadonlyMap<string, string> = new Map([
         'notifies observers; an observer that throws must not take down the resolution it is observing',
     ],
     [
+        'packages/services/recipe-service/src/ingredients/resolution/lexicalTier.ts#observe',
+        'reports rung-less catalog hits to an observer (ADR-0070); an observer that throws must not take down the ' +
+            'resolution it is observing, the same reason `resolutionCascade.ts#report` gives',
+    ],
+    [
+        'packages/services/recipe-service/src/recipes/verdictDedup.ts#withoutVerdictsOnRecord',
+        'the shared dedup read FAILS OPEN by design (ADR-0071): the error is handed to the caller’s ' +
+            '`onReadFailure`, which logs it with its own job or recipe context, and every item is asked about',
+    ],
+    [
         'packages/services/recipe-service/src/photos/photos.service.ts#detectImageContentType',
         '`file-type` throws on a truncated or malformed buffer, which IS the answer — "not a determinable ' +
             'image" — and becomes a 422 rather than escaping as a 500',

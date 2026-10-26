@@ -190,7 +190,7 @@ const storedProposalSchema = z.looseObject({
 });
 
 /** Project a stored `ParsedLine` onto the strict wire shape. Pure. @throws On a row this build cannot read. */
-function projectProposal(stored: unknown): ParseProposal {
+export function projectProposal(stored: unknown): ParseProposal {
     const parsed = storedProposalSchema.parse(stored);
 
     return {
@@ -228,12 +228,12 @@ function progressOf(line: ParseJobLineRecord, quietSeconds: number): ParseJobLin
 }
 
 /** `PARSE_JOB_NOT_FOUND` — stranger and absent are deliberately one answer. */
-function parseJobNotFound(jobId: string): RecipeDomainError {
+export function parseJobNotFound(jobId: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.PARSE_JOB_NOT_FOUND, `Parse job ${jobId} not found.`);
 }
 
 /** `PARSE_JOB_EXPIRED` — the TTL passed; the remedy is a fresh create. */
-function parseJobExpired(jobId: string): RecipeDomainError {
+export function parseJobExpired(jobId: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.PARSE_JOB_EXPIRED, `Parse job ${jobId} expired.`);
 }
 
@@ -406,6 +406,14 @@ export class ParseJobsService {
 
             return enqueueAll;
         }
+    }
+
+    /**
+     * The view of a job record already read. The matches request builds its view from the record its matcher read when a
+     * fresh read cannot finish inside the request's deadline (ADR-0071). Pure.
+     */
+    public viewOfRecord(record: ParseJobRecord): ParseJobResponse {
+        return viewOf(record);
     }
 
     /** The owner's job view. @throws `PARSE_JOB_NOT_FOUND` for stranger and absent alike. @sideEffect Reads. */

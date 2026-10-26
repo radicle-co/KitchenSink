@@ -25,13 +25,19 @@ function dbDouble(answers: readonly Record<string, unknown>[][]): {
     return { db: { query } as unknown as BandQueryable, query };
 }
 
-/** The latest-lexical-resolution row the lookup answers with. */
-const LEXICAL_ROW = {
+/** The band a message names (ADR-0071): the key the observation and the authority read are both made under. */
+const BAND_KEY = {
     rung: 'head',
-    margin: '0.21',
-    query_shape: 'single-token',
-    ranker_version: 'ladder-v2-comma-head',
-};
+    marginBand: 'ge-0.9-rung',
+    queryShape: 'single-token',
+    rankerVersion: 'ladder-v2-comma-head',
+} as const;
+
+/** Whether any statement the double received read the shared resolution events. */
+const readResolutionEvents = (query: ReturnType<typeof vi.fn>): boolean =>
+    query.mock.calls.some(
+        (call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('ingredient_resolutions'),
+    );
 
 describe('bandVerdictFor — the verdict-to-observation mapping', () => {
     it('maps an identity-checked verified verdict to agree', () => {
@@ -52,45 +58,31 @@ describe('bandVerdictFor — the verdict-to-observation mapping', () => {
     });
 });
 
-describe('createBandFeedback — the lookup discipline', () => {
-    it('records nothing without a mappable verdict — not even the lookup', async () => {
+/**
+ * The band is the one the MESSAGE names (ADR-0071), never one looked up.
+ *
+ * Rewritten from "the lookup discipline": the feedback used to find a verdict's band from the food's latest lexical
+ * `ingredient_resolutions` event, a row every cook who bound that food shares, so one cook's verdict moved a band
+ * another cook was ranked in. These cases prove the key is the caller's and that the shared events are never read.
+ */
+describe('createBandFeedback — the band the message names', () => {
+    it('records nothing without a mappable verdict — not a single statement', async () => {
         const { db, query } = dbDouble([]);
 
-        await createBandFeedback(db).record({
-            food: { kind: 'root', id: 'f-1' },
-            band: 'inconclusive',
-            aspects: ['identity'],
-        });
+        await createBandFeedback(db).record({ bandKey: BAND_KEY, band: 'inconclusive', aspects: ['identity'] });
 
         expect(query).not.toHaveBeenCalled();
     });
 
-    it('records nothing when the food has no lexical resolution — absence, not a default band', async () => {
-        const { db, query } = dbDouble([[]]);
+    it('records an agree observation under the band the message named, and reads no resolution event', async () => {
+        const { db, query } = dbDouble([]);
 
-        await createBandFeedback(db).record({
-            food: { kind: 'root', id: 'f-1' },
-            band: 'verified',
-            aspects: ['identity'],
-        });
-
-        expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('records an agree observation under the band the RESOLUTION was made in', async () => {
-        const { db, query } = dbDouble([[LEXICAL_ROW]]);
-
-        await createBandFeedback(db).record({
-            food: { kind: 'root', id: 'f-1' },
-            band: 'verified',
-            aspects: ['identity'],
-        });
+        await createBandFeedback(db).record({ bandKey: BAND_KEY, band: 'verified', aspects: ['identity'] });
 
         const observationCall = query.mock.calls.find(
             (call: unknown[]) =>
                 typeof call[0] === 'string' && (call[0] as string).includes('resolution_band_observations'),
         );
-        expect(observationCall).toBeDefined();
         expect(observationCall?.[1]).toEqual([
             'head',
             'ge-0.9-rung',
@@ -99,6 +91,24 @@ describe('createBandFeedback — the lookup discipline', () => {
             'agree',
             'gate',
         ]);
+        expect(readResolutionEvents(query)).toBe(false);
+    });
+
+    it('files a shadow-sampled observation under the shadow source', async () => {
+        const { db, query } = dbDouble([]);
+
+        await createBandFeedback(db).record({
+            bandKey: BAND_KEY,
+            band: 'contradicted',
+            aspects: ['identity'],
+            shadowSample: true,
+        });
+
+        const observationCall = query.mock.calls.find(
+            (call: unknown[]) =>
+                typeof call[0] === 'string' && (call[0] as string).includes('resolution_band_observations'),
+        );
+        expect(observationCall?.[1]).toEqual(expect.arrayContaining(['disagree', 'shadow']));
     });
 
     it('⚠️ swallows a storage failure — band feedback must never fail a handler whose call is billed', async () => {
@@ -106,102 +116,41 @@ describe('createBandFeedback — the lookup discipline', () => {
         const db = { query } as unknown as BandQueryable;
 
         await expect(
-            createBandFeedback(db).record({
-                food: { kind: 'root', id: 'f-1' },
-                band: 'verified',
-                aspects: ['identity'],
-            }),
+            createBandFeedback(db).record({ bandKey: BAND_KEY, band: 'verified', aspects: ['identity'] }),
         ).resolves.toBeUndefined();
-    });
-
-    it('a resolution recorded before U4 populated the ranked fields is absence, not a null band', async () => {
-        const { db, query } = dbDouble([[{ rung: null, margin: null, query_shape: null, ranker_version: null }]]);
-
-        await createBandFeedback(db).record({
-            food: { kind: 'root', id: 'f-1' },
-            band: 'verified',
-            aspects: ['identity'],
-        });
-
-        expect(query).toHaveBeenCalledTimes(1);
     });
 });
 
 /**
- * `authorityForFood` — the READ side, and the one KTD-A leans on.
+ * `authorityFor` — the READ side, and the one KTD-A leans on.
  *
- * ⛔ Every answer other than a granted authority must be `undefined`, because `undefined` is what makes the
- * line VERIFY. The three ways to reach it are a food with no lexical bind, a band that has never crossed a
- * threshold (no row — `authorityFor`'s own documented "absent row reads as verify"), and a read that FAILED.
- * The third is the one that matters: if a connection reset propagated, the handler would fail a billed call;
- * if it were ever "fail open", a database outage would silently skip verification for every line at once —
- * the failure correlated with the moment verification matters most.
- *
- * Nothing executed this function before: `verifyLine.test.ts` supplies its own `authorityForFood` spy, so
- * every reference to it outside this file was a mock of it rather than a run of it.
+ * ⛔ Every answer other than a granted authority must be `undefined`, because `undefined` is what makes the line
+ * VERIFY: a band that has never crossed a threshold (no row) and a read that FAILED. If a connection reset propagated,
+ * the handler would fail a billed call; if it were ever "fail open", a database outage would skip verification for
+ * every line at once.
  */
-describe('createBandFeedback — authorityForFood, the fail-closed read', () => {
-    it('is undefined when the food has no lexical resolution, and never asks the store', async () => {
-        const { db, query } = dbDouble([[]]);
+describe('createBandFeedback — authorityFor, the fail-closed read', () => {
+    it('returns the stored authority for the band the message named, with no resolution lookup', async () => {
+        const { db, query } = dbDouble([[{ state: 'authorized', epoch: 3 }]]);
 
-        await expect(createBandFeedback(db).authorityForFood({ kind: 'root', id: 'f-1' })).resolves.toBeUndefined();
-        // One query: the lexical lookup. A band that does not exist has no authority to look up.
-        expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('returns the stored authority for the band the resolution was made in', async () => {
-        const { db, query } = dbDouble([[LEXICAL_ROW], [{ state: 'authorized', epoch: 3 }]]);
-
-        await expect(createBandFeedback(db).authorityForFood({ kind: 'root', id: 'f-1' })).resolves.toEqual({
+        await expect(createBandFeedback(db).authorityFor(BAND_KEY)).resolves.toEqual({
             state: 'authorized',
             epoch: 3,
         });
-        expect(query).toHaveBeenCalledTimes(2);
+        expect(query).toHaveBeenCalledTimes(1);
+        expect(readResolutionEvents(query)).toBe(false);
     });
 
     it('is undefined for a band that has never crossed a threshold — an absent row reads as verify', async () => {
-        const { db } = dbDouble([[LEXICAL_ROW], []]);
+        const { db } = dbDouble([[]]);
 
-        await expect(createBandFeedback(db).authorityForFood({ kind: 'root', id: 'f-1' })).resolves.toBeUndefined();
+        await expect(createBandFeedback(db).authorityFor(BAND_KEY)).resolves.toBeUndefined();
     });
 
     it('⛔ FAILS CLOSED — a failed read returns undefined so the line verifies, and never throws', async () => {
         const query = vi.fn().mockRejectedValue(new Error('connection reset'));
         const db = { query } as unknown as BandQueryable;
 
-        await expect(createBandFeedback(db).authorityForFood({ kind: 'root', id: 'f-1' })).resolves.toBeUndefined();
-    });
-});
-
-describe('createBandFeedback — the food arc (curated U9)', () => {
-    it('looks a ROOT up on the root arm only — the variant arm is bound NULL', async () => {
-        const { db, query } = dbDouble([[]]);
-
-        await createBandFeedback(db).record({
-            food: { kind: 'root', id: 'f-1' },
-            band: 'verified',
-            aspects: ['identity'],
-        });
-
-        expect(query.mock.calls[0]?.[0]).toMatch(/fl\.food_id = \$1 OR fl\.food_variant_id = \$2/u);
-        expect(query.mock.calls[0]?.[1]).toEqual(['f-1', null]);
-    });
-
-    it('⛔ looks a VARIANT up on the variant arm — a variant line’s lexical bind lives there', async () => {
-        const { db, query } = dbDouble([[LEXICAL_ROW]]);
-
-        await createBandFeedback(db).record({
-            food: { kind: 'variant', id: 'v-1' },
-            band: 'verified',
-            aspects: ['identity'],
-        });
-
-        expect(query.mock.calls[0]?.[1]).toEqual([null, 'v-1']);
-        expect(
-            query.mock.calls.some(
-                (call: unknown[]) =>
-                    typeof call[0] === 'string' && (call[0] as string).includes('resolution_band_observations'),
-            ),
-        ).toBe(true);
+        await expect(createBandFeedback(db).authorityFor(BAND_KEY)).resolves.toBeUndefined();
     });
 });

@@ -30,6 +30,7 @@ import {
     useCreateParseJob,
     useEditParseJobLine,
     useParseJob,
+    useProposeParseJobMatches,
     useRetryParseJob,
     useWithdrawParseJobLines,
 } from '../hooks.js';
@@ -205,6 +206,32 @@ describe('useRetryParseJob', () => {
         // The failed write must not evict the good view the cook is still looking at.
         expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(stale);
         expect(probes()).toEqual([]);
+    });
+});
+
+describe('useProposeParseJobMatches', () => {
+    it('asks for matches through the client and writes the returned view through', async () => {
+        const matched = makeParseJob({ status: 'complete' });
+        const { result, client, queryClient } = renderParseHook(() => useProposeParseJobMatches());
+        const propose = vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(matched);
+
+        act(() => result.current.mutate(FIXTURE_PARSE_JOB_UUID));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(propose).toHaveBeenCalledWith(FIXTURE_PARSE_JOB_UUID);
+        expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(matched);
+    });
+
+    it('surfaces a refusal and leaves the cached view alone', async () => {
+        const stale = makeParseJob({ status: 'running' });
+        const { result, client, queryClient } = renderParseHook(() => useProposeParseJobMatches());
+        queryClient.setQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID), stale);
+        vi.spyOn(client, 'proposeParseJobMatches').mockRejectedValue(new ParseJobExpiredError());
+
+        act(() => result.current.mutate(FIXTURE_PARSE_JOB_UUID));
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(stale);
     });
 });
 

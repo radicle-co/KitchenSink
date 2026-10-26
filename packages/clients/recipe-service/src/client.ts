@@ -783,6 +783,26 @@ export class RecipeServiceClient {
     }
 
     /**
+     * `POST /api/v1/recipe-parse-jobs/{id}/matches` — ask the service to match the job's parsed foods to catalog foods
+     * (`202`, ADR-0071).
+     *
+     * Call it from the poll loop when newly parsed lines appear. It is idempotent: a line already matched for its
+     * current text is not matched or reviewed again. Each proposed food then carries a `match` — a PROPOSAL and up to
+     * five candidates, never a binding. Bind only what the state allows (`confident`), and never let a late result
+     * replace a pick the cook made.
+     *
+     * @param id - The job id.
+     * @returns The job view with each proposed food's match.
+     * @throws {ParseJobExpiredError} when the TTL has passed; {@link NotFoundError} for an absent or another user's job.
+     * @sideEffect Performs an authenticated HTTP request that runs the match as the caller and asks the review gate.
+     */
+    public async proposeParseJobMatches(id: string): Promise<ParseJobResponse> {
+        const res = await this.send('POST', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/matches`);
+
+        return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
      * `PATCH /api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}` — replace one line's text and re-drive its
      * own parse (`202`).
      *

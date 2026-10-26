@@ -9,6 +9,7 @@ import {
     POST_COMMIT_RESPONSE_HEADROOM_MS,
     READ_RESPONSE_HEADROOM_MS,
 } from '../config.types.js';
+import { MAX_MATCH_SEARCH_TIMEOUT_MS } from '../matchBudget.js';
 import { ConfigValidationError, isConfigValidationError, loadConfig } from '../loadConfig.js';
 
 // Mock the SSM client so the fallback path is exercised without any network / AWS credentials.
@@ -112,6 +113,26 @@ describe('loadConfig', () => {
 
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
+    });
+
+    it('⛔ refuses a FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS at which the paste matcher could never start a wave (ADR-0071)', () => {
+        // The matcher starts a wave only while two searches at this timeout still end before its tail. At 1 500 ms and
+        // above NO wave ever started, and the paste matched nothing, silently. The ceiling is derived, not chosen.
+        expect(
+            loadConfig(apiConfigSchema, {
+                ...validEnv(),
+                FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: String(MAX_MATCH_SEARCH_TIMEOUT_MS),
+            }),
+        ).toMatchObject({ FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: MAX_MATCH_SEARCH_TIMEOUT_MS });
+        expect(() =>
+            loadConfig(apiConfigSchema, {
+                ...validEnv(),
+                FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: String(MAX_MATCH_SEARCH_TIMEOUT_MS + 1),
+            }),
+        ).toThrow(/FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS/);
+        expect(() => loadConfig(apiConfigSchema, { ...validEnv(), FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: '5000' })).toThrow(
+            /FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS.*paste matcher/s,
+        );
     });
 
     it('bounds FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS so twice the ceiling plus headroom fits the recipe client deadline', () => {

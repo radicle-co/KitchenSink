@@ -39,8 +39,9 @@ explicit pick. The review gate checks every paste match, whatever its measured e
     - A row is current only while the line's stored digest and its current parse still give it. The row stores a
       judgement digest: the line digest, the food's phrase and the measure the editor saves. So an edited line, or the
       same text parsed into another food or measure, is matched again.
-    - A write lands only while the line still has the digest the match was computed for. A slow call cannot overwrite
-      a newer row.
+    - A write checks, as it runs, that the line still has the digest the match was computed for. The check takes no
+      lock on the line. So a write that overlaps an edit can still land and replace a newer row. That is harmless: the
+      view reads the line's digest now, ignores a row that does not match it, and the next call replaces it.
 4. **`POST /api/v1/recipe-parse-jobs/{id}/matches` asks for matches.** It answers `202` with the job view. It is
    idempotent, owner-only (`404` for a stranger) and refused past the job's expiry. When newly parsed lines appear,
    the client calls it from its poll loop.
@@ -48,9 +49,22 @@ explicit pick. The review gate checks every paste match, whatever its measured e
    A curated or memo answer does not hide a default.
 6. **An outage is never stored as "no match".** A tier that failed, a food service that did not answer, or a switched
    off catalog writes no row. The next call retries.
-    - Work per call is bounded by one deadline of 4.5 seconds. If the searches of a wave of four foods can finish in
-      time, the wave starts. The food read and the send to the queue carry the same deadline. With the view's own name read,
-      the request stays inside the client's 10 second timeout.
+    - The matcher works under one deadline of 3.5 seconds. A wave of four foods starts only if its searches can
+      finish before the last 1.5 seconds, which are kept for the food read, the saves, the claim and the send. Every leg
+      ends with the deadline. The catalog searches, the food read and the send take it as an abort signal. Each database
+      call is awaited through a bound that stops the wait. The database cannot cancel a pool wait, so the request stops
+      waiting and the call finishes in the background. Reads and saves are simply left. A claim that lands late is
+      released at once, because nobody will send it.
+    - The job view's reads end 7 seconds after the request began, by the same kind of bound. What they could not read
+      shows as no match, and the next poll repairs it.
+    - The worst case is the matcher's 3.5 seconds, a 0.25 second cap on waiting for a release, and one wait for a pool
+      connection (5 seconds) on the controller's own job read. That read must have an answer, so it cannot be left. It
+      is the same single pool wait the read path accepts. The total is 8.75 seconds. A named margin of 1 second for the
+      response brings it to 9.75, strictly under the client's 10 second timeout. `parseJobMatchesBudget.test.ts`
+      asserts this against the client's own constant.
+    - The env schema refuses a catalog search timeout above 750 milliseconds. Above it, no wave could start inside the
+      deadline and a paste would match nothing, silently.
+    - A call that leaves proposals unmade writes a log line and one `paste-proposals-unmade` count, dimensioned by stage.
 7. **The review gate checks each proposal once.** The message carries a parse-job origin and `unattributed`
    evidence, so identity is always asked. No `ingredientPhrase` is sent, so the worker writes no memo from a paste.
     - **Earned autonomy (D1) is suspended for every line, not only for paste lines.** No producer sends a band key, so
@@ -66,10 +80,18 @@ explicit pick. The review gate checks every paste match, whatever its measured e
    identity. A row already sent sends nothing.
     - A claim names the row's digest and verdict key. A failed send releases only its own claim. One caller can never
       clear another caller's claim.
-    - A claim older than the queue's delivery bound (90 seconds times 361 receives, about nine hours), with no verdict
-      and no attempt on record, was lost. The next call claims it and sends it again.
-    - A request the gate can never take is refused, and the refusal is stored: an over-long line, or a message the
-      queue's contract refuses. It is never claimed, so it is not retried on every poll.
+    - A claim older than the queue's delivery bound (90 seconds times 361 receives, about nine hours) was lost if no
+      verdict that asked identity is on record and no attempt is exhausted or recent. The next call claims it and
+      sends it again. This holds the case where a worker took an attempt and then lost its verdict write: that old,
+      unfinished attempt blocks nothing, and the worker's own attempt allowance bounds the resends. An exhausted attempt
+      is final, and a recent one means the worker may still be running.
+    - A proposal always has a review: owed, or refused. A request the gate can never take is refused, and the refusal
+      is stored: a blank line, an over-long line, or a message the queue's contract refuses. It is never claimed, so it
+      is not retried on every poll. A food that food cannot name yet stores no row, as an outage stores none. The table
+      refuses a proposal with no review, because it would read as waiting for a review nothing sends.
+    - An aborted send may already be accepted by the queue. The client gave up waiting, which is not a failure. The
+      claim is released and the next call sends again. The duplicate is free: the worker's keyed claim pays for one
+      verdict per key.
     - A contained test principal (ADR-0040) gets its proposals stored, but no review is sent for them. The save path's
       verification producer follows the same rule.
 9. **The state is derived at read time.** One classifier, `identityReadingOf`, says what a stored verdict means for the
@@ -138,9 +160,9 @@ explicit pick. The review gate checks every paste match, whatever its measured e
   producer names a band key.
 - A verdict key is the key of the message that is sent. The worker and the matcher derive it the same way, so a
   verdict lands where the job view reads it. The editor saves `2 tbsp` as `tbsp`, and the matcher keys `tbsp` too.
-- A message SQS accepts and then loses leaves its row claimed with no verdict. The line reads `checking` until a
-  matches call arrives after the delivery bound, about nine hours later. That call claims and sends it again. If no
-  such call arrives, the line reads `checking` until the job expires.
+- A message SQS accepts and then loses leaves its row claimed with no verdict. The same holds for a worker that lost
+  its verdict write. The line reads `checking` until a matches call arrives after the delivery bound, about nine hours
+  later. That call claims and sends it again. If no such call arrives, the line reads `checking` until the job expires.
 - A curated contradiction is counted once per row and verdict, however often the client polls. It signals that
   curation needs a look.
 - **Known limitation: a model switch does not re-judge.** The verdict dedup is keyed on the verdict key alone, and so

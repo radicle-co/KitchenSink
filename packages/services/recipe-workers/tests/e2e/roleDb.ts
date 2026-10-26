@@ -79,6 +79,7 @@ export const EXPECTED_TABLES = [
     'analytics_events',
     'author_handles',
     'collections',
+    'import_allowance_events',
     'ingredient_parse_cache',
     'ingredient_parse_leases',
     'ingredient_parse_corrections',

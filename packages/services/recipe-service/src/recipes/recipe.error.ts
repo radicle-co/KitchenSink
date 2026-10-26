@@ -107,6 +107,21 @@ export function publishRequirementsUnmet(
     return new RecipeDomainError(RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET, reason, { missing: [...missing] });
 }
 
+/**
+ * `IMPORT_QUOTA_EXCEEDED` (→ 429) — the caller's daily import allowance is spent (004 FR-022). `details.resetsAt` is the
+ * instant it reopens for them, as an ISO string, and is the ONLY detail: the count and the limit are not on the wire.
+ *
+ * @param resetsAt - When enough of the oldest counted units leave the window for the request to fit.
+ * @returns The error.
+ */
+export function importQuotaExceeded(resetsAt: Date): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_QUOTA_EXCEEDED,
+        'The daily import allowance is spent. It reopens at the time in details.resetsAt.',
+        { resetsAt: resetsAt.toISOString() },
+    );
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);

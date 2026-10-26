@@ -47,7 +47,7 @@ import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
 import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
-import { actingPrincipalOf, type Principal } from '../auth/principal.js';
+import { actingPrincipalOf, isPremiumPrincipal, type Principal } from '../auth/principal.js';
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
@@ -64,7 +64,12 @@ export class ParseJobsController {
         private readonly matchView: ParseJobMatchView,
     ) {}
 
-    /** `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously. */
+    /**
+     * `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously.
+     *
+     * Spends one unit of the caller's daily import allowance (004 FR-022); a spent allowance is `429
+     * IMPORT_QUOTA_EXCEEDED` with `details.resetsAt` and creates nothing.
+     */
     @Post()
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
@@ -76,7 +81,9 @@ export class ParseJobsController {
         return this.matchView.decorate(
             actingPrincipalOf(principal),
             caller,
-            await this.parseJobsService.create(principal.userId, body.text),
+            await this.parseJobsService.create(principal.userId, body.text, {
+                isPremium: isPremiumPrincipal(principal),
+            }),
         );
     }
 

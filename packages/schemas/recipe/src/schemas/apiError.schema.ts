@@ -140,6 +140,11 @@ export const recipeErrorCodeSchema = z.enum([
     'VERSION_LINE_UNRESTORABLE',
     /** A write would publish a recipe missing what Publish needs; `details.missing` names each (owner 2026-10-13). */
     'PUBLISH_REQUIREMENTS_UNMET',
+    /**
+     * 004 FR-022 — the daily import allowance is spent. A `429` with its own code, so a client can tell it from the
+     * throttler's `TOO_MANY_REQUESTS` (retry later) and show a quota notice; `details.resetsAt` is when it reopens.
+     */
+    'IMPORT_QUOTA_EXCEEDED',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -246,6 +251,14 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
             message: z.string(),
             /** Every unmet requirement, at least one, from `recipe-core`'s vocabulary. Composed, never re-declared. */
             details: publishRequirementsUnmetDetailsSchema.loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('IMPORT_QUOTA_EXCEEDED'),
+            message: z.string(),
+            /** When the allowance reopens for this caller, an ISO 8601 instant. REQUIRED: FR-022 says the refusal carries it. */
+            details: z.object({ resetsAt: z.iso.datetime() }).loose(),
         })
         .loose(),
     z

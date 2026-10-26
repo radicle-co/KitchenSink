@@ -5514,6 +5514,38 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "IMPORT_QUOTA_EXCEEDED",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "resetsAt": {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "resetsAt"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "VERSION_LINE_UNRESTORABLE",
                             "type": "string"
                         },
@@ -6545,6 +6577,7 @@
                 "PARSE_JOB_EXPIRED",
                 "VERSION_LINE_UNRESTORABLE",
                 "PUBLISH_REQUIREMENTS_UNMET",
+                "IMPORT_QUOTA_EXCEEDED",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",

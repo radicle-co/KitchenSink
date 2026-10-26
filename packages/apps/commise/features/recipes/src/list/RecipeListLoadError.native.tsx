@@ -22,7 +22,7 @@ export const RecipeListLoadError: FC<RecipeListLoadErrorProps> = ({ onRetry }) =
     return (
         <View collapsable={false} accessibilityRole="alert" style={styles.alert}>
             <Text style={[styles.body, { color: colors.ink }]}>{list.errorTitle}</Text>
-            <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+            <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                 {list.retry}
             </Button>
         </View>

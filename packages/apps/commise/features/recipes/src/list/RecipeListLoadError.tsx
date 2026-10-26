@@ -20,7 +20,7 @@ export const RecipeListLoadError: FC<RecipeListLoadErrorProps> = ({ onRetry }) =
     return (
         <div role="alert" className="flex flex-col items-start gap-3 py-6">
             <p className="text-body text-ink">{list.errorTitle}</p>
-            <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+            <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                 {list.retry}
             </Button>
         </div>

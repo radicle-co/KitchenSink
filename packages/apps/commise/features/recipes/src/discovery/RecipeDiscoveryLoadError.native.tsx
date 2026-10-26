@@ -26,7 +26,7 @@ export const RecipeDiscoveryLoadError: FC<RecipeDiscoveryLoadErrorProps> = ({ on
                 <LiveRegion politeness="assertive" style={[styles.title, { color: colors.ink }]}>
                     {discovery.errorTitle}
                 </LiveRegion>
-                <Button variant="secondary" size="sm" icon="rotateCcw" onPress={onRetry}>
+                <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                     {discovery.retry}
                 </Button>
             </View>

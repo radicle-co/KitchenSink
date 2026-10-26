@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { RecipeListLoadError } from '../RecipeListLoadError.js';
 
 afterEach(cleanup);
@@ -44,11 +45,13 @@ describe('RecipeListLoadError (web)', () => {
         expect(screen.queryByText('Your recipe box is empty')).toBeNull();
     });
 
-    // Slice 4 (`buildSpec.md` §4.3 Load error): Try again is the design-system secondary button with its glyph.
-    it('offers Try again as the secondary design-system button', () => {
+    // Slice 4 (`buildSpec.md` §4.3 Load error), REWRITTEN for `componentFixes.md` §1: Try again is the design system's quiet
+    // button with the retry glyph (`refreshCw`; it was a secondary button with `rotateCcw`).
+    it('offers Try again as the quiet design-system button', () => {
         render(<RecipeListLoadError onRetry={noop} />);
         const retry = screen.getByRole('button', { name: 'Try again' });
 
-        expect(retry.querySelector('svg.lucide-rotate-ccw')).not.toBeNull();
+        expect(retry.className).toBe(buttonSurfaceClass('quiet'));
+        expect(retry.querySelector('svg.lucide-refresh-cw')).not.toBeNull();
     });
 });

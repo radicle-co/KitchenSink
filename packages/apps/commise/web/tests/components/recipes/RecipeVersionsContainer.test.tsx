@@ -160,10 +160,10 @@ describe('RecipeVersionsContainer', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load the version history/i);
         expect(versionsSpy).toHaveBeenCalledTimes(1);
-        // D13: the failed state keeps the history's header and wears the design-system button, not a raw one.
+        // D13: the failed state keeps the history's header and wears the design-system button, not a raw one. (Try again is the quiet tier since componentFixes.md §1)
         expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u)).toEqual(
-            expect.arrayContaining(buttonSurfaceClass('secondary').split(/\s+/u)),
+            expect.arrayContaining(buttonSurfaceClass('quiet').split(/\s+/u)),
         );
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));

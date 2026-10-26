@@ -96,7 +96,7 @@ describe('RecipeVersionListError (web)', () => {
         );
 
         const retry = screen.getByRole('button', { name: 'Try again' });
-        expectDesignSystemButton(retry, 'secondary', 'refresh-cw');
+        expectDesignSystemButton(retry, 'quiet', 'refresh-cw');
         await user.click(retry);
 
         expect(onRetry).toHaveBeenCalledTimes(1);

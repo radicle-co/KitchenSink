@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/import — `ImportReviewRail` (native): the React Native leaf of
  * `./ImportReviewRail.tsx`, drawn beside the review step at the wide container class (1194). The current recipe is
- * `selected` and filled; a skipped one says so in its own words; each row keeps the 44 pt touch floor.
+ * `selected`, filled and ringed in the selected edge (U10); a skipped one says so in its own words; each row keeps the 44 pt touch floor.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
@@ -38,7 +38,10 @@ export const ImportReviewRail: FC<ImportReviewRailProps> = ({
                         role="button"
                         aria-selected={current}
                         onPress={() => onOpenRecipe(recipe.id)}
-                        style={[styles.row, current ? { backgroundColor: colors.selectedFill } : null]}
+                        style={[
+                            styles.row,
+                            current ? { backgroundColor: colors.selectedFill, borderColor: colors.selectedEdge } : null,
+                        ]}
                     >
                         <Text style={[current ? styles.label : styles.meta, { color: colors.ink }]}>
                             {recipe.skipped ? fillTemplate(r.skipped, { recipe: recipe.title }) : recipe.title}
@@ -63,6 +66,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingHorizontal: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.sm,
+        // The current recipe's ring (U10): the fill alone is 1.2:1, under WCAG 1.4.11's 3:1. A constant width with a
+        // clear colour at rest, so marking a row never moves it.
+        borderWidth: 2,
+        borderColor: 'transparent',
     },
     meta: nativeTokens.type.meta,
 });

@@ -3,6 +3,7 @@
  * `ImportReviewRail.test.tsx`.
  */
 import { nativeTokens } from '@commise/ui/native';
+import { themeFor } from '@commise/ui/theme';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -66,5 +67,30 @@ describe('ImportReviewRail (native)', () => {
         for (const row of screen.getAllByRole('button')) {
             expect(getComputedStyle(row).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);
         }
+    });
+
+    // U10: the current recipe pairs the selected fill (1.2:1 on the paper, under WCAG 1.4.11's 3:1) with a 2 pt
+    // selected-edge ring; every row draws the ring's width, clear at rest, so marking a row never moves it.
+    it('marks the current recipe with the selected-edge ring as well as the fill; the others draw it clear', () => {
+        render(
+            <ImportReviewRail
+                total={309}
+                recipes={RECIPES}
+                currentId="lemon"
+                addedWithoutStep={0}
+                onOpenRecipe={vi.fn()}
+            />,
+        );
+
+        const hex = themeFor('light').colors.selectedEdge;
+        const [red, green, blue] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+        const styles = screen.getAllByRole('button').map((row) => getComputedStyle(row));
+
+        expect(styles.map((style) => style.borderTopWidth)).toEqual(['2px', '2px', '2px']);
+        expect(styles.map((style) => style.borderTopColor)).toEqual([
+            'rgba(0, 0, 0, 0)',
+            'rgba(0, 0, 0, 0)',
+            `rgb(${String(red)}, ${String(green)}, ${String(blue)})`,
+        ]);
     });
 });

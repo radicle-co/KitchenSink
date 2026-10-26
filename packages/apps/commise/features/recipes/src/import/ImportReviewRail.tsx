@@ -3,7 +3,8 @@
 /**
  * @module @commise/features-recipes/import — `ImportReviewRail` (web): beside the review step at the wide container
  * class (1194 and web, board WizardStep), a navigation landmark over a window of the recipes to review. The current
- * recipe is marked `aria-current="step"` and filled; a skipped one says so in its own name, not by look alone; under the
+ * recipe is marked `aria-current="step"`, filled and ringed in the selected edge (U10: the fill alone is 1.2:1); a
+ * skipped one says so in its own name, not by look alone; under the
  * list, how many recipes needed nothing and are already in.
  *
  * Presentational: the host picks the window (never all of a long library) and opens a recipe. The native leaf is
@@ -42,7 +43,9 @@ export const ImportReviewRail: FC<ImportReviewRailProps> = ({
                                 aria-current={current ? 'step' : undefined}
                                 onClick={() => onOpenRecipe(recipe.id)}
                                 className={`flex min-h-11 w-full items-center rounded-md px-3 py-1.5 text-left text-meta outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
-                                    current ? 'bg-selected-fill font-semibold text-ink' : 'text-ink'
+                                    current
+                                        ? 'bg-selected-fill font-semibold text-ink ring-2 ring-inset ring-selected-edge'
+                                        : 'text-ink'
                                 }`}
                             >
                                 <span className="min-w-0 break-words">

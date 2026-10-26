@@ -85,4 +85,15 @@ describe('ImportReviewRail (web)', () => {
         expect(screen.getByText('1 recipe to review')).toBeTruthy();
         expect(screen.getByText('1 more needed nothing from you and is already in.')).toBeTruthy();
     });
+
+    // U10: the fill alone is 1.2:1 on the paper; the selected-edge ring is 3.9:1 on it, and 5.1:1 in the dark theme.
+    it('marks the current recipe with the selected-edge ring as well as the fill', () => {
+        renderRail();
+
+        const current = screen.getAllByRole('button').find((button) => button.getAttribute('aria-current') === 'step');
+
+        expect(current?.className.split(' ')).toEqual(
+            expect.arrayContaining(['bg-selected-fill', 'ring-2', 'ring-inset', 'ring-selected-edge']),
+        );
+    });
 });

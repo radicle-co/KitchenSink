@@ -94,12 +94,41 @@ export interface RecipeActionMessages {
     readonly detailActions: RecipeDetailActionMessages;
     /** Copy for the Premium sheet "Private" opens for a free-tier cook (build spec §6.4, §7.7). */
     readonly upsell: RecipeUpsellMessages;
+    /** Copy for the refusal of a copy that would be private when every private slot is in use. */
+    readonly cloneNoSlot: RecipeCloneNoSlotMessages;
+}
+
+/**
+ * Saving a copy refused for want of a private slot (ADR-0073; redesign canvas v44, `RecipeSaveCopyNoSlot`). The body comes
+ * in two whole strings, with and without the Premium sentence: where paid features are hidden nothing sells (DSA Art. 25),
+ * and a sentence is never sliced or joined at run time.
+ */
+export interface RecipeCloneNoSlotMessages {
+    readonly title: string;
+    /** `{total}` is the server's limit. Ends with the Premium sentence. */
+    readonly body: string;
+    /** `{total}` is the server's limit. No Premium sentence. */
+    readonly bodyNoPremium: string;
+    readonly notNow: string;
+    readonly seePremium: string;
+    /** The single action where paid features are hidden. */
+    readonly ok: string;
+    /** The sheet's Close control name. */
+    readonly close: string;
+}
+
+/** One variant of the Premium sheet: its title and the plain fact under it. */
+export interface RecipeUpsellVariantMessages {
+    readonly title: string;
+    readonly body: string;
 }
 
 /** The Premium sheet for "Private": the plain fact, then two equal choices (DSA Art. 25). */
 export interface RecipeUpsellMessages {
-    readonly title: string;
-    readonly body: string;
+    /** A full set of private slots (`{total}` is the server's limit): how to free one, and that Premium has no limit. */
+    readonly noSlot: RecipeUpsellVariantMessages;
+    /** An imported public-web recipe, where Premium and a change of the cook's own are still the rule. */
+    readonly webImport: RecipeUpsellVariantMessages;
     readonly seePremium: string;
     readonly notNow: string;
     /** The sheet's Close control name. */
@@ -175,8 +204,9 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
                 premium: 'This recipe is still public. Private recipes are part of Premium.',
-                // No design key exists for this sentence (the boards carry the editor's refusal, not the recipe page's).
-                slots: 'This recipe is still public: all of your private slots are in use.',
+                // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
+                // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
+                slots: 'Not available. All {total} of your private slots are in use.',
             },
         },
         moreMenu: {
@@ -206,10 +236,26 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             backToRecipes: 'My recipes',
         },
         upsell: {
-            title: 'Private recipes are part of Premium.',
-            body: 'Public recipes are free. Premium lets you keep a recipe to yourself.',
+            noSlot: {
+                title: 'Keep more recipes private',
+                body: 'All {total} of your private slots are in use. Premium has no limit. To free a slot, make a private recipe public or delete one.',
+            },
+            webImport: {
+                title: 'Private needs Premium for this recipe',
+                body: 'This recipe is from a public web page. To keep it private, you need Premium and a change of your own to the recipe.',
+            },
             seePremium: 'See Premium',
             notNow: 'Not now',
+            close: 'Close',
+        },
+        cloneNoSlot: {
+            title: 'No private slot for this copy',
+            body: 'This copy would be private, and all {total} of your private slots are in use. To free a slot, make a private recipe public or delete one. Premium has no limit.',
+            bodyNoPremium:
+                'This copy would be private, and all {total} of your private slots are in use. To free a slot, make a private recipe public or delete one.',
+            notNow: 'Not now',
+            seePremium: 'See Premium',
+            ok: 'OK',
             close: 'Close',
         },
     },

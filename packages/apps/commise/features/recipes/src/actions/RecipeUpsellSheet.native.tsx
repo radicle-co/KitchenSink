@@ -16,19 +16,22 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeUpsellSheetProps } from './model.js';
 
 /** The native Premium sheet for a private recipe. */
-export const RecipeUpsellSheet: FC<RecipeUpsellSheetProps> = ({ open, onOpenChange, onSeePremium }) => {
+export const RecipeUpsellSheet: FC<RecipeUpsellSheetProps> = ({ open, variant, onOpenChange, onSeePremium }) => {
     const { upsell } = useMessages(recipeActionMessages);
+    const words = variant.kind === 'noSlot' ? upsell.noSlot : upsell.webImport;
+    const body = variant.kind === 'noSlot' ? fillTemplate(words.body, { total: variant.total }) : words.body;
     const { colors } = useTheme();
 
     return (
         <Sheet
             open={open}
             onOpenChange={onOpenChange}
-            title={upsell.title}
+            title={words.title}
             closeLabel={upsell.close}
             size="content"
             footer={
@@ -46,7 +49,7 @@ export const RecipeUpsellSheet: FC<RecipeUpsellSheetProps> = ({ open, onOpenChan
                 </View>
             }
         >
-            <Text style={[styles.body, { color: colors.inkMuted }]}>{upsell.body}</Text>
+            <Text style={[styles.body, { color: colors.inkMuted }]}>{body}</Text>
         </Sheet>
     );
 };

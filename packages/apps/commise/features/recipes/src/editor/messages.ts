@@ -238,6 +238,15 @@ export interface EditorMessages {
         readonly slotsFull: string;
         /** While the standing is being read. */
         readonly slotsLoading: string;
+        /**
+         * Under the Public card of a book or paid-site recipe, which can never be public (004 FR-014a): the reason, as the
+         * card's accessible description. The same words the import statement gives for the same fact.
+         */
+        readonly publicRefused: string;
+        /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
+        readonly overLimit: string;
+        /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
+        readonly aboutPremium: string;
         /** An imported public-web recipe a free cook cannot make private (Premium and a change of their own). */
         readonly webPrivate: string;
         /** The title over the ways forward from a full set of slots. */
@@ -451,6 +460,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             slotsUses: 'This recipe uses 1 slot. {left} of {total} left after it.',
             slotsFull: 'Not available. All {total} of your private slots are in use.',
             slotsLoading: 'Checking your private slots…',
+            publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
+            overLimit:
+                'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
+            aboutPremium: 'About Premium',
             webPrivate:
                 'Not available. A recipe from a public web page needs Premium and a change of your own to be private.',
             waysTitle: 'To keep this recipe private',

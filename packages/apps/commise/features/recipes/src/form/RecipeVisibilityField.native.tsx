@@ -77,6 +77,11 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                             key={option.value}
                             role="radio"
                             aria-checked={chosen}
+                            // Refused: a press does nothing and a screen reader hears it dimmed. On a device a disabled
+                            // Pressable stays in the accessibility tree (VoiceOver and TalkBack still land on it), so the
+                            // reason below stays reachable - the precedent is `ActionMenu.native`'s unavailable item.
+                            disabled={option.refused}
+                            accessibilityHint={option.refused ? option.note : undefined}
                             onPress={() => choose(option.value)}
                             style={[
                                 styles.card,
@@ -104,6 +109,18 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     <Text accessibilityRole="header" style={[styles.legend, { color: colors.ink }]}>
                         {slotsFull.title}
                     </Text>
+                    {slotsFull.overLimit === undefined ? null : (
+                        <View style={styles.overLimit}>
+                            <Text style={[styles.hint, { color: colors.inkMuted }]}>{slotsFull.overLimit.text}</Text>
+                            {slotsFull.overLimit.premiumLink === undefined ? null : (
+                                <Pressable role="button" onPress={onPremiumRequired} style={styles.link}>
+                                    <Text style={[styles.linkText, { color: colors.action }]}>
+                                        {slotsFull.overLimit.premiumLink}
+                                    </Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    )}
                     {slotsFull.ways.map((way) => (
                         <Pressable
                             key={way.id}
@@ -127,6 +144,9 @@ const styles = StyleSheet.create({
     field: { gap: nativeTokens.spacing[2] },
     legend: nativeTokens.type.label,
     cards: { gap: nativeTokens.spacing[2] },
+    overLimit: { gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
+    link: { minHeight: 44, justifyContent: 'center' },
+    linkText: { ...nativeTokens.type.label, textDecorationLine: 'underline' },
     ways: { gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[1] },
     card: {
         minHeight: 56,

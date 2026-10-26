@@ -107,7 +107,8 @@ test.describe('the editor session', () => {
 
         await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
         await expect(page.getByText('This recipe uses 1 slot. 49 of 50 left after it.')).toBeVisible();
-        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
     });
 
     /** Owner 2026-10-13: a description past 256 characters blocks Publish; a draft still saves. The field says so, and nothing is cut. */

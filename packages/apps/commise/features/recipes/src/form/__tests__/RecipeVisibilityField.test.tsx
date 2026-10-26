@@ -484,3 +484,143 @@ describe('RecipeVisibilityField (web) - private slots (ADR-0073)', () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 });
+
+describe('RecipeVisibilityField (web) - a book or paid-site recipe (private only)', () => {
+    const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
+    const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
+    const privateOnly = (state: PaidFeatureState = 'upsell'): RecipePrivateFacts => ({
+        rule: 'privateOnly',
+        standing: { kind: 'open', used: 10, limit: 50, left: 40 },
+        state,
+    });
+    const descriptionOf = (element: HTMLElement): string =>
+        (element.getAttribute('aria-describedby') ?? '')
+            .split(' ')
+            .map((id) => document.getElementById(id)?.textContent ?? '')
+            .join(' ')
+            .trim();
+
+    it('⛔ shows Public refused - aria-disabled, never natively disabled - with the reason as its description', () => {
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} />);
+
+        const pub = radio(v.public);
+
+        expect(pub.getAttribute('aria-disabled')).toBe('true');
+        expect(pub.disabled).toBe(false);
+        expect(descriptionOf(pub)).toBe(REASON);
+        expect(screen.getByText(REASON)).toBeTruthy();
+    });
+
+    it('⛔ keeps the refused Public focusable: programmatically, from a click, and by arrowing onto it', async () => {
+        const user = userEvent.setup();
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} />);
+
+        radio(v.public).focus();
+        expect(document.activeElement).toBe(radio(v.public));
+
+        radio(v.private).focus();
+        await user.keyboard('{ArrowUp}');
+        expect(document.activeElement).toBe(radio(v.public));
+
+        await user.click(radio(v.private));
+        await user.click(radio(v.public));
+        expect(document.activeElement).toBe(radio(v.public));
+    });
+
+    it('⛔ choosing the refused Public changes nothing, by click or by arrow, and the recipe stays Private', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const onConfirmPublic = vi.fn();
+        render(
+            <Harness
+                initial={PRIVATE_DRAFT}
+                paidFeatures="upsell"
+                facts={privateOnly()}
+                onChange={onChange}
+                onConfirmPublic={onConfirmPublic}
+            />,
+        );
+
+        await user.click(radio(v.public));
+        radio(v.private).focus();
+        await user.keyboard('{ArrowUp}');
+
+        expect(onChange).not.toHaveBeenCalled();
+        expect(onConfirmPublic).not.toHaveBeenCalled();
+        expect(radio(v.private).checked).toBe(true);
+    });
+
+    it('says the same with paid features hidden: the reason is about the source, not the plan', () => {
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="hidden" facts={privateOnly('hidden')} />);
+
+        expect(descriptionOf(radio(v.public))).toBe(REASON);
+    });
+
+    it('⛔ Public is NOT refused for a recipe the cook wrote, or for an imported public-web recipe', () => {
+        const { rerender } = render(
+            <Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={{ ...privateOnly(), rule: 'slots' }} />,
+        );
+
+        expect(radio(v.public).getAttribute('aria-disabled')).toBeNull();
+        expect(screen.queryByText(REASON)).toBeNull();
+
+        rerender(<Harness initial={PRIVATE_DRAFT} paidFeatures="granted" />);
+
+        expect(radio(v.public).getAttribute('aria-disabled')).toBeNull();
+        expect(screen.queryByText(REASON)).toBeNull();
+    });
+});
+
+describe('RecipeVisibilityField (web) - over the limit after a downgrade', () => {
+    const OVER = { kind: 'full', used: 60, limit: 50 } as const;
+    const AT = { kind: 'full', used: 50, limit: 50 } as const;
+    const SENTENCE =
+        'You have 60 private recipes and 50 private slots. They stay private. To make another recipe private, first bring your private recipes under 50.';
+    const slots = (standing: RecipePrivateFacts['standing'], state: PaidFeatureState): RecipePrivateFacts => ({
+        rule: 'slots',
+        standing,
+        state,
+    });
+
+    it('says what the cook holds, that it stays private, and what to do - from the server`s numbers', () => {
+        render(<Harness paidFeatures="upsell" facts={slots(OVER, 'upsell')} />);
+
+        expect(screen.getByText(SENTENCE)).toBeTruthy();
+    });
+
+    it('⛔ offers About Premium where paid features are shown, and it opens the upsell', async () => {
+        const user = userEvent.setup();
+        const onPremiumRequired = vi.fn();
+        render(<Harness paidFeatures="upsell" facts={slots(OVER, 'upsell')} onPremiumRequired={onPremiumRequired} />);
+
+        await user.click(screen.getByRole('button', { name: 'About Premium' }));
+
+        expect(onPremiumRequired).toHaveBeenCalledOnce();
+    });
+
+    it.each(['hidden', 'loading'] as const)('⛔ offers no Premium link when paid features are %s', (state) => {
+        render(<Harness paidFeatures={state} facts={slots(OVER, state)} />);
+
+        expect(screen.getByText(SENTENCE)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+    });
+
+    it('is not said at exactly the limit: that is "all in use", not "over"', () => {
+        render(<Harness paidFeatures="upsell" facts={slots(AT, 'upsell')} />);
+
+        expect(screen.queryByText(/They stay private/u)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'About Premium' })).toBeNull();
+    });
+
+    it('is not said for a recipe that already holds its slot', () => {
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="upsell"
+                facts={slots(OVER, 'upsell')}
+            />,
+        );
+
+        expect(screen.queryByText(/They stay private/u)).toBeNull();
+    });
+});

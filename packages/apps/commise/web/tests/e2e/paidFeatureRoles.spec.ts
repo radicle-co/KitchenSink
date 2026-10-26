@@ -74,7 +74,8 @@ test.describe('paid features by role (deployed identity)', () => {
             await page.getByRole('radio', { name: /^Private/u }).check();
             await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
             await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-            await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
         });
     }
 });

@@ -174,6 +174,36 @@ describe('useGatedPrivate - the Premium sheet', () => {
         expect(result.current.sheet.open).toBe(true);
     });
 
+    it('the slots rule`s sheet is the noSlot variant, carrying the server`s limit', () => {
+        const { result } = mount(slotsRule({ kind: 'full', used: 60, limit: 50 }, 'upsell'));
+
+        act(() => result.current.showPremium());
+
+        expect(result.current.sheet.variant).toEqual({ kind: 'noSlot', total: 50 });
+    });
+
+    it('the premium rule`s sheet is the webImport variant', () => {
+        const { result } = mount(premiumRule('upsell'));
+
+        act(() => result.current.request());
+
+        expect(result.current.sheet.open).toBe(true);
+        expect(result.current.sheet.variant).toEqual({ kind: 'webImport' });
+    });
+
+    it.each([
+        ['a slot free', OPEN],
+        ['Premium', { kind: 'unlimited' }],
+        ['loading', { kind: 'loading' }],
+        ['a failed read', { kind: 'unknown' }],
+    ] as const)('⛔ a free cook with %s never sees the sheet, even asked for it directly', (_label, standing) => {
+        const { result } = mount(slotsRule(standing, 'upsell'));
+
+        act(() => result.current.showPremium());
+
+        expect(result.current.sheet.open).toBe(false);
+    });
+
     it.each(['hidden', 'loading', 'granted'] as const)(
         '⛔ showPremium opens nothing when paid features are %s',
         (state) => {

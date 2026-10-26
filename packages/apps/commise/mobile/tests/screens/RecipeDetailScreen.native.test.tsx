@@ -20,7 +20,13 @@ import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commi
 import { palette, tint } from '@commise/ui';
 import { role } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
-import { BadRequestError, NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
+import {
+    BadRequestError,
+    NotFoundError,
+    PrivateSlotsFullError,
+    recipeQueries,
+    recipeServiceKeys,
+} from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
     useCloneRecipe,
@@ -1011,7 +1017,7 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-        expect(screen.getByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
     });
 
@@ -1028,7 +1034,8 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'private' });
-        expect(screen.queryByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Keep more recipes private' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeNull();
     });
 
     it('⛔ with every slot used, Make private still SENDS the write: the server, not the count, says no', () => {
@@ -1060,7 +1067,8 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'private' });
-        expect(screen.queryByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Keep more recipes private' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeNull();
     });
 
     it('offers a granted owner Make private', () => {
@@ -1104,6 +1112,90 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailScreen — a book or paid-site recipe can never be public', () => {
+    it.each(['imported_physical', 'imported_paid'] as const)(
+        '⛔ offers NO Make public on a private %s recipe, under every paid-feature state',
+        (sourceType) => {
+            for (const paid of ['granted', 'upsell', 'hidden'] as const) {
+                cleanup();
+                seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private', sourceType }));
+                useUserProfileMock.mockReturnValue(profile('usr_1', paid));
+
+                render(<RecipeDetailScreen recipeId="rec_1" />);
+                fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+                expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeTruthy();
+                expect(screen.queryByRole('menuitem', { name: 'Make public' })).toBeNull();
+            }
+        },
+    );
+
+    it.each(['user_created', 'imported_public'] as const)(
+        'still offers Make public on a private %s recipe',
+        (sourceType) => {
+            seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private', sourceType }));
+            useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
+
+            render(<RecipeDetailScreen recipeId="rec_1" />);
+            fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+            expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeTruthy();
+        },
+    );
+});
+
+describe('RecipeDetailScreen — Save a copy with no private slot (ADR-0073)', () => {
+    const TITLE = 'No private slot for this copy';
+
+    const refused = (paid: 'upsell' | 'hidden') => {
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
+        useUserProfileMock.mockReturnValue(profile('usr_viewer', paid));
+        const reset = vi.fn();
+        useCloneRecipeMock.mockReturnValue(
+            mutation<ReturnType<typeof useCloneRecipe>>({ error: new PrivateSlotsFullError(50, 50), reset }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        return { reset };
+    };
+
+    it('⛔ shows the refusal with Not now and See Premium, and nothing that makes the copy public', () => {
+        refused('upsell');
+
+        expect(screen.getByRole('heading', { name: TITLE })).toBeTruthy();
+        expect(
+            screen.getByText(
+                'This copy would be private, and all 50 of your private slots are in use. To free a slot, make a private recipe public or delete one. Premium has no limit.',
+            ),
+        ).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'See Premium' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Not now' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /public/iu })).toBeNull();
+    });
+
+    it('⛔ with paid features hidden, says no word of Premium and offers one OK, which forgets the refusal', () => {
+        const { reset } = refused('hidden');
+
+        expect(screen.getByRole('heading', { name: TITLE })).toBeTruthy();
+        expect(screen.queryByText(/Premium/u)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+        expect(reset).toHaveBeenCalled();
+    });
+
+    it('shows nothing when the copy has not been refused', () => {
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
+        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        expect(screen.queryByRole('heading', { name: TITLE })).toBeNull();
     });
 });
 
@@ -1214,7 +1306,7 @@ describe('RecipeDetailScreen — Save a copy', () => {
 describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () => {
     const FINAL = 'This recipe is still public: it couldn’t be made private.';
     const PREMIUM = 'This recipe is still public. Private recipes are part of Premium.';
-    const SLOTS = 'This recipe is still public: all of your private slots are in use.';
+    const SLOTS = 'Not available. All 50 of your private slots are in use.';
     // REWRITTEN for ADR-0073: the Premium sentences are the rule of an imported public-web recipe (the default here); a
     // recipe the cook wrote is refused only for every slot used.
     const seed = (

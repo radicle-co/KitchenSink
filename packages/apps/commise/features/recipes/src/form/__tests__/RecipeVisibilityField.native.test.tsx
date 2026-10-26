@@ -389,3 +389,95 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 });
+
+describe('RecipeVisibilityField (native) - a book or paid-site recipe (private only)', () => {
+    const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
+    const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
+    const privateOnly = (state: PaidFeatureState = 'upsell'): RecipePrivateFacts => ({
+        rule: 'privateOnly',
+        standing: { kind: 'open', used: 10, limit: 50, left: 40 },
+        state,
+    });
+
+    it('⛔ shows Public refused: dimmed to a screen reader, still on screen, with the reason in its words', () => {
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} />);
+
+        const pub = radio(v.public);
+
+        expect(pub.getAttribute('aria-disabled')).toBe('true');
+        expect(within(pub).getByText(REASON)).toBeTruthy();
+    });
+
+    it('⛔ choosing the refused Public changes nothing and asks for no confirm', () => {
+        const onChange = vi.fn();
+        const onConfirmPublic = vi.fn();
+        render(
+            <Harness
+                initial={PRIVATE_DRAFT}
+                paidFeatures="upsell"
+                facts={privateOnly()}
+                onChange={onChange}
+                onConfirmPublic={onConfirmPublic}
+            />,
+        );
+
+        fireEvent.click(radio(v.public));
+
+        expect(onChange).not.toHaveBeenCalled();
+        expect(onConfirmPublic).not.toHaveBeenCalled();
+        expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('says the same with paid features hidden', () => {
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="hidden" facts={privateOnly('hidden')} />);
+
+        expect(within(radio(v.public)).getByText(REASON)).toBeTruthy();
+    });
+
+    it('⛔ Public is NOT refused for a recipe the cook wrote', () => {
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={{ ...privateOnly(), rule: 'slots' }} />);
+
+        expect(radio(v.public).getAttribute('aria-disabled')).toBeNull();
+        expect(screen.queryByText(REASON)).toBeNull();
+    });
+});
+
+describe('RecipeVisibilityField (native) - over the limit after a downgrade', () => {
+    const OVER = { kind: 'full', used: 60, limit: 50 } as const;
+    const AT = { kind: 'full', used: 50, limit: 50 } as const;
+    const SENTENCE =
+        'You have 60 private recipes and 50 private slots. They stay private. To make another recipe private, first bring your private recipes under 50.';
+    const slots = (standing: RecipePrivateFacts['standing'], state: PaidFeatureState): RecipePrivateFacts => ({
+        rule: 'slots',
+        standing,
+        state,
+    });
+
+    it('says what the cook holds, that it stays private, and what to do', () => {
+        render(<Harness paidFeatures="upsell" facts={slots(OVER, 'upsell')} />);
+
+        expect(screen.getByText(SENTENCE)).toBeTruthy();
+    });
+
+    it('⛔ offers About Premium where paid features are shown, and it opens the upsell', () => {
+        const onPremiumRequired = vi.fn();
+        render(<Harness paidFeatures="upsell" facts={slots(OVER, 'upsell')} onPremiumRequired={onPremiumRequired} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'About Premium' }));
+
+        expect(onPremiumRequired).toHaveBeenCalledOnce();
+    });
+
+    it.each(['hidden', 'loading'] as const)('⛔ offers no Premium link when paid features are %s', (state) => {
+        render(<Harness paidFeatures={state} facts={slots(OVER, state)} />);
+
+        expect(screen.getByText(SENTENCE)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+    });
+
+    it('is not said at exactly the limit', () => {
+        render(<Harness paidFeatures="upsell" facts={slots(AT, 'upsell')} />);
+
+        expect(screen.queryByText(/They stay private/u)).toBeNull();
+    });
+});

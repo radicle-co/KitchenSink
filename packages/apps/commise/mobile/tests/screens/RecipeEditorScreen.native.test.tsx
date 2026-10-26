@@ -439,7 +439,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
         client: RecipeServiceClient,
         id: string,
         visibility: RecipeVisibility,
-        sourceType: 'user_created' | 'imported_public' = 'user_created',
+        sourceType: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid' = 'user_created',
     ): Promise<void> => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(
             makeRecipeDetail({ id, title: 'Secret Stew', visibility, sourceType }),
@@ -522,7 +522,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
             fireEvent.click(await screen.findByRole('button', { name: /Get Premium/u }));
 
-            expect(await screen.findByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+            expect(await screen.findByRole('heading', { name: 'Keep more recipes private' })).toBeTruthy();
         });
 
         it('offers no Premium way when paid features are hidden', async () => {
@@ -590,6 +590,85 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
         });
     });
 
+    describe('a book or paid-site recipe: private only', () => {
+        const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
+
+        it.each(['imported_physical', 'imported_paid'] as const)(
+            '⛔ shows Public refused on a private %s recipe, with the reason in its words',
+            async (sourceType) => {
+                profile.paidFeatures = 'upsell';
+                await openRecipe(
+                    clientWithSlots({ used: 10, limit: 50 }),
+                    `rec_book_${sourceType}`,
+                    RecipeVisibility.PRIVATE,
+                    sourceType,
+                );
+
+                const pub = screen.getByRole('radio', { name: /^Public/u });
+
+                expect(pub.getAttribute('aria-disabled')).toBe('true');
+                expect(within(pub).getByText(REASON)).toBeTruthy();
+            },
+        );
+
+        it('⛔ choosing the refused Public changes nothing and opens no confirm', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(
+                clientWithSlots({ used: 10, limit: 50 }),
+                'rec_book_choice',
+                RecipeVisibility.PRIVATE,
+                'imported_physical',
+            );
+
+            fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+            expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+            expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
+        });
+
+        it('does not refuse Public on a recipe the cook wrote', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 10, limit: 50 }), 'rec_own_pub', RecipeVisibility.PRIVATE);
+
+            expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-disabled')).toBeNull();
+            expect(screen.queryByText(REASON)).toBeNull();
+        });
+    });
+
+    describe('over the limit after a downgrade', () => {
+        const SENTENCE =
+            'You have 60 private recipes and 50 private slots. They stay private. To make another recipe private, first bring your private recipes under 50.';
+
+        it('⛔ says what the cook holds and that it stays private, from the server`s numbers', async () => {
+            profile.paidFeatures = 'upsell';
+            renderScreen(clientWithSlots({ used: 60, limit: 50 }));
+
+            expect(await screen.findByText(SENTENCE)).toBeTruthy();
+        });
+
+        it('⛔ About Premium opens the noSlot sheet with the server`s limit', async () => {
+            profile.paidFeatures = 'upsell';
+            renderScreen(clientWithSlots({ used: 60, limit: 50 }));
+
+            fireEvent.click(await screen.findByRole('button', { name: 'About Premium' }));
+
+            expect(await screen.findByRole('heading', { name: 'Keep more recipes private' })).toBeTruthy();
+            expect(
+                screen.getByText(
+                    'All 50 of your private slots are in use. Premium has no limit. To free a slot, make a private recipe public or delete one.',
+                ),
+            ).toBeTruthy();
+        });
+
+        it('⛔ with paid features hidden, says the sentence and offers no Premium link', async () => {
+            profile.paidFeatures = 'hidden';
+            renderScreen(clientWithSlots({ used: 60, limit: 50 }));
+
+            expect(await screen.findByText(SENTENCE)).toBeTruthy();
+            expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+        });
+    });
+
     describe('an imported public-web recipe: Premium is still the rule', () => {
         it('⛔ under upsell, the Premium sheet opens for Private, and Public stays chosen', async () => {
             profile.paidFeatures = 'upsell';
@@ -597,7 +676,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
             choosePrivate();
 
-            expect(await screen.findByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+            expect(await screen.findByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
             expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe(
                 'true',
             );
@@ -652,7 +731,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Make public' }));
             choosePrivate();
 
-            expect(await screen.findByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+            expect(await screen.findByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
             expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe(
                 'true',
             );

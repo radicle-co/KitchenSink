@@ -36,7 +36,8 @@ test.describe('private slots — the editor’s “Who can see it” (a recipe t
         await expect(page.getByRole('radio', { name: 'Private' })).toBeChecked();
         await expect(page.getByText(/private slots/u)).toHaveCount(0);
         await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
     });
 
     for (const state of ['upsell', 'hidden'] as const) {
@@ -51,7 +52,8 @@ test.describe('private slots — the editor’s “Who can see it” (a recipe t
             await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
             await expect(page.getByText('This recipe uses 1 slot. 49 of 50 left after it.')).toBeVisible();
             await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-            await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
         });
     }
 });
@@ -97,7 +99,7 @@ test.describe('private slots — every slot used', () => {
         await openFullEditor(page, 'upsell');
 
         await page.getByRole('button', { name: /Get Premium/u }).click();
-        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toBeVisible();
         await page.getByRole('button', { name: 'Not now' }).click();
 
         await page.getByRole('button', { name: /Make a private recipe public/u }).click();
@@ -139,7 +141,7 @@ test.describe('paid features — an imported public-web recipe in the editor (Pr
         await expect(page.getByText('Premium', { exact: true })).toBeVisible();
         await page.getByRole('radio', { name: /^Private/u }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeVisible();
         await page.getByRole('button', { name: 'Not now' }).click();
         await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
     });
@@ -183,7 +185,8 @@ test.describe('private slots — the recipe page’s ⋯ menu', () => {
             await page.getByRole('menuitem', { name: 'Make private' }).click();
 
             await expect(page.getByText('Private', { exact: true })).toBeVisible();
-            await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
         });
     }
 
@@ -192,7 +195,7 @@ test.describe('private slots — the recipe page’s ⋯ menu', () => {
 
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeVisible();
     });
 
     test('⛔ hidden, an imported public-web recipe: the menu offers no Make private', async ({ page }) => {

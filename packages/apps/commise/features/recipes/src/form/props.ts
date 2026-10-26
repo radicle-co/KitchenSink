@@ -24,6 +24,8 @@ import {
 
 import { effectiveVisibility, refusedDraftPrivate, type PrivateRefusal } from '../actions/privateGate.js';
 import {
+    isOverLimit,
+    mayBePublic,
     recipeMakePublicConsequence,
     recipePrivateChoice,
     showsRecipePremiumBadge,
@@ -134,6 +136,11 @@ export interface VisibilityOption {
     readonly note: string | undefined;
     /** Whether the card carries the Premium badge. */
     readonly premium: boolean;
+    /**
+     * Whether the card is shown but refused (Public on a book or paid-site recipe): `aria-disabled`, never natively
+     * disabled, so it stays focusable, and `note` is the reason it is described by.
+     */
+    readonly refused: boolean;
 }
 
 /** One way forward from a full set of private slots. */
@@ -147,6 +154,12 @@ export interface SlotWay {
 export interface SlotsFullView {
     readonly title: string;
     readonly ways: readonly SlotWay[];
+    /**
+     * Said when the cook holds MORE private recipes than slots: what they hold, that it stays private, and what to do.
+     * `premiumLink` is its "About Premium" label, present only where paid features are shown; it stands in for the Premium
+     * way, which would say the same twice.
+     */
+    readonly overLimit: { readonly text: string; readonly premiumLink: string | undefined } | undefined;
 }
 
 /** What the "Who can see it" field draws: the visibility it shows as chosen, its two cards, and the full refusal. */
@@ -201,8 +214,9 @@ export function visibilityFieldOf(input: {
                 value: RecipeVisibility.PUBLIC,
                 title: v.public,
                 hint: v.publicHint,
-                note: refusedNote ?? costNote,
+                note: mayBePublic(facts.rule) ? (refusedNote ?? costNote) : v.publicRefused,
                 premium: false,
+                refused: !mayBePublic(facts.rule),
             },
             {
                 value: RecipeVisibility.PRIVATE,
@@ -210,6 +224,7 @@ export function visibilityFieldOf(input: {
                 hint: v.privateHint,
                 note: privateNoteOf(facts, saved, draft, v),
                 premium: showsRecipePremiumBadge(facts, saved),
+                refused: false,
             },
         ],
         slotsFull:
@@ -220,10 +235,17 @@ export function visibilityFieldOf(input: {
                           { id: 'makePublic', label: v.wayMakePublic, detail: v.wayMakePublicDetail },
                           { id: 'delete', label: v.wayDelete, detail: v.wayDeleteDetail },
                           // Premium is offered only where paid features are shown (DSA Art. 25: no sale where none is shown).
-                          ...(facts.state === 'upsell'
+                          // Over the limit, the overLimit sentence's own link stands in for it.
+                          ...(facts.state === 'upsell' && !isOverLimit(standing)
                               ? [{ id: 'premium' as const, label: v.wayPremium, detail: v.wayPremiumDetail }]
                               : []),
                       ],
+                      overLimit: isOverLimit(standing)
+                          ? {
+                                text: fillTemplate(v.overLimit, { count: standing.used, total: standing.limit }),
+                                premiumLink: facts.state === 'upsell' ? v.aboutPremium : undefined,
+                            }
+                          : undefined,
                   }
                 : undefined,
     };
@@ -292,6 +314,11 @@ export const visibilityChoice = (
     facts: RecipePrivateFacts,
 ): { readonly visibility: RecipeVisibility } | 'premiumRequired' | 'confirmPublic' | undefined => {
     if (chosen === current) {
+        return undefined;
+    }
+
+    // A book or paid-site recipe can never be public: the server refuses it, so the field does not try.
+    if (chosen === RecipeVisibility.PUBLIC && !mayBePublic(facts.rule)) {
         return undefined;
     }
 

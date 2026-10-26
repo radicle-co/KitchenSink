@@ -35,20 +35,27 @@ const attemptOf = (mutation: Mutation): VisibilityAttempt => ({
     error: mutation.state.error,
 });
 
+/** A refusal the server gave, with the limit it named when the reason is every slot used. */
+export interface ServerPrivateRefusal {
+    readonly reason: PrivateRefusal;
+    /** The `limit` of a `PRIVATE_SLOTS_FULL`: present only for the `slots` reason. */
+    readonly slotLimit?: number;
+}
+
 /**
  * Why the latest visibility write for `recipeId` was refused, when it was a Private the server refused as
  * `INVALID_VISIBILITY`.
  *
  * @param recipeId - The recipe the page shows.
  * @param known - The profile's own answer (`knownPaidFeaturesOf`), which picks the words.
- * @returns The refusal's reason, or `undefined` when there is no such refusal; any other failure keeps the page's
+ * @returns The refusal's reason (and, for every slot used, the server's limit), or `undefined` when there is no such refusal; any other failure keeps the page's
  *     generic message.
  * @sideEffect Subscribes to the mutation cache.
  */
 export function useServerRefusedPrivate(
     recipeId: string,
     known: PaidFeatureState | undefined,
-): PrivateRefusal | undefined {
+): ServerPrivateRefusal | undefined {
     const attempts = useMutationState<VisibilityAttempt>({
         filters: {
             mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
@@ -61,10 +68,10 @@ export function useServerRefusedPrivate(
 
     // ADR-0073: every private slot used is its own refusal and its own words, whatever the profile says.
     if (wantedPrivate && isPrivateSlotsFullError(latest.error)) {
-        return 'slots';
+        return { reason: 'slots', slotLimit: latest.error.limit };
     }
 
     const refused = wantedPrivate && isBadRequestError(latest.error) && latest.error.code === 'INVALID_VISIBILITY';
 
-    return refused ? serverRefusalOf(known) : undefined;
+    return refused ? { reason: serverRefusalOf(known) } : undefined;
 }

@@ -28,11 +28,12 @@ interface ComboboxOptionFields {
  * One suggestion. Its decoration is presentation only: an option holds no control (APG).
  *
  * An option may carry a quiet `tag` after its label, a `note` `StatusBadge` such as the picker's "Default"
- * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner ruling 2026-10-25). ⛔ A tag is visible
- * text, so a tagged option MUST carry an {@link ComboboxOption.accessibleName} that says it, starting with the label
- * (WCAG 2.5.3): the option's name is that string on both platforms, and a name that left the tag out would hide from a
- * screen reader what every sighted cook sees. The union makes a tag without its name unrepresentable. A tag never makes
- * its option active, selected or chosen: nothing is picked for the cook.
+ * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner ruling 2026-10-25), drawn by
+ * `OptionLabel`. A tag is visible text, so the union REQUIRES a tagged option to carry an
+ * {@link ComboboxOption.accessibleName}, which becomes the option's name on both platforms. ⚠️ The type proves only that
+ * a name is present. That it says the tag and starts with the label (WCAG 2.5.3) is the caller's to build and test
+ * (`foodChoiceNameOf` in `@commise/features-recipes`); nothing here checks the words. The tag is drawing only: the
+ * Combobox gives a tagged option no other treatment, so it is never made active or selected by its tag.
  */
 export type ComboboxOption = ComboboxOptionFields &
     (

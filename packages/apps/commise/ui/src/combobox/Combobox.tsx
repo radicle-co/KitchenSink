@@ -80,9 +80,8 @@ import { FIELD_CLASS } from '../input/fieldClass.js';
 import { FieldLabel } from '../input/FieldLabel.js';
 import { fieldErrorId, fieldHintId } from '../input/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
+import { OptionLabel } from '../optionLabel/OptionLabel.js';
 import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popupInsetsContext.js';
-import { StatusBadge } from '../statusBadge/StatusBadge.js';
-import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
@@ -547,19 +546,12 @@ export const Combobox: FC<ComboboxProps> = ({
                 className: `flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3 py-1 aria-selected:bg-surface-muted aria-selected:ring-2 aria-selected:ring-inset aria-selected:ring-selected-edge ${BUSY_CONTROL_CLASS}`,
             })}
         >
-            {/* `min-w-0`: a column that cannot shrink below its parts line is how a dot came to start a line. */}
-            <span className="flex min-w-0 flex-1 flex-col">
-                {option.tag === undefined ? (
-                    <span className="break-words text-body-md text-ink">{option.label}</span>
-                ) : (
-                    // The tag flows after the label and wraps under it, never in a column beside it (`StatusBadge`).
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="min-w-0 break-words text-body-md text-ink">{option.label}</span>
-                        <StatusBadge status="note">{option.tag}</StatusBadge>
-                    </span>
-                )}
-                {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
-            </span>
+            <OptionLabel
+                label={option.label}
+                textSize="bodyMd"
+                {...(option.tag === undefined ? {} : { tag: option.tag })}
+                {...(option.detailParts === undefined ? {} : { detailParts: option.detailParts })}
+            />
         </li>
     );
 

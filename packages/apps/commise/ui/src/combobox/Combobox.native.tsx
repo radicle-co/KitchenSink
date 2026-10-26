@@ -66,15 +66,14 @@ import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native
 import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { ScrollerDragContext } from '../fieldReveal/scrollerDrag.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
+import { OptionLabel } from '../optionLabel/OptionLabel.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { FIELD_PADDING, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldAccessibilityHint } from '../input/props.js';
-import { StatusBadge } from '../statusBadge/StatusBadge.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.native.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
@@ -296,20 +295,12 @@ export const Combobox: FC<ComboboxProps> = ({
                 option.busy === true && styles.busy,
             ]}
         >
-            <View style={styles.optionText}>
-                {option.tag === undefined ? (
-                    <Text style={[styles.optionLabel, { color: colors.ink }]}>{option.label}</Text>
-                ) : (
-                    // The tag flows after the label and wraps under it at 320 pt, never squeezing the name.
-                    <View style={styles.taggedLabel}>
-                        <Text style={[styles.optionLabel, styles.taggedLabelText, { color: colors.ink }]}>
-                            {option.label}
-                        </Text>
-                        <StatusBadge status="note">{option.tag}</StatusBadge>
-                    </View>
-                )}
-                {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
-            </View>
+            <OptionLabel
+                label={option.label}
+                textSize="bodyMd"
+                {...(option.tag === undefined ? {} : { tag: option.tag })}
+                {...(option.detailParts === undefined ? {} : { detailParts: option.detailParts })}
+            />
         </Pressable>
     );
 
@@ -513,17 +504,7 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[1],
     },
     // `minWidth: 0`: a column that cannot shrink below its parts line is how a dot came to start a line.
-    optionText: { flex: 1, minWidth: 0 },
     busy: { opacity: 0.6 },
-    optionLabel: { fontSize: nativeTokens.fontSize.bodyMd },
-    taggedLabel: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        columnGap: nativeTokens.spacing[2],
-        rowGap: nativeTokens.spacing[1],
-    },
-    taggedLabelText: { flexShrink: 1, minWidth: 0 },
     status: {
         gap: nativeTokens.spacing[1],
         paddingHorizontal: nativeTokens.spacing[3],

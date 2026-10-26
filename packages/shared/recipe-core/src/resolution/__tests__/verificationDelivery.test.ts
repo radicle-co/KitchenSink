@@ -7,7 +7,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { VERIFICATION_DELIVERY, verificationDeliveryBoundSeconds } from '../verificationDelivery.js';
+import {
+    DATABASE_OUTAGE_BEFORE_PARKING_SECONDS,
+    receivesBeforeParking,
+    VERIFICATION_DELIVERY,
+    verificationDeliveryBoundSeconds,
+} from '../verificationDelivery.js';
 
 describe('VERIFICATION_DELIVERY', () => {
     it('is the queue the stack ships today: a 90 s visibility timeout and 361 receives', () => {
@@ -18,7 +23,35 @@ describe('VERIFICATION_DELIVERY', () => {
         expect(verificationDeliveryBoundSeconds()).toBe(90 * 361);
     });
 
+    it('⛔ derives the receive count from the outage rule, so the two cannot drift apart', () => {
+        expect(VERIFICATION_DELIVERY.maxReceiveCount).toBe(
+            receivesBeforeParking(
+                DATABASE_OUTAGE_BEFORE_PARKING_SECONDS,
+                VERIFICATION_DELIVERY.visibilityTimeoutSeconds,
+            ),
+        );
+    });
+
     it('cannot be changed at run time', () => {
         expect(Object.isFrozen(VERIFICATION_DELIVERY)).toBe(true);
+    });
+});
+
+describe('receivesBeforeParking — ride out a database outage, with one receive to spare', () => {
+    it.each([
+        [9 * 3600, 90, 361],
+        [9 * 3600, 120, 271],
+        [3600, 90, 41],
+        [100, 30, 5],
+    ])('an outage of %i s at a %i s visibility timeout spends %i receives', (outage, visibility, receives) => {
+        expect(receivesBeforeParking(outage, visibility)).toBe(receives);
+    });
+
+    it('rounds a partial receive UP, never down: the outage is always covered', () => {
+        expect(receivesBeforeParking(101, 100)).toBe(3);
+    });
+
+    it('states the outage the queues ride out as nine hours', () => {
+        expect(DATABASE_OUTAGE_BEFORE_PARKING_SECONDS).toBe(9 * 3600);
     });
 });

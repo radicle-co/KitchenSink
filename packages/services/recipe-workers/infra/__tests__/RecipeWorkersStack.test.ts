@@ -19,7 +19,11 @@ import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
-import { VERIFICATION_DELIVERY } from '@kitchensink/recipe-core/resolution/verification-delivery';
+import {
+    DATABASE_OUTAGE_BEFORE_PARKING_SECONDS,
+    receivesBeforeParking,
+    VERIFICATION_DELIVERY,
+} from '@kitchensink/recipe-core/resolution/verification-delivery';
 import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
@@ -2535,9 +2539,12 @@ describe('RecipeWorkersStack — consumer concurrency (U8)', () => {
         expect((queue.Properties?.RedrivePolicy as { maxReceiveCount?: number } | undefined)?.maxReceiveCount).toBe(
             VERIFICATION_DELIVERY.maxReceiveCount,
         );
-        // The stated receive count is still the stack's own nine-hour parking rule, plus one.
-        expect(VERIFICATION_DELIVERY.maxReceiveCount).toBe(
-            Math.ceil((9 * 60 * 60) / VERIFICATION_DELIVERY.visibilityTimeoutSeconds) + 1,
+        // The queue's receive count is the outage rule, applied by the real function, not a formula re-typed here.
+        expect((queue.Properties?.RedrivePolicy as { maxReceiveCount?: number } | undefined)?.maxReceiveCount).toBe(
+            receivesBeforeParking(
+                DATABASE_OUTAGE_BEFORE_PARKING_SECONDS,
+                VERIFICATION_DELIVERY.visibilityTimeoutSeconds,
+            ),
         );
     });
 

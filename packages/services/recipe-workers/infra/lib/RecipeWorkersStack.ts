@@ -38,7 +38,11 @@ import { recipeQueueDlqName, recipeQueueName } from '@kitchensink/recipe-core/qu
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { consumerConcurrencyFor } from './consumerConcurrency.js';
 import { PARSE_LINE_DELIVERY } from '@kitchensink/recipe-core/parsing/parse-line-delivery';
-import { VERIFICATION_DELIVERY } from '@kitchensink/recipe-core/resolution/verification-delivery';
+import {
+    DATABASE_OUTAGE_BEFORE_PARKING_SECONDS,
+    receivesBeforeParking as receivesBeforeParkingSeconds,
+    VERIFICATION_DELIVERY,
+} from '@kitchensink/recipe-core/resolution/verification-delivery';
 import {
     BEDROCK_MODEL_REGISTRY,
     DEFAULT_MONTHLY_CEILING_MICROS,
@@ -232,7 +236,7 @@ const FREQUENT_SCHEDULE_RETRIES = 0;
  * claim, which needs the database. During this window the claim cannot run at all, so the receive count
  * climbs while the attempt count does not — an outage costs redeliveries and never a line's allowance.
  */
-const DATABASE_OUTAGE_BEFORE_PARKING = Duration.hours(9);
+const DATABASE_OUTAGE_BEFORE_PARKING = Duration.seconds(DATABASE_OUTAGE_BEFORE_PARKING_SECONDS);
 
 /**
  * Redeliveries a queue spends before it parks a message, given its visibility timeout.
@@ -241,7 +245,7 @@ const DATABASE_OUTAGE_BEFORE_PARKING = Duration.hours(9);
  * @returns The smallest `maxReceiveCount` that rides out {@link DATABASE_OUTAGE_BEFORE_PARKING}, with one to spare.
  */
 function receivesBeforeParking(visibilityTimeout: Duration): number {
-    return Math.ceil(DATABASE_OUTAGE_BEFORE_PARKING.toSeconds() / visibilityTimeout.toSeconds()) + 1;
+    return receivesBeforeParkingSeconds(DATABASE_OUTAGE_BEFORE_PARKING.toSeconds(), visibilityTimeout.toSeconds());
 }
 
 /**
@@ -271,7 +275,7 @@ const VERIFICATION_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(VERIFICATION_DELI
 
 /**
  * Redeliveries the verification queue permits before it parks a message (R2, re-derived for ADR-0060): the shared
- * constant's value, which `RecipeWorkersStack.test.ts` holds equal to {@link receivesBeforeParking} of the timeout.
+ * constant, which recipe-core DERIVES from the same outage rule {@link receivesBeforeParking} applies here.
  */
 const VERIFICATION_QUEUE_MAX_RECEIVES = VERIFICATION_DELIVERY.maxReceiveCount;
 

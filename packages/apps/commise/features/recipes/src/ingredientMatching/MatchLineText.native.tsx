@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes/ingredientMatching — `MatchLineText` (native): the React Native leaf of
- * `./MatchLineText.tsx`, in the 13 px `list` role. The measure is set in the semibold face rather than with a
+ * `./MatchLineText.tsx`, in the 16 px `body` role (the owner's type-scale ruling). The measure is set in the semibold face rather than with a
  * `fontWeight`, which Android would synthesise (`nativeTokens.type`). Painted from the theme's roles (D15).
  */
 import { nativeTokens } from '@commise/ui/native';
@@ -24,6 +24,6 @@ export const MatchLineText: FC<MatchLineTextProps> = ({ line }) => {
 };
 
 const styles = StyleSheet.create({
-    line: { ...nativeTokens.type.list },
+    line: { ...nativeTokens.type.body },
     measure: { fontFamily: nativeTokens.fontFace.body.semibold },
 });

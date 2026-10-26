@@ -56,11 +56,24 @@ export interface ReviewNote {
 }
 
 /**
- * What the host is sending for ONE line: a pick (a food, or the line kept as written), or Use this on a line still being
- * checked. While it is in flight its control reads busy and the line refuses a second press, so a double tap cannot send
- * two.
+ * What the host is sending for ONE line: a pick from its list (a food, or the line kept as written), a food the cook
+ * found through Search for a food, or Use this on a line still being checked (and a flagged line's "Use {food}"). While
+ * it is in flight the control that started it reads busy and the line refuses a second press, so a double tap cannot
+ * send two. Where the pick came from is stated, never inferred: a food found through Search may also be a candidate,
+ * and it is Search, not that row, that reads busy.
+ *
+ * ⚠️ The host raises it INSIDE the press handler (`onPick`, `onUseProposal`, the picker's choice), in the same event,
+ * so the next render already refuses a second press; a send raised a render later leaves a window for a double tap.
  */
-export type PendingSend = { readonly kind: 'pick'; readonly pick: LinePick } | { readonly kind: 'useProposal' };
+export type PendingSend =
+    | { readonly kind: 'pick'; readonly pick: LinePick }
+    | { readonly kind: 'searchPick' }
+    | { readonly kind: 'useProposal' };
+
+/** The lines whose send is in flight (the host's pending map, or a set of its keys). */
+export interface SendingLines {
+    readonly has: (key: string) => boolean;
+}
 
 /** Who bound a line: the cook, the server (an exact name, a curated mapping, or a bulk default), or the review. */
 export type BoundBy = 'cook' | 'server' | 'review';
@@ -126,8 +139,11 @@ export interface MatchCounts {
     readonly matched: number;
 }
 
-/** Where focus goes once a pick lands: the next open line's Search, or the host's own destination. */
-export type PickFocus = { readonly kind: 'search'; readonly key: string } | { readonly kind: 'done' };
+/**
+ * Where focus goes once a pick lands: the next open line, whose list takes it on its first control (Search, else its
+ * first option, else Keep as written), or the host's own destination.
+ */
+export type PickFocus = { readonly kind: 'line'; readonly key: string } | { readonly kind: 'done' };
 
 /** The option id of the keep-as-written pick. Food ids are prefixed, so no food id can collide with it. */
 const AS_WRITTEN_ID = 'asWritten';
@@ -202,34 +218,44 @@ export function isNothingToFix(lines: readonly MatchLine[]): boolean {
 }
 
 /**
- * The open line to expand next ("choosing a food expands the next open line"): the first open line after `afterKey`,
- * else the first before it. Never `afterKey` itself. Pure.
+ * The open line to expand next ("choosing a food expands the next open line"): the first open line after `afterKey`;
+ * when none follows, the search RESTARTS FROM THE TOP and answers the first open line before it, because an open line
+ * above the one just handled is still the next one the cook must choose for. Never `afterKey` itself, and never a line
+ * whose send is in flight: it is still unbound, so still open, and expanding it again would let a second pick be sent
+ * while the first is in flight. Pure.
  *
  * @param lines - The lines, in order.
  * @param afterKey - The line just handled, or `undefined` to start from the top.
+ * @param sending - The lines whose send is in flight.
  * @returns The key of the next open line, or `undefined` when none is open.
  */
-export function nextOpenLineKey(lines: readonly MatchLine[], afterKey: string | undefined): string | undefined {
+export function nextOpenLineKey(
+    lines: readonly MatchLine[],
+    afterKey: string | undefined,
+    sending: SendingLines,
+): string | undefined {
+    const waiting = (line: MatchLine): boolean => isOpenLine(line) && !sending.has(line.key);
     const at = lines.findIndex((line) => line.key === afterKey);
-    const after = lines.slice(at + 1).find(isOpenLine);
-    const before = at < 0 ? undefined : lines.slice(0, at).find(isOpenLine);
+    const after = lines.slice(at + 1).find(waiting);
+    const before = at < 0 ? undefined : lines.slice(0, at).find(waiting);
 
     return (after ?? before)?.key;
 }
 
 /**
- * Where focus goes once a pick lands (staff-ux 2026-10-25): the next open line's "Search for a food", which the host
- * expands; or `done` when nothing is left open, which each host sends to its own place (the wizard's Next recipe).
- * Pure.
+ * Where focus goes once a pick is made (staff-ux 2026-10-25): the next open line, which the host expands and whose list
+ * takes the request on its first control; or `done` when nothing is left open, which each host sends to its own place
+ * (the wizard's Next recipe). A line whose send is in flight is never the next line. Pure.
  *
- * @param lines - The lines AFTER the pick.
+ * @param lines - The lines, as they stand once the pick is made.
  * @param pickedKey - The line the cook just picked for.
+ * @param sending - The lines whose send is in flight, the one just picked included.
  * @returns Where focus goes.
  */
-export function pickFocusOf(lines: readonly MatchLine[], pickedKey: string): PickFocus {
-    const next = nextOpenLineKey(lines, pickedKey);
+export function pickFocusOf(lines: readonly MatchLine[], pickedKey: string, sending: SendingLines): PickFocus {
+    const next = nextOpenLineKey(lines, pickedKey, sending);
 
-    return next === undefined ? { kind: 'done' } : { kind: 'search', key: next };
+    return next === undefined ? { kind: 'done' } : { kind: 'line', key: next };
 }
 
 /**

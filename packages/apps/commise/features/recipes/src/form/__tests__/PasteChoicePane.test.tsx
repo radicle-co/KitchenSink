@@ -7,12 +7,18 @@
  *
  * REWRITTEN when the paste and import builds were reconciled: the pane reads the one line model, a choice sends a pick,
  * and the focus request is the house `ControlFocus`.
+ *
+ * REWRITTEN for M4 (2026-10-25): the pane counts over ALL the recipe's lines ("Line 4 of 5") and steps to the previous
+ * and next OPEN line, so a line it shows keeps its place after it is chosen. It said "Open line 2 of 4". M6 adds a
+ * failed pick with Try again.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { recipeMessages } from '../../messages.js';
 import {
+    makeCheckingLine,
+    makeConfidentLine,
     makeDefaultLine,
     makeFoodChoice,
     makeNeedsChoiceLine,
@@ -22,7 +28,7 @@ import type { MatchLine } from '../../ingredientMatching/matchLine.js';
 import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeFormMessages } from '../messages.js';
 import { PasteChoicePane } from '../PasteChoicePane.js';
-import { pasteMatchPaneViewOf, type PanePlace } from '../pasteMatchView.js';
+import { pasteMatchPaneViewOf } from '../pasteMatchView.js';
 
 const m = recipeFormMessages.en;
 const lineCopy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
@@ -40,13 +46,22 @@ const SPICE_LINE = makeNoMatchLine({ line: { measure: '1 tsp', words: 'Grandma�
 
 afterEach(cleanup);
 
-function renderPane(line: MatchLine, place: PanePlace) {
-    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onPrevious: vi.fn(), onNext: vi.fn() };
+/** The recipe the pane steps through: eggs (matched), milk, cream (checking), bread and the spice mix. */
+const RECIPE: readonly MatchLine[] = [makeConfidentLine(), MILK_LINE, makeCheckingLine(), BREAD_LINE, SPICE_LINE];
+const NOTHING_SENT: ReadonlySet<string> = new Set();
+
+function renderPane(shownKey: string, options: { failed?: boolean } = {}) {
+    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onPrevious: vi.fn(), onNext: vi.fn(), onRetryPick: vi.fn() };
 
     render(
         <PasteChoicePane
-            view={pasteMatchPaneViewOf(line, place, { online: true, pending: undefined }, m, lineCopy)}
-            searchFocus={{ requested: false, onHandled: vi.fn() }}
+            view={pasteMatchPaneViewOf(
+                { lines: RECIPE, shownKey, sending: NOTHING_SENT },
+                { online: true, pending: undefined, failed: options.failed ?? false },
+                m,
+                lineCopy,
+            )}
+            focus={{ requested: false, onHandled: vi.fn() }}
             {...handlers}
         />,
     );
@@ -59,24 +74,26 @@ const disabled = (button: HTMLElement): boolean =>
 
 describe('PasteChoicePane (web)', () => {
     it('names itself, says where it is, and heads the line', () => {
-        renderPane(BREAD_LINE, { index: 1, count: 4 });
+        renderPane('bread');
 
         expect(screen.getByRole('complementary', { name: 'Choose a food' })).toBeTruthy();
-        expect(screen.getByText('Open line 2 of 4')).toBeTruthy();
+        expect(screen.getByText('Line 4 of 5')).toBeTruthy();
         expect(screen.getByRole('heading', { name: '6 slices day-old bread' })).toBeTruthy();
         expect(screen.getByText('More than one food fits. Nothing is chosen for you.')).toBeTruthy();
     });
 
     it('offers the line’s list: Search first, the options, Keep as written last', () => {
-        renderPane(BREAD_LINE, { index: 1, count: 4 });
+        renderPane('bread');
 
         expect(screen.getByRole('button', { name: 'Search for a food for 6 slices day-old bread' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'White bread, sliced, Commercially prepared' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Keep “6 slices day-old bread” as written' })).toBeTruthy();
+        expect(
+            screen.getByRole('button', { name: 'Keep “6 slices day-old bread” as written\u00A0· no nutrition' }),
+        ).toBeTruthy();
     });
 
     it('in the middle, Previous and Next both step', () => {
-        const { onPrevious, onNext } = renderPane(BREAD_LINE, { index: 1, count: 4 });
+        const { onPrevious, onNext } = renderPane('bread');
 
         fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
         fireEvent.click(screen.getByRole('button', { name: 'Next open line' }));
@@ -85,8 +102,8 @@ describe('PasteChoicePane (web)', () => {
         expect(onNext).toHaveBeenCalledTimes(1);
     });
 
-    it('on the first line, Previous is drawn but disabled and does nothing', () => {
-        const { onPrevious } = renderPane(MILK_LINE, { index: 0, count: 4 });
+    it('on the first open line, Previous is drawn but disabled and does nothing', () => {
+        const { onPrevious } = renderPane('milk');
 
         const previous = screen.getByRole('button', { name: 'Previous' });
         expect(disabled(previous)).toBe(true);
@@ -95,8 +112,8 @@ describe('PasteChoicePane (web)', () => {
         expect(disabled(screen.getByRole('button', { name: 'Next open line' }))).toBe(false);
     });
 
-    it('on the last line, Next is drawn but disabled and does nothing', () => {
-        const { onNext } = renderPane(SPICE_LINE, { index: 3, count: 4 });
+    it('on the last open line, Next is drawn but disabled and does nothing', () => {
+        const { onNext } = renderPane('spice');
 
         const next = screen.getByRole('button', { name: 'Next open line' });
         expect(disabled(next)).toBe(true);
@@ -105,10 +122,20 @@ describe('PasteChoicePane (web)', () => {
     });
 
     it('a choice in the pane is the pick', () => {
-        const { onPick } = renderPane(BREAD_LINE, { index: 1, count: 4 });
+        const { onPick } = renderPane('bread');
 
         fireEvent.click(screen.getByRole('button', { name: 'Brioche' }));
 
         expect(onPick).toHaveBeenCalledExactlyOnceWith({ kind: 'food', foodId: 'brioche', name: 'Brioche' });
+    });
+
+    it('⛔ M6: a pick in the pane that failed says so, and Try again sends it again', () => {
+        const { onRetryPick } = renderPane('bread', { failed: true });
+
+        expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Try again to save the choice for 6 slices day-old bread' }),
+        );
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
     });
 });

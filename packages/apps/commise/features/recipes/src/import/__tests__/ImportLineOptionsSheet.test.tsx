@@ -40,7 +40,7 @@ function renderSheet(open = true) {
             line={MILK_LINE}
             online
             pending={undefined}
-            searchFocus={NO_FOCUS}
+            focus={NO_FOCUS}
             {...handlers}
         />,
     );
@@ -93,7 +93,7 @@ describe('ImportLineOptionsPane (web)', () => {
                 line={MILK_LINE}
                 online
                 pending={undefined}
-                searchFocus={NO_FOCUS}
+                focus={NO_FOCUS}
                 onPick={vi.fn()}
                 onSearch={vi.fn()}
             />,

@@ -12,6 +12,10 @@ export interface MatchClosedRowProps {
     readonly need: string;
     /** The side pane shows this line (1194 and web): it is marked current. Display only; the row does the same thing. */
     readonly current: boolean;
-    /** The row was pressed: open this line. */
+    /** A send for the line is in flight: the row refuses to open (and keeps focus, on web). */
+    readonly refusing: boolean;
+    /** The line's last send failed: said in attention in place of its need. */
+    readonly failure: string | undefined;
+    /** The row was pressed: open this line. Never called while refusing. */
     readonly onOpen: () => void;
 }

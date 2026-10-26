@@ -4,12 +4,18 @@
  * @module @commise/features-recipes/ingredientMatching — `MatchLineList` (web): a recipe's matched lines, in either flow
  * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): one `MatchRow` per line, in the recipe's
  * order, each the row `lineRowOf` gives it — the host's expanded line open, every other open line collapsed and naming
- * its need, every settled line with its controls.
+ * its need, every settled line with its controls. Each line carries its own send in flight and its own failure, so
+ * several lines can be sending at once. A rule sits above each line (each row draws it, U3), never a bare gap.
  *
- * Presentational and controlled: which line is open, the pick in flight and where focus goes are the host's. The
- * native leaf is `./MatchLineList.native.tsx`.
+ * ONE polite live region per list (U9, WCAG 4.1.3), after the lines, says what the host announces: a checking line
+ * resolving, a late review note, a failed choice and the count that changed (`lineChangesOf`). No row has a region of
+ * its own, so a change is spoken once.
+ *
+ * Presentational and controlled: which line is open, what is in flight, what is said and where focus goes are the
+ * host's. The native leaf is `./MatchLineList.native.tsx`.
  */
 import { useLocale } from '@commise/i18n/react';
+import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
 
 import type { MatchLineListProps } from './matchLineListProps.js';
@@ -24,29 +30,37 @@ export const MatchLineList: FC<MatchLineListProps> = ({
     currentKey,
     online,
     pending,
-    searchFocus,
+    failed,
+    announcement,
+    focus,
     ...handlers
 }) => {
     const copy = useMatchCopy();
     const locale = useLocale();
 
     return (
-        <ul className="flex flex-col gap-1">
-            {lines.map((line) => {
-                const row = lineRowOf(
-                    line,
-                    {
-                        expanded: line.key === expandedKey,
-                        current: line.key === currentKey,
-                        online,
-                        pending: pending?.key === line.key ? pending.send : undefined,
-                    },
-                    copy,
-                    locale,
-                );
+        <div className="flex flex-col">
+            <ul className="flex flex-col">
+                {lines.map((line) => {
+                    const row = lineRowOf(
+                        line,
+                        {
+                            expanded: line.key === expandedKey,
+                            current: line.key === currentKey,
+                            online,
+                            pending: pending.get(line.key),
+                            failed: failed.has(line.key),
+                        },
+                        copy,
+                        locale,
+                    );
 
-                return <MatchRow key={line.key} row={row} searchFocus={searchFocus} {...handlers} />;
-            })}
-        </ul>
+                    return <MatchRow key={line.key} row={row} focus={focus} {...handlers} />;
+                })}
+            </ul>
+            <LiveRegion politeness="polite" occurrence={announcement.occurrence} visuallyHidden>
+                {announcement.text}
+            </LiveRegion>
+        </div>
     );
 };

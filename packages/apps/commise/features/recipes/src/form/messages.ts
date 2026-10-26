@@ -563,18 +563,24 @@ export interface RecipeFormMessages {
     readonly pasteMatch: {
         readonly summary: {
             readonly added: PluralText;
-            /** The count line's parts, in the spec's order; a part whose count is 0 is left out. */
+            /**
+             * The count line's parts, in the owner's order (matched, to choose, being checked; commit 7b62777fc); a part
+             * whose count is 0 is left out. "To choose" counts only default, needsChoice and noMatch lines.
+             */
+            readonly matched: PluralText;
             readonly choose: PluralText;
             readonly checking: PluralText;
-            readonly matched: PluralText;
             /** Joins the count line's parts: a no-break space, so a dot never starts a line, then a middle dot. */
             readonly separator: string;
+            /** The counts as a sentence, before the rule in the same paragraph (contains `{counts}`). */
+            readonly countsSentence: string;
             readonly rule: string;
         };
         /** The side pane at 1194 and on web. */
         readonly pane: {
             /** The web `aside`'s name. Native draws no name: its heading names it (`nativeContainerNames.md` N1). */
             readonly label: string;
+            /** The shown line's place among ALL the recipe's lines (contains `{n}`, `{total}`; M4). */
             readonly position: string;
             readonly previous: string;
             readonly next: string;
@@ -862,15 +868,16 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         pasteMatch: {
             summary: {
                 added: { one: 'Added {count} line', other: 'Added {count} lines' },
-                choose: { one: '{count} needs your choice', other: '{count} need your choice' },
-                checking: { one: '{count} being checked', other: '{count} being checked' },
                 matched: { one: '{count} matched', other: '{count} matched' },
+                choose: { one: '{count} to choose', other: '{count} to choose' },
+                checking: { one: '{count} being checked', other: '{count} being checked' },
                 separator: '\u00A0· ',
+                countsSentence: '{counts}.',
                 rule: 'Matched lines are ready, and you can change them. Nothing else is chosen for you.',
             },
             pane: {
                 label: 'Choose a food',
-                position: 'Open line {n} of {total}',
+                position: 'Line {n} of {total}',
                 previous: 'Previous',
                 next: 'Next open line',
             },

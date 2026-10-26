@@ -1,8 +1,8 @@
 /**
  * @module @commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,
- * the side pane a 1194 tablet shows: which open line it shows, the line as a header, its prompt, the line's
- * `FoodChoiceList`, then Previous and Next open line, always drawn and disabled at an end. Painted from the theme's
- * roles (D15).
+ * the side pane a 1194 tablet shows: which line it shows out of all the recipe's lines (M4), the line as a header, its
+ * prompt, a pick that did not save with Try again, the line's `FoodChoiceList`, then Previous and Next open line,
+ * always drawn and disabled at an end. Painted from the theme's roles (D15).
  *
  * The pane carries NO name of its own: the web `aside`'s "Choose a food" only repeats a landmark, which on native is one
  * more swipe stop with no new fact, and the line's header already names the pane (`docs/design/nativeContainerNames.md`
@@ -15,10 +15,11 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
+import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
-export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, ...list }) => {
+export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, onRetryPick, ...list }) => {
     const { colors } = useTheme();
 
     return (
@@ -30,6 +31,9 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, on
                 </Text>
                 {view.open.prompt === undefined ? null : (
                     <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.open.prompt}</Text>
+                )}
+                {view.open.failure === undefined ? null : (
+                    <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} />
                 )}
             </View>
             <FoodChoiceList view={view.open.list} {...list} />
@@ -55,7 +59,7 @@ const styles = StyleSheet.create({
     pane: { gap: nativeTokens.spacing[3], padding: nativeTokens.spacing[4] },
     head: { gap: nativeTokens.spacing[1] },
     heading: { ...nativeTokens.type.cardTitle },
-    meta: { ...nativeTokens.type.meta },
+    meta: { ...nativeTokens.type.list },
     steps: {
         flexDirection: 'row',
         alignItems: 'center',

@@ -7,6 +7,9 @@
  *
  * REWRITTEN from the editor builder's `PasteMatchClosedRow` test when the two builds were reconciled: the row reads the
  * one line model through `lineRowOf`, and its need keeps a no-break space before its dot.
+ *
+ * The UI fix pass (2026-10-25) adds, seen red first: the current line's ring (U10), the rule above it and the 14 px
+ * need (U3, U1), the refusal while its pick is sent (M1) and a failed pick in place of its need (M6).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -20,7 +23,7 @@ import {
     MILKS,
 } from '../__fixtures__/matchLines.js';
 import type { MatchLine } from '../matchLine.js';
-import { lineRowOf } from '../matchLineView.js';
+import { lineRowOf, type LinePlace } from '../matchLineView.js';
 import { MatchClosedRow } from '../MatchClosedRow.js';
 import { matchLineMessages } from '../messages.js';
 
@@ -31,9 +34,14 @@ const FIVE = Array.from({ length: 5 }, (_, index) =>
 
 afterEach(cleanup);
 
-function renderRow(line: MatchLine, current = false) {
+function renderRow(line: MatchLine, current = false, place: Partial<Pick<LinePlace, 'pending' | 'failed'>> = {}) {
     const onOpen = vi.fn();
-    const row = lineRowOf(line, { expanded: false, current, online: true, pending: undefined }, copy, 'en');
+    const row = lineRowOf(
+        line,
+        { expanded: false, current, online: true, pending: undefined, failed: false, ...place },
+        copy,
+        'en',
+    );
 
     if (row.kind !== 'closed') {
         throw new Error(`expected a closed row, got ${row.kind}`);
@@ -41,7 +49,14 @@ function renderRow(line: MatchLine, current = false) {
 
     render(
         <ul>
-            <MatchClosedRow line={row.line} need={row.need} current={row.current} onOpen={onOpen} />
+            <MatchClosedRow
+                line={row.line}
+                need={row.need}
+                current={row.current}
+                refusing={row.refusing}
+                failure={row.failure}
+                onOpen={onOpen}
+            />
         </ul>,
     );
 
@@ -100,5 +115,56 @@ describe('MatchClosedRow (web)', () => {
         renderRow(makeNeedsChoiceLine());
 
         expect(screen.getByRole('button').className).toContain('min-h-12');
+    });
+
+    it('U10: the current line pairs the selected fill with the selected-edge ring, so it never rests on a 1.2:1 fill', () => {
+        renderRow(makeNeedsChoiceLine(), true);
+
+        const classes = screen.getByRole('button').className.split(' ');
+
+        expect(classes).toEqual(
+            expect.arrayContaining([
+                'aria-[current=true]:bg-selected-fill',
+                'aria-[current=true]:ring-2',
+                'aria-[current=true]:ring-inset',
+                'aria-[current=true]:ring-selected-edge',
+            ]),
+        );
+    });
+
+    it('U3: a rule above it, in the divider tone; U1: its need is the 14 px list role', () => {
+        renderRow(makeNoMatchLine());
+
+        expect(screen.getByRole('listitem').className.split(' ')).toEqual(
+            expect.arrayContaining(['border-t', 'border-line-divider']),
+        );
+        expect(
+            screen.getByText((_, element) => element?.textContent === 'No food found\u00A0· search or keep as written')
+                .className,
+        ).toContain('text-list');
+    });
+
+    it('⛔ M1: a line whose pick is being sent refuses to open, and keeps focus', () => {
+        const { onOpen } = renderRow(makeNeedsChoiceLine(), false, { pending: { kind: 'searchPick' } });
+
+        const row = screen.getByRole('button');
+
+        row.focus();
+        fireEvent.click(row);
+
+        expect(row.getAttribute('aria-disabled')).toBe('true');
+        expect(row.hasAttribute('disabled')).toBe(false);
+        expect(document.activeElement).toBe(row);
+        expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('M6: a line whose pick failed says so in attention, with a warning glyph, in place of its need', () => {
+        renderRow(makeNeedsChoiceLine(), false, { failed: true });
+
+        const failure = screen.getByText('We couldn’t save that choice.');
+
+        expect(failure.className).toContain('text-attention');
+        expect(screen.getByRole('button').querySelector('svg.lucide-triangle-alert')).not.toBeNull();
+        expect(screen.queryByText(/Choose a food/)).toBeNull();
     });
 });

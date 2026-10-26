@@ -46,7 +46,7 @@ describe('ImportLineOptionsSheet (native)', () => {
                 line={MILK_LINE}
                 online
                 pending={undefined}
-                searchFocus={NO_FOCUS}
+                focus={NO_FOCUS}
                 onPick={onPick}
                 onSearch={onSearch}
             />,
@@ -77,7 +77,7 @@ describe('ImportLineOptionsPane (native)', () => {
                 line={MILK_LINE}
                 online
                 pending={undefined}
-                searchFocus={NO_FOCUS}
+                focus={NO_FOCUS}
                 onPick={vi.fn()}
                 onSearch={vi.fn()}
             />,
@@ -85,6 +85,8 @@ describe('ImportLineOptionsPane (native)', () => {
 
         expect(screen.getByRole('heading', { name: '1 1/4 cups milk · Pancakes' })).toBeTruthy();
         expect(screen.getByRole('button', { name: `Search for a food for ${LINE}` })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Keep “1 1/4 cups milk” as written' })).toBeTruthy();
+        expect(
+            screen.getByRole('button', { name: 'Keep “1 1/4 cups milk” as written\u00A0· no nutrition' }),
+        ).toBeTruthy();
     });
 });

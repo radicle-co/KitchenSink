@@ -9,8 +9,10 @@ import type { PasteMatchPaneView } from './pasteMatchView.js';
 export interface PasteChoicePaneProps extends Omit<FoodChoiceListProps, 'view'> {
     /** What the pane shows (`pasteMatchPaneViewOf`). */
     readonly view: PasteMatchPaneView;
-    /** Previous was pressed: show the open line before this one. */
+    /** Previous was pressed: show the open line before this one (`paneStepsOf`'s `previousKey`). */
     readonly onPrevious: () => void;
     /** Next open line was pressed: show the open line after this one. */
     readonly onNext: () => void;
+    /** Try again, after a pick in the pane that did not save. */
+    readonly onRetryPick: () => void;
 }

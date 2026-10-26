@@ -7,6 +7,9 @@
  * Rewritten when the module moved from `form/` to the neutral `ingredientMatching/` module (review finding m2): the
  * tag's word now comes from the ONE `defaultTag` key through `{tag}`, so the visible tag and the name can never say two
  * different words. The new case with a non-English tag pins that.
+ *
+ * REWRITTEN for L7 (2026-10-25): `OptionLabel` draws the tag BESIDE the name and the parts UNDER both, so a tagged food
+ * with parts is named name, tag, parts — the drawn order. It used to say the parts before the tag.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -39,9 +42,9 @@ describe('foodChoiceNameOf', () => {
         );
     });
 
-    it('a default with parts says its parts, then Default', () => {
+    it('⛔ a default with parts says Default, then its parts: the order OptionLabel draws them', () => {
         expect(foodChoiceNameOf({ name: 'Oat milk', detailParts: ['unsweetened'], isDefault: true }, copy)).toBe(
-            'Oat milk, unsweetened, Default',
+            'Oat milk, Default, unsweetened',
         );
     });
 
@@ -68,11 +71,9 @@ describe('foodNameWithPartsOf', () => {
         );
     });
 
-    it('is the first half of a food option’s name, so the picker and the matching lists say parts one way', () => {
-        expect(
-            foodChoiceNameOf({ name: 'Oat milk', detailParts: ['unsweetened'], isDefault: true }, copy).startsWith(
-                foodNameWithPartsOf('Oat milk', ['unsweetened'], withDetails),
-            ),
-        ).toBe(true);
+    it('is an untagged food option’s whole name, so the picker and the matching lists say parts one way', () => {
+        expect(foodChoiceNameOf({ name: 'Oat milk', detailParts: ['unsweetened'], isDefault: false }, copy)).toBe(
+            foodNameWithPartsOf('Oat milk', ['unsweetened'], withDetails),
+        );
     });
 });

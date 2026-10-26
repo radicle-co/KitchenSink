@@ -7,6 +7,9 @@
  * REWRITTEN from the editor builder's `PasteMatchOpenRow` test when the two builds were reconciled: the row reads the
  * one line model through `lineRowOf`, a press sends a pick, and the focus request is the house `ControlFocus`. New: a
  * line opened by Change that needs no choice draws no prompt.
+ *
+ * The UI fix pass (2026-10-25) adds, seen red first: no card of its own (U2/U3), the 14 px prompt (U1), a failed pick
+ * with Try again (M6); the focus request is `focus`, and Keep is one string with "no nutrition" (U6).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -36,9 +39,9 @@ const FIVE_BREADS = [
 
 afterEach(cleanup);
 
-function renderRow(line: MatchLine, online = true) {
-    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onHandled: vi.fn() };
-    const row = lineRowOf(line, { expanded: true, current: false, online, pending: undefined }, copy, 'en');
+function renderRow(line: MatchLine, online = true, failed = false) {
+    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onHandled: vi.fn(), onRetryPick: vi.fn() };
+    const row = lineRowOf(line, { expanded: true, current: false, online, pending: undefined, failed }, copy, 'en');
 
     if (row.kind !== 'open') {
         throw new Error(`expected an open row, got ${row.kind}`);
@@ -51,7 +54,8 @@ function renderRow(line: MatchLine, online = true) {
                 view={row.view}
                 onSearch={handlers.onSearch}
                 onPick={handlers.onPick}
-                searchFocus={{ requested: false, onHandled: handlers.onHandled }}
+                focus={{ requested: false, onHandled: handlers.onHandled }}
+                onRetryPick={handlers.onRetryPick}
             />
         </ul>,
     );
@@ -76,7 +80,7 @@ describe('MatchOpenRow (web)', () => {
             'Search for a food for 2 cups milk',
             'Skim milk',
             'Whole milk, Default',
-            'Keep “2 cups milk” as written',
+            'Keep “2 cups milk” as written\u00A0· no nutrition',
         ]);
     });
 
@@ -110,20 +114,48 @@ describe('MatchOpenRow (web)', () => {
         expect(screen.queryByText(/Choose the|More than one|No food found/)).toBeNull();
     });
 
-    it('is set apart by an edge, never by the fill its options use for hover, so a hover still shows', () => {
+    // REWRITTEN for U2/U3: the open line itself is no longer a bordered card. A rule sits above it, as above every line,
+    // and the options' box carries the only border.
+    it('U2/U3: a rule above the line and no card of its own; the options’ box is the one border', () => {
         renderRow(makeDefaultLine());
 
         const [row] = screen.getAllByRole('listitem');
+        const classes = row?.className.split(' ') ?? [];
 
-        expect(row?.className).toContain('border-line-divider');
-        expect(row?.className).not.toContain('bg-surface-muted');
-        expect(screen.getByRole('button', { name: 'Skim milk' }).className).toContain('hover:bg-surface-muted');
+        expect(classes).toEqual(expect.arrayContaining(['border-t', 'border-line-divider']));
+        expect(classes).not.toContain('border');
+        expect(classes).not.toContain('rounded-xl');
+        expect(screen.getByRole('list', { name: 'Food for 2 cups milk' }).className.split(' ')).toContain('border');
+    });
+
+    it('U1: its prompt is the 14 px list role, muted', () => {
+        renderRow(makeDefaultLine());
+
+        expect(screen.getByText('Choose the milk you use').className.split(' ')).toEqual(
+            expect.arrayContaining(['text-list', 'text-ink-muted']),
+        );
+    });
+
+    it('⛔ M6: a pick that failed says so under the prompt in attention, and Try again sends it again', () => {
+        const { onRetryPick } = renderRow(makeDefaultLine(), true, true);
+
+        const failure = screen.getByText('We couldn’t save that choice.');
+
+        expect(failure.className).toContain('text-attention');
+        expect(failure.parentElement?.querySelector('svg.lucide-triangle-alert')).not.toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 2 cups milk' }));
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
     });
 
     it('offline: search needs the network, and the options still show', () => {
         renderRow(makeDefaultLine({ candidates: MILKS.slice(0, 2) }), false);
 
         expect(screen.getByText('Search needs the network')).toBeTruthy();
-        expect(names()).toEqual(['Skim milk', 'Whole milk, Default', 'Keep “2 cups milk” as written']);
+        expect(names()).toEqual([
+            'Skim milk',
+            'Whole milk, Default',
+            'Keep “2 cups milk” as written\u00A0· no nutrition',
+        ]);
     });
 });

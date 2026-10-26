@@ -56,19 +56,22 @@ function runSettledAction(action: SettledAction['kind'], key: string, handlers: 
 }
 
 /** The leaf a row kind names. */
-const leafOf = ({ row, searchFocus, ...handlers }: MatchRowProps): ReactElement => {
+const leafOf = ({ row, focus, ...handlers }: MatchRowProps): ReactElement => {
     switch (row.kind) {
         case 'open':
             return (
                 <MatchOpenRow
                     line={row.line}
                     view={row.view}
-                    searchFocus={searchFocus}
+                    focus={focus}
                     onSearch={() => {
                         handlers.onSearch(row.key);
                     }}
                     onPick={(pick) => {
                         handlers.onPick(row.key, pick);
+                    }}
+                    onRetryPick={() => {
+                        handlers.onRetryPick(row.key);
                     }}
                 />
             );
@@ -78,6 +81,8 @@ const leafOf = ({ row, searchFocus, ...handlers }: MatchRowProps): ReactElement 
                     line={row.line}
                     need={row.need}
                     current={row.current}
+                    refusing={row.refusing}
+                    failure={row.failure}
                     onOpen={() => {
                         handlers.onOpen(row.key);
                     }}
@@ -95,6 +100,9 @@ const leafOf = ({ row, searchFocus, ...handlers }: MatchRowProps): ReactElement 
                         if (row.view.note !== undefined) {
                             handlers.onSeeWhy(row.key, row.view.note.reason);
                         }
+                    }}
+                    onRetryPick={() => {
+                        handlers.onRetryPick(row.key);
                     }}
                 />
             );

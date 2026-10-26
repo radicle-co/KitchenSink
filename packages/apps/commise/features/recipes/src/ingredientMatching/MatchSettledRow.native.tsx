@@ -2,8 +2,9 @@
  * @module @commise/features-recipes/ingredientMatching — `MatchSettledRow` (native): the React Native leaf of
  * `./MatchSettledRow.tsx`, on the same props and the same words (`matchLineView.ts`). The controls sit on their own line under the status and wrap,
  * so no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. While a send
- * for the line is in flight that control reads busy and the others refuse a press. Painted from
- * the theme's roles, so it reads in both themes (D15).
+ * for the line is in flight that control reads busy and the others refuse a press (`refused`). A send that did not save
+ * says so, with Try again (M6). The status and the note are the 14 pt `list` role; `MatchLineList` draws the rule above
+ * the line. Painted from the theme's roles, so it reads in both themes (D15).
  *
  * @pattern Visitor — an exhaustive switch with no default branch over the status union
  */
@@ -15,6 +16,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC, ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { MatchFailureLine } from './MatchFailureLine.native.js';
 import { MatchLineText } from './MatchLineText.native.js';
 import type { SettledStatus } from './matchLineView.js';
 import type { MatchSettledRowProps } from './matchSettledRowProps.js';
@@ -60,7 +62,7 @@ const statusOf = (status: SettledStatus, colors: StatusColors): ReactElement => 
 };
 
 /** One settled line. */
-export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction, onSeeWhy }) => {
+export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction, onSeeWhy, onRetryPick }) => {
     const { colors } = useTheme();
     const { trailing } = view;
 
@@ -76,7 +78,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                         icon={trailing.icon}
                         accessibilityLabel={trailing.name}
                         busy={trailing.busy}
-                        disabled={view.refusing && !trailing.busy}
+                        refused={view.refusing && !trailing.busy}
                         onPress={() => onAction(trailing.kind)}
                     >
                         {trailing.label}
@@ -98,7 +100,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                                 icon={action.icon}
                                 accessibilityLabel={action.name}
                                 busy={action.busy}
-                                disabled={view.refusing && !action.busy}
+                                refused={view.refusing && !action.busy}
                                 onPress={() => onAction(action.kind)}
                             >
                                 {action.label}
@@ -107,6 +109,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                     )}
                 </View>
             )}
+            {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
             {view.note === undefined ? null : (
                 <View style={styles.note}>
                     <Text style={[styles.noteText, { color: colors.inkMuted }]}>{view.note.sentence}</Text>
@@ -124,10 +127,10 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[1],
         minHeight: nativeTokens.touchTarget,
         justifyContent: 'center',
-        paddingVertical: nativeTokens.spacing[2],
+        paddingVertical: nativeTokens.spacing[3],
     },
     status: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    statusText: { ...nativeTokens.type.meta, flex: 1, flexShrink: 1 },
+    statusText: { ...nativeTokens.type.list, flex: 1, flexShrink: 1 },
     proposal: {
         flex: 1,
         flexDirection: 'row',
@@ -136,9 +139,9 @@ const styles = StyleSheet.create({
         columnGap: nativeTokens.spacing[2],
         rowGap: nativeTokens.spacing[1],
     },
-    proposalText: { ...nativeTokens.type.meta, flexShrink: 1 },
+    proposalText: { ...nativeTokens.type.list, flexShrink: 1 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[1] },
-    unavailable: { ...nativeTokens.type.meta, paddingHorizontal: nativeTokens.spacing[2] },
+    unavailable: { ...nativeTokens.type.list, paddingHorizontal: nativeTokens.spacing[2] },
     note: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: nativeTokens.spacing[2] },
-    noteText: { ...nativeTokens.type.meta, flexShrink: 1 },
+    noteText: { ...nativeTokens.type.list, flexShrink: 1 },
 });

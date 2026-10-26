@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 177,
-        "implementations": 305,
-        "props": 1557,
-        "documentedComponents": 177,
-        "implementationsWithModuleDoc": 305,
-        "implementationsWithComponentDoc": 198,
-        "documentedProps": 1278,
-        "classifiedComponents": 157,
+        "components": 178,
+        "implementations": 307,
+        "props": 1584,
+        "documentedComponents": 178,
+        "implementationsWithModuleDoc": 307,
+        "implementationsWithComponentDoc": 200,
+        "documentedProps": 1305,
+        "classifiedComponents": 158,
         "componentsWithPatternTag": 81,
-        "crossPlatformComponents": 128
+        "crossPlatformComponents": 129
     },
     "components": [
         {
@@ -17156,7 +17156,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteChoicePane.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PasteChoicePane` (web): the side pane at 1194 and on web\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). A named `aside`: which open line it shows out\nof how many, the line as its heading, the muted prompt, the line's `FoodChoiceList`, then Previous and Next open line.\n\nPrevious and Next are always drawn and are disabled at an end, so nothing moves under the cook and the pair never\nchanges shape (a top-level `hasNext && <Button>` would also be §11.2's boolean-selects-a-subtree). A pick in the pane\ndoes not move on by itself (staff-ux ruling 2026-10-25): the check appears on the row, and Next moves on.\n\nPresentational: props in, markup out. The native leaf is `./PasteChoicePane.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteChoicePane` (web): the side pane at 1194 and on web\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). A named `aside`: which line it shows out of\nALL the recipe's lines (\"Line 3 of 9\", M4), the line as its heading, the muted prompt, a pick that did not save with\nTry again, the line's `FoodChoiceList`, then Previous and Next open line (`paneStepsOf`).\n\nPrevious and Next are always drawn and are disabled at an end, so nothing moves under the cook and the pair never\nchanges shape (a top-level `hasNext && <Button>` would also be §11.2's boolean-selects-a-subtree). A pick in the pane\ndoes not move on by itself (staff-ux ruling 2026-10-25): the check appears on the row, and Next moves on.\n\nPresentational: props in, markup out. The native leaf is `./PasteChoicePane.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17168,6 +17168,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
                         {
                             "name": "onNext",
                             "type": "() => void",
@@ -17183,7 +17192,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -17192,7 +17201,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Previous was pressed: show the open line before this one.",
+                            "description": "Previous was pressed: show the open line before this one (`paneStepsOf`'s `previousKey`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, after a pick in the pane that did not save.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
                         },
                         {
@@ -17201,16 +17219,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -17235,7 +17244,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteChoicePane.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,\nthe side pane a 1194 tablet shows: which open line it shows, the line as a header, its prompt, the line's\n`FoodChoiceList`, then Previous and Next open line, always drawn and disabled at an end. Painted from the theme's\nroles (D15).\n\nThe pane carries NO name of its own: the web `aside`'s \"Choose a food\" only repeats a landmark, which on native is one\nmore swipe stop with no new fact, and the line's header already names the pane (`docs/design/nativeContainerNames.md`\nN1 rules 2, 3 and 6; staff-ux 2026-10-25). With no name and no role it keeps no native node either.",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,\nthe side pane a 1194 tablet shows: which line it shows out of all the recipe's lines (M4), the line as a header, its\nprompt, a pick that did not save with Try again, the line's `FoodChoiceList`, then Previous and Next open line,\nalways drawn and disabled at an end. Painted from the theme's roles (D15).\n\nThe pane carries NO name of its own: the web `aside`'s \"Choose a food\" only repeats a landmark, which on native is one\nmore swipe stop with no new fact, and the line's header already names the pane (`docs/design/nativeContainerNames.md`\nN1 rules 2, 3 and 6; staff-ux 2026-10-25). With no name and no role it keeps no native node either.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17247,6 +17256,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
                         {
                             "name": "onNext",
                             "type": "() => void",
@@ -17262,7 +17280,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -17271,7 +17289,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Previous was pressed: show the open line before this one.",
+                            "description": "Previous was pressed: show the open line before this one (`paneStepsOf`'s `previousKey`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, after a pick in the pane that did not save.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
                         },
                         {
@@ -17280,16 +17307,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -17333,7 +17351,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedReadingRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of the\nIngredients list (build spec §7.5.4; plan 2026-10-15-011). Its own text, then its state line — a static glyph and\nwords saying what the line is doing (`pasteStatusCopy.ts`) — then, on its own line, the one action its state allows:\nAdd as written for a line waiting on the cook, Try again for a failed lookup.\n\nPresentational: props in, markup out. Nothing moves (WCAG 2.2.2: the editor stays usable through the wait). The\nnative leaf is `./PastedReadingRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of the\nIngredients list (build spec §7.5.4; plan 2026-10-15-011). Its own text, then its state line — a static glyph and\nwords saying what the line is doing (`pasteStatusCopy.ts`) — then, on its own line, the one action its state allows:\nAdd as written for a line waiting on the cook, Try again for a failed lookup.\n\nThe line is the 16 px `body` role, as `MatchLineText` sets it once the line is matched, and the state line the 14 px\n`list` role (the owner's type-scale ruling, 2026-10-25).\n\nPresentational: props in, markup out. Nothing moves (WCAG 2.2.2: the editor stays usable through the wait). The\nnative leaf is `./PastedReadingRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17702,7 +17720,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchSummary.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchSummary` (web): the block above the pasted lines\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): \"Added 8 lines\", the non-zero counts, and the\nrule that matched lines can be changed and nothing else is chosen for the cook. Not live: the editor's paste\nannouncement says when the lines arrive (`usePasteAnnouncement`).\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchSummary.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchSummary` (web): the block above the pasted lines\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): \"Added 8 lines\" (16 px), then ONE paragraph\nin the 14 px `list` role, muted: the non-zero counts in the owner's order and words (\"3 matched · 4 to choose · 1\nbeing checked.\") and the rule that matched lines can be changed and nothing else is chosen for the cook (U4). Words\non the page, not a fill card. Not live: the matched lines' list says what changes (`lineAnnouncement.ts`), and the\neditor's paste announcement says when the lines arrive.\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchSummary.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17736,7 +17754,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchSummary.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchSummary` (native): the React Native leaf of\n`./PasteMatchSummary.tsx`, on the same props and words. Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchSummary` (native): the React Native leaf of\n`./PasteMatchSummary.tsx`, on the same props and words: \"Added 8 lines\", then one muted paragraph of the counts and the\nrule, on the page rather than a fill card (U4). Painted from the theme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19201,6 +19219,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the list's one polite live region says now (U9).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
                             "name": "currentKey",
                             "type": "string | undefined",
                             "typeDetail": null,
@@ -19216,6 +19243,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The line drawn open (phone and 834: one at a time; Change on a bound line), or `undefined` for none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the open line's list take focus (after the pick on the line before; `pickFocusOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -19251,7 +19296,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "A food, or keeping the line as written, was picked.",
+                            "description": "A food, or keeping the line as written, was picked. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -19261,6 +19306,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Try again, on a line whose options failed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, on a line whose last send did not save: send it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -19292,20 +19346,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
+                            "type": "ReadonlyMap<string, PendingSend>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that the open line's Search take focus (after the pick on the line before; `pickFocusOf`).",
+                            "description": "What the host is sending, by line. Several lines may be sending at once; each reads busy on its own line, and a\nline that is sending refuses a second pick, its Change and its opening.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         }
                     ],
@@ -19334,6 +19379,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the list's one polite live region says now (U9).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
                             "name": "currentKey",
                             "type": "string | undefined",
                             "typeDetail": null,
@@ -19349,6 +19403,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The line drawn open (phone and 834: one at a time; Change on a bound line), or `undefined` for none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the open line's list take focus (after the pick on the line before; `pickFocusOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -19384,7 +19456,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "A food, or keeping the line as written, was picked.",
+                            "description": "A food, or keeping the line as written, was picked. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -19394,6 +19466,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Try again, on a line whose options failed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, on a line whose last send did not save: send it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -19425,20 +19506,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
+                            "type": "ReadonlyMap<string, PendingSend>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that the open line's Search take focus (after the pick on the line before; `pickFocusOf`).",
+                            "description": "What the host is sending, by line. Several lines may be sending at once; each reads busy on its own line, and a\nline that is sending refuses a second pick, its Change and its opening.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         }
                     ],
@@ -19486,6 +19558,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
                             "name": "line",
                             "type": "MatchLine",
                             "typeDetail": null,
@@ -19509,7 +19590,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19518,7 +19599,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19529,15 +19610,6 @@
                             "defaultValue": null,
                             "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
                             "name": "title",
@@ -19574,6 +19646,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
                             "name": "line",
                             "type": "MatchLine",
                             "typeDetail": null,
@@ -19597,7 +19678,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19606,7 +19687,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19617,15 +19698,6 @@
                             "defaultValue": null,
                             "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
                             "name": "title",
@@ -19681,6 +19753,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
                             "name": "line",
                             "type": "MatchLine",
                             "typeDetail": null,
@@ -19713,7 +19794,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19722,7 +19803,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19742,15 +19823,6 @@
                             "defaultValue": null,
                             "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
                             "name": "title",
@@ -19787,6 +19859,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
                             "name": "line",
                             "type": "MatchLine",
                             "typeDetail": null,
@@ -19819,7 +19900,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19828,7 +19909,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -19848,15 +19929,6 @@
                             "defaultValue": null,
                             "description": "The pick in flight for this line, if any.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
                             "name": "title",
@@ -21171,25 +21243,34 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/FoodChoiceList.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (web): the ONE list a line's food is chosen\nfrom, in both flows (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner rulings\n2026-10-25). Search for a food first (ruling I1), then the options in the server's order, the default with its quiet\nDefault tag (`OptionLabel`), then \"Keep … as written\" in the `quiet` tier as the last row of the same list. Offline,\nthe words \"Search needs the network\" stand where search was.\n\n- ⛔ Each option is a BUTTON, and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group would check the\n  option the arrow keys land on, so moving through the list would pick a food and carry the cook to the next line\n  (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook. Arrow keys do nothing.\n- Nothing is drawn chosen until the cook has chosen: the bound food of a reopened line draws a check and its name ends\n  \", chosen\", so the state never rests on colour (1.4.1). No `aria-current` as well: it would say the state twice.\n- While a pick is in flight its row reads busy and every row refuses a press (`aria-disabled`, so focus stays).\n- Rows are 48 px at least, in the 13 px `list` role; long names wrap and never truncate, so nothing scrolls sideways\n  at 320 px.\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./FoodChoiceList.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (web): the ONE list a line's food is chosen\nfrom, in both flows (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner rulings\n2026-10-25). Search for a food first (ruling I1), at its own width so its words start at the rows' edge (U5); then ONE\nbordered box on the raised paper (U2) holding the options in the server's order, the default with its quiet Default\ntag (`OptionLabel`), and \"Keep “line” as written · no nutrition\" as its last row in the quiet ink (U6), rules between\nthe rows. Offline, the words \"Search needs the network\" stand where search was.\n\n- ⛔ Each option is a BUTTON (`ChoiceRow`), and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group\n  would check the option the arrow keys land on, so moving through the list would pick a food and carry the cook to\n  the next line (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook.\n- Nothing is drawn chosen until the cook has chosen: the bound food of a reopened line draws a check and its name ends\n  \", chosen\", so the state never rests on colour (1.4.1). No `aria-current` as well: it would say the state twice.\n- While a send is in flight the control that started it spins and reads busy — the row, or Search for a food found\n  through it — and every other control is refused: focusable, the press cancelled, dimmed (2.4.3). None is ever\n  natively disabled, because any of them may hold focus when the send starts.\n- A focus request lands on the view's `focusTarget`: Search, else the first option, else Keep, so it is always taken.\n- Rows are 48 px at least, in the 14 px `list` role; long names wrap and never truncate, so nothing scrolls sideways\n  at 320 px.\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./FoodChoiceList.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (web): the ONE list a line's food is chosen"
                         }
                     ],
-                    "description": "A line's food-choice list: search, the options, Keep as written.",
+                    "description": "A line's food-choice list: search, then the options and Keep as written in one box.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
                         {
                             "name": "onPick",
                             "type": "(pick: LinePick) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21198,16 +21279,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21232,25 +21304,34 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/FoodChoiceList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (native): the React Native leaf of\n`./FoodChoiceList.tsx`, on the same props and the same words (`matchLineView.ts`). Search for a food first, the options\nin the server's order with the default tagged (`OptionLabel`), then Keep as written in the `quiet` tier last.\n\nEach option is a `Pressable` with the `button` role (staff-ux ruling 2026-10-25): VoiceOver and TalkBack read a radio\nas \"not selected\", which implies a confirm step that does not exist. The bound food draws a check and its name ends\n\", chosen\"; no `selected` state as well, which would say it twice. While a pick is in flight every row is disabled\n(a disabled `Pressable` keeps screen-reader focus on device) and the pressed one reads busy. The options' group keeps\nits native node (`collapsable={false}`), or Android flattens it and its name — which marks where this line's list\nstarts — is lost (`docs/design/nativeContainerNames.md` N1 rule 5). Rows keep the native touch floor and every name\nwraps, so nothing is cut off or scrolls sideways at 320 pt. Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (native): the React Native leaf of\n`./FoodChoiceList.tsx`, on the same props and the same words (`matchLineView.ts`). Search for a food first, at its own\nwidth (U5); then ONE bordered box on the raised paper (U2) holding the options in the server's order, the default\ntagged (`OptionLabel`), and \"Keep “line” as written · no nutrition\" as its last row in the quiet ink (U6), hairlines\nbetween the rows.\n\nEach option is a `ChoiceRow`, a `button` (staff-ux ruling 2026-10-25): VoiceOver and TalkBack read a radio as \"not\nselected\", which implies a confirm step that does not exist. The bound food draws a check and its name ends\n\", chosen\"; no `selected` state as well, which would say it twice. While a send is in flight the control that started\nit spins and reads busy, and every other control is disabled and dimmed (a disabled `Pressable` keeps screen-reader\nfocus on device). The box is a `list` named for its line, its rows `listitem`s, so the name is announced with the\ncount and marks where this line's list starts (U12; `docs/design/nativeContainerNames.md` N1 rules 4 and 5); the list\nkeeps its native node for that role. A focus request moves the screen-reader cursor to the view's `focusTarget`.\nRows keep the native touch floor and every name wraps, so nothing is cut off or scrolls sideways at 320 pt. Painted\nfrom the theme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/ingredientMatching — `FoodChoiceList` (native): the React Native leaf of"
                         }
                     ],
-                    "description": "A line's food-choice list: search, the options, Keep as written.",
+                    "description": "A line's food-choice list: search, then the options and Keep as written in one box.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
                         {
                             "name": "onPick",
                             "type": "(pick: LinePick) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21259,16 +21340,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21312,11 +21384,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchClosedRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchClosedRow` (web): an open line drawn collapsed, in either flow\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): on phone and 834 while another line is open,\nand in the list beside the side pane at 1194 and on web. The whole row is one button that opens the line; it says the\nline and what it needs (\"Choose a food · 5 options\") in muted words, never amber, because a choice is not a failure.\nThe line the pane shows is `aria-current`, drawn with the selected fill.\n\nPresentational: props in, markup out. The native leaf is `./MatchClosedRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchClosedRow` (web): an open line drawn collapsed, in either\nflow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): on phone and 834 while another line is\nopen, and in the list beside the side pane at 1194 and on web. The whole row is one button that opens the line; it\nsays the line (16 px) and what it needs (\"Choose a food · 5 options\") in muted 14 px words, never amber, because a\nchoice is not a failure — unless its choice did not save, which it says in attention with the warning glyph in place\nof the need (Try again is where the choice was made, the side pane).\n\n- The line the pane shows is `aria-current`, drawn with the selected fill AND the 2 px selected-edge ring Combobox's\n  active option takes (U10): the fill alone is 1.2:1 against the paper, under WCAG 1.4.11's 3:1; the ring is 3.9:1\n  on the fill in the light theme and 5.1:1 in the dark.\n- While the line's choice is being sent it refuses to open: focusable, the press cancelled (M1, 2.4.3).\n- A rule sits above it, as above every line (U3).\n\nPresentational: props in, markup out. The native leaf is `./MatchClosedRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/ingredientMatching — `MatchClosedRow` (web): an open line drawn collapsed, in either flow"
+                            "text": "@commise/features-recipes/ingredientMatching — `MatchClosedRow` (web): an open line drawn collapsed, in either"
                         }
                     ],
                     "description": "One collapsed open line.",
@@ -21331,6 +21403,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The side pane shows this line (1194 and web): it is marked current. Display only; the row does the same thing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "failure",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's last send failed: said in attention in place of its need.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
                         },
                         {
@@ -21357,7 +21438,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The row was pressed: open this line.",
+                            "description": "The row was pressed: open this line. Never called while refusing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "refusing",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A send for the line is in flight: the row refuses to open (and keeps focus, on web).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
                         }
                     ],
@@ -21373,7 +21463,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchClosedRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchClosedRow` (native): the React Native leaf of\n`./MatchClosedRow.tsx`. The whole row is one `button`, 48 pt at least, that opens the line; the line the side pane\nshows at 1194 is `selected` and drawn with the selected fill. Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchClosedRow` (native): the React Native leaf of\n`./MatchClosedRow.tsx`. The whole row is one `button`, 48 pt at least, that opens the line; it says the line and what\nit needs in muted 14 pt words, or, when its choice did not save, that in attention with the warning glyph. The line\nthe side pane shows at 1194 is `selected`, drawn with the selected fill AND a 2 pt selected-edge ring (U10: the fill\nalone is 1.2:1, under WCAG 1.4.11's 3:1); the ring's width never changes, only its colour, so the row never shifts.\nWhile the line's choice is being sent the row is disabled (which keeps the screen-reader cursor on device) and refuses\nto open (M1). Painted from the theme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21395,6 +21485,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
                         },
                         {
+                            "name": "failure",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's last send failed: said in attention in place of its need.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
+                        },
+                        {
                             "name": "line",
                             "type": "LineText",
                             "typeDetail": null,
@@ -21418,8 +21517,122 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The row was pressed: open this line.",
+                            "description": "The row was pressed: open this line. Never called while refusing.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "refusing",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A send for the line is in flight: the row refuses to open (and keeps focus, on web).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchClosedRowProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/ingredientMatching/MatchFailureLine",
+            "name": "MatchFailureLine",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "MatchFailureLine",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchFailureLine.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (web): a matched line's choice that did not\nsave (review M6), on the expanded line, a settled line and the side pane alike: the warning glyph and one short\nattention sentence (\"We couldn’t save that choice.\"), then Try again, named for its line. The line does not silently\nrevert: this line says why it is still open. The glyph carries the state with the colour (WCAG 1.4.1). Not live: the\nlist's one polite region says the failure (`lineAnnouncement.ts`), so it is spoken once.\n\nPresentational: props in, markup out. The native leaf is `./MatchFailureLine.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (web): a matched line's choice that did not"
+                        }
+                    ],
+                    "description": "A send that did not save, and Try again.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "failure",
+                            "type": "PickFailureView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The failure's sentence and Try again's words (`PickFailureView`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed: send the line's choice again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "MatchFailureLine",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchFailureLine.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (native): the React Native leaf of\n`./MatchFailureLine.tsx`, on the same props: the warning glyph, the attention sentence in the 14 px `list` role, then\nTry again, wrapping under it rather than squeezing at 320 pt. Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/ingredientMatching — `MatchFailureLine` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "A send that did not save, and Try again.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "failure",
+                            "type": "PickFailureView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The failure's sentence and Try again's words (`PickFailureView`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again was pressed: send the line's choice again.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchFailureLineProps.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -21453,7 +21666,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchLineList.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineList` (web): a recipe's matched lines, in either flow\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): one `MatchRow` per line, in the recipe's\norder, each the row `lineRowOf` gives it — the host's expanded line open, every other open line collapsed and naming\nits need, every settled line with its controls.\n\nPresentational and controlled: which line is open, the pick in flight and where focus goes are the host's. The\nnative leaf is `./MatchLineList.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineList` (web): a recipe's matched lines, in either flow\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): one `MatchRow` per line, in the recipe's\norder, each the row `lineRowOf` gives it — the host's expanded line open, every other open line collapsed and naming\nits need, every settled line with its controls. Each line carries its own send in flight and its own failure, so\nseveral lines can be sending at once. A rule sits above each line (each row draws it, U3), never a bare gap.\n\nONE polite live region per list (U9, WCAG 4.1.3), after the lines, says what the host announces: a checking line\nresolving, a late review note, a failed choice and the count that changed (`lineChangesOf`). No row has a region of\nits own, so a change is spoken once.\n\nPresentational and controlled: which line is open, what is in flight, what is said and where focus goes are the\nhost's. The native leaf is `./MatchLineList.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21465,6 +21678,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the list's one polite live region says now (U9).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
                         {
                             "name": "currentKey",
                             "type": "string | undefined",
@@ -21481,6 +21703,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The line drawn open (phone and 834: one at a time; Change on a bound line), or `undefined` for none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the open line's list take focus (after the pick on the line before; `pickFocusOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -21516,7 +21756,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "A food, or keeping the line as written, was picked.",
+                            "description": "A food, or keeping the line as written, was picked. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -21526,6 +21766,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Try again, on a line whose options failed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, on a line whose last send did not save: send it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -21557,20 +21806,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
+                            "type": "ReadonlyMap<string, PendingSend>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that the open line's Search take focus (after the pick on the line before; `pickFocusOf`).",
+                            "description": "What the host is sending, by line. Several lines may be sending at once; each reads busy on its own line, and a\nline that is sending refuses a second pick, its Change and its opening.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         }
                     ],
@@ -21586,7 +21826,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchLineList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineList` (native): the React Native leaf of\n`./MatchLineList.tsx`, on the same props: one `MatchRow` per line, in the recipe's order. A `list` whose rows are\n`listitem`s, so a screen reader can say how many lines there are and where each sits; the list keeps its native node\nfor that role (`docs/design/nativeContainerNames.md` N1 rule 4). Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineList` (native): the React Native leaf of\n`./MatchLineList.tsx`, on the same props: one `MatchRow` per line, in the recipe's order. A `list` whose rows are\n`listitem`s, so a screen reader can say how many lines there are and where each sits; the list keeps its native node\nfor that role (`docs/design/nativeContainerNames.md` N1 rule 4). Each line has a hairline rule above it in the divider\ntone (U3), never a bare gap. ONE polite live region per list says what the host announces (U9). Painted from the\ntheme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21598,6 +21838,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "announcement",
+                            "type": "ListAnnouncement",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the list's one polite live region says now (U9).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
                         {
                             "name": "currentKey",
                             "type": "string | undefined",
@@ -21614,6 +21863,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The line drawn open (phone and 834: one at a time; Change on a bound line), or `undefined` for none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
+                        },
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the open line's list take focus (after the pick on the line before; `pickFocusOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -21649,7 +21916,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "A food, or keeping the line as written, was picked.",
+                            "description": "A food, or keeping the line as written, was picked. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -21659,6 +21926,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Try again, on a line whose options failed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, on a line whose last send did not save: send it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -21690,20 +21966,11 @@
                         },
                         {
                             "name": "pending",
-                            "type": "{ readonly key: string; readonly send: PendingSend; } | undefined",
+                            "type": "ReadonlyMap<string, PendingSend>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "What the host is sending, and for which line: it reads busy on that line alone.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that the open line's Search take focus (after the pick on the line before; `pickFocusOf`).",
+                            "description": "What the host is sending, by line. Several lines may be sending at once; each reads busy on its own line, and a\nline that is sending refuses a second pick, its Change and its opening.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         }
                     ],
@@ -21738,7 +22005,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchLineText.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineText` (web): an ingredient line as the cook wrote it,\nits measure set heavier than its words, as the ingredient-matching boards draw it, in the 13 px `list` role (owner rule\nC5). One block of text, so it reads as one line and can sit inside a control, and it wraps rather than truncating.\n\nPresentational: props in, markup out. The native leaf is `./MatchLineText.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineText` (web): an ingredient line as the cook wrote it,\nits measure set heavier than its words, as the ingredient-matching boards draw it, in the 16 px `body` role: the owner's\ntype-scale ruling (2026-10-25) sets the cook's line at 16 px in both phases (`PastedReadingRow` while it is read, this\nonce it is matched) and everything under it at 14. One block of text, so it reads as one line and can sit inside a\ncontrol, and it wraps rather than truncating.\n\nPresentational: props in, markup out. The native leaf is `./MatchLineText.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21772,7 +22039,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchLineText.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineText` (native): the React Native leaf of\n`./MatchLineText.tsx`, in the 13 px `list` role. The measure is set in the semibold face rather than with a\n`fontWeight`, which Android would synthesise (`nativeTokens.type`). Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchLineText` (native): the React Native leaf of\n`./MatchLineText.tsx`, in the 16 px `body` role (the owner's type-scale ruling). The measure is set in the semibold face rather than with a\n`fontWeight`, which Android would synthesise (`nativeTokens.type`). Painted from the theme's roles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21825,7 +22092,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchOpenRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchOpenRow` (web): the one expanded line on phone and 834,\nin either flow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line, its muted prompt\n(\"Choose the milk you use\"; none on a matched line opened by Change), then its `FoodChoiceList`: Search for a food\nfirst, the options, Keep as written last. Which line is open, and opening the next after a pick, are the host's.\n\nThe row is set apart by an edge, not a fill: its options use `surfaceMuted` for hover, which a fill of the same colour\nwould hide.\n\nPresentational: props in, markup out. The native leaf is `./MatchOpenRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchOpenRow` (web): the one expanded line on phone and 834,\nin either flow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line (16 px), its muted\nprompt in the 14 px `list` role (\"Choose the milk you use\"; none on a line reopened by Change), a choice that did not\nsave with Try again, then its `FoodChoiceList`: Search for a food first, then the options and Keep as written in their\nbox. Which line is open, and opening the next after a pick, are the host's.\n\nThe line is not a card of its own (U2): a rule sits above it, as above every line (U3), and the options' box carries\nthe only border.\n\nPresentational: props in, markup out. The native leaf is `./MatchOpenRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21837,6 +22104,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
                         {
                             "name": "line",
                             "type": "LineText",
@@ -21852,8 +22128,17 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, after a pick that did not save.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchOpenRowProps.ts"
                         },
                         {
                             "name": "onSearch",
@@ -21861,16 +22146,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -21895,7 +22171,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchOpenRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchOpenRow` (native): the React Native leaf of\n`./MatchOpenRow.tsx`, on the same props: the line, its muted prompt, then its `FoodChoiceList`. Its options sit in the\npage's flow, below the line, within thumb reach. Painted from the theme's roles (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchOpenRow` (native): the React Native leaf of\n`./MatchOpenRow.tsx`, on the same props: the line, its muted prompt, a choice that did not save with Try again, then\nits `FoodChoiceList`. Its options sit in the page's flow, below the line, within thumb reach. Not a card of its own\n(U2): `MatchLineList` draws the rule above it, and the options' box carries the only border. Painted from the theme's\nroles (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21907,6 +22183,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the list take focus (after the pick on the line before, staff-ux 2026-10-25). It lands on the\nlist's first control — Search, else the first option, else Keep as written (`FoodChoiceListView.focusTarget`) —\nso it is always taken and acknowledged, offline too.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
                         {
                             "name": "line",
                             "type": "LineText",
@@ -21922,8 +22207,17 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a pick is in flight.",
+                            "description": "An option was pressed: its pick, a food or the line kept as written. Never called while a send is in flight. The\nhost raises its pending send for the line inside this call, in the same event (`PendingSend`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, after a pick that did not save.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchOpenRowProps.ts"
                         },
                         {
                             "name": "onSearch",
@@ -21931,16 +22225,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Search for a food was pressed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that Search for a food take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
@@ -22002,6 +22287,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focus",
+                            "type": "ControlFocus",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A request that the open row's list take focus. Only an open row has a list to take it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
                             "name": "onOpen",
                             "type": "(key: string) => void",
                             "typeDetail": null,
@@ -22016,7 +22310,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "A food, or keeping the line as written, was picked.",
+                            "description": "A food, or keeping the line as written, was picked. The host raises its pending send in this call.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -22026,6 +22320,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Try again, on a line whose options failed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "(key: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, on a line whose last send did not save: send it again.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -22063,15 +22366,6 @@
                             "defaultValue": null,
                             "description": "The line's row (`lineRowOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
-                        },
-                        {
-                            "name": "searchFocus",
-                            "type": "ControlFocus",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "A request that the open row's Search take focus. Only an open row has a Search to take it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -22107,7 +22401,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchSettledRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (web): a matched line that needs nothing from\nthe cook now, in either flow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line as the\ncook wrote it, then its status — a bound food said whole with a check (and the Default tag on a default nobody but the\nserver chose), a proposal under review with its tag, or a sentence — then, on their own line, the controls its state\nallows, and a late review result's one quiet sentence with See why.\n\n- Nothing moves (WCAG 2.2.2): a line under review shows a still clock glyph and its \"Checking\" tag, as\n  `PastedReadingRow` does, never a spinner the editor would keep turning.\n- A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.\n- Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).\n- While a send for the line is in flight (Use this, Keep as written) that control reads busy and the others refuse a\n  press, so a double tap cannot send two.\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./MatchSettledRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (web): a matched line that needs nothing from\nthe cook now, in either flow (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line as the\ncook wrote it, then its status — a bound food said whole with a check (and the Default tag on a default nobody but the\nserver chose), a proposal under review with its tag, or a sentence — then, on their own line, the controls its state\nallows, and a late review result's one quiet sentence with See why.\n\n- Nothing moves (WCAG 2.2.2): a line under review shows a still clock glyph and its \"Checking\" tag, as\n  `PastedReadingRow` does, never a spinner the editor would keep turning.\n- A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.\n- Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).\n- While a send for the line is in flight (Use this, Keep as written, a food found through Search) that control reads\n  busy and the others refuse a press, so a double tap cannot send two. A refused control stays focusable (`refused`,\n  never native `disabled`): it may hold focus when the send starts (M2, 2.4.3).\n- A send that did not save says so, with Try again (`MatchFailureLine`, M6).\n- The line is 16 px; its status, actions' words and note are the 14 px `list` role (owner type-scale ruling). A rule\n  sits above it, as above every line (U3).\n\nPresentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is\n`./MatchSettledRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -22142,6 +22436,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
                         },
                         {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, after a send that did not save.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
+                        },
+                        {
                             "name": "onSeeWhy",
                             "type": "() => void",
                             "typeDetail": null,
@@ -22172,7 +22475,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchSettledRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
-                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (native): the React Native leaf of\n`./MatchSettledRow.tsx`, on the same props and the same words (`matchLineView.ts`). The controls sit on their own line under the status and wrap,\nso no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. While a send\nfor the line is in flight that control reads busy and the others refuse a press. Painted from\nthe theme's roles, so it reads in both themes (D15).",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `MatchSettledRow` (native): the React Native leaf of\n`./MatchSettledRow.tsx`, on the same props and the same words (`matchLineView.ts`). The controls sit on their own line under the status and wrap,\nso no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. While a send\nfor the line is in flight that control reads busy and the others refuse a press (`refused`). A send that did not save\nsays so, with Try again (M6). The status and the note are the 14 pt `list` role; `MatchLineList` draws the rule above\nthe line. Painted from the theme's roles, so it reads in both themes (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -22204,6 +22507,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "One of the line's controls was pressed, by its kind.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
+                        },
+                        {
+                            "name": "onRetryPick",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Try again, after a send that did not save.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchSettledRowProps.ts"
                         },
                         {

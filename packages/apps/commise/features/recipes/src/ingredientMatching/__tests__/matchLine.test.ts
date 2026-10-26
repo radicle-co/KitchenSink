@@ -8,7 +8,8 @@
  * - A default bound by the server (bulk "Save lines as written") is NOT open, and is not the cook's choice.
  * - The counts every summary and progress line states come from the same predicates: "to choose" is default,
  *   needsChoice and noMatch with nothing bound; a checking line is counted on its own.
- * - Where focus goes after a pick: the next open line's Search, or "done" when none is left.
+ * - Where focus goes after a pick: the next open line, or "done" when none is left; a line whose pick is still being
+ *   sent is never the next line (M1).
  */
 import { describe, expect, it } from 'vitest';
 
@@ -114,47 +115,66 @@ describe('matchCountsOf', () => {
     });
 });
 
+const NONE_SENDING: ReadonlySet<string> = new Set();
+
 describe('nextOpenLineKey', () => {
     it('is the first open line after the given one', () => {
-        expect(nextOpenLineKey(lines, 'flour')).toBe('bread');
-        expect(nextOpenLineKey(lines, 'bread')).toBe('syrup');
+        expect(nextOpenLineKey(lines, 'flour', NONE_SENDING)).toBe('bread');
+        expect(nextOpenLineKey(lines, 'bread', NONE_SENDING)).toBe('syrup');
     });
 
-    it('wraps to the first open line before it when none follows', () => {
-        expect(nextOpenLineKey(lines, 'syrup')).toBe('flour');
+    // L3: the restart from the top is the rule, not an accident: "choosing a food expands the next open line", and an
+    // open line above the one just picked is still the next one the cook has to choose for.
+    it('wraps, restarting from the top, to the first open line before it when none follows', () => {
+        expect(nextOpenLineKey(lines, 'syrup', NONE_SENDING)).toBe('flour');
     });
 
     it('is the first open line when no line is given or the key is unknown', () => {
-        expect(nextOpenLineKey(lines, undefined)).toBe('flour');
-        expect(nextOpenLineKey(lines, 'gone')).toBe('flour');
+        expect(nextOpenLineKey(lines, undefined, NONE_SENDING)).toBe('flour');
+        expect(nextOpenLineKey(lines, 'gone', NONE_SENDING)).toBe('flour');
     });
 
     it('never answers the given line itself, and is undefined when no line is open', () => {
         const single = lines.filter((line) => line.key === 'flour' || line.key === 'butter');
 
-        expect(nextOpenLineKey(single, 'flour')).toBeUndefined();
+        expect(nextOpenLineKey(single, 'flour', NONE_SENDING)).toBeUndefined();
         expect(
             nextOpenLineKey(
                 lines.filter((line) => !isOpenLine(line)),
                 undefined,
+                NONE_SENDING,
             ),
         ).toBeUndefined();
+    });
+
+    // M1: a line whose pick is still being sent is unbound, so it is still open; it must not be expanded again, or a
+    // second pick could be sent for it while the first is in flight.
+    it('⛔ skips a line whose pick is still being sent, after it and on the wrap alike', () => {
+        expect(nextOpenLineKey(lines, 'flour', new Set(['bread']))).toBe('syrup');
+        expect(nextOpenLineKey(lines, 'syrup', new Set(['flour']))).toBe('bread');
+        expect(nextOpenLineKey(lines, 'syrup', new Set(['flour', 'bread']))).toBeUndefined();
     });
 });
 
 describe('pickFocusOf', () => {
-    it('after a pick, focus goes to the next open line’s Search', () => {
+    it('after a pick, focus goes to the next open line', () => {
         const afterPick = lines.map((line) =>
             line.key === 'flour' ? makeDefaultLine({ key: 'flour', binding: cookPicked(WHOLE) }) : line,
         );
 
-        expect(pickFocusOf(afterPick, 'flour')).toEqual({ kind: 'search', key: 'bread' });
+        expect(pickFocusOf(afterPick, 'flour', NONE_SENDING)).toEqual({ kind: 'line', key: 'bread' });
     });
 
     it('when nothing is left open, focus is done (the host sends it to its own destination)', () => {
         const settled = [makeConfidentLine(), makeDefaultLine({ binding: cookPicked(WHOLE) })];
 
-        expect(pickFocusOf(settled, 'milk')).toEqual({ kind: 'done' });
+        expect(pickFocusOf(settled, 'milk', NONE_SENDING)).toEqual({ kind: 'done' });
+    });
+
+    it('⛔ two picks in flight at once: focus never goes back to a line still being sent', () => {
+        // The cook picked flour, then bread, before either answer landed: both are still unbound.
+        expect(pickFocusOf(lines, 'bread', new Set(['flour', 'bread']))).toEqual({ kind: 'line', key: 'syrup' });
+        expect(pickFocusOf(lines, 'syrup', new Set(['flour', 'bread', 'syrup']))).toEqual({ kind: 'done' });
     });
 });
 

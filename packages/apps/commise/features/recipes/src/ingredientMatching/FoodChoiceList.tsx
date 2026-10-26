@@ -3,93 +3,102 @@
 /**
  * @module @commise/features-recipes/ingredientMatching — `FoodChoiceList` (web): the ONE list a line's food is chosen
  * from, in both flows (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner rulings
- * 2026-10-25). Search for a food first (ruling I1), then the options in the server's order, the default with its quiet
- * Default tag (`OptionLabel`), then "Keep … as written" in the `quiet` tier as the last row of the same list. Offline,
- * the words "Search needs the network" stand where search was.
+ * 2026-10-25). Search for a food first (ruling I1), at its own width so its words start at the rows' edge (U5); then ONE
+ * bordered box on the raised paper (U2) holding the options in the server's order, the default with its quiet Default
+ * tag (`OptionLabel`), and "Keep “line” as written · no nutrition" as its last row in the quiet ink (U6), rules between
+ * the rows. Offline, the words "Search needs the network" stand where search was.
  *
- * - ⛔ Each option is a BUTTON, and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group would check the
- *   option the arrow keys land on, so moving through the list would pick a food and carry the cook to the next line
- *   (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook. Arrow keys do nothing.
+ * - ⛔ Each option is a BUTTON (`ChoiceRow`), and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group
+ *   would check the option the arrow keys land on, so moving through the list would pick a food and carry the cook to
+ *   the next line (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook.
  * - Nothing is drawn chosen until the cook has chosen: the bound food of a reopened line draws a check and its name ends
  *   ", chosen", so the state never rests on colour (1.4.1). No `aria-current` as well: it would say the state twice.
- * - While a pick is in flight its row reads busy and every row refuses a press (`aria-disabled`, so focus stays).
- * - Rows are 48 px at least, in the 13 px `list` role; long names wrap and never truncate, so nothing scrolls sideways
+ * - While a send is in flight the control that started it spins and reads busy — the row, or Search for a food found
+ *   through it — and every other control is refused: focusable, the press cancelled, dimmed (2.4.3). None is ever
+ *   natively disabled, because any of them may hold focus when the send starts.
+ * - A focus request lands on the view's `focusTarget`: Search, else the first option, else Keep, so it is always taken.
+ * - Rows are 48 px at least, in the 14 px `list` role; long names wrap and never truncate, so nothing scrolls sideways
  *   at 320 px.
  *
  * Presentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is
  * `./FoodChoiceList.native.tsx`.
  */
 import { Button } from '@commise/ui/button';
-import { Icon } from '@commise/ui/icon';
+import { ChoiceRow } from '@commise/ui/choice-row';
 import { OptionLabel } from '@commise/ui/option-label';
 import type { FC } from 'react';
 
 import type { FoodChoiceListProps } from './foodChoiceListProps.js';
+import { isFocusTarget, type ListFocusTarget } from './matchLineView.js';
 
-/** A food row: a 48 px button across the list, its words starting at the edge. */
-const ROW_CLASS =
-    'flex min-h-12 w-full items-center gap-2 rounded-xl px-3 py-2 text-start hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring aria-disabled:cursor-default';
+/** A line's food-choice list: search, then the options and Keep as written in one box. */
+export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick, focus }) => {
+    const { search, keep } = view;
+    const requested = (control: ListFocusTarget): boolean =>
+        focus.requested && isFocusTarget(view.focusTarget, control);
 
-/** A line's food-choice list: search, the options, Keep as written. */
-export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick, searchFocus }) => (
-    <div className="flex flex-col gap-2">
-        {view.search.kind === 'available' ? (
-            <Button
-                variant="ghost"
-                icon="search"
-                width="fill"
-                accessibilityLabel={view.search.name}
-                focusRequested={searchFocus.requested}
-                onFocusRequestHandled={searchFocus.onHandled}
-                onPress={onSearch}
-            >
-                {view.search.label}
-            </Button>
-        ) : (
-            <p className="text-meta text-ink-muted">{view.search.text}</p>
-        )}
-        <ul aria-label={view.optionsName} className="flex flex-col">
-            {view.rows.map((row) => (
-                <li key={row.id}>
-                    <button
-                        type="button"
-                        aria-label={row.name}
-                        aria-disabled={view.refusing || undefined}
-                        aria-busy={row.busy || undefined}
-                        className={row.chosen ? `${ROW_CLASS} bg-selected-fill` : ROW_CLASS}
-                        onClick={
-                            view.refusing
-                                ? undefined
-                                : () => {
-                                      onPick(row.pick);
-                                  }
-                        }
+    return (
+        <div className="flex flex-col gap-2">
+            {search.kind === 'available' ? (
+                <div className="flex">
+                    <Button
+                        variant="ghost"
+                        icon="search"
+                        accessibilityLabel={search.name}
+                        busy={search.busy}
+                        refused={view.refusing && !search.busy}
+                        focusRequested={requested({ kind: 'search' })}
+                        onFocusRequestHandled={focus.onHandled}
+                        onPress={onSearch}
                     >
-                        <OptionLabel
-                            label={row.label}
-                            textSize="list"
-                            {...(row.tag === undefined ? {} : { tag: row.tag })}
-                            {...(row.detailParts === undefined ? {} : { detailParts: row.detailParts })}
-                        />
-                        {row.chosen ? <Icon name="check" size={20} tone="actionText" /> : null}
-                    </button>
+                        {search.label}
+                    </Button>
+                </div>
+            ) : (
+                <p className="break-words text-list text-ink-muted">{search.text}</p>
+            )}
+            <ul
+                aria-label={view.optionsName}
+                className="flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl border border-line-divider bg-paper-raised"
+            >
+                {view.rows.map((row) => (
+                    <li key={row.id}>
+                        <ChoiceRow
+                            accessibilityLabel={row.name}
+                            chosen={row.chosen}
+                            busy={row.busy}
+                            refused={view.refusing && !row.busy}
+                            focusRequested={requested({ kind: 'row', id: row.id })}
+                            onFocusRequestHandled={focus.onHandled}
+                            onPress={() => {
+                                onPick(row.pick);
+                            }}
+                        >
+                            <OptionLabel
+                                label={row.label}
+                                textSize="list"
+                                {...(row.tag === undefined ? {} : { tag: row.tag })}
+                                {...(row.detailParts === undefined ? {} : { detailParts: row.detailParts })}
+                            />
+                        </ChoiceRow>
+                    </li>
+                ))}
+                <li key={keep.id}>
+                    <ChoiceRow
+                        accessibilityLabel={keep.name}
+                        chosen={keep.chosen}
+                        busy={keep.busy}
+                        refused={view.refusing && !keep.busy}
+                        focusRequested={requested({ kind: 'keep' })}
+                        onFocusRequestHandled={focus.onHandled}
+                        onPress={() => {
+                            onPick(keep.pick);
+                        }}
+                    >
+                        <span className="min-w-0 flex-1 break-words text-list text-ink-muted">{keep.label}</span>
+                    </ChoiceRow>
                 </li>
-            ))}
-            <li key={view.keep.id} className="flex flex-col items-start gap-1 pt-1">
-                <Button
-                    variant="quiet"
-                    {...(view.keep.chosen ? { icon: 'check' as const } : {})}
-                    accessibilityLabel={view.keep.name}
-                    busy={view.keep.busy}
-                    disabled={view.refusing && !view.keep.busy}
-                    onPress={() => {
-                        onPick(view.keep.pick);
-                    }}
-                >
-                    {view.keep.label}
-                </Button>
-                <span className="px-3 text-meta text-ink-muted">{view.keep.hint}</span>
-            </li>
-        </ul>
-    </div>
-);
+            </ul>
+        </div>
+    );
+};

@@ -17,8 +17,12 @@
  * - Prompts are muted; only a failure is `attention` (amber).
  * - Offline, search says it needs the network, and the options already loaded can still be chosen.
  * - Every control's accessible name starts with its visible words and names its line (WCAG 2.5.3, 2.4.6).
- * - While a send is in flight (a pick, or Use this), its control reads busy and the line refuses a press, in its list
- *   and on its settled row alike, so a double press cannot send two.
+ * - While a send is in flight (a pick, a pick through Search, or Use this), the control that started it reads busy and
+ *   the line refuses a press, in its list, on its settled row and on its collapsed row alike, so a double press cannot
+ *   send two.
+ * - A food bound through Search that is not a candidate is drawn first, chosen, when the line is reopened.
+ * - A send that failed says so in one attention sentence with Try again, until a retry is in flight.
+ * - A focus request on a line's list always lands: on Search, else the first option, else Keep as written.
  *
  * Pure and platform-agnostic.
  *
@@ -60,15 +64,30 @@ export interface LinePlace {
     readonly online: boolean;
     /** What the host is sending for this line, if anything is in flight. */
     readonly pending: PendingSend | undefined;
+    /** The line's last send failed, and nothing has been sent for it since. */
+    readonly failed: boolean;
 }
 
 /** What a food-choice list's host knows: whether search can run, and the pick in flight. */
 export type ListPlace = Pick<LinePlace, 'online' | 'pending'>;
 
+/** What an expanded line's host knows: its list's place, and whether the line's last send failed. */
+export type OpenPlace = Pick<LinePlace, 'online' | 'pending' | 'failed'>;
+
 /** Search for a food, or why it cannot run now. */
 export type SearchView =
-    | { readonly kind: 'available'; readonly label: string; readonly name: string }
+    | {
+          readonly kind: 'available';
+          readonly label: string;
+          readonly name: string;
+          /** A food the cook found through Search is being sent. */
+          readonly busy: boolean;
+      }
     | { readonly kind: 'unavailable'; readonly text: string };
+
+/** The control a focus request on a list lands on: the first one the list draws. */
+export type ListFocusTarget =
+    { readonly kind: 'search' } | { readonly kind: 'row'; readonly id: string } | { readonly kind: 'keep' };
 
 /** One food of a line's list: a button whose press is the pick (never a radio). */
 export interface FoodChoiceRow {
@@ -88,12 +107,11 @@ export interface FoodChoiceRow {
     readonly busy: boolean;
 }
 
-/** The last row of a line's list: keep the line as written, with no food. */
+/** The last row of a line's list: keep the line as written, with no food, said as one string with "no nutrition". */
 export interface KeepRow {
     readonly id: string;
     readonly pick: { readonly kind: 'asWritten' };
     readonly label: string;
-    readonly hint: string;
     readonly name: string;
     readonly chosen: boolean;
     readonly busy: boolean;
@@ -106,14 +124,27 @@ export interface FoodChoiceListView {
     readonly optionsName: string;
     readonly rows: readonly FoodChoiceRow[];
     readonly keep: KeepRow;
-    /** A pick is in flight: every row refuses a press (`aria-disabled`, so focus stays where it is). */
+    /** A send is in flight: every control but the busy one refuses a press (and keeps focus, on web). */
     readonly refusing: boolean;
+    /** Where a focus request lands. Always a control the list draws, so the request is always taken. */
+    readonly focusTarget: ListFocusTarget;
+}
+
+/** A send that failed: the attention sentence, and Try again. */
+export interface PickFailureView {
+    readonly text: string;
+    readonly retry: { readonly label: string; readonly name: string };
 }
 
 /** What the expanded line shows. */
 export interface OpenLineView {
-    /** The muted sentence over the list; `undefined` for a line nothing about which needs a choice (a Change). */
+    /**
+     * The muted sentence over the list; `undefined` for a line nothing about which needs a choice — a bound line
+     * reopened by Change, or a confident one.
+     */
     readonly prompt: string | undefined;
+    /** The line's last send failed. */
+    readonly failure: PickFailureView | undefined;
     readonly list: FoodChoiceListView;
 }
 
@@ -157,7 +188,12 @@ export interface SettledLineView {
     /** The controls on their own line under the status, in reading order. */
     readonly actions: readonly SettledActionItem[];
     readonly note: ReviewNoteView | undefined;
-    /** A send for this line is in flight: every control refuses a press but the busy one, which cancels its own. */
+    /** The line's last send failed. */
+    readonly failure: PickFailureView | undefined;
+    /**
+     * A send for this line is in flight: every control refuses a press. The control that started it reads busy, and it
+     * refuses a press too.
+     */
     readonly refusing: boolean;
 }
 
@@ -172,6 +208,10 @@ export type LineRow =
           readonly need: string;
           /** The side pane shows this line. Display only; the row does the same thing either way. */
           readonly current: boolean;
+          /** A send for the line is in flight (from the side pane): the row refuses to open. */
+          readonly refusing: boolean;
+          /** The line's last send failed, said in attention in place of its need; Try again is where it was sent. */
+          readonly failure: string | undefined;
       }
     | { readonly kind: 'settled'; readonly key: string; readonly line: LineText; readonly view: SettledLineView };
 
@@ -210,11 +250,42 @@ const foodRowOf = (
     };
 };
 
-/** Search for a food on a line, or the words that stand in for it offline. Pure. */
-const searchOf = (text: string, online: boolean, copy: MatchCopy): SearchView =>
-    online
-        ? { kind: 'available', label: copy.line.search, name: fillTemplate(copy.line.searchName, { line: text }) }
+/** Search for a food on a line, busy while a food found through it is sent, or its offline words. Pure. */
+const searchOf = (text: string, place: ListPlace, copy: MatchCopy): SearchView =>
+    place.online
+        ? {
+              kind: 'available',
+              label: copy.line.search,
+              name: fillTemplate(copy.line.searchName, { line: text }),
+              busy: place.pending?.kind === 'searchPick',
+          }
         : { kind: 'unavailable', text: copy.line.searchNeedsNetwork };
+
+/**
+ * The foods a list draws: a food bound through Search that is not a candidate first, built from the pick, so a reopened
+ * line shows what it holds; then the candidates in the server's order. Pure.
+ */
+const listedFoodsOf = (line: MatchLine): readonly FoodChoice[] => {
+    const candidates = candidatesOf(line);
+    const pick = line.binding?.pick;
+
+    if (pick?.kind !== 'food' || candidates.some((food) => food.id === pick.foodId)) {
+        return candidates;
+    }
+
+    return [{ id: pick.foodId, name: pick.name, isDefault: false }, ...candidates];
+};
+
+/** Where a focus request on a list lands: Search, else its first option, else Keep as written. Pure. */
+const focusTargetOf = (search: SearchView, rows: readonly FoodChoiceRow[]): ListFocusTarget => {
+    if (search.kind === 'available') {
+        return { kind: 'search' };
+    }
+
+    const [first] = rows;
+
+    return first === undefined ? { kind: 'keep' } : { kind: 'row', id: first.id };
+};
 
 /**
  * What a line's food-choice list shows: Search for a food first, then the options in the server's order, then Keep as
@@ -234,26 +305,59 @@ export function choiceListViewOf(line: MatchLine, place: ListPlace, copy: MatchC
     const keepId = optionIdOf(keepPick);
     const keepLabel = fillTemplate(copy.line.keepAsWritten, { line: text });
     const keepChosen = keepId === boundId;
+    const search = searchOf(text, place, copy);
+    const rows = listedFoodsOf(line).map((food) => foodRowOf(food, boundId, pendingId, copy));
 
     return {
-        search: searchOf(text, place.online, copy),
+        search,
         optionsName: fillTemplate(copy.line.optionsName, { line: text }),
-        rows: candidatesOf(line).map((food) => foodRowOf(food, boundId, pendingId, copy)),
+        rows,
         keep: {
             id: keepId,
             pick: keepPick,
             label: keepLabel,
-            hint: copy.line.keepHint,
             name: keepChosen ? fillTemplate(copy.line.chosenName, { food: keepLabel }) : keepLabel,
             chosen: keepChosen,
             busy: keepId === pendingId,
         },
         refusing: place.pending !== undefined,
+        focusTarget: focusTargetOf(search, rows),
     };
 }
 
-/** The muted prompt over an open line, by its state. Pure. */
+/**
+ * Whether a control is the one a list's focus request lands on, so each leaf asks the view rather than restating the
+ * rule. Pure.
+ *
+ * @param target - The list's `focusTarget`.
+ * @param control - The control asking.
+ * @returns `true` for the one control the request lands on.
+ */
+export function isFocusTarget(target: ListFocusTarget, control: ListFocusTarget): boolean {
+    switch (target.kind) {
+        case 'search':
+        case 'keep':
+            return control.kind === target.kind;
+        case 'row':
+            return control.kind === 'row' && control.id === target.id;
+    }
+}
+
+/** A send's failure, shown until a retry is in flight. Pure. */
+const failureOf = (text: string, place: OpenPlace, copy: MatchCopy): PickFailureView | undefined =>
+    place.failed && place.pending === undefined
+        ? {
+              text: copy.line.pickFailed,
+              retry: { label: copy.line.retry, name: fillTemplate(copy.line.pickRetryName, { line: text }) },
+          }
+        : undefined;
+
+/** The muted prompt over an open line, by its state; none once something is bound (a Change). Pure. */
 const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
+    if (line.binding !== undefined) {
+        return undefined;
+    }
+
     switch (line.state) {
         case 'default':
             return fillTemplate(copy.line.prompt.default, { noun: line.noun });
@@ -262,7 +366,7 @@ const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
         case 'noMatch':
             return copy.line.prompt.noMatch;
 
-        case 'confident':
+        // A confident line always arrives bound, so it never reaches here.
         case 'checking':
         case 'optionsFailed':
             return undefined;
@@ -270,16 +374,20 @@ const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
 };
 
 /**
- * What an expanded line shows: its muted prompt and its food-choice list. The open row's, and the side pane's (1194 and
- * web), so the two say the same. Pure.
+ * What an expanded line shows: its muted prompt, a failed send's sentence, and its food-choice list. The open row's,
+ * and the side pane's (1194 and web), so the two say the same. Pure.
  *
  * @param line - The line.
- * @param place - Whether search can run, and the pick in flight.
+ * @param place - Whether search can run, the send in flight, and whether the last one failed.
  * @param copy - The localised copy.
  * @returns The expanded line's view.
  */
-export function openLineViewOf(line: MatchLine, place: ListPlace, copy: MatchCopy): OpenLineView {
-    return { prompt: promptOf(line, copy), list: choiceListViewOf(line, place, copy) };
+export function openLineViewOf(line: MatchLine, place: OpenPlace, copy: MatchCopy): OpenLineView {
+    return {
+        prompt: promptOf(line, copy),
+        failure: failureOf(lineTextOf(line.line), place, copy),
+        list: choiceListViewOf(line, place, copy),
+    };
 }
 
 /** The expanded line's row. Pure. */
@@ -291,12 +399,14 @@ const openRowOf = (line: MatchLine, place: LinePlace, copy: MatchCopy): LineRow 
 });
 
 /** A collapsed open line's row. Pure. */
-const closedRowOf = (line: MatchLine, need: string, place: LinePlace): LineRow => ({
+const closedRowOf = (line: MatchLine, need: string, place: LinePlace, copy: MatchCopy): LineRow => ({
     kind: 'closed',
     key: line.key,
     line: line.line,
     need,
     current: place.current,
+    refusing: place.pending !== undefined,
+    failure: failureOf(lineTextOf(line.line), place, copy)?.text,
 });
 
 /** Change, beside a bound line. Pure. */
@@ -308,12 +418,12 @@ const changeOf = (text: string, copy: MatchCopy): SettledAction => ({
     busy: false,
 });
 
-/** Search as an action on a settled line, or its offline words. Pure. */
-const searchActionOf = (text: string, online: boolean, copy: MatchCopy): SettledActionItem => {
-    const search = searchOf(text, online, copy);
+/** Search as an action on a settled line, busy while a food found through it is sent, or its offline words. Pure. */
+const searchActionOf = (text: string, place: ListPlace, copy: MatchCopy): SettledActionItem => {
+    const search = searchOf(text, place, copy);
 
     return search.kind === 'available'
-        ? { kind: 'search', label: search.label, name: search.name, icon: 'search', busy: false }
+        ? { kind: 'search', label: search.label, name: search.name, icon: 'search', busy: search.busy }
         : search;
 };
 
@@ -331,12 +441,7 @@ const isDefaultFood = (line: MatchLine, foodId: string): boolean =>
     candidatesOf(line).some((food) => food.id === foodId && food.isDefault);
 
 /** A bound line's settled row: its food or "kept as written", Change, and a late note on the cook's pick. Pure. */
-const boundRowOf = (
-    line: MatchLine,
-    binding: LineBinding,
-    pending: PendingSend | undefined,
-    copy: MatchCopy,
-): LineRow => {
+const boundRowOf = (line: MatchLine, binding: LineBinding, place: LinePlace, copy: MatchCopy): LineRow => {
     const text = lineTextOf(line.line);
     const { pick } = binding;
     const byCook = binding.boundBy === 'cook';
@@ -370,7 +475,8 @@ const boundRowOf = (
                           seeWhy: copy.line.seeWhy,
                           seeWhyName: fillTemplate(copy.line.seeWhyName, { food: note.suggestedFood, line: text }),
                       },
-            refusing: pending !== undefined,
+            failure: failureOf(text, place, copy),
+            refusing: place.pending !== undefined,
         },
     };
 };
@@ -402,9 +508,10 @@ const checkingRowOf = (line: MatchLine, proposal: string, place: LinePlace, copy
             // Online the review is still deciding, so the line offers what a cook needs now: take the proposal, or
             // search. Offline nothing will decide, so keeping the line as written is offered too (the board).
             actions: online
-                ? [useThis, searchActionOf(text, online, copy)]
-                : [useThis, searchActionOf(text, online, copy), keepActionOf(text, pending, copy)],
+                ? [useThis, searchActionOf(text, place, copy)]
+                : [useThis, searchActionOf(text, place, copy), keepActionOf(text, pending, copy)],
             note: undefined,
+            failure: failureOf(text, place, copy),
             refusing: pending !== undefined,
         },
     };
@@ -413,7 +520,7 @@ const checkingRowOf = (line: MatchLine, proposal: string, place: LinePlace, copy
 /** A line whose options failed: the amber sentence, Try again, Search and Keep as written. Pure. */
 const failedRowOf = (line: MatchLine, place: LinePlace, copy: MatchCopy): LineRow => {
     const text = lineTextOf(line.line);
-    const { online, pending } = place;
+    const { pending } = place;
 
     return {
         kind: 'settled',
@@ -430,10 +537,11 @@ const failedRowOf = (line: MatchLine, place: LinePlace, copy: MatchCopy): LineRo
                     icon: 'refreshCw',
                     busy: false,
                 },
-                searchActionOf(text, online, copy),
+                searchActionOf(text, place, copy),
                 keepActionOf(text, pending, copy),
             ],
             note: undefined,
+            failure: failureOf(text, place, copy),
             refusing: pending !== undefined,
         },
     };
@@ -463,8 +571,9 @@ export function lineRowOf(line: MatchLine, place: LinePlace, copy: MatchCopy, lo
                           noun: line.noun,
                       }),
                       place,
+                      copy,
                   )
-                : boundRowOf(line, line.binding, place.pending, copy);
+                : boundRowOf(line, line.binding, place, copy);
 
         case 'needsChoice':
             if (place.expanded) {
@@ -472,8 +581,13 @@ export function lineRowOf(line: MatchLine, place: LinePlace, copy: MatchCopy, lo
             }
 
             return line.binding === undefined
-                ? closedRowOf(line, pluralOf(copy.line.closedNeed.needsChoice, line.candidates.length, locale), place)
-                : boundRowOf(line, line.binding, place.pending, copy);
+                ? closedRowOf(
+                      line,
+                      pluralOf(copy.line.closedNeed.needsChoice, line.candidates.length, locale),
+                      place,
+                      copy,
+                  )
+                : boundRowOf(line, line.binding, place, copy);
 
         case 'noMatch':
             if (place.expanded) {
@@ -481,11 +595,11 @@ export function lineRowOf(line: MatchLine, place: LinePlace, copy: MatchCopy, lo
             }
 
             return line.binding === undefined
-                ? closedRowOf(line, copy.line.closedNeed.noMatch, place)
-                : boundRowOf(line, line.binding, place.pending, copy);
+                ? closedRowOf(line, copy.line.closedNeed.noMatch, place, copy)
+                : boundRowOf(line, line.binding, place, copy);
 
         case 'confident':
-            return place.expanded ? openRowOf(line, place, copy) : boundRowOf(line, line.binding, place.pending, copy);
+            return place.expanded ? openRowOf(line, place, copy) : boundRowOf(line, line.binding, place, copy);
 
         case 'checking':
             // Unbound, a checking line reaches search in one tap and is never drawn open; once the cook picked for it,
@@ -494,7 +608,7 @@ export function lineRowOf(line: MatchLine, place: LinePlace, copy: MatchCopy, lo
                 return checkingRowOf(line, line.proposal, place, copy);
             }
 
-            return place.expanded ? openRowOf(line, place, copy) : boundRowOf(line, line.binding, place.pending, copy);
+            return place.expanded ? openRowOf(line, place, copy) : boundRowOf(line, line.binding, place, copy);
 
         case 'optionsFailed':
             return failedRowOf(line, place, copy);

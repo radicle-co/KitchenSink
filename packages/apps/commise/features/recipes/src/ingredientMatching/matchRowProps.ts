@@ -10,7 +10,7 @@ import type { LineRow } from './matchLineView.js';
 export interface MatchRowHandlers {
     /** Open the line: a collapsed open line was pressed, or Change on a bound one. */
     readonly onOpen: (key: string) => void;
-    /** A food, or keeping the line as written, was picked. */
+    /** A food, or keeping the line as written, was picked. The host raises its pending send in this call. */
     readonly onPick: (key: string, pick: LinePick) => void;
     /** Search for a food was pressed (the one food picker, prefilled with the line's food words). */
     readonly onSearch: (key: string) => void;
@@ -18,6 +18,8 @@ export interface MatchRowHandlers {
     readonly onUseProposal: (key: string) => void;
     /** Try again, on a line whose options failed. */
     readonly onRetry: (key: string) => void;
+    /** Try again, on a line whose last send did not save: send it again. */
+    readonly onRetryPick: (key: string) => void;
     /** See why, after a late review result: the host shows the reason. */
     readonly onSeeWhy: (key: string, reason: string) => void;
 }
@@ -26,6 +28,6 @@ export interface MatchRowHandlers {
 export interface MatchRowProps extends MatchRowHandlers {
     /** The line's row (`lineRowOf`). */
     readonly row: LineRow;
-    /** A request that the open row's Search take focus. Only an open row has a Search to take it. */
-    readonly searchFocus: ControlFocus;
+    /** A request that the open row's list take focus. Only an open row has a list to take it. */
+    readonly focus: ControlFocus;
 }

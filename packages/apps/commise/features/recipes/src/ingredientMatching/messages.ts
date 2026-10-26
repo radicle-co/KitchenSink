@@ -54,10 +54,11 @@ export interface MatchLineMessages {
     readonly searchNeedsNetwork: string;
     /** The accessible name of a line's group of options (contains `{line}`). */
     readonly optionsName: string;
-    /** The last row of a line's options: keep the line with no food (contains `{line}`). Its name is its label. */
+    /**
+     * The last row of a line's options: keep the line with no food, and that it then has no nutrition, as ONE string
+     * (contains `{line}`; board RecipeEditorPasteChoose). Its name is its label.
+     */
     readonly keepAsWritten: string;
-    /** That row's hint. */
-    readonly keepHint: string;
     /** The short form, as an action on a checking or failed line. */
     readonly keepAsWrittenShort: string;
     /** The short form's accessible name: its visible words first, then the line (contains `{line}`). */
@@ -83,6 +84,26 @@ export interface MatchLineMessages {
     readonly retry: string;
     /** Its accessible name (contains `{line}`). */
     readonly retryName: string;
+    /** A pick, Use this or Keep as written that did not save: the short attention sentence on its line. */
+    readonly pickFailed: string;
+    /** Try again's accessible name after it (contains `{line}`); its visible words are {@link retry}. */
+    readonly pickRetryName: string;
+    /**
+     * What a list's ONE polite live region says when its lines change under the cook (`lineAnnouncement.ts`). Each is a
+     * whole sentence, and none starts with a variable.
+     */
+    readonly announce: {
+        /** A checked line now bound to a food (contains `{line}`, `{food}`). */
+        readonly matched: string;
+        /** A checked line that now needs the cook's choice (contains `{line}`). */
+        readonly needsChoice: string;
+        /** A checked line whose options did not load (contains `{line}`). */
+        readonly optionsFailed: string;
+        /** A late review note on the cook's pick (contains `{line}`, `{food}`). */
+        readonly lateSuggestion: string;
+        /** A send that did not save (contains `{line}`). */
+        readonly pickFailed: string;
+    };
 }
 
 /** The copy of one matched ingredient line, `en` only (the one shipped locale). */
@@ -110,8 +131,7 @@ export const matchLineMessages: LocalizedMessages<MatchLineMessages> = {
         searchName: 'Search for a food for {line}',
         searchNeedsNetwork: 'Search needs the network',
         optionsName: 'Food for {line}',
-        keepAsWritten: 'Keep “{line}” as written',
-        keepHint: 'No nutrition for this line',
+        keepAsWritten: 'Keep “{line}” as written\u00A0· no nutrition',
         keepAsWrittenShort: 'Keep as written',
         keepAsWrittenName: 'Keep as written: {line}',
         change: 'Change',
@@ -125,5 +145,14 @@ export const matchLineMessages: LocalizedMessages<MatchLineMessages> = {
         optionsError: 'We couldn’t load the options for this line.',
         retry: 'Try again',
         retryName: 'Try again to load the options for {line}',
+        pickFailed: 'We couldn’t save that choice.',
+        pickRetryName: 'Try again to save the choice for {line}',
+        announce: {
+            matched: 'Check finished for {line}: matched to {food}.',
+            needsChoice: 'Check finished for {line}: choose a food.',
+            optionsFailed: 'Check finished for {line}: we couldn’t load the options.',
+            lateSuggestion: 'For {line}, our check suggested {food}. Your choice stays.',
+            pickFailed: 'We couldn’t save the choice for {line}.',
+        },
     },
 };

@@ -11,8 +11,12 @@
  *   `PastedReadingRow` does, never a spinner the editor would keep turning.
  * - A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.
  * - Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).
- * - While a send for the line is in flight (Use this, Keep as written) that control reads busy and the others refuse a
- *   press, so a double tap cannot send two.
+ * - While a send for the line is in flight (Use this, Keep as written, a food found through Search) that control reads
+ *   busy and the others refuse a press, so a double tap cannot send two. A refused control stays focusable (`refused`,
+ *   never native `disabled`): it may hold focus when the send starts (M2, 2.4.3).
+ * - A send that did not save says so, with Try again (`MatchFailureLine`, M6).
+ * - The line is 16 px; its status, actions' words and note are the 14 px `list` role (owner type-scale ruling). A rule
+ *   sits above it, as above every line (U3).
  *
  * Presentational: props in, markup out; what it shows is `matchLineView.ts`'s. The native leaf is
  * `./MatchSettledRow.native.tsx`.
@@ -24,6 +28,7 @@ import { Icon } from '@commise/ui/icon';
 import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC, ReactElement } from 'react';
 
+import { MatchFailureLine } from './MatchFailureLine.js';
 import { MatchLineText } from './MatchLineText.js';
 import type { SettledStatus } from './matchLineView.js';
 import type { MatchSettledRowProps } from './matchSettledRowProps.js';
@@ -36,7 +41,7 @@ const statusOf = (status: SettledStatus): ReactElement => {
                 <>
                     <Icon name="check" size={16} tone="actionText" />
                     <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="min-w-0 break-words text-meta text-ink">{status.text}</span>
+                        <span className="min-w-0 break-words text-list text-ink">{status.text}</span>
                         {status.tag === undefined ? null : <StatusBadge status="note">{status.tag}</StatusBadge>}
                     </span>
                 </>
@@ -45,7 +50,7 @@ const statusOf = (status: SettledStatus): ReactElement => {
             return (
                 <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                     {status.waiting ? <Icon name="clock" size={16} tone="inkMuted" /> : null}
-                    <span className="min-w-0 break-words text-meta text-ink">{status.food}</span>
+                    <span className="min-w-0 break-words text-list text-ink">{status.food}</span>
                     <StatusBadge status="note">{status.tag}</StatusBadge>
                 </span>
             );
@@ -53,20 +58,20 @@ const statusOf = (status: SettledStatus): ReactElement => {
             return status.tone === 'attention' ? (
                 <>
                     <Icon name="triangleAlert" size={16} tone="attention" />
-                    <span className="min-w-0 flex-1 break-words text-meta text-attention">{status.text}</span>
+                    <span className="min-w-0 flex-1 break-words text-list text-attention">{status.text}</span>
                 </>
             ) : (
-                <span className="min-w-0 flex-1 break-words text-meta text-ink-muted">{status.text}</span>
+                <span className="min-w-0 flex-1 break-words text-list text-ink-muted">{status.text}</span>
             );
     }
 };
 
 /** One settled line. */
-export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction, onSeeWhy }) => {
+export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction, onSeeWhy, onRetryPick }) => {
     const { trailing } = view;
 
     return (
-        <li className="flex min-h-12 flex-col justify-center gap-1 py-2">
+        <li className="flex min-h-12 flex-col justify-center gap-1 border-t border-line-divider py-3">
             <MatchLineText line={line} />
             <div className="flex items-center gap-2">
                 {statusOf(view.status)}
@@ -77,7 +82,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                         icon={trailing.icon}
                         accessibilityLabel={trailing.name}
                         busy={trailing.busy}
-                        disabled={view.refusing && !trailing.busy}
+                        refused={view.refusing && !trailing.busy}
                         onPress={() => onAction(trailing.kind)}
                     >
                         {trailing.label}
@@ -88,7 +93,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                 <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
                     {view.actions.map((action) =>
                         action.kind === 'unavailable' ? (
-                            <span key="unavailable" className="px-2 text-meta text-ink-muted">
+                            <span key="unavailable" className="px-2 text-list text-ink-muted">
                                 {action.text}
                             </span>
                         ) : (
@@ -99,7 +104,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                                 icon={action.icon}
                                 accessibilityLabel={action.name}
                                 busy={action.busy}
-                                disabled={view.refusing && !action.busy}
+                                refused={view.refusing && !action.busy}
                                 onPress={() => onAction(action.kind)}
                             >
                                 {action.label}
@@ -108,8 +113,9 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                     )}
                 </div>
             )}
+            {view.failure === undefined ? null : <MatchFailureLine failure={view.failure} onRetry={onRetryPick} />}
             {view.note === undefined ? null : (
-                <div className="flex flex-wrap items-center gap-x-2 text-meta text-ink-muted">
+                <div className="flex flex-wrap items-center gap-x-2 text-list text-ink-muted">
                     <span>{view.note.sentence}</span>
                     <Button variant="ghost" size="sm" accessibilityLabel={view.note.seeWhyName} onPress={onSeeWhy}>
                         {view.note.seeWhy}

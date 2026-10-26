@@ -12,4 +12,6 @@ export interface MatchOpenRowProps extends Omit<FoodChoiceListProps, 'view'> {
     readonly line: LineText;
     /** What the expanded line shows (`lineRowOf`'s `open` row). */
     readonly view: OpenLineView;
+    /** Try again, after a pick that did not save. */
+    readonly onRetryPick: () => void;
 }

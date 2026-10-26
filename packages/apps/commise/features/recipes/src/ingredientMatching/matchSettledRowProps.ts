@@ -15,4 +15,6 @@ export interface MatchSettledRowProps {
     readonly onAction: (action: SettledAction['kind']) => void;
     /** See why, after a late review result. */
     readonly onSeeWhy: () => void;
+    /** Try again, after a send that did not save. */
+    readonly onRetryPick: () => void;
 }

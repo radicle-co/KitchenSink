@@ -8,38 +8,79 @@
  * `ingredientMatching/` module and are now `ingredientMatching/__tests__/matchLineView.test.ts` and `matchLine.test.ts`,
  * where both flows read them. What stays here is paste's own: the summary leaves out a count of 0 and joins its parts
  * with a no-break space before each dot; the notices; the pane's place and steps.
+ *
+ * REWRITTEN for the UI fix pass (2026-10-25), seen red first:
+ * - U4: the summary says the counts in the owner's order and words ("3 matched · 4 to choose · 1 being checked", commit
+ *   7b62777fc) and joins them with the rule as ONE paragraph; it was "4 need your choice · 1 being checked · 3 matched"
+ *   on a line of its own.
+ * - M4: the pane counts over ALL the recipe's lines ("Line 3 of 5") and steps to the previous and next OPEN line, so a
+ *   line it shows keeps its place once chosen; it counted only the open lines.
  */
 import { describe, expect, it } from 'vitest';
 
 import { recipeMessages } from '../../messages.js';
-import { makeDefaultLine } from '../../ingredientMatching/__fixtures__/matchLines.js';
+import {
+    cookPicked,
+    makeCheckingLine,
+    makeConfidentLine,
+    makeDefaultLine,
+    makeNeedsChoiceLine,
+    makeNoMatchLine,
+    MILKS,
+} from '../../ingredientMatching/__fixtures__/matchLines.js';
+import type { MatchLine } from '../../ingredientMatching/matchLine.js';
 import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeFormMessages } from '../messages.js';
-import { pasteMatchNoticeOf, pasteMatchPaneViewOf, pasteMatchSummaryOf, quotaBodyOf } from '../pasteMatchView.js';
+import {
+    paneStepsOf,
+    pasteMatchNoticeOf,
+    pasteMatchPaneViewOf,
+    pasteMatchSummaryOf,
+    quotaBodyOf,
+} from '../pasteMatchView.js';
 
 const m = recipeFormMessages.en;
 const copy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
-const ONLINE = { online: true, pending: undefined } as const;
-const milkLine = () => makeDefaultLine();
+const ONLINE = { online: true, pending: undefined, failed: false } as const;
+const NOTHING_SENT: ReadonlySet<string> = new Set();
+const SKIM = MILKS[0] ?? MILKS[1];
+
+/** eggs (matched), milk, cream (checking), bread, spice mix: three open lines among five. */
+const RECIPE: readonly MatchLine[] = [
+    makeConfidentLine(),
+    makeDefaultLine(),
+    makeCheckingLine(),
+    makeNeedsChoiceLine(),
+    makeNoMatchLine(),
+];
 
 describe('pasteMatchSummaryOf', () => {
-    it('says how many lines were added, then the counts in the spec’s order', () => {
+    it('says how many lines were added, then ONE paragraph: the counts in the owner’s order, then the rule', () => {
         const summary = pasteMatchSummaryOf({ added: 8, choose: 4, checking: 1, matched: 3 }, m, 'en');
 
         expect(summary.added).toBe('Added 8 lines');
-        expect(summary.counts).toBe('4 need your choice\u00A0· 1 being checked\u00A0· 3 matched');
-        expect(summary.rule).toBe('Matched lines are ready, and you can change them. Nothing else is chosen for you.');
+        expect(summary.paragraph).toBe(
+            '3 matched\u00A0· 4 to choose\u00A0· 1 being checked. Matched lines are ready, and you can change them. Nothing else is chosen for you.',
+        );
     });
 
     it('leaves out a count of 0, and a single line is singular', () => {
         const summary = pasteMatchSummaryOf({ added: 1, choose: 1, checking: 0, matched: 0 }, m, 'en');
 
         expect(summary.added).toBe('Added 1 line');
-        expect(summary.counts).toBe('1 needs your choice');
+        expect(summary.paragraph.startsWith('1 to choose. ')).toBe(true);
     });
 
-    it('all matched: only the matched count', () => {
-        expect(pasteMatchSummaryOf({ added: 3, choose: 0, checking: 0, matched: 3 }, m, 'en').counts).toBe('3 matched');
+    it('all matched: only the matched count, then the rule', () => {
+        expect(pasteMatchSummaryOf({ added: 3, choose: 0, checking: 0, matched: 3 }, m, 'en').paragraph).toBe(
+            '3 matched. Matched lines are ready, and you can change them. Nothing else is chosen for you.',
+        );
+    });
+
+    it('⛔ every count 0 (every line kept as written): the rule alone, never a stray ". "', () => {
+        expect(pasteMatchSummaryOf({ added: 2, choose: 0, checking: 0, matched: 0 }, m, 'en').paragraph).toBe(
+            'Matched lines are ready, and you can change them. Nothing else is chosen for you.',
+        );
     });
 });
 
@@ -57,11 +98,53 @@ describe('quotaBodyOf', () => {
     });
 });
 
-describe('pasteMatchPaneViewOf', () => {
-    it('says which open line it shows, out of how many, and heads it with the line', () => {
-        const view = pasteMatchPaneViewOf(milkLine(), { index: 1, count: 4 }, ONLINE, m, copy);
+describe('paneStepsOf — the pane’s place among ALL the lines, and its steps to the open ones (M4)', () => {
+    it('counts the shown line over every line of the recipe', () => {
+        expect(paneStepsOf({ lines: RECIPE, shownKey: 'bread', sending: NOTHING_SENT })).toMatchObject({
+            position: 4,
+            total: 5,
+        });
+    });
 
-        expect(view.position).toBe('Open line 2 of 4');
+    it('steps to the previous and the next OPEN line, over settled and checking lines', () => {
+        expect(paneStepsOf({ lines: RECIPE, shownKey: 'bread', sending: NOTHING_SENT })).toMatchObject({
+            previousKey: 'milk',
+            nextKey: 'spice',
+        });
+    });
+
+    it('does not wrap: nothing before the first open line, nothing after the last', () => {
+        expect(paneStepsOf({ lines: RECIPE, shownKey: 'milk', sending: NOTHING_SENT }).previousKey).toBeUndefined();
+        expect(paneStepsOf({ lines: RECIPE, shownKey: 'spice', sending: NOTHING_SENT }).nextKey).toBeUndefined();
+    });
+
+    it('⛔ a shown line chosen in the pane keeps its place, and its steps stay right', () => {
+        const chosen = RECIPE.map((line) =>
+            line.key === 'bread' ? makeNeedsChoiceLine({ binding: cookPicked(SKIM) }) : line,
+        );
+
+        expect(paneStepsOf({ lines: chosen, shownKey: 'bread', sending: NOTHING_SENT })).toEqual({
+            position: 4,
+            total: 5,
+            previousKey: 'milk',
+            nextKey: 'spice',
+        });
+    });
+
+    it('never steps to a line whose choice is still being sent', () => {
+        expect(paneStepsOf({ lines: RECIPE, shownKey: 'spice', sending: new Set(['bread']) }).previousKey).toBe('milk');
+    });
+
+    it('a key not among the lines is a host error, said at once', () => {
+        expect(() => paneStepsOf({ lines: RECIPE, shownKey: 'gone', sending: NOTHING_SENT })).toThrow(RangeError);
+    });
+});
+
+describe('pasteMatchPaneViewOf', () => {
+    it('says which line it shows out of every line, and heads it with the line', () => {
+        const view = pasteMatchPaneViewOf({ lines: RECIPE, shownKey: 'milk', sending: NOTHING_SENT }, ONLINE, m, copy);
+
+        expect(view.position).toBe('Line 2 of 5');
         expect(view.heading).toBe('2 cups milk');
         expect(view.label).toBe('Choose a food');
         expect(view.open.prompt).toBe('Choose the milk you use');
@@ -69,19 +152,27 @@ describe('pasteMatchPaneViewOf', () => {
     });
 
     it('in the middle, both Previous and Next can be used', () => {
-        const view = pasteMatchPaneViewOf(milkLine(), { index: 1, count: 4 }, ONLINE, m, copy);
+        const view = pasteMatchPaneViewOf({ lines: RECIPE, shownKey: 'bread', sending: NOTHING_SENT }, ONLINE, m, copy);
 
         expect([view.previous.disabled, view.next.disabled]).toEqual([false, false]);
         expect([view.previous.label, view.next.label]).toEqual(['Previous', 'Next open line']);
     });
 
-    it('the first line cannot go back, and the last cannot go on', () => {
-        expect(pasteMatchPaneViewOf(milkLine(), { index: 0, count: 4 }, ONLINE, m, copy).previous.disabled).toBe(true);
-        expect(pasteMatchPaneViewOf(milkLine(), { index: 3, count: 4 }, ONLINE, m, copy).next.disabled).toBe(true);
+    it('the first open line cannot go back, and the last cannot go on', () => {
+        const at = (shownKey: string) =>
+            pasteMatchPaneViewOf({ lines: RECIPE, shownKey, sending: NOTHING_SENT }, ONLINE, m, copy);
+
+        expect(at('milk').previous.disabled).toBe(true);
+        expect(at('spice').next.disabled).toBe(true);
     });
 
     it('a single open line can go neither way', () => {
-        const view = pasteMatchPaneViewOf(milkLine(), { index: 0, count: 1 }, ONLINE, m, copy);
+        const view = pasteMatchPaneViewOf(
+            { lines: [makeConfidentLine(), makeDefaultLine()], shownKey: 'milk', sending: NOTHING_SENT },
+            ONLINE,
+            m,
+            copy,
+        );
 
         expect([view.previous.disabled, view.next.disabled]).toEqual([true, true]);
     });

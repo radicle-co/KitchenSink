@@ -1,6 +1,7 @@
 /**
  * @module @commise/features-recipes/form — `PasteMatchSummary` (native): the React Native leaf of
- * `./PasteMatchSummary.tsx`, on the same props and words. Painted from the theme's roles (D15).
+ * `./PasteMatchSummary.tsx`, on the same props and words: "Added 8 lines", then one muted paragraph of the counts and the
+ * rule, on the page rather than a fill card (U4). Painted from the theme's roles (D15).
  */
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
@@ -14,21 +15,15 @@ export const PasteMatchSummary: FC<PasteMatchSummaryProps> = ({ view }) => {
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.block, { backgroundColor: colors.surfaceMuted }]}>
+        <View style={styles.block}>
             <Text style={[styles.added, { color: colors.ink }]}>{view.added}</Text>
-            {view.counts !== '' && <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.counts}</Text>}
-            <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.rule}</Text>
+            <Text style={[styles.paragraph, { color: colors.inkMuted }]}>{view.paragraph}</Text>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    block: {
-        gap: nativeTokens.spacing[1],
-        paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: nativeTokens.spacing[3],
-        borderRadius: nativeTokens.radius.md,
-    },
+    block: { gap: nativeTokens.spacing[1] },
     added: { ...nativeTokens.type.body },
-    meta: { ...nativeTokens.type.meta },
+    paragraph: { ...nativeTokens.type.list },
 });

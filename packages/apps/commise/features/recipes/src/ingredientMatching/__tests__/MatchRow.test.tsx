@@ -38,18 +38,19 @@ function renderRow(line: MatchLine, place: Partial<LinePlace> = {}) {
         onSearch: vi.fn(),
         onUseProposal: vi.fn(),
         onRetry: vi.fn(),
+        onRetryPick: vi.fn(),
         onSeeWhy: vi.fn(),
     };
     const row = lineRowOf(
         line,
-        { expanded: false, current: false, online: true, pending: undefined, ...place },
+        { expanded: false, current: false, online: true, pending: undefined, failed: false, ...place },
         copy,
         'en',
     );
 
     render(
         <ul>
-            <MatchRow row={row} searchFocus={{ requested: false, onHandled: vi.fn() }} {...handlers} />
+            <MatchRow row={row} focus={{ requested: false, onHandled: vi.fn() }} {...handlers} />
         </ul>,
     );
 
@@ -61,7 +62,7 @@ describe('MatchRow (web)', () => {
         const { onPick, onSearch } = renderRow(makeDefaultLine(), { expanded: true });
 
         fireEvent.click(screen.getByRole('button', { name: 'Whole milk, Default' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Keep “2 cups milk” as written' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep “2 cups milk” as written\u00A0· no nutrition' }));
         fireEvent.click(screen.getByRole('button', { name: 'Search for a food for 2 cups milk' }));
 
         expect(onPick.mock.calls).toEqual([
@@ -111,6 +112,20 @@ describe('MatchRow (web)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Try again to load the options for 2 cups milk' }));
 
         expect(onRetry).toHaveBeenCalledExactlyOnceWith('milk');
+    });
+
+    it('M6: Try again after a failed pick sends it again, for its line: on an open row and a settled row alike', () => {
+        const open = renderRow(makeDefaultLine(), { expanded: true, failed: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 2 cups milk' }));
+        expect(open.onRetryPick).toHaveBeenCalledExactlyOnceWith('milk');
+        cleanup();
+
+        const settled = renderRow(makeCheckingLine(), { failed: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 1/2 cup heavy cream' }));
+        expect(settled.onRetryPick).toHaveBeenCalledExactlyOnceWith('cream');
+        expect(settled.onRetry).not.toHaveBeenCalled();
     });
 
     it('See why reports the line and the review’s reason', () => {

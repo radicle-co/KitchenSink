@@ -6,6 +6,9 @@
  * words saying what the line is doing (`pasteStatusCopy.ts`) — then, on its own line, the one action its state allows:
  * Add as written for a line waiting on the cook, Try again for a failed lookup.
  *
+ * The line is the 16 px `body` role, as `MatchLineText` sets it once the line is matched, and the state line the 14 px
+ * `list` role (the owner's type-scale ruling, 2026-10-25).
+ *
  * Presentational: props in, markup out. Nothing moves (WCAG 2.2.2: the editor stays usable through the wait). The
  * native leaf is `./PastedReadingRow.native.tsx`.
  */
@@ -33,10 +36,10 @@ export const PastedReadingRow: FC<PastedReadingRowProps> = ({
 
     return (
         <li className="flex min-h-12 flex-col justify-center gap-1">
-            <span className="line-clamp-2 break-words text-body-md text-ink">{row.sourceLine}</span>
+            <span className="line-clamp-2 break-words text-body text-ink">{row.sourceLine}</span>
             <span className={`flex items-center gap-2 ${toneText}`}>
                 <Icon name={view.icon} size={16} />
-                <span className="text-caption">{view.stateText}</span>
+                <span className="text-list">{view.stateText}</span>
             </span>
             {view.action === 'addAsWritten' && onAddAsWritten !== undefined && (
                 <span>

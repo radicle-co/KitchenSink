@@ -13,12 +13,18 @@
 import type { DraftKeep } from '../editor/saveStatus.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { pluralOf } from '../format/plural.js';
-import { lineTextOf, type MatchCounts, type MatchLine } from '../ingredientMatching/matchLine.js';
+import {
+    isOpenLine,
+    lineTextOf,
+    type MatchCounts,
+    type MatchLine,
+    type SendingLines,
+} from '../ingredientMatching/matchLine.js';
 import {
     openLineViewOf,
-    type ListPlace,
     type MatchCopy,
     type OpenLineView,
+    type OpenPlace,
 } from '../ingredientMatching/matchLineView.js';
 import type { RecipeFormMessages } from './messages.js';
 
@@ -40,13 +46,16 @@ export interface PasteMatchCounts extends MatchCounts {
 /** The summary above the pasted lines. */
 export interface PasteMatchSummaryView {
     readonly added: string;
-    /** The non-zero counts, in the spec's order; `''` when every count is 0. */
-    readonly counts: string;
-    readonly rule: string;
+    /**
+     * ONE paragraph (U4): the non-zero counts in the owner's order ("3 matched · 4 to choose · 1 being checked.", commit
+     * 7b62777fc), then the rule. Just the rule when every count is 0.
+     */
+    readonly paragraph: string;
 }
 
 /**
- * The summary above the pasted lines: how many were added, the non-zero counts in the spec's order, and the rule. Pure.
+ * The summary above the pasted lines: how many were added, then one paragraph of the non-zero counts, in the owner's
+ * order and words, and the rule. Whole sentences join with a space, so no count of 0 leaves a stray dot. Pure.
  *
  * @param counts - The counts.
  * @param copy - The localised copy.
@@ -60,18 +69,20 @@ export const pasteMatchSummaryOf = (
 ): PasteMatchSummaryView => {
     const summary = copy.pasteMatch.summary;
     const parts = [
+        [summary.matched, counts.matched],
         [summary.choose, counts.choose],
         [summary.checking, counts.checking],
-        [summary.matched, counts.matched],
     ] as const;
+    const stated = parts
+        .filter(([, count]) => count > 0)
+        .map(([text, count]) => pluralOf(text, count, locale))
+        .join(summary.separator);
 
     return {
         added: pluralOf(summary.added, counts.added, locale),
-        counts: parts
-            .filter(([, count]) => count > 0)
-            .map(([text, count]) => pluralOf(text, count, locale))
-            .join(summary.separator),
-        rule: summary.rule,
+        paragraph: [stated === '' ? undefined : fillTemplate(summary.countsSentence, { counts: stated }), summary.rule]
+            .filter((sentence): sentence is string => sentence !== undefined)
+            .join(' '),
     };
 };
 
@@ -89,12 +100,26 @@ export const quotaBodyOf = (resetsAt: string, copy: PasteCopy, locale: string, t
         time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(new Date(resetsAt)),
     });
 
-/** Where the side pane stands among the open lines. */
+/** What the side pane steps through: the recipe's lines, the one it shows, and the ones being sent. */
 export interface PanePlace {
-    /** The shown line's place among the open lines, from 0. */
-    readonly index: number;
-    /** How many open lines there are. */
-    readonly count: number;
+    /** Every line of the recipe, in order. */
+    readonly lines: readonly MatchLine[];
+    /** The line the pane shows. It may be settled: a line chosen in the pane stays shown until the cook steps. */
+    readonly shownKey: string;
+    /** The lines whose choice is being sent: never a step's destination. */
+    readonly sending: SendingLines;
+}
+
+/** Where the pane stands, and where its two steps go. */
+export interface PaneSteps {
+    /** The shown line's place among ALL the recipe's lines, from 1. */
+    readonly position: number;
+    /** Every line of the recipe. */
+    readonly total: number;
+    /** The open line before the shown one, or `undefined` at the first. */
+    readonly previousKey: string | undefined;
+    /** The open line after the shown one, or `undefined` at the last. */
+    readonly nextKey: string | undefined;
 }
 
 /** A step control of the side pane: always drawn, disabled at an end, so nothing moves under the cook. */
@@ -117,31 +142,64 @@ export interface PasteMatchPaneView {
 }
 
 /**
- * What the side pane shows for the open line it is on. Pure.
+ * The pane's place and steps (M4): its position counts over ALL the recipe's lines ("Line 3 of 9"), so a line it shows
+ * keeps its place once chosen; Previous and Next go to the previous and next OPEN line not being sent, and never wrap,
+ * so each is disabled at an end. The ONE rule the pane disables its steps by and the host steps by. Pure.
  *
- * @param line - The line.
- * @param place - Where it stands among the open lines.
- * @param list - Whether search can run, and the pick in flight.
+ * @param place - The lines, the shown one, and the ones being sent.
+ * @returns The position and the two steps.
+ * @throws RangeError when the shown key is not among the lines: a host error, said at once rather than drawn wrong.
+ */
+export const paneStepsOf = (place: PanePlace): PaneSteps => {
+    const at = place.lines.findIndex((line) => line.key === place.shownKey);
+
+    if (at < 0) {
+        throw new RangeError(`The side pane shows "${place.shownKey}", which is not one of the lines.`);
+    }
+
+    const steppable = (line: MatchLine): boolean => isOpenLine(line) && !place.sending.has(line.key);
+
+    return {
+        position: at + 1,
+        total: place.lines.length,
+        // The nearest open line before the shown one: the slice is a copy, so reversing it touches no caller's array.
+        previousKey: place.lines.slice(0, at).reverse().find(steppable)?.key,
+        nextKey: place.lines.slice(at + 1).find(steppable)?.key,
+    };
+};
+
+/**
+ * What the side pane shows for the line it is on. Pure.
+ *
+ * @param place - The lines, the shown one, and the ones being sent.
+ * @param list - Whether search can run, the send in flight for the shown line, and whether its last one failed.
  * @param copy - The paste flow's copy.
  * @param lineCopy - The matched line's copy.
  * @returns The pane's view.
+ * @throws RangeError when the shown key is not among the lines (`paneStepsOf`).
  */
 export const pasteMatchPaneViewOf = (
-    line: MatchLine,
     place: PanePlace,
-    list: ListPlace,
+    list: OpenPlace,
     copy: PasteCopy,
     lineCopy: MatchCopy,
 ): PasteMatchPaneView => {
     const pane = copy.pasteMatch.pane;
+    const steps = paneStepsOf(place);
+    // `paneStepsOf` has already refused a key that is not among the lines, so this index holds the shown line.
+    const line = place.lines[steps.position - 1];
+
+    if (line === undefined) {
+        throw new RangeError(`The side pane shows "${place.shownKey}", which is not one of the lines.`);
+    }
 
     return {
         label: pane.label,
-        position: fillTemplate(pane.position, { n: place.index + 1, total: place.count }),
+        position: fillTemplate(pane.position, { n: steps.position, total: steps.total }),
         heading: lineTextOf(line.line),
         open: openLineViewOf(line, list, lineCopy),
-        previous: { label: pane.previous, disabled: place.index <= 0 },
-        next: { label: pane.next, disabled: place.index >= place.count - 1 },
+        previous: { label: pane.previous, disabled: steps.previousKey === undefined },
+        next: { label: pane.next, disabled: steps.nextKey === undefined },
     };
 };
 

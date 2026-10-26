@@ -47,6 +47,7 @@ const handlers = () => ({
     onSearch: vi.fn(),
     onUseProposal: vi.fn(),
     onRetry: vi.fn(),
+    onRetryPick: vi.fn(),
     onSeeWhy: vi.fn(),
 });
 
@@ -57,8 +58,10 @@ function renderList(props: Partial<ImportLineListProps> = {}) {
             expandedKey="milk"
             currentKey={undefined}
             online
-            pending={undefined}
-            searchFocus={{ requested: false, onHandled: vi.fn() }}
+            pending={new Map()}
+            failed={new Set()}
+            announcement={{ text: '', occurrence: 0 }}
+            focus={{ requested: false, onHandled: vi.fn() }}
             {...handlers()}
             {...props}
         />,
@@ -77,11 +80,11 @@ const PickingHost: FC = () => {
                 ? { ...line, binding: { boundBy: 'cook' as const, pick: chosen, reviewNote: undefined } }
                 : line,
         );
-        const focus = pickFocusOf(next, key);
+        const focus = pickFocusOf(next, key, new Set());
 
         setLines(next);
-        setExpandedKey(focus.kind === 'search' ? focus.key : undefined);
-        setFocusRequested(focus.kind === 'search');
+        setExpandedKey(focus.kind === 'line' ? focus.key : undefined);
+        setFocusRequested(focus.kind === 'line');
     };
 
     return (
@@ -90,8 +93,10 @@ const PickingHost: FC = () => {
             expandedKey={expandedKey}
             currentKey={undefined}
             online
-            pending={undefined}
-            searchFocus={{ requested: focusRequested, onHandled: () => setFocusRequested(false) }}
+            pending={new Map()}
+            failed={new Set()}
+            announcement={{ text: '', occurrence: 0 }}
+            focus={{ requested: focusRequested, onHandled: () => setFocusRequested(false) }}
             {...handlers()}
             onPick={pick}
         />

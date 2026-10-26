@@ -25,12 +25,15 @@ describe('MatchLineText (native)', () => {
         expect(container.textContent).toBe('eggs');
     });
 
-    it('is set in the 13 px list role (owner rule C5)', () => {
+    // REWRITTEN for the owner's type-scale ruling (2026-10-25): the cook's line is 16 px body, the same as the reading
+    // phase's `PastedReadingRow`, and everything under it is 14; it was the 13 px list role.
+    it('is set in the 16 px body role, as the reading phase sets the same line', () => {
         const { container } = render(<MatchLineText line={{ measure: '2 cups', words: 'milk' }} />);
         const line = container.firstElementChild;
 
         expect(line === null ? undefined : getComputedStyle(line).fontSize).toBe(
-            `${String(nativeTokens.type.list.fontSize)}px`,
+            `${String(nativeTokens.type.body.fontSize)}px`,
         );
+        expect(nativeTokens.type.body.fontSize).toBe(16);
     });
 });

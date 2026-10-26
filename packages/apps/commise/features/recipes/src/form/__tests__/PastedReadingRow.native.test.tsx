@@ -82,6 +82,14 @@ describe('PastedReadingRow (native)', () => {
         expect(onAddAsWritten).toHaveBeenCalledWith(3);
     });
 
+    // The owner's type-scale ruling (2026-10-25): the line 16 px, the state under it 14 px (`list`); it was 12 px caption.
+    it('sets the line at 16 px and its state at 14 px', () => {
+        renderRow('reading');
+
+        expect(getComputedStyle(screen.getByText(LINE)).fontSize).toBe('16px');
+        expect(getComputedStyle(screen.getByText(pasteRowViewOf('reading', m).stateText)).fontSize).toBe('14px');
+    });
+
     it('a failed lookup offers Try again, named for its line', () => {
         const { onRetryLookup } = renderRow('lookupFailed');
 

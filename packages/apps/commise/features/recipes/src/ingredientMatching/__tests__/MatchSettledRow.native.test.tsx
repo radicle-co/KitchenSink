@@ -9,10 +9,14 @@
  * kept-as-written line offers Change; the short Keep's name is "Keep as written: {line}". The glyph cases are new
  * (review finding m7): a failure carries the warning glyph and a checking line the still clock, so neither state rests
  * on colour or on a turning spinner.
+ *
+ * The UI fix pass (2026-10-25) adds, seen red first: refused controls stay focusable (M2), Search reads busy for a pick
+ * made through it (M2), a failed send with Try again (M6), and the 14 px status (U1).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, getDefaultNormalizer, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { nativeTokens } from '@commise/ui/native';
 
 import { recipeMessages } from '../../messages.js';
 import {
@@ -36,18 +40,27 @@ afterEach(cleanup);
 const copy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
 const WHOLE = MILKS[1] ?? MILKS[0];
 
-function renderRow(line: MatchLine, online = true, pending: PendingSend | undefined = undefined) {
+function renderRow(line: MatchLine, online = true, pending: PendingSend | undefined = undefined, failed = false) {
     const onAction = vi.fn();
     const onSeeWhy = vi.fn();
-    const row = lineRowOf(line, { expanded: false, current: false, online, pending }, copy, 'en');
+    const onRetryPick = vi.fn();
+    const row = lineRowOf(line, { expanded: false, current: false, online, pending, failed }, copy, 'en');
 
     if (row.kind !== 'settled') {
         throw new Error(`expected a settled row, got ${row.kind}`);
     }
 
-    render(<MatchSettledRow line={row.line} view={row.view} onAction={onAction} onSeeWhy={onSeeWhy} />);
+    render(
+        <MatchSettledRow
+            line={row.line}
+            view={row.view}
+            onAction={onAction}
+            onSeeWhy={onSeeWhy}
+            onRetryPick={onRetryPick}
+        />,
+    );
 
-    return { onAction, onSeeWhy };
+    return { onAction, onSeeWhy, onRetryPick };
 }
 
 /** Matches text exactly, keeping its no-break spaces (the default normalizer folds them into spaces). */
@@ -189,5 +202,31 @@ describe('MatchSettledRow (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Search for a food for 1/2 cup heavy cream' }));
 
         expect(onAction).not.toHaveBeenCalled();
+    });
+
+    it('M2: a pick through Search in flight reads busy on Search', () => {
+        renderRow(makeCheckingLine(), true, { kind: 'searchPick' });
+
+        expect(
+            screen.getByRole('button', { name: 'Search for a food for 1/2 cup heavy cream' }).getAttribute('aria-busy'),
+        ).toBe('true');
+    });
+
+    it('⛔ M6: a send that failed says so with the warning glyph, and Try again sends it again', () => {
+        const { onRetryPick } = renderRow(makeCheckingLine(), true, undefined, true);
+
+        expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
+        expect(document.querySelector('[data-icon-name="triangle-alert"]')).not.toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again to save the choice for 1/2 cup heavy cream' }));
+        expect(onRetryPick).toHaveBeenCalledTimes(1);
+    });
+
+    it('U1: the status is the 14 px list role', () => {
+        renderRow(makeConfidentLine());
+
+        expect(getComputedStyle(screen.getByText('Egg, whole, raw')).fontSize).toBe(
+            `${String(nativeTokens.type.list.fontSize)}px`,
+        );
     });
 });

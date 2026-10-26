@@ -7,11 +7,17 @@
  * The focus case is review finding M4: a pick used to re-render the list and destroy focus. Now the host raises a
  * `ControlFocus` request for the next open line's Search (`pickFocusOf`), and after the re-render with that line
  * expanded, focus IS that Search.
+ *
+ * The UI fix pass (2026-10-25) adds, seen red first: `pending` is a map, so two lines can be sending at once and each
+ * reads busy on its own (M1); a failed pick shows on its line (M6); the list has ONE polite live region (U9); and,
+ * offline, focus lands on the next line's first option and stays there when the network returns (H1).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
+
+import type { PendingSend } from '../matchLine.js';
 
 import {
     makeCheckingLine,
@@ -40,8 +46,13 @@ const handlers = () => ({
     onSearch: vi.fn(),
     onUseProposal: vi.fn(),
     onRetry: vi.fn(),
+    onRetryPick: vi.fn(),
     onSeeWhy: vi.fn(),
 });
+
+const NOTHING_SENT: ReadonlyMap<string, PendingSend> = new Map();
+const NONE_FAILED: ReadonlySet<string> = new Set();
+const SILENT = { text: '', occurrence: 0 };
 
 function renderList(props: Partial<MatchLineListProps> = {}) {
     const on = handlers();
@@ -52,8 +63,10 @@ function renderList(props: Partial<MatchLineListProps> = {}) {
             expandedKey="milk"
             currentKey={undefined}
             online
-            pending={undefined}
-            searchFocus={{ requested: false, onHandled: vi.fn() }}
+            pending={NOTHING_SENT}
+            failed={NONE_FAILED}
+            announcement={SILENT}
+            focus={{ requested: false, onHandled: vi.fn() }}
             {...on}
             {...props}
         />,
@@ -62,8 +75,8 @@ function renderList(props: Partial<MatchLineListProps> = {}) {
     return on;
 }
 
-/** A host that does what the wiring phase will: bind the pick, expand the next open line, and ask its Search for focus. */
-const PickingHost: FC = () => {
+/** A host that does what the wiring phase will: bind the pick, expand the next open line, and ask its list for focus. */
+const PickingHost: FC<{ readonly online: boolean }> = ({ online }) => {
     const [lines, setLines] = useState<readonly MatchLine[]>(LINES);
     const [expandedKey, setExpandedKey] = useState<string | undefined>('milk');
     const [focusRequested, setFocusRequested] = useState(false);
@@ -74,11 +87,11 @@ const PickingHost: FC = () => {
                 ? { ...line, binding: { boundBy: 'cook' as const, pick: chosen, reviewNote: undefined } }
                 : line,
         );
-        const focus = pickFocusOf(next, key);
+        const focus = pickFocusOf(next, key, NOTHING_SENT);
 
         setLines(next);
-        setExpandedKey(focus.kind === 'search' ? focus.key : undefined);
-        setFocusRequested(focus.kind === 'search');
+        setExpandedKey(focus.kind === 'line' ? focus.key : undefined);
+        setFocusRequested(focus.kind === 'line');
     };
 
     return (
@@ -86,9 +99,11 @@ const PickingHost: FC = () => {
             lines={lines}
             expandedKey={expandedKey}
             currentKey={undefined}
-            online
-            pending={undefined}
-            searchFocus={{ requested: focusRequested, onHandled: () => setFocusRequested(false) }}
+            online={online}
+            pending={NOTHING_SENT}
+            failed={NONE_FAILED}
+            announcement={SILENT}
+            focus={{ requested: focusRequested, onHandled: () => setFocusRequested(false) }}
             {...handlers()}
             onPick={pick}
         />
@@ -117,14 +132,74 @@ describe('MatchLineList (web)', () => {
 
     it('a pick in flight on the expanded line reads busy there', () => {
         renderList({
-            pending: { key: 'milk', send: { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } } },
+            pending: new Map([['milk', { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } }]]),
         });
 
         expect(screen.getByRole('button', { name: 'Skim milk' }).getAttribute('aria-busy')).toBe('true');
     });
 
+    it('⛔ M1: two lines sending at once each read busy on their own line', () => {
+        renderList({
+            pending: new Map<string, PendingSend>([
+                ['milk', { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } }],
+                ['cream', { kind: 'useProposal' }],
+            ]),
+        });
+
+        expect(screen.getByRole('button', { name: 'Skim milk' }).getAttribute('aria-busy')).toBe('true');
+        expect(
+            screen
+                .getByRole('button', { name: 'Use this: Heavy whipping cream for 1/2 cup heavy cream' })
+                .getAttribute('aria-busy'),
+        ).toBe('true');
+    });
+
+    it('⛔ M1: a line that is sending cannot take a second pick, nor be opened or changed', async () => {
+        const user = userEvent.setup();
+        const on = renderList({
+            expandedKey: 'milk',
+            pending: new Map<string, PendingSend>([
+                ['milk', { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } }],
+                ['bread', { kind: 'searchPick' }],
+                ['eggs', { kind: 'pick', pick: { kind: 'asWritten' } }],
+            ]),
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Whole milk, Default' }));
+        await user.click(screen.getByRole('button', { name: /6 slices day-old bread/ }));
+        await user.click(screen.getByRole('button', { name: 'Change the food for eggs' }));
+
+        expect(on.onPick).not.toHaveBeenCalled();
+        expect(on.onOpen).not.toHaveBeenCalled();
+    });
+
+    it('M6: a failed pick shows on its line', () => {
+        renderList({ failed: new Set(['milk']) });
+
+        expect(screen.getByText('We couldn’t save that choice.')).toBeTruthy();
+    });
+
+    it('⛔ U9: the list has ONE polite live region, saying what the host announces, and the rows have none', () => {
+        renderList({ announcement: { text: 'Check finished for 1/2 cup heavy cream: choose a food.', occurrence: 1 } });
+
+        const regions = screen.getAllByRole('status');
+
+        expect(regions.map((region) => region.textContent).filter((text) => text !== '')).toEqual([
+            'Check finished for 1/2 cup heavy cream: choose a food.',
+        ]);
+        expect(regions.every((region) => region.closest('li') === null)).toBe(true);
+    });
+
+    it('U3: lines are divided by rules, not a bare gap', () => {
+        renderList();
+
+        const [recipe] = screen.getAllByRole('list');
+
+        expect(recipe?.className.split(' ')).not.toContain('gap-1');
+    });
+
     it('⛔ a send in flight belongs to ITS line: Use this on the checking line reads busy, and no other line refuses', () => {
-        renderList({ pending: { key: 'cream', send: { kind: 'useProposal' } } });
+        renderList({ pending: new Map([['cream', { kind: 'useProposal' }]]) });
 
         expect(
             screen
@@ -148,11 +223,26 @@ describe('MatchLineList (web)', () => {
     it('⛔ after a pick, focus moves to the next open line’s Search, not to the top of the page', async () => {
         const user = userEvent.setup();
 
-        render(<PickingHost />);
+        render(<PickingHost online />);
         await user.click(screen.getByRole('button', { name: 'Whole milk, Default' }));
 
         expect(document.activeElement).toBe(
             screen.getByRole('button', { name: 'Search for a food for 6 slices day-old bread' }),
         );
+    });
+
+    it('⛔ H1: offline, focus lands on the next line’s first option, and stays there when the network returns', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(<PickingHost online={false} />);
+
+        await user.click(screen.getByRole('button', { name: 'Whole milk, Default' }));
+
+        const firstBread = screen.getByRole('button', { name: 'White bread, sliced' });
+
+        expect(document.activeElement).toBe(firstBread);
+
+        rerender(<PickingHost online />);
+
+        expect(document.activeElement).toBe(firstBread);
     });
 });

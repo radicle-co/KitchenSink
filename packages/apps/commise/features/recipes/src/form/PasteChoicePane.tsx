@@ -2,8 +2,9 @@
 
 /**
  * @module @commise/features-recipes/form — `PasteChoicePane` (web): the side pane at 1194 and on web
- * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). A named `aside`: which open line it shows out
- * of how many, the line as its heading, the muted prompt, the line's `FoodChoiceList`, then Previous and Next open line.
+ * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). A named `aside`: which line it shows out of
+ * ALL the recipe's lines ("Line 3 of 9", M4), the line as its heading, the muted prompt, a pick that did not save with
+ * Try again, the line's `FoodChoiceList`, then Previous and Next open line (`paneStepsOf`).
  *
  * Previous and Next are always drawn and are disabled at an end, so nothing moves under the cook and the pair never
  * changes shape (a top-level `hasNext && <Button>` would also be §11.2's boolean-selects-a-subtree). A pick in the pane
@@ -15,16 +16,20 @@ import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.js';
+import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
 /** The side pane. */
-export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, ...list }) => (
+export const PasteChoicePane: FC<PasteChoicePaneProps> = ({ view, onPrevious, onNext, onRetryPick, ...list }) => (
     <aside aria-label={view.label} className="flex flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
-            <p className="text-meta text-ink-muted">{view.position}</p>
+            <p className="text-list text-ink-muted">{view.position}</p>
             <h2 className="break-words text-card-title text-ink">{view.heading}</h2>
             {view.open.prompt === undefined ? null : (
-                <p className="break-words text-meta text-ink-muted">{view.open.prompt}</p>
+                <p className="break-words text-list text-ink-muted">{view.open.prompt}</p>
+            )}
+            {view.open.failure === undefined ? null : (
+                <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} />
             )}
         </div>
         <FoodChoiceList view={view.open.list} {...list} />

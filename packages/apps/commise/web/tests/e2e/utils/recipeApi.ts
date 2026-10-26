@@ -33,6 +33,7 @@ import type {
 } from '@kitchensink/recipe-service-client';
 import {
     createIngredientRequestSchema,
+    type ParseProposalMatch,
     type CollectionResponse as SchemaCollectionResponse,
     type CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
 } from '@kitchensink/schema-recipe';
@@ -935,7 +936,34 @@ export interface MockParseJobScript {
      * gone quiet and waits on the cook.
      */
     readonly pendingPhase?: ParseJobLinePhase;
+    /**
+     * What `POST /recipe-parse-jobs/{id}/matches` writes for each parsed food, by the food's name (ADR-0071). A food the
+     * script does not name reads `noMatch`. The settled job carries NO match until that call, as the real service's does.
+     */
+    readonly matches?: Readonly<Record<string, MockFoodMatch>>;
 }
+
+/** A match body, as the service writes it. */
+export type MockMatchBody = Pick<ParseProposalMatch, 'state' | 'reason' | 'proposed' | 'candidates'>;
+
+/**
+ * A food's scripted match. `first` is what the matches call writes. `then` is what a later read of the job answers once
+ * `afterReads` reads have followed it (the review finishing: a `checking` food reading `confident`), which is how a spec
+ * drives a LATE verdict without a clock.
+ */
+export interface MockFoodMatch {
+    readonly first: MockMatchBody;
+    readonly then?: MockMatchBody;
+    /** Reads of the job after the matches call before `then` shows. Defaults to `1`. */
+    readonly afterReads?: number;
+}
+
+/** A candidate of a scripted match. */
+export const mockCandidate = (
+    id: string,
+    name: string,
+    over: { readonly isDefault?: boolean } = {},
+): MockMatchBody['candidates'][number] => ({ kind: 'root', id, name, isDefault: over.isDefault ?? false });
 
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
@@ -1108,6 +1136,44 @@ export async function mockRecipeApi(
      */
     const parseJobScriptSpent = new Set<string>();
     let nextParseJobId = 1;
+    /** Jobs whose matches the service has written, and how many reads have followed (`MockFoodMatch.afterReads`). */
+    const matchedJobReads = new Map<string, number>();
+    /** The foods the matches script names, by id: `by-food` admits each, as the service admits a catalog food. */
+    const matchedFoodNames = new Map<string, string>();
+
+    for (const scripted of Object.values(options.parseJob?.matches ?? {})) {
+        for (const body of [scripted.first, scripted.then]) {
+            for (const candidate of [...(body?.candidates ?? []), ...(body?.proposed ? [body.proposed] : [])]) {
+                matchedFoodNames.set(candidate.id, candidate.name);
+            }
+        }
+    }
+
+    /** The job as a read answers it once its matches are written: each food's `first` match, or its `then` when due. */
+    const withMatches = (job: ParseJobResponse, reads: number): ParseJobResponse => ({
+        ...job,
+        lines: job.lines.map((line) => ({
+            ...line,
+            proposal:
+                line.proposal === null
+                    ? null
+                    : {
+                          ...line.proposal,
+                          foods: line.proposal.foods.map((food) => {
+                              const scripted = parseJobScript.matches?.[food.name];
+                              const due = scripted?.then !== undefined && reads >= (scripted.afterReads ?? 1);
+                              const body: MockMatchBody = (due ? scripted.then : scripted?.first) ?? {
+                                  state: 'noMatch',
+                                  reason: 'noCandidates',
+                                  proposed: null,
+                                  candidates: [],
+                              };
+
+                              return { ...food, match: body };
+                          }),
+                      },
+        })),
+    });
 
     /** Settle a job's lines into the scripted terminal shape (once) or into `complete` (thereafter). */
     const settleParseJob = (job: ParseJobResponse): ParseJobResponse => {
@@ -1368,6 +1434,26 @@ export async function mockRecipeApi(
 
             if (foodId === E2E_SALT_FOOD.foodId) {
                 return route.fulfill({ json: catalogIngredient });
+            }
+
+            // A food the matches script names (ADR-0071): admitted once as a resolved, food-backed row, then held.
+            const scriptedName = foodId === undefined ? undefined : matchedFoodNames.get(foodId);
+
+            if (foodId !== undefined && scriptedName !== undefined) {
+                const known = authoredIngredientsByFoodId.get(foodId);
+                const ingredient: Ingredient = known ?? {
+                    id: `c0000000-0000-4000-8000-${String(nextAuthoredFoodId++).padStart(12, '0')}`,
+                    name: scriptedName,
+                    foodId,
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    isUserEntered: false,
+                    createdAt: ISO,
+                };
+
+                authoredIngredientsByFoodId.set(foodId, ingredient);
+                ingredientCatalog.set(ingredient.id, bindingOf(ingredient));
+
+                return route.fulfill({ json: ingredient });
             }
 
             if (foodId !== catalogSuggestionFoodId) {
@@ -2243,6 +2329,7 @@ export async function mockRecipeApi(
         // Matched BEFORE the pass-through, and the ORDER within this block states the specificity: the two
         // sub-resources (`/retry`, `/lines/{i}`) are tested ahead of the bare `/{id}` read.
         if (path.includes('/api/v1/recipe-parse-jobs')) {
+            const matchesMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/matches$/.exec(path);
             const retryMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/retry$/.exec(path);
             const lineMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/lines\/(\d+)$/.exec(path);
             const detailMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)$/.exec(path);
@@ -2275,6 +2362,21 @@ export async function mockRecipeApi(
                 parseJobPollsLeft.set(id, parseJobScript.pollsBeforeSettled ?? 1);
 
                 return route.fulfill({ status: 202, json: job });
+            }
+
+            // ADR-0071: the service matches the job's parsed foods as the caller and answers the job with the matches.
+            if (method === 'POST' && matchesMatch) {
+                const job = parseJobs.get(matchesMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (!matchedJobReads.has(job.id)) {
+                    matchedJobReads.set(job.id, 0);
+                }
+
+                return route.fulfill({ status: 202, json: withMatches(job, matchedJobReads.get(job.id) ?? 0) });
             }
 
             if (method === 'POST' && retryMatch) {
@@ -2350,7 +2452,16 @@ export async function mockRecipeApi(
                 // reload issues a fresh read, and a mock that quietly un-expires a job would make the one
                 // assertion the URL-addressed route exists for unfalsifiable.
                 if (job.status !== 'running') {
-                    return route.fulfill({ json: job });
+                    const reads = matchedJobReads.get(job.id);
+
+                    if (reads === undefined) {
+                        return route.fulfill({ json: job });
+                    }
+
+                    // Matched: each read after the call is one step nearer a `then` (the review finishing).
+                    matchedJobReads.set(job.id, reads + 1);
+
+                    return route.fulfill({ json: withMatches(job, reads + 1) });
                 }
 
                 const left = parseJobPollsLeft.get(job.id) ?? 0;

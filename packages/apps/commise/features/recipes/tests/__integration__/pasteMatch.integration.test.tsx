@@ -38,7 +38,7 @@ import { RecipeIngredientsFields } from '../../src/form/RecipeIngredientsFields.
 import { defaultRecipeFormValues, type RecipeFormValues } from '../../src/form/values.js';
 import { toCreateRecipeInput } from '../../src/form/wire.js';
 import { useIngredientRowEditor } from '../../src/hooks/useIngredientRowEditor.js';
-import { json, twoOrigins, type RecordedRequest } from './twoOrigins.js';
+import { foodSearches, json, twoOrigins, type RecordedRequest, type Route } from './twoOrigins.js';
 
 if (typeof Element !== 'undefined') {
     // jsdom implements neither pointer capture nor scrollIntoView, which Radix's menu calls on open.
@@ -261,8 +261,9 @@ function renderHost(
     state: Server,
     onValues: (values: RecipeFormValues) => void = () => undefined,
     seed?: RecipeFormValues,
+    food?: Route,
 ) {
-    const origins = twoOrigins({ recipe: routesOf(state) });
+    const origins = twoOrigins({ recipe: routesOf(state), ...(food === undefined ? {} : { food }) });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     const tree = (
         <QueryClientProvider client={queryClient}>
@@ -373,6 +374,50 @@ describe('Paste a list, matched — a default is shown and never selected', () =
         await paste('2 cups milk');
 
         expect(await screen.findByRole('button', { name: 'Search for a food for 2 cups milk' })).toBeTruthy();
+    });
+});
+
+describe('Paste a list, matched — Search for a food', () => {
+    const NEEDS_CHOICE: Match = {
+        state: 'needsChoice',
+        reason: 'noProposal',
+        proposed: null,
+        candidates: candidates(OAT, WHOLE),
+    };
+
+    it('⛔ hands the line to the one food picker, and a food found there binds it as the cook’s; the line is never drawn twice', async () => {
+        const user = userEvent.setup();
+        const state = server(jobWith(null), { afterMatches: jobWith(NEEDS_CHOICE) });
+        const food = foodSearches({
+            catalog: () => json({ results: [{ id: 'food_skim', name: 'Skim milk', score: 0.9 }] }),
+            authored: () => json({ results: [] }),
+        });
+        const { sent } = renderHost(state, undefined, undefined, food);
+
+        await paste('2 cups milk');
+        await user.click(await screen.findByRole('button', { name: 'Search for a food for 2 cups milk' }));
+
+        // The line is the picker's now, on its own words: one field, and the matched list does not draw it as well.
+        const wordsField = (): HTMLInputElement | undefined =>
+            screen.queryAllByRole<HTMLInputElement>('combobox').find((each) => each.value === 'milk');
+
+        await waitFor(() => expect(wordsField()).toBeDefined());
+        expect(screen.queryByText('Choose a food')).toBeNull();
+
+        await user.click(wordsField() as HTMLInputElement);
+        await user.keyboard('s');
+        const catalog = await screen.findByRole('group', { name: 'Food catalog' }, { timeout: 3000 });
+
+        await user.click(within(catalog).getByRole('option', { name: 'Skim milk' }));
+
+        // Bound as the cook's, and drawn by the matched list again.
+        await screen.findByText(/Skim milk\s+· your choice/u);
+        expect(wordsField()).toBeUndefined();
+        expect(
+            sent()
+                .filter((request) => request.path === '/api/v1/ingredients/by-food')
+                .map((request) => request.body),
+        ).toEqual([{ foodId: 'food_skim' }]);
     });
 });
 

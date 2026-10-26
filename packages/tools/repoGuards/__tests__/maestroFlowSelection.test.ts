@@ -258,6 +258,15 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
     // a local stage without `recipe-workers`; there is no planned stage it could pass on.
     'recipes/pasteListStalled',
+    // The matched paste (ADR-0071; owner rulings 2026-10-25): confident, choosing a food, a line still being checked, and
+    // publishing with open choices. Written with the slice and NOT run (it was built without a device); each depends on
+    // what the stage's catalog and review gate answer (a foundation food by exact name, the seeded milk and salt defaults,
+    // a review that answers late). Promote them to FLOW_PLAN in the PR whose Maestro tier is watched, once an emulator run
+    // has passed them.
+    'recipes/pasteMatchConfident',
+    'recipes/pasteMatchChoose',
+    'recipes/pasteMatchChecking',
+    'recipes/pastePublishOpenChoices',
     // The offline write path: the editor saves through the outbox (ADR-0057), and these flows assert the cook-visible
     // half (a save that succeeds offline, a queued write surviving an app restart). Android-bound like their siblings
     // (`setAirplaneMode` has no iOS Simulator equivalent), so they run by hand on an emulator.

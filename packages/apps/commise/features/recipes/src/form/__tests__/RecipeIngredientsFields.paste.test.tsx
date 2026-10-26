@@ -189,6 +189,48 @@ describe('the Ingredients section draws the paste list (web)', () => {
     });
 });
 
+describe('the paste still matching (web)', () => {
+    it('⛔ draws the lines already matched, then the lines still being read, each line once', () => {
+        const Reading: FC = () => {
+            const presentation = usePasteMatchView({
+                matching: matchingOf([EGGS_BOUND]),
+                lineCount: VALUES.ingredients.length,
+                keep: 'tabSession',
+                quota: undefined,
+                offline: false,
+            });
+
+            return (
+                <RecipeIngredientsFields
+                    values={VALUES}
+                    onChange={vi.fn()}
+                    nutrition={makeIngredientNutrition()}
+                    lookupRetry={makeLookupRetry()}
+                    rowEditor={makeIngredientRowEditor()}
+                    paste={{
+                        ...BASE_PASTE,
+                        matching: presentation.view,
+                        reading: [{ key: 'j:1', lineIndex: 1, sourceLine: '1 tsp salt', state: 'reading' }],
+                        progress: {
+                            done: 1,
+                            count: 2,
+                            status: { kind: 'step', step: 'reading', position: 2 },
+                            retryCount: 0,
+                            restCount: 0,
+                        },
+                    }}
+                />
+            );
+        };
+
+        render(<Reading />);
+
+        expect(screen.getByText('Egg, whole, raw')).toBeTruthy();
+        expect(screen.getAllByText('1 tsp salt')).toHaveLength(1);
+        expect(screen.getByText('Added 1 line')).toBeTruthy();
+    });
+});
+
 describe('every state of a matched line, through the section (web)', () => {
     it('matched: arrives bound, with Change', () => {
         render(<Harness matching={matchingOf([EGGS_BOUND])} />);

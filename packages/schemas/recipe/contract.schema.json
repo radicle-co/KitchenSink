@@ -8357,6 +8357,49 @@
             ],
             "type": "object"
         },
+        "privateSlotUsageSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "limited",
+                            "type": "string"
+                        },
+                        "limit": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "type": "integer"
+                        },
+                        "used": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "used",
+                        "limit"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "unlimited",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
         "pullDiffSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -9668,6 +9711,44 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "PRIVATE_SLOTS_FULL",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "limit": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "type": "integer"
+                                },
+                                "used": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "used",
+                                "limit"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "VERSION_LINE_UNRESTORABLE",
                             "type": "string"
                         },
@@ -10731,6 +10812,7 @@
                 "IMPORT_NOT_FOUND",
                 "IMPORT_CURSOR_MOVED",
                 "IMPORT_ITEM_ALREADY_SAVED",
+                "PRIVATE_SLOTS_FULL",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",

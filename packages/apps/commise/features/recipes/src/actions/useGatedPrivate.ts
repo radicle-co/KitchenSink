@@ -1,66 +1,77 @@
 'use client';
 
 /**
- * @module @commise/features-recipes/actions — asking for Private, for any surface that offers it (editor field, recipe
- * page ⋯ menu). A request applies at once, opens the Premium sheet, or does nothing, as {@link privateChoice} decides
- * from the viewer's paid-feature state (owner ruling 2026-10-13; plan 2026-10-14-009 D14).
+ * @module @commise/features-recipes/actions — asking for Private, for any recipe surface that offers it (editor field,
+ * recipe page ⋯ menu). A request applies at once, opens the Premium sheet, or does nothing, as {@link recipePrivateChoice}
+ * decides (ADR-0073: a recipe is under the slots rule, or for an imported public-web recipe the Premium rule; owner ruling
+ * 2026-10-13 for the latter).
  *
- * ⛔ A LOADING STATE FAILS CLOSED. No surface offers Private for a public thing until the state is known, so a request
- * made while loading does nothing — it neither upsells a cook who may hold the plan nor shows a paid feature to one
- * whose state turns out `hidden`. The hosts own the profile read; this takes the state so it reads no query.
+ * ⛔ UNDER THE PREMIUM RULE A LOADING STATE FAILS CLOSED, as it always did. Under the slots rule an unknown standing does
+ * not: the write goes out and the server decides. A COLLECTION is not asked here (`useCollectionVisibility` asks
+ * `privateChoice` directly).
  *
- * @pattern Policy — `privateChoice` decides WHAT a request does; this holds the sheet it may open
+ * @pattern Policy — `recipePrivateChoice` decides WHAT a request does; this holds the sheet it may open
  */
-import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
 import type { RecipeUpsellSheetProps } from './model.js';
-import { offersPrivate, privateChoice, privateNeedsPremium } from './privateGate.js';
+import { recipeOffersPrivate, recipePrivateChoice, type RecipePrivateFacts } from './recipePrivateGate.js';
 
 /** Options for {@link useGatedPrivate}. */
 export interface UseGatedPrivateOptions {
-    /** The viewer's paid-feature state (`paidFeatureStateOf`). */
-    readonly state: PaidFeatureState;
+    /** The recipe's rule, the cook's slot standing and their paid-feature state. */
+    readonly facts: RecipePrivateFacts;
     /** The visibility the server holds. */
     readonly saved: RecipeVisibility;
-    /** Make the thing private: set the draft's field, or send the visibility write. Called only when allowed. */
+    /** Make the recipe private: set the draft's field, or send the visibility write. Called only when allowed. */
     readonly apply: () => void;
+    /**
+     * The cook asked for Private while every slot is KNOWN used. The editor leaves it unset: its field already shows the
+     * refusal and its ways forward. A surface with nowhere to show one (the recipe page's menu) sends the write here, so
+     * the server's `PRIVATE_SLOTS_FULL` is what says no - the count is a display fact, never a reason to withhold a write.
+     */
+    readonly whenFull?: () => void;
 }
 
 /** What the host wires in. */
 export interface GatedPrivate {
-    /** Whether the surface offers Private at all (`offersPrivate`). */
+    /** Whether the surface offers Private at all (`recipeOffersPrivate`). */
     readonly offersPrivate: boolean;
     /** The cook asked for Private. */
     readonly request: () => void;
+    /** Open the Premium sheet directly (the refusal's "Get Premium"); nothing opens unless the upsell stands. */
+    readonly showPremium: () => void;
     /** For `RecipeUpsellSheet`. Open only under `upsell`. */
     readonly sheet: RecipeUpsellSheetProps;
 }
 
 /**
- * The Private request for one surface.
+ * The Private request for one recipe surface.
  *
- * @param options - The viewer's state, the saved visibility and what applying Private does.
- * @returns Whether Private is offered, the request, and the Premium sheet's props.
+ * @param options - The recipe's private facts, the saved visibility and what applying Private does.
+ * @returns Whether Private is offered, the request, the direct Premium command, and the Premium sheet's props.
  * @sideEffect Calls `apply` for a request that is allowed.
  */
 export function useGatedPrivate(options: UseGatedPrivateOptions): GatedPrivate {
-    const { state, saved, apply } = options;
+    const { facts, saved, apply, whenFull } = options;
     const [open, setOpen] = useState(false);
 
     return {
-        offersPrivate: offersPrivate(state, saved),
+        offersPrivate: recipeOffersPrivate(facts, saved),
         request: () => {
-            const choice = { target: RecipeVisibility.PRIVATE, saved, state };
+            const outcome = recipePrivateChoice(facts, saved, RecipeVisibility.PRIVATE);
 
-            if (privateNeedsPremium(choice)) {
+            if (outcome === 'upsell') {
                 setOpen(true);
-            } else if (privateChoice(choice) === 'apply') {
+            } else if (outcome === 'apply') {
                 apply();
+            } else if (outcome === 'slotsFull') {
+                whenFull?.();
             }
         },
+        showPremium: () => setOpen(true),
         // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.
-        sheet: { open: open && state === 'upsell', onOpenChange: setOpen, onSeePremium: () => setOpen(false) },
+        sheet: { open: open && facts.state === 'upsell', onOpenChange: setOpen, onSeePremium: () => setOpen(false) },
     };
 }

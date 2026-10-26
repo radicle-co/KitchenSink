@@ -22,6 +22,7 @@ import {
     nextEditorOpening,
     useDeviceDraft,
     useRecipeEditorSession,
+    useRecipePrivate,
     type DraftStore,
     type EditorNavigation,
     type EditorSectionId,
@@ -184,6 +185,9 @@ function RecipeEditorSession({
     const paidFeatures = paidFeatureStateOf(profile);
     // What a WRITE may rely on: the profile's own answer, never the display's fail-closed `hidden` (review B1).
     const knownPaidFeatures = knownPaidFeaturesOf(profile);
+    // ADR-0073: which rule the recipe's Private is under, where the cook stands on private slots (the server's read), and
+    // the refusal that is KNOWN - what the session must not send.
+    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
     // The session's navigation port, on the route's hand-offs: leaving for the recipe goes back where it was opened.
     const navigation: EditorNavigation = {
         finished: onFinished,
@@ -200,7 +204,7 @@ function RecipeEditorSession({
         navigation,
         reportError: reportErrorToSentry,
         openPaste,
-        knownPaidFeatures,
+        privateRefusal: recipePrivate.refusal,
     });
 
     return (
@@ -211,6 +215,8 @@ function RecipeEditorSession({
             keep="disk"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
+            privateRule={recipePrivate.rule}
+            slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploader {...target} />}
             {...(section === undefined ? {} : { initialSection: section })}
             onClose={onClose}

@@ -27,18 +27,18 @@ describe('visibilityFollowUp', () => {
         });
     });
 
-    it.each(['final', 'premium'] as const)('⛔ a %s refusal sends no Private, and says so', (refusal) => {
+    it.each(['final', 'premium', 'slots'] as const)('⛔ a %s refusal sends no Private, and says so', (refusal) => {
         expect(visibilityFollowUp(PRIVATE, holding(PUBLIC), refusal)).toStrictEqual({ kind: 'refused', refusal });
     });
 
-    it.each(['final', 'premium'] as const)('a %s refusal never stops a change to Public', (refusal) => {
+    it.each(['final', 'premium', 'slots'] as const)('a %s refusal never stops a change to Public', (refusal) => {
         expect(visibilityFollowUp(PUBLIC, holding(PRIVATE), refusal)).toStrictEqual({
             kind: 'send',
             visibility: PUBLIC,
         });
     });
 
-    it.each([undefined, 'final', 'premium'] as const)(
+    it.each([undefined, 'final', 'premium', 'slots'] as const)(
         'asks for nothing when the server already holds it (%s)',
         (refusal) => {
             expect(visibilityFollowUp(PRIVATE, holding(PRIVATE), refusal)).toStrictEqual({ kind: 'none' });

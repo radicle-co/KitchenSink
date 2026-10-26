@@ -58,6 +58,7 @@ export {
     // contract and NO request went out — a caller bug, distinct from the server's `400`, and the only one
     // where retrying the same body cannot work (see the three-way distinction in `errors.ts`).
     ImportQuotaExceededError,
+    PrivateSlotsFullError,
     InvalidRequestError,
     NotFoundError,
     ParseJobExpiredError,
@@ -76,6 +77,7 @@ export {
     isImportCursorMovedError,
     isImportItemAlreadySavedError,
     isImportQuotaExceededError,
+    isPrivateSlotsFullError,
     isInvalidRequestError,
     isNotFoundError,
     isParseJobExpiredError,

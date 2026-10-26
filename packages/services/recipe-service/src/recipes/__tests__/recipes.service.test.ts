@@ -388,19 +388,31 @@ describe('RecipesService.create', () => {
         await expect(service.create(principal(), CREATE_DTO, undefined)).rejects.toThrow('version row refused');
     });
 
-    // C-004 / FR-003 (ADV-3): a create is a `user_created` recipe with no substantive edit, so the
-    // requested visibility MUST pass evaluateVisibility. Removing that gate (the mutation) lets a
-    // free-tier caller persist `private`, which these two tests forbid.
-    it('rejects a free-tier caller requesting private with INVALID_VISIBILITY and never touches the DAL', async () => {
-        const dal = fakeRecipesDal({ create: vi.fn() });
+    // C-004 / FR-003 (ADV-3), REWRITTEN for ADR-0073. This used to prove a free-tier caller can never persist `private`
+    // (rejected with INVALID_VISIBILITY). A free cook may now hold 50 private recipes, so what it proves is the SAME
+    // mutation guard at the new boundary: remove the gate and a free cook with no slot left persists a 51st private row.
+    // The full slot truth table lives in `recipes.service.privateSlots.test.ts`.
+    it('rejects a free-tier caller with NO slot left with PRIVATE_SLOTS_FULL and never writes the row', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn(), lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50) });
 
         const error = await catchError(
             newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }, undefined),
         );
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
-        // The gate runs BEFORE any persistence — no private row is ever written.
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        // The gate runs BEFORE the row is written - no 51st private row is ever persisted.
         expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('lets a free-tier caller WITH a free slot create a private recipe (ADR-0073 reverses FR-003 "always public")', async () => {
+        const dal = fakeRecipesDal({
+            create: vi.fn().mockResolvedValue(aggregate({ visibility: 'private' })),
+            lockAndCountPrivateSlots: vi.fn().mockResolvedValue(49),
+        });
+
+        const response = await newService(dal).create(principal(), { ...CREATE_DTO, visibility: 'private' }, undefined);
+
+        expect(response.visibility).toBe('private');
     });
 
     it('lets a premium caller create a private recipe', async () => {
@@ -419,10 +431,12 @@ describe('RecipesService.create', () => {
         expect(response.visibility).toBe('private');
     });
 
-    it('marks premium off the roles claim alone (a premium scope or permission must not unlock private)', async () => {
-        const dal = fakeRecipesDal({ create: vi.fn() });
+    // REWRITTEN for ADR-0073: a premium SCOPE or PERMISSION still must not unlock anything. It used to be proven by an
+    // INVALID_VISIBILITY refusal; Premium now means "no count at all", so it is proven by a full cook still being counted.
+    it('marks premium off the roles claim alone (a premium scope or permission is still counted against the 50)', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn(), lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50) });
 
-        // `premium` sits in scopes and permissions, not roles — the policy keys on roles, so this is free-tier.
+        // `premium` sits in scopes and permissions, not roles - the policy keys on roles, so this is free-tier.
         const error = await catchError(
             newService(dal).create(
                 principal({ scopes: ['premium'], permissions: ['premium'] }),
@@ -434,7 +448,7 @@ describe('RecipesService.create', () => {
             ),
         );
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
         expect(dal.create).not.toHaveBeenCalled();
     });
 });
@@ -1935,10 +1949,14 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.NOT_OWNER);
     });
 
-    it('DENIES free-tier user_created → private (INVALID_VISIBILITY) and never touches the DAL', async () => {
+    // REWRITTEN for ADR-0073 (was: free-tier user_created -> private is INVALID_VISIBILITY). The refusal is now for want of
+    // a slot and carries used/limit; the full truth table is in `recipes.service.privateSlots.test.ts`.
+    it('DENIES a free-tier user_created -> private with NO slot left (PRIVATE_SLOTS_FULL) and never writes', async () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
+            lockVisibility: vi.fn().mockResolvedValue('public'),
+            lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50),
             setVisibility,
         });
 
@@ -1946,11 +1964,11 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
             newService(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
         );
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
-    it('ALLOWS premium user_created → private and persists it', async () => {
+    it('ALLOWS premium user_created → private and persists it, in the write transaction', async () => {
         const updated = aggregate({ sourceType: 'user_created', visibility: 'private' });
         const setVisibility = vi.fn().mockResolvedValue(updated);
         const dal = fakeRecipesDal({
@@ -1960,18 +1978,21 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
 
         const res = await newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PRIVATE, undefined);
 
-        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private');
+        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX);
         expect(res.visibility).toBe('private');
     });
 
-    it('derives premium from permissions, not scopes (a premium SCOPE must not unlock private)', async () => {
+    // REWRITTEN for ADR-0073: a premium SCOPE must not unlock anything. Proven now by a full cook still being counted.
+    it('derives premium from permissions, not scopes (a premium SCOPE is still counted against the 50)', async () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
+            lockVisibility: vi.fn().mockResolvedValue('public'),
+            lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50),
             setVisibility,
         });
 
-        // `premium` in scopes and permissions, not roles → still free-tier → denied.
+        // `premium` in scopes and permissions, not roles → still free-tier → counted → refused for want of a slot.
         const error = await catchError(
             newService(dal).setVisibility(
                 principal({ scopes: ['premium'], permissions: ['premium'] }),
@@ -1981,7 +2002,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
             ),
         );
 
-        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
         expect(setVisibility).not.toHaveBeenCalled();
     });
 

@@ -7,9 +7,11 @@
 # `public_metadata` — and opens the new-recipe editor's "Who can see it". READ-ONLY by the pool's own rules (no lease, no
 # reset — `POOL_TIERS` in `testPool.ts`): it types no title, so the editor saves nothing, and it leaves by ×.
 #
-# ⚠️ The stage's gate is the OWNER's (both variables stay `false` until the owner flips them), so the DEFAULT and ADMIN
-# legs accept EITHER answer and assert what that answer requires (`common/gateDecidesPrivate.yaml`). The entitled legs are
-# gate-free: Private is always a real choice, with no sheet. Every state is pinned deterministically by the component suites and `paidFeatureGate.spec.ts`.
+# ⚠️ The stage's gate is the OWNER's (both variables stay `false` until the owner flips them). REWRITTEN for ADR-0073
+# (owner ruling 2026-10-26): the DEFAULT and ADMIN legs no longer depend on it, because a free cook's Private is a private
+# slot (`common/gateDecidesPrivate.yaml`: the server's count, "uses 1 slot", no Premium sheet). The entitled legs are
+# gate-free too: Private is always a real choice, with no sheet and no count. Every state is pinned deterministically by
+# the component suites and `paidFeatureGate.spec.ts`.
 #
 # The addresses come from `@kitchensink/e2e-seed`'s manifest (`FIXTURE_ENV_KEYS`), never literals. Each cook is signed
 # in on a CLEARED device (`clearState`), because `signinHome.yaml` skips the form when any session is persisted; the
@@ -23,7 +25,7 @@ onFlowComplete:
     - runFlow: ../auth/launchCleared.yaml
     - runFlow: ../auth/signOutIfSignedIn.yaml
 ---
-# ── DEFAULT and ADMIN: never granted; shows only what the stage's gate allows ────────────────────────────────────────
+# ── DEFAULT and ADMIN: never granted; Private is a private slot, whatever the stage's gate says ────────────────────────────────────────
 # An admin sees paid features as a default user does (owner ruling 2026-10-15); superuser is the admin who gets them.
 - runFlow: ../auth/launchCleared.yaml
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.

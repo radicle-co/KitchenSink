@@ -27,7 +27,6 @@
  * @pattern Mediator — the editor, the row editor, the paste and the navigation port coordinated in one place
  * @pattern Port — {@link EditorNavigation}, the platform's router behind the editor's hand-offs
  */
-import type { PaidFeatureState } from '@commise/features-account';
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
@@ -40,7 +39,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
-import { effectiveVisibility, heldVisibility, privateRefusalOf } from '../actions/privateGate.js';
+import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -98,12 +97,13 @@ export interface UseRecipeEditorSessionOptions {
     /** Open Paste a list at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly openPaste: boolean;
     /**
-     * The profile's own answer (`knownPaidFeaturesOf`): `undefined` while unknown, a failed read included. REQUIRED: it
-     * decides whether a Private may go out at all — on a create, and after a publish or Save changes
-     * (`privateRefusalOf`). ⛔ Never the display state, whose fail-closed `hidden` would withhold an entitled cook's
-     * Private and publish the recipe.
+     * Why the server is KNOWN to refuse a change to private for this cook (`useRecipePrivate().refusal`): `undefined`
+     * while nothing is known, a loading or failed read of the paid features or the slot count included. REQUIRED: it
+     * decides whether a Private may go out at all — on a create, and after a publish or Save changes. ⛔ Never a display
+     * state: a fail-closed `hidden`, or a count that has not loaded, would withhold an entitled cook's Private and
+     * publish the recipe.
      */
-    readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
+    readonly privateRefusal: PrivateRefusal | undefined;
 }
 
 /** The preview sheet's state and the recipe it shows. */
@@ -140,7 +140,7 @@ export interface RecipeEditorSession {
  */
 export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): RecipeEditorSession {
     const { seed, locale, keep, port, drafts, navigation, reportError, onRecipeRef, openPaste } = options;
-    const privateRefusal = privateRefusalOf(options.knownPaidFeatures ?? 'loading');
+    const { privateRefusal } = options;
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();

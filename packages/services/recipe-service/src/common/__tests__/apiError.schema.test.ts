@@ -61,6 +61,7 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     IMPORT_QUOTA_EXCEEDED: { resetsAt: '2026-10-27T03:30:00.000Z' },
     IMPORT_CURSOR_MOVED: { cursorOrdinal: 4 },
     IMPORT_ITEM_ALREADY_SAVED: { ordinal: 4 },
+    PRIVATE_SLOTS_FULL: { used: 50, limit: 50 },
 };
 
 /** A minimal valid body for a published code. */
@@ -340,6 +341,29 @@ describe('the bulk import codes (ADR-0072)', () => {
             expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED', { ordinal: null })).success).toBe(
                 false,
             );
+        });
+    });
+
+    describe('PRIVATE_SLOTS_FULL — a free cook has no private slot left (ADR-0073)', () => {
+        it('is a 403, NOT a 409: an installed client reads an unknown 409 as a version conflict', () => {
+            expect(RECIPE_ERROR_STATUS.PRIVATE_SLOTS_FULL).toBe(403);
+        });
+
+        it('REQUIRES details.used (a non-negative integer) and details.limit (a positive integer)', () => {
+            const parse = (details?: Record<string, unknown>) =>
+                recipeApiErrorSchema.safeParse(body('PRIVATE_SLOTS_FULL', details)).success;
+
+            expect(parse({ used: 50, limit: 50 })).toBe(true);
+            // A downgraded cook holds more than the limit; `used` states the truth rather than clamping to it.
+            expect(parse({ used: 60, limit: 50 })).toBe(true);
+            expect(parse()).toBe(false);
+            expect(parse({})).toBe(false);
+            expect(parse({ used: 50 })).toBe(false);
+            expect(parse({ limit: 50 })).toBe(false);
+            expect(parse({ used: -1, limit: 50 })).toBe(false);
+            expect(parse({ used: 1.5, limit: 50 })).toBe(false);
+            expect(parse({ used: 50, limit: 0 })).toBe(false);
+            expect(parse({ used: '50', limit: 50 })).toBe(false);
         });
     });
 });

@@ -130,8 +130,11 @@ export function makePublicConsequence(state: PaidFeatureState, saved: RecipeVisi
 /** What making a private thing public costs: {@link makePublicConsequence}. */
 export type MakePublicConsequence = 'none' | 'final' | 'premium' | 'unknown';
 
-/** Why the server will refuse a change to private for this viewer: never again (`hidden`), or only with Premium. */
-export const PRIVATE_REFUSALS = ['final', 'premium'] as const;
+/**
+ * Why the server will refuse a change to private for this viewer: never again (`hidden`), only with Premium, or because
+ * every private slot is in use (`slots`, ADR-0073: a recipe's, never a collection's).
+ */
+export const PRIVATE_REFUSALS = ['final', 'premium', 'slots'] as const;
 
 /** One of {@link PRIVATE_REFUSALS}. */
 export type PrivateRefusal = (typeof PRIVATE_REFUSALS)[number];

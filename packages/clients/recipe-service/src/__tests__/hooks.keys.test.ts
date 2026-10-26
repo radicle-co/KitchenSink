@@ -44,6 +44,10 @@ describe('recipeServiceKeys — literal key contract', () => {
         expect(recipeServiceKeys.recipeList()).toEqual(['recipe-service', 'recipes', 'list', {}]);
     });
 
+    it('keys the private-slot standing under the recipes prefix, so a create or delete reaches it', () => {
+        expect(recipeServiceKeys.recipePrivateSlots).toEqual(['recipe-service', 'recipes', 'private-slots']);
+    });
+
     it('keys a recipe detail by id', () => {
         expect(recipeServiceKeys.recipe('rec_1')).toEqual(['recipe-service', 'recipes', 'detail', 'rec_1']);
     });

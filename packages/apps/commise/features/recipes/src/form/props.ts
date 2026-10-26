@@ -7,7 +7,6 @@
  * ingredient (the container owns the food-service typeahead). Every edit produces the next
  * {@link RecipeFormValues} and is handed back up via `onChange`.
  */
-import type { PaidFeatureState } from '@commise/features-account';
 import {
     classifyUnit,
     CUISINE_ALIASES,
@@ -23,14 +22,15 @@ import {
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
+import { effectiveVisibility, refusedDraftPrivate, type PrivateRefusal } from '../actions/privateGate.js';
 import {
-    effectiveVisibility,
-    makePublicConsequence,
-    privateChoice,
-    refusedDraftPrivate,
-    showsPremiumBadge,
-    type PrivateRefusal,
-} from '../actions/privateGate.js';
+    recipeMakePublicConsequence,
+    recipePrivateChoice,
+    showsRecipePremiumBadge,
+    usesSlots,
+    type RecipePrivateFacts,
+} from '../actions/recipePrivateGate.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';
@@ -87,8 +87,11 @@ export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
  * leaf only when Private is offered (`offersPrivate`), and `RecipeVisibilityStatement` otherwise.
  */
 export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
-    /** The viewer's paid-feature state. Under `upsell`, Private carries the Premium badge. */
-    readonly paidFeatures: PaidFeatureState;
+    /**
+     * What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their
+     * paid-feature state. Under the premium rule's `upsell`, Private carries the Premium badge.
+     */
+    readonly facts: RecipePrivateFacts;
     /**
      * The visibility the cook may keep without an entitlement (`heldVisibility`): what the server held when the editor
      * opened, for as long as the draft keeps it. The field applies `heldVisibility` again itself (it is idempotent), so
@@ -100,13 +103,18 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * profile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.
      */
     readonly privateRefusal: PrivateRefusal | undefined;
-    /** Choosing Private under `upsell`: open the upsell. The value never changes for it. */
+    /** Choosing Private under `upsell`, and the full refusal's "Get Premium": open the upsell. The value never changes for it. */
     readonly onPremiumRequired?: () => void;
     /**
-     * Choosing Public when it costs the cook something (`makePublicConsequence`): open the make-public confirm. The value
-     * never changes for it. REQUIRED, so no host can let a downgraded owner leave Private unasked.
+     * Choosing Public when it costs the cook something (`recipeMakePublicConsequence`): open the make-public confirm. The
+     * value never changes for it. REQUIRED, so no host can let a cook leave a held Private unasked.
      */
     readonly onConfirmPublic: () => void;
+    /**
+     * "Make a private recipe public" and "Delete a private recipe" from the full refusal: take the cook to their recipes,
+     * where either frees a slot. REQUIRED, so no host can ship the refusal's ways forward as dead rows.
+     */
+    readonly onFreeASlot: () => void;
 }
 
 /** Props for `RecipeVisibilityStatement`, both platform leaves (`usePrivateChoice().statement`). */
@@ -128,10 +136,25 @@ export interface VisibilityOption {
     readonly premium: boolean;
 }
 
-/** What the "Who can see it" field draws: the visibility it shows as chosen, and its two cards. */
+/** One way forward from a full set of private slots. */
+export interface SlotWay {
+    readonly id: 'makePublic' | 'delete' | 'premium';
+    readonly label: string;
+    readonly detail: string;
+}
+
+/** The refusal of Private for want of a slot: its title and the ways forward (ADR-0073; owner ruling 2026-10-26). */
+export interface SlotsFullView {
+    readonly title: string;
+    readonly ways: readonly SlotWay[];
+}
+
+/** What the "Who can see it" field draws: the visibility it shows as chosen, its two cards, and the full refusal. */
 export interface VisibilityFieldModel {
     readonly shown: RecipeVisibility;
     readonly options: readonly [VisibilityOption, VisibilityOption];
+    /** Present only when Private is refused for want of a slot, and the recipe is not already private. */
+    readonly slotsFull: SlotsFullView | undefined;
 }
 
 /**
@@ -139,29 +162,37 @@ export interface VisibilityFieldModel {
  *
  * - A draft's Private the server will refuse (`refusedDraftPrivate`) is shown as Public, with a note saying why.
  * - Otherwise the Public card says what choosing it costs whenever that opens the make-public confirm
- *   (`makePublicConsequence`): WCAG 3.2.2 asks that the cook be told before the radio is used.
+ *   (`recipeMakePublicConsequence`): WCAG 3.2.2 asks that the cook be told before the radio is used. Public is never
+ *   final, so what it says is "this frees one of your private slots", or (an imported public-web recipe) Premium.
+ * - The Private card carries the slot line (ADR-0073): how many are left, what choosing it uses, "checking", or the
+ *   refusal with its ways forward. Premium shows no count. The numbers are the server's; nothing here states a limit.
  *
- * @param input - The draft's visibility, what the cook may keep, the paid-feature state, the known refusal, and the
+ * @param input - The draft's visibility, what the cook may keep, the recipe's private facts, the known refusal, and the
  *   field's copy.
- * @returns The chosen visibility and the two cards.
+ * @returns The chosen visibility, the two cards and the full refusal.
  */
 export function visibilityFieldOf(input: {
     readonly draft: RecipeVisibility;
     readonly saved: RecipeVisibility;
-    readonly state: PaidFeatureState;
+    readonly facts: RecipePrivateFacts;
     readonly refusal: PrivateRefusal | undefined;
     readonly messages: EditorMessages['visibility'];
 }): VisibilityFieldModel {
-    const { draft, saved, state, refusal, messages: v } = input;
+    const { draft, saved, facts, refusal, messages: v } = input;
+    const { standing } = facts;
     const refused = refusedDraftPrivate(refusal, saved, draft);
+    const holdsItsSlot = saved === RecipeVisibility.PRIVATE;
+    const slotsFullNote =
+        standing.kind === 'full' ? fillTemplate(v.slotsFull, { total: standing.limit }) : v.slotsLoading;
     const costNote = {
         none: undefined,
-        final: v.publicIsFinal,
+        frees: v.publicFrees,
         premium: v.publicNeedsPremium,
-        unknown: v.publicMayBeFinal,
-    }[makePublicConsequence(state, saved)];
+    }[recipeMakePublicConsequence(facts, saved)];
     const refusedNote =
-        refused === undefined ? undefined : { final: v.privateUnavailable, premium: v.privatePremiumOnly }[refused];
+        refused === undefined
+            ? undefined
+            : { final: v.privateUnavailable, premium: v.privatePremiumOnly, slots: slotsFullNote }[refused];
 
     return {
         shown: effectiveVisibility(refusal, saved, draft),
@@ -177,43 +208,103 @@ export function visibilityFieldOf(input: {
                 value: RecipeVisibility.PRIVATE,
                 title: v.private,
                 hint: v.privateHint,
-                note: undefined,
-                premium: showsPremiumBadge(state, saved),
+                note: privateNoteOf(facts, saved, draft, v),
+                premium: showsRecipePremiumBadge(facts, saved),
             },
         ],
+        slotsFull:
+            usesSlots(facts.rule) && standing.kind === 'full' && !holdsItsSlot
+                ? {
+                      title: v.waysTitle,
+                      ways: [
+                          { id: 'makePublic', label: v.wayMakePublic, detail: v.wayMakePublicDetail },
+                          { id: 'delete', label: v.wayDelete, detail: v.wayDeleteDetail },
+                          // Premium is offered only where paid features are shown (DSA Art. 25: no sale where none is shown).
+                          ...(facts.state === 'upsell'
+                              ? [{ id: 'premium' as const, label: v.wayPremium, detail: v.wayPremiumDetail }]
+                              : []),
+                      ],
+                  }
+                : undefined,
     };
 }
 
 /**
- * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing — the choice
- * already made, or Private that `privateChoice` refuses. Private under `upsell` asks for the upsell instead, and Public
- * that costs the cook something (`makePublicConsequence`) asks to confirm instead. Pure.
+ * The line under the Private card. Pure.
+ *
+ * @returns Under the slots rule: how many slots are left, what Private uses once chosen, "checking", or (every slot used,
+ *   a recipe not already private) the refusal; Premium and a failed read say nothing. Under the premium rule: why a free
+ *   cook cannot, while the upsell stands.
+ */
+function privateNoteOf(
+    facts: RecipePrivateFacts,
+    saved: RecipeVisibility,
+    draft: RecipeVisibility,
+    v: EditorMessages['visibility'],
+): string | undefined {
+    const { standing } = facts;
+
+    if (facts.rule === 'premium') {
+        return saved !== RecipeVisibility.PRIVATE && (facts.state === 'upsell' || facts.state === 'hidden')
+            ? v.webPrivate
+            : undefined;
+    }
+
+    switch (standing.kind) {
+        case 'loading':
+            return v.slotsLoading;
+        case 'unknown':
+        case 'unlimited':
+            return undefined;
+
+        case 'open': {
+            const choosing = draft === RecipeVisibility.PRIVATE && saved !== RecipeVisibility.PRIVATE;
+
+            return fillTemplate(choosing ? v.slotsUses : v.slotsLeft, {
+                left: choosing ? standing.left - 1 : standing.left,
+                total: standing.limit,
+            });
+        }
+
+        case 'full':
+            return saved === RecipeVisibility.PRIVATE
+                ? fillTemplate(v.slotsLeft, { left: 0, total: standing.limit })
+                : fillTemplate(v.slotsFull, { total: standing.limit });
+    }
+}
+
+/**
+ * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing - the choice
+ * already made, or a Private the rule refuses (the field already shows why). Private under `upsell` (the premium rule)
+ * asks for the upsell instead, and Public that costs the cook something (`recipeMakePublicConsequence`) asks to confirm
+ * instead. Pure.
  *
  * @param current - The visibility the field shows as chosen.
  * @param chosen - The choice the cook made.
  * @param saved - The visibility the cook may keep without an entitlement (`heldVisibility`).
- * @param state - The viewer's paid-feature state.
+ * @param facts - The recipe's rule, slot standing and paid-feature state.
  * @returns `{ visibility }` to apply, `'premiumRequired'`, `'confirmPublic'`, or `undefined`.
  */
 export const visibilityChoice = (
     current: RecipeVisibility,
     chosen: RecipeVisibility,
     saved: RecipeVisibility,
-    state: PaidFeatureState,
+    facts: RecipePrivateFacts,
 ): { readonly visibility: RecipeVisibility } | 'premiumRequired' | 'confirmPublic' | undefined => {
     if (chosen === current) {
         return undefined;
     }
 
-    if (chosen === RecipeVisibility.PUBLIC && makePublicConsequence(state, saved) !== 'none') {
+    if (chosen === RecipeVisibility.PUBLIC && recipeMakePublicConsequence(facts, saved) !== 'none') {
         return 'confirmPublic';
     }
 
-    switch (privateChoice({ target: chosen, saved, state })) {
+    switch (recipePrivateChoice(facts, saved, chosen)) {
         case 'apply':
             return { visibility: chosen };
         case 'upsell':
             return 'premiumRequired';
+        case 'slotsFull':
         case 'none':
             return undefined;
     }

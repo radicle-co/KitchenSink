@@ -214,12 +214,14 @@ export interface EditorMessages {
         readonly publicHint: string;
         /**
          * Under the Public card of a private recipe, whenever choosing it opens the make-public confirm
-         * (`makePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `final` under hidden paid
-         * features (no copy mentions Premium), `premium` under the upsell, `unknown` while the state loads.
+         * (`recipeMakePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `publicFrees` for a
+         * cook with private slots, `publicNeedsPremium` only for an imported public-web recipe, where Premium is still the
+         * rule.
+         *
+         * ⛔ PUBLIC IS NEVER FINAL (owner ruling 2026-10-26): there is no "you won't be able to make it private again".
          */
-        readonly publicIsFinal: string;
+        readonly publicFrees: string;
         readonly publicNeedsPremium: string;
-        readonly publicMayBeFinal: string;
         /**
          * A draft kept from before the cook lost the paid features still says Private, for a recipe not held private
          * (`refusedDraftPrivate`): on the statement under hidden, on the Public card under the upsell.
@@ -228,6 +230,24 @@ export interface EditorMessages {
         readonly privatePremiumOnly: string;
         readonly private: string;
         readonly privateHint: string;
+        /** Private's line while a slot is free: `{left}` and `{total}` come from the server. */
+        readonly slotsLeft: string;
+        /** Private chosen on a recipe not yet private: what it costs, and what is left after it. */
+        readonly slotsUses: string;
+        /** The refusal: every slot is in use (`{total}` is the limit; the ways forward follow it). */
+        readonly slotsFull: string;
+        /** While the standing is being read. */
+        readonly slotsLoading: string;
+        /** An imported public-web recipe a free cook cannot make private (Premium and a change of their own). */
+        readonly webPrivate: string;
+        /** The title over the ways forward from a full set of slots. */
+        readonly waysTitle: string;
+        readonly wayMakePublic: string;
+        readonly wayMakePublicDetail: string;
+        readonly wayDelete: string;
+        readonly wayDeleteDetail: string;
+        readonly wayPremium: string;
+        readonly wayPremiumDetail: string;
     };
 }
 
@@ -421,13 +441,25 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             legend: 'Who can see it',
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
-            publicIsFinal: "You won't be able to make it private again.",
+            publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
             publicNeedsPremium: "To make it private again, you'll need Premium.",
-            publicMayBeFinal: 'You may not be able to make it private again.',
             privateUnavailable: "Private isn't available, so this recipe will be public when you publish.",
             privatePremiumOnly: 'Private recipes are part of Premium, so this one will be public when you publish.',
             private: 'Private',
             privateHint: 'Only you can see it',
+            slotsLeft: '{left} of {total} private slots left',
+            slotsUses: 'This recipe uses 1 slot. {left} of {total} left after it.',
+            slotsFull: 'Not available. All {total} of your private slots are in use.',
+            slotsLoading: 'Checking your private slots…',
+            webPrivate:
+                'Not available. A recipe from a public web page needs Premium and a change of your own to be private.',
+            waysTitle: 'To keep this recipe private',
+            wayMakePublic: 'Make a private recipe public',
+            wayMakePublicDetail: 'It frees its slot',
+            wayDelete: 'Delete a private recipe',
+            wayDeleteDetail: 'It frees its slot',
+            wayPremium: 'Get Premium',
+            wayPremiumDetail: 'Private recipes with no limit',
         },
     },
 };

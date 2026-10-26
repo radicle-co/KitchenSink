@@ -24,6 +24,7 @@ import { Button } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
+import type { PrivateRule, SlotStanding } from '../actions/recipePrivateGate.js';
 import { usePrivateChoice } from '../actions/usePrivateChoice.js';
 import { RecipeMakePublicDialog } from '../actions/RecipeMakePublicDialog.js';
 import { RecipeUpsellSheet } from '../actions/RecipeUpsellSheet.js';
@@ -67,6 +68,10 @@ export interface RecipeEditorSurfaceProps {
     readonly paidFeatures: PaidFeatureState;
     /** The profile's own answer, for what will be SENT (`knownPaidFeaturesOf`); never the display's fail-closed `hidden`. */
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
+    /** Which rule the recipe's Private is under (`useRecipePrivate`): the cook's slots, or (an imported public-web recipe) Premium. */
+    readonly privateRule: PrivateRule;
+    /** Where the cook stands on private slots (`useRecipePrivate`), from the server's read. */
+    readonly slotStanding: SlotStanding;
     /** The app's photo uploader. Called only once the recipe exists on the server. */
     readonly renderPhotos: (target: PhotoUploaderTarget) => ReactNode;
     /** The section a deep link names, jumped to once on mount (blueprint A16). */
@@ -85,6 +90,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     keep,
     paidFeatures,
     knownPaidFeatures,
+    privateRule,
+    slotStanding,
     renderPhotos,
     initialSection,
     onClose,
@@ -96,12 +103,15 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
-    // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
-    // opened (a new recipe is public), so a choice back to it needs no entitlement.
+    // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
+    // here and refused with its ways forward when none is left); for an imported public-web recipe still from the viewer's
+    // paid features alone. "Saved" is what the server held when the editor opened (a new recipe is public), so a choice
+    // back to it needs no slot and no entitlement.
     const privateChoice = usePrivateChoice({
         state: paidFeatures,
         knownPaidFeatures,
+        rule: privateRule,
+        standing: slotStanding,
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,
@@ -157,6 +167,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                         {...privateChoice.field}
                         onPremiumRequired={privateChoice.onPremiumRequired}
                         onConfirmPublic={privateChoice.onConfirmPublic}
+                        // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
+                        // in the cook's recipes (the session checkpoints the draft as the cook leaves).
+                        onFreeASlot={onOpenMyRecipes}
                     />
                 ) : (
                     <RecipeVisibilityStatement {...privateChoice.statement} />

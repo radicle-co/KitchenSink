@@ -53,6 +53,7 @@ export { useRecipeVersions } from './hooks/useRecipeVersions.js';
 export { useRecipeVersion } from './hooks/useRecipeVersion.js';
 export { useRecipeNutrition } from './hooks/useRecipeNutrition.js';
 export { useRecipePhotos } from './hooks/useRecipePhotos.js';
+export { usePrivateSlots } from './hooks/usePrivateSlots.js';
 
 // ─── Collection queries ─────────────────────────────────────────────────────────────────────────
 

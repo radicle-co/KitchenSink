@@ -30,6 +30,7 @@ import {
     useCollections,
     useCollectionsInfinite,
     useRecipe,
+    usePrivateSlots,
     useRecipePhotos,
     useRecipeVersion,
     useRecipeVersions,
@@ -201,6 +202,49 @@ describe('useRecipe', () => {
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+    });
+});
+
+describe('usePrivateSlots', () => {
+    it('caches the standing under the literal private-slots key, beneath the recipes prefix', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used: 3, limit: 50 });
+
+        const { result, queryClient } = renderRecipeHook(() => usePrivateSlots(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'recipes', 'private-slots']]);
+        expect(result.current.data).toEqual({ kind: 'limited', used: 3, limit: 50 });
+    });
+
+    it('surfaces Premium as unlimited', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'unlimited' });
+
+        const { result } = renderRecipeHook(() => usePrivateSlots(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.data).toEqual({ kind: 'unlimited' });
+    });
+
+    it('a failed read is an error state, not a guessed count', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getPrivateSlots').mockRejectedValue(new UnauthorizedError('no', 'UNAUTHORIZED'));
+
+        const { result } = renderRecipeHook(() => usePrivateSlots(), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(result.current.data).toBeUndefined();
+    });
+
+    it('stays idle when disabled (a Premium-hidden surface asks nothing)', () => {
+        const client = makeGuardedClient();
+        const getPrivateSlots = vi.spyOn(client, 'getPrivateSlots');
+
+        const { result } = renderRecipeHook(() => usePrivateSlots({ enabled: false }), { client });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(getPrivateSlots).not.toHaveBeenCalled();
     });
 });
 

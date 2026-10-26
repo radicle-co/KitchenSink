@@ -140,6 +140,11 @@ export const recipeErrorCodeSchema = z.enum([
     'IMPORT_CURSOR_MOVED',
     /** ADR-0072 — the item's recipe was already saved; an item is saved once. `details.ordinal` names it. */
     'IMPORT_ITEM_ALREADY_SAVED',
+    /**
+     * ADR-0073 - a free cook has no private slot left. A `403`, NOT a `409`: the recipe client maps any 409 code it does not
+     * know to a version conflict. `details.used` and `details.limit` say how many slots the cook holds and how many they get.
+     */
+    'PRIVATE_SLOTS_FULL',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -270,6 +275,17 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
             message: z.string(),
             /** The item that is already saved. REQUIRED. */
             details: z.object({ ordinal: z.number().int().nonnegative() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PRIVATE_SLOTS_FULL'),
+            message: z.string(),
+            /**
+             * What the cook holds and what they get, both REQUIRED. `used` can exceed `limit` (a downgraded cook keeps every
+             * private recipe), and states the truth rather than clamping, so the refusal can say how far over they are.
+             */
+            details: z.object({ used: z.number().int().nonnegative(), limit: z.number().int().positive() }).loose(),
         })
         .loose(),
     z

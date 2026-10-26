@@ -668,6 +668,7 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         RecipeNutritionState: 'recipeNutritionStateSchema',
         RecipeNutritionResponse: 'recipeNutritionResponseSchema',
         SetRecipeVisibilityRequest: 'setRecipeVisibilityRequestSchema',
+        PrivateSlotUsage: 'privateSlotUsageSchema',
         RebindIngredientLineRequest: 'rebindIngredientLineRequestSchema',
         SetRatingRequest: 'setRatingRequestSchema',
         RecipePhoto: 'recipePhotoSchema',

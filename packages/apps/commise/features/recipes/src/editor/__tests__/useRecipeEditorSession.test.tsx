@@ -6,7 +6,7 @@
  *
  * Real hooks over the type-checked fake client; the write port is the fake outbox the lifecycle suite uses.
  */
-import type { PaidFeatureState } from '@commise/features-account';
+import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
@@ -57,7 +57,8 @@ function mount(
         readonly strict?: boolean;
         readonly drafts?: DraftStore;
         readonly onRecipeRef?: (ref: string) => void;
-        readonly knownPaidFeatures?: Exclude<PaidFeatureState, 'loading'> | undefined;
+        /** Why the server is KNOWN to refuse a change to private (`useRecipePrivate`); undefined = nothing known. */
+        readonly privateRefusal?: PrivateRefusal | undefined;
     } = {},
 ) {
     const port = makeFakeEditorWritePort();
@@ -89,7 +90,7 @@ function mount(
                 navigation: nav,
                 reportError: vi.fn(),
                 openPaste: false,
-                knownPaidFeatures: 'knownPaidFeatures' in options ? options.knownPaidFeatures : 'granted',
+                privateRefusal: options.privateRefusal,
                 ...(options.onRecipeRef === undefined ? {} : { onRecipeRef: options.onRecipeRef }),
             }),
         // ⚠️ `reactStrictMode`, not a `<StrictMode>` inside the wrapper: React replays effects only for a StrictMode the
@@ -170,13 +171,14 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
      * Private, nothing is sent — it would be refused after the editor had gone — and the finish says why.
      */
     it.each([
-        ['hidden', 'final'],
-        ['upsell', 'premium'],
-    ] as const)('⛔ under %s, a refused Private is not sent, and the finish says so', async (paidFeatures, refusal) => {
+        ['final', 'final'],
+        ['premium', 'premium'],
+        ['every private slot used', 'slots'],
+    ] as const)('⛔ with %s known, a refused Private is not sent, and the finish says so', async (_why, refusal) => {
         const client = createFakeRecipeServiceClient();
         const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
         const stored = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE });
-        const { result, port, nav } = mount({ recipe: stored }, client, { knownPaidFeatures: paidFeatures });
+        const { result, port, nav } = mount({ recipe: stored }, client, { privateRefusal: refusal });
 
         act(() => {
             result.current.editor.setField('description', 'Creamier.');
@@ -198,12 +200,13 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
     });
 
     // Review B1: a profile read still pending OR failed is UNKNOWN, never a refusal — the display's `hidden` for a failed
-    // read must not decide a write, or an entitled cook's Private is withheld and the recipe published.
-    it('⛔ while the paid features are unknown (loading, or a failed read), the Private is sent and the server decides', async () => {
+    // read must not decide a write, or an entitled cook's Private is withheld and the recipe published. ADR-0073 adds the
+    // slot count: a standing still loading or failed is unknown too, and the server decides under its lock.
+    it('⛔ while no refusal is KNOWN (paid features or slot count loading or failed), the Private is sent and the server decides', async () => {
         const client = createFakeRecipeServiceClient();
         const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
         const stored = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE });
-        const { result, port, nav } = mount({ recipe: stored }, client, { knownPaidFeatures: undefined });
+        const { result, port, nav } = mount({ recipe: stored }, client, { privateRefusal: undefined });
 
         act(() => {
             result.current.editor.setField('description', 'Creamier.');
@@ -225,7 +228,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
     });
 
     it('⛔ a new recipe`s create never carries a Private the server refuses: it goes out public', async () => {
-        const { result, port } = mount({}, createFakeRecipeServiceClient(), { knownPaidFeatures: 'hidden' });
+        const { result, port } = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'final' });
 
         act(() => {
             result.current.editor.setValues({
@@ -245,8 +248,8 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
     // Review S1: the preview shows what will be sent, as the field does — one answer (`effectiveVisibility`).
     it('⛔ the preview shows a refused draft Private as Public, and an unrefused one as Private', () => {
         const values = { ...toRecipeFormValues(complete()), visibility: RecipeVisibility.PRIVATE, photos: [] };
-        const refused = mount({}, createFakeRecipeServiceClient(), { knownPaidFeatures: 'hidden' });
-        const granted = mount({}, createFakeRecipeServiceClient(), { knownPaidFeatures: 'granted' });
+        const refused = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
+        const granted = mount({}, createFakeRecipeServiceClient(), { privateRefusal: undefined });
 
         act(() => {
             refused.result.current.editor.setValues(values);

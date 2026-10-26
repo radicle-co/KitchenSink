@@ -217,6 +217,8 @@ export type { MakePublicConfirm, UseMakePublicConfirmOptions } from './actions/u
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
 export { useGatedPrivate } from './actions/useGatedPrivate.js';
+export { useRecipePrivate } from './actions/useRecipePrivate.js';
+export type { RecipePrivate, UseRecipePrivateOptions } from './actions/useRecipePrivate.js';
 export {
     makePublicConsequence,
     mayRestorePrivate,

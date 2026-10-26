@@ -103,6 +103,7 @@ const ALL_RECIPE_PROBES: readonly CacheProbeName[] = [
     'recipeAVersions',
     'recipeAPhotos',
     'recipeB',
+    'privateSlots',
 ];
 
 /** Every probe under the `collections` prefix. */
@@ -151,7 +152,13 @@ const UPDATE_PROBES: readonly CacheProbeName[] = [
  * flip is a pure single-column metadata UPDATE with no `recipe_versions` insert and no `currentVersion`
  * bump, so — unlike a content edit or a restore — it records no new version for the list to reflect.
  */
-const VISIBILITY_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch', ...ALL_COLLECTION_PROBES];
+// ADR-0073: a visibility flip moves a recipe in or out of the private slots, so the standing is stale too.
+const VISIBILITY_PROBES: readonly CacheProbeName[] = [
+    'recipeList',
+    'recipeSearch',
+    'privateSlots',
+    ...ALL_COLLECTION_PROBES,
+];
 
 /**
  * DA3 — what restoring a version of recipe A stales. A restore is server-side a full content rewrite off the
@@ -169,7 +176,8 @@ const RESTORE_PROBES: readonly CacheProbeName[] = UPDATE_PROBES;
  * recipe lists and search need to reflect the new row. A fresh clone is a member of no collection, so
  * (unlike update/delete/visibility) `collections` is deliberately excluded.
  */
-const CLONE_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch'];
+// ADR-0073: a clone can land private, taking a slot.
+const CLONE_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch', 'privateSlots'];
 
 /**
  * What rating recipe A stales — identical shape to a restore, and for the same reason: a rating changes

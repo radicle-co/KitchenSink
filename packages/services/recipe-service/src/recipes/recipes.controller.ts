@@ -41,7 +41,7 @@ import { RecipeNutritionRequestDto } from './dto/recipeNutrition.dto.js';
 import { SetVisibilityDto } from './dto/setVisibility.dto.js';
 import { RebindIngredientLineDto } from './dto/rebindIngredientLine.dto.js';
 import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
-import type { RecipeNutritionResponse } from './recipes.schema.js';
+import type { PrivateSlotUsage, RecipeNutritionResponse } from './recipes.schema.js';
 import { SkipErasureLock } from '../account/skipErasureLock.decorator.js';
 import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { actingPrincipalOf, type Principal } from '../auth/principal.js';
@@ -128,6 +128,22 @@ export class RecipesController {
         @Body() body: RecipeNutritionRequestDto,
     ): Promise<RecipeNutritionResponse> {
         return this.detailAssembler.getNutritionForRecipes(ownerId, body.recipeIds, caller);
+    }
+
+    /**
+     * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073): `limited` with the live count and
+     * the limit, or `unlimited` for Premium. A DISPLAY read, counted without the per-user lock.
+     *
+     * ⚠️ **Declared BEFORE every `:id` route**, for the reason `nutrition-batch` is: Nest matches in DECLARATION order, so
+     * after `GET :id` this path would bind `private-slots` as a recipe id and fail the UUID parse with a 400. It lives on
+     * the recipes controller and not on `/account` because the count is of the caller's RECIPES, this is the controller
+     * `throttleWiring.test.ts` already censuses, and a second controller would drag in that census for no gain.
+     *
+     * The owner comes from the verified principal; nothing in the request can point it at another cook.
+     */
+    @Get('private-slots')
+    public async getPrivateSlots(@CurrentPrincipal() principal: Principal): Promise<PrivateSlotUsage> {
+        return this.recipesService.getPrivateSlotUsage(principal);
     }
 
     /** `GET /api/v1/recipes/{id}` — fetch one recipe (owner, or any public recipe). */

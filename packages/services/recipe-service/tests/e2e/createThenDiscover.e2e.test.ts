@@ -22,13 +22,11 @@
  * FREEFORM catalog row carrying a token unique to this file, so the "found by ingredient name" assertion
  * cannot be satisfied by the shared seed catalog or by another spec's rows.
  *
- * ⚠️ A `private` recipe is deliberately NOT part of this round trip, and the reason is itself a finding worth
- * recording: C-004 forbids a FREE-tier caller from creating a `user_created` recipe as private at all (the
- * dev-bypass Principal carries no `premium` permission, so `POST` answers `400 INVALID_VISIBILITY` — proven by
- * `__tests__/integration/recipes/cloneVisibility.integration.test.ts`). Every private recipe in this service's
- * test corpus therefore exists ONLY because a fixture wrote one straight into Postgres, past the policy the
- * API enforces — the same write-path/read-path divergence this file exists to close, in a shape no
- * API-only spec can reach. Private-visibility SCOPING stays covered by the raw-seeded search suites.
+ * ⚠️ A `private` recipe is deliberately NOT part of this round trip. (Until ADR-0073 the reason was that C-004 refused a
+ * free-tier caller a private `user_created` recipe, so every private recipe in this corpus was written straight into
+ * Postgres. A free cook may now create private recipes within their slots, and `recipes/privateSlots.e2e.test.ts` drives
+ * that through the API; this file stays about public discovery.) Private-visibility SCOPING stays covered by the
+ * raw-seeded search suites.
  *
  * The app is booted as AUTHOR; the seeker's reads run under {@link asPrincipal}. Skips without a database.
  */

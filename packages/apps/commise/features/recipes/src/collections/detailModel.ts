@@ -6,7 +6,7 @@
  * `useCollectionVisibility`, `useMemberToggle`, `useCollectionPull`) run the requests; the containers and screens connect
  * the two.
  */
-import type { RecipeMakePublicDialogProps } from '../actions/model.js';
+import type { MakePublicConsequence } from '../actions/privateGate.js';
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
@@ -246,13 +246,22 @@ export interface CollectionDeleteDialogProps {
 }
 
 /**
- * Props for the confirmation before a private collection goes public: the recipe dialog's, less the busy and error a
- * network write needs — a collection's change is optimistic, so the dialog closes with it.
+ * Props for the confirmation before a private collection goes public: the recipe dialog's shape, less the busy and error
+ * a network write needs — a collection's change is optimistic, so the dialog closes with it.
  */
-export type CollectionMakePublicDialogProps = Pick<
-    RecipeMakePublicDialogProps,
-    'open' | 'consequence' | 'onConfirm' | 'onKeep'
->;
+export interface CollectionMakePublicDialogProps {
+    /** Whether the dialog is shown. When `false` the component renders nothing. */
+    readonly open: boolean;
+    /**
+     * Why going public costs the cook something (`makePublicConsequence`, never `none` here). A collection's privacy is
+     * still a Premium feature, so unlike a recipe's (ADR-0073) it keeps all three reasons.
+     */
+    readonly consequence: Exclude<MakePublicConsequence, 'none'>;
+    /** Make public: the cook accepted the cost. */
+    readonly onConfirm: () => void;
+    /** Keep private, Escape, and the Android Back button. */
+    readonly onKeep: () => void;
+}
 
 /** Props for the Premium sheet a free-tier cook gets for "Make private". */
 export interface CollectionUpsellSheetProps {

@@ -93,25 +93,21 @@ test.describe('the editor session', () => {
         expect(focused!.y + focused!.height).toBeLessThanOrEqual((bar?.y ?? 844) + 1);
     });
 
-    /** E1 (build spec §6.4, §7.7 item 2): Private did nothing for a free-tier cook. It opens the Premium sheet. */
-    test('Private for a free-tier cook opens the Premium sheet, and Not now leaves the recipe public', async ({
-        page,
-    }) => {
+    /**
+     * E1 (build spec §6.4, §7.7 item 2), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: Private used to open the
+     * Premium sheet for a free-tier cook. A free cook now keeps recipes private in slots, so choosing Private applies it and
+     * says it uses one.
+     */
+    test('Private for a free-tier cook uses a slot: it applies, and says what is left', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, paidFeatures: 'upsell' });
 
         await openNewRecipe(page);
         await page.getByRole('radio', { name: /^Private/u }).click();
 
-        const sheet = page.getByRole('dialog', { name: 'Private recipes are part of Premium.' });
-        await expect(sheet).toBeVisible();
-        // Equal choices, nothing pre-selected (DSA Art. 25).
-        await expect(sheet.getByRole('button', { name: 'See Premium' })).toBeVisible();
-
-        await sheet.getByRole('button', { name: 'Not now' }).click();
-
-        await expect(sheet).toBeHidden();
-        await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
+        await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+        await expect(page.getByText('This recipe uses 1 slot. 49 of 50 left after it.')).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toHaveCount(0);
     });
 
     /** Owner 2026-10-13: a description past 256 characters blocks Publish; a draft still saves. The field says so, and nothing is cut. */

@@ -148,6 +148,27 @@ describe('RecipeServiceClient — recipes', () => {
         expect(jsonBody(fetchMock)).toEqual({ visibility: 'public' });
     });
 
+    it('getPrivateSlots GETs /api/v1/recipes/private-slots and parses the limited arm (200)', async () => {
+        const fetchMock = stubFetch(200, { kind: 'limited', used: 12, limit: 50 });
+
+        const result = await makeClient(fetchMock).getPrivateSlots();
+
+        expect(result).toEqual({ kind: 'limited', used: 12, limit: 50 });
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        expect(req.url).toBe(`${BASE}/api/v1/recipes/private-slots`);
+    });
+
+    it('getPrivateSlots parses the unlimited arm, which carries neither a count nor a limit', async () => {
+        const result = await makeClient(stubFetch(200, { kind: 'unlimited' })).getPrivateSlots();
+
+        expect(result).toEqual({ kind: 'unlimited' });
+    });
+
+    it('getPrivateSlots rejects a body that is neither arm (contract drift is loud, not a NaN on a screen)', async () => {
+        await expect(makeClient(stubFetch(200, { kind: 'limited', used: 'many' })).getPrivateSlots()).rejects.toThrow();
+    });
+
     it('setRecipeRating PUTs /api/v1/recipes/{id}/rating with { stars } and returns the refreshed detail (200)', async () => {
         const rated = makeRecipeDetail({ id: 'rec_1', ratingCount: 1, averageRating: 4 });
         const fetchMock = stubFetch(200, rated);

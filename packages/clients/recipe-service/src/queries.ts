@@ -121,6 +121,14 @@ export const recipeServiceKeys = {
      * third SHAPE of the same region, so its own segment, still under `recipeLists` for every broad invalidation.
      */
     recipeLibrary: (params: LibraryParams = {}) => ['recipe-service', 'recipes', 'list', 'library', params] as const,
+    /**
+     * The caller's private-slot standing (`GET /api/v1/recipes/private-slots`, ADR-0073).
+     *
+     * Under the `recipes` prefix on purpose: every write that moves a recipe in or out of private is a recipe write that
+     * already invalidates that prefix (create, delete), and the two that do not (a visibility flip, a clone) invalidate this
+     * key explicitly. NOT under `recipe(id)`: it is the cook's, not a recipe's.
+     */
+    recipePrivateSlots: ['recipe-service', 'recipes', 'private-slots'] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
     recipeVersion: (id: string, versionNumber: number) =>
@@ -401,6 +409,20 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryKey: recipeServiceKeys.recipe(id),
                 queryFn: () => client.getRecipeById(id),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
+            }),
+        /**
+         * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073).
+         *
+         * `staleTime: 0` is a DECISION: this is a number on a screen ("12 of 50 left") that another device can change, and a
+         * mount that showed a 30 s old count would offer a Private the server is about to refuse. Every private, public,
+         * delete and clone write also invalidates it at once. The count is still only a display fact; the server decides
+         * every write.
+         */
+        privateSlots: () =>
+            queryOptions({
+                queryKey: recipeServiceKeys.recipePrivateSlots,
+                queryFn: () => client.getPrivateSlots(),
+                staleTime: 0,
             }),
         /** `GET /api/v1/recipes/{id}/versions` — a recipe's recent versions. */
         versions: (id: string) =>

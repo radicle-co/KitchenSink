@@ -75,6 +75,8 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     IMPORT_NOT_FOUND: HttpStatus.NOT_FOUND,
     IMPORT_CURSOR_MOVED: HttpStatus.CONFLICT,
     IMPORT_ITEM_ALREADY_SAVED: HttpStatus.CONFLICT,
+    // ── Private slots (ADR-0073): a 403, NOT a 409 - an installed client reads an unknown 409 as a version conflict ──
+    PRIVATE_SLOTS_FULL: HttpStatus.FORBIDDEN,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

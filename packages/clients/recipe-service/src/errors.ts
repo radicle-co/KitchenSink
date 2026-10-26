@@ -360,6 +360,39 @@ export function isImportItemAlreadySavedError(error: unknown): error is ImportIt
     return error instanceof ImportItemAlreadySavedError;
 }
 
+/**
+ * `403 PRIVATE_SLOTS_FULL` - a free cook has no private slot left (ADR-0073). NOTHING was written.
+ *
+ * ⛔ ITS OWN TYPE, and not a {@link ForbiddenError}: a `ForbiddenError` is a scope or ownership gate, and this one has a
+ * remedy the surface offers (make a private recipe public, delete one, take Premium). It is a 403 on the wire so that an
+ * installed client that predates the code reads a plain refusal and not the version-conflict view a 409 would open.
+ *
+ * ⛔ TERMINAL for the retry policy: repeating the write meets the same full slots. The editor's outbox parks it for the cook
+ * to resolve and never re-sends it.
+ *
+ * `used` can exceed `limit`: a cook who lost Premium keeps every private recipe, and the refusal says how far over they are.
+ */
+export class PrivateSlotsFullError extends RecipeServiceClientError {
+    /** The private recipes the cook holds, as the server counted them. */
+    public readonly used: number;
+
+    /** The cook's private-slot limit. */
+    public readonly limit: number;
+
+    public constructor(used: number, limit: number, message = 'All of your private slots are in use') {
+        super(message, 403, 'PRIVATE_SLOTS_FULL');
+        this.name = 'PrivateSlotsFullError';
+        this.used = used;
+        this.limit = limit;
+        Object.setPrototypeOf(this, PrivateSlotsFullError.prototype);
+    }
+}
+
+/** Type guard for {@link PrivateSlotsFullError}. */
+export function isPrivateSlotsFullError(error: unknown): error is PrivateSlotsFullError {
+    return error instanceof PrivateSlotsFullError;
+}
+
 /** Type guard for {@link ImportQuotaExceededError}. */
 export function isImportQuotaExceededError(error: unknown): error is ImportQuotaExceededError {
     return error instanceof ImportQuotaExceededError;

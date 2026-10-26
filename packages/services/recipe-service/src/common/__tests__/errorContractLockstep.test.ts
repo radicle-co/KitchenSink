@@ -42,6 +42,7 @@ import {
     ImportItemAlreadySavedError,
     ImportQuotaExceededError,
     NotFoundError,
+    PrivateSlotsFullError,
     PublishRequirementsUnmetError,
     PullDriftError,
     RecipeServiceClient,
@@ -61,6 +62,7 @@ import {
     importItemAlreadySaved,
     importNotFound,
     importQuotaExceeded,
+    privateSlotsFull,
     publishRequirementsUnmet,
 } from '../../recipes/recipe.error.js';
 import { CreateRecipeDto } from '../../recipes/dto/createRecipe.dto.js';
@@ -203,6 +205,7 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.IMPORT_QUOTA_EXCEEDED]: { resetsAt: '2026-10-27T03:30:00.000Z' },
     [RecipeErrorCode.IMPORT_CURSOR_MOVED]: { cursorOrdinal: 4 },
     [RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED]: { ordinal: 4 },
+    [RecipeErrorCode.PRIVATE_SLOTS_FULL]: { used: 50, limit: 50 },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */
@@ -450,6 +453,17 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect(error).toBeInstanceOf(ImportItemAlreadySavedError);
         expect((error as ImportItemAlreadySavedError).ordinal).toBe(4);
         expect((error as ImportItemAlreadySavedError).code).toBe(CODE.IMPORT_ITEM_ALREADY_SAVED);
+    });
+
+    it('403 PRIVATE_SLOTS_FULL → PrivateSlotsFullError carrying used and limit, NOT a version conflict', async () => {
+        const { wire, error } = await throughTheWire(privateSlotsFull(60, 50), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.FORBIDDEN);
+        expect(error).toBeInstanceOf(PrivateSlotsFullError);
+        expect(error).not.toBeInstanceOf(VersionConflictError);
+        expect(error).toMatchObject({ status: 403, code: CODE.PRIVATE_SLOTS_FULL, used: 60, limit: 50 });
     });
 
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {

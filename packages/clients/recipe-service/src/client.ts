@@ -59,6 +59,7 @@ import {
     ImportCursorMovedError,
     ImportItemAlreadySavedError,
     ImportQuotaExceededError,
+    PrivateSlotsFullError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
     PublishRequirementsUnmetError,
@@ -130,6 +131,7 @@ import {
     withdrawParseJobLinesRequestSchema,
     parseJobResponseSchema,
     recipeNutritionRequestSchema,
+    privateSlotUsageSchema,
     recipeNutritionResponseSchema,
     pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
@@ -150,6 +152,7 @@ import type {
     IngredientFoodNutritionRequest,
     IngredientFoodNutritionResponse,
     ParseJobResponse,
+    PrivateSlotUsage,
     RecipeApiError,
     RecipeNutritionResponse,
     RebindIngredientLineRequest,
@@ -1253,6 +1256,22 @@ export class RecipeServiceClient {
     }
 
     /**
+     * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073).
+     *
+     * `limited` carries the live count and the limit THE SERVER states (the client never knows the number); `unlimited` is
+     * Premium. A DISPLAY read: it may be a moment stale, and a private write is never withheld on it.
+     *
+     * @returns The standing.
+     * @throws {UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getPrivateSlots(): Promise<PrivateSlotUsage> {
+        const res = await this.send('GET', '/api/v1/recipes/private-slots');
+
+        return this.expect(res, 200, privateSlotUsageSchema);
+    }
+
+    /**
      * `POST /api/v1/ingredients/food-nutrition` — per-100 g nutrition for a batch of food refs (plan 002 U9).
      *
      * Each distinct ref answers once: `found` with food's figures and a `freshness`, `absent` when food has nothing
@@ -1714,6 +1733,9 @@ export class RecipeServiceClient {
             // retry policy classifies terminal. Mapped here, off the code, so no surface string-compares `.code`.
             case 'IMPORT_QUOTA_EXCEEDED':
                 return new ImportQuotaExceededError(body.details.resetsAt, body.message);
+            // ADR-0073 - a 403 with a remedy of its own (free a slot or take Premium), terminal for the retry policy. Mapped off the code.
+            case 'PRIVATE_SLOTS_FULL':
+                return new PrivateSlotsFullError(body.details.used, body.details.limit, body.message);
             // ADR-0072 — two 409s a bulk-import surface acts on differently from any other conflict, so each is its own class.
             case 'IMPORT_CURSOR_MOVED':
                 return new ImportCursorMovedError(body.details.cursorOrdinal, body.message);

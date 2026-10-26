@@ -833,7 +833,9 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        const notice = await screen.findByText('This recipe is still public. Private recipes are part of Premium.');
+        const notice = await screen.findByText(
+            'This recipe is still public. A recipe from a public web page needs Premium and a change of your own to be private.',
+        );
 
         // §6.4: in the header under the rating and visibility line, where the cook lands, not at the foot of the page.
         expect(notice.closest('[aria-live="assertive"]')).not.toBeNull();
@@ -1305,7 +1307,8 @@ describe('RecipeDetailScreen — Save a copy', () => {
  */
 describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () => {
     const FINAL = 'This recipe is still public: it couldn’t be made private.';
-    const PREMIUM = 'This recipe is still public. Private recipes are part of Premium.';
+    const PREMIUM =
+        'This recipe is still public. A recipe from a public web page needs Premium and a change of your own to be private.';
     const SLOTS = 'Not available. All 50 of your private slots are in use.';
     // REWRITTEN for ADR-0073: the Premium sentences are the rule of an imported public-web recipe (the default here); a
     // recipe the cook wrote is refused only for every slot used.

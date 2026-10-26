@@ -9,7 +9,7 @@ import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipe
  * editor's Public option for a book or paid-site recipe. Driven through the real web UI with the recipe-service contract
  * intercepted (`utils/recipeApi`), which mirrors the service's `403 PRIVATE_SLOTS_FULL` for a copy that would be private.
  *
- * The refusal is driven by the SERVER's answer, so these specs prove the page's response to it. Whether a given recipe's
+ * The refusal is driven by the SERVER's answer. Whether a given recipe's
  * copy lands private is the service's rule (`defaultCloneVisibility`), covered by its own LOCAL e2e. Role/label selectors
  * only.
  */
@@ -42,6 +42,18 @@ async function openSource(page: Page, paidFeatures: 'upsell' | 'hidden'): Promis
 }
 
 test.describe('Save a copy with no private slot', () => {
+    // ⛔ UNREACHABLE THROUGH THE UI TODAY. A copy lands private only when its source is private or a book or paid-site recipe,
+    // and the page offers Save a copy only on ANOTHER cook's PUBLIC recipe (`canClone`), whose copy is public and takes no
+    // slot. The refusal is wired to the server's `403 PRIVATE_SLOTS_FULL` and covered at the controller and component tiers
+    // (`useRecipeDetailController.test.tsx`, `RecipeSaveCopyNoSlot*.test.tsx`, the page containers). These specs wait for an
+    // entry point that offers a private copy - an owner's "Save a copy" - which needs a design decision (`staff-ux-engineer`).
+    test.beforeEach(() => {
+        test.fixme(
+            true,
+            'no UI entry point produces a private copy yet (canClone excludes owners and private sources)',
+        );
+    });
+
     test('upsell: the copy is refused before it is made, with Not now and See Premium and no way to make it public', async ({
         page,
     }) => {

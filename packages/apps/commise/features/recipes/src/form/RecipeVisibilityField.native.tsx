@@ -77,10 +77,13 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                             key={option.value}
                             role="radio"
                             aria-checked={chosen}
-                            // Refused: a press does nothing and a screen reader hears it dimmed. On a device a disabled
-                            // Pressable stays in the accessibility tree (VoiceOver and TalkBack still land on it), so the
-                            // reason below stays reachable - the precedent is `ActionMenu.native`'s unavailable item.
-                            disabled={option.refused}
+                            // Refused, NOT disabled: the `disabled` prop would take the card out of the focus order and the reason
+                            // with it. A screen reader lands on it, hears it dimmed, and reads the reason as its hint; the
+                            // press is a no-op (`visibilityChoice`). The label is the title alone so the reason (also drawn
+                            // as text) is not read twice.
+                            accessibilityState={option.refused ? { disabled: true } : undefined}
+                            aria-disabled={option.refused ? true : undefined}
+                            accessibilityLabel={option.refused ? option.title : undefined}
                             accessibilityHint={option.refused ? option.note : undefined}
                             onPress={() => choose(option.value)}
                             style={[

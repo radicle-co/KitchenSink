@@ -606,7 +606,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
                 const pub = screen.getByRole('radio', { name: /^Public/u });
 
-                expect(pub.getAttribute('aria-disabled')).toBe('true');
+                // The card's dimmed state and its hint are asserted on the field's own suite (jsdom drops them here).
                 expect(within(pub).getByText(REASON)).toBeTruthy();
             },
         );
@@ -630,7 +630,6 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             profile.paidFeatures = 'upsell';
             await openRecipe(clientWithSlots({ used: 10, limit: 50 }), 'rec_own_pub', RecipeVisibility.PRIVATE);
 
-            expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-disabled')).toBeNull();
             expect(screen.queryByText(REASON)).toBeNull();
         });
     });

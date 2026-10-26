@@ -13,10 +13,40 @@ import { useState, type FC } from 'react';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
+/** What each radio card hands a screen reader, by its role and visible title: react-native-web drops most of it. */
+const handed = vi.hoisted(
+    () =>
+        new Map<
+            string,
+            {
+                readonly disabled: boolean | undefined;
+                readonly nativelyDisabled: boolean | undefined;
+                readonly hint: string | undefined;
+                readonly label: string | undefined;
+            }
+        >(),
+);
+
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+    const { createElement } = await import('react');
+    const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+    return {
+        ...actual,
+        Pressable: (props: import('react-native').PressableProps) => {
+            if (props.role === 'radio') {
+                handed.set(String(props.accessibilityLabel ?? ''), {
+                    disabled: props.accessibilityState?.disabled,
+                    nativelyDisabled: props.disabled === null ? undefined : props.disabled,
+                    hint: props.accessibilityHint,
+                    label: props.accessibilityLabel,
+                });
+            }
+
+            return createElement(actual.Pressable, props);
+        },
+    };
 });
 
 import type { PaidFeatureState } from '@commise/features-account';
@@ -33,6 +63,7 @@ const m = recipeFormMessages.en;
 const v = editorMessages.en.visibility;
 
 afterEach(() => {
+    handed.clear();
     cleanup();
     systemScheme.current = null;
 });
@@ -399,13 +430,18 @@ describe('RecipeVisibilityField (native) - a book or paid-site recipe (private o
         state,
     });
 
-    it('⛔ shows Public refused: dimmed to a screen reader, still on screen, with the reason in its words', () => {
+    it('⛔ shows Public refused: dimmed to a screen reader but NOT natively disabled, the reason as its hint', () => {
         render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} />);
 
-        const pub = radio(v.public);
-
-        expect(pub.getAttribute('aria-disabled')).toBe('true');
-        expect(within(pub).getByText(REASON)).toBeTruthy();
+        // What a device is handed: dimmed, still focusable (no `disabled` prop), named by its title, described by the reason.
+        expect(handed.get('Public')).toEqual({
+            disabled: true,
+            nativelyDisabled: undefined,
+            hint: REASON,
+            label: 'Public',
+        });
+        // The reason is also drawn as text, once.
+        expect(within(radio(v.public)).getAllByText(REASON)).toHaveLength(1);
     });
 
     it('⛔ choosing the refused Public changes nothing and asks for no confirm', () => {

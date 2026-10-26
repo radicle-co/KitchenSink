@@ -250,13 +250,16 @@ export interface CollectionDeleteDialogProps {
  * a network write needs — a collection's change is optimistic, so the dialog closes with it.
  */
 export interface CollectionMakePublicDialogProps {
+    /** Whether the dialog is shown. When `false` the component renders nothing. */
     readonly open: boolean;
     /**
      * Why going public costs the cook something (`makePublicConsequence`, never `none` here). A collection's privacy is
      * still a Premium feature, so unlike a recipe's (ADR-0073) it keeps all three reasons.
      */
     readonly consequence: Exclude<MakePublicConsequence, 'none'>;
+    /** Make public: the cook accepted the cost. */
     readonly onConfirm: () => void;
+    /** Keep private, Escape, and the Android Back button. */
     readonly onKeep: () => void;
 }
 

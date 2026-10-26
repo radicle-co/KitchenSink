@@ -10,7 +10,7 @@
         "documentedComponents": 179,
         "implementationsWithModuleDoc": 309,
         "implementationsWithComponentDoc": 202,
-        "documentedProps": 1349,
+        "documentedProps": 1352,
         "classifiedComponents": 159,
         "componentsWithPatternTag": 82,
         "crossPlatformComponents": 130
@@ -2350,7 +2350,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Make public: the cook accepted the cost.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -2359,7 +2359,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Keep private, Escape, and the Android Back button.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
@@ -2368,7 +2368,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         }
                     ],

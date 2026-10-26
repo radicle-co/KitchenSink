@@ -1,5 +1,5 @@
 /**
- * `bindingOf` — what a bulk migration binds a line to, and who gets the credit (`bound_by`).
+ * `bindingOf` — what a bulk import binds a line to, and who gets the credit (`bound_by`).
  *
  * DESIGN PATTERN: **Specification / Policy module**, pure and total, a sibling of `matchStateOf`. It reads the paste
  * view's own state (`MatchState`, `MatchReason`) and decides; it derives no state itself and names no route or table.
@@ -19,7 +19,7 @@
 import type { BoundBy } from '../../recipes/domain/bindingOriginCarryForward.js';
 import { proposalShownIn, type MatchReason, type MatchState } from '../../recipes/domain/matchState.js';
 
-/** The three ways a migration can match: Save lines as written, Pick the best match for me, Let me review each. */
+/** The three ways a bulk import can match: Save lines as written, Pick the best match for me, Let me review each. */
 export const MATCH_MODES = ['keepAsWritten', 'bindBest', 'review'] as const;
 
 /** One mode. */

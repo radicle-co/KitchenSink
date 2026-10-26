@@ -3,8 +3,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { LineFacts } from '../migrationBindingPolicy.js';
-import { isReadyToSave, type ReadinessInput } from '../migrationSaveReadiness.js';
+import type { LineFacts } from '../importBindingPolicy.js';
+import { isReadyToSave, type ReadinessInput } from '../importSaveReadiness.js';
 
 const WAIT = 10_000;
 const line = (state: LineFacts['state'], cookChoice: LineFacts['cookChoice'] = undefined): LineFacts => ({

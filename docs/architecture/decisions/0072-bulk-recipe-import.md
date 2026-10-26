@@ -152,7 +152,7 @@ derived at read time and never stored.
 
 ### 7. The three modes, and when an item is ready
 
-`bindingOf` (`migrationBindingPolicy.ts`) decides each line. A cook's decision always wins, including "keep this as
+`bindingOf` (`importBindingPolicy.ts`) decides each line. A cook's decision always wins, including "keep this as
 written". A confident match binds in every mode. A skipped item keeps its open lines as written.
 
 - **`keepAsWritten`** (Save lines as written). Open lines are kept as written, and a `default` line binds its default

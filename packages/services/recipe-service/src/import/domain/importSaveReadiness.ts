@@ -1,5 +1,5 @@
 /**
- * `isReadyToSave` — whether one migration item may be saved yet.
+ * `isReadyToSave` — whether one bulk import item may be saved yet.
  *
  * DESIGN PATTERN: **Specification** — pure and total.
  *
@@ -10,7 +10,7 @@
  * ⚠️ The wait is a PARAMETER. The blueprint names `CHECKING_WAIT` but no number exists anywhere, and this module does
  * not invent one. "Longer than" is read as strictly greater than.
  */
-import { isOpenLine, type ItemReview, type LineFacts, type MatchMode } from './migrationBindingPolicy.js';
+import { isOpenLine, type ItemReview, type LineFacts, type MatchMode } from './importBindingPolicy.js';
 
 /** The inputs of {@link isReadyToSave}. */
 export interface ReadinessInput {

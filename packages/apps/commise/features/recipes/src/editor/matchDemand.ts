@@ -16,7 +16,7 @@
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 
 /** One parsed food of a job: where it sits, and the key every layer of the paste overlay names it by. */
-export interface FoodRef {
+export interface UnmatchedFood {
     /** `${lineIndex}:${foodIndex}`: the food's key among the paste's match lines (`foodKeyOf`). */
     readonly key: string;
     readonly lineIndex: number;
@@ -41,7 +41,7 @@ export function foodKeyOf(lineIndex: number, foodIndex: number): string {
  * @param job - The job as last read.
  * @returns The unmatched foods.
  */
-export function unmatchedFoodRefsOf(job: ParseJobResponse): readonly FoodRef[] {
+export function unmatchedFoodRefsOf(job: ParseJobResponse): readonly UnmatchedFood[] {
     return job.lines.flatMap((line) =>
         (line.proposal?.foods ?? []).flatMap((food, foodIndex) =>
             food.match == null
@@ -61,7 +61,7 @@ export function unmatchedFoodRefsOf(job: ParseJobResponse): readonly FoodRef[] {
  */
 export function shouldRequestMatches(
     lastRequested: ReadonlySet<string>,
-    unmatched: readonly FoodRef[],
+    unmatched: readonly UnmatchedFood[],
     inFlight: boolean,
 ): boolean {
     return !inFlight && unmatched.some((food) => !lastRequested.has(food.key));

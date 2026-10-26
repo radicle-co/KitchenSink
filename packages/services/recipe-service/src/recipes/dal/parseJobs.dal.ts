@@ -30,6 +30,7 @@ import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeParseJobLines, recipeParseJobs } from '../../database/schema/parseJobs.js';
 import { COPYABLE_LINE_STATUSES, type CopyForwardCandidate } from '../domain/copyForwardPolicy.js';
 import { lineIsOrphaned } from '../domain/lineProgress.js';
+import { isParseJobExpired } from '../domain/parseJobExpiry.js';
 import type {
     NewParseJobLine,
     ParseJobMutation,
@@ -531,7 +532,7 @@ export class ParseJobsDal implements ParseJobsDalPort {
             return 'missing';
         }
 
-        if (job.status === 'expired' || job.expiresAt.getTime() <= Date.now()) {
+        if (isParseJobExpired(job, Date.now())) {
             return 'expired';
         }
 

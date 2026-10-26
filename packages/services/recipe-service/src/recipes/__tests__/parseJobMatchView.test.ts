@@ -144,14 +144,24 @@ function setup(options: Setup = {}) {
         async (keys: readonly string[]) => new Set(keys.filter((key) => options.exhausted?.has(key) === true)),
     );
     const metric = vi.fn();
+    // The store's once-per-verdict marker for a curated contradiction: only the first claim of a row wins.
+    const reported = new Set<string>();
+    const claimCurationReport = vi.fn(async (_jobId: string, slot: { lineIndex: number; foodIndex: number }) => {
+        const key = `${String(slot.lineIndex)}:${String(slot.foodIndex)}`;
+        const won = !reported.has(key);
+
+        reported.add(key);
+
+        return won;
+    });
     const view = new ParseJobMatchView(
-        { findForJob },
+        { findForJob, claimCurationReport },
         { findBandsByKeys, findExhaustedKeys },
         { resolve } as unknown as FoodRefsGateway,
         metric,
     );
 
-    return { view, findForJob, resolve, metric };
+    return { view, findForJob, resolve, metric, claimCurationReport };
 }
 
 /** The match on food 0 of line 0 of a decorated view. */
@@ -227,6 +237,26 @@ describe('ParseJobMatchView.decorate', () => {
 
         expect(match).toMatchObject({ state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' });
         expect(metric).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ counts a curated contradiction ONCE per verdict, however often the client polls', async () => {
+        // Item 18: the count was per READ, so a poll loop counted one contradiction several times. The store's marker
+        // makes the first read that sees it the only one that reports it.
+        const { view, metric, claimCurationReport } = setup({
+            matches: [
+                matchOf({
+                    proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
+                }),
+            ],
+            verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity', 'quantity'] }]]),
+        });
+
+        await view.decorate(COOK, CALLER, viewOf());
+        await view.decorate(COOK, CALLER, viewOf());
+        await view.decorate(COOK, CALLER, viewOf());
+
+        expect(metric).toHaveBeenCalledTimes(1);
+        expect(claimCurationReport).toHaveBeenCalledWith(JOB, expect.objectContaining({ lineIndex: 0, foodIndex: 0, verificationKey: 'v2:milk' }));
     });
 
     it.each([

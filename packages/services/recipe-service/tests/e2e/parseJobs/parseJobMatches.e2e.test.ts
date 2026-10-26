@@ -81,6 +81,7 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
         expect(columns.rows.map((row) => [row.column_name, row.data_type, row.is_nullable])).toEqual([
             ['candidates', 'jsonb', 'NO'],
             ['created_at', 'timestamp with time zone', 'NO'],
+            ['curation_reported_at', 'timestamp with time zone', 'YES'],
             ['enqueued_at', 'timestamp with time zone', 'YES'],
             ['food_id', 'text', 'YES'],
             ['food_index', 'integer', 'NO'],
@@ -306,6 +307,24 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
         await dal.releaseEnqueue(job, [{ ...claim, claimedAt: new Date(claim.claimedAt.getTime() - 60_000) }]);
 
         expect((await dal.findForJob(OWNER, job))[0]?.enqueuedAt).toEqual(claim.claimedAt);
+    });
+
+    it('⛔ a curated contradiction is REPORTED once per row and verdict key, and again for a replaced row', async () => {
+        const job = await insertJob(pool, OWNER);
+        const curated = { ...proposed(0, 0, MILK, 'F-milk', 'j1:milk'), proposal: { ...proposed(0, 0, MILK, 'F-milk', 'j1:milk').proposal, matchedBy: 'curated' } } as const;
+
+        await dal.saveMatches(job, [curated]);
+
+        const slot = { lineIndex: 0, foodIndex: 0, verificationKey: 'v2:F-milk' };
+
+        expect(await dal.claimCurationReport(job, slot)).toBe(true);
+        expect(await dal.claimCurationReport(job, slot)).toBe(false);
+        expect(await dal.claimCurationReport(job, { ...slot, verificationKey: 'v2:other' })).toBe(false);
+
+        // The same text reparsed into another judgement: the new row has not been reported.
+        await dal.saveMatches(job, [{ ...curated, judgementDigest: 'j1:reparsed' }]);
+
+        expect(await dal.claimCurationReport(job, slot)).toBe(true);
     });
 
     describe('⛔ a claim older than the delivery bound (the request was lost)', () => {

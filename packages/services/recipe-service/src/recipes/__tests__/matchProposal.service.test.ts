@@ -38,6 +38,7 @@ import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import { matchJudgementDigestOf } from '../domain/matchProposal.js';
 import {
+    DEFAULT_MATCH_PROPOSAL_LIMITS,
     MATCH_PROPOSE_DEADLINE_MS,
     MatchProposalService,
     type MatchProposalLimits,
@@ -186,7 +187,7 @@ function setup(options: Setup = {}) {
         refs.gateway,
         queue,
         options.verdicts ?? fakeLineVerificationsDal(),
-        options.limits,
+        options.limits ?? DEFAULT_MATCH_PROPOSAL_LIMITS,
     );
 
     return { service, matches, chain, refs, queue, getJob };
@@ -805,6 +806,7 @@ describe('MatchProposalService.propose — bounded work under one request deadli
             refsAnswering({ 'root:F-whole': found('Milk, whole', 'F-whole') }).gateway,
             fakeVerificationQueue(),
             fakeLineVerificationsDal(),
+            DEFAULT_MATCH_PROPOSAL_LIMITS,
         );
 
         await slow.propose(COOK, CALLER, JOB);

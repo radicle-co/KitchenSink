@@ -17,6 +17,8 @@
  *     has the request's digest and key and is owed, and only when it is unclaimed or its last claim is older than the
  *     queue's delivery bound and left no verdict and no attempt behind (the request was lost). It returns the rows it
  *     changed, so zero rows IS "someone else holds it". `releaseEnqueue` clears only a row still holding THAT claim.
+ *  5. **A curated contradiction is counted ONCE** (`claimCurationReport`): a conditional update of one row, so zero rows
+ *     IS "already counted", and a replaced row counts afresh.
  *
  * ⚠️ The claim's timestamp is truncated to milliseconds in SQL: `timestamptz` keeps microseconds and a JS `Date`
  * milliseconds, so an untruncated claim could never be matched again by its own release.
@@ -24,12 +26,13 @@
  * A stored row this build cannot read is a THROWN error, not a silently absent match: the writer is this service, so
  * an unreadable row is a defect to surface (the `ParseJobsService` posture).
  */
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { parseStoredLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import type { RecipeDrizzle } from '../../database/client.js';
+import { rankTierOf } from '../domain/matchProposal.js';
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import { recipeParseJobLines, recipeParseJobs } from '../../database/schema/parseJobs.js';
 import { MATCH_PROPOSING_TIERS, MATCH_REVIEWS, recipeParseJobMatches } from '../../database/schema/parseJobMatches.js';
@@ -37,14 +40,22 @@ import type {
     EnqueueClaim,
     EnqueueRequest,
     MatchCandidate,
+    MatchSlot,
     NewParseJobMatch,
     ParseJobMatch,
     ParseJobMatchesPort,
 } from '../domain/parseJobMatch.js';
 
-/** The stored candidates, parsed at the boundary. */
+/** The stored candidates, parsed at the boundary; a rung this build does not know reads as none (`rankTierOf`). */
 const storedCandidatesSchema = z.array(
-    z.object({ kind: z.enum(['root', 'variant']), id: z.string().min(1), rung: z.string().nullable() }),
+    z.object({
+        kind: z.enum(['root', 'variant']),
+        id: z.string().min(1),
+        rung: z
+            .string()
+            .nullable()
+            .transform((rung) => rankTierOf(rung)),
+    }),
 );
 
 const proposingTierSchema = z.enum(MATCH_PROPOSING_TIERS);
@@ -105,7 +116,7 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                         : {
                               matchedBy: proposingTierSchema.parse(match.matchedBy),
                               food,
-                              rung: match.rung,
+                              rung: rankTierOf(match.rung),
                               margin: match.margin,
                           },
                 candidates,
@@ -164,8 +175,9 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                    candidates = EXCLUDED.candidates,
                    verification_key = EXCLUDED.verification_key,
                    review = EXCLUDED.review,
-                   -- ⛔ The new proposal has not been asked about: its enqueue is owed again.
+                   -- ⛔ The new proposal has not been asked about: its enqueue is owed again, and its count unmade.
                    enqueued_at = NULL,
+                   curation_reported_at = NULL,
                    created_at = now()
              -- ⛔ Rule 3: only another judgement replaces; the same judgement keeps the first writer.
              WHERE recipe_parse_job_matches.judgement_digest <> EXCLUDED.judgement_digest
@@ -254,5 +266,28 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                -- ⛔ Only THIS claim: a later claimant's row keeps its lease.
                AND m.enqueued_at = c.claimed_at
         `);
+    }
+
+    /** @inheritdoc */
+    public async claimCurationReport(
+        jobId: string,
+        slot: MatchSlot & { readonly verificationKey: string },
+    ): Promise<boolean> {
+        const won = await this.db
+            .update(recipeParseJobMatches)
+            .set({ curationReportedAt: sql`now()` })
+            .where(
+                and(
+                    eq(recipeParseJobMatches.jobId, jobId),
+                    eq(recipeParseJobMatches.lineIndex, slot.lineIndex),
+                    eq(recipeParseJobMatches.foodIndex, slot.foodIndex),
+                    eq(recipeParseJobMatches.verificationKey, slot.verificationKey),
+                    eq(recipeParseJobMatches.matchedBy, 'curated'),
+                    isNull(recipeParseJobMatches.curationReportedAt),
+                ),
+            )
+            .returning({ lineIndex: recipeParseJobMatches.lineIndex });
+
+        return won.length > 0;
     }
 }

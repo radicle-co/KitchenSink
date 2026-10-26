@@ -24,8 +24,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     MappingPromotionAudit,
     MAPPING_PROMOTION_METRIC,
-    MAPPING_PROMOTION_NAMESPACE,
 } from '../mappingPromotionAudit.js';
+import { RECIPE_RESOLUTION_NAMESPACE } from '../resolutionMetrics.js';
 
 const PROMOTION = {
     mappingId: '99999999-9999-4999-8999-999999999999',
@@ -48,7 +48,7 @@ describe('MappingPromotionAudit — the metric half', () => {
         const line = emitted(lines);
         const aws = line['_aws'] as { CloudWatchMetrics: { Namespace: string; Metrics: { Name: string }[] }[] };
 
-        expect(aws.CloudWatchMetrics[0]!.Namespace).toBe(MAPPING_PROMOTION_NAMESPACE);
+        expect(aws.CloudWatchMetrics[0]!.Namespace).toBe(RECIPE_RESOLUTION_NAMESPACE);
         expect(aws.CloudWatchMetrics[0]!.Metrics[0]!.Name).toBe(MAPPING_PROMOTION_METRIC);
         expect(line[MAPPING_PROMOTION_METRIC]).toBe(1);
     });

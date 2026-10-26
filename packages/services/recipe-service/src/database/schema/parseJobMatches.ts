@@ -27,6 +27,17 @@ export const MATCH_PROPOSING_TIERS = ['curated', 'memo', 'lexical'] as const;
 /** One tier that may propose a food. */
 export type MatchProposingTier = (typeof MATCH_PROPOSING_TIERS)[number];
 
+/**
+ * Whether a tier may propose a paste match — the guard the matcher narrows a cascade outcome's tier with, instead of a
+ * cast that would let a fourth tier's answer reach the table's CHECK as a database error.
+ *
+ * @param tier - A cascade tier id.
+ * @returns Whether it is one of {@link MATCH_PROPOSING_TIERS}. Pure.
+ */
+export function isMatchProposingTier(tier: string): tier is MatchProposingTier {
+    return (MATCH_PROPOSING_TIERS as readonly string[]).includes(tier);
+}
+
 /** Where a proposal's review stands, mirrored from the SQL CHECK. */
 export const MATCH_REVIEWS = ['owed', 'refused'] as const;
 
@@ -52,6 +63,8 @@ export const recipeParseJobMatches = pgTable(
         /** `owed` or `refused`; NULL: nothing to review. */
         review: text('review'),
         enqueuedAt: timestamp('enqueued_at', { withTimezone: true }),
+        /** When a contradicted curated proposal was counted for curation review; reset with the row. */
+        curationReportedAt: timestamp('curation_reported_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
@@ -83,6 +96,10 @@ export const recipeParseJobMatches = pgTable(
         check(
             'recipe_parse_job_matches_enqueue_has_key',
             sql`${table.enqueuedAt} IS NULL OR ${table.verificationKey} IS NOT NULL`,
+        ),
+        check(
+            'recipe_parse_job_matches_report_is_curated',
+            sql`${table.curationReportedAt} IS NULL OR (${table.matchedBy} = 'curated' AND ${table.verificationKey} IS NOT NULL)`,
         ),
         check(
             'recipe_parse_job_matches_candidates_bounded',

@@ -89,6 +89,18 @@ describe('ParseJobMatchesDal', () => {
         });
     });
 
+    it('reads a stored rung this build does not know as NO rung — food owns the vocabulary', async () => {
+        const control = makeFakeDrizzle<RecipeDrizzle>();
+        control.enqueue([
+            storedRow({ rung: 'superExact', candidates: [{ kind: 'variant', id: 'V-1', rung: 'superExact' }] }),
+        ]);
+
+        const [match] = await new ParseJobMatchesDal(control.db).findForJob(OWNER, JOB);
+
+        expect(match?.proposal?.rung).toBeNull();
+        expect(match?.candidates).toEqual([{ kind: 'variant', id: 'V-1', rung: null }]);
+    });
+
     it('⛔ THROWS on a review disposition this build does not know', async () => {
         const control = makeFakeDrizzle<RecipeDrizzle>();
         control.enqueue([storedRow({ review: 'parked' })]);

@@ -8,6 +8,7 @@
  * @pattern Value Object — the stored match, parsed once at the repository boundary
  */
 import type { LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { MATCH_REVIEWS, MatchProposingTier } from '../../database/schema/parseJobMatches.js';
@@ -18,9 +19,9 @@ export interface MatchSlot {
     readonly foodIndex: number;
 }
 
-/** One food the cook may choose, in food's ranked order. `rung` is food's, or `null` when food sent none. */
+/** One food the cook may choose, in food's ranked order. `rung` is food's, or `null` when food sent none this build knows. */
 export interface MatchCandidate extends FoodRef {
-    readonly rung: string | null;
+    readonly rung: RankTier | null;
 }
 
 /** What the chain proposed for one food of a line. */
@@ -28,8 +29,8 @@ export interface MatchProposal {
     readonly matchedBy: MatchProposingTier;
     /** The proposed food: a root or a variant, at the forward end food answered. */
     readonly food: FoodRef;
-    /** The rung food ranked the proposal on, when a ranking tier proposed it and food sent one. */
-    readonly rung: string | null;
+    /** The rung food ranked the proposal on, when a ranking tier proposed it and food sent one this build knows. */
+    readonly rung: RankTier | null;
     /** `top - runnerUp` on the ranker's scale, when one was measured. */
     readonly margin: number | null;
 }
@@ -143,4 +144,11 @@ export interface ParseJobMatchesPort {
      * @sideEffect Writes.
      */
     releaseEnqueue(jobId: string, claims: readonly EnqueueClaim[]): Promise<void>;
+    /**
+     * Claim the ONE count of a curated proposal the review contradicted (ADR-0071 review, item 18): only the first call
+     * for a row and its verdict key wins, so a poll loop counts one contradiction once. A replaced row counts afresh.
+     *
+     * @returns Whether this call won the count. @sideEffect Writes `curation_reported_at`.
+     */
+    claimCurationReport(jobId: string, slot: MatchSlot & { readonly verificationKey: string }): Promise<boolean>;
 }

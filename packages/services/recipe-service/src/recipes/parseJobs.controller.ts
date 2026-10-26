@@ -16,7 +16,7 @@
  * `by-food` admission (R19: a parse binds nothing).
  *
  * ADR-0071: every view a route answers with carries each proposed food's `match`, added by the one
- * {@link ParseJobMatchView} Decorator, so every route takes the caller's credential (food names the foods).
+ * {@link ParseJobMatchView} Content Enricher, so every route takes the caller's credential (food names the foods).
  *
  * Owner scoping is a `404`, never a `403`: a stranger polling another user's job must not learn the id
  * exists. Retry (`POST /:id/retry`) and line edit (`PATCH /:id/lines/:lineIndex`) answer `202` as well —
@@ -58,7 +58,7 @@ export class ParseJobsController {
     public constructor(
         private readonly parseJobsService: ParseJobsService,
         private readonly matchProposals: MatchProposalService,
-        // ADR-0071 — every route answering with a job view goes through the ONE match projection (a Decorator).
+        // ADR-0071 — every route answering with a job view goes through the ONE match projection (a Content Enricher).
         private readonly matchView: ParseJobMatchView,
     ) {}
 

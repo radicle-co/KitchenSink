@@ -32,8 +32,13 @@ import { ParseJobsService, PARSE_COPY_FORWARD_MAX_AGE_HOURS, PARSE_JOBS_DAL } fr
 import { DEFAULT_COPY_FORWARD_MAX_AGE_HOURS } from '../config/config.types.js';
 import { ParseJobsDal } from './dal/parseJobs.dal.js';
 import { ParseJobMatchesDal } from './dal/parseJobMatches.dal.js';
-import { MatchProposalService, PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
-import { ParseJobMatchView } from './parseJobMatchView.js';
+import {
+    DEFAULT_MATCH_PROPOSAL_LIMITS,
+    MATCH_PROPOSAL_LIMITS,
+    MatchProposalService,
+    PARSE_JOB_MATCHES_DAL,
+} from './matchProposal.service.js';
+import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView } from './parseJobMatchView.js';
 
 /**
  * Recipes module (US1). Owns recipe CRUD and ownership (`owner_id` = app-user ULID). Wires the
@@ -159,6 +164,9 @@ import { ParseJobMatchView } from './parseJobMatchView.js';
         MatchProposalService,
         // ADR-0071 — adds each proposed food's match to every parse-job view.
         ParseJobMatchView,
+        // ADR-0071: the view's curated-contradiction report, provided here so the view names no default of its own.
+        { provide: CURATION_DISAGREEMENT_SINK, useValue: emitCurationDisagreement },
+        { provide: MATCH_PROPOSAL_LIMITS, useValue: DEFAULT_MATCH_PROPOSAL_LIMITS },
     ],
     exports: [RecipesService],
 })

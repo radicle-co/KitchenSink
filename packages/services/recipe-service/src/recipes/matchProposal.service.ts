@@ -38,7 +38,7 @@
  * verdict. The line reads `checking` until a matches call arrives after the queue's delivery bound (about nine hours),
  * which re-claims and re-sends it; with no such call it reads `checking` until the job expires.
  */
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { verificationDeliveryBoundSeconds } from '@kitchensink/recipe-core/resolution/verification-delivery';
@@ -53,7 +53,7 @@ import { isContained, type ContainmentSubject } from '../common/containmentPolic
 import { isBatchEnqueueError } from '../common/batchEnqueueError.js';
 import { sha256Hex } from '../common/sha256.js';
 import { foodRefKey, type FoodRef } from '../database/schema/foodLookupArm.js';
-import type { MatchProposingTier } from '../database/schema/parseJobMatches.js';
+import { isMatchProposingTier } from '../database/schema/parseJobMatches.js';
 import type { FoodRefAnswer } from '../ingredients/domain/foodRefAnswer.js';
 import { FoodCatalogGateway } from '../ingredients/foodCatalog.gateway.js';
 import { FoodRefsGateway } from '../ingredients/foodRefs.gateway.js';
@@ -71,6 +71,7 @@ import {
     proposalKeyOf,
     proposalMessageOf,
     proposalVerificationDecision,
+    rankTierOf,
     type ParsedLineMeasure,
 } from './domain/matchProposal.js';
 import {
@@ -90,7 +91,9 @@ import {
     type ParseJobRecord,
     type ParseJobsDalPort,
 } from './parseJobs.service.js';
+import { isParseJobExpired } from './domain/parseJobExpiry.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from './recipes.tokens.js';
+import { withoutVerdictsOnRecord } from './verdictDedup.js';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 
 /** DI token for the match store — provided by `RecipesModule` over the shared Drizzle client. */
@@ -120,8 +123,15 @@ export interface MatchProposalLimits {
     readonly now: () => number;
 }
 
-/** The default bounds: four foods at a time, 1.5 s kept for the refs read and the send, the wall clock. */
-const DEFAULT_LIMITS: MatchProposalLimits = { concurrency: 4, tailMs: 1_500, now: () => Date.now() };
+/**
+ * Production's bounds, provided by `RecipesModule` under {@link MATCH_PROPOSAL_LIMITS}: four foods at a time, 1.5 s kept
+ * for the refs read and the send, the wall clock.
+ */
+export const DEFAULT_MATCH_PROPOSAL_LIMITS: MatchProposalLimits = {
+    concurrency: 4,
+    tailMs: 1_500,
+    now: () => Date.now(),
+};
 
 /** An abort signal that fires at `deadlineAt`, or one already aborted when that has passed. */
 function signalUntil(deadlineAt: number, now: number): AbortSignal {
@@ -181,11 +191,6 @@ function isSendable(match: ParseJobMatch, nowMs: number): boolean {
     );
 }
 
-/** Whether a job's TTL has passed. Pure given its clock. */
-function isExpired(job: ParseJobRecord, now: Date): boolean {
-    return job.status === 'expired' || job.expiresAt.getTime() <= now.getTime();
-}
-
 /** The food a found answer says the ref LIVES at (its forward end), as a ref. Pure. */
 function liveEndOf(answer: Extract<FoodRefAnswer, { outcome: 'found' }>): FoodRef {
     return answer.variant === undefined
@@ -206,7 +211,7 @@ export class MatchProposalService {
         @Inject(VERIFICATION_QUEUE) private readonly queue: VerificationQueuePort,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
         private readonly verdicts: Pick<LineVerificationsDal, 'findExistingKeys'>,
-        @Optional() @Inject(MATCH_PROPOSAL_LIMITS) private readonly limits: MatchProposalLimits = DEFAULT_LIMITS,
+        @Inject(MATCH_PROPOSAL_LIMITS) private readonly limits: MatchProposalLimits,
     ) {}
 
     /**
@@ -228,7 +233,7 @@ export class MatchProposalService {
             throw parseJobNotFound(jobId);
         }
 
-        if (isExpired(job, new Date())) {
+        if (isParseJobExpired(job, this.limits.now())) {
             throw parseJobExpired(jobId);
         }
 
@@ -386,15 +391,19 @@ export class MatchProposalService {
 
         const food = outcome.kind === 'resolved' ? outcome.food : undefined;
 
+        if (outcome.kind === 'resolved' && !isMatchProposingTier(outcome.tier)) {
+            // The proposal registry holds exactly the proposing tiers; another is a wiring defect, not a no-match.
+            throw new Error(`tier '${outcome.tier}' cannot propose a paste match`);
+        }
+
         return {
             ...base,
             proposal:
-                outcome.kind === 'resolved' && food !== undefined
+                outcome.kind === 'resolved' && food !== undefined && isMatchProposingTier(outcome.tier)
                     ? {
-                          // The proposal registry holds exactly the three proposing tiers.
-                          matchedBy: outcome.tier as MatchProposingTier,
+                          matchedBy: outcome.tier,
                           food,
-                          rung: outcome.rung ?? null,
+                          rung: rankTierOf(outcome.rung),
                           margin: outcome.confidence ?? null,
                       }
                     : null,
@@ -569,7 +578,16 @@ export class MatchProposalService {
             return;
         }
 
-        const unjudged = await this.withoutVerdicts(jobId, owed);
+        const unjudged = await withoutVerdictsOnRecord(
+            this.verdicts,
+            owed,
+            (match) => match.verificationKey,
+            (error) =>
+                this.logger.warn(
+                    `parse-job ${jobId}: verdict dedup read failed; asking about all ${String(owed.length)} proposal(s)`,
+                    error instanceof Error ? error.stack : String(error),
+                ),
+        );
         const requests = unjudged.flatMap((match) => {
             const message = this.messageFor(jobId, match, lines, answers);
 
@@ -619,28 +637,6 @@ export class MatchProposalService {
                 error instanceof Error ? error.stack : String(error),
             );
             await this.matches.releaseEnqueue(jobId, lost);
-        }
-    }
-
-    /**
-     * Drop the matches whose verdict is already on record. Fails OPEN: an unreadable verdict table asks about all.
-     *
-     * @sideEffect One keyed verdict read.
-     */
-    private async withoutVerdicts(jobId: string, owed: readonly ParseJobMatch[]): Promise<readonly ParseJobMatch[]> {
-        try {
-            const onRecord = await this.verdicts.findExistingKeys(
-                owed.flatMap((match) => (match.verificationKey === null ? [] : [match.verificationKey])),
-            );
-
-            return owed.filter((match) => match.verificationKey === null || !onRecord.has(match.verificationKey));
-        } catch (error) {
-            this.logger.warn(
-                `parse-job ${jobId}: verdict dedup read failed; asking about all ${String(owed.length)} proposal(s)`,
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return owed;
         }
     }
 

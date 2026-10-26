@@ -48,6 +48,7 @@ export function inMemoryParseJobMatches(
     lineDigestOf?: (jobId: string, lineIndex: number) => LineDigest | undefined,
 ): InMemoryParseJobMatches {
     const rows: InMemoryParseJobMatches['rows'] = new Map();
+    const reported = new Set<string>();
     const ownerMap = new Map(owners);
     const digestNow = (jobId: string, lineIndex: number, fallback: LineDigest): LineDigest =>
         lineDigestOf?.(jobId, lineIndex) ?? fallback;
@@ -78,6 +79,7 @@ export function inMemoryParseJobMatches(
                 // Rule 3: the same judgement keeps the first writer; another replaces it, enqueue reset.
                 if (existing === undefined || existing.judgementDigest !== match.judgementDigest) {
                     rows.set(key, { ...match, jobId, enqueuedAt: null });
+                    reported.delete(key);
                 }
             }
         },
@@ -105,6 +107,23 @@ export function inMemoryParseJobMatches(
             }
 
             return won;
+        },
+        claimCurationReport: async (jobId, slot) => {
+            const key = keyOf(jobId, slot);
+            const row = rows.get(key);
+
+            // Rule 5: one count per curated row and verdict key.
+            if (
+                row?.proposal?.matchedBy !== 'curated' ||
+                row.verificationKey !== slot.verificationKey ||
+                reported.has(key)
+            ) {
+                return false;
+            }
+
+            reported.add(key);
+
+            return true;
         },
         releaseEnqueue: async (jobId: string, claims: readonly EnqueueClaim[]) => {
             for (const claim of claims) {

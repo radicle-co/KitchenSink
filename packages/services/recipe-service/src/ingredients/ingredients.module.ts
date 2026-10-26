@@ -113,7 +113,7 @@ const READ_NUTRITION_DEADLINE_MS = 3_000;
 function unrankedHitsReporter(): UnrankedHitsReporter {
     const logger = new Logger('LexicalTier');
 
-    return new UnrankedHitsReporter(undefined, undefined, (message) => logger.warn(message));
+    return new UnrankedHitsReporter({ warn: (message) => logger.warn(message) });
 }
 
 @Module({

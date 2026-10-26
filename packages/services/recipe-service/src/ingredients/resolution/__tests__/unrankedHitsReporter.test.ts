@@ -4,18 +4,18 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { MAPPING_PROMOTION_NAMESPACE } from '../mappingPromotionAudit.js';
+import { RECIPE_RESOLUTION_NAMESPACE } from '../resolutionMetrics.js';
 import { UNRANKED_HITS_METRIC, UnrankedHitsReporter } from '../unrankedHitsReporter.js';
 
 describe('UnrankedHitsReporter', () => {
     it('emits one Stage-dimensioned count carrying how many hits had no rung', () => {
         const lines: string[] = [];
-        const reporter = new UnrankedHitsReporter(
-            'sandbox',
-            (line) => lines.push(line),
-            vi.fn(),
-            () => 0,
-        );
+        const reporter = new UnrankedHitsReporter({
+            stage: 'sandbox',
+            metricSink: (line) => lines.push(line),
+            warn: vi.fn(),
+            now: () => 0,
+        });
 
         reporter.onUnrankedHits(3);
 
@@ -24,7 +24,7 @@ describe('UnrankedHitsReporter', () => {
             _aws: { CloudWatchMetrics: { Namespace: string; Metrics: { Name: string }[] }[] };
         };
 
-        expect(parsed._aws.CloudWatchMetrics[0]?.Namespace).toBe(MAPPING_PROMOTION_NAMESPACE);
+        expect(parsed._aws.CloudWatchMetrics[0]?.Namespace).toBe(RECIPE_RESOLUTION_NAMESPACE);
         expect(parsed._aws.CloudWatchMetrics[0]?.Metrics[0]?.Name).toBe(UNRANKED_HITS_METRIC);
         expect(parsed['Stage']).toBe('sandbox');
         expect(parsed[UNRANKED_HITS_METRIC]).toBe(1);
@@ -35,12 +35,12 @@ describe('UnrankedHitsReporter', () => {
         let now = 0;
         const warn = vi.fn();
         const lines: string[] = [];
-        const reporter = new UnrankedHitsReporter(
-            'sandbox',
-            (line) => lines.push(line),
+        const reporter = new UnrankedHitsReporter({
+            stage: 'sandbox',
+            metricSink: (line) => lines.push(line),
             warn,
-            () => now,
-        );
+            now: () => now,
+        });
 
         reporter.onUnrankedHits(1);
         now = 30_000;

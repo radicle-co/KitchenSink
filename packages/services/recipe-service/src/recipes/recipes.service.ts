@@ -56,6 +56,7 @@ import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDt
 import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
 import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
+import { withoutVerdictsOnRecord } from './verdictDedup.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
@@ -754,23 +755,16 @@ export class RecipesService {
             return requests;
         }
 
-        const keyed = requests.map((message) => ({
-            message,
-            key: verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex),
-        }));
-
-        try {
-            const onRecord = await this.verdicts.findExistingKeys(keyed.map(({ key }) => key));
-
-            return keyed.filter(({ key }) => !onRecord.has(key)).map(({ message }) => message);
-        } catch (error) {
-            this.logger.warn(
-                `recipe ${recipeId}: verdict dedup read failed; asking about all ${String(requests.length)} line(s)`,
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return requests;
-        }
+        return withoutVerdictsOnRecord(
+            this.verdicts,
+            requests,
+            (message) => verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex),
+            (error) =>
+                this.logger.warn(
+                    `recipe ${recipeId}: verdict dedup read failed; asking about all ${String(requests.length)} line(s)`,
+                    error instanceof Error ? error.stack : String(error),
+                ),
+        );
     }
 
     /**

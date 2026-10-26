@@ -19,6 +19,7 @@
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
 import type { LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import { pastedLineMeasureOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
+import { RANK_TIERS, type RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 import {
     decideProposalVerification,
     PROVISIONAL_VERIFICATION_THRESHOLDS,
@@ -45,12 +46,19 @@ import type { MatchCandidate, MatchSlot } from './parseJobMatch.js';
 /** How many candidates a match keeps. The column's CHECK holds the same bound. */
 export const MAX_MATCH_CANDIDATES = 5;
 
+/** The rung food publishes for a seeded default (salt → table salt, owner ruling 1, ADR-0070's ladder). */
+const DEFAULT_RUNG: RankTier = 'default';
+
 /**
- * The rung food publishes for a seeded default (salt → table salt, owner ruling 1, ADR-0070's ladder).
+ * A rung as this build knows it: one of recipe-core's `RANK_TIERS`, or `null`. Food owns the vocabulary and may publish a
+ * rung this build does not know yet; that reads as NO rung, never as a string a later comparison silently misses.
  *
- * Read as a plain string so this compiles against a food contract that does not list the rung yet.
+ * @param rung - A rung as food published it or the store holds it, or none.
+ * @returns The tier, or `null`. Pure.
  */
-const DEFAULT_RUNG = 'default';
+export function rankTierOf(rung: string | null | undefined): RankTier | null {
+    return (RANK_TIERS as readonly string[]).includes(rung ?? '') ? (rung as RankTier) : null;
+}
 
 /** What a parsed line contributes to a judgement: its text, the parse's own measure and the source's words for it. */
 export interface ParsedLineMeasure {
@@ -220,21 +228,11 @@ export function proposalKeyOf(message: VerifyIngredientLineMessage, digest: HexD
 /**
  * Whether a rung marks a seeded default.
  *
- * @param rung - A rung as food published it, or none.
+ * @param rung - A rung as this build knows it ({@link rankTierOf}), or none.
  * @returns `true` only for the default rung. Pure.
  */
-export function isDefaultRung(rung: string | null | undefined): boolean {
+export function isDefaultRung(rung: RankTier | null): boolean {
     return rung === DEFAULT_RUNG;
-}
-
-/**
- * Whether a default applies to the phrase: the shortlist holds a candidate on the default rung.
- *
- * @param candidates - The stored candidates.
- * @returns Whether any is a default. Pure.
- */
-export function defaultApplies(candidates: readonly MatchCandidate[]): boolean {
-    return candidates.some((candidate) => isDefaultRung(candidate.rung));
 }
 
 /**
@@ -255,7 +253,7 @@ export function candidatesFor(
     const toCandidate = (candidate: RankedCandidate): MatchCandidate => ({
         kind: candidate.food.kind,
         id: candidate.food.id,
-        rung: candidate.rung ?? null,
+        rung: rankTierOf(candidate.rung),
     });
     const head: MatchCandidate[] = [];
 
@@ -266,7 +264,7 @@ export function candidatesFor(
     }
 
     const rest = ranked.filter((candidate) => proposal === undefined || !sameFood(candidate.food, proposal));
-    const fallbackDefault = rest.find((candidate) => isDefaultRung(candidate.rung));
+    const fallbackDefault = rest.find((candidate) => isDefaultRung(rankTierOf(candidate.rung)));
     const listed = [...head, ...rest.map(toCandidate)].slice(0, MAX_MATCH_CANDIDATES);
 
     if (fallbackDefault !== undefined && !listed.some((candidate) => isDefaultRung(candidate.rung))) {

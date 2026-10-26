@@ -33,7 +33,10 @@ import {
     makeStoredProposal,
 } from '../../../src/recipes/__fixtures__/parseJobMatches.fixture.js';
 import { fakeVerificationQueue } from '../../../src/recipes/__fixtures__/verificationQueue.fixture.js';
-import { MatchProposalService } from '../../../src/recipes/matchProposal.service.js';
+import {
+    DEFAULT_MATCH_PROPOSAL_LIMITS,
+    MatchProposalService,
+} from '../../../src/recipes/matchProposal.service.js';
 
 /** What the stub food answers for each search term: hits with NO rung, as an older food sends them. */
 const SEARCHES: Readonly<Record<string, readonly { id: string; name: string; score: number }[]>> = {
@@ -155,6 +158,7 @@ describe('the lexical tier against a food that publishes no rung (integration)',
                 new FoodRefsGateway(clients),
                 fakeVerificationQueue(),
                 fakeLineVerificationsDal(),
+                DEFAULT_MATCH_PROPOSAL_LIMITS,
             ),
             matches,
             onUnrankedHits,

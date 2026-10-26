@@ -56,6 +56,8 @@ CREATE TABLE recipe_parse_job_matches (
     review text CHECK (review IN ('owed', 'refused')),
     -- When the verification request was last claimed and sent. NULL means owed and unclaimed.
     enqueued_at timestamptz,
+    -- When a curated proposal the review contradicted was counted for curation review: once per row and verdict.
+    curation_reported_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (job_id, line_index, food_index),
     FOREIGN KEY (job_id, line_index) REFERENCES recipe_parse_job_lines (job_id, line_index) ON DELETE CASCADE,
@@ -70,6 +72,8 @@ CREATE TABLE recipe_parse_job_matches (
     CONSTRAINT recipe_parse_job_matches_refusal_has_food
         CHECK (review IS DISTINCT FROM 'refused' OR num_nonnulls(food_id, food_variant_id) = 1),
     CONSTRAINT recipe_parse_job_matches_enqueue_has_key CHECK (enqueued_at IS NULL OR verification_key IS NOT NULL),
+    CONSTRAINT recipe_parse_job_matches_report_is_curated
+        CHECK (curation_reported_at IS NULL OR (matched_by = 'curated' AND verification_key IS NOT NULL)),
     CONSTRAINT recipe_parse_job_matches_candidates_bounded
         CHECK (jsonb_typeof(candidates) = 'array' AND jsonb_array_length(candidates) <= 5)
 );
@@ -82,5 +86,7 @@ COMMENT ON COLUMN recipe_parse_job_matches.judgement_digest IS
     'What the match was computed from. A row whose judgement differs from the current parse''s is recomputed.';
 COMMENT ON COLUMN recipe_parse_job_matches.review IS
     'owed: a review is owed under verification_key. refused: the gate is never asked. NULL: nothing to review.';
+COMMENT ON COLUMN recipe_parse_job_matches.curation_reported_at IS
+    'When a curated proposal the review contradicted was counted. Reset with the row; one count per verdict, not per read.';
 COMMENT ON COLUMN recipe_parse_job_matches.enqueued_at IS
     'A claim (lease): one caller wins it; only its own claim is released; a traceless claim past the delivery bound is retaken.';

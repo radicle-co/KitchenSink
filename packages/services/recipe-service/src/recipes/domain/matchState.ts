@@ -28,11 +28,20 @@
  * ⛔ `state` is a closed enum on the wire and a ONE-WAY DOOR for installed clients: a new fact becomes a new field or a
  * new `reason` key, never a sixth state. `reason` and `reviewNote` are opaque display keys the clients localize.
  */
+import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+
 import type { MatchProposingTier } from '../../database/schema/parseJobMatches.js';
+import { parseProposalMatchStateSchema } from '../parseJobs.schema.js';
 import { identityReadingOf, type VerificationBand } from './lineVerification.js';
 
-/** The five states a proposal can be in. */
-export const MATCH_STATES = ['checking', 'confident', 'default', 'needsChoice', 'noMatch'] as const;
+/** The rung of a name-exact proposal (ruling 3): a `RankTier` member, so a misspelling is a compile error. */
+const EXACT_RUNG: RankTier = 'exact';
+
+/**
+ * The five states a proposal can be in: the WIRE's closed enum (`parseProposalMatchStateSchema`), derived from it so the
+ * policy and the contract installed clients parse cannot list different states.
+ */
+export const MATCH_STATES = parseProposalMatchStateSchema.options;
 
 /** One proposal's state. */
 export type MatchState = (typeof MATCH_STATES)[number];
@@ -68,7 +77,7 @@ export interface MatchVerdict {
 /** The facts one proposal's state is derived from. */
 export interface MatchFacts {
     /** What was proposed, or `undefined` when nothing usable was (none, or food no longer shows it). */
-    readonly proposal: { readonly matchedBy: MatchProposingTier; readonly rung: string | null } | undefined;
+    readonly proposal: { readonly matchedBy: MatchProposingTier; readonly rung: RankTier | null } | undefined;
     /** How many candidates the cook may choose from. */
     readonly candidateCount: number;
     /** Whether the shortlist holds a candidate on the default rung. */
@@ -135,7 +144,7 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
         return { state: 'needsChoice', reason: 'reviewAbstained' };
     }
 
-    if (proposal.rung === 'exact') {
+    if (proposal.rung === EXACT_RUNG) {
         return { state: 'confident', reason: 'exactName' };
     }
 

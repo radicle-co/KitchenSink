@@ -11,7 +11,7 @@
  */
 import { buildStageCountMetricLine, resolveMetricStage } from '../../common/emfMetricLine.js';
 import type { LexicalTierObserver } from './lexicalTier.js';
-import { MAPPING_PROMOTION_NAMESPACE } from './mappingPromotionAudit.js';
+import { RECIPE_RESOLUTION_NAMESPACE } from './resolutionMetrics.js';
 
 /** The metric an operator alarms or graphs on. One count per resolution that saw rung-less name hits. */
 export const UNRANKED_HITS_METRIC = 'lexical-hits-without-rung';
@@ -19,22 +19,34 @@ export const UNRANKED_HITS_METRIC = 'lexical-hits-without-rung';
 /** Minimum gap between two warnings. The metric counts every occurrence; the log only says it is happening. */
 const WARN_INTERVAL_MS = 60_000;
 
+/** Where the reporter writes, and its clock. Every member is optional; each defaults to production's. */
+export interface UnrankedHitsReporterOptions {
+    /** The deploy-stage dimension value. */
+    readonly stage?: string;
+    /** Where the EMF line goes (stdout by default, which CloudWatch extracts). */
+    readonly metricSink?: (line: string) => void;
+    /** Where the rate-limited warning goes. */
+    readonly warn?: (message: string) => void;
+    /** The clock, in epoch ms. */
+    readonly now?: () => number;
+}
+
 export class UnrankedHitsReporter implements LexicalTierObserver {
     /** When the last warning was written, in epoch ms; `undefined` before the first. */
     private lastWarnAt: number | undefined;
 
-    /**
-     * @param stage - The deploy-stage dimension value.
-     * @param metricSink - Where the EMF line goes (stdout by default, which CloudWatch extracts).
-     * @param warn - Where the rate-limited warning goes.
-     * @param now - The clock, in epoch ms.
-     */
-    public constructor(
-        private readonly stage: string = resolveMetricStage(),
-        private readonly metricSink: (line: string) => void = console.log,
-        private readonly warn: (message: string) => void = () => undefined,
-        private readonly now: () => number = Date.now,
-    ) {}
+    private readonly stage: string;
+    private readonly metricSink: (line: string) => void;
+    private readonly warn: (message: string) => void;
+    private readonly now: () => number;
+
+    /** @param options - Where to write and the clock, by name (four positional collaborators misorder silently). */
+    public constructor(options: UnrankedHitsReporterOptions = {}) {
+        this.stage = options.stage ?? resolveMetricStage();
+        this.metricSink = options.metricSink ?? console.log;
+        this.warn = options.warn ?? (() => undefined);
+        this.now = options.now ?? Date.now;
+    }
 
     /**
      * Report one resolution's rung-less hits.
@@ -45,7 +57,7 @@ export class UnrankedHitsReporter implements LexicalTierObserver {
     public readonly onUnrankedHits = (count: number): void => {
         this.metricSink(
             buildStageCountMetricLine({
-                namespace: MAPPING_PROMOTION_NAMESPACE,
+                namespace: RECIPE_RESOLUTION_NAMESPACE,
                 metricName: UNRANKED_HITS_METRIC,
                 stage: this.stage,
                 properties: { unrankedHits: String(count) },

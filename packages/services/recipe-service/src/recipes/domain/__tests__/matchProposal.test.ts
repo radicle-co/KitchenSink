@@ -21,11 +21,11 @@ import {
     MAX_MATCH_CANDIDATES,
     MATCH_JUDGEMENT_VERSION,
     candidatesFor,
-    defaultApplies,
     isDefaultRung,
     matchJudgementDigestOf,
     matchJudgementOf,
     proposalVerificationDecision,
+    rankTierOf,
 } from '../matchProposal.js';
 import { isCurrentMatch } from '../parseJobMatch.js';
 
@@ -91,22 +91,26 @@ describe('proposalVerificationDecision — may the gate be asked, and about what
     });
 });
 
-describe('isDefaultRung and defaultApplies — the default signal (owner ruling 1)', () => {
+describe('isDefaultRung — the default signal (owner ruling 1)', () => {
     it('reads only the `default` rung as a default', () => {
         expect(isDefaultRung('default')).toBe(true);
         expect(isDefaultRung('exact')).toBe(false);
         expect(isDefaultRung(null)).toBe(false);
-        expect(isDefaultRung(undefined)).toBe(false);
+    });
+});
+
+/**
+ * A rung is parsed to recipe-core's `RankTier` once, where it enters the recipe domain (ADR-0071 review, F6): food owns
+ * the vocabulary and may publish a rung this build does not know yet, which reads as NO rung rather than a string a
+ * later comparison silently fails to match.
+ */
+describe('rankTierOf — a rung as this build knows it', () => {
+    it.each(['base', 'covered', 'head', 'tokenSet', 'default', 'synonym', 'exact'] as const)('keeps %s', (rung) => {
+        expect(rankTierOf(rung)).toBe(rung);
     });
 
-    it('a default applies when ANY candidate carries the default rung', () => {
-        expect(defaultApplies([{ kind: 'root', id: 'A', rung: 'head' }])).toBe(false);
-        expect(
-            defaultApplies([
-                { kind: 'root', id: 'A', rung: 'head' },
-                { kind: 'root', id: 'B', rung: 'default' },
-            ]),
-        ).toBe(true);
+    it.each([undefined, null, '', 'superExact'])('reads %j as no rung', (rung) => {
+        expect(rankTierOf(rung)).toBeNull();
     });
 });
 
@@ -149,6 +153,12 @@ describe('candidatesFor — what the cook may choose from', () => {
 
     it('lists only the shortlist when nothing was proposed', () => {
         expect(candidatesFor(undefined, ranked(2)).map((candidate) => candidate.id)).toStrictEqual(['F-0', 'F-1']);
+    });
+
+    it('⛔ carries a rung this build does not know as null, never as a stray string', () => {
+        expect(candidatesFor(undefined, [{ food: { kind: 'root', id: 'R' }, rung: 'superExact' }])).toStrictEqual([
+            { kind: 'root', id: 'R', rung: null },
+        ]);
     });
 
     it('carries an absent rung as null', () => {

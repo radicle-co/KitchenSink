@@ -1,10 +1,11 @@
 /**
  * `ParseJobMatchView` (ADR-0071) — adds each proposed food's `match` to a parse-job view, at READ time.
  *
- * DESIGN PATTERN: **Decorator** over the job view `ParseJobsService` builds: it takes a finished view and returns the
- * same view with `match` on every proposed food, so the service that owns the job's lifecycle knows nothing about
- * matching, and every route that answers with a view goes through the one projection. The state itself is the pure
- * `matchStateOf` (`domain/matchState.ts`).
+ * DESIGN PATTERN: **Content Enricher** (Hohpe and Woolf) over the job view `ParseJobsService` builds: it takes a finished
+ * view and returns the same view with `match` on every proposed food, filled from the match store, the verdict table and
+ * food. The service that owns the job's lifecycle knows nothing about matching, and every route that answers with a view
+ * goes through this one projection (`parseJobsController.enrichment.test.ts` discovers the routes and drives each). The
+ * state itself is the pure `matchStateOf` (`domain/matchState.ts`).
  *
  * ## The rules that live HERE
  *
@@ -17,11 +18,11 @@
  *  4. **Total.** An unreadable match store or verdict table degrades every food to `match: null` or to "no verdict
  *     yet", with a log line; a poll never fails on an auxiliary read (the assembler's posture).
  *
- * A curated proposal the gate contradicted is counted (coordinator decision 3) so curation can be reviewed. ⚠️ The
- * count is PER READ, not per mapping: a poll loop counts the same line several times. It is a signal to look, not a
- * tally of mappings.
+ * A curated proposal the gate contradicted is counted (coordinator decision 3) so curation can be reviewed, ONCE per row
+ * and verdict: the store's `claimCurationReport` lets only the first read that sees it report it, so a poll loop does
+ * not inflate the count. A replaced row (the line edited or reparsed) counts afresh.
  */
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
@@ -31,6 +32,7 @@ import { sha256Hex } from '../common/sha256.js';
 import { foodRefKey, type FoodRef } from '../database/schema/foodLookupArm.js';
 import type { FoodRefAnswer } from '../ingredients/domain/foodRefAnswer.js';
 import { FoodRefsGateway } from '../ingredients/foodRefs.gateway.js';
+import { RECIPE_RESOLUTION_NAMESPACE } from '../ingredients/resolution/resolutionMetrics.js';
 import type { LineVerdictRow, LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { variantDisplayName } from './domain/lineVerification.js';
 import { isDefaultRung, matchJudgementDigestOf } from './domain/matchProposal.js';
@@ -40,7 +42,7 @@ import { PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
 import type { ParseJobResponse, ParseProposalCandidate, ParseProposalMatch } from './parseJobs.schema.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from './recipes.tokens.js';
 
-/** DI token for where a curated-but-contradicted proposal is reported. */
+/** DI token for where a curated-but-contradicted proposal is reported (provided by `RecipesModule`). */
 export const CURATION_DISAGREEMENT_SINK = 'CURATION_DISAGREEMENT_SINK';
 
 /** What a curated-but-contradicted report carries: ids only, never the cook's text. */
@@ -49,19 +51,29 @@ export interface CurationDisagreement {
     readonly foodId: string;
 }
 
-/** The CloudWatch namespace and metric for a curated mapping the gate contradicted on a paste line. */
-const CURATION_NAMESPACE = 'Commise/RecipeResolution';
+/** The metric for a curated mapping the gate contradicted on a paste line, under the one resolution namespace. */
 const CURATION_METRIC = 'paste-curated-contradicted';
 
-/** The default report: one EMF count, dimensioned by stage alone. */
-function emitCurationDisagreement(): void {
+/**
+ * Production's report: one EMF count, dimensioned by stage alone.
+ *
+ * @sideEffect Writes one EMF line to stdout.
+ */
+export function emitCurationDisagreement(): void {
     console.log(
         buildStageCountMetricLine({
-            namespace: CURATION_NAMESPACE,
+            namespace: RECIPE_RESOLUTION_NAMESPACE,
             metricName: CURATION_METRIC,
             stage: resolveMetricStage(),
         }),
     );
+}
+
+/** A curated contradiction this read saw, waiting for its one count. */
+interface CurationReport {
+    readonly match: ParseJobMatch;
+    readonly verificationKey: string;
+    readonly foodId: string;
 }
 
 /** A found answer that carries a usable name. */
@@ -93,13 +105,13 @@ export class ParseJobMatchView {
     private readonly logger = new Logger(ParseJobMatchView.name);
 
     public constructor(
-        @Inject(PARSE_JOB_MATCHES_DAL) private readonly matches: Pick<ParseJobMatchesPort, 'findForJob'>,
+        @Inject(PARSE_JOB_MATCHES_DAL)
+        private readonly matches: Pick<ParseJobMatchesPort, 'findForJob' | 'claimCurationReport'>,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
         private readonly verdicts: Pick<LineVerificationsDal, 'findBandsByKeys' | 'findExhaustedKeys'>,
         @Inject(FoodRefsGateway) private readonly refs: Pick<FoodRefsGateway, 'resolve'>,
-        @Optional()
         @Inject(CURATION_DISAGREEMENT_SINK)
-        private readonly reportCurationDisagreement: (report: CurationDisagreement) => void = emitCurationDisagreement,
+        private readonly reportCurationDisagreement: (report: CurationDisagreement) => void,
     ) {}
 
     /**
@@ -133,14 +145,18 @@ export class ParseJobMatchView {
         ]);
 
         const contained = isContained(acting);
-
-        return this.withMatches(view, (lineIndex, foodIndex) => {
+        const toReport: CurationReport[] = [];
+        const decorated = this.withMatches(view, (lineIndex, foodIndex) => {
             const match = current.get(slotKey({ lineIndex, foodIndex }));
 
             return match === undefined
                 ? null
-                : this.project(view.id, match, { answers, verdicts, exhausted, contained });
+                : this.project(match, { answers, verdicts, exhausted, contained, toReport });
         });
+
+        await this.reportOnce(view.id, toReport);
+
+        return decorated;
     }
 
     /** The matches that are still their line's (rule 3), by slot. An unreadable store is no matches (rule 4). */
@@ -232,13 +248,14 @@ export class ParseJobMatchView {
      * One food's match, or `null` when food could not be asked about it (rule 2). Pure apart from the curation report.
      */
     private project(
-        jobId: string,
         match: ParseJobMatch,
         read: {
             readonly answers: ReadonlyMap<string, FoodRefAnswer>;
             readonly verdicts: ReadonlyMap<string, LineVerdictRow>;
             readonly exhausted: ReadonlySet<string>;
             readonly contained: boolean;
+            /** Where a curated contradiction to count is collected, for {@link ParseJobMatchView.reportOnce}. */
+            readonly toReport: CurationReport[];
         },
     ): ParseProposalMatch | null {
         const { answers, verdicts } = read;
@@ -267,8 +284,8 @@ export class ParseJobMatchView {
             review: this.reviewOf(match, read.exhausted, read.contained),
         });
 
-        if (answer.reviewNote === 'reviewDisagreed' && proposed !== null) {
-            this.reportQuietly({ jobId, foodId: proposed.id });
+        if (answer.reviewNote === 'reviewDisagreed' && proposed !== null && match.verificationKey !== null) {
+            read.toReport.push({ match, verificationKey: match.verificationKey, foodId: proposed.id });
         }
 
         return {
@@ -294,7 +311,7 @@ export class ParseJobMatchView {
             }
 
             const food = namedFood(answer);
-            const key = `${food.kind}:${food.id}`;
+            const key = foodRefKey(food);
 
             if (!seen.has(key)) {
                 seen.add(key);
@@ -328,13 +345,35 @@ export class ParseJobMatchView {
         return contained ? 'notAsked' : 'asked';
     }
 
-    /** Report a curated-but-contradicted proposal; the report never fails the read. */
-    private reportQuietly(report: CurationDisagreement): void {
-        try {
-            this.reportCurationDisagreement(report);
-            this.logger.warn('A curated mapping was contradicted by the review gate on a paste line.', report);
-        } catch {
-            // Observability must not become an availability dependency.
+    /**
+     * Count each curated contradiction ONCE per row and verdict (item 18): only a report whose store claim this read won
+     * is emitted. Neither the claim nor the report may fail the read.
+     *
+     * @sideEffect Conditional writes of the store's marker; one EMF line per won claim.
+     */
+    private async reportOnce(jobId: string, reports: readonly CurationReport[]): Promise<void> {
+        for (const report of reports) {
+            try {
+                const won = await this.matches.claimCurationReport(jobId, {
+                    lineIndex: report.match.lineIndex,
+                    foodIndex: report.match.foodIndex,
+                    verificationKey: report.verificationKey,
+                });
+
+                if (won) {
+                    this.reportCurationDisagreement({ jobId, foodId: report.foodId });
+                    this.logger.warn('A curated mapping was contradicted by the review gate on a paste line.', {
+                        jobId,
+                        foodId: report.foodId,
+                    });
+                }
+            } catch (error) {
+                // Observability must not become an availability dependency.
+                this.logger.warn(
+                    `parse-job ${jobId}: a curated contradiction could not be counted`,
+                    error instanceof Error ? error.stack : String(error),
+                );
+            }
         }
     }
 

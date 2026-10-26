@@ -8,7 +8,7 @@
  * @pattern Adapter — projects the `@commise/ui` token modules onto the artifact's `tokens.json` grammar
  */
 import { palette, role, roleDark } from '@commise/ui/colors';
-import { fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
+import { fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 import { barMaterial } from '@commise/ui/tokens/barMaterial';
 import { coverTint, coverTintDark } from '@commise/ui/tokens/covers';
 import { kebab } from '@commise/ui/tokens/emit';
@@ -95,7 +95,7 @@ function typeStyle(name: TypeRole): { readonly style: ArtifactTypeStyle; readonl
         style: {
             name: kebab(name),
             fontSize: `${sizeOf(spec.size)}px`,
-            lineHeight: `${spec.lineHeight}`,
+            lineHeight: `${spec.lineHeight}px`,
             fontWeight: fontWeight[spec.weight],
             usage: TYPE_ROLE_DOC[name].usage,
         },
@@ -132,8 +132,8 @@ const SIZE_SCALE_STEP = /^(display|heading)/u;
 
 /**
  * The display ramp as a size scale. These steps are real (the mobile font ramp and several web headings use them),
- * but `@commise/ui` gives them no weight: each call site picks one. So they are published with their size and the
- * heading line height the mobile ramp pairs them with, and no weight is invented.
+ * but `@commise/ui` gives them no weight: each call site picks one. So they are published with their size and that
+ * size's px line height from `lineHeightPx`, and no weight is invented.
  */
 function sizeScaleGroup(): ArtifactTypeGroup {
     return {
@@ -144,7 +144,7 @@ function sizeScaleGroup(): ArtifactTypeGroup {
             .map(([step, size]) => ({
                 name: kebab(step),
                 fontSize: `${size}px`,
-                lineHeight: `${lineHeightRatio.heading}`,
+                lineHeight: `${lineHeightPx[size]}px`,
                 usage: "A display size step. The weight is the caller's; prefer a type role where one fits.",
             })),
     };

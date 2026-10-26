@@ -1,5 +1,5 @@
 import { palette, role, roleDark } from '@commise/ui/colors';
-import { fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
+import { fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 import { barMaterial } from '@commise/ui/tokens/barMaterial';
 import { coverTint, coverTintDark } from '@commise/ui/tokens/covers';
 import { kebab } from '@commise/ui/tokens/emit';
@@ -128,7 +128,7 @@ describe('buildTokens', () => {
 
                 expect(style?.fontSize).toBe(`${px}px`);
                 expect(style?.fontWeight).toBe(fontWeight[spec.weight]);
-                expect(style?.lineHeight).toBe(`${spec.lineHeight}`);
+                expect(style?.lineHeight).toBe(`${spec.lineHeight}px`);
             },
         );
 
@@ -151,15 +151,15 @@ describe('buildTokens', () => {
                 expect(group?.styles.map((style) => style.name)).toEqual(RAMP.map(([step]) => kebab(step)));
             });
 
-            it.each(RAMP)('states %s from the scale, with the heading line height', (step, size) => {
+            it.each(RAMP)('states %s from the scale, with its px line height on the 4 px grid', (step, size) => {
                 const style = group?.styles.find((candidate) => candidate.name === kebab(step));
 
                 expect(style?.fontSize).toBe(`${size}px`);
-                expect(style?.lineHeight).toBe(`${lineHeightRatio.heading}`);
+                expect(style?.lineHeight).toBe(`${lineHeightPx[size as keyof typeof lineHeightPx]}px`);
             });
 
             it('takes no body or caption size, which the type roles already publish', () => {
-                expect(RAMP.map(([step]) => step)).toContain('displayXl');
+                expect(RAMP.map(([step]) => step)).toContain('displayMd');
                 expect(group?.styles.map((style) => style.name)).not.toContain('body-md');
                 expect(group?.styles.map((style) => style.name)).not.toContain('caption');
             });

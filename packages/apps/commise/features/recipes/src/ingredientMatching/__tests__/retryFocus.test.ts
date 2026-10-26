@@ -66,12 +66,6 @@ describe('retryFocusOf', () => {
         expect(retryFocusOf(RETRYING, RETRYING)).toBeUndefined();
         expect(retryFocusOf(FAILED, FAILED)).toBeUndefined();
     });
-
-    it('a different line is a first sight, not a transition', () => {
-        expect(
-            retryFocusOf(send({ key: 'bread', failed: true }), send({ key: 'milk', failed: true, sending: true })),
-        ).toBe(undefined);
-    });
 });
 
 describe('stepRetryMemory', () => {

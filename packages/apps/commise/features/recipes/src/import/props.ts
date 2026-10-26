@@ -186,7 +186,8 @@ export interface ImportFlaggedListProps {
     readonly pending: ReadonlyMap<string, PendingSend>;
     /**
      * The lines whose "Use {food}" did not save. Each says so, in the matched-line list's words, with Try again, until
-     * a retry is in flight (M6). Try again is {@link onUseSuggestion} again.
+     * a retry is in flight (M6). Try again is {@link onUseSuggestion} again. Keep the row drawn while the retry is in
+     * flight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).
      */
     readonly failed: ReadonlySet<string>;
     /**
@@ -215,7 +216,10 @@ export interface ImportLineOptionsProps extends Omit<FoodChoiceListProps, 'view'
     readonly pending: PendingSend | undefined;
     /** The line's last pick did not save: say so, with Try again, until a retry is in flight (M6). */
     readonly failed: boolean;
-    /** Try again was pressed: send the line's pick again. */
+    /**
+     * Try again was pressed: send the line's pick again. Keep the line's options shown while the retry is in flight:
+     * Try again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.
+     */
     readonly onRetryPick: () => void;
 }
 

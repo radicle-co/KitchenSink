@@ -28,7 +28,11 @@ export interface MatchLineListProps extends MatchRowHandlers {
      * line that is sending refuses a second pick, its Change and its opening.
      */
     readonly pending: ReadonlyMap<string, PendingSend>;
-    /** The lines whose last send did not save. Each says so, with Try again, until a retry is in flight. */
+    /**
+     * The lines whose last send did not save. Each says so, with Try again, until a retry is in flight. A line stays
+     * in this set while its retry is in flight, which is how the list tells a retry from a first attempt
+     * (`useRetryFocus`): keep the line drawn then, and move focus on (`pickFocusOf`) when it saves.
+     */
     readonly failed: ReadonlySet<string>;
     /** What the list's one polite live region says now (U9). */
     readonly announcement: ListAnnouncement;

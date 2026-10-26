@@ -17210,7 +17210,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, after a pick in the pane that did not save.",
+                            "description": "Try again, after a pick in the pane that did not save. Keep the line shown in the pane while the retry is in\nflight, and step on only when it saves: Try again hands focus to the control the retry made busy\n(`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
                         },
                         {
@@ -17298,7 +17298,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, after a pick in the pane that did not save.",
+                            "description": "Try again, after a pick in the pane that did not save. Keep the line shown in the pane while the retry is in\nflight, and step on only when it saves: Try again hands focus to the control the retry made busy\n(`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
                         },
                         {
@@ -19083,7 +19083,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again.",
+                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again. Keep the row drawn while the retry is in\nflight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19144,7 +19144,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/import",
-                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside\nthe list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite\nlive region (M6, U9). Try again keeps the screen-reader cursor (WCAG 2.4.3): while the retry is in flight it lands on\nthe row's Use, or Choose another when the row has no Use (`flaggedLandingOf`), and returns to the new Try again if the\nretry fails again (`useRetryFocus`).",
+                    "moduleDoc": "@commise/features-recipes/import — `ImportFlaggedList` (native): the React Native leaf of\n`./ImportFlaggedList.tsx`, on the same words. Each row's Use and Choose another sit on their own line under the doubt and wrap\nrather than squeeze, so neither label wraps inside its control at 320 dp; each keeps the 44 pt touch floor. Below the\nwide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside\nthe list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite\nlive region (M6, U9). Try again keeps the screen-reader cursor (WCAG 2.4.3): while the retry is in flight it lands on\nthe row's Use, or Choose another when the row has no Use (`flaggedRowViewOf`), and returns to the new Try again if the\nretry fails again (`useRetryFocus`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19180,7 +19180,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again.",
+                            "description": "The lines whose \"Use {food}\" did not save. Each says so, in the matched-line list's words, with Try again, until\na retry is in flight (M6). Try again is {@link onUseSuggestion} again. Keep the row drawn while the retry is in\nflight: Try again hands focus to the row's Use, or its Choose another when it has no Use (`flaggedRowViewOf`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19305,7 +19305,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight. A line stays\nin this set while its retry is in flight, which is how the list tells a retry from a first attempt\n(`useRetryFocus`): keep the line drawn then, and move focus on (`pickFocusOf`) when it saves.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -19368,7 +19368,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, on a line whose last send did not save: send it again.",
+                            "description": "Try again, on a line whose last send did not save: send it again.\nKeep the line drawn while the retry is in flight (expanded, or shown in the pane)\nand move focus on (`pickFocusOf`) when it saves, not when Try again is pressed:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -19465,7 +19465,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight. A line stays\nin this set while its retry is in flight, which is how the list tells a retry from a first attempt\n(`useRetryFocus`): keep the line drawn then, and move focus on (`pickFocusOf`) when it saves.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -19528,7 +19528,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, on a line whose last send did not save: send it again.",
+                            "description": "Try again, on a line whose last send did not save: send it again.\nKeep the line drawn while the retry is in flight (expanded, or shown in the pane)\nand move focus on (`pickFocusOf`) when it saves, not when Try again is pressed:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -19662,7 +19662,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again was pressed: send the line's pick again.",
+                            "description": "Try again was pressed: send the line's pick again. Keep the line's options shown while the retry is in flight:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19768,7 +19768,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again was pressed: send the line's pick again.",
+                            "description": "Try again was pressed: send the line's pick again. Keep the line's options shown while the retry is in flight:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -19911,7 +19911,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again was pressed: send the line's pick again.",
+                            "description": "Try again was pressed: send the line's pick again. Keep the line's options shown while the retry is in flight:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -20044,7 +20044,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again was pressed: send the line's pick again.",
+                            "description": "Try again was pressed: send the line's pick again. Keep the line's options shown while the retry is in flight:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -21891,7 +21891,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight. A line stays\nin this set while its retry is in flight, which is how the list tells a retry from a first attempt\n(`useRetryFocus`): keep the line drawn then, and move focus on (`pickFocusOf`) when it saves.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -21954,7 +21954,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, on a line whose last send did not save: send it again.",
+                            "description": "Try again, on a line whose last send did not save: send it again.\nKeep the line drawn while the retry is in flight (expanded, or shown in the pane)\nand move focus on (`pickFocusOf`) when it saves, not when Try again is pressed:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -22051,7 +22051,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight.",
+                            "description": "The lines whose last send did not save. Each says so, with Try again, until a retry is in flight. A line stays\nin this set while its retry is in flight, which is how the list tells a retry from a first attempt\n(`useRetryFocus`): keep the line drawn then, and move focus on (`pickFocusOf`) when it saves.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchLineListProps.ts"
                         },
                         {
@@ -22114,7 +22114,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, on a line whose last send did not save: send it again.",
+                            "description": "Try again, on a line whose last send did not save: send it again.\nKeep the line drawn while the retry is in flight (expanded, or shown in the pane)\nand move focus on (`pickFocusOf`) when it saves, not when Try again is pressed:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {
@@ -22526,7 +22526,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Try again, on a line whose last send did not save: send it again.",
+                            "description": "Try again, on a line whose last send did not save: send it again.\nKeep the line drawn while the retry is in flight (expanded, or shown in the pane)\nand move focus on (`pickFocusOf`) when it saves, not when Try again is pressed:\nTry again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchRowProps.ts"
                         },
                         {

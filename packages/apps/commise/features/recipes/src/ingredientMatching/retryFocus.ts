@@ -20,12 +20,12 @@
  *
  * Pure and platform-agnostic.
  *
- * @pattern State Machine — the transition over (failed, sending) pairs, pure, with the hook as its only holder
+ * @pattern Reducer — a pure transition over a line's before and after send state, with the hook as its only holder
  */
 
 /** One line's send, as a surface sees it: whether its last send failed, and whether one is in flight. */
 export interface SendState {
-    /** The line this is about: a state of another line is a first sight, never a transition. */
+    /** The line this is about: the memory keeps one state per key, so a line seen for the first time has no past. */
     readonly key: string;
     /** The line's last send did not save, and nothing has saved since. */
     readonly failed: boolean;
@@ -50,7 +50,7 @@ export interface RetryMemory {
  * @returns The request the change raises, or `undefined` for none.
  */
 export function retryFocusOf(before: SendState | undefined, after: SendState): RetryFocus | undefined {
-    if (before === undefined || before.key !== after.key || !before.failed || !after.failed) {
+    if (before === undefined || !before.failed || !after.failed) {
         return undefined;
     }
 

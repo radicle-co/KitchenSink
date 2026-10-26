@@ -13,6 +13,10 @@ export interface PasteChoicePaneProps extends Omit<FoodChoiceListProps, 'view' |
     readonly onPrevious: () => void;
     /** Next open line was pressed: show the open line after this one. */
     readonly onNext: () => void;
-    /** Try again, after a pick in the pane that did not save. */
+    /**
+     * Try again, after a pick in the pane that did not save. Keep the line shown in the pane while the retry is in
+     * flight, and step on only when it saves: Try again hands focus to the control the retry made busy
+     * (`useRetryFocus`), which must still be on screen.
+     */
     readonly onRetryPick: () => void;
 }

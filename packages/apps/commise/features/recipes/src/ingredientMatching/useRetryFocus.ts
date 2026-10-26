@@ -2,6 +2,9 @@
  * @module @commise/features-recipes/ingredientMatching — the holder of `retryFocus.ts`'s memory: the one hook every
  * surface that shows a failed pick calls, so a retry's focus is decided in one place for the matched-line list, the paste
  * pane, the flagged list, and the import options sheet and pane, on both platforms.
+ *
+ * @pattern Memento — the previous render's send states, kept as state adjusted during render (React's documented way
+ *     to derive state from a change in props), so the hook holds no ref and runs no effect
  */
 import { useState } from 'react';
 

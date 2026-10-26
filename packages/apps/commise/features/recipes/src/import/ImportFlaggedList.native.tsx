@@ -5,7 +5,7 @@
  * wide container class Choose another opens the options sheet (the host's); at it (1194) the options pane stands beside
  * the list. While a send for a line is in flight, Use reads busy if it is the one sending and both refuse a press (M5). A Use that did not save says so on its row, with Try again, and the page has ONE polite
  * live region (M6, U9). Try again keeps the screen-reader cursor (WCAG 2.4.3): while the retry is in flight it lands on
- * the row's Use, or Choose another when the row has no Use (`flaggedLandingOf`), and returns to the new Try again if the
+ * the row's Use, or Choose another when the row has no Use (`flaggedRowViewOf`), and returns to the new Try again if the
  * retry fails again (`useRetryFocus`).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -20,10 +20,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
-import { lineFailureOf, sendStateOf } from '../ingredientMatching/matchLineView.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
-import { flaggedLandingOf } from './flaggedLanding.js';
+import { flaggedRowViewOf } from './flaggedRowView.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -44,8 +43,11 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
     const copy = useMatchCopy();
-    const placeOf = (key: string) => ({ failed: failed.has(key), pending: pending.get(key) });
-    const retryOf = useRetryFocus(lines.map((line) => sendStateOf(line.key, placeOf(line.key))));
+    const rows = lines.map((line) => ({
+        line,
+        view: flaggedRowViewOf(line, { failed: failed.has(line.key), pending: pending.get(line.key) }, copy),
+    }));
+    const retryOf = useRetryFocus(rows.map((row) => row.view.send));
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
 
@@ -57,9 +59,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                 </Text>
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{pluralOf(f.intro, total, locale)}</Text>
                 <View>
-                    {lines.map((line) => {
+                    {rows.map(({ line, view }) => {
                         const retry = retryOf(line.key);
-                        const failure = lineFailureOf(line.text, placeOf(line.key), copy);
 
                         return (
                             <View key={line.key} style={[styles.row, { borderTopColor: colors.lineDivider }]}>
@@ -80,7 +81,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                             })}
                                             busy={pending.get(line.key)?.kind === 'useProposal'}
                                             refused={pending.has(line.key)}
-                                            focusRequested={retry.landing.requested}
+                                            focusRequested={view.landing === 'use' && retry.landing.requested}
                                             onFocusRequestHandled={retry.landing.onHandled}
                                             onPress={() => onUseSuggestion(line.key)}
                                         >
@@ -92,18 +93,16 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                         size="sm"
                                         accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
                                         refused={pending.has(line.key)}
-                                        focusRequested={
-                                            flaggedLandingOf(line) === 'chooseAnother' && retry.landing.requested
-                                        }
+                                        focusRequested={view.landing === 'chooseAnother' && retry.landing.requested}
                                         onFocusRequestHandled={retry.landing.onHandled}
                                         onPress={() => onChooseAnother(line.key)}
                                     >
                                         {f.chooseAnother}
                                     </Button>
                                 </View>
-                                {failure === undefined ? null : (
+                                {view.failure === undefined ? null : (
                                     <MatchFailureLine
-                                        failure={failure}
+                                        failure={view.failure}
                                         onRetry={() => onUseSuggestion(line.key)}
                                         focus={retry.tryAgain}
                                     />

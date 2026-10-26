@@ -20,10 +20,9 @@ import type { FC } from 'react';
 import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
-import { lineFailureOf, sendStateOf } from '../ingredientMatching/matchLineView.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
-import { flaggedLandingOf } from './flaggedLanding.js';
+import { flaggedRowViewOf } from './flaggedRowView.js';
 import { importMessages } from './messages.js';
 import type { ImportFlaggedListProps } from './props.js';
 
@@ -41,8 +40,11 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
     const { flagged: f } = useMessages(importMessages);
     const locale = useLocale();
     const copy = useMatchCopy();
-    const placeOf = (key: string) => ({ failed: failed.has(key), pending: pending.get(key) });
-    const retryOf = useRetryFocus(lines.map((line) => sendStateOf(line.key, placeOf(line.key))));
+    const rows = lines.map((line) => ({
+        line,
+        view: flaggedRowViewOf(line, { failed: failed.has(line.key), pending: pending.get(line.key) }, copy),
+    }));
+    const retryOf = useRetryFocus(rows.map((row) => row.view.send));
 
     return (
         <div className="flex flex-col gap-6 @wide/main:flex-row @wide/main:items-start">
@@ -50,9 +52,8 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                 <h1 className="font-display text-large-title text-ink">{pluralOf(f.title, total, locale)}</h1>
                 <p className="text-body text-ink-muted">{pluralOf(f.intro, total, locale)}</p>
                 <ul className="flex flex-col divide-y divide-line-divider">
-                    {lines.map((line) => {
+                    {rows.map(({ line, view }) => {
                         const retry = retryOf(line.key);
-                        const failure = lineFailureOf(line.text, placeOf(line.key), copy);
 
                         return (
                             <li key={line.key} className="flex flex-col gap-2 py-3">
@@ -73,7 +74,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                             })}
                                             busy={pending.get(line.key)?.kind === 'useProposal'}
                                             refused={pending.has(line.key)}
-                                            focusRequested={retry.landing.requested}
+                                            focusRequested={view.landing === 'use' && retry.landing.requested}
                                             onFocusRequestHandled={retry.landing.onHandled}
                                             onPress={() => onUseSuggestion(line.key)}
                                         >
@@ -85,18 +86,16 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({
                                         size="sm"
                                         accessibilityLabel={fillTemplate(f.chooseAnotherName, { line: line.text })}
                                         refused={pending.has(line.key)}
-                                        focusRequested={
-                                            flaggedLandingOf(line) === 'chooseAnother' && retry.landing.requested
-                                        }
+                                        focusRequested={view.landing === 'chooseAnother' && retry.landing.requested}
                                         onFocusRequestHandled={retry.landing.onHandled}
                                         onPress={() => onChooseAnother(line.key)}
                                     >
                                         {f.chooseAnother}
                                     </Button>
                                 </span>
-                                {failure === undefined ? null : (
+                                {view.failure === undefined ? null : (
                                     <MatchFailureLine
-                                        failure={failure}
+                                        failure={view.failure}
                                         onRetry={() => onUseSuggestion(line.key)}
                                         focus={retry.tryAgain}
                                     />

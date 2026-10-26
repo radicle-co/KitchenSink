@@ -19,7 +19,12 @@ export interface MatchRowHandlers {
     readonly onUseProposal: (key: string) => void;
     /** Try again, on a line whose options failed. */
     readonly onRetry: (key: string) => void;
-    /** Try again, on a line whose last send did not save: send it again. */
+    /**
+     * Try again, on a line whose last send did not save: send it again.
+     * Keep the line drawn while the retry is in flight (expanded, or shown in the pane)
+     * and move focus on (`pickFocusOf`) when it saves, not when Try again is pressed:
+     * Try again hands focus to the control the retry made busy (`useRetryFocus`), which must still be on screen.
+     */
     readonly onRetryPick: (key: string) => void;
     /** See why, after a late review result: the host shows the reason. */
     readonly onSeeWhy: (key: string, reason: string) => void;

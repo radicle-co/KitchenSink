@@ -411,14 +411,18 @@ export function recipeQueries(client: RecipeServiceClient) {
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
         /**
-         * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073). Stale after 30 s like the
-         * list it counts; every private/public/delete/clone write invalidates it sooner.
+         * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073).
+         *
+         * `staleTime: 0` is a DECISION: this is a number on a screen ("12 of 50 left") that another device can change, and a
+         * mount that showed a 30 s old count would offer a Private the server is about to refuse. Every private, public,
+         * delete and clone write also invalidates it at once. The count is still only a display fact; the server decides
+         * every write.
          */
         privateSlots: () =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipePrivateSlots,
                 queryFn: () => client.getPrivateSlots(),
-                staleTime: RECIPE_STANDARD_STALE_TIME_MS,
+                staleTime: 0,
             }),
         /** `GET /api/v1/recipes/{id}/versions` — a recipe's recent versions. */
         versions: (id: string) =>

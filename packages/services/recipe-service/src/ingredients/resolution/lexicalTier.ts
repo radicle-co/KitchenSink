@@ -123,8 +123,15 @@ export function reformulateQuery(phrase: string): string | undefined {
  */
 const CROSSWALK_SCORE = 1;
 
-/** A hit that matched an identifier rather than a name: no rung, at the crosswalk score. Pure. */
+/**
+ * A hit that matched an identifier rather than a name. Food says so with `matchedBy` (ADR-0070), and that flag decides;
+ * only a hit with no flag at all (an older food) falls back to "no rung, at the crosswalk score". Pure.
+ */
 function isCrosswalkHit(hit: CatalogHit): boolean {
+    if (hit.matchedBy !== undefined) {
+        return hit.matchedBy === 'identifier';
+    }
+
     return hit.rung === undefined && hit.score >= CROSSWALK_SCORE;
 }
 

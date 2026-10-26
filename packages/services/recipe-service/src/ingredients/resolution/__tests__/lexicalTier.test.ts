@@ -232,6 +232,27 @@ describe('countUnrankedHits — the visibility signal for rung-less name hits', 
     });
 });
 
+describe('the explicit matchedBy flag outranks the score heuristic (food publishes it, ADR-0070)', () => {
+    it('treats an identifier hit as a crosswalk even below the crosswalk score: no retry, not counted unranked', () => {
+        const hit = { foodId: 'F-BAR', name: 'cereal bar', score: 0.9, matchedBy: 'identifier' } as const;
+
+        expect(shouldReformulate([hit])).toBe(false);
+        expect(countUnrankedHits([hit])).toBe(0);
+    });
+
+    it('treats a NAME hit with no rung as unknown even at the crosswalk score: retry runs, counted unranked', () => {
+        const hit = { foodId: 'F-ODD', name: 'odd', score: 1, matchedBy: 'name' } as const;
+
+        expect(shouldReformulate([hit])).toBe(true);
+        expect(countUnrankedHits([hit])).toBe(1);
+    });
+
+    it('falls back to the score heuristic only when food sent no flag (an older food)', () => {
+        expect(shouldReformulate([{ foodId: 'F-BAR', name: 'cereal bar', score: 1 }])).toBe(false);
+        expect(countUnrankedHits([{ foodId: 'F-X', name: 'x', score: 0.4 }])).toBe(1);
+    });
+});
+
 describe('createLexicalTier — the adapter', () => {
     const outcomeOf = (hits: CatalogSearchOutcome['hits'], availability = 'ok' as const): CatalogSearchOutcome => ({
         hits,

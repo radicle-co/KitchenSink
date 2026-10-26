@@ -18,7 +18,7 @@
  */
 import { ABSENT_QUANTITY, type IngredientQuantity } from '@kitchensink/recipe-core';
 import {
-    decideVerification,
+    decideProposalVerification,
     PROVISIONAL_VERIFICATION_THRESHOLDS,
     unattributedEvidence,
     type VerificationDecision,
@@ -77,22 +77,18 @@ export function matchJudgementOf(
 }
 
 /**
- * Whether the gate may be asked about a paste proposal, and about what.
- *
- * ⚠️ A LOCAL SEAM for recipe-core's `decideProposalVerification` (step 4 of this work, not on this branch's base): the
- * same answer, identity always asked, built here from `decideVerification` with evidence that opens no skip door.
- * Swap the body for that call at merge; every caller already goes through this one function.
+ * Whether the gate may be asked about a paste proposal, and about what: recipe-core's `decideProposalVerification`,
+ * the same rule the worker re-runs (ADR-0071), so both ends judge a proposal identically. Identity is always asked.
  *
  * @param sourceLine - The line as stored.
  * @param boundTo - Whether the proposal is a root or a variant.
  * @returns `verify` (both aspects), `skip` for a blank line, or `reject` for an over-cap one. Pure.
  */
 export function proposalVerificationDecision(sourceLine: string, boundTo: FoodRef['kind']): VerificationDecision {
-    return decideVerification({
+    return decideProposalVerification({
         sourceLine,
         evidence: unattributedEvidence(),
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
-        bandAuthority: undefined,
         boundTo,
     });
 }

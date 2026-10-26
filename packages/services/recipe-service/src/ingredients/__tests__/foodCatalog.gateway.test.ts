@@ -121,6 +121,31 @@ describe('FoodCatalogGateway', () => {
             ]);
         });
 
+        it("carries food's matchedBy flag through, and omits it when food sent none (ADR-0070)", async () => {
+            search.mockResolvedValue({
+                results: [
+                    makeSearchResultView({ id: 'F-bar', name: 'cereal bar', score: 1, matchedBy: 'identifier' }),
+                    makeSearchResultView({
+                        id: 'F-sugar',
+                        name: 'sugar',
+                        score: 0.7,
+                        rung: 'synonym',
+                        matchedBy: 'name',
+                    }),
+                    makeSearchResultView({ id: 'F-old', name: 'old food', score: 0.5 }),
+                ],
+            });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            const outcome = await gateway.search(CALLER, 'sugar', 10);
+
+            expect(outcome.hits.map((hit) => [hit.foodId, hit.matchedBy])).toEqual([
+                ['F-bar', 'identifier'],
+                ['F-sugar', 'name'],
+                ['F-old', undefined],
+            ]);
+        });
+
         it('breaks score ties on name so the ordering is deterministic', async () => {
             search.mockResolvedValue({
                 results: [

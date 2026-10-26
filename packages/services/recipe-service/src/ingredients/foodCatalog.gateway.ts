@@ -75,6 +75,11 @@ export interface CatalogHit {
      */
     readonly rung?: RankTierView;
     /**
+     * How food matched this hit (ADR-0070): by its `name`, or by an `identifier` (a barcode or external-key crosswalk).
+     * Absent when food is older than this service; the lexical tier then falls back to the crosswalk score.
+     */
+    readonly matchedBy?: SearchResultView['matchedBy'];
+    /**
      * Per-100g macros, present only on an enriched search (`withNutrition` — plan U4b, the lexical tier's
      * path) and only where the catalog stores a qualifying row. Absent means UNKNOWN, never zero. Named in
      * `ScoredCandidate`'s spelling so the tier's projection is a field-for-field copy.
@@ -121,6 +126,7 @@ function toCatalogHit(row: SearchResultView): CatalogHit | null {
         name,
         score: typeof row.score === 'number' ? row.score : 0,
         ...(row.rung === undefined ? {} : { rung: row.rung }),
+        ...(row.matchedBy === undefined ? {} : { matchedBy: row.matchedBy }),
         // Present only on an enriched search; the boundary renames food's projection fields into
         // `ScoredCandidate`'s spelling (energy/carbohydrate) so nothing downstream translates again.
         ...(typeof row.caloriesPer100g === 'number' ? { energyKcalPer100g: row.caloriesPer100g } : {}),

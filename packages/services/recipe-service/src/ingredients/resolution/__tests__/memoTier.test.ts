@@ -43,20 +43,16 @@ describe('decideMemoTier — pure', () => {
     it('⛔ PASSES on a NEAR hit — nobody agreed the QUERY phrase means that food', () => {
         // ⚠️ READ BEFORE "FIXING" THIS BACK. `verifiedBy` is a fact about the STORED key: on the near branch
         // no human and no model ever agreed that the phrase being asked about means this food, so it is a
-        // retrieval guess of the same epistemic class as a lexical top hit — and KTD-A's answer to that class
-        // is to WITHHOLD until the gate agrees. The withholding machinery keys on the TIER: `pendingStateOf`
-        // returns `'none'` for anything but `lexical`, and `pendingRedrives` only covers `ranked` evidence.
-        // So a near memo that RESOLVED would publish immediately, counted, and un-redriveable — the published
-        // wrong bind KTD-A exists to prevent — while passing lets the lexical tier answer, which withholds and
-        // gets a verdict. At `MEMO_SIMILARITY_FLOOR = 0.5`, the midpoint of the trigram scale, that distance
-        // is not theoretical.
+        // retrieval guess of the same epistemic class as a lexical top hit. Under ADR-0071's two chains a near memo
+        // that RESOLVED would bind that guess with settled authority (by-name) or propose it as a `confident`
+        // remembered match (the paste matcher); passing lets by-name fall through to food and lets the paste matcher
+        // reach the lexical tier, whose proposal binds nothing and is reviewed. At `MEMO_SIMILARITY_FLOOR = 0.5`, the
+        // midpoint of the trigram scale, that distance is not theoretical.
         //
         // ⚠️ A DEFERRAL OF AE8, NOT A REJECTION OF IT, and the one thing here owed an owner ruling. AE8 wants
         // a near-twin to resolve from the knowledge base without an LLM call; R14 forbids equality-only
         // MATCHING, which `findMemo` still honours — the k-NN lookup is unchanged and only the tier's verdict
-        // on its result moved. Flip this back to `resolved` the day `MemoHit.match` is persisted on the
-        // resolution and `pendingStateOf` / `pendingRedrives` treat a near memo as a withholding class
-        // (ADR-0026 §3's `single-engine` != `differ`, one field over).
+        // on its result moved. The condition for flipping this back is in `decideMemoTier`'s docstring (ADR-0071).
         const outcome = decideMemoTier({
             food: { kind: 'root', id: 'FOOD-A' },
             match: 'near',

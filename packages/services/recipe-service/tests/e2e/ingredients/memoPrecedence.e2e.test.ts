@@ -18,10 +18,9 @@
  *    Before the reordering this resolved to the CATALOG's food and enqueued a verification for an identity
  *    the gate had already agreed — a user's settled answer silently replaced by a machine guess.
  *  - **The near-twin case** pins AE8's DEFERRAL. `verifiedBy` is a fact about the STORED key, so a k-NN hit
- *    is an identity nobody agreed for the phrase being asked about — and `pendingStateOf` withholds only
- *    `tier === 'lexical'`, so a resolving near memo would publish unverified and un-redriveable. Promoting
- *    this tier would have turned that from a near-unreachable branch into the common path, so the near
- *    branch defers instead. The spec measures the real trigram similarity to prove the branch is genuinely
+ *    is an identity nobody agreed for the phrase being asked about, and a resolving near memo would bind it with
+ *    settled authority (ADR-0071). Promoting this tier would have turned that from a near-unreachable branch into
+ *    the common path, so the near branch defers instead. The spec measures the real trigram similarity to prove the branch is genuinely
  *    in play rather than passing for the wrong reason.
  *  - **The no-memo case** pins that this is a precedence fix and not a disabling of the lexical tier: with nothing
  *    remembered, the lexical tier still answers from the catalog exactly as it did.
@@ -195,14 +194,12 @@ describe('cascade precedence against a real knowledge base', () => {
         expect(foodClient.addByName).not.toHaveBeenCalled();
     });
 
-    it('⛔ a NEAR-TWIN does NOT answer from the knowledge base — it falls through to the withholding tier', async () => {
+    it('⛔ a NEAR-TWIN does NOT answer from the knowledge base — it falls through the settled chain', async () => {
         // ⚠️ THIS IS AE8 DEFERRED, DELIBERATELY, and it is the safety condition the reorder ships under.
         // `verifiedBy` is a fact about the STORED key: `castor sugar` is a trigram neighbour of a phrase the
-        // gate agreed, but nobody ever agreed that THIS phrase means that food. Because `pendingStateOf`
-        // withholds only `tier === 'lexical'`, a resolving near memo would publish it immediately, counted
-        // and un-redriveable — so `decideMemoTier` passes and the lexical tier answers instead, whose bind is
-        // withheld until a verdict lands. Flip this spec back when `MemoHit.match` is persisted and the
-        // withholding predicates understand it; see `decideMemoTier`'s docstring.
+        // gate agreed, but nobody ever agreed that THIS phrase means that food. A resolving near memo would bind it
+        // with settled authority (ADR-0071), so `decideMemoTier` passes and the chain falls through. The condition
+        // for flipping this spec back is in `decideMemoTier`'s docstring.
         //
         // ⚠️ The similarity here is a REAL Postgres trigram score over the stored key, measured below rather
         // than assumed — the suite's shared phrase prefix would otherwise carry the comparison on its own and

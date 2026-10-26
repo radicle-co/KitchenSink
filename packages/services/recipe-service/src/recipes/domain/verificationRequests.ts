@@ -30,11 +30,8 @@
  *
  * ## ⛔ EVERY LINE VERIFIES BOTH ASPECTS, AND THAT IS NOT A PLACEHOLDER
  *
- * The evidence declared is `unattributed`, always (ADR-0071). The only provenance a saved line has is the latest
- * resolution event on its BINDING, and a binding is shared by every cook who bound that food: reading it let one
- * cook's later curated bind of food X mark another cook's wrong lexical "milk → X" line as settled. So nothing here
- * reads it, and the band skips and pending re-drives that hung off it are gone from this producer. That evidence
- * opens no skip door, so `decideVerification` asks about identity AND quantity. This is KTD-3's own
+ * The evidence declared is `unattributed`, always: no provenance is read from the shared binding (ADR-0071 records
+ * why), so this producer grants no band skip and stores no pending re-drive. That evidence opens no skip door, so `decideVerification` asks about identity AND quantity. This is KTD-3's own
  * default ("everything else verifies") and the safe direction: over-verifying costs money at ~370x headroom,
  * under-verifying publishes nutrition nothing checked. It is also free against the plan's cost basis, which
  * is stated "under KTD-3's verify-everything policy".
@@ -265,10 +262,8 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         // ⛔ ADR-0024 layer 0. The pure policy decides whether there is anything to ask BEFORE anything is
         // sent — `skip` for a blank line, `reject` for an over-cap one (which is never truncated).
-        // ⛔ UNATTRIBUTED, always (ADR-0071). The only provenance a saved line has is the latest event on its
-        // binding, and a binding is SHARED by every cook: one cook's later curated bind of food X would otherwise
-        // mark another cook's wrong lexical "milk → X" line as settled. Unattributed opens no skip door, so the
-        // gate asks identity AND quantity — KTD-3's default.
+        // ⛔ UNATTRIBUTED, always (ADR-0071): it opens no skip door, so the gate asks identity AND quantity — KTD-3's
+        // default.
         const evidence = unattributedEvidence();
         const decision = decideVerification({
             sourceLine,

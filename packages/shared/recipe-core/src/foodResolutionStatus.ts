@@ -42,20 +42,16 @@ export const FoodResolutionStatus = {
     /** ⛔ RECIPE-LINE ONLY — see this block's header. Never written to a catalog row. */
     NEEDS_REVIEW: 'NEEDS_REVIEW',
     /**
-     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (plan U4c, KTD-A): a zero-authority lexical bind whose
-     * verification verdict has not landed yet. The line is bound and visible, its macros are withheld from
-     * the recipe figure, and the verdict's arrival flips it with no write anywhere. ⛔ NOT `UNRESOLVED`,
-     * which means "several candidates, pick one" and drives the disambiguation picker — a pending line has
-     * exactly one proposed food and nothing for a picker to do.
+     * ⛔ RECIPE-LINE ONLY. Was derived at read (plan U4c) for a zero-authority lexical bind awaiting its verdict.
+     * ⚠️ NO LONGER PRODUCED (ADR-0071: by-name binds no lexical guess, and the pending state read a shared row). It
+     * stays in the wire enum, which installed clients parse; a later cleanup decides whether it goes.
      */
     PENDING_VERIFICATION: 'PENDING_VERIFICATION',
     /**
-     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (plan U13, D7/R9): the gate ABSTAINED (`inconclusive`) over
-     * a shortlist whose candidates differ MATERIALLY on nutrition — the pick changes the figure, so the
-     * AUTHOR is asked. Renders the pick affordance (re-derived shortlist; one pick binds every matching
-     * sibling and writes ONE correction). ⛔ NOT `UNRESOLVED`: that drives the CANDIDATE picker over a
-     * catalog row's own candidate set; this is the verification gate's abstention over a ranked shortlist.
-     * Publish stays allowed with ambiguous lines (R23).
+     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (`resolveLineStatus`): the gate CONTRADICTED the line's identity at
+     * high certainty (owner ruling 2026-08-31) or ABSTAINED on it (owner ruling 2026-10-25, ADR-0071), so the AUTHOR
+     * is invited to re-pick the food. Renders the pick affordance. ⛔ NOT `UNRESOLVED`: that drives the CANDIDATE
+     * picker over a catalog row's own candidate set. Publish stays allowed with ambiguous lines (R23).
      */
     AMBIGUOUS: 'AMBIGUOUS',
     /**

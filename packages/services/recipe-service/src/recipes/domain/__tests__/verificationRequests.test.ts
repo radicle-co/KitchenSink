@@ -458,14 +458,7 @@ describe('buildVerificationRequests — what the SOURCE printed travels with the
     });
 });
 
-// ⛔ DELETED (ADR-0071): "band consultation — earned autonomy at the producer (plan U4b, KTD-A)" and "pending
-// re-drives — the withholding lines' stored messages (plan U4c, KTD-A)". Both keyed off a line's `ranked` evidence,
-// which came from the shared binding's latest event; with that read gone no saved line is ranked, so the save path
-// grants no band skip and stores no re-drive. Band authority still exists for the worker; the producer half is gone.
-
 describe('U11/R20 — a private-food line stays OUT of the shared memo tier', () => {
-    // ⚠️ The author-augmented cases (`bandKeyOf`, the `authorAugmented` stamp) went with the provenance read
-    // (ADR-0071): the flag lived on the shared binding's resolution event, which the save path no longer reads.
     it("stamps privateFood on the message when the bound food is the author's private one", () => {
         const requests = build([makeLine({ privateFood: true })]);
 

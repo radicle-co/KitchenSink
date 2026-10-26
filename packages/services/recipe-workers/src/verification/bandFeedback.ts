@@ -7,11 +7,9 @@
  * The state machine's SQL lives ONCE in `@kitchensink/recipe-core/resolution/band-authority-store`. This module owns
  * only what is local to the gate: the verdict mapping ({@link bandVerdictFor}), which verdicts are observations at all.
  *
- * ⛔ THE BAND IS THE ONE THE MESSAGE NAMES (ADR-0071), never one looked up. This module used to find a verdict's band
- * from the food's latest lexical `ingredient_resolutions` event. That row is shared by every cook who bound the food, so
- * one cook's verdict moved a band another cook's resolution was ranked in. The caller now passes the key the message
- * carries, and with no key there is nothing to record or read. No producer sends a key today: the band subsystem is
- * DORMANT BY DECISION (ADR-0071).
+ * ⛔ THE BAND IS THE ONE THE MESSAGE NAMES, never one looked up from the shared resolution events (ADR-0071 records
+ * why). With no key there is nothing to record or read, and no producer sends one: the band subsystem is DORMANT BY
+ * DECISION.
  *
  * ⚠️ Every failure is swallowed: by the time feedback runs the Bedrock call is billed and the verdict is
  * stored, so a throw here would redeliver a message that then reserves and calls AGAIN. The authority READ

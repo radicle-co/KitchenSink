@@ -175,9 +175,8 @@ export type VerificationOrigin = z.infer<typeof verificationOriginSchema>;
 /**
  * The band a verdict on this line is observed in, named BY THE PRODUCER (ADR-0071).
  *
- * ⛔ The worker never looks a band up. It used to find one from the food's latest lexical `ingredient_resolutions`
- * event, a row every cook who bound that food shares, so one cook's verdict moved a band another cook's resolution was
- * ranked in. A band is now the one the message names, from the ranking that produced THIS line, or none.
+ * ⛔ The worker never looks a band up from the shared resolution events (ADR-0071 records why). A band is the one
+ * the message names, from the ranking that produced THIS line, or none.
  *
  * ⚠️ No producer sends it today: the band subsystem is DORMANT BY DECISION (ADR-0071). It is fed again when the paste
  * origin carries the match row's rung, margin, query shape and ranker version.
@@ -327,13 +326,10 @@ export const verifyIngredientLineMessageSchema = z
          * back to a default, and both defaults are wrong: "verify everything" spends on lines that need not be
          * checked, "skip identity" publishes an unchecked resolution.
          *
-         * ⚠️ `unattributed` is NOT what the producer sends for every line: migration `0035_ingredient_resolutions
-         * .sql` persists which cascade tier resolved the catalog row, `resolveThroughCascade` writes the event, and
-         * `verificationRequests.ts`'s `evidenceFor` sends `curated-exact`, `remembered` or `ranked` off it.
-         * `unattributed` is the fallback for a line with
-         * no usable event — a best-effort write that was lost, a stored shortlist the wire schema rejects, or the
-         * `llm` tier, which has no evidence member. It is NOT a placeholder, and it opens no door, which is
-         * KTD-3's own default. ⛔ It must never become a value a CLIENT can declare:
+         * ⚠️ `unattributed` IS what both producers send for every line since ADR-0071: the save path reads no
+         * provenance from the shared binding, and a paste review always asks identity. It opens no door, which is
+         * KTD-3's own default. The other members stay for the worker's re-run of the policy (and a band key, which
+         * no producer sends: the band subsystem is dormant by decision). ⛔ It must never become a value a CLIENT can declare:
          * `curated-exact` suppresses the identity check, which would be a conclusion wearing an input's clothes
          * — exactly what this contract's "INPUTS, NEVER CONCLUSIONS" rule forbids.
          */

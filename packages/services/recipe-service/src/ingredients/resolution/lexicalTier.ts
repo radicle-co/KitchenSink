@@ -1,18 +1,20 @@
 /**
- * THE LAST tier of the resolution cascade — the lexical shortlist-builder (plan U4 / origin R1, KTD-A).
+ * THE LAST tier of the paste matcher's PROPOSAL chain — the lexical shortlist-builder (plan U4 / origin R1; ADR-0071).
  *
  * DESIGN PATTERN: **Strategy**, split into a pure `decide` and an impure adapter — the `curatedTier.ts` /
  * `memoTier.ts` convention (pure `decide` + impure `evaluate`, as in `deployGate.sh`).
  *
- * ## ⛔ ZERO INITIAL AUTHORITY — the tier has NO confidence threshold, deliberately
+ * ## ⛔ ZERO AUTHORITY — the tier has NO confidence threshold, deliberately
  *
- * The tier proposes its top-ranked candidate on ANY non-empty candidate set. That looks reckless next to
- * the owner's "very clear go and no go" constraint until the second half is in view: a lexical resolution
- * carries `ranked` evidence, and under KTD-A every zero-authority lexical bind WITHHOLDS as
- * `pending-verification` until the verification gate agrees — so a wrong top hit costs a pending line and
- * one gate call (~$0.000034), never a published wrong bind. Safety lives at the gate; what this tier owes
- * it is EVIDENCE: the structured shortlist, the measured margin, and the top hit's ladder rung — the band
- * key under which skips are later EARNED (plan U3), not designed in here.
+ * The tier proposes its top-ranked candidate on ANY non-empty candidate set. That is safe for one reason only, and
+ * it is a structural one (ADR-0071's two chains): this tier sits in the PROPOSAL chain, which binds NOTHING. By-name
+ * binds through the settled chain `[curated, memo]` and never reaches it. A lexical top hit becomes a stored proposal
+ * the cook confirms, reviewed by the gate on identity, so a wrong top hit costs a `checking` or `needsChoice` line and
+ * one gate call, never a wrong bind. What this tier owes the matcher is EVIDENCE: the shortlist (the cook's
+ * candidates), the measured margin, and the top hit's ladder rung (`default` among them decides the line's state).
+ *
+ * ⛔ Do NOT wire it into a binding chain to "help" a phrase nobody has curated: the pending state that once made a bound
+ * lexical guess safe read a row every cook shares, and it was removed (ADR-0071).
  *
  * ⛔ **THAT IS ALSO WHY IT RUNS LAST, and why R11's literal "curated, lexical, knowledge base" order is NOT
  * what ships.** A tier that answers on any non-empty candidate set consumes every query the catalog can
@@ -25,8 +27,7 @@
  *
  * `FoodCatalogGateway.search` returns hits already ordered by food-service's tiered relevance and re-sorted by
  * score at the gateway, each carrying the rung food ranked it on (ADR-0070). This tier neither re-ranks nor
- * re-classifies: it records the published rung, so the rung in the event log is the rung the ranking used. It used
- * to classify the top hit again in TypeScript, which was a second copy of a rule whose authority is food's SQL.
+ * re-classifies: it passes the published rung on, so the rung a proposal records is the rung the ranking used.
  *
  * ## The synonym-reformulation retry (origin D11)
  *
@@ -55,10 +56,9 @@
  * caller (#120) rather than under a service credential — the forwarded bearer IS the scoping argument.
  * Nothing here re-filters, because a row this tier can see is a row the caller was entitled to see.
  *
- * What this tier owes R20 is the SIGNAL, not the filter: {@link isAuthorAugmented} flags a shortlist
- * containing the caller's own `private` hit, and `IngredientsService` then records the resolution as
- * author-augmented and observes NO band epoch for it — margins drawn from one user's catalog are facts about
- * that user, not about the shared ranker, and must not feed shared band statistics (plan U11).
+ * What this tier owes R20 is the SIGNAL, not the filter: {@link isAuthorAugmented} flags a shortlist containing the
+ * caller's own `private` hit, so margins drawn from one user's catalog are never mistaken for facts about the shared
+ * ranker (plan U11). The band subsystem that would consume them is dormant by decision (ADR-0071).
  *
  * `ResolutionContext.userId` stays threaded for the tiers that key on an author (curated); this one keys on
  * the CREDENTIAL.

@@ -392,10 +392,9 @@ function excludedFromBands(message: VerifyIngredientLineMessage): boolean {
 /**
  * The band this message's verdict is observed in and its authority read from, or `undefined` for none (plan U3, U4b).
  *
- * ⛔ ONLY a message with `ranked` evidence that NAMES ITS OWN BAND (ADR-0071). The band used to be looked up from the
- * food's latest lexical `ingredient_resolutions` event, a row every cook who bound the food shares, so one cook's
- * verdict moved a band another cook's resolution was ranked in. A band key on any other evidence describes a ranking
- * that did not happen, and an excluded message (above) never reaches the shared statistics.
+ * ⛔ ONLY a message with `ranked` evidence that NAMES ITS OWN BAND (ADR-0071; the band is never looked up from the
+ * shared resolution events). A band key on any other evidence describes a ranking that did not happen, and an
+ * excluded message (above) never reaches the shared statistics.
  *
  * ⚠️ No producer sends a band key today, so the band subsystem is DORMANT BY DECISION: nothing is observed and no
  * authority is read. It is fed again when the paste origin carries the match row's rung, margin, query shape and ranker

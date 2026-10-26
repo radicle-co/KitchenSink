@@ -16,8 +16,8 @@
  *
  * The lesson is the one `natEgressConsumers.test.ts` and `listenerPriority.ts` already record in this repo:
  * a precedence written down in prose, or a list copied into a test, cannot detect that the thing it
- * describes has changed. So everything below is DERIVED from {@link createResolutionRegistry}'s actual
- * output and from {@link RESOLUTION_TIER_IDS}, and the probe table is keyed by the tier-id union so a tier
+ * describes has changed. So everything below is DERIVED from the two registries' actual output
+ * (`createBindingRegistry`, `createProposalRegistry`; ADR-0071) and from {@link RESOLUTION_TIER_IDS}, and the probe table is keyed by the tier-id union so a tier
  * that ships without a way to reach it is a COMPILE error before it is a test failure.
  *
  * ## The properties, and what each one alone would miss
@@ -267,11 +267,10 @@ describe.each(REGISTRIES)('%s', (_name, createRegistry) => {
         // because it is a property of the whole chain that must survive a future tier being added.
         //
         // `verifiedBy` is a fact about the STORED key, so a k-NN hit is an identity nobody agreed for the
-        // phrase being asked about. Downstream, `pendingStateOf` withholds only `tier === 'lexical'` and
-        // `pendingRedrives` covers only `ranked` evidence — so a near memo that RESOLVED would publish
-        // immediately, counted and un-redriveable. Before the reorder that needed an empty catalog and was
-        // nearly unreachable; after it, it would be the common path. The chain must fall through to a tier
-        // whose binds are WITHHELD, which is what this asserts.
+        // phrase being asked about. A near memo that RESOLVED would be proposed as a `confident` remembered match
+        // (ADR-0071). Before the reorder that needed an empty catalog and was nearly unreachable; after it, it would
+        // be the common path. The chain must fall through to the lexical tier, whose proposal binds nothing and is
+        // reviewed, which is what this asserts.
         world = {
             ...worldWith(['lexical']),
             memo: { food: { kind: 'root', id: MEMO_FOOD }, match: 'near', similarity: 0.72 },

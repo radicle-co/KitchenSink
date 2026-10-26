@@ -684,8 +684,7 @@ export class RecipesService {
             return;
         }
 
-        // ADR-0071: no provenance is read here. A binding is SHARED by every cook, so its latest event describes
-        // someone else's add; the plan declares every line `unattributed`.
+        // ADR-0071: no provenance is read here; the plan declares every line `unattributed`.
         const { requests: planned, unasked } = buildVerificationRequests({
             recipeId,
             lines: lines.map((row) => storedLineToVerifiable(row, identities)),

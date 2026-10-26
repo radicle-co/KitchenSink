@@ -354,13 +354,6 @@ describe('identityContradictedOf — which verdicts open the re-pick door', () =
     });
 });
 
-// ⛔ DELETED (ADR-0071): `pendingStateOf`, `isWithheldLine`, "resolveLineStatus — the pending members" and
-// `ambiguousStateOf`. All four read the latest resolution event on a line's BINDING, which every cook shares: one
-// cook's lexical add withheld another's line, and one cook's later curated bind of the same food published someone
-// else's wrong one. The detail read no longer reads that event, so an unjudged line reports its catalog status (pinned
-// above under "ABSENCE OF A VERDICT MEANS PUBLISH") and an abstention publishes (the INCONCLUSIVE case above). The
-// read-side regression case is in `__tests__/recipeDetail.assembler.test.ts`.
-
 describe('viewerLineStatus — R20: a private food on a public recipe, seen by a stranger (plan U13)', () => {
     const AUTHOR = '01JU13AUTHOR00000000000AAA';
     const STRANGER = '01JU13STRANGER000000000BBB';

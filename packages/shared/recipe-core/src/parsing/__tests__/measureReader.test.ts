@@ -1,5 +1,5 @@
 /**
- * The measure reader's stated-measure half (`readStatedMeasure`), moved here from `@commise/features-recipes`'
+ * The measure reader's stated-measure half (`readCooksMeasure`), moved here from `@commise/features-recipes`'
  * `leadingMeasure.ts` so the editor and recipe-service read a pasted line's measure with ONE reader (ADR-0071).
  *
  * What these cases guard: the cook's own words are kept (`tbsp`, `T`, `large`), never `normalizeUnit`'s spelling. A
@@ -8,9 +8,9 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readStatedMeasure } from '../measureReader.js';
+import { readCooksMeasure } from '../measureReader.js';
 
-describe('readStatedMeasure — the amount at the start of a stated measure, and the cook’s words after it', () => {
+describe('readCooksMeasure — the amount at the start of a stated measure, and the cook’s words after it', () => {
     it.each([
         ['2 tbsp', { kind: 'exact', value: 2 }, 'tbsp'],
         ['1 T', { kind: 'exact', value: 1 }, 'T'],
@@ -22,7 +22,7 @@ describe('readStatedMeasure — the amount at the start of a stated measure, and
         ['200g', { kind: 'exact', value: 200 }, 'g'],
         ['½ cup', { kind: 'exact', value: 0.5 }, 'cup'],
     ])('reads %j as its amount and the words after it', (phrase, quantity, words) => {
-        expect(readStatedMeasure(phrase)).toStrictEqual({ quantity, words });
+        expect(readCooksMeasure(phrase)).toStrictEqual({ quantity, words });
     });
 
     it.each([
@@ -30,6 +30,6 @@ describe('readStatedMeasure — the amount at the start of a stated measure, and
         ['one gill', 'one gill'],
         ['II cups', 'II cups'],
     ])('keeps %j whole when it states no amount this reader reads', (phrase, words) => {
-        expect(readStatedMeasure(phrase)).toStrictEqual({ quantity: { kind: 'absent' }, words });
+        expect(readCooksMeasure(phrase)).toStrictEqual({ quantity: { kind: 'absent' }, words });
     });
 });

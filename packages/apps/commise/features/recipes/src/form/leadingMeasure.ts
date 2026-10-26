@@ -43,7 +43,7 @@ import {
     amountAt,
     leadingAmount,
     quantityOf,
-    readStatedMeasure,
+    readCooksMeasure,
     splitGluedUnit,
 } from '@kitchensink/recipe-core/parsing/measure-reader';
 
@@ -247,5 +247,5 @@ export function readAmountField(text: string): AmountFieldReading {
  * @returns The cook's own unit words.
  */
 export function statedUnitOf(reading: LeadingMeasureReading): string {
-    return reading.measureText === '' ? '' : readStatedMeasure(reading.measureText).words;
+    return reading.measureText === '' ? '' : readCooksMeasure(reading.measureText).words;
 }

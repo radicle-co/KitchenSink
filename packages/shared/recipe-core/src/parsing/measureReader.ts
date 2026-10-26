@@ -17,9 +17,9 @@
  * `form/leadingMeasure.ts`, which still owns the add field's own grammar (the unit after the amount, the preparation,
  * the count unit after the food) and reads its amounts through this module.
  *
- * ⚠️ `@kitchensink/recipe-import-core` has a SECOND `readStatedMeasure`, which canonicalises the unit through
- * `parse-ingredient`'s vocabulary for the import comparator. The two answer different questions today and are a known
- * duplication for a later code-quality pass; this one is the editor's.
+ * ⚠️ NAMED FOR WHAT IT READS: the cook's own words. `@kitchensink/recipe-import-core` has a `readStatedMeasure` of its own,
+ * which canonicalises the unit through `parse-ingredient`'s vocabulary for the import comparator. The two follow
+ * different rules for different reasons to change, so they are separate and carry different names.
  *
  * ⚠️ PLATFORM PRECONDITION (A1): `numeric-quantity` compiles `/\p{Nd}/gu` at module load, and the glued-unit split
  * below uses `\p{L}`. Both need Hermes' Unicode property escapes, proven on the RN 0.86 Hermes Android emulator by the
@@ -184,7 +184,7 @@ export function quantityOf(read: AmountRead): IngredientQuantity {
 }
 
 /** A measure phrase as the cook stated it: the amount this module reads at its start, and the words after it. */
-export interface StatedMeasureReading {
+export interface CooksMeasureReading {
     /** The leading amount, or `ABSENT_QUANTITY` when the phrase states none this module reads ("a handful"). */
     readonly quantity: IngredientQuantity;
     /** The words after the amount, as the cook wrote them, a trailing `of` dropped; the whole phrase with no amount. */
@@ -198,7 +198,7 @@ export interface StatedMeasureReading {
  * @param phrase - The measure phrase.
  * @returns The amount and the cook's words after it. Pure.
  */
-export function readStatedMeasure(phrase: string): StatedMeasureReading {
+export function readCooksMeasure(phrase: string): CooksMeasureReading {
     const tokens = splitGluedUnit(
         phrase
             .trim()

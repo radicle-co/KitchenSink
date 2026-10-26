@@ -21,7 +21,7 @@
  * @pattern Specification — the one rule for a pasted line's saved measure, shared by the editor and the matcher
  */
 import { ABSENT_QUANTITY, type IngredientQuantity } from '../ingredientQuantity.js';
-import { readStatedMeasure } from './measureReader.js';
+import { readCooksMeasure } from './measureReader.js';
 
 /** What a parse says about a line's measure: its reading, and the words the source used. */
 export interface PastedLineParse {
@@ -61,7 +61,7 @@ export function pastedLineMeasureOf(parse: PastedLineParse, foodIndex: number): 
         return parsed;
     }
 
-    const stated = readStatedMeasure(phrase);
+    const stated = readCooksMeasure(phrase);
 
     if (stated.quantity.kind !== 'absent') {
         return { quantity: stated.quantity, unit: stated.words };

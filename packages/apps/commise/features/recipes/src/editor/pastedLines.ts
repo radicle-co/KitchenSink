@@ -3,9 +3,9 @@
  * lines are still reading, and, for each settled line, the rows the recipe gets. `usePasteIntoIngredients` polls the
  * parse job and commits what this settles, in paste order.
  *
- * A parsed line becomes one row per proposed food: the NAME the existing lookup resolves (R19: the parse binds
- * nothing), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food carries the
- * line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
+ * A parsed line becomes one row per proposed food: the NAME the host joins it by (bound to the food its match names, or
+ * as written: ADR-0071), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food
+ * carries the line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
  * same line states none, because the line gave one amount.
  *
  * ⛔ THERE IS NO TIME LIMIT (owner ruling 2026-10-13: "it takes as long as it takes"; plan 2026-10-15-011). A pending line
@@ -41,6 +41,11 @@ export interface PastedRow {
     readonly measure: LineMeasure;
     /** The phrase the parse lifted out of the line, for the create (its `sourcePhrase`); absent for a reader row. */
     readonly sourcePhrase?: string;
+    /**
+     * Which food of the line's proposal this row is, so the host can find its match (`${lineIndex}:${foodIndex}`). Absent
+     * for a reader row: it has no proposal food, so no match, and it joins as written.
+     */
+    readonly foodIndex?: number;
 }
 
 /** A pending line's step, as the server reports it — every phase but `stalled`, which waits on the cook. */
@@ -91,6 +96,7 @@ function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
         name: food.name,
         measure: { ...pastedLineMeasureOf(proposal, index), preparation: food.prep ?? '' },
         sourcePhrase: food.name,
+        foodIndex: index,
     }));
 }
 

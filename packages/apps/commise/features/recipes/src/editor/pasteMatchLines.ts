@@ -63,7 +63,7 @@ const REVIEW_REASONS: ReadonlySet<string> = new Set(['rememberedMatch', 'reviewV
  * @param reason - The wire `reason` key.
  * @returns `review` for a remembered or verified match, else `server` (exact name, curated mapping, or unknown).
  */
-function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
+export function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
     return REVIEW_REASONS.has(reason) ? 'review' : 'server';
 }
 

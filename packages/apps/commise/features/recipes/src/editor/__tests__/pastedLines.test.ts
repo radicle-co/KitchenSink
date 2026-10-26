@@ -96,6 +96,7 @@ describe('pastedLinesOf', () => {
                         // The unit as the cook stated it ("2 cups"), not the parse's canonical "cup" (F12).
                         measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cups', preparation: 'sifted' },
                         sourcePhrase: 'flour',
+                        foodIndex: 0,
                     },
                 ],
             },
@@ -120,13 +121,30 @@ describe('pastedLinesOf', () => {
         const [line] = pastedLinesOf(input({ job }));
 
         expect(line?.kind === 'settled' ? line.rows : []).toEqual([
-            { name: 'salt', measure: { quantity: ABSENT_QUANTITY, unit: '', preparation: '' }, sourcePhrase: 'salt' },
+            {
+                name: 'salt',
+                measure: { quantity: ABSENT_QUANTITY, unit: '', preparation: '' },
+                sourcePhrase: 'salt',
+                foodIndex: 0,
+            },
             {
                 name: 'pepper',
                 measure: { quantity: ABSENT_QUANTITY, unit: '', preparation: '' },
                 sourcePhrase: 'pepper',
+                foodIndex: 1,
             },
         ]);
+    });
+
+    it('⛔ a reader row carries no foodIndex: it has no proposal food, so no match, and joins as written', () => {
+        const job = makeParseJob({
+            lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil', status: 'unparseable', proposal: null })],
+        });
+        const [line] = pastedLinesOf(input({ job }));
+        const rows = line?.kind === 'settled' ? line.rows : [];
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).not.toHaveProperty('foodIndex');
     });
 
     it('a heading names no food, so it settles into no row', () => {

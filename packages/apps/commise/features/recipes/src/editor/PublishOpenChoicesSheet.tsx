@@ -1,0 +1,58 @@
+'use client';
+
+/**
+ * @module @commise/features-recipes/editor — `PublishOpenChoicesSheet` (web): what the editor asks before publishing a
+ * recipe whose lines have no food yet (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, R23).
+ * Publishing stays allowed. The sheet says the open lines are saved as written and do not count toward nutrition, names
+ * a line still being checked, and says how many lines count; Choose now and Publish anyway are the two ways on.
+ *
+ * On the design-system `Sheet`, not `ConfirmDialog`: that primitive is for a destructive step, and publishing is not one.
+ *
+ * Presentational: props in, markup out; the words are `openChoicesCopyOf`'s. The native leaf is
+ * `./PublishOpenChoicesSheet.native.tsx`.
+ */
+import { useLocale, useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
+import { Sheet } from '@commise/ui/sheet';
+import type { FC } from 'react';
+
+import { editorMessages } from './messages.js';
+import { openChoicesCopyOf } from './openChoicesCopy.js';
+import type { PublishOpenChoicesSheetProps } from './publishOpenChoicesSheetProps.js';
+
+/** The publish-with-open-choices sheet. */
+export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
+    open,
+    facts,
+    onChooseNow,
+    onPublishAnyway,
+    onOpenChange,
+}) => {
+    const copy = openChoicesCopyOf(facts, useMessages(editorMessages), useLocale());
+
+    return (
+        <Sheet
+            open={open}
+            onOpenChange={onOpenChange}
+            title={copy.title}
+            closeLabel={copy.close}
+            size="content"
+            footer={
+                <div className="grid grid-cols-2 gap-3">
+                    <Button variant="secondary" icon="list" width="fill" onPress={onChooseNow}>
+                        {copy.chooseNow}
+                    </Button>
+                    <Button icon="check" width="fill" onPress={onPublishAnyway}>
+                        {copy.publishAnyway}
+                    </Button>
+                </div>
+            }
+        >
+            <div className="flex flex-col gap-3">
+                <p className="text-body text-ink">{copy.body}</p>
+                {copy.checking !== undefined && <p className="text-meta text-ink-muted">{copy.checking}</p>}
+                <p className="text-meta text-ink-muted">{copy.later}</p>
+            </div>
+        </Sheet>
+    );
+};

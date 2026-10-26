@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 167,
-        "implementations": 285,
-        "props": 1450,
-        "documentedComponents": 167,
-        "implementationsWithModuleDoc": 285,
-        "implementationsWithComponentDoc": 178,
-        "documentedProps": 1171,
-        "classifiedComponents": 147,
-        "componentsWithPatternTag": 81,
-        "crossPlatformComponents": 118
+        "components": 176,
+        "implementations": 303,
+        "props": 1524,
+        "documentedComponents": 176,
+        "implementationsWithModuleDoc": 303,
+        "implementationsWithComponentDoc": 196,
+        "documentedProps": 1245,
+        "classifiedComponents": 156,
+        "componentsWithPatternTag": 82,
+        "crossPlatformComponents": 127
     },
     "components": [
         {
@@ -13357,6 +13357,165 @@
             ]
         },
         {
+            "id": "featuresRecipes/editor/PublishOpenChoicesSheet",
+            "name": "PublishOpenChoicesSheet",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/editor",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PublishOpenChoicesSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/PublishOpenChoicesSheet.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — `PublishOpenChoicesSheet` (web): what the editor asks before publishing a\nrecipe whose lines have no food yet (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, R23).\nPublishing stays allowed. The sheet says the open lines are saved as written and do not count toward nutrition, names\na line still being checked, and says how many lines count; Choose now and Publish anyway are the two ways on.\n\nOn the design-system `Sheet`, not `ConfirmDialog`: that primitive is for a destructive step, and publishing is not one.\n\nPresentational: props in, markup out; the words are `openChoicesCopyOf`'s. The native leaf is\n`./PublishOpenChoicesSheet.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — `PublishOpenChoicesSheet` (web): what the editor asks before publishing a"
+                        }
+                    ],
+                    "description": "The publish-with-open-choices sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "facts",
+                            "type": "OpenChoicesFacts",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The open and checking lines, and how many lines count (`openChoicesCopyOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "onChooseNow",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Go back and choose; nothing is published.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route (Close, Escape, the scrim, a swipe, Android back) calls this with `false`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "onPublishAnyway",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Publish, with the open lines saved as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PublishOpenChoicesSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/PublishOpenChoicesSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — `PublishOpenChoicesSheet` (native): the React Native leaf of\n`./PublishOpenChoicesSheet.tsx`, on the same props and words (`openChoicesCopyOf`). The bottom sheet puts Choose now and\nPublish anyway side by side at its foot, within thumb reach. Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — `PublishOpenChoicesSheet` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The publish-with-open-choices sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "facts",
+                            "type": "OpenChoicesFacts",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The open and checking lines, and how many lines count (`openChoicesCopyOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "onChooseNow",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Go back and choose; nothing is published.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route (Close, Escape, the scrim, a swipe, Android back) calls this with `false`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "onPublishAnyway",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Publish, with the open lines saved as written.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishOpenChoicesSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/editor/RecipeEditorSurface",
             "name": "RecipeEditorSurface",
             "group": "featuresRecipes",
@@ -15464,6 +15623,183 @@
             ]
         },
         {
+            "id": "featuresRecipes/form/FoodChoiceList",
+            "name": "FoodChoiceList",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "FoodChoiceList",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/FoodChoiceList.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `FoodChoiceList` (web): the list an open pasted line shows\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner rulings 2026-10-25). Search for a food\nfirst (ruling I1), then the options in the server's order, the default with its quiet Default tag, then \"Keep … as\nwritten\" as the last row of the same list. Offline, the words \"Search needs the network\" stand where search was.\n\n- ⛔ Each option is a BUTTON, and pressing it is the pick (staff-ux ruling 2026-10-25). A radio group would check the\n  option the arrow keys land on, so moving through the list would pick a food and carry the cook to the next line\n  (WCAG 3.2.2), and could pick the default, which the owner ruled is never chosen for the cook.\n- Nothing is drawn chosen until the cook has chosen: a reopened line marks the food it holds with a check,\n  `aria-current`, and \", chosen\" in its name, so the state never rests on the glyph alone (1.4.1).\n- Rows are 48 px at least; long names wrap and never truncate, so nothing scrolls sideways at 320 px.\n\nPresentational: props in, markup out; what it shows is `pasteMatchView.ts`'s. The native leaf is\n`./FoodChoiceList.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `FoodChoiceList` (web): the list an open pasted line shows"
+                        }
+                    ],
+                    "description": "An open line's list: search, the options, Keep as written.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onChoose",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A food was pressed: the pick, by the food's id.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onKeepAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as written was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search for a food was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearchFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search took the focus it was asked for; lowers the request.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "searchFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while Search for a food should take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchOpenView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line offers (`pasteMatchOpenViewOf`): search, the options, Keep as written. Its prompt is the host's.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "FoodChoiceList",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/FoodChoiceList.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `FoodChoiceList` (native): the React Native leaf of `./FoodChoiceList.tsx`, on\nthe same props and the same words (`pasteMatchView.ts`). Search for a food first, the options in the server's order\nwith the default tagged, then Keep as written last.\n\nEach option is a `Pressable` with the `button` role, and the food a reopened line holds is `selected` (staff-ux ruling\n2026-10-25): VoiceOver and TalkBack read a radio as \"not selected\", which implies a confirm step that does not exist.\nThe options' group keeps its native node (`collapsable={false}`), or Android flattens it and its name is lost to\nTalkBack and Maestro (`docs/design/nativeContainerNames.md` N1). Rows are 48 pt at least and every name wraps, so nothing is cut off or scrolls sideways at 320 pt. Painted from the\ntheme's roles, so it reads in both themes (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `FoodChoiceList` (native): the React Native leaf of `./FoodChoiceList.tsx`, on"
+                        }
+                    ],
+                    "description": "An open line's list: search, the options, Keep as written.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onChoose",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A food was pressed: the pick, by the food's id.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onKeepAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as written was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search for a food was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearchFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search took the focus it was asked for; lowers the request.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "searchFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while Search for a food should take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchOpenView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line offers (`pasteMatchOpenViewOf`): search, the options, Keep as written. Its prompt is the host's.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/form/FoodDetailsSheet",
             "name": "FoodDetailsSheet",
             "group": "featuresRecipes",
@@ -16976,6 +17312,306 @@
             ]
         },
         {
+            "id": "featuresRecipes/form/PasteChoicePane",
+            "name": "PasteChoicePane",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteChoicePane",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteChoicePane.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteChoicePane` (web): the side pane at 1194 and on web\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). A named `aside`: which open line it shows out\nof how many, the line as its heading, the muted prompt, the line's `FoodChoiceList`, then Previous and Next open line.\n\nPrevious and Next are always drawn and are disabled at an end, so nothing moves under the cook and the pair never\nchanges shape (a top-level `hasNext && <Button>` would also be §11.2's boolean-selects-a-subtree). A pick in the pane\ndoes not move on by itself (staff-ux ruling 2026-10-25): the check appears on the row, and Next moves on.\n\nPresentational: props in, markup out. The native leaf is `./PasteChoicePane.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteChoicePane` (web): the side pane at 1194 and on web"
+                        }
+                    ],
+                    "description": "The side pane.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onChoose",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A food was pressed: the pick, by the food's id.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onKeepAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as written was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onNext",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Next open line was pressed: show the open line after this one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
+                            "name": "onPrevious",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Previous was pressed: show the open line before this one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search for a food was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearchFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search took the focus it was asked for; lowers the request.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "searchFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while Search for a food should take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchPaneView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the pane shows (`pasteMatchPaneViewOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteChoicePane",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteChoicePane.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,\nthe side pane a 1194 tablet shows. A view named for what it does, which keeps its native node so Android does not\nflatten the name away (`docs/design/nativeContainerNames.md` N1), its line as a header, the line's\n`FoodChoiceList`, then Previous and Next open line, always drawn and disabled at an end. Painted from the theme's\nroles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteChoicePane` (native): the React Native leaf of `./PasteChoicePane.tsx`,"
+                        }
+                    ],
+                    "description": "The side pane.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onChoose",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A food was pressed: the pick, by the food's id.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onKeepAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as written was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onNext",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Next open line was pressed: show the open line after this one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
+                            "name": "onPrevious",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Previous was pressed: show the open line before this one.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search for a food was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearchFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search took the focus it was asked for; lowers the request.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "searchFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while Search for a food should take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchPaneView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the pane shows (`pasteMatchPaneViewOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PastedLine",
+            "name": "PastedLine",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PastedLine",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedLine.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedLine` (web): a pasted line as the cook wrote it, its measure set\nheavier than its words, as the ingredient-matching boards draw it. One block of text, so it reads as one line and can sit inside a control, and it\nwraps rather than truncating.\n\nPresentational: props in, markup out. The native leaf is `./PastedLine.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PastedLine` (web): a pasted line as the cook wrote it, its measure set"
+                        }
+                    ],
+                    "description": "The line as the cook wrote it.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it: its measure and its words.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedLineProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PastedLine",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedLine.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedLine` (native): the React Native leaf of `./PastedLine.tsx`. The measure\nis set in the semibold face of the `cardTitle` role rather than with a `fontWeight`, which Android would synthesise\n(`nativeTokens.type`). Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PastedLine` (native): the React Native leaf of `./PastedLine.tsx`. The measure"
+                        }
+                    ],
+                    "description": "The line as the cook wrote it.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it: its measure and its words.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedLineProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/form/PastedReadingRow",
             "name": "PastedReadingRow",
             "group": "featuresRecipes",
@@ -17246,6 +17882,667 @@
                             "defaultValue": null,
                             "description": "The parse job is being created: the primary reads busy.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PasteMatchClosedRow",
+            "name": "PasteMatchClosedRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteMatchClosedRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchClosedRow.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchClosedRow` (web): an open pasted line drawn collapsed\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): on phone and 834 while another line is open,\nand in the list beside the side pane at 1194 and on web. The whole row is one button that opens the line; it says the\nline and what it needs (\"Choose a food · 5 options\") in muted words, never amber, because a choice is not a failure.\nThe line the pane shows is `aria-current`, drawn with the selected fill.\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchClosedRow.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchClosedRow` (web): an open pasted line drawn collapsed"
+                        }
+                    ],
+                    "description": "One collapsed open line.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "current",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The side pane shows this line (1194 and web): it is marked current. Display only; the row does the same thing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row was pressed: open this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchClosedView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line needs (`pasteMatchClosedViewOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteMatchClosedRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchClosedRow.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchClosedRow` (native): the React Native leaf of\n`./PasteMatchClosedRow.tsx`. The whole row is one `button`, 48 pt at least, that opens the line; the line the side pane\nshows at 1194 is `selected` and drawn with the selected fill. Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchClosedRow` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "One collapsed open line.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "current",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The side pane shows this line (1194 and web): it is marked current. Display only; the row does the same thing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row was pressed: open this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchClosedView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line needs (`pasteMatchClosedViewOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchClosedRowProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PasteMatchNotice",
+            "name": "PasteMatchNotice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteMatchNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchNotice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchNotice` (web): the notice above the pasted lines when matching\ncannot run (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, RecipeEditorPasteChooseStates):\noffline, where the check waits and the choices are kept where the draft is (in this tab, on web — D7), or the daily\nlimit (004 FR-022), where the lines are kept as written until it resets. A standing fact, so muted with an info glyph,\nnot amber; not live, because the editor's paste announcement says the move offline (`PasteMilestone` `offline`).\n\nPresentational: props in, markup out; the words are `pasteMatchNoticeOf`'s. The native leaf is\n`./PasteMatchNotice.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchNotice` (web): the notice above the pasted lines when matching"
+                        }
+                    ],
+                    "description": "The notice above the pasted lines.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "notice",
+                            "type": "PasteMatchNotice",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Offline (with where the draft is kept), or the daily limit (with when it resets).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchNoticeProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteMatchNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchNotice.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchNotice` (native): the React Native leaf of\n`./PasteMatchNotice.tsx`, on the same props and words (`pasteMatchNoticeOf`). On a device the choices are saved on the\ndevice. Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchNotice` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The notice above the pasted lines.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "notice",
+                            "type": "PasteMatchNotice",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Offline (with where the draft is kept), or the daily limit (with when it resets).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchNoticeProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PasteMatchOpenRow",
+            "name": "PasteMatchOpenRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteMatchOpenRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchOpenRow.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchOpenRow` (web): the one open pasted line on phone and 834\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line, its muted prompt (\"Choose the milk\nyou use\"), then its `FoodChoiceList`: Search for a food first, the options, Keep as written last. Which line is open,\nand opening the next after a pick, are the host's (the wiring phase).\n\nThe row is set apart by an edge, not a fill: its options use `surfaceMuted` for hover, which a fill of the same\ncolour would hide.\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchOpenRow.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchOpenRow` (web): the one open pasted line on phone and 834"
+                        }
+                    ],
+                    "description": "The open pasted line.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchOpenRowProps.ts"
+                        },
+                        {
+                            "name": "onChoose",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A food was pressed: the pick, by the food's id.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onKeepAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as written was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search for a food was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearchFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search took the focus it was asked for; lowers the request.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "searchFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while Search for a food should take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchOpenView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line offers (`pasteMatchOpenViewOf`): search, the options, Keep as written. Its prompt is the host's.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteMatchOpenRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchOpenRow.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchOpenRow` (native): the React Native leaf of\n`./PasteMatchOpenRow.tsx`, on the same props: the line, its muted prompt, then its `FoodChoiceList`. Its options sit\nin the page's flow, below the line, within thumb reach. Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchOpenRow` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The open pasted line.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchOpenRowProps.ts"
+                        },
+                        {
+                            "name": "onChoose",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A food was pressed: the pick, by the food's id.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onKeepAsWritten",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as written was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearch",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search for a food was pressed.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSearchFocusRequestHandled",
+                            "type": "(() => void) | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Search took the focus it was asked for; lowers the request.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "searchFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Raised while Search for a food should take focus (after the pick on the line before, staff-ux 2026-10-25).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchOpenView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line offers (`pasteMatchOpenViewOf`): search, the options, Keep as written. Its prompt is the host's.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/foodChoiceListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PasteMatchRow",
+            "name": "PasteMatchRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [
+                "Visitor — an exhaustive switch over the status union"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteMatchRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchRow.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchRow` (web): a pasted line that needs nothing from the cook now\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line as the cook wrote it, then its\nstatus — a bound food with a check and Change, a proposal under review with its tag, or a sentence — then, on their\nown line, the controls its state allows, and a late review result's one quiet sentence with See why.\n\n- Nothing moves (WCAG 2.2.2): a line under review shows a still clock glyph and its \"Checking\" tag, as\n  `PastedReadingRow` does, never a spinner the editor would keep turning.\n- A failure is `attention` with a warning glyph, so it never rests on colour alone (1.4.1); a prompt stays muted.\n- Each control is named for its line, because the same control shows on many lines (2.4.6, 2.5.3).\n\nPresentational: props in, markup out; what it shows is `pasteMatchView.ts`'s. The native leaf is\n`./PasteMatchRow.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchRow` (web): a pasted line that needs nothing from the cook now"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the status union"
+                        }
+                    ],
+                    "description": "One settled pasted line.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        },
+                        {
+                            "name": "onAction",
+                            "type": "(action: \"search\" | \"retry\" | \"change\" | \"useThis\" | \"keepAsWritten\") => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "One of the line's controls was pressed, by its kind.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        },
+                        {
+                            "name": "onSeeWhy",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "See why, after a late review result.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchRowView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line shows (`pasteMatchRowViewOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteMatchRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchRow.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchRow` (native): the React Native leaf of `./PasteMatchRow.tsx`, on\nthe same props and the same words (`pasteMatchView.ts`). The controls sit on their own line under the status and wrap,\nso no label wraps inside a control at 320 pt; a line under review shows a still glyph, never a spinner. Painted from\nthe theme's roles, so it reads in both themes (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchRow` (native): the React Native leaf of `./PasteMatchRow.tsx`, on"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the status union"
+                        }
+                    ],
+                    "description": "One settled pasted line.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "line",
+                            "type": "PastedLineText",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line as the cook wrote it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        },
+                        {
+                            "name": "onAction",
+                            "type": "(action: \"search\" | \"retry\" | \"change\" | \"useThis\" | \"keepAsWritten\") => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "One of the line's controls was pressed, by its kind.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        },
+                        {
+                            "name": "onSeeWhy",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "See why, after a late review result.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "PasteMatchRowView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the line shows (`pasteMatchRowViewOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchRowProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/form/PasteMatchSummary",
+            "name": "PasteMatchSummary",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PasteMatchSummary",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchSummary.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchSummary` (web): the block above the pasted lines\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`): \"Added 8 lines\", the non-zero counts, and the\nrule that matched lines can be changed and nothing else is chosen for the cook. Not live: the editor's paste\nannouncement says when the lines arrive (`usePasteAnnouncement`).\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchSummary.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchSummary` (web): the block above the pasted lines"
+                        }
+                    ],
+                    "description": "The summary above the pasted lines.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "view",
+                            "type": "PasteMatchSummaryView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the summary says (`pasteMatchSummaryOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchSummaryProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PasteMatchSummary",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchSummary.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchSummary` (native): the React Native leaf of\n`./PasteMatchSummary.tsx`, on the same props and words. Painted from the theme's roles (D15).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PasteMatchSummary` (native): the React Native leaf of"
+                        }
+                    ],
+                    "description": "The summary above the pasted lines.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "view",
+                            "type": "PasteMatchSummaryView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the summary says (`pasteMatchSummaryOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteMatchSummaryProps.ts"
                         }
                     ],
                     "usesRefApi": [],

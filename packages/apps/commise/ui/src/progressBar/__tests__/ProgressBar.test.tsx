@@ -13,9 +13,9 @@ afterEach(cleanup);
 
 describe('ProgressBar (web)', () => {
     it('is a progressbar named by its label, with its value and bounds', () => {
-        render(<ProgressBar label="Recipes reviewed" value={14} max={309} />);
+        render(<ProgressBar label="Review progress" value={14} max={309} />);
 
-        const bar = screen.getByRole('progressbar', { name: 'Recipes reviewed' });
+        const bar = screen.getByRole('progressbar', { name: 'Review progress' });
 
         expect(bar.getAttribute('aria-valuenow')).toBe('14');
         expect(bar.getAttribute('aria-valuemin')).toBe('0');

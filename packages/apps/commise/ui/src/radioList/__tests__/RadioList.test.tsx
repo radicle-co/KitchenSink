@@ -8,13 +8,14 @@ import type { RadioListOption, RadioListProps } from '../props.js';
 
 /**
  * RadioList (web) — a `radiogroup` of whole-row radios over Radix `RadioGroup`: controlled, able to hold NO choice, the
- * tag inside each radio's name and the hint as its description, arrow keys moving between rows.
+ * hint as each radio's description, arrow keys moving between rows. (The quiet tag went with the reconciliation: a
+ * food's Default tag lives on a food-choice BUTTON, never a radio, and no radio group carries one.)
  */
 
 afterEach(cleanup);
 
 const OPTIONS: readonly RadioListOption[] = [
-    { id: 'whole', label: 'Whole milk', tag: 'Default' },
+    { id: 'whole', label: 'Whole milk' },
     { id: 'twoPercent', label: 'Milk, 2% fat' },
     { id: 'asWritten', label: 'Keep “2 cups milk” as written', hint: 'No nutrition for this line' },
 ];
@@ -43,13 +44,13 @@ describe('RadioList (web)', () => {
 
         expect(radios.map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false']);
         expect(radios).toEqual([
-            within(group).getByRole('radio', { name: 'Whole milk Default' }),
+            within(group).getByRole('radio', { name: 'Whole milk' }),
             within(group).getByRole('radio', { name: 'Milk, 2% fat' }),
             within(group).getByRole('radio', { name: 'Keep “2 cups milk” as written' }),
         ]);
     });
 
-    it('⛔ checks nothing with no value, even with a tagged default first', () => {
+    it('⛔ checks nothing with no value', () => {
         const { group } = renderList();
 
         expect(within(group).queryByRole('radio', { checked: true })).toBeNull();
@@ -96,7 +97,7 @@ describe('RadioList (web)', () => {
         render(<Host />);
 
         await user.tab();
-        expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Whole milk Default' }));
+        expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Whole milk' }));
 
         // Radix checks the row it focuses while the arrow key is down (as `SegmentedControl.test.tsx` drives it).
         await user.keyboard('{ArrowDown>}');

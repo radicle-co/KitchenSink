@@ -6,9 +6,9 @@
 
 /** Props for the `ProgressBar` leaves (web and native). */
 export interface ProgressBarProps {
-    /** The bar's accessible name ("Recipes reviewed"). Localised by the caller. */
+    /** The bar's accessible name ("Review progress"). Localised by the caller; it must match what `value` counts. */
     readonly label: string;
-    /** Steps done, from 0. Clamped into `[0, max]`. */
+    /** How far the task has come, from 0 (the import review passes the recipe it is on). Clamped into `[0, max]`. */
     readonly value: number;
     /** Steps in all. A bar with `max` of 0 or less draws empty. */
     readonly max: number;
@@ -17,7 +17,7 @@ export interface ProgressBarProps {
 /**
  * The share of the bar to fill, as a fraction in `[0, 1]`. Pure.
  *
- * @param value - Steps done.
+ * @param value - How far the task has come.
  * @param max - Steps in all.
  * @returns The filled fraction; `0` when there are no steps.
  */

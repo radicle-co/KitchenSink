@@ -3,9 +3,8 @@
  *
  * A Radix `RadioGroup`: Tab enters the group once, the arrow keys move between rows and check the row they land on
  * (the WAI-ARIA radio group), Space checks the focused row. Each row is a whole-row radio at least 48 px tall: an 18 px
- * circle (a 2 px `lineControl` ring at rest, a 5 px `action` ring when checked), the label in `meta` type that wraps,
- * then the quiet tag as a `note` badge. The tag is inside the radio's name; the hint describes it. A visible focus ring
- * on the row.
+ * circle (a 2 px `lineControl` ring at rest, a 5 px `action` ring when checked) and the label that wraps; the hint under
+ * it describes the radio. A visible focus ring on the row.
  *
  * Controlled with no default: `value` `undefined` is held as Radix's controlled empty value, so a click reports to
  * `onChange` and checks nothing until the host passes the new value back.
@@ -18,7 +17,6 @@
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useId, type FC } from 'react';
 
-import { StatusBadge } from '../statusBadge/StatusBadge.js';
 import type { RadioListLook, RadioListProps } from './props.js';
 
 /** Each look's group and row chrome. Only the look differs, never the semantics. */
@@ -52,7 +50,6 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
         >
             {options.map((option, index) => {
                 const labelId = `${baseId}-${index}-label`;
-                const tagId = `${baseId}-${index}-tag`;
                 const hintId = `${baseId}-${index}-hint`;
                 const checked = option.id === value;
 
@@ -60,7 +57,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
                     <RadioGroup.Item
                         key={option.id}
                         value={option.id}
-                        aria-labelledby={option.tag === undefined ? labelId : `${labelId} ${tagId}`}
+                        aria-labelledby={labelId}
                         {...(option.hint === undefined ? {} : { 'aria-describedby': hintId })}
                         className={`flex min-h-12 w-full items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${chrome.row}`}
                     >
@@ -80,11 +77,6 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
                                 </span>
                             )}
                         </span>
-                        {option.tag === undefined ? null : (
-                            <span id={tagId} className="shrink-0">
-                                <StatusBadge status="note">{option.tag}</StatusBadge>
-                            </span>
-                        )}
                     </RadioGroup.Item>
                 );
             })}

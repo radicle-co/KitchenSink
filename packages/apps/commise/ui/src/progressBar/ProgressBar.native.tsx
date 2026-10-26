@@ -3,7 +3,8 @@
  * with `action` to the share done, exposed as a determinate `progressbar` with its name and value. Colours come from
  * the theme at render. The fill does not animate.
  *
- * @pattern Specification consumer — `progressFraction` decides the fill; both leaves draw its one answer
+ * @pattern Adapter — a count of steps (`value` of `max`) presented through the platform's determinate progressbar
+ *     semantics (its role, name and value), the fill drawn from the one shared `progressFraction`
  */
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';

@@ -5,7 +5,8 @@
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
- * @pattern Specification consumer — `progressFraction` decides the fill; both leaves draw its one answer
+ * @pattern Adapter — a count of steps (`value` of `max`) presented through the platform's determinate progressbar
+ *     semantics (its role, name and value), the fill drawn from the one shared `progressFraction`
  */
 import type { FC } from 'react';
 

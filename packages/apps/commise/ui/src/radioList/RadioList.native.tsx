@@ -1,23 +1,23 @@
 /**
  * @module @commise/ui/radio-list — the native design-system {@link RadioList}.
  *
- * A `radiogroup` of whole-row `Pressable` radios with `aria-checked` — the row is the control, so the label, the tag and
- * the hint are read as its name. Each row is at least 48 dp tall: an 18 dp circle (a 2 dp `lineControl` ring at rest, a
- * 5 dp `action` ring when checked), the label in `meta` type that wraps, then the quiet tag as a `note` badge. Colours
- * come from the theme at render, so it repaints in the dark scheme. Nothing animates.
+ * A `radiogroup` of whole-row `Pressable` radios with `aria-checked`. Each row is named by its label and hands its hint
+ * to the platform as `accessibilityHint`, read after the name as the web leaf's `aria-describedby` is. Each row keeps
+ * the native touch floor: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action` ring when checked), the
+ * label that wraps, then the hint under it. A pressed row takes the theme's press wash, as `ChipRow` does. Colours come
+ * from the theme at render, so it repaints in the dark scheme. Nothing animates.
  *
  * Controlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
- * @pattern Composite — the group owns the `radiogroup` semantics and the one value its rows cannot state alone
- * @pattern Registry consumer — `look` picks its group style from a closed `Record`; the structure is shared, so the
- *     semantics cannot differ between the looks
+ * @pattern Registry consumer — `look` picks its group, row and label styles from one closed `LOOK` record; the structure
+ *     is shared, so the semantics cannot differ between the looks
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 
-import { StatusBadge } from '../statusBadge/StatusBadge.native.js';
+import type { Theme } from '../theme/themeFor.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { RadioListLook, RadioListProps } from './props.js';
@@ -25,25 +25,14 @@ import type { RadioListLook, RadioListProps } from './props.js';
 /** The radio circle's size, dp (`ingredientMatching.md`: 18 px radios). */
 const RADIO_SIZE = 18;
 
-/** The touch floor every row keeps, dp. */
-const ROW_MIN_HEIGHT = 48;
-
 /** The native design-system option list. */
 export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange, look }) => {
-    const { colors } = useTheme();
-    const cards = look === 'cards';
-    const groupStyle = LOOK_GROUP[look];
+    const { colors, wash } = useTheme();
+    const chrome = LOOK[look];
+    const paint = chrome.paint(colors);
 
     return (
-        <View
-            collapsable={false}
-            role="radiogroup"
-            aria-label={label}
-            style={[
-                groupStyle,
-                cards ? null : { borderColor: colors.lineDivider, backgroundColor: colors.paperRaised },
-            ]}
-        >
+        <View collapsable={false} role="radiogroup" aria-label={label} style={[chrome.group, paint.group]}>
             {options.map((option, index) => {
                 const checked = option.id === value;
 
@@ -52,14 +41,17 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
                         key={option.id}
                         role="radio"
                         aria-checked={checked}
-                        onPress={() => onChange(option.id)}
-                        style={[
+                        accessibilityLabel={option.label}
+                        accessibilityHint={option.hint}
+                        onPress={() => {
+                            onChange(option.id);
+                        }}
+                        style={({ pressed }) => [
                             styles.row,
-                            cards
-                                ? [styles.card, { borderColor: colors.lineDivider, backgroundColor: colors.paper }]
-                                : index > 0
-                                  ? [styles.divided, { borderTopColor: colors.lineDivider }]
-                                  : null,
+                            chrome.row,
+                            paint.row,
+                            index > 0 ? [chrome.divided, { borderTopColor: colors.lineDivider }] : null,
+                            pressed ? { backgroundColor: wash } : null,
                         ]}
                     >
                         <View
@@ -73,14 +65,11 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
                             ]}
                         />
                         <View style={styles.words}>
-                            <Text style={[cards ? styles.cardLabel : styles.label, { color: colors.ink }]}>
-                                {option.label}
-                            </Text>
+                            <Text style={[chrome.label, { color: colors.ink }]}>{option.label}</Text>
                             {option.hint === undefined ? null : (
                                 <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.hint}</Text>
                             )}
                         </View>
-                        {option.tag === undefined ? null : <StatusBadge status="note">{option.tag}</StatusBadge>}
                     </Pressable>
                 );
             })}
@@ -89,27 +78,52 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
 };
 
 const styles = StyleSheet.create({
-    rowsGroup: { borderWidth: 1, borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
-    cardsGroup: { gap: nativeTokens.spacing[3] },
     row: {
-        minHeight: ROW_MIN_HEIGHT,
+        minHeight: nativeTokens.touchTarget,
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[3],
-        paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    card: { borderWidth: 1, borderRadius: nativeTokens.radius.md, paddingHorizontal: nativeTokens.spacing[4] },
-    divided: { borderTopWidth: StyleSheet.hairlineWidth },
     radio: { width: RADIO_SIZE, height: RADIO_SIZE, borderRadius: RADIO_SIZE / 2, alignSelf: 'flex-start' },
     words: { flex: 1, minWidth: 0 },
-    label: nativeTokens.type.meta,
-    cardLabel: nativeTokens.type.cardTitle,
     hint: nativeTokens.type.meta,
 });
 
-/** Each look's group style. */
-const LOOK_GROUP: Readonly<Record<RadioListLook, StyleProp<ViewStyle>>> = {
-    rows: styles.rowsGroup,
-    cards: styles.cardsGroup,
+/** One look's chrome. Only the look differs, never the semantics. */
+interface LookStyle {
+    readonly group: ViewStyle;
+    readonly row: ViewStyle;
+    /** The edge between a row and the one above it; `cards` draws none, each card having its own. */
+    readonly divided: ViewStyle;
+    readonly label: TextStyle;
+    /** The look's theme colours, painted at render so the list repaints with the scheme. */
+    readonly paint: (colors: Theme['colors']) => { readonly group: ViewStyle | null; readonly row: ViewStyle | null };
+}
+
+/** Each look's chrome, as the web leaf's `LOOK` record. */
+const LOOK: Readonly<Record<RadioListLook, LookStyle>> = {
+    // One bordered group on the raised paper, rows divided by hairlines.
+    rows: {
+        ...StyleSheet.create({
+            group: { borderWidth: 1, borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
+            row: { paddingHorizontal: nativeTokens.spacing[3] },
+            divided: { borderTopWidth: StyleSheet.hairlineWidth },
+            label: nativeTokens.type.meta,
+        }),
+        paint: (colors) => ({
+            group: { borderColor: colors.lineDivider, backgroundColor: colors.paperRaised },
+            row: null,
+        }),
+    },
+    // Each row its own bordered card on the paper, with a bolder label.
+    cards: {
+        ...StyleSheet.create({
+            group: { gap: nativeTokens.spacing[3] },
+            row: { borderWidth: 1, borderRadius: nativeTokens.radius.md, paddingHorizontal: nativeTokens.spacing[4] },
+            divided: {},
+            label: nativeTokens.type.cardTitle,
+        }),
+        paint: (colors) => ({ group: null, row: { borderColor: colors.lineDivider, backgroundColor: colors.paper } }),
+    },
 };

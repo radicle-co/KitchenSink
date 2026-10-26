@@ -1,12 +1,15 @@
 /**
  * @module @commise/ui/radio-list — the shared contract of the design-system `RadioList`: one choice from a short list,
- * drawn as a column of whole-row radios (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, the
- * option list and the bulk import mode choice). Each row is at least 48 px tall, its 18 px radio first, its label
- * wrapping rather than scrolling at 320 px, an optional quiet tag after the label and an optional hint under it.
+ * drawn as a column of whole-row radios (the bulk import mode choice,
+ * `docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). Each row is at least 48 px tall, its 18 px
+ * radio first, its label wrapping rather than scrolling at 320 px, and an optional hint under it.
  *
- * Controlled, and it may hold NO choice: `value` `undefined` checks nothing, and the list never checks a row on its own
- * (the owner ruling that a default is shown, never chosen for the cook). Every string is a caller-supplied, already
- * localised prop.
+ * ⛔ Only for a GENUINE radio group, where moving through the options may change the choice. A list of foods to pick
+ * from is not one: the arrow keys would pick a food, so foods are buttons (`FoodChoiceList`, design authority
+ * 2026-10-25), and a radio carries no Default tag.
+ *
+ * Controlled, and it may hold NO choice: `value` `undefined` checks nothing, and the list never checks a row on its own.
+ * Every string is a caller-supplied, already localised prop.
  */
 
 /** One row of the list. */
@@ -15,9 +18,7 @@ export interface RadioListOption {
     readonly id: string;
     /** The visible label, which names the radio. */
     readonly label: string;
-    /** A quiet tag after the label ("Default"). Part of the radio's name, so it is never conveyed by look alone. */
-    readonly tag?: string;
-    /** A muted line under the label ("No nutrition for this line"). It describes the radio. */
+    /** A muted line under the label. It describes the radio, read after its name. */
     readonly hint?: string;
 }
 
@@ -29,7 +30,7 @@ export type RadioListLook = 'rows' | 'cards';
 
 /** The cross-platform `RadioList` contract. */
 export interface RadioListProps {
-    /** The group's accessible name ("Food for 2 cups milk"). */
+    /** The group's accessible name ("How to match ingredients"). */
     readonly label: string;
     /** The rows, in the order they are drawn. */
     readonly options: readonly RadioListOption[];

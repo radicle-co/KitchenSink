@@ -4,8 +4,8 @@ import { role } from '@commise/ui/colors';
 
 import { cssColor } from './cssColor.js';
 
-/** The three surfaces a hand-built native feature button was migrated onto (UI overhaul slice 2, step 12). */
-type MigratedSurface = 'primary' | 'secondary' | 'ghost';
+/** The surfaces a hand-built native feature button was migrated onto (UI overhaul slice 2, step 12; quiet for Try again). */
+type MigratedSurface = 'primary' | 'secondary' | 'ghost' | 'quiet';
 
 /** The painted surface inside a control: the first element carrying a radius (react-native-web atomic CSS). */
 function surfaceOf(control: HTMLElement): CSSStyleDeclaration {
@@ -22,7 +22,7 @@ function surfaceOf(control: HTMLElement): CSSStyleDeclaration {
 
 /**
  * Assert a native control (rendered through react-native-web) IS the design-system Button of one tier: primary paints
- * the flat `action` fill, secondary the `paper` fill with a 1pt `lineControl` edge, ghost neither; and, when a glyph is
+ * the flat `action` fill, secondary the `paper` fill with a 1pt `lineControl` edge, ghost and quiet neither (quiet's glyph is `actionText`); and, when a glyph is
  * named, it draws that Lucide glyph through the `lucideNativeStub` stand-in.
  *
  * @param control - The rendered control.
@@ -39,6 +39,7 @@ export function expectNativeDesignSystemButton(
         primary: cssColor(role.action),
         secondary: cssColor(role.paper),
         ghost: 'rgba(0, 0, 0, 0)',
+        quiet: 'rgba(0, 0, 0, 0)',
     };
 
     // Every tier is ONE flat surface since the owner removed the primary gradient (`modernizeB.md` §3).
@@ -51,6 +52,13 @@ export function expectNativeDesignSystemButton(
     }
 
     if (glyph !== null) {
-        expect(control.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe(glyph);
+        const drawn = control.querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+        expect(drawn?.dataset['iconName']).toBe(glyph);
+
+        // Quiet is the one tier whose glyph is not its label's colour: `actionText`, where secondary's is ink.
+        if (surface === 'quiet') {
+            expect(drawn?.dataset['iconColor']).toBe(role.actionText);
+        }
     }
 }

@@ -21,6 +21,7 @@ import {
 } from '../../__fixtures__/progressiveFrames.js';
 import { entrySearchViewOf, type EntrySearchView } from '../../hooks/foodSuggestions.model.js';
 import { recipeMessages } from '../../messages.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 import { CandidatesPanelBody } from '../CandidatesPanelBody.js';
 import { recipeFormMessages } from '../messages.js';
 import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
@@ -176,6 +177,26 @@ describe('CandidatesPanelBody (web)', () => {
         await user.click(screen.getByRole('button', { name: en.statusActionRetry }));
 
         expect(onRetryRead).toHaveBeenCalledTimes(1);
+    });
+
+    // `componentFixes.md` §1: every Try again of a failed read is the quiet pill with the refreshCw glyph, and the reason
+    // it is offered for is its description (read through `aria-describedby`, beside the button, not in its name).
+    it('draws Try again as the quiet Button, named by its label and described by the failure', async () => {
+        const user = userEvent.setup();
+        const { onRetryRead } = renderBody(viewOf([]));
+        const retry = screen.getByRole('button', { name: en.statusActionRetry });
+
+        expectDesignSystemButton(retry, 'quiet', 'refresh-cw');
+        expect(document.getElementById(retry.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+            en.candidatesLoadFailed,
+        );
+
+        await user.click(retry);
+
+        // Pressing it leaves it a real, focusable control (a retry must not drop the cook's place).
+        expect(onRetryRead).toHaveBeenCalledTimes(1);
+        expect(retry.hasAttribute('disabled')).toBe(false);
+        expect(document.activeElement).toBe(retry);
     });
 
     it('a remote pick food refused is said assertively, and the list stays to choose again (P8)', () => {

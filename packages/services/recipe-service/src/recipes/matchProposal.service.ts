@@ -19,8 +19,8 @@
  *     would become a permanent fact about the line.
  *  5. **One request per proposal, paid once.** A verdict already on record under the key sends nothing; a row already
  *     sent sends nothing; a send is CLAIMED, as a LEASE, so two concurrent calls cannot both send it, and a failed send
- *     releases only its own claim so the next call retries. A claim older than the queue's delivery bound that left no
- *     verdict and no attempt behind was lost, and is taken again. Identity is always asked (no band, no curated skip).
+ *     releases only its own claim so the next call retries. A claim older than the queue's delivery bound with no identity
+ *     verdict, no exhausted attempt and no recent attempt on record was lost, and is taken again. Identity is always asked (no band, no curated skip).
  *  6. **A row is current only while the line and its parse still give it** (`isCurrentMatch`): the line's stored digest,
  *     and the judgement digest of the current parse for that food. An edited line, or the same text reparsed into
  *     another food or measure, is matched afresh.
@@ -30,13 +30,25 @@
  *  8. **Contained test principals send nothing** (ADR-0040): their proposals are stored, the review is not asked.
  *  9. **Bounded work, under ONE request deadline** ({@link MATCH_PROPOSE_DEADLINE_MS}). Lines are matched in waves of
  *     {@link MatchProposalLimits.concurrency}; a wave starts only when its catalog searches can finish before the tail
- *     kept for the refs read and the send, and both of those carry the deadline as an abort signal. What is left
- *     waits for the client's next call, which the idempotency above makes safe. Food is asked about every proposal in
- *     ONE batched read, before anything is stored.
+ *     kept for the refs read, the saves, the claim and the send. EVERY leg ends with the deadline: the tiers' searches,
+ *     the refs read and the send take it as an abort signal, and every database call is awaited through `boundedBy`
+ *     (`pg` cannot cancel a pool wait, so the request stops WAITING and the work finishes in the background). Reads and
+ *     idempotent writes are simply abandoned; the one write that is not, the claim, is released the moment it lands late.
+ *     What is left waits for the client's next call, which the idempotency above makes safe. A call that leaves proposals
+ *     unmade says so (a log line and a Stage-dimensioned count). Food is asked about every proposal in ONE batched read.
+ * 10. **A proposal always has a review.** `owed` under its key, or `refused` when nothing can ever be asked (a blank or
+ *     over-cap line, or a request the queue contract refuses). A food that food cannot name yet stores no row, as an
+ *     outage does not, so a proposal can never read `checking` for a review nothing sends.
+ *
+ * ⚠️ An aborted send is not a failed send. The client gave up waiting; SQS may already have accepted the message. The
+ * claims are released and the next call sends again, and that duplicate is free: the worker's keyed claim and its attempt
+ * lease pay for one verdict per key.
  *
  * ⚠️ Residual risk, recorded rather than hidden: a message SQS accepted and then lost leaves its row claimed with no
  * verdict. The line reads `checking` until a matches call arrives after the queue's delivery bound (about nine hours),
- * which re-claims and re-sends it; with no such call it reads `checking` until the job expires.
+ * which re-claims and re-sends it; with no such call it reads `checking` until the job expires. The same holds for a
+ * worker that took an attempt and lost its verdict write: past the bound the old attempt blocks nothing, the line is
+ * sent again, and the worker's attempt allowance bounds the retries.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';

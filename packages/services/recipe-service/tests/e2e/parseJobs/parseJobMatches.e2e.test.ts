@@ -12,12 +12,12 @@
  *  3. **Account erasure reaches it.** The sweep deletes a cook's jobs with one statement
  *     (`DELETE FROM recipe_parse_jobs WHERE owner_id = $1`, `recipe-workers`' `accountErasureWorker.ts`). This suite
  *     runs that exact statement, because the worker package exports only its infra and this one may not edit it.
- *  4. **The DAL's rules.** A save lands only while the line still has the digest it was computed under (a slow call
- *     cannot overwrite a newer row); it never overwrites a row for the same judgement (two concurrent POSTs agree), and
+ *  4. **The DAL's rules.** A save lands only while the line has the digest it was computed under when the statement runs
+ *     (a write landing after an edit cannot overwrite the newer row; an overlapping one is ignored by the reader); it never overwrites a row for the same judgement (two concurrent POSTs agree), and
  *     a row for another judgement is replaced with its enqueue reset (an edited or reparsed line is matched afresh).
  *  5. **A claim is a LEASE.** Only one caller wins `enqueued_at`, only for the digest and key it asked about; only that
- *     caller's own claim is released; and a claim older than the queue's delivery bound that left no verdict and no
- *     attempt behind may be taken again (the request was lost).
+ *     caller's own claim is released; and a claim older than the queue's delivery bound may be taken again (the request,
+ *     or its verdict write, was lost) unless an identity verdict, an exhausted attempt or a recent attempt is on record.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -239,7 +239,9 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
         });
     });
 
-    it('⛔ a SLOW call computed for an older line digest cannot overwrite the newer row, nor insert one', async () => {
+    // The join takes no lock on the line, so this proves the SEQUENTIAL case (the edit committed before the write ran).
+    // An overlapping write can land; the reader then ignores it (see the DAL's rule 2).
+    it('⛔ a write computed for an older line digest, landing after the edit, cannot overwrite the newer row', async () => {
         const job = await insertJob(pool, OWNER);
 
         await dal.saveMatches(job, [proposed(0, 0, MILK, 'F-old', 'j1:old')]);

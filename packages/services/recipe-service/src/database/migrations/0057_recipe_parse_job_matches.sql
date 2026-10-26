@@ -18,11 +18,13 @@
 -- ⚠️ line_digest is the line's digest WHEN MATCHED, and judgement_digest is what the match was computed from (the line
 -- digest, the food's phrase, the measure the editor saves). A row is current only while the line's stored digest and
 -- its current parse still give both; otherwise it is ignored and recomputed, and the DAL replaces it in place. The
--- write itself lands only while the line still has the row's line_digest, so a slow call cannot overwrite a newer row.
+-- write checks the row's line_digest against the line's as the statement runs. The check takes no lock on the line, so
+-- under READ COMMITTED an old-digest write overlapping an edit can still land and replace a newer row. That is
+-- harmless: the reader compares the line's digest NOW, ignores the old-digest row, and the next call replaces it.
 --
 -- ⚠️ enqueued_at is a CLAIM, a lease: one caller wins it for one digest and key, only that caller's own claim is
--- released, and a claim older than the verification queue's delivery bound that left no verdict and no attempt behind
--- may be taken again (the request was lost): no verdict that asked identity, and no attempt that is exhausted or recent
+-- released, and a claim older than the verification queue's delivery bound may be taken again (the request was lost)
+-- unless a verdict that asked identity is on record or an attempt is exhausted or recent
 -- (an old unfinished attempt is a lost verdict write, so the line is sent again and the worker's allowance bounds it).
 -- review records where the gate's review stands: 'owed' under the key, or 'refused' (the gate is never asked: a blank or
 -- over-cap line, or a request the queue's contract refuses). NULL: nothing was proposed, so nothing to review.

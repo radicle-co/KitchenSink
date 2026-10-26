@@ -7,15 +7,18 @@
  *  1. **The owner filter IS the read's authorization.** `findForJob` joins the job and keeps only the caller's rows, so
  *     a stranger reads nothing rather than another cook's proposals. It joins the LINE too, and returns the line's
  *     stored digest now, so the currency check compares stored digests rather than recomputing one.
- *  2. **A write lands only for the line's CURRENT digest.** `saveMatches` inserts from a join on
- *     `recipe_parse_job_lines.line_digest`, so a slow call computed for text the cook has since edited inserts and
- *     overwrites nothing.
+ *  2. **A write lands only for the line's CURRENT digest, as the statement runs.** `saveMatches` inserts from a join on
+ *     `recipe_parse_job_lines.line_digest`, so a call computed for text the cook edited BEFORE the statement ran inserts
+ *     and overwrites nothing. ⚠️ The join does not lock the line row. Under READ COMMITTED an old-digest write that
+ *     overlaps a concurrent edit can still land and can replace a newer row. That is harmless: `findForJob` returns the
+ *     line's digest NOW with the row, so the old-digest row is not current and is ignored, and the next call replaces it.
  *  3. **First writer wins for one judgement; another judgement replaces.** The upsert updates only a row whose
  *     `judgement_digest` differs, so two concurrent POSTs for the same parse keep the first answer, while an edited or
  *     reparsed line is matched afresh with its enqueue reset to owed.
  *  4. **An enqueue is a CLAIM, and a claim is a LEASE.** `claimEnqueue` takes `enqueued_at` only for a row that still
  *     has the request's digest and key and is owed, and only when it is unclaimed or its last claim is older than the
- *     queue's delivery bound and left no verdict and no attempt behind (the request was lost). It returns the rows it
+ *     queue's delivery bound with no identity verdict, no exhausted attempt and no recent attempt on record (the request,
+ *     or its verdict write, was lost; the worker's attempt allowance bounds the resends). It returns the rows it
  *     changed, so zero rows IS "someone else holds it". `releaseEnqueue` clears only a row still holding THAT claim.
  *  5. **A curated contradiction is counted ONCE** (`claimCurationReport`): a conditional update of one row, so zero rows
  *     IS "already counted", and a replaced row counts afresh.
@@ -194,7 +197,7 @@ export class ParseJobMatchesDal implements ParseJobMatchesPort {
                        line_index integer, food_index integer, line_digest text, judgement_digest text,
                        matched_by text, food_id text, food_variant_id text, rung text, margin double precision,
                        candidates jsonb, verification_key text, review text)
-              -- ⛔ Rule 2: only for the line's CURRENT digest, so a slow call cannot write for edited text.
+              -- ⛔ Rule 2: only for the line's CURRENT digest as this statement runs (the join takes no lock on the line).
               JOIN recipe_parse_job_lines l
                 ON l.job_id = ${jobId}::uuid AND l.line_index = v.line_index AND l.line_digest = v.line_digest
             ON CONFLICT (job_id, line_index, food_index) DO UPDATE

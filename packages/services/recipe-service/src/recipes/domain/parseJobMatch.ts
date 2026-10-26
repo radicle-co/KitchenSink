@@ -122,7 +122,9 @@ export interface ParseJobMatchesPort {
     findForJob(ownerId: string, jobId: string): Promise<readonly ParseJobMatch[]>;
     /**
      * Store matches. A match is written only while its line's CURRENT stored digest is the digest it was computed
-     * under, so a slow call can never overwrite a newer row. A row for the same (line, food) and the SAME judgement is
+     * under, as the statement runs. The check takes no lock on the line, so a write that overlaps a concurrent edit can
+     * still land and replace a newer row; that is harmless, because the job view ignores a row whose digest is not the
+     * line's digest now, and the next call replaces it. A row for the same (line, food) and the SAME judgement is
      * left alone, so two concurrent writers agree on the first; another judgement replaces it, its enqueue reset.
      *
      * ⚠️ Not owner-filtered: the caller has already read the job as its owner in this request.
@@ -132,8 +134,9 @@ export interface ParseJobMatchesPort {
     saveMatches(jobId: string, matches: readonly NewParseJobMatch[]): Promise<void>;
     /**
      * Claim the reviews these requests owe. A claim is a LEASE: a row is won only while it still has the request's
-     * digest and key and is owed, and when it is unclaimed, or its last claim is older than `staleAfterSeconds` and left
-     * no verdict and no attempt behind (the request was lost). Only one caller wins each.
+     * digest and key and is owed, and when it is unclaimed, or its last claim is older than `staleAfterSeconds` and no verdict
+     * that asked identity, no exhausted attempt and no recent attempt is on record (the request, or its verdict write, was
+     * lost). Only one caller wins each.
      *
      * @param jobId - The job.
      * @param requests - The reviews to claim.

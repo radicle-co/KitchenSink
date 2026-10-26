@@ -193,8 +193,21 @@ describe('matchJudgementDigestOf — what a stored match was computed from', () 
 
     it.each([
         ['another phrase', { phrase: 'skim milk' }],
-        ['another amount', { line: { sourceLine: '2 cups whole milk', quantity: { kind: 'exact', value: 3 }, unit: 'cup', statedMeasure: '3 cups' } }],
-        ['another unit', { line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cup', statedMeasure: '2 mugs' } }],
+        [
+            'another amount',
+            {
+                line: {
+                    sourceLine: '2 cups whole milk',
+                    quantity: { kind: 'exact', value: 3 },
+                    unit: 'cup',
+                    statedMeasure: '3 cups',
+                },
+            },
+        ],
+        [
+            'another unit',
+            { line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cup', statedMeasure: '2 mugs' } },
+        ],
         ['another line', { lineDigest: lineDigest('2 cups milk', echo) }],
         ['another food of the line', { foodIndex: 1 }],
     ])('moves with %s', (_label, overrides) => {
@@ -202,7 +215,9 @@ describe('matchJudgementDigestOf — what a stored match was computed from', () 
     });
 
     it('does not move with a reparse that saves the same measure in the same words', () => {
-        const reparsed = slot({ line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cups', statedMeasure: '2 cups' } });
+        const reparsed = slot({
+            line: { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cups', statedMeasure: '2 cups' },
+        });
 
         expect(matchJudgementDigestOf(reparsed, echo)).toBe(matchJudgementDigestOf(slot(), echo));
     });
@@ -218,9 +233,9 @@ describe('isCurrentMatch — the one currency rule the matcher and the job view 
     });
 
     it('⛔ is stale when the line was edited (its stored digest moved)', () => {
-        expect(isCurrentMatch(row, { lineDigest: lineDigest('3 cups whole milk', echo), judgementDigest: 'j1:a' })).toBe(
-            false,
-        );
+        expect(
+            isCurrentMatch(row, { lineDigest: lineDigest('3 cups whole milk', echo), judgementDigest: 'j1:a' }),
+        ).toBe(false);
     });
 
     it('⛔ is stale when the same text was reparsed into another judgement', () => {

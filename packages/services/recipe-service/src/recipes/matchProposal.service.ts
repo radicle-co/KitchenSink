@@ -663,7 +663,14 @@ export class MatchProposalService {
             return undefined;
         }
 
-        const message = proposalMessageOf({ jobId, slot: match, line, food, answer, requestedAt: new Date().toISOString() });
+        const message = proposalMessageOf({
+            jobId,
+            slot: match,
+            line,
+            food,
+            answer,
+            requestedAt: new Date().toISOString(),
+        });
 
         if (message === undefined) {
             return undefined;

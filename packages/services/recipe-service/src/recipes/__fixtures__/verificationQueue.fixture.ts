@@ -26,7 +26,9 @@ export type FakeVerificationQueue = VerificationQueuePort & {
 export function fakeVerificationQueue(): FakeVerificationQueue {
     return {
         enqueue: vi
-            .fn<(messages: readonly VerifyIngredientLineMessage[], options?: { signal?: AbortSignal }) => Promise<void>>()
+            .fn<
+                (messages: readonly VerifyIngredientLineMessage[], options?: { signal?: AbortSignal }) => Promise<void>
+            >()
             .mockResolvedValue(),
     };
 }

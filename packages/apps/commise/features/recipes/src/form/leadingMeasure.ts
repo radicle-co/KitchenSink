@@ -32,7 +32,13 @@
  * @pattern Parser — parse, don't validate, at the UI boundary
  * @pattern Specification — "known unit" delegated to recipe-core's `classifyUnit`, the single authority
  */
-import { ABSENT_QUANTITY, classifyUnit, isSizeWord, normalizeUnit, type IngredientQuantity } from '@kitchensink/recipe-core';
+import {
+    ABSENT_QUANTITY,
+    classifyUnit,
+    isSizeWord,
+    normalizeUnit,
+    type IngredientQuantity,
+} from '@kitchensink/recipe-core';
 import {
     amountAt,
     leadingAmount,

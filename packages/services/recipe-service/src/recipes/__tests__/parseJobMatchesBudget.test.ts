@@ -23,8 +23,8 @@ const MATCH_RESPONSE_MARGIN_MS = 1_000;
 
 describe('the matches request fits inside the recipe client’s timeout', () => {
     it('keeps the matcher’s deadline plus the names read’s ceiling, with margin, inside the client’s 10 s', () => {
-        expect(MATCH_PROPOSE_DEADLINE_MS + MAX_READ_NUTRITION_DEADLINE_MS + MATCH_RESPONSE_MARGIN_MS).toBeLessThanOrEqual(
-            DEFAULT_REQUEST_TIMEOUT_MS,
-        );
+        expect(
+            MATCH_PROPOSE_DEADLINE_MS + MAX_READ_NUTRITION_DEADLINE_MS + MATCH_RESPONSE_MARGIN_MS,
+        ).toBeLessThanOrEqual(DEFAULT_REQUEST_TIMEOUT_MS);
     });
 });

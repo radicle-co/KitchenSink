@@ -2532,7 +2532,7 @@ describe('RecipeWorkersStack — consumer concurrency (U8)', () => {
         const [, queue] = verification;
 
         expect(queue.Properties?.VisibilityTimeout).toBe(VERIFICATION_DELIVERY.visibilityTimeoutSeconds);
-        expect((queue.Properties?.RedrivePolicy as { maxReceiveCount: number }).maxReceiveCount).toBe(
+        expect((queue.Properties?.RedrivePolicy as { maxReceiveCount?: number } | undefined)?.maxReceiveCount).toBe(
             VERIFICATION_DELIVERY.maxReceiveCount,
         );
         // The stated receive count is still the stack's own nine-hour parking rule, plus one.

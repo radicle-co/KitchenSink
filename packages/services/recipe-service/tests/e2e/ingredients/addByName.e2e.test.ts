@@ -37,9 +37,7 @@ import {
 } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import {
-    makeFakeIngredientResolutionsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
 /** Food ids unique to this suite so its rows never collide with other integration specs. */

@@ -111,13 +111,23 @@ async function lineStatus(): Promise<string | undefined> {
 
 describe('GET /api/v1/recipes/:id — a saved line the gate abstained on (integration)', () => {
     it('⛔ badges the line AMBIGUOUS when the gate abstained on its IDENTITY', async () => {
-        verdict = { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: ['identity', 'quantity'] };
+        verdict = {
+            band: 'inconclusive',
+            certainty: 'high',
+            identityVerdict: 'abstain',
+            aspects: ['identity', 'quantity'],
+        };
 
         expect(await lineStatus()).toBe('AMBIGUOUS');
     });
 
     it('keeps the catalog status when only the QUANTITY was in doubt (identity agreed)', async () => {
-        verdict = { band: 'inconclusive', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] };
+        verdict = {
+            band: 'inconclusive',
+            certainty: 'high',
+            identityVerdict: 'agree',
+            aspects: ['identity', 'quantity'],
+        };
 
         expect(await lineStatus()).toBe('RESOLVED');
     });

@@ -141,7 +141,15 @@ export function matchJudgementDigestOf(
     const [low, high] = boundsOf(measure.quantity);
 
     return `${MATCH_JUDGEMENT_VERSION}:${digest(
-        JSON.stringify([MATCH_JUDGEMENT_VERSION, slot.lineDigest, slot.foodIndex, slot.phrase, low, high, measure.unit]),
+        JSON.stringify([
+            MATCH_JUDGEMENT_VERSION,
+            slot.lineDigest,
+            slot.foodIndex,
+            slot.phrase,
+            low,
+            high,
+            measure.unit,
+        ]),
     )}`;
 }
 

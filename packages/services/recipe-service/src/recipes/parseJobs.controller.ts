@@ -71,7 +71,11 @@ export class ParseJobsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: CreateParseJobDto,
     ): Promise<ParseJobResponse> {
-        return this.matchView.decorate(actingPrincipalOf(principal), caller, await this.parseJobsService.create(principal.userId, body.text));
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.create(principal.userId, body.text),
+        );
     }
 
     /** `GET /api/v1/recipe-parse-jobs/:id` — poll the owner's job. A stranger gets `404`. */
@@ -81,7 +85,11 @@ export class ParseJobsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        return this.matchView.decorate(actingPrincipalOf(principal), caller, await this.parseJobsService.get(principal.userId, id));
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.get(principal.userId, id),
+        );
     }
 
     /** `POST /api/v1/recipe-parse-jobs/:id/retry` — re-drive exactly the `failed_retryable` lines. */
@@ -93,7 +101,11 @@ export class ParseJobsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        return this.matchView.decorate(actingPrincipalOf(principal), caller, await this.parseJobsService.retry(principal.userId, id));
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.retry(principal.userId, id),
+        );
     }
 
     /**

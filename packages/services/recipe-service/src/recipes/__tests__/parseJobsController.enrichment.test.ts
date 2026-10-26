@@ -50,25 +50,37 @@ describe('ParseJobsController — every route answers with an ENRICHED view', ()
         );
     });
 
-    it.each(routeHandlers())('⛔ %s answers with the enricher’s output for the service’s view, for the caller', async (handler) => {
-        const view = { id: `view-of-${handler}` };
-        const enriched = { id: `enriched-${handler}` };
-        const service = new Proxy(
-            {},
-            { get: () => vi.fn().mockResolvedValue(view) },
-        ) as unknown as ParseJobsService;
-        const proposals = { propose: vi.fn().mockResolvedValue(undefined) } as unknown as MatchProposalService;
-        const decorate = vi.fn().mockResolvedValue(enriched);
-        const controller = new ParseJobsController(service, proposals, { decorate } as unknown as ParseJobMatchView);
-        const route = (controller as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[handler];
+    it.each(routeHandlers())(
+        '⛔ %s answers with the enricher’s output for the service’s view, for the caller',
+        async (handler) => {
+            const view = { id: `view-of-${handler}` };
+            const enriched = { id: `enriched-${handler}` };
+            const service = new Proxy(
+                {},
+                { get: () => vi.fn().mockResolvedValue(view) },
+            ) as unknown as ParseJobsService;
+            const proposals = { propose: vi.fn().mockResolvedValue(undefined) } as unknown as MatchProposalService;
+            const decorate = vi.fn().mockResolvedValue(enriched);
+            const controller = new ParseJobsController(service, proposals, {
+                decorate,
+            } as unknown as ParseJobMatchView);
+            const route = (controller as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[handler];
 
-        const answered = await route?.call(controller, PRINCIPAL, undefined, ANY_ARGUMENT, ANY_ARGUMENT, ANY_ARGUMENT);
+            const answered = await route?.call(
+                controller,
+                PRINCIPAL,
+                undefined,
+                ANY_ARGUMENT,
+                ANY_ARGUMENT,
+                ANY_ARGUMENT,
+            );
 
-        expect(answered).toBe(enriched);
-        expect(decorate).toHaveBeenCalledWith(
-            { userId: PRINCIPAL.userId, principalKind: 'real', containment: 'enforce' },
-            undefined,
-            view,
-        );
-    });
+            expect(answered).toBe(enriched);
+            expect(decorate).toHaveBeenCalledWith(
+                { userId: PRINCIPAL.userId, principalKind: 'real', containment: 'enforce' },
+                undefined,
+                view,
+            );
+        },
+    );
 });

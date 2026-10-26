@@ -39,9 +39,7 @@ import { CALLER_TOKEN as CALLER, foodClientsOf } from '../../../src/ingredients/
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
 import { insertIngredientLine, readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import {
-    makeFakeIngredientResolutionsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
 /** A food id unique to this suite so its rows never collide with other integration specs. */

@@ -37,7 +37,6 @@
 import { buildStageCountMetricLine, resolveMetricStage } from '../../common/emfMetricLine.js';
 import { RECIPE_RESOLUTION_NAMESPACE } from './resolutionMetrics.js';
 
-
 /**
  * The metric name an alarm watches.
  *

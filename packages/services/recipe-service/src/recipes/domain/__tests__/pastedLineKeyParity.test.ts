@@ -14,10 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
-import {
-    pastedLineMeasureOf,
-    type PastedLineParse,
-} from '@kitchensink/recipe-core/parsing/pasted-line-measure';
+import { pastedLineMeasureOf, type PastedLineParse } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import { verifiedLineIdentityOfMessage } from '@kitchensink/recipe-core/resolution/verification-message';

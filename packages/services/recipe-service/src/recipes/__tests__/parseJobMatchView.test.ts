@@ -217,7 +217,17 @@ describe('ParseJobMatchView.decorate', () => {
 
     it('reads `confident` once the gate verified identity', async () => {
         const { view } = setup({
-            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] }]]),
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'verified',
+                        certainty: 'high',
+                        identityVerdict: 'agree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
         });
 
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
@@ -230,7 +240,17 @@ describe('ParseJobMatchView.decorate', () => {
                     proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
                 }),
             ],
-            verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity', 'quantity'] }]]),
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'contradicted',
+                        certainty: 'high',
+                        identityVerdict: 'disagree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
         });
 
         const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
@@ -248,7 +268,17 @@ describe('ParseJobMatchView.decorate', () => {
                     proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
                 }),
             ],
-            verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity', 'quantity'] }]]),
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'contradicted',
+                        certainty: 'high',
+                        identityVerdict: 'disagree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
         });
 
         await view.decorate(COOK, CALLER, viewOf());
@@ -256,12 +286,45 @@ describe('ParseJobMatchView.decorate', () => {
         await view.decorate(COOK, CALLER, viewOf());
 
         expect(metric).toHaveBeenCalledTimes(1);
-        expect(claimCurationReport).toHaveBeenCalledWith(JOB, expect.objectContaining({ lineIndex: 0, foodIndex: 0, verificationKey: 'v2:milk' }));
+        expect(claimCurationReport).toHaveBeenCalledWith(
+            JOB,
+            expect.objectContaining({ lineIndex: 0, foodIndex: 0, verificationKey: 'v2:milk' }),
+        );
     });
 
     it.each([
-        ['the gate contradicted it', { verdicts: new Map([['v2:milk', { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity', 'quantity'] }]]) }],
-        ['the gate abstained', { verdicts: new Map([['v2:milk', { band: 'inconclusive', certainty: 'high', identityVerdict: 'abstain', aspects: ['identity', 'quantity'] }]]) }],
+        [
+            'the gate contradicted it',
+            {
+                verdicts: new Map([
+                    [
+                        'v2:milk',
+                        {
+                            band: 'contradicted',
+                            certainty: 'high',
+                            identityVerdict: 'disagree',
+                            aspects: ['identity', 'quantity'],
+                        },
+                    ],
+                ]),
+            },
+        ],
+        [
+            'the gate abstained',
+            {
+                verdicts: new Map([
+                    [
+                        'v2:milk',
+                        {
+                            band: 'inconclusive',
+                            certainty: 'high',
+                            identityVerdict: 'abstain',
+                            aspects: ['identity', 'quantity'],
+                        },
+                    ],
+                ]),
+            },
+        ],
         ['the gate gave up', { exhausted: new Set(['v2:milk']) }],
     ] as const)('⛔ shows NO proposal in `needsChoice` (%s) — the food stays a candidate', async (_label, options) => {
         const { view } = setup(options as Setup);
@@ -290,7 +353,17 @@ describe('ParseJobMatchView.decorate', () => {
 
     it('shows the proposal once it is `confident`', async () => {
         const { view } = setup({
-            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: 'agree', aspects: ['identity', 'quantity'] }]]),
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'verified',
+                        certainty: 'high',
+                        identityVerdict: 'agree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
         });
 
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toStrictEqual({
@@ -304,7 +377,10 @@ describe('ParseJobMatchView.decorate', () => {
         const { view } = setup({
             answers: {
                 ...NAMED,
-                'root:F-crackers': { ...(found('x', 'F-crackers') as Extract<FoodRefAnswer, { outcome: 'found' }>), name: '' as never },
+                'root:F-crackers': {
+                    ...(found('x', 'F-crackers') as Extract<FoodRefAnswer, { outcome: 'found' }>),
+                    name: '' as never,
+                },
             },
         });
 
@@ -316,7 +392,9 @@ describe('ParseJobMatchView.decorate', () => {
 
     it('⛔ does not trust an AGREE from a verdict that never asked identity — the proposal still reads `checking`', async () => {
         const { view } = setup({
-            verdicts: new Map([['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: null, aspects: ['quantity'] }]]),
+            verdicts: new Map([
+                ['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: null, aspects: ['quantity'] }],
+            ]),
         });
 
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('checking');

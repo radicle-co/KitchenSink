@@ -242,10 +242,16 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
 
         await dal.saveMatches(job, [proposed(0, 0, MILK, 'F-old', 'j1:old')]);
         // The cook edits the line, and a fresh call matches the new text.
-        await pool.query(`UPDATE recipe_parse_job_lines SET line_digest = 'digest-edited' WHERE job_id = $1 AND line_index = 0`, [job]);
+        await pool.query(
+            `UPDATE recipe_parse_job_lines SET line_digest = 'digest-edited' WHERE job_id = $1 AND line_index = 0`,
+            [job],
+        );
         await dal.saveMatches(job, [proposed(0, 0, EDITED, 'F-new', 'j1:new')]);
         // The slow call, computed for the OLD text, lands last.
-        await dal.saveMatches(job, [proposed(0, 0, MILK, 'F-stale', 'j1:stale'), proposed(0, 1, MILK, 'F-stale', 'j1:s1')]);
+        await dal.saveMatches(job, [
+            proposed(0, 0, MILK, 'F-stale', 'j1:stale'),
+            proposed(0, 1, MILK, 'F-stale', 'j1:s1'),
+        ]);
 
         const rows = await dal.findForJob(OWNER, job);
 
@@ -263,7 +269,11 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
             noMatch(1, 1, SALT),
         ]);
 
-        const won = await dal.claimEnqueue(job, [request(0, 0, MILK, 'F-milk'), request(1, 0, SALT, 'F-salt')], STALE_AFTER);
+        const won = await dal.claimEnqueue(
+            job,
+            [request(0, 0, MILK, 'F-milk'), request(1, 0, SALT, 'F-salt')],
+            STALE_AFTER,
+        );
 
         expect(won.map(({ lineIndex, foodIndex }) => [lineIndex, foodIndex])).toEqual([
             [0, 0],
@@ -311,7 +321,10 @@ describe('recipe_parse_job_matches (migration 0057) and ParseJobMatchesDal', () 
 
     it('⛔ a curated contradiction is REPORTED once per row and verdict key, and again for a replaced row', async () => {
         const job = await insertJob(pool, OWNER);
-        const curated = { ...proposed(0, 0, MILK, 'F-milk', 'j1:milk'), proposal: { ...proposed(0, 0, MILK, 'F-milk', 'j1:milk').proposal, matchedBy: 'curated' } } as const;
+        const curated = {
+            ...proposed(0, 0, MILK, 'F-milk', 'j1:milk'),
+            proposal: { ...proposed(0, 0, MILK, 'F-milk', 'j1:milk').proposal, matchedBy: 'curated' },
+        } as const;
 
         await dal.saveMatches(job, [curated]);
 
@@ -411,7 +424,13 @@ function noMatch(lineIndex: number, foodIndex: number, lineDigest: LineDigest) {
 }
 
 /** A row proposing one root food from the lexical tier, its review owed under `v2:{foodId}`. */
-function proposed(lineIndex: number, foodIndex: number, lineDigest: LineDigest, foodId: string, judgementDigest: string) {
+function proposed(
+    lineIndex: number,
+    foodIndex: number,
+    lineDigest: LineDigest,
+    foodId: string,
+    judgementDigest: string,
+) {
     return {
         lineIndex,
         foodIndex,

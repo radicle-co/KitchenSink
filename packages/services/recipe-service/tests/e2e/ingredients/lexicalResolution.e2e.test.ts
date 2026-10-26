@@ -49,10 +49,7 @@ import { fakeVerificationQueue } from '../../../src/recipes/__fixtures__/verific
 import { LineVerificationsDal } from '../../../src/recipes/dal/lineVerifications.dal.js';
 import { ParseJobMatchesDal } from '../../../src/recipes/dal/parseJobMatches.dal.js';
 import { ParseJobsDal } from '../../../src/recipes/dal/parseJobs.dal.js';
-import {
-    DEFAULT_MATCH_PROPOSAL_LIMITS,
-    MatchProposalService,
-} from '../../../src/recipes/matchProposal.service.js';
+import { DEFAULT_MATCH_PROPOSAL_LIMITS, MatchProposalService } from '../../../src/recipes/matchProposal.service.js';
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
 import { recipeDb } from '../../support/roleDb.js';
 

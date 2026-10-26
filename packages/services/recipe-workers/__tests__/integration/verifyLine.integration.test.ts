@@ -238,7 +238,12 @@ describe('the verification gate — a recipe origin, both spellings', () => {
 
     it('⛔ a ranked line that names NO band reads no band authority and records no observation', async () => {
         await runHandler(
-            event({ ...CONTENT, evidenceKind: 'ranked', shortlist: [{ foodId: FOOD_ID, score: 0.9 }], recipeId: RECIPE_ID }),
+            event({
+                ...CONTENT,
+                evidenceKind: 'ranked',
+                shortlist: [{ foodId: FOOD_ID, score: 0.9 }],
+                recipeId: RECIPE_ID,
+            }),
         );
 
         expect(verdictInsert()?.params[3]).toBe('verified');

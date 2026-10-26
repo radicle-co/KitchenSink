@@ -259,7 +259,12 @@ describe('the verification claim (U7)', () => {
 
         await processVerification(d, MESSAGE);
 
-        expect(d.spies.claimVerification).toHaveBeenCalledWith(expect.any(String), SETTINGS.modelId, 60, expect.any(Array));
+        expect(d.spies.claimVerification).toHaveBeenCalledWith(
+            expect.any(String),
+            SETTINGS.modelId,
+            60,
+            expect.any(Array),
+        );
     });
 
     /**
@@ -1005,19 +1010,23 @@ describe('a line whose measure was RESTATED', () => {
         ['a root line', MESSAGE],
         ['a restated line', RESTATED],
         ['a variant line', { ...MESSAGE, foodId: undefined, foodVariantId: '01JVARIANT0000000000000000' }],
-    ])('⛔ claims and writes %s under recipe-core’s key for the message — the key the producer stored', async (_l, m) => {
-        // ADR-0071: the paste matcher stores the key of the exact message it sends, derived the same way. A second,
-        // inline derivation here could drift from it, and the job view would never find the verdict.
-        const d = deps();
-        await processVerification(d, m);
+    ])(
+        '⛔ claims and writes %s under recipe-core’s key for the message — the key the producer stored',
+        async (_l, m) => {
+            // ADR-0071: the paste matcher stores the key of the exact message it sends, derived the same way. A second,
+            // inline derivation here could drift from it, and the job view would never find the verdict.
+            const d = deps();
+            await processVerification(d, m);
 
-        const expected = verificationKey(verifiedLineIdentityOfMessage(verifyIngredientLineMessageSchema.parse(m)), (input) =>
-            createHash('sha256').update(input).digest('hex'),
-        );
+            const expected = verificationKey(
+                verifiedLineIdentityOfMessage(verifyIngredientLineMessageSchema.parse(m)),
+                (input) => createHash('sha256').update(input).digest('hex'),
+            );
 
-        expect(d.spies.claimVerification.mock.calls[0]?.[0]).toBe(expected);
-        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey).toBe(expected);
-    });
+            expect(d.spies.claimVerification.mock.calls[0]?.[0]).toBe(expected);
+            expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey).toBe(expected);
+        },
+    );
 
     it('keys the verdict on a DIFFERENT identity than the same line un-restated', async () => {
         const restated = deps();
@@ -1058,12 +1067,10 @@ describe('the claim names the aspects this delivery asks', () => {
         const d = deps();
         await processVerification(d, MESSAGE);
 
-        expect(d.spies.claimVerification).toHaveBeenCalledWith(
-            expect.any(String),
-            'amazon.nova-micro-v1:0',
-            60,
-            ['identity', 'quantity'],
-        );
+        expect(d.spies.claimVerification).toHaveBeenCalledWith(expect.any(String), 'amazon.nova-micro-v1:0', 60, [
+            'identity',
+            'quantity',
+        ]);
     });
 });
 
@@ -1469,7 +1476,7 @@ describe('a paste-job origin (ADR-0071)', () => {
             await processVerification(recipe, { ...RECIPE, evidenceKind: 'curated-exact', shortlist: [] });
 
             const promptOf = (d: ReturnType<typeof deps>): string =>
-                (d.spies.converse.mock.calls[0]?.[0] as { userMessage: string }).userMessage;
+                String((d.spies.converse.mock.calls[0]?.[0] as { userMessage?: string } | undefined)?.userMessage);
 
             expect(promptOf(paste)).not.toBe(promptOf(recipe));
         });

@@ -138,12 +138,14 @@ function foundRecord(name: string, rootId: string): Extract<FoodRefAnswer, { out
 
 /** A refs gateway answering from a table; unlisted refs are `absent`. */
 function refsAnswering(answers: Record<string, FoodRefAnswer>) {
-    const resolve = vi.fn(async (_caller: unknown, refs: readonly FoodRef[], _budget?: unknown, _options?: { signal?: AbortSignal }) => ({
-        answers: new Map(
-            refs.map((ref) => [`${ref.kind}:${ref.id}`, answers[`${ref.kind}:${ref.id}`] ?? { outcome: 'absent' }]),
-        ),
-        degraded: false,
-    }));
+    const resolve = vi.fn(
+        async (_caller: unknown, refs: readonly FoodRef[], _budget?: unknown, _options?: { signal?: AbortSignal }) => ({
+            answers: new Map(
+                refs.map((ref) => [`${ref.kind}:${ref.id}`, answers[`${ref.kind}:${ref.id}`] ?? { outcome: 'absent' }]),
+            ),
+            degraded: false,
+        }),
+    );
 
     return { gateway: { resolve } as unknown as FoodRefsGateway, resolve };
 }
@@ -548,11 +550,12 @@ describe('MatchProposalService.propose — the stored key is the key of the mess
         const rows = [...matches.rows.values()];
 
         expect(messages).toHaveLength(3);
+
         for (const message of messages) {
             const origin = message.origin?.kind === 'parseJob' ? message.origin : undefined;
-            const row = rows.find((candidate) => {
-                return candidate.lineIndex === origin?.lineIndex && candidate.foodIndex === origin.foodIndex;
-            });
+            const row = rows.find(
+                (candidate) => candidate.lineIndex === origin?.lineIndex && candidate.foodIndex === origin.foodIndex,
+            );
 
             expect(row?.verificationKey).toBe(verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex));
         }
@@ -620,7 +623,11 @@ describe('MatchProposalService.propose — idempotent, and paid once', () => {
 
         await service.propose(COOK, CALLER, JOB);
         // Same text, same digest; the parse now reads another food.
-        lines.splice(0, 1, makeParseJobLine({ proposal: makeStoredProposal({ foods: [{ name: 'skim milk', prep: null }] }) }));
+        lines.splice(
+            0,
+            1,
+            makeParseJobLine({ proposal: makeStoredProposal({ foods: [{ name: 'skim milk', prep: null }] }) }),
+        );
         chain.lexical.mockClear();
         await service.propose(COOK, CALLER, JOB);
 

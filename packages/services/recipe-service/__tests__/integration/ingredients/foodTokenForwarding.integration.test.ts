@@ -59,9 +59,7 @@ import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import { FoodServiceClients } from '../../../src/ingredients/FoodServiceClients.factory.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import type { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import {
-    makeFakeIngredientResolutionsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 /** Two distinguishable caller credentials — a leak or a swap is unmistakable. */
 const ALICE_SECRET = 'eyJhbGciOiJSUzI1NiJ9.ALICE-SESSION-JWT-DO-NOT-LOG.sig';

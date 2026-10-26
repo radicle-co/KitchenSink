@@ -76,7 +76,13 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
                 identityVerdict: 'disagree',
                 aspects: ['identity', 'quantity'],
             },
-            { verificationKey: KEY_B, band: 'verified', certainty: 'medium', identityVerdict: null, aspects: ['quantity'] },
+            {
+                verificationKey: KEY_B,
+                band: 'verified',
+                certainty: 'medium',
+                identityVerdict: null,
+                aspects: ['quantity'],
+            },
         ]);
 
         const bands = await new LineVerificationsDal(control.db).findBandsByKeys([KEY_A, KEY_B]);
@@ -90,7 +96,12 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
             identityVerdict: 'disagree',
             aspects: ['identity', 'quantity'],
         });
-        expect(bands.get(KEY_B)).toEqual({ band: 'verified', certainty: 'medium', identityVerdict: null, aspects: ['quantity'] });
+        expect(bands.get(KEY_B)).toEqual({
+            band: 'verified',
+            certainty: 'medium',
+            identityVerdict: null,
+            aspects: ['quantity'],
+        });
     });
 
     it('⛔ issues NO query for an empty key set', async () => {

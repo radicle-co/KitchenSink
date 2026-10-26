@@ -21,10 +21,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    MappingPromotionAudit,
-    MAPPING_PROMOTION_METRIC,
-} from '../mappingPromotionAudit.js';
+import { MappingPromotionAudit, MAPPING_PROMOTION_METRIC } from '../mappingPromotionAudit.js';
 import { RECIPE_RESOLUTION_NAMESPACE } from '../resolutionMetrics.js';
 
 const PROMOTION = {

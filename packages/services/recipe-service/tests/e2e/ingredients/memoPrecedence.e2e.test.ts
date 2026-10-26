@@ -59,9 +59,7 @@ import {
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
 import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import {
-    makeFakeIngredientResolutionsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
 /** The food the GATE agreed with — what a memo remembers. */

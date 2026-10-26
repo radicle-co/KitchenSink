@@ -12,7 +12,9 @@ import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import { withoutVerdictsOnRecord } from '../verdictDedup.js';
 
 /** A verdict table holding the given keys. */
-const tableWith = (...keys: string[]): Pick<LineVerificationsDal, 'findExistingKeys'> & { findExistingKeys: ReturnType<typeof vi.fn> } => ({
+const tableWith = (
+    ...keys: string[]
+): Pick<LineVerificationsDal, 'findExistingKeys'> & { findExistingKeys: ReturnType<typeof vi.fn> } => ({
     findExistingKeys: vi.fn(async (asked: readonly string[]) => new Set(asked.filter((key) => keys.includes(key)))),
 });
 
@@ -28,7 +30,12 @@ describe('withoutVerdictsOnRecord', () => {
     });
 
     it('keeps an item with no key — there is nothing to look up for it', async () => {
-        const left = await withoutVerdictsOnRecord(tableWith('k1'), [{ key: null }, { key: 'k1' }], (item) => item.key, vi.fn());
+        const left = await withoutVerdictsOnRecord(
+            tableWith('k1'),
+            [{ key: null }, { key: 'k1' }],
+            (item) => item.key,
+            vi.fn(),
+        );
 
         expect(left).toStrictEqual([{ key: null }]);
     });

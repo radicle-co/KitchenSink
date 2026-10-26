@@ -412,7 +412,12 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
      * band observation is now made only from the key the message itself names, and no producer sends one today.
      */
     describe('bandKey — the band named by the message itself', () => {
-        const BAND = { rung: 'head', marginBand: 'ge-0.9-rung', queryShape: 'single-token', rankerVersion: 'ladder-v2' };
+        const BAND = {
+            rung: 'head',
+            marginBand: 'ge-0.9-rung',
+            queryShape: 'single-token',
+            rankerVersion: 'ladder-v2',
+        };
 
         it('is optional: a message without one parses, and names no band', () => {
             expect(verifyIngredientLineMessageSchema.parse(verifyLine()).bandKey).toBeUndefined();

@@ -36,16 +36,19 @@ describe('pastedLineMeasureOf — the first food of a line', () => {
     });
 
     it('keeps the words, and no amount, where neither the words nor the parse state one', () => {
-        expect(pastedLineMeasureOf({ quantity: ABSENT_QUANTITY, unit: null, statedMeasure: 'a handful' }, 0)).toStrictEqual(
-            { quantity: ABSENT_QUANTITY, unit: 'a handful' },
-        );
+        expect(
+            pastedLineMeasureOf({ quantity: ABSENT_QUANTITY, unit: null, statedMeasure: 'a handful' }, 0),
+        ).toStrictEqual({ quantity: ABSENT_QUANTITY, unit: 'a handful' });
     });
 
-    it.each([null, undefined, '   '])('keeps the parse’s reading when the parse kept no words (%j)', (statedMeasure) => {
-        expect(
-            pastedLineMeasureOf({ quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure }, 0),
-        ).toStrictEqual({ quantity: { kind: 'exact', value: 2 }, unit: 'cup' });
-    });
+    it.each([null, undefined, '   '])(
+        'keeps the parse’s reading when the parse kept no words (%j)',
+        (statedMeasure) => {
+            expect(
+                pastedLineMeasureOf({ quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure }, 0),
+            ).toStrictEqual({ quantity: { kind: 'exact', value: 2 }, unit: 'cup' });
+        },
+    );
 
     it('spells a parse with no unit as the empty unit, as the editor saves it', () => {
         expect(pastedLineMeasureOf({ quantity: { kind: 'exact', value: 3 }, unit: null }, 0)).toStrictEqual({
@@ -58,7 +61,10 @@ describe('pastedLineMeasureOf — the first food of a line', () => {
 describe('pastedLineMeasureOf — a later food of the same line', () => {
     it.each([1, 2])('food %i states no measure: the line gave one amount, and the first food carries it', (index) => {
         expect(
-            pastedLineMeasureOf({ quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', statedMeasure: '2 tbsp' }, index),
+            pastedLineMeasureOf(
+                { quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', statedMeasure: '2 tbsp' },
+                index,
+            ),
         ).toStrictEqual({ quantity: ABSENT_QUANTITY, unit: '' });
     });
 });

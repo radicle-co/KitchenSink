@@ -115,7 +115,10 @@ describe('the verification claim (integration)', () => {
     it('⛔ a verdict from an OLDER model does not suppress re-verification under the current one', async () => {
         await landVerdict(MODEL);
 
-        expect(await store.claimVerification(KEY, NEWER_MODEL, LEASE, IDENTITY)).toEqual({ kind: 'claimed', attempts: 1 });
+        expect(await store.claimVerification(KEY, NEWER_MODEL, LEASE, IDENTITY)).toEqual({
+            kind: 'claimed',
+            attempts: 1,
+        });
     });
 
     /**

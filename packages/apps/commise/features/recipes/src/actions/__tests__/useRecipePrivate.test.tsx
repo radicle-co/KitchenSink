@@ -75,14 +75,20 @@ describe('useRecipePrivate', () => {
         expect(result.current.refusal).toBeUndefined();
     });
 
-    it('a recipe never saved, and every label but imported_public, is under the slots rule', () => {
-        for (const sourceType of [
-            undefined,
-            RecipeSourceType.USER_CREATED,
-            RecipeSourceType.IMPORTED_PHYSICAL,
-            RecipeSourceType.IMPORTED_PAID,
-        ]) {
-            expect(mount('limited-open', sourceType).result.current.rule).toBe('slots');
+    it('a recipe never saved, and every label but imported_public, is counted against the slots', async () => {
+        const cases = [
+            [undefined, 'slots'],
+            [RecipeSourceType.USER_CREATED, 'slots'],
+            // A book or paid-site recipe uses a slot too but can never go public: its own rule (ADR-0073 sections 4 and 7).
+            [RecipeSourceType.IMPORTED_PHYSICAL, 'privateOnly'],
+            [RecipeSourceType.IMPORTED_PAID, 'privateOnly'],
+        ] as const;
+
+        for (const [sourceType, rule] of cases) {
+            const { result } = mount('limited-full', sourceType);
+
+            expect(result.current.rule).toBe(rule);
+            await waitFor(() => expect(result.current.refusal).toBe('slots'));
         }
     });
 

@@ -1480,6 +1480,19 @@ describe('visibilityFieldOf', () => {
         expect(costOf('granted')).toBeUndefined();
     });
 
+    it('⛔ a book or paid-site recipe made public promises no way back: it can never go public, so the card says nothing', () => {
+        const facts: RecipePrivateFacts = { rule: 'privateOnly', standing: OPEN, state: 'upsell' };
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts,
+        });
+
+        expect(publicCard(model).note).toBeUndefined();
+        expect(visibilityChoice('private', 'public', 'private', facts)).toEqual({ visibility: 'public' });
+    });
+
     it('a kept draft Private the slots refuse is shown as Public, with the slots sentence', () => {
         const model = visibilityFieldOf({
             ...base,

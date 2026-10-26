@@ -485,6 +485,37 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             expect(screen.getByRole('button', { name: /Get Premium/u })).toBeTruthy();
         });
 
+        // The ways forward leave the editor, so they must do what × does: the exit checkpoint. The route hands the screen
+        // `onDiscarded`, which only navigates; the navigator then announces the leave (`beforeRemove`), which the screen hears
+        // through `subscribeToLeave` and answers with the checkpoint. Simulated here, as the sibling leave test does.
+        it('⛔ leaving by "Make a private recipe public" keeps what the cook typed: the exit checkpoint runs', async () => {
+            profile.paidFeatures = 'upsell';
+            const client = clientWithSlots({ used: 50, limit: 50 });
+            const create = vi
+                .spyOn(client, 'createRecipe')
+                .mockResolvedValue(
+                    makeRecipeDetail({ id: 'rec_kept', title: 'Soup to keep', status: RecipeStatus.DRAFT }),
+                );
+            let leave: (() => void) | undefined;
+            renderScreen(client, {
+                subscribeToLeave: (listener) => {
+                    leave = listener;
+
+                    return () => undefined;
+                },
+                onDiscarded: () => leave?.(),
+            });
+            await screen.findByText('Not available. All 50 of your private slots are in use.');
+            fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Soup to keep' } });
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+            });
+
+            await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+            expect(create.mock.calls[0]?.[0]).toMatchObject({ title: 'Soup to keep', status: 'draft' });
+        });
+
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {
             profile.paidFeatures = 'upsell';
             renderScreen(clientWithSlots({ used: 50, limit: 50 }));

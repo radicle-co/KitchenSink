@@ -69,8 +69,20 @@ export function slotStandingOf(usage: PrivateSlotUsage | undefined, pending = fa
         : { kind: 'full', used: usage.used, limit: usage.limit };
 }
 
-/** Which rule a recipe's Private is under. */
-export type PrivateRule = 'slots' | 'premium';
+/**
+ * Which rule a recipe's Private is under.
+ *
+ * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote).
+ * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a),
+ *   so nothing may promise a way back from public; deleting it is the only way to free its slot (ADR-0073 section 4).
+ * - `premium`: an imported public-web recipe, where Premium is still the rule.
+ */
+export type PrivateRule = 'slots' | 'privateOnly' | 'premium';
+
+/** Whether the rule is a slot rule (counted against the cook's private slots), as opposed to Premium's. Pure. */
+export function usesSlots(rule: PrivateRule): boolean {
+    return rule !== 'premium';
+}
 
 /**
  * The rule for a recipe. Pure.
@@ -79,7 +91,16 @@ export type PrivateRule = 'slots' | 'premium';
  * @returns `premium` for an imported public-web recipe, `slots` for every other label.
  */
 export function privateRuleOf(sourceType: RecipeSourceType | undefined): PrivateRule {
-    return sourceType === RecipeSourceType.IMPORTED_PUBLIC ? 'premium' : 'slots';
+    switch (sourceType) {
+        case RecipeSourceType.IMPORTED_PUBLIC:
+            return 'premium';
+        case RecipeSourceType.IMPORTED_PHYSICAL:
+        case RecipeSourceType.IMPORTED_PAID:
+            return 'privateOnly';
+        case RecipeSourceType.USER_CREATED:
+        case undefined:
+            return 'slots';
+    }
 }
 
 /** What a recipe surface decides Private from. */
@@ -101,7 +122,7 @@ export type RecipePrivateOutcome = 'apply' | 'upsell' | 'slotsFull' | 'none';
  * @returns `true` under the slots rule always; under the premium rule as `offersPrivate` decides.
  */
 export function recipeOffersPrivate(facts: RecipePrivateFacts, saved: RecipeVisibility): boolean {
-    return facts.rule === 'slots' || offersPrivate(facts.state, saved);
+    return usesSlots(facts.rule) || offersPrivate(facts.state, saved);
 }
 
 /**
@@ -122,7 +143,7 @@ export function recipePrivateChoice(
         return 'apply';
     }
 
-    if (facts.rule === 'slots') {
+    if (usesSlots(facts.rule)) {
         return facts.standing.kind === 'full' ? 'slotsFull' : 'apply';
     }
 
@@ -152,6 +173,11 @@ export function recipeMakePublicConsequence(
         return facts.state === 'upsell' ? 'premium' : 'none';
     }
 
+    // A book or paid-site recipe cannot go public (the server refuses), so nothing is promised about coming back.
+    if (facts.rule === 'privateOnly') {
+        return 'none';
+    }
+
     return facts.standing.kind === 'open' || facts.standing.kind === 'full' ? 'frees' : 'none';
 }
 
@@ -163,7 +189,7 @@ export function recipeMakePublicConsequence(
  *   `privateRefusalOf` decides; otherwise `undefined` (an unknown standing never refuses).
  */
 export function recipePrivateRefusalOf(facts: RecipePrivateFacts): PrivateRefusal | undefined {
-    if (facts.rule === 'slots') {
+    if (usesSlots(facts.rule)) {
         return facts.standing.kind === 'full' ? 'slots' : undefined;
     }
 

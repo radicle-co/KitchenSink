@@ -82,15 +82,46 @@ describe('privateRuleOf - which rule a recipe is under', () => {
         expect(privateRuleOf(RecipeSourceType.IMPORTED_PUBLIC)).toBe('premium');
     });
 
-    it.each([RecipeSourceType.USER_CREATED, RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
-        '%s uses a slot',
+    it('a recipe the cook wrote uses a slot, and can go public', () => {
+        expect(privateRuleOf(RecipeSourceType.USER_CREATED)).toBe('slots');
+    });
+
+    // A book or paid-site recipe uses a slot like any other (ADR-0073 section 7) but can NEVER go public (004 FR-014a), so
+    // its slot is freed only by deleting it. It is its own rule so no surface promises it can be made public and private
+    // again.
+    it.each([RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
+        '%s uses a slot but can never go public: its own rule',
         (sourceType) => {
-            expect(privateRuleOf(sourceType)).toBe('slots');
+            expect(privateRuleOf(sourceType)).toBe('privateOnly');
         },
     );
 
     it('a recipe never saved is a user_created one: slots', () => {
         expect(privateRuleOf(undefined)).toBe('slots');
+    });
+});
+
+describe('privateOnly: a book or paid-site recipe is counted exactly as a slot recipe is', () => {
+    const privateOnly = (standing: RecipePrivateFacts['standing'], state: RecipePrivateFacts['state'] = 'upsell') =>
+        ({ rule: 'privateOnly', standing, state }) as const satisfies RecipePrivateFacts;
+
+    it('offers Private whatever the paid features say, and refuses it only when every slot is KNOWN used', () => {
+        for (const state of STATES) {
+            expect(recipeOffersPrivate(privateOnly(OPEN, state), PUBLIC)).toBe(true);
+            expect(recipePrivateChoice(privateOnly(OPEN, state), PUBLIC, PRIVATE)).toBe('apply');
+            expect(recipePrivateChoice(privateOnly(UNKNOWN, state), PUBLIC, PRIVATE)).toBe('apply');
+            expect(recipePrivateChoice(privateOnly(FULL, state), PUBLIC, PRIVATE)).toBe('slotsFull');
+        }
+
+        expect(recipePrivateRefusalOf(privateOnly(FULL))).toBe('slots');
+        expect(recipePrivateRefusalOf(privateOnly(OPEN))).toBeUndefined();
+        expect(showsRecipePremiumBadge(privateOnly(FULL), PUBLIC)).toBe(false);
+    });
+
+    it('⛔ never promises a way back: it cannot go public, so going public frees nothing to promise', () => {
+        for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING, UNLIMITED]) {
+            expect(recipeMakePublicConsequence(privateOnly(standing), PRIVATE)).toBe('none');
+        }
     });
 });
 

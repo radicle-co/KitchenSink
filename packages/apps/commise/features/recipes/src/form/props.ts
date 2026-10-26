@@ -27,6 +27,7 @@ import {
     recipeMakePublicConsequence,
     recipePrivateChoice,
     showsRecipePremiumBadge,
+    usesSlots,
     type RecipePrivateFacts,
 } from '../actions/recipePrivateGate.js';
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -212,7 +213,7 @@ export function visibilityFieldOf(input: {
             },
         ],
         slotsFull:
-            facts.rule === 'slots' && standing.kind === 'full' && !holdsItsSlot
+            usesSlots(facts.rule) && standing.kind === 'full' && !holdsItsSlot
                 ? {
                       title: v.waysTitle,
                       ways: [

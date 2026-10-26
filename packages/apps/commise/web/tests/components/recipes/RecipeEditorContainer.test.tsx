@@ -421,6 +421,8 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
     };
 
     describe('a recipe the cook wrote: the slots rule', () => {
+        afterEach(() => onlineManager.setOnline(true));
+
         it('shows how many private slots are left, from the server`s read', async () => {
             profile.paidFeatures = 'upsell';
             renderEditor(clientWithSlots({ used: 38, limit: 50 }));
@@ -451,6 +453,39 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
 
             expect(pushMock).toHaveBeenCalledWith('/en/recipes');
             expect(screen.getByRole('button', { name: /Get Premium/u })).toBeTruthy();
+        });
+
+        // The ways forward leave the editor, so they must do what × does: the exit checkpoint (ADR-0057 section 2), or the cook
+        // who went to free a slot would come back to a lost recipe.
+        it('⛔ leaving by "Make a private recipe public" keeps what the cook typed: the exit checkpoint runs', async () => {
+            profile.paidFeatures = 'upsell';
+            window.history.replaceState(null, '', '/en/recipes/new');
+            const client = clientWithSlots({ used: 50, limit: 50 });
+            const view = renderWithRecipeClient(
+                withFoodClient(
+                    <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={webDeviceStore}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>,
+                ),
+                client,
+            );
+            await screen.findByText('Not available. All 50 of your private slots are in use.');
+            // Offline from here, so the checkpoint's write stays in the journal for the assertion below.
+            onlineManager.setOnline(false);
+            await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup to keep');
+
+            await userEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes');
+            // The router leaves the page, which unmounts the editor: that is a leave.
+            view.unmount();
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+
+            const titles = (await loadOutbox(webDeviceStore, 'user_cook')).records.map(
+                (record) => (record.payload as { readonly input?: { readonly title?: string } }).input?.title,
+            );
+            expect(titles).toEqual(['Soup to keep']);
         });
 
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {

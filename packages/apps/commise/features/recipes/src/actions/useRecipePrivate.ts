@@ -22,6 +22,7 @@ import {
     privateRuleOf,
     recipePrivateRefusalOf,
     slotStandingOf,
+    usesSlots,
     type PrivateRule,
     type SlotStanding,
 } from './recipePrivateGate.js';
@@ -51,8 +52,8 @@ export interface RecipePrivate {
  */
 export function useRecipePrivate(options: UseRecipePrivateOptions): RecipePrivate {
     const rule = privateRuleOf(options.sourceType);
-    const usage = usePrivateSlots({ enabled: rule === 'slots' });
-    const standing = rule === 'slots' ? slotStandingOf(usage.data, usage.isPending) : ({ kind: 'unknown' } as const);
+    const usage = usePrivateSlots({ enabled: usesSlots(rule) });
+    const standing = usesSlots(rule) ? slotStandingOf(usage.data, usage.isPending) : ({ kind: 'unknown' } as const);
 
     return {
         rule,

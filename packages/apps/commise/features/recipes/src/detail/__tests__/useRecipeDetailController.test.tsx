@@ -263,6 +263,23 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         });
     });
 
+    it('⛔ a private book recipe made public promises no way back: it can never go public, so no "frees a slot" dialog opens', async () => {
+        const { result, client } = mount({
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'upsell'),
+            recipe: { visibility: RecipeVisibility.PRIVATE, sourceType: RecipeSourceType.IMPORTED_PHYSICAL },
+        });
+
+        // Let the slot read land first: a consequence that only appears once the standing is known must have had its chance.
+        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+        act(() => result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
+
+        expect(result.current.dialogs.makePublic.open).toBe(false);
+    });
+
     it('Premium goes public at once - no slots to free, nothing to say', async () => {
         const { result, client } = mount({
             sessionClaims: { external_id: OWNER },

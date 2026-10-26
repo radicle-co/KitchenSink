@@ -18,11 +18,13 @@ vi.mock('react-native', async (importOriginal) => {
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { FoodChoiceList } from '../FoodChoiceList.native.js';
+import { recipeMessages } from '../../messages.js';
 import { recipeFormMessages } from '../messages.js';
 import type { FoodChoice, OpenLine } from '../pasteMatchLine.js';
 import { pasteMatchOpenViewOf } from '../pasteMatchView.js';
 
 const m = recipeFormMessages.en;
+const copy = { ...m, details: recipeMessages.en.ingredientDetails };
 
 afterEach(() => {
     cleanup();
@@ -51,7 +53,7 @@ function renderList(line: OpenLine, options: { online?: boolean; searchFocusRequ
 
     render(
         <FoodChoiceList
-            view={pasteMatchOpenViewOf(line, options.online ?? true, m)}
+            view={pasteMatchOpenViewOf(line, options.online ?? true, copy)}
             searchFocusRequested={options.searchFocusRequested ?? false}
             {...handlers}
         />,

@@ -17,7 +17,7 @@ export const PasteMatchOpenRow: FC<PasteMatchOpenRowProps> = ({ line, ...list })
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.row, { backgroundColor: colors.surfaceMuted }]}>
+        <View style={[styles.row, { borderColor: colors.lineDivider }]}>
             <View style={styles.head}>
                 <PastedLine line={line} />
                 <Text style={[styles.prompt, { color: colors.inkMuted }]}>{list.view.prompt}</Text>
@@ -28,7 +28,9 @@ export const PasteMatchOpenRow: FC<PasteMatchOpenRowProps> = ({ line, ...list })
 };
 
 const styles = StyleSheet.create({
+    // An edge, not a fill: the options press to `surfaceMuted`, which a fill of the same colour would hide.
     row: {
+        borderWidth: 1,
         gap: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[3],

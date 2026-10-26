@@ -8,9 +8,11 @@
  * these through an Adapter, which is where `confident` becomes `matched`, a line bound by the cook becomes `chosen`, and
  * `default` / `needsChoice` / `noMatch` become an {@link OpenLine}. A `checking` line resolves into one of those.
  *
- * Each shape carries only what its state can say, so an illegal state (a review note on a line the cook did not pick, a
- * chosen food on a line with no options) cannot be written.
+ * Each shape carries only what its state can say, so some illegal states cannot be written: a review note on a line the
+ * cook did not pick, or a held pick on a line with no options. The types do NOT prove a held `chosenId` is one of the
+ * line's `options`; the wiring phase's Adapter owes that check (and a test that fails without it).
  */
+import type { DraftKeep } from '../editor/saveStatus.js';
 
 /** A pasted line as the cook wrote it: its leading measure, drawn bold, and the words after it. */
 export interface PastedLineText {
@@ -59,22 +61,32 @@ export interface OpenLine {
     readonly need: OpenNeed;
 }
 
-/** A line that needs nothing from the cook now. */
-export type SettledLine =
-    /** A confident match (an exact name, a curated mapping, or a match the review confirmed). It can be changed. */
-    | { readonly kind: 'matched'; readonly key: string; readonly line: PastedLineText; readonly food: string }
-    /** The cook's own pick. A late review result never replaces it: it adds one quiet sentence. */
+/** A line that needs nothing from the cook now: its identity and text, and what its state can say. */
+export type SettledLine = {
+    /** Stable identity among the lines. */
+    readonly key: string;
+    readonly line: PastedLineText;
+} & (
+    | /** A confident match (an exact name, a curated mapping, or a match the review confirmed). It can be changed. */
+      { readonly kind: 'matched'; readonly food: string }
+      /** The cook's own pick. A late review result never replaces it: it adds one quiet sentence. */
     | {
           readonly kind: 'chosen';
-          readonly key: string;
-          readonly line: PastedLineText;
           readonly food: string;
           /** The food a review that finished after the pick suggested instead. */
           readonly reviewNote: { readonly suggestedFood: string } | undefined;
       }
     /** The review is still running on a proposed food; it resolves into another state. */
-    | { readonly kind: 'checking'; readonly key: string; readonly line: PastedLineText; readonly proposal: string }
+    | { readonly kind: 'checking'; readonly proposal: string }
     /** The line's options did not load. */
-    | { readonly kind: 'optionsFailed'; readonly key: string; readonly line: PastedLineText }
+    | { readonly kind: 'optionsFailed' }
     /** Kept as written, by the cook or by the daily limit (004 FR-022): no nutrition yet. */
-    | { readonly kind: 'keptAsWritten'; readonly key: string; readonly line: PastedLineText };
+    | { readonly kind: 'keptAsWritten' }
+);
+
+/** A notice above the pasted lines. */
+export type PasteMatchNotice =
+    /** Offline: the check waits, choices are kept where the draft is (D7). */
+    | { readonly kind: 'offline'; readonly keep: DraftKeep }
+    /** The daily limit (004 FR-022): the lines are kept as written until it resets in the cook's time zone. */
+    | { readonly kind: 'quota'; readonly resetsAt: string; readonly timeZone: string };

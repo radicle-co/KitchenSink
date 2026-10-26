@@ -44,7 +44,7 @@ const statusOf = (status: PasteMatchStatus, colors: StatusColors): ReactElement 
         case 'proposal':
             return (
                 <View style={styles.proposal}>
-                    {status.busy && <Icon name="clock" size={16} tone="inkMuted" />}
+                    {status.waiting && <Icon name="clock" size={16} tone="inkMuted" />}
                     <Text style={[styles.proposalText, { color: colors.ink }]}>{status.food}</Text>
                     <StatusBadge status="note">{status.tag}</StatusBadge>
                 </View>

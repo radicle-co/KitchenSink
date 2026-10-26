@@ -42,7 +42,7 @@ const statusOf = (status: PasteMatchStatus): ReactElement => {
         case 'proposal':
             return (
                 <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                    {status.busy && <Icon name="clock" size={16} tone="inkMuted" />}
+                    {status.waiting && <Icon name="clock" size={16} tone="inkMuted" />}
                     <span className="min-w-0 break-words text-meta text-ink">{status.food}</span>
                     <StatusBadge status="note">{status.tag}</StatusBadge>
                 </span>
@@ -66,56 +66,56 @@ const statusOf = (status: PasteMatchStatus): ReactElement => {
 };
 
 /** One settled pasted line. */
-export const PasteMatchRow: FC<PasteMatchRowProps> = ({ line, view, onAction, onSeeWhy }) => (
-    <li className="flex min-h-12 flex-col justify-center gap-1 py-2">
-        <PastedLine line={line} />
-        <div className="flex items-center gap-2">
-            {statusOf(view.status)}
-            {view.trailing !== undefined && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={view.trailing.icon}
-                    accessibilityLabel={view.trailing.name}
-                    onPress={() => {
-                        if (view.trailing !== undefined) {
-                            onAction(view.trailing.kind);
-                        }
-                    }}
-                >
-                    {view.trailing.label}
-                </Button>
-            )}
-        </div>
-        {view.actions.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-                {view.actions.map((action) =>
-                    action.kind === 'unavailable' ? (
-                        <span key="unavailable" className="px-2 text-meta text-ink-muted">
-                            {action.text}
-                        </span>
-                    ) : (
-                        <Button
-                            key={action.kind}
-                            variant="ghost"
-                            size="sm"
-                            icon={action.icon}
-                            accessibilityLabel={action.name}
-                            onPress={() => onAction(action.kind)}
-                        >
-                            {action.label}
-                        </Button>
-                    ),
+export const PasteMatchRow: FC<PasteMatchRowProps> = ({ line, view, onAction, onSeeWhy }) => {
+    const { trailing } = view;
+
+    return (
+        <li className="flex min-h-12 flex-col justify-center gap-1 py-2">
+            <PastedLine line={line} />
+            <div className="flex items-center gap-2">
+                {statusOf(view.status)}
+                {trailing !== undefined && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={trailing.icon}
+                        accessibilityLabel={trailing.name}
+                        onPress={() => onAction(trailing.kind)}
+                    >
+                        {trailing.label}
+                    </Button>
                 )}
             </div>
-        )}
-        {view.note !== undefined && (
-            <div className="flex flex-wrap items-center gap-x-2 text-meta text-ink-muted">
-                <span>{view.note.sentence}</span>
-                <Button variant="ghost" size="sm" accessibilityLabel={view.note.seeWhyName} onPress={onSeeWhy}>
-                    {view.note.seeWhy}
-                </Button>
-            </div>
-        )}
-    </li>
-);
+            {view.actions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+                    {view.actions.map((action) =>
+                        action.kind === 'unavailable' ? (
+                            <span key="unavailable" className="px-2 text-meta text-ink-muted">
+                                {action.text}
+                            </span>
+                        ) : (
+                            <Button
+                                key={action.kind}
+                                variant="ghost"
+                                size="sm"
+                                icon={action.icon}
+                                accessibilityLabel={action.name}
+                                onPress={() => onAction(action.kind)}
+                            >
+                                {action.label}
+                            </Button>
+                        ),
+                    )}
+                </div>
+            )}
+            {view.note !== undefined && (
+                <div className="flex flex-wrap items-center gap-x-2 text-meta text-ink-muted">
+                    <span>{view.note.sentence}</span>
+                    <Button variant="ghost" size="sm" accessibilityLabel={view.note.seeWhyName} onPress={onSeeWhy}>
+                        {view.note.seeWhy}
+                    </Button>
+                </div>
+            )}
+        </li>
+    );
+};

@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { recipeMessages } from '../../messages.js';
 import { recipeFormMessages } from '../messages.js';
 import type { FoodChoice, OpenLine, PastedLineText, SettledLine } from '../pasteMatchLine.js';
 import {
@@ -26,6 +27,7 @@ import {
 } from '../pasteMatchView.js';
 
 const m = recipeFormMessages.en;
+const copy = { ...m, details: recipeMessages.en.ingredientDetails };
 const MILK: PastedLineText = { measure: '2 cups', words: 'milk' };
 const EGGS: PastedLineText = { measure: '', words: 'eggs' };
 const CREAM: PastedLineText = { measure: '1/2 cup', words: 'heavy cream' };
@@ -58,7 +60,7 @@ describe('lineTextOf', () => {
 });
 
 describe('pasteMatchOpenViewOf — the options', () => {
-    const rowsOf = (line: OpenLine) => pasteMatchOpenViewOf(line, true, m).rows;
+    const rowsOf = (line: OpenLine) => pasteMatchOpenViewOf(line, true, copy).rows;
 
     it('keeps the server’s order and tags the default by its flag, not its position', () => {
         const rows = rowsOf(milkLine());
@@ -89,13 +91,15 @@ describe('pasteMatchOpenViewOf — the options', () => {
     });
 
     it('⛔ nothing is chosen while the line holds no pick, the default included', () => {
-        expect(rowsOf(milkLine()).some((row) => row.chosen)).toBe(false);
+        expect(rowsOf(milkLine()).some((row) => row.kind === 'food' && row.chosen)).toBe(false);
     });
 
     it('a reopened line marks the food it holds as chosen, in words and not only by a check', () => {
         const rows = rowsOf(milkLine('skim'));
 
-        expect(rows.filter((row) => row.chosen).map((row) => row.name)).toEqual(['Skim milk, chosen']);
+        expect(rows.filter((row) => row.kind === 'food' && row.chosen).map((row) => row.name)).toEqual([
+            'Skim milk, chosen',
+        ]);
     });
 
     it('a chosen default says its tag and that it is chosen', () => {
@@ -120,13 +124,13 @@ describe('pasteMatchOpenViewOf — the options', () => {
     });
 
     it('names the group of options for its line', () => {
-        expect(pasteMatchOpenViewOf(milkLine(), true, m).optionsName).toBe('Food for 2 cups milk');
+        expect(pasteMatchOpenViewOf(milkLine(), true, copy).optionsName).toBe('Food for 2 cups milk');
     });
 });
 
 describe('pasteMatchOpenViewOf — the prompt and search', () => {
     it('default: names the noun the cook uses', () => {
-        expect(pasteMatchOpenViewOf(milkLine(), true, m).prompt).toBe('Choose the milk you use');
+        expect(pasteMatchOpenViewOf(milkLine(), true, copy).prompt).toBe('Choose the milk you use');
     });
 
     it('needsChoice: more than one food fits, and nothing is chosen', () => {
@@ -136,17 +140,19 @@ describe('pasteMatchOpenViewOf — the prompt and search', () => {
             need: { kind: 'needsChoice', options: MILKS, chosenId: undefined },
         };
 
-        expect(pasteMatchOpenViewOf(line, true, m).prompt).toBe('More than one food fits. Nothing is chosen for you.');
+        expect(pasteMatchOpenViewOf(line, true, copy).prompt).toBe(
+            'More than one food fits. Nothing is chosen for you.',
+        );
     });
 
     it('noMatch: no food was found', () => {
-        expect(pasteMatchOpenViewOf({ key: 'n', line: EGGS, need: { kind: 'noMatch' } }, true, m).prompt).toBe(
+        expect(pasteMatchOpenViewOf({ key: 'n', line: EGGS, need: { kind: 'noMatch' } }, true, copy).prompt).toBe(
             'No food found for this',
         );
     });
 
     it('online: Search for a food, named for its line', () => {
-        expect(pasteMatchOpenViewOf(milkLine(), true, m).search).toEqual({
+        expect(pasteMatchOpenViewOf(milkLine(), true, copy).search).toEqual({
             kind: 'available',
             label: 'Search for a food',
             name: 'Search for a food for 2 cups milk',
@@ -154,7 +160,7 @@ describe('pasteMatchOpenViewOf — the prompt and search', () => {
     });
 
     it('offline: search says it needs the network, and the loaded options still show', () => {
-        const view = pasteMatchOpenViewOf(milkLine(), false, m);
+        const view = pasteMatchOpenViewOf(milkLine(), false, copy);
 
         expect(view.search).toEqual({ kind: 'unavailable', text: 'Search needs the network' });
         expect(view.rows).toHaveLength(4);
@@ -251,7 +257,7 @@ describe('pasteMatchRowViewOf', () => {
         const line: SettledLine = { kind: 'checking', key: 'k', line: CREAM, proposal: 'Heavy whipping cream' };
         const view = pasteMatchRowViewOf(line, true, m);
 
-        expect(view.status).toEqual({ kind: 'proposal', food: 'Heavy whipping cream', tag: 'Checking', busy: true });
+        expect(view.status).toEqual({ kind: 'proposal', food: 'Heavy whipping cream', tag: 'Checking', waiting: true });
         expect(view.actions).toEqual([
             {
                 kind: 'useThis',
@@ -276,7 +282,7 @@ describe('pasteMatchRowViewOf', () => {
             kind: 'proposal',
             food: 'Heavy whipping cream',
             tag: 'Check paused',
-            busy: false,
+            waiting: false,
         });
         expect(view.actions.map((action) => action.kind)).toEqual(['useThis', 'unavailable', 'keepAsWritten']);
         expect(view.actions[1]).toEqual({ kind: 'unavailable', text: 'Search needs the network' });
@@ -352,18 +358,11 @@ describe('quotaBodyOf', () => {
             `You’ve added a lot today. Matching starts again at ${time}. These lines are kept as written, and you can choose foods for them then.`,
         );
     });
-
-    it('with no time zone given, the reset time is read in the runtime’s own zone', () => {
-        const resetsAt = '2026-10-26T04:00:00.000Z';
-        const time = new Intl.DateTimeFormat('en', { timeStyle: 'short' }).format(new Date(resetsAt));
-
-        expect(quotaBodyOf(resetsAt, m, 'en', undefined)).toContain(`starts again at ${time}.`);
-    });
 });
 
 describe('pasteMatchPaneViewOf', () => {
     it('says which open line it shows, out of how many, and heads it with the line', () => {
-        const view = pasteMatchPaneViewOf(milkLine(), { index: 1, count: 4 }, true, m);
+        const view = pasteMatchPaneViewOf(milkLine(), { index: 1, count: 4 }, true, copy);
 
         expect(view.position).toBe('Open line 2 of 4');
         expect(view.heading).toBe('2 cups milk');
@@ -372,19 +371,19 @@ describe('pasteMatchPaneViewOf', () => {
     });
 
     it('in the middle, both Previous and Next can be used', () => {
-        const view = pasteMatchPaneViewOf(milkLine(), { index: 1, count: 4 }, true, m);
+        const view = pasteMatchPaneViewOf(milkLine(), { index: 1, count: 4 }, true, copy);
 
         expect([view.previous.disabled, view.next.disabled]).toEqual([false, false]);
         expect([view.previous.label, view.next.label]).toEqual(['Previous', 'Next open line']);
     });
 
     it('the first line cannot go back, and the last cannot go on', () => {
-        expect(pasteMatchPaneViewOf(milkLine(), { index: 0, count: 4 }, true, m).previous.disabled).toBe(true);
-        expect(pasteMatchPaneViewOf(milkLine(), { index: 3, count: 4 }, true, m).next.disabled).toBe(true);
+        expect(pasteMatchPaneViewOf(milkLine(), { index: 0, count: 4 }, true, copy).previous.disabled).toBe(true);
+        expect(pasteMatchPaneViewOf(milkLine(), { index: 3, count: 4 }, true, copy).next.disabled).toBe(true);
     });
 
     it('a single open line can go neither way', () => {
-        const view = pasteMatchPaneViewOf(milkLine(), { index: 0, count: 1 }, true, m);
+        const view = pasteMatchPaneViewOf(milkLine(), { index: 0, count: 1 }, true, copy);
 
         expect([view.previous.disabled, view.next.disabled]).toEqual([true, true]);
     });

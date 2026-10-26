@@ -24,13 +24,26 @@
 import type { IconName } from '@commise/ui/icon';
 
 import { pluralOf } from '../editor/messages.js';
-import type { DraftKeep } from '../editor/saveStatus.js';
+import type { IngredientDetailsMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { foodChoiceNameOf } from './foodChoiceName.js';
 import type { RecipeFormMessages } from './messages.js';
-import type { FoodChoice, OpenLine, OpenNeed, PastedLineText, SettledLine } from './pasteMatchLine.js';
+import type {
+    FoodChoice,
+    OpenLine,
+    OpenNeed,
+    PasteMatchNotice,
+    PastedLineText,
+    SettledLine,
+} from './pasteMatchLine.js';
 
-/** The copy this module reads. */
-type Copy = Pick<RecipeFormMessages, 'foodSearch' | 'pasteMatch'>;
+/** The copy this module reads: the form's, and the picker's words for a food's parts (one naming rule, `foodChoiceName.ts`). */
+type Copy = Pick<RecipeFormMessages, 'foodSearch' | 'pasteMatch'> & {
+    readonly details: Pick<IngredientDetailsMessages, 'suggestionWithDetails'>;
+};
+
+/** The copy a view reads when it names no food option. */
+type LineCopy = Pick<RecipeFormMessages, 'pasteMatch'>;
 
 /** One row of an open line's list: a food, or the last row, Keep as written. */
 export type FoodChoiceRow =
@@ -51,8 +64,6 @@ export type FoodChoiceRow =
           readonly label: string;
           readonly hint: string;
           readonly name: string;
-          /** Keep as written is an action, never a held choice. */
-          readonly chosen: false;
       };
 
 /** Search for a food, or why it cannot run now. */
@@ -80,8 +91,8 @@ export interface PasteMatchClosedView {
 export type PasteMatchStatus =
     /** A bound food: drawn with a check. `yourChoice` is said after a food the cook picked. */
     | { readonly kind: 'food'; readonly food: string; readonly yourChoice: string | undefined }
-    /** The food under review and its tag; `busy` draws the still spinner while the check runs. */
-    | { readonly kind: 'proposal'; readonly food: string; readonly tag: string; readonly busy: boolean }
+    /** The food under review and its tag; `waiting` draws the still clock glyph while the check runs. */
+    | { readonly kind: 'proposal'; readonly food: string; readonly tag: string; readonly waiting: boolean }
     /** A sentence: muted, or `attention` for a failure. */
     | { readonly kind: 'text'; readonly text: string; readonly tone: 'muted' | 'attention' };
 
@@ -135,14 +146,13 @@ export const lineTextOf = (line: PastedLineText): string =>
 
 /** A food's row: its tag and its name follow its own flag and the line's held pick. Pure. */
 const foodRowOf = (food: FoodChoice, chosenId: string | undefined, copy: Copy): FoodChoiceRow => {
-    const withParts =
-        food.detailParts === undefined
-            ? food.name
-            : fillTemplate(copy.pasteMatch.line.optionWithParts, {
-                  food: food.name,
-                  parts: food.detailParts.join(', '),
-              });
-    const tagged = food.isDefault ? fillTemplate(copy.foodSearch.defaultOptionName, { food: withParts }) : withParts;
+    const named = foodChoiceNameOf(
+        { name: food.name, detailParts: food.detailParts, isDefault: food.isDefault },
+        {
+            suggestionWithDetails: copy.details.suggestionWithDetails,
+            defaultOptionName: copy.foodSearch.defaultOptionName,
+        },
+    );
     const chosen = food.id === chosenId;
 
     return {
@@ -151,7 +161,7 @@ const foodRowOf = (food: FoodChoice, chosenId: string | undefined, copy: Copy): 
         label: food.name,
         detailParts: food.detailParts,
         tag: food.isDefault ? copy.foodSearch.defaultTag : undefined,
-        name: chosen ? fillTemplate(copy.pasteMatch.line.chosenName, { food: tagged }) : tagged,
+        name: chosen ? fillTemplate(copy.pasteMatch.line.chosenName, { food: named }) : named,
         chosen,
     };
 };
@@ -163,7 +173,7 @@ const optionsOf = (
     need.kind === 'noMatch' ? { options: [], chosenId: undefined } : need;
 
 /** The muted prompt for a need. Pure. */
-const promptOf = (need: OpenNeed, copy: Copy): string => {
+const promptOf = (need: OpenNeed, copy: LineCopy): string => {
     switch (need.kind) {
         case 'default':
             return fillTemplate(copy.pasteMatch.line.default.prompt, { noun: need.noun });
@@ -181,7 +191,7 @@ const promptOf = (need: OpenNeed, copy: Copy): string => {
 };
 
 /** Search for a food on a line, or the words that stand in for it offline. Pure. */
-const searchOf = (text: string, online: boolean, copy: Copy): SearchView =>
+const searchOf = (text: string, online: boolean, copy: LineCopy): SearchView =>
     online
         ? {
               kind: 'available',
@@ -210,7 +220,7 @@ export const pasteMatchOpenViewOf = (open: OpenLine, online: boolean, copy: Copy
         optionsName: fillTemplate(copy.pasteMatch.line.optionsName, { line: text }),
         rows: [
             ...options.map((food) => foodRowOf(food, chosenId, copy)),
-            { kind: 'keepAsWritten', label: keep, hint: copy.pasteMatch.line.keepHint, name: keep, chosen: false },
+            { kind: 'keepAsWritten', label: keep, hint: copy.pasteMatch.line.keepHint, name: keep },
         ],
     };
 };
@@ -223,7 +233,7 @@ export const pasteMatchOpenViewOf = (open: OpenLine, online: boolean, copy: Copy
  * @param locale - The active locale, for the count's plural form.
  * @returns The collapsed line's view.
  */
-export const pasteMatchClosedViewOf = (open: OpenLine, copy: Copy, locale: string): PasteMatchClosedView => {
+export const pasteMatchClosedViewOf = (open: OpenLine, copy: LineCopy, locale: string): PasteMatchClosedView => {
     const { need } = open;
 
     switch (need.kind) {
@@ -247,7 +257,7 @@ export const pasteMatchClosedViewOf = (open: OpenLine, copy: Copy, locale: strin
 };
 
 /** Search as an action on a settled line, or its offline words. Pure. */
-const searchActionOf = (text: string, online: boolean, copy: Copy): PasteMatchActionItem => {
+const searchActionOf = (text: string, online: boolean, copy: LineCopy): PasteMatchActionItem => {
     const search = searchOf(text, online, copy);
 
     return search.kind === 'available'
@@ -256,7 +266,7 @@ const searchActionOf = (text: string, online: boolean, copy: Copy): PasteMatchAc
 };
 
 /** Keep as written, as the quiet action on a settled line. Pure. */
-const keepActionOf = (text: string, copy: Copy): PasteMatchAction => ({
+const keepActionOf = (text: string, copy: LineCopy): PasteMatchAction => ({
     kind: 'keepAsWritten',
     label: copy.pasteMatch.line.keepAsWrittenShort,
     name: fillTemplate(copy.pasteMatch.line.keepAsWritten, { line: text }),
@@ -264,7 +274,7 @@ const keepActionOf = (text: string, copy: Copy): PasteMatchAction => ({
 });
 
 /** Change, beside a bound food. Pure. */
-const changeOf = (text: string, copy: Copy): PasteMatchAction => ({
+const changeOf = (text: string, copy: LineCopy): PasteMatchAction => ({
     kind: 'change',
     label: copy.pasteMatch.line.change,
     name: fillTemplate(copy.pasteMatch.line.changeName, { line: text }),
@@ -279,7 +289,7 @@ const changeOf = (text: string, copy: Copy): PasteMatchAction => ({
  * @param copy - The localised copy.
  * @returns The settled line's view.
  */
-export const pasteMatchRowViewOf = (settled: SettledLine, online: boolean, copy: Copy): PasteMatchRowView => {
+export const pasteMatchRowViewOf = (settled: SettledLine, online: boolean, copy: LineCopy): PasteMatchRowView => {
     const text = lineTextOf(settled.line);
     const line = copy.pasteMatch.line;
 
@@ -322,7 +332,7 @@ export const pasteMatchRowViewOf = (settled: SettledLine, online: boolean, copy:
                     kind: 'proposal',
                     food: settled.proposal,
                     tag: online ? line.checking.tag : line.checking.paused,
-                    busy: online,
+                    waiting: online,
                 },
                 trailing: undefined,
                 // Online, the check is still deciding, so the line offers what a cook needs now: take the proposal, or
@@ -374,7 +384,11 @@ export const pasteMatchRowViewOf = (settled: SettledLine, online: boolean, copy:
  * @param locale - The active locale, for each count's plural form.
  * @returns The summary's view.
  */
-export const pasteMatchSummaryOf = (counts: PasteMatchCounts, copy: Copy, locale: string): PasteMatchSummaryView => {
+export const pasteMatchSummaryOf = (
+    counts: PasteMatchCounts,
+    copy: LineCopy,
+    locale: string,
+): PasteMatchSummaryView => {
     const summary = copy.pasteMatch.summary;
     const parts = [
         [summary.choose, counts.choose],
@@ -398,15 +412,12 @@ export const pasteMatchSummaryOf = (counts: PasteMatchCounts, copy: Copy, locale
  * @param resetsAt - When the limit resets, ISO 8601 (the refusal's `resetsAt`).
  * @param copy - The localised copy.
  * @param locale - The active locale.
- * @param timeZone - The cook's IANA time zone; `undefined` reads the runtime's own.
+ * @param timeZone - The cook's IANA time zone, resolved by the host: passing it keeps this function pure.
  * @returns The notice's sentence.
  */
-export const quotaBodyOf = (resetsAt: string, copy: Copy, locale: string, timeZone: string | undefined): string =>
+export const quotaBodyOf = (resetsAt: string, copy: LineCopy, locale: string, timeZone: string): string =>
     fillTemplate(copy.pasteMatch.quota.body, {
-        time: new Intl.DateTimeFormat(locale, {
-            timeStyle: 'short',
-            ...(timeZone === undefined ? {} : { timeZone }),
-        }).format(new Date(resetsAt)),
+        time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(new Date(resetsAt)),
     });
 
 /** Where the side pane stands among the open lines. */
@@ -462,13 +473,6 @@ export const pasteMatchPaneViewOf = (
     };
 };
 
-/** A notice above the pasted lines. */
-export type PasteMatchNotice =
-    /** Offline: the check waits, choices are kept where the draft is (D7). */
-    | { readonly kind: 'offline'; readonly keep: DraftKeep }
-    /** The daily limit (004 FR-022): the lines are kept as written until it resets. */
-    | { readonly kind: 'quota'; readonly resetsAt: string; readonly timeZone: string | undefined };
-
 /**
  * A notice's sentence. Pure.
  *
@@ -477,7 +481,7 @@ export type PasteMatchNotice =
  * @param locale - The active locale.
  * @returns The sentence.
  */
-export const pasteMatchNoticeOf = (notice: PasteMatchNotice, copy: Copy, locale: string): string => {
+export const pasteMatchNoticeOf = (notice: PasteMatchNotice, copy: LineCopy, locale: string): string => {
     switch (notice.kind) {
         case 'offline':
             return notice.keep === 'disk' ? copy.pasteMatch.offline.bodyDevice : copy.pasteMatch.offline.bodyTab;

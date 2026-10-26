@@ -597,8 +597,6 @@ export interface RecipeFormMessages {
             readonly closedNeedNoMatch: string;
             /** After a food the cook picked, with the separator that sets it apart ("· your choice"). */
             readonly yourChoice: string;
-            /** A food option's name when it has a variant's parts: `{parts}` is the parts joined by `, `. */
-            readonly optionWithParts: string;
             /** The option a reopened line already holds: its name, then this (the check is drawn, never only coloured). */
             readonly chosenName: string;
             readonly lateSuggestion: string;
@@ -931,7 +929,6 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
                 },
                 closedNeedNoMatch: 'No food found · search or keep as written',
                 yourChoice: '· your choice',
-                optionWithParts: '{food}, {parts}',
                 chosenName: '{food}, chosen',
                 lateSuggestion: 'Our check suggested {food}. Your choice stays.',
                 seeWhy: 'See why',

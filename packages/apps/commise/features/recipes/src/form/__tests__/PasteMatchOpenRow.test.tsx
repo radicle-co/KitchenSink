@@ -7,12 +7,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { recipeMessages } from '../../messages.js';
 import { recipeFormMessages } from '../messages.js';
 import type { FoodChoice, OpenLine } from '../pasteMatchLine.js';
 import { pasteMatchOpenViewOf } from '../pasteMatchView.js';
 import { PasteMatchOpenRow } from '../PasteMatchOpenRow.js';
 
 const m = recipeFormMessages.en;
+const copy = { ...m, details: recipeMessages.en.ingredientDetails };
 const MILKS: readonly FoodChoice[] = [
     { id: 'skim', name: 'Skim milk', isDefault: false },
     { id: 'whole', name: 'Whole milk', isDefault: true },
@@ -59,7 +61,7 @@ function renderRow(line: OpenLine, online = true) {
         <ul>
             <PasteMatchOpenRow
                 line={line.line}
-                view={pasteMatchOpenViewOf(line, online, m)}
+                view={pasteMatchOpenViewOf(line, online, copy)}
                 searchFocusRequested={false}
                 {...handlers}
             />
@@ -111,6 +113,15 @@ describe('PasteMatchOpenRow (web)', () => {
         expect(screen.getByText('No food found for this')).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: 'Search for a food for 1 tsp Grandma’s spice mix' }));
         expect(onSearch).toHaveBeenCalledTimes(1);
+    });
+
+    it('is set apart by an edge, never by the fill its options use for hover, so a hover still shows', () => {
+        renderRow(MILK_LINE);
+
+        const row = screen.getAllByRole('listitem')[0]!;
+        expect(row.className).toContain('border-line-divider');
+        expect(row.className).not.toContain('bg-surface-muted');
+        expect(screen.getByRole('button', { name: 'Skim milk' }).className).toContain('hover:bg-surface-muted');
     });
 
     it('offline: search needs the network, and the options still show', () => {

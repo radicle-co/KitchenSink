@@ -18143,7 +18143,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PasteMatchOpenRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchOpenRow` (web): the one open pasted line on phone and 834\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line, its muted prompt (\"Choose the milk\nyou use\"), then its `FoodChoiceList`: Search for a food first, the options, Keep as written last. Which line is open,\nand opening the next after a pick, are the host's (the wiring phase).\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchOpenRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PasteMatchOpenRow` (web): the one open pasted line on phone and 834\n(`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). The line, its muted prompt (\"Choose the milk\nyou use\"), then its `FoodChoiceList`: Search for a food first, the options, Keep as written last. Which line is open,\nand opening the next after a pick, are the host's (the wiring phase).\n\nThe row is set apart by an edge, not a fill: its options use `surfaceMuted` for hover, which a fill of the same\ncolour would hide.\n\nPresentational: props in, markup out. The native leaf is `./PasteMatchOpenRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",

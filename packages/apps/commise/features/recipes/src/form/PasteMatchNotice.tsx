@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/form — `PasteMatchNotice` (web): the notice above the pasted lines when matching
  * cannot run (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, RecipeEditorPasteChooseStates):

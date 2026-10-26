@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/form — the contract `PasteMatchNotice`'s web and native leaves share.
  */
-import type { PasteMatchNotice } from './pasteMatchView.js';
+import type { PasteMatchNotice } from './pasteMatchLine.js';
 
 /** Props for the `PasteMatchNotice` leaves. */
 export interface PasteMatchNoticeProps {

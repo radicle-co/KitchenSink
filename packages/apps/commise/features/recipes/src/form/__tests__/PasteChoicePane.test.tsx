@@ -8,12 +8,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { recipeMessages } from '../../messages.js';
 import { recipeFormMessages } from '../messages.js';
 import type { FoodChoice, OpenLine } from '../pasteMatchLine.js';
 import { pasteMatchPaneViewOf, type PanePlace } from '../pasteMatchView.js';
 import { PasteChoicePane } from '../PasteChoicePane.js';
 
 const m = recipeFormMessages.en;
+const copy = { ...m, details: recipeMessages.en.ingredientDetails };
 const MILKS: readonly FoodChoice[] = [
     { id: 'skim', name: 'Skim milk', isDefault: false },
     { id: 'whole', name: 'Whole milk', isDefault: true },
@@ -58,7 +60,7 @@ function renderPane(line: OpenLine, place: PanePlace) {
 
     render(
         <PasteChoicePane
-            view={pasteMatchPaneViewOf(line, place, true, m)}
+            view={pasteMatchPaneViewOf(line, place, true, copy)}
             searchFocusRequested={false}
             {...handlers}
         />,

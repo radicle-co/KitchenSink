@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { recipeMessages } from '../../messages.js';
 import { recipeFormMessages } from '../messages.js';
 import type { FoodChoice, OpenLine } from '../pasteMatchLine.js';
 import { pasteMatchOpenViewOf } from '../pasteMatchView.js';
@@ -14,6 +15,7 @@ import { pasteMatchOpenViewOf } from '../pasteMatchView.js';
 import { PasteMatchOpenRow } from '../PasteMatchOpenRow.native.js';
 
 const m = recipeFormMessages.en;
+const copy = { ...m, details: recipeMessages.en.ingredientDetails };
 const MILKS: readonly FoodChoice[] = [
     { id: 'skim', name: 'Skim milk', isDefault: false },
     { id: 'whole', name: 'Whole milk', isDefault: true },
@@ -60,7 +62,7 @@ function renderRow(line: OpenLine, online = true) {
         <>
             <PasteMatchOpenRow
                 line={line.line}
-                view={pasteMatchOpenViewOf(line, online, m)}
+                view={pasteMatchOpenViewOf(line, online, copy)}
                 searchFocusRequested={false}
                 {...handlers}
             />
@@ -112,6 +114,21 @@ describe('PasteMatchOpenRow (native)', () => {
         expect(screen.getByText('No food found for this')).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: 'Search for a food for 1 tsp Grandma’s spice mix' }));
         expect(onSearch).toHaveBeenCalledTimes(1);
+    });
+
+    it('is set apart by an edge, never by the fill its options use when pressed, so a press still shows', () => {
+        const { container } = render(
+            <PasteMatchOpenRow
+                line={MILK_LINE.line}
+                view={pasteMatchOpenViewOf(MILK_LINE, true, copy)}
+                searchFocusRequested={false}
+                {...listHandlers()}
+            />,
+        );
+
+        const row = container.firstElementChild as HTMLElement;
+        expect(row.style.backgroundColor).toBe('');
+        expect(row.style.borderTopColor).not.toBe('');
     });
 
     it('offline: search needs the network, and the options still show', () => {

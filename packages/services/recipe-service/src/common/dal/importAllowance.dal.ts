@@ -18,7 +18,8 @@
  *  3. **The policy decides, the SQL fetches.** This module reads the user's events newer than the window edge and hands
  *     them to {@link evaluateImportAllowance}; it never re-states the 200 or the 24 h.
  *  4. **Expired units are deleted under the same lock.** An event past the window can never count again, so keeping it is
- *     only storage and personal data held for no purpose. The delete uses the policy's own edge.
+ *     only storage and personal data held for no purpose. The delete uses the policy's own edge. It runs on the user's next
+ *     admission, so a user who never pastes again keeps their last day of rows until account erasure (a bounded, small tail).
  */
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
@@ -41,7 +42,7 @@ export interface AdmitRequest {
     readonly tier: ImportAllowanceTier;
 }
 
-/** The outcome of an admission. A refusal wrote nothing. */
+/** The outcome of an admission. A refusal wrote no ledger row (the user's expired rows may still have been pruned). */
 export type AdmitOutcome = { readonly kind: 'admitted' } | { readonly kind: 'refused'; readonly resetsAt: Date };
 
 export class ImportAllowanceDal {

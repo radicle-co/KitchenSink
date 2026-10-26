@@ -223,6 +223,12 @@ describe('flattenSiblingImports', () => {
         );
     });
 
+    it('reduces a deep camelCase sibling specifier to its flat basename', () => {
+        expect(flattenSiblingImports("import { a } from '../recipes/parseJobs.schema.js';")).toBe(
+            "import { a } from './parseJobs.schema.js';",
+        );
+    });
+
     it('leaves an already-flat specifier untouched', () => {
         const source = "import { a } from './foods.schema.js';";
 

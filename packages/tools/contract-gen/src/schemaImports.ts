@@ -53,7 +53,7 @@ export interface AllowedPackageImport {
  * (`./foods.schema.js` → `foods.schema`), which is what {@link findUnpublishedSiblingImports} matches against
  * the set actually published.
  */
-const SIBLING_SCHEMA_PATTERN = /^\.\/([a-z0-9][a-z0-9-]*\.schema)\.js$/u;
+const SIBLING_SCHEMA_PATTERN = /^\.\/([a-zA-Z0-9][a-zA-Z0-9-]*\.schema)\.js$/u;
 
 /**
  * Whether a `*.schema.ts` file may import the given module specifier.

@@ -44,6 +44,7 @@ function renderStep(overrides: Partial<ImportWizardStepProps> = {}) {
             position={14}
             total={309}
             openLines={3}
+            checkingLines={0}
             nextFocus={{ requested: false, onHandled: vi.fn() }}
             {...handlers}
             {...overrides}
@@ -72,7 +73,7 @@ describe('ImportWizardStep (native)', () => {
 
         expect(screen.getByRole('heading', { name: 'Lemon drizzle cake' })).toBeTruthy();
         expect(screen.getByText('Recipe 14 of 309 · 3 lines to choose')).toBeTruthy();
-        expect(screen.getByRole('progressbar', { name: w.progressLabel }).getAttribute('aria-valuenow')).toBe('14');
+        expect(screen.getByRole('progressbar', { name: 'Review progress' }).getAttribute('aria-valuenow')).toBe('14');
         expect(screen.getByText('the lines')).toBeTruthy();
     });
 

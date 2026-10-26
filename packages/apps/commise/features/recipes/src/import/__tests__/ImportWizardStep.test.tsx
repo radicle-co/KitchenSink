@@ -4,6 +4,9 @@
  * K lines to choose" in words and as a progress bar, Save and leave, the recipe's lines, and Back, Skip and Next in the
  * step's action bar — pinned to the bottom below the wide class (thumb reach), in flow beside the rail at it.
  *
+ * The progress bar is "Review progress" with the recipe's place as its value (review finding m2: "Recipes reviewed" at
+ * recipe 1 claimed one was reviewed). A checking line is counted on its own (the design authority's count rule).
+ *
  * The focus case is new (review finding M4, staff-ux 2026-10-25): when the cook's pick leaves nothing open, the host
  * sends focus to Next recipe (`pickFocusOf` answers `done`), through the house `ControlFocus`.
  */
@@ -27,6 +30,7 @@ function renderStep(overrides: Partial<ImportWizardStepProps> = {}) {
             position={14}
             total={309}
             openLines={3}
+            checkingLines={0}
             nextFocus={{ requested: false, onHandled: vi.fn() }}
             {...handlers}
             {...overrides}
@@ -45,7 +49,7 @@ describe('ImportWizardStep (web)', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Lemon drizzle cake' })).toBeTruthy();
         expect(screen.getByText('Recipe 14 of 309 · 3 lines to choose')).toBeTruthy();
 
-        const bar = screen.getByRole('progressbar', { name: w.progressLabel });
+        const bar = screen.getByRole('progressbar', { name: 'Review progress' });
 
         expect(bar.getAttribute('aria-valuenow')).toBe('14');
         expect(bar.getAttribute('aria-valuemax')).toBe('309');
@@ -58,6 +62,15 @@ describe('ImportWizardStep (web)', () => {
 
         renderStep({ openLines: 0 });
         expect(screen.getByText('Recipe 14 of 309')).toBeTruthy();
+    });
+
+    it('counts a line still being checked on its own, never as one to choose', () => {
+        renderStep({ openLines: 2, checkingLines: 1 });
+        expect(screen.getByText('Recipe 14 of 309 · 2 lines to choose · 1 being checked')).toBeTruthy();
+        cleanup();
+
+        renderStep({ openLines: 0, checkingLines: 1 });
+        expect(screen.getByText('Recipe 14 of 309 · 1 being checked')).toBeTruthy();
     });
 
     it('draws the recipe’s lines', () => {

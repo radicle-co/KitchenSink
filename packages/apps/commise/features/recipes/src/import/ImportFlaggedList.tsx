@@ -66,7 +66,9 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                         </li>
                     ))}
                 </ul>
-                <p className="text-meta text-ink-muted">{fillTemplate(f.footer, { count: total })}</p>
+                <p className="text-meta text-ink-muted">
+                    {fillTemplate(f.footer, { title: pluralOf(f.title, total, locale) })}
+                </p>
             </div>
             {detail === undefined ? null : <div className="hidden w-96 shrink-0 @wide/main:block">{detail}</div>}
         </div>

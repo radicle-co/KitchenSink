@@ -96,4 +96,12 @@ describe('ImportSummary (web)', () => {
 
         expect(screen.getByText('828 of 855 recipes').closest('.hidden')).not.toBeNull();
     });
+
+    it('the coverage stat and its caption each stand alone (review finding M2)', () => {
+        renderSummary({ added: 1, countedRecipes: 1 });
+
+        expect(screen.getByText('1 of 1 recipe')).toBeTruthy();
+        expect(screen.getByText('Counted means every ingredient has a food.')).toBeTruthy();
+        expect(screen.queryByText(/have every ingredient counted/u)).toBeNull();
+    });
 });

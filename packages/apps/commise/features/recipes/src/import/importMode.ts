@@ -25,20 +25,21 @@ export type ImportMatchMode = (typeof IMPORT_MATCH_MODES)[number];
 
 /** Each mode's words. A mode added to the tuple without words here is a compile error. */
 const MODE_COPY: Readonly<
-    Record<ImportMatchMode, (m: ImportMessages['mode']) => { readonly label: string; readonly hint: string }>
+    Record<ImportMatchMode, (m: ImportMessages) => { readonly label: string; readonly hint: string }>
 > = {
-    saveAsWritten: (m) => ({ label: m.saveAsWrittenTitle, hint: m.saveAsWrittenHint }),
-    best: (m) => ({ label: m.bestTitle, hint: m.bestHint }),
-    review: (m) => ({ label: m.reviewTitle, hint: m.reviewHint }),
+    // The hint IS the bulk rule, the sentence Save and leave states too (`import.saveAsWritten.rule`).
+    saveAsWritten: (m) => ({ label: m.mode.saveAsWrittenTitle, hint: m.saveAsWritten.rule }),
+    best: (m) => ({ label: m.mode.bestTitle, hint: m.mode.bestHint }),
+    review: (m) => ({ label: m.mode.reviewTitle, hint: m.mode.reviewHint }),
 };
 
 /**
  * The modes as option-list rows. Pure.
  *
- * @param messages - The mode copy.
+ * @param messages - The import copy (the modes' words, and the bulk rule).
  * @returns One row per mode, in the board's order.
  */
-export function modeOptionsOf(messages: ImportMessages['mode']): readonly RadioListOption[] {
+export function modeOptionsOf(messages: ImportMessages): readonly RadioListOption[] {
     return IMPORT_MATCH_MODES.map((mode) => ({ id: mode, ...MODE_COPY[mode](messages) }));
 }
 

@@ -31,9 +31,9 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
     onConfirm,
     saving = false,
 }) => {
-    const { leave: l } = useMessages(importMessages);
+    const { leave: l, saveAsWritten } = useMessages(importMessages);
     const locale = useLocale();
-    const copy = leaveCopyOf({ reviewed, total, resumeAt }, l, locale);
+    const copy = leaveCopyOf({ reviewed, total, resumeAt }, l, saveAsWritten, locale);
 
     return (
         <Sheet
@@ -60,6 +60,7 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
             <div className="flex flex-col gap-3 text-body text-ink">
                 <p>{copy.reviewed}</p>
                 <p>{copy.rest}</p>
+                <p>{copy.rule}</p>
                 <p>{copy.resume}</p>
             </div>
         </Sheet>

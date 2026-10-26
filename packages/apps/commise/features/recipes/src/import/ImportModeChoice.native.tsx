@@ -32,7 +32,8 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
     onStart,
     starting = false,
 }) => {
-    const { mode: m } = useMessages(importMessages);
+    const messages = useMessages(importMessages);
+    const m = messages.mode;
     const locale = useLocale();
     const { colors } = useTheme();
     const wide = useContainerClass() === 'wide';
@@ -55,7 +56,7 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
             <RadioList
                 label={m.groupLabel}
                 look="cards"
-                options={modeOptionsOf(m)}
+                options={modeOptionsOf(messages)}
                 value={mode}
                 onChange={(id) => {
                     const chosen = modeOfOptionId(id);

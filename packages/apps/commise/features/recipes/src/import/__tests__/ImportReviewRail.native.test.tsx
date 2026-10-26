@@ -40,7 +40,7 @@ describe('ImportReviewRail (native)', () => {
 
         expect(buttons.map((button) => button.textContent)).toEqual([
             'Beef stew',
-            'Blondies · skipped',
+            'Blondies\u00A0· skipped',
             'Lemon drizzle cake',
         ]);
         expect(buttons.map((button) => button.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);

@@ -45,8 +45,10 @@ export interface ImportWizardStepProps {
     readonly position: number;
     /** Recipes to review in all. */
     readonly total: number;
-    /** Lines still needing the cook (`openLineCount`). */
+    /** Lines to choose: default, needsChoice and noMatch with nothing bound (`matchCountsOf(lines).choose`). */
     readonly openLines: number;
+    /** Lines still being checked, counted on their own (`matchCountsOf(lines).checking`). */
+    readonly checkingLines: number;
     /** The recipe's line list. */
     readonly children: ReactNode;
     /** The recipe rail, drawn beside the step at the wide container class (1194 and web) and nowhere else. */

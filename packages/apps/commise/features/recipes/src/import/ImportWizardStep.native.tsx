@@ -36,6 +36,7 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
     position,
     total,
     openLines,
+    checkingLines,
     children,
     rail,
     onBack,
@@ -104,7 +105,7 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
                     </Text>
                     <View style={styles.progress}>
                         <Text style={[styles.meta, { color: colors.inkMuted }]}>
-                            {progressTextOf({ position, total, openLines }, w, locale)}
+                            {progressTextOf({ position, total, openLines, checkingLines }, w, locale)}
                         </Text>
                         <ProgressBar label={w.progressLabel} value={position} max={total} />
                     </View>

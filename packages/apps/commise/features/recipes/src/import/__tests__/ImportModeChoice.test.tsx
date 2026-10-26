@@ -47,13 +47,23 @@ describe('ImportModeChoice (web)', () => {
         expect(screen.getByText(m.intro)).toBeTruthy();
     });
 
+    it('a file of one recipe reads "1 recipe"', () => {
+        renderChoice({ recipeCount: 1 });
+
+        expect(screen.getByText('Paprika · 1 recipe')).toBeTruthy();
+    });
+
     it('offers the three modes as one radio group, each described by its hint', () => {
         renderChoice();
 
         const group = screen.getByRole('radiogroup', { name: m.groupLabel });
 
         expect(within(group).getAllByRole('radio')).toEqual([
-            within(group).getByRole('radio', { name: m.saveAsWrittenTitle, description: m.saveAsWrittenHint }),
+            within(group).getByRole('radio', {
+                name: m.saveAsWrittenTitle,
+                description:
+                    'Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.',
+            }),
             within(group).getByRole('radio', { name: m.bestTitle, description: m.bestHint }),
             within(group).getByRole('radio', { name: m.reviewTitle, description: m.reviewHint }),
         ]);

@@ -6,11 +6,11 @@
     "coverage": {
         "components": 177,
         "implementations": 305,
-        "props": 1555,
+        "props": 1557,
         "documentedComponents": 177,
         "implementationsWithModuleDoc": 305,
         "implementationsWithComponentDoc": 198,
-        "documentedProps": 1276,
+        "documentedProps": 1278,
         "classifiedComponents": 157,
         "componentsWithPatternTag": 81,
         "crossPlatformComponents": 128
@@ -20899,6 +20899,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "checkingLines",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Lines still being checked, counted on their own (`matchCountsOf(lines).checking`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
                             "name": "children",
                             "type": "ReactNode",
                             "typeDetail": null,
@@ -20958,7 +20967,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Lines still needing the cook (`openLineCount`).",
+                            "description": "Lines to choose: default, needsChoice and noMatch with nothing bound (`matchCountsOf(lines).choose`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {
@@ -21023,6 +21032,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "checkingLines",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Lines still being checked, counted on their own (`matchCountsOf(lines).checking`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
+                        },
+                        {
                             "name": "children",
                             "type": "ReactNode",
                             "typeDetail": null,
@@ -21082,7 +21100,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Lines still needing the cook (`openLineCount`).",
+                            "description": "Lines to choose: default, needsChoice and noMatch with nothing bound (`matchCountsOf(lines).choose`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/import/props.ts"
                         },
                         {

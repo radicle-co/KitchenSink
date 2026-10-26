@@ -23,6 +23,13 @@ import type { PluralText } from '../format/plural.js';
 
 /** Copy for the bulk import's matching surfaces. */
 export interface ImportMessages {
+    /**
+     * The spec's `import.saveAsWritten.*`: the ONE sentence that says what "Save lines as written" does, read by the mode
+     * choice (as that mode's hint) and by Save and leave (which saves the rest the same way), so the two cannot differ.
+     */
+    readonly saveAsWritten: {
+        readonly rule: string;
+    };
     readonly mode: {
         readonly title: string;
         /** The file's source and size (contains `{source}`; `{count}` recipes). */
@@ -31,7 +38,6 @@ export interface ImportMessages {
         /** The radio group's accessible name. */
         readonly groupLabel: string;
         readonly saveAsWrittenTitle: string;
-        readonly saveAsWrittenHint: string;
         readonly bestTitle: string;
         readonly bestHint: string;
         readonly reviewTitle: string;
@@ -43,11 +49,15 @@ export interface ImportMessages {
         readonly promise: string;
     };
     readonly wizard: {
-        /** `{count}` lines to choose; contains `{n}`, `{total}`. */
-        readonly progress: PluralText;
-        /** A recipe with nothing to choose (contains `{n}`, `{total}`). */
-        readonly progressNothing: string;
-        /** The progress bar's accessible name. */
+        /** Where the review is (contains `{n}`, `{total}`); the counts below follow it, each after `partSeparator`. */
+        readonly progress: string;
+        /** `{count}` lines to choose: default, needsChoice and noMatch lines with nothing bound. */
+        readonly toChoose: PluralText;
+        /** `{count}` lines still being checked, counted on their own, never as lines to choose. */
+        readonly beingChecked: PluralText;
+        /** Joins the progress line's parts: a no-break space, so a dot never starts a line, then a middle dot. */
+        readonly partSeparator: string;
+        /** The progress bar's accessible name; its value is the recipe's place, as the words say. */
         readonly progressLabel: string;
         readonly back: string;
         /** Back's accessible name (contains `{n}`, the recipe it returns to). */
@@ -81,9 +91,9 @@ export interface ImportMessages {
     };
     readonly leave: {
         readonly title: string;
-        /** Contains `{reviewed}`, `{total}`. */
-        readonly reviewed: string;
-        /** The recipes saved now (`{count}`). */
+        /** `{count}` recipes in all; contains `{reviewed}`. */
+        readonly reviewed: PluralText;
+        /** The recipes saved now (`{count}`). What happens to their lines is `saveAsWritten.rule`. */
         readonly rest: PluralText;
         /** Where they wait and where the review resumes (contains `{next}`). */
         readonly resume: string;
@@ -113,8 +123,9 @@ export interface ImportMessages {
         readonly asWrittenRecipes: PluralText;
         readonly chooseFoods: string;
         readonly coverageTitle: string;
-        /** Contains `{counted}`, `{total}`. */
-        readonly coverage: string;
+        /** The stat, whole on its own: `{count}` recipes added; contains `{counted}`. */
+        readonly coverage: PluralText;
+        /** The caption under the stat, whole on its own: what "counted" means. */
         readonly coverageHint: string;
     };
     readonly flagged: {
@@ -132,7 +143,7 @@ export interface ImportMessages {
         readonly useName: string;
         /** The labelled Search button. Its accessible name is the matched line's `searchName` (one key). */
         readonly search: string;
-        /** Contains `{count}`. */
+        /** Contains `{title}`, filled with the title's own plural, so the two always say the same words. */
         readonly footer: string;
         /** The options sheet's close control (house form "Close {thing}"; contains `{line}`). */
         readonly sheetClose: string;
@@ -142,14 +153,15 @@ export interface ImportMessages {
 /** The bulk import's matching copy, `en` only (the one shipped locale). */
 export const importMessages: LocalizedMessages<ImportMessages> = {
     en: {
+        saveAsWritten: {
+            rule: 'Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.',
+        },
         mode: {
             title: 'Bring in your library',
-            fileSummary: { one: '{source} · {count} recipe', other: '{source} · {count} recipes' },
+            fileSummary: { one: '{source}\u00A0· {count} recipe', other: '{source}\u00A0· {count} recipes' },
             intro: 'Choose how ingredients are matched to foods. Nutrition comes from the food.',
             groupLabel: 'How to match ingredients',
             saveAsWrittenTitle: 'Save lines as written',
-            saveAsWrittenHint:
-                'Matched foods and the usual defaults are set. Every other line is saved as written, with no food, for you to choose later.',
             bestTitle: 'Pick the best match for me',
             bestHint:
                 'Every line takes its best match. A check runs on each one after saving, and lists any it doubts for you to look at.',
@@ -161,12 +173,11 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
                 'Whatever you choose, nothing is ever matched to a food you did not mean without you being able to see and change it.',
         },
         wizard: {
-            progress: {
-                one: 'Recipe {n} of {total} · {count} line to choose',
-                other: 'Recipe {n} of {total} · {count} lines to choose',
-            },
-            progressNothing: 'Recipe {n} of {total}',
-            progressLabel: 'Recipes reviewed',
+            progress: 'Recipe {n} of {total}',
+            toChoose: { one: '{count} line to choose', other: '{count} lines to choose' },
+            beingChecked: { one: '{count} being checked', other: '{count} being checked' },
+            partSeparator: '\u00A0· ',
+            progressLabel: 'Review progress',
             back: 'Back',
             backName: 'Back to recipe {n}',
             skip: 'Skip',
@@ -187,7 +198,7 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             rail: {
                 label: 'Recipes to review',
                 title: { one: '{count} recipe to review', other: '{count} recipes to review' },
-                skipped: '{recipe} · skipped',
+                skipped: '{recipe}\u00A0· skipped',
                 rest: {
                     one: '{count} more needed nothing from you and is already in.',
                     other: '{count} more needed nothing from you and are already in.',
@@ -196,11 +207,11 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
         },
         leave: {
             title: 'Save and leave?',
-            reviewed: 'You reviewed {reviewed} of {total} recipes.',
-            rest: {
-                one: 'The other {count} is saved now. Matched foods and the usual defaults are set, with a Default tag. Every other line is kept as written.',
-                other: 'The other {count} are saved now. Matched foods and the usual defaults are set, with a Default tag. Every other line is kept as written.',
+            reviewed: {
+                one: 'You reviewed {reviewed} of {count} recipe.',
+                other: 'You reviewed {reviewed} of {count} recipes.',
             },
+            rest: { one: 'The other {count} is saved now.', other: 'The other {count} are saved now.' },
             resume: 'They wait under “To review” in My recipes, and you can pick up at recipe {next}.',
             keep: 'Keep reviewing',
             confirm: 'Save and leave',
@@ -210,7 +221,7 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             title: 'Your library is in',
             from: 'From {source}, {when}.',
             added: { one: '{count} added', other: '{count} added' },
-            breakdown: '{nothing} needed nothing · {reviewed} you reviewed · {skipped} you skipped',
+            breakdown: '{nothing} needed nothing\u00A0· {reviewed} you reviewed\u00A0· {skipped} you skipped',
             seeThem: 'See them',
             alreadyHere: { one: '{count} already here', other: '{count} already here' },
             alreadyHereHint: 'Matched to recipes you have',
@@ -223,8 +234,8 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
             asWrittenRecipes: { one: '{count} recipe', other: '{count} recipes' },
             chooseFoods: 'Choose foods',
             coverageTitle: 'Nutrition coverage',
-            coverage: '{counted} of {total} recipes',
-            coverageHint: 'have every ingredient counted.',
+            coverage: { one: '{counted} of {count} recipe', other: '{counted} of {count} recipes' },
+            coverageHint: 'Counted means every ingredient has a food.',
         },
         flagged: {
             title: { one: '{count} to check', other: '{count} to check' },
@@ -232,12 +243,12 @@ export const importMessages: LocalizedMessages<ImportMessages> = {
                 one: 'Our check doubted {count} of the matches it picked for you. Nothing changes until you choose.',
                 other: 'Our check doubted {count} of the matches it picked for you. Nothing changes until you choose.',
             },
-            lineContext: '{line} · {recipe}',
+            lineContext: '{line}\u00A0· {recipe}',
             doubt: 'Matched to {food}. Our check doubts it.',
             use: 'Use {food}',
             useName: 'Use {food} for {line}',
             search: 'Search',
-            footer: 'Each line also has a mark in its recipe. “{count} to check” stays at the top of My recipes until you are done.',
+            footer: 'Each line also has a mark in its recipe. “{title}” stays at the top of My recipes until you are done.',
             sheetClose: 'Close options for {line}',
         },
     },

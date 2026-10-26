@@ -73,7 +73,7 @@ export const ImportFlaggedList: FC<ImportFlaggedListProps> = ({ total, lines, on
                     ))}
                 </View>
                 <Text style={[styles.meta, { color: colors.inkMuted }]}>
-                    {fillTemplate(f.footer, { count: total })}
+                    {fillTemplate(f.footer, { title: pluralOf(f.title, total, locale) })}
                 </Text>
             </View>
             {wide && detail !== undefined ? <View style={styles.pane}>{detail}</View> : null}

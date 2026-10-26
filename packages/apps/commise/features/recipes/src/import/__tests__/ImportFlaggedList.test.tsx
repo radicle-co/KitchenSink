@@ -116,6 +116,20 @@ describe('ImportFlaggedList (web)', () => {
         ).toBeTruthy();
     });
 
+    it('the footer says the title’s own words, so one line reads “1 to check”', () => {
+        renderList({ total: 1 });
+
+        expect(screen.getByRole('heading', { level: 1, name: '1 to check' })).toBeTruthy();
+        expect(
+            screen.getByText('Our check doubted 1 of the matches it picked for you. Nothing changes until you choose.'),
+        ).toBeTruthy();
+        expect(
+            screen.getByText(
+                'Each line also has a mark in its recipe. “1 to check” stays at the top of My recipes until you are done.',
+            ),
+        ).toBeTruthy();
+    });
+
     it('draws the open line’s options beside the list at the wide class only, and nothing without them', () => {
         renderList({ detail: <section aria-label="options pane" /> });
 

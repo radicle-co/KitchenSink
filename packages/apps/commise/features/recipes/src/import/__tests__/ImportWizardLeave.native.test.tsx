@@ -37,7 +37,12 @@ describe('ImportWizardLeave (native)', () => {
 
         expect(screen.getByText(l.title)).toBeTruthy();
         expect(screen.getByText('You reviewed 14 of 309 recipes.')).toBeTruthy();
-        expect(screen.getByText(/^The other 295 are saved now\./u)).toBeTruthy();
+        expect(screen.getByText('The other 295 are saved now.')).toBeTruthy();
+        expect(
+            screen.getByText(
+                'Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.',
+            ),
+        ).toBeTruthy();
         expect(
             screen.getByText('They wait under “To review” in My recipes, and you can pick up at recipe 15.'),
         ).toBeTruthy();

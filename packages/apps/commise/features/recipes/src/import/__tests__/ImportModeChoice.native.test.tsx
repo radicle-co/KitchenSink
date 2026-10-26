@@ -66,7 +66,7 @@ describe('ImportModeChoice (native)', () => {
         const radios = within(screen.getByRole('radiogroup', { name: m.groupLabel })).getAllByRole('radio');
 
         expect(radios.map((radio) => radio.textContent)).toEqual([
-            `${m.saveAsWrittenTitle}${m.saveAsWrittenHint}`,
+            `${m.saveAsWrittenTitle}Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.`,
             `${m.bestTitle}${m.bestHint}`,
             `${m.reviewTitle}${m.reviewHint}`,
         ]);

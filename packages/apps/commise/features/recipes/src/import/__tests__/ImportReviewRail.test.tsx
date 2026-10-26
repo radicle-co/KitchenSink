@@ -3,6 +3,9 @@
  * Component tests for the web `ImportReviewRail` (board WizardStep at 1194 and web): a navigation landmark over a window
  * of the recipes to review, the current one marked, a skipped one saying so in its name, and the recipes added without
  * a step counted under it.
+ *
+ * The skipped row's name keeps a no-break space before its dot, and every count has its count-1 case (review finding
+ * M2).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -52,7 +55,7 @@ describe('ImportReviewRail (web)', () => {
 
         expect(buttons).toEqual([
             within(nav).getByRole('button', { name: 'Beef stew' }),
-            within(nav).getByRole('button', { name: 'Blondies · skipped' }),
+            within(nav).getByRole('button', { name: 'Blondies\u00A0· skipped' }),
             within(nav).getByRole('button', { name: 'Lemon drizzle cake' }),
         ]);
         expect(buttons.map((button) => button.getAttribute('aria-current'))).toEqual([null, null, 'step']);
@@ -74,5 +77,12 @@ describe('ImportReviewRail (web)', () => {
 
         renderRail({ addedWithoutStep: 0 });
         expect(screen.queryByText(/needed nothing from you/u)).toBeNull();
+    });
+
+    it('one recipe of each reads in the singular', () => {
+        renderRail({ total: 1, addedWithoutStep: 1 });
+
+        expect(screen.getByText('1 recipe to review')).toBeTruthy();
+        expect(screen.getByText('1 more needed nothing from you and is already in.')).toBeTruthy();
     });
 });

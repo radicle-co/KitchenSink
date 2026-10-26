@@ -53,6 +53,6 @@ export function summaryCopyOf(counts: SummaryCounts, messages: ImportMessages['s
                       recipes: pluralOf(messages.asWrittenRecipes, counts.asWrittenRecipes, locale),
                   })
                 : undefined,
-        coverage: fillTemplate(messages.coverage, { counted: counts.countedRecipes, total: counts.added }),
+        coverage: fillTemplate(pluralOf(messages.coverage, counts.added, locale), { counted: counts.countedRecipes }),
     };
 }

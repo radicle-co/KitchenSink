@@ -26,10 +26,10 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
     onConfirm,
     saving = false,
 }) => {
-    const { leave: l } = useMessages(importMessages);
+    const { leave: l, saveAsWritten } = useMessages(importMessages);
     const locale = useLocale();
     const { colors } = useTheme();
-    const copy = leaveCopyOf({ reviewed, total, resumeAt }, l, locale);
+    const copy = leaveCopyOf({ reviewed, total, resumeAt }, l, saveAsWritten, locale);
     const body = [styles.body, { color: colors.ink }];
 
     return (
@@ -57,6 +57,7 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
             <View style={styles.copy}>
                 <Text style={body}>{copy.reviewed}</Text>
                 <Text style={body}>{copy.rest}</Text>
+                <Text style={body}>{copy.rule}</Text>
                 <Text style={body}>{copy.resume}</Text>
             </View>
         </Sheet>

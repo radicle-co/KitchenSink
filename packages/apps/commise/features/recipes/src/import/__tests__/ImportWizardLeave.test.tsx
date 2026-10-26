@@ -48,7 +48,13 @@ describe('ImportWizardLeave (web)', () => {
         const dialog = screen.getByRole('dialog', { name: l.title });
 
         expect(within(dialog).getByText('You reviewed 14 of 309 recipes.')).toBeTruthy();
-        expect(within(dialog).getByText(/^The other 295 are saved now\./u)).toBeTruthy();
+        expect(within(dialog).getByText('The other 295 are saved now.')).toBeTruthy();
+        // The one bulk rule, word for word the mode choice's (`import.saveAsWritten.rule`).
+        expect(
+            within(dialog).getByText(
+                'Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.',
+            ),
+        ).toBeTruthy();
         expect(
             within(dialog).getByText('They wait under “To review” in My recipes, and you can pick up at recipe 15.'),
         ).toBeTruthy();
@@ -102,6 +108,6 @@ describe('ImportWizardLeave (web)', () => {
     it('never counts below zero recipes saved now', () => {
         renderLeave({ reviewed: 309, total: 309 });
 
-        expect(screen.getByText(/^The other 0 are saved now\./u)).toBeTruthy();
+        expect(screen.getByText('The other 0 are saved now.')).toBeTruthy();
     });
 });

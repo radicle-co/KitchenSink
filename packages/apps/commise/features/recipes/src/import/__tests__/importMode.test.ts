@@ -11,8 +11,12 @@ const m = importMessages.en.mode;
 
 describe('modeOptionsOf', () => {
     it('lists the three modes in the board’s order, each with its title and hint, none tagged', () => {
-        expect(modeOptionsOf(m)).toEqual([
-            { id: 'saveAsWritten', label: m.saveAsWrittenTitle, hint: m.saveAsWrittenHint },
+        expect(modeOptionsOf(importMessages.en)).toEqual([
+            {
+                id: 'saveAsWritten',
+                label: m.saveAsWrittenTitle,
+                hint: 'Matched foods and the usual defaults are set, and each default keeps its Default tag. Every other line is saved as written, with no food, for you to choose later.',
+            },
             { id: 'best', label: m.bestTitle, hint: m.bestHint },
             { id: 'review', label: m.reviewTitle, hint: m.reviewHint },
         ]);

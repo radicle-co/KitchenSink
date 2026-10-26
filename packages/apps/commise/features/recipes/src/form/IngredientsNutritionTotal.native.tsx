@@ -38,7 +38,7 @@ export const IngredientsNutritionTotal: FC<IngredientsNutritionTotalProps> = ({
                     <Text style={[styles.caption, { color: colors.inkMuted }]}>{failedText}</Text>
                     {onRetry !== undefined && (
                         <View style={styles.action}>
-                            <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
+                            <Button variant="quiet" icon="refreshCw" description={failedText} onPress={onRetry}>
                                 {retryLabel}
                             </Button>
                         </View>

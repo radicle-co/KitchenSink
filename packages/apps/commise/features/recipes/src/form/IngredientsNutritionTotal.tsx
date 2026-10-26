@@ -50,7 +50,7 @@ export const IngredientsNutritionTotal: FC<IngredientsNutritionTotalProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                     <p className="text-caption text-ink-muted">{failedText}</p>
                     {onRetry !== undefined && (
-                        <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
+                        <Button variant="quiet" icon="refreshCw" description={failedText} onPress={onRetry}>
                             {retryLabel}
                         </Button>
                     )}

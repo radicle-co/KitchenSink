@@ -887,7 +887,7 @@ describe('RecipeIngredientsFields (web) — the running total (§7.5.6)', () => 
         const retry = vi.fn();
         renderLeaf({ nutrition: makeIngredientNutrition({ read: 'failed', retry }) });
 
-        expect(screen.getByText(en.nutritionLoadFailed)).toBeTruthy();
+        expect(screen.getByText(en.nutritionLoadFailed, { selector: 'p' })).toBeTruthy();
         await user.click(screen.getByRole('button', { name: en.statusActionRetry }));
 
         expect(retry).toHaveBeenCalledTimes(1);

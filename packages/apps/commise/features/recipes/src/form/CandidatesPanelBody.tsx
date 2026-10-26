@@ -79,7 +79,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                 return (
                     <>
                         <p role="alert">{body.text}</p>
-                        <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
+                        <Button variant="quiet" icon="refreshCw" description={body.text} onPress={onRetryRead}>
                             {m.statusActionRetry}
                         </Button>
                     </>

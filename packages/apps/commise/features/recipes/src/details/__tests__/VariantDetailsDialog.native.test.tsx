@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { BEEF_BRISKET, BONELESS_SKINLESS_CHICKEN_THIGHS } from '../__fixtures__/seedVariants.js';
 import { editEntry, loadedRead, makeDetailsModel } from '../__fixtures__/detailsModel.js';
 import type { DetailsDialogEntry } from '../detailsDialogMachine.js';
@@ -110,6 +111,8 @@ describe('read states', () => {
 
         expect(alert.textContent).toBe('We couldn’t load the details. Your ingredient hasn’t changed.');
         expect(vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls).toEqual([[alert, 'focus']]);
+        // `componentFixes.md` §1: the failed read's Try again is the quiet Button.
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Try again' }), 'quiet', 'refresh-cw');
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         expect(failed.onRetry).toHaveBeenCalledTimes(1);
     });

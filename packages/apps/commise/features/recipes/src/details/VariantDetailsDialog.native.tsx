@@ -157,7 +157,12 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                             {copy.loadFailed}
                         </Text>
                         <View style={styles.retry}>
-                            <Button variant="secondary" icon="refreshCw" onPress={details.onRetry}>
+                            <Button
+                                variant="quiet"
+                                icon="refreshCw"
+                                description={copy.loadFailed}
+                                onPress={details.onRetry}
+                            >
                                 {copy.retry}
                             </Button>
                         </View>

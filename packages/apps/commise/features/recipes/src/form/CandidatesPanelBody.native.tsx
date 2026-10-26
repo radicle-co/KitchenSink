@@ -90,7 +90,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                         <LiveRegion politeness="assertive" style={text}>
                             {body.text}
                         </LiveRegion>
-                        <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
+                        <Button variant="quiet" icon="refreshCw" description={body.text} onPress={onRetryRead}>
                             {m.statusActionRetry}
                         </Button>
                     </>

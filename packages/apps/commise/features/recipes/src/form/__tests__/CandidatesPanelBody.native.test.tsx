@@ -24,6 +24,7 @@ import { entrySearchViewOf, type EntrySearchView } from '../../hooks/foodSuggest
 import { recipeMessages } from '../../messages.js';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { CandidatesPanelBody } from '../CandidatesPanelBody.native.js';
 import { recipeFormMessages } from '../messages.js';
 import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
@@ -197,6 +198,20 @@ describe('CandidatesPanelBody (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: en.statusActionRetry }));
 
         expect(onRetryRead).toHaveBeenCalledTimes(1);
+    });
+
+    // `componentFixes.md` §1: Try again is the quiet pill with the refreshCw glyph, named by its label. (The description
+    // reaches a screen reader as the native accessibility hint, which react-native-web does not draw into the DOM.)
+    it('draws Try again as the quiet Button with the retry glyph, and it stays pressable after a press', () => {
+        const { onRetryRead } = renderBody(viewOf([]));
+        const retry = screen.getByRole('button', { name: en.statusActionRetry });
+
+        expectNativeDesignSystemButton(retry, 'quiet', 'refresh-cw');
+
+        fireEvent.click(retry);
+
+        expect(onRetryRead).toHaveBeenCalledTimes(1);
+        expect(retry.getAttribute('aria-disabled')).not.toBe('true');
     });
 
     it('a remote pick food refused is said assertively, and the list stays to choose again (P8)', () => {

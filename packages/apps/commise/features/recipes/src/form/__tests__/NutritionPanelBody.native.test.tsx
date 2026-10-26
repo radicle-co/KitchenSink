@@ -6,7 +6,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -15,6 +15,7 @@ vi.mock('react-native', async (importOriginal) => {
     return withSystemScheme(await importOriginal<typeof import('react-native')>());
 });
 
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { recipeFormMessages } from '../messages.js';
 import { NutritionPanelBody } from '../NutritionPanelBody.native.js';
 import type { NutritionPanelState } from '../nutritionPanel.js';
@@ -67,5 +68,26 @@ describe.each(['light', 'dark'] as const)('NutritionPanelBody (native) — the %
 
         expect(getComputedStyle(screen.getByText(m.nutritionLoadFailed)).color).toBe(rgb(colours.ink));
         expect(screen.getByRole('button', { name: m.statusActionRetry })).toBeTruthy();
+    });
+});
+
+describe('NutritionPanelBody (native) — Try again', () => {
+    // `componentFixes.md` §1: Try again is the quiet pill with the refreshCw glyph, and stays pressable after a press.
+    // Light only: the helper reads the light `actionText`; the dark repaint is the Button's own suite.
+    it('draws Try again as the quiet Button with the retry glyph', () => {
+        const onRetry = vi.fn();
+
+        render(
+            <LocaleProvider locale="en">
+                <NutritionPanelBody state={{ kind: 'failed' }} onRetry={onRetry} />
+            </LocaleProvider>,
+        );
+        const retry = screen.getByRole('button', { name: m.statusActionRetry });
+
+        expectNativeDesignSystemButton(retry, 'quiet', 'refresh-cw');
+        fireEvent.click(retry);
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(retry.getAttribute('aria-disabled')).not.toBe('true');
     });
 });

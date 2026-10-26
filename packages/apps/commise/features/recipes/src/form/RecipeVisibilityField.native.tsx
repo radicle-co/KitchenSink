@@ -100,8 +100,10 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
             </View>
             {slotsFull === undefined ? null : (
                 // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
-                <View collapsable={false} role="group" aria-label={slotsFull.title} style={styles.ways}>
-                    <Text style={[styles.legend, { color: colors.ink }]}>{slotsFull.title}</Text>
+                <View style={styles.ways}>
+                    <Text accessibilityRole="header" style={[styles.legend, { color: colors.ink }]}>
+                        {slotsFull.title}
+                    </Text>
                     {slotsFull.ways.map((way) => (
                         <Pressable
                             key={way.id}

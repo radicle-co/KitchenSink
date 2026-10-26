@@ -80,7 +80,7 @@ export const ADVISORY_LOCK_CLASSES = {
      * recipe-service's per-user private-slot lock (`recipes/dal/privateSlots.dal.ts`, ADR-0073): the live count of a free
      * cook's private recipes and the write that makes one more are one decision, so two private writes racing at 49 cannot
      * both land. Taken as the first statement of the write's transaction. ⛔ When one transaction also holds
-     * {@link recipeImportAllowance}, that one is taken FIRST - a fixed order, so the two can never deadlock.
+     * `recipeImportAllowance`, that one is taken FIRST - a fixed order, so the two can never deadlock.
      */
     recipePrivateSlots: 13,
 } as const;

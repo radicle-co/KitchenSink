@@ -324,13 +324,9 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
     it('the refusal offers three ways forward - make one public, delete one, take Premium - each described', () => {
         render(<Harness paidFeatures="upsell" facts={slots(FULL)} />);
 
-        const group = screen.getByRole('group', { name: v.waysTitle });
-
-        expect(
-            within(group)
-                .getAllByRole('button')
-                .map((b) => b.textContent),
-        ).toEqual([
+        // The title names the ways (a heading, not a labelled group: nativeContainerNames.md N1), and they are the only buttons.
+        expect(screen.getByRole('heading', { name: v.waysTitle })).toBeTruthy();
+        expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
             `${v.wayMakePublic}${v.wayMakePublicDetail}`,
             `${v.wayDelete}${v.wayDeleteDetail}`,
             `${v.wayPremium}${v.wayPremiumDetail}`,
@@ -369,7 +365,7 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
         render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={slots(FULL)} />);
 
         expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
-        expect(screen.queryByRole('group', { name: v.waysTitle })).toBeNull();
+        expect(screen.queryByRole('heading', { name: v.waysTitle })).toBeNull();
     });
 
     it('⛔ a private recipe made public says it frees a slot, and asks to confirm first', () => {

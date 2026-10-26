@@ -69,6 +69,14 @@ interface ButtonCommon {
      */
     readonly busy?: boolean;
     /**
+     * Refuses the press because a SIBLING's send is in flight (a list of foods while one is sent). Unlike
+     * {@link disabled} it may be raised while the button holds focus, so on WEB the button stays FOCUSABLE —
+     * `aria-disabled`, the click cancelled, no busy claim and no spinner (see `busyControlProps`); on NATIVE the
+     * `Pressable` is disabled, which keeps screen-reader focus on device. It dims as a disabled button does. It
+     * yields to {@link busy} and wins over {@link disabled}.
+     */
+    readonly refused?: boolean;
+    /**
      * Overrides the label-derived accessible name. Use only when the visible label is not a plain string or is
      * insufficient on its own; the visible label must stay contained in it (SC 2.5.3).
      */

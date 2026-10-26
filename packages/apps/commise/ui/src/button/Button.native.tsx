@@ -92,6 +92,7 @@ export const Button: FC<ButtonProps> = (props) => {
         onPress,
         disabled = false,
         busy = false,
+        refused = false,
         accessibilityLabel,
         width = 'auto',
         iconPlacement = 'start',
@@ -106,8 +107,9 @@ export const Button: FC<ButtonProps> = (props) => {
     const node = useRef<View>(null);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
 
-    // A busy control is also disabled so an in-flight action cannot be double-fired.
-    const inactive = disabled || busy;
+    // A busy or refused control is also disabled so an in-flight action cannot be double-fired; a disabled `Pressable`
+    // keeps screen-reader focus on device, so native needs no web-style focus guard.
+    const inactive = disabled || busy || refused;
     const height = visualHeightOf(size);
     const geometry: ViewStyle = { minHeight: height, borderRadius: height / 2 };
 

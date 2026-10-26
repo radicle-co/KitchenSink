@@ -127,6 +127,27 @@ describe('Button (web)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
+    it('⛔ a REFUSED button keeps focus and refuses the press, with no busy claim and no spinner', async () => {
+        const user = userEvent.setup();
+        const onPress = vi.fn();
+        render(
+            <Button variant="ghost" icon="search" onPress={onPress} refused disabled>
+                Search for a food
+            </Button>,
+        );
+
+        const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Search for a food' });
+        button.focus();
+        await user.click(button);
+
+        expect(button.disabled).toBe(false);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.hasAttribute('aria-busy')).toBe(false);
+        expect(button.querySelector('.animate-spin')).toBeNull();
+        expect(document.activeElement).toBe(button);
+        expect(onPress).not.toHaveBeenCalled();
+    });
+
     it('⛔ a busy SUBMIT button does not let Enter in a field submit the form a second time', async () => {
         // HTML implicit submission fires a click on the form's default button when Enter is pressed in a field.
         // Native `disabled` used to stop that; the busy click handler must cancel it (`preventDefault`), or a

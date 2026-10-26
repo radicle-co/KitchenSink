@@ -47,6 +47,7 @@ export const Button: FC<ButtonProps> = (props) => {
         type = 'button',
         disabled = false,
         busy = false,
+        refused = false,
         accessibilityLabel,
         width = 'auto',
         iconPlacement = 'start',
@@ -73,7 +74,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 type={type}
                 // ⛔ BUSY IS NOT NATIVE `disabled` — the control that goes busy is the one just pressed, and a browser
                 // drops focus from a disabled control. The rule, and why the click is cancelled, is `busyControlProps`'s.
-                {...busyControlProps({ busy, blocked: disabled, onClick: () => onPress?.() })}
+                {...busyControlProps({ busy, refused, blocked: disabled, onClick: () => onPress?.() })}
                 aria-label={accessibilityLabel}
                 // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
                 className={width === 'fill' ? `${surface} w-full` : surface}

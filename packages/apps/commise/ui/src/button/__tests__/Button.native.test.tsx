@@ -182,6 +182,23 @@ describe('Button (native)', () => {
         expect(button.getAttribute('aria-busy')).toBe('true');
     });
 
+    it('does not fire onPress when refused, dims, and claims no busy state', () => {
+        const onPress = vi.fn();
+        render(
+            <Button variant="ghost" icon="search" onPress={onPress} refused>
+                Search for a food
+            </Button>,
+        );
+
+        const button = screen.getByRole('button', { name: 'Search for a food' });
+        fireEvent.click(button);
+
+        expect(onPress).not.toHaveBeenCalled();
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.getAttribute('aria-busy')).not.toBe('true');
+        expect(getComputedStyle(pillOf(button)).opacity).toBe(String(dimmedOpacity));
+    });
+
     it('does not announce busy on an idle button', () => {
         render(<Button icon="plus">Add step</Button>);
 

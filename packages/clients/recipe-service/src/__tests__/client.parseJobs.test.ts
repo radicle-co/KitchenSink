@@ -22,7 +22,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { InvalidRequestError, NotFoundError, ParseJobExpiredError, RecipeServiceClient } from '../index.js';
+import {
+    ImportQuotaExceededError,
+    InvalidRequestError,
+    NotFoundError,
+    ParseJobExpiredError,
+    RecipeServiceClient,
+} from '../index.js';
 import {
     FIXTURE_PARSE_JOB_UUID,
     makeCompleteParseJob,
@@ -222,6 +228,36 @@ describe('RecipeServiceClient — parse jobs', () => {
 
         expect(error).toBeInstanceOf(ParseJobExpiredError);
         expect(error).toMatchObject({ status: 409, code: 'PARSE_JOB_EXPIRED' });
+    });
+
+    it('⛔ maps 429 IMPORT_QUOTA_EXCEEDED to its OWN typed error carrying resetsAt, not a throttle (004 FR-022)', async () => {
+        const fetchMock = stubFetch(429, {
+            code: 'IMPORT_QUOTA_EXCEEDED',
+            message: 'The daily import allowance is spent.',
+            details: { resetsAt: '2026-10-27T03:30:00.000Z' },
+        });
+
+        const error = await makeClient(fetchMock)
+            .createParseJob({ text: '2 cups flour' })
+            .catch((thrown: unknown) => thrown);
+
+        expect(error).toBeInstanceOf(ImportQuotaExceededError);
+        expect(error).toMatchObject({
+            status: 429,
+            code: 'IMPORT_QUOTA_EXCEEDED',
+            resetsAt: '2026-10-27T03:30:00.000Z',
+        });
+    });
+
+    it('does not mistake a plain throttle 429 for the quota: that one stays a generic, retryable response', async () => {
+        const fetchMock = stubFetch(429, { code: 'TOO_MANY_REQUESTS', message: 'Slow down.' });
+
+        const error = await makeClient(fetchMock)
+            .createParseJob({ text: '2 cups flour' })
+            .catch((thrown: unknown) => thrown);
+
+        expect(error).not.toBeInstanceOf(ImportQuotaExceededError);
+        expect(error).toMatchObject({ status: 429, code: 'TOO_MANY_REQUESTS' });
     });
 
     it('editParseJobLine surfaces the same expiry error — the TTL bounds every mutation, not just retry', async () => {

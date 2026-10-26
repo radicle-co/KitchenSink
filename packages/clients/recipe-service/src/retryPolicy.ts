@@ -59,6 +59,7 @@ import {
     isFetchUnavailableError,
     isForbiddenError,
     isGoneError,
+    isImportQuotaExceededError,
     isInvalidRequestError,
     isNotFoundError,
     isParseJobExpiredError,
@@ -135,6 +136,9 @@ export function shouldRetryRecipeServiceFailure(error: unknown): boolean {
         isPullDriftError(error) ||
         isGoneError(error) ||
         isParseJobExpiredError(error) ||
+        // ⛔ A 429 that is NOT a throttle: the daily allowance stays spent until `resetsAt`, hours away, so a backoff retry
+        // only hammers the server and hides the quota notice (004 FR-022). Checked before any status rule can see a 429.
+        isImportQuotaExceededError(error) ||
         isVersionLineUnrestorableError(error)
     ) {
         return false;

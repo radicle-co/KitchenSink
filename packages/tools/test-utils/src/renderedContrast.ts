@@ -17,7 +17,7 @@
  *    jsdom DOES compute, so the leaf's colour is read straight off the DOM.
  *
  * Alpha compositing is explicit and required in both. Commise paints most of its chips and glass on
- * TRANSLUCENT surfaces (`bg-steel/10`, `rgba(61,139,133,0.1)`), and a ratio measured against the raw token
+ * TRANSLUCENT surfaces (`bg-steel/10`, `rgba(50,92,127,0.1)`), and a ratio measured against the raw token
  * scores the text against opaque steel — which no reader ever sees.
  *
  * `variant` exists because a HOVER state is a state like any other: a chip whose resting pair passes and

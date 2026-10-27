@@ -38,7 +38,7 @@ import {
  *  - **The brand webfonts actually loaded.** Substituted faces rasterize host fonts, so the baseline would
  *    flap between a WSL2 laptop and a `ubuntu-latest` runner for reasons unrelated to the change under
  *    review. It is also a shipped defect class in this repo: an `@import` moved below another rule in
- *    `globals.css` drops every webfont (Manrope → Georgia, Inter → system-ui) and only a real build shows it.
+ *    `globals.css` drops every webfont (Manrope → Inter, Inter → system-ui) and only a real build shows it.
  *  - **The pinned clock reached the render.** `RecipeCard` renders `formatRelativeTime(recipe.updatedAt,
  *    new Date())`, so an unpinned capture of the library says "Created 31w ago" this week and "32w ago" next
  *    week — a brand-new baseline every seven days. The library capture therefore asserts the exact string the

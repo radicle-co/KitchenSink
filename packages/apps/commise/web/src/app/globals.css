@@ -4,7 +4,7 @@
    CSS drops any `@import` that follows another rule, and `theme.css` is INLINED here: it carries its own
    `@import "tailwindcss"` plus a `@theme { … }` block, so anything after it is "after a rule" and gets
    discarded. Sitting below the `@source` rules is how this shipped a production bundle with no webfonts at
-   all (Manrope silently degraded to Georgia, Inter to system-ui) — and moving it to just below the
+   all (Manrope fell back to Inter, and Inter to system-ui) — and moving it to just below the
    theme import does NOT fix that, which a real `next build` shows and the file-shape guard alone cannot.
    Guarded by `tests/globalsCss.test.ts`; verified by grepping `.next/static/css` after a production build. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Manrope:wght@600&display=swap');

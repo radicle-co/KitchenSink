@@ -23,11 +23,11 @@
  *
  * ## `document.fonts.check()` is not the font assertion — verified, not assumed
  *
- * `FontFaceSet.check('700 36px "Manrope"')` returns **`true` on a document with zero webfonts
- * loaded** — it answers "can this be rendered", and a fallback face satisfies it. Measured directly against
- * `docs/mockups/screens/screenHome.html`, which loads no webfonts at all (its Google-Fonts `@import` sits
- * below other rules and is dropped as invalid CSS): `fonts.check` said `true` while `[...document.fonts]` was
- * empty. So this module inspects the FontFaceSet's ENTRIES and their `status`, which is the only reading that
+ * `FontFaceSet.check('600 36px "Manrope"')` (600 is the one Manrope weight shipped) returns **`true` on a
+ * document with zero webfonts loaded**: it answers "can this be rendered", and a fallback face satisfies it, whatever
+ * family or weight is asked for. Re-measured in Chromium on a blank page with no webfont (and earlier against
+ * `docs/mockups/screens/screenHome.html`, whose Google-Fonts `@import` sits below other rules and is dropped as
+ * invalid CSS): `fonts.check` said `true` while `[...document.fonts]` was empty (`{ check: true, entries: 0 }`). So this module inspects the FontFaceSet's ENTRIES and their `status`, which is the only reading that
  * distinguishes "loaded" from "substituted".
  *
  * ## Stabilization is Playwright's, not hand-rolled
@@ -156,7 +156,7 @@ export async function prepareVisualPage(page: Page): Promise<void> {
  * machine-dependent, so accepting one would produce a baseline that flaps between a developer machine and CI
  * for reasons that have nothing to do with the change under review. It also catches a defect class this repo
  * has actually shipped: an `@import` for the Google Fonts stylesheet placed below another rule in
- * `globals.css` is dropped by CSS, and the whole app silently degrades to Georgia/system-ui.
+ * `globals.css` is dropped by CSS, and the whole app silently falls back to system-ui.
  *
  * @param page - A navigated page.
  * @param families - The families that must be loaded (defaults to {@link BRAND_WEBFONTS}).

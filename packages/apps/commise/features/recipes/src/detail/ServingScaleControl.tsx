@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes — the serving-count control, ONE file for web and native (the Stepper resolves its own
  * platform leaf): the design system's `Stepper` bound to the recipe's
- * serving range (`buildSpec.md` §1.11, §6.1). It used to be a hand-built twin with a Manrope number field; Manrope
+ * serving range (`buildSpec.md` §1.11, §6.1). It used to be a hand-built twin with a display-face (Manrope) number field; Manrope
  * never sets a number, and the control was built twice (F8, `evaluateFinal.md`).
  *
  * The range IS `servingsRange(baseServings)` from the domain, so an option can never exist that the scaling policy

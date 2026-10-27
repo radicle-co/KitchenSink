@@ -19,7 +19,8 @@
  * The limit is resolved in ONE place, {@link privateSlotAllowanceOf}. 015's earned slots will add to the base there and
  * nowhere else; the policy's input does not change.
  */
-import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility, privateRuleOf } from '@kitchensink/recipe-core';
+import type { RecipeSourceType } from '@kitchensink/recipe-core';
 
 /**
  * The private recipes a free cook may hold: the owner ruling of 2026-10-26. The ONLY place the number is stated.
@@ -83,7 +84,7 @@ export function slotRuleApplies(input: {
     readonly sourceType: RecipeSourceType;
     readonly isPremium: boolean;
 }): boolean {
-    return !input.isPremium && input.sourceType !== RecipeSourceType.IMPORTED_PUBLIC;
+    return !input.isPremium && privateRuleOf(input.sourceType) !== 'premium';
 }
 
 /**

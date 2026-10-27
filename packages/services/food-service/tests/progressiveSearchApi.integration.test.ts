@@ -48,7 +48,7 @@ import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { SearchServiceRemoteSearch } from '../src/sources/remote/SearchServiceRemoteSearch.js';
 import { countingLedger, type LedgerCall } from './support/countingLedger.js';
 import { bootMockedFoodsApi, principalFor, type MockedFoodsApi } from './support/mockedFoodsApi.js';
-import { startSearchEdgeStandIn, type SearchEdgeStandIn } from './support/searchEdgeStandIn.js';
+import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '@kitchensink/remote-search-edge/edge';
 import { searchFunctionDouble } from './support/searchFunctionDouble.js';
 import { fakeSourceBudget, type FakeSourceBudget } from './support/sourceBudgetFake.js';
 

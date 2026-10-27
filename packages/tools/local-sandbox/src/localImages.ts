@@ -166,6 +166,13 @@ export interface LocalEnvContext {
      * Defaults to `http://localhost:3000`; override for a dev server on another port.
      */
     readonly webOrigin?: string;
+    /**
+     * Values this run states itself for THIS container, which beat everything else, AWS-resolved values and the
+     * NEVER_FROM_AWS rule included. The caller names them per service: this is how the remote search group reaches
+     * food (and only food) as a complete set, instead of the all-or-nothing group being dropped (see
+     * `remoteSearchStandIn.ts`).
+     */
+    readonly stated?: Readonly<Record<string, string>>;
 }
 
 /** Fixed local infrastructure addresses. Compose SERVICE NAMES, never localhost — see below. */
@@ -220,14 +227,18 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
  * The remote-search four are an ALL-OR-NOTHING GROUP: food's `remoteSearchSettingsFromEnv` accepts all four
  * present or none, and a PARTIAL set is a boot crash. Locally the set is unavoidably partial — one member
  * resolves from the dev SSM, the origin has no dev parameter, the two secret-backed members are cross-stack
- * `Fn::ImportValue` refs nothing can flatten — so the whole group is dropped however resolvable it is,
- * landing food in its designed `kind: 'absent'` state (ADR-0055; the signing surface is `unsupported` in
- * `localSupport.ts` and the remote-search stack refuses the local stage). This list, not OMITTED, because
- * OMITTED only beats a placeholder and never a resolved value.
+ * `Fn::ImportValue` refs nothing can flatten — so the whole group is dropped however resolvable it is. This list,
+ * not OMITTED, because OMITTED only beats a placeholder and never a resolved value.
+ *
+ * Dropped is the default and the state of every container the stand-in is not stated for (food's designed
+ * `kind: 'absent'`, ADR-0055). `local:up` states the COMPLETE group for food through `LocalEnvContext.stated`,
+ * pointing at the local stand-in (`remoteSearchStandIn.ts`) — a value this run generates, never one from AWS.
  */
 const NEVER_FROM_AWS: readonly RegExp[] = [
     /^CLERK_AZP_PATTERN$|^CLERK_AZP_PREVIEW_MODE$/u,
     /^REMOTE_SEARCH_ORIGIN$|^REMOTE_SEARCH_KEY_PAIR_ID$|^REMOTE_SEARCH_SIGNING_KEY$|^FOOD_REMOTE_REFERENCE_KEY$/u,
+    // The id of a REAL CloudFront distribution; LocalStack has none, and an unset id is the service's no-op invalidation.
+    /^MEDIA_DISTRIBUTION_ID$/u,
 ];
 
 const OMITTED: readonly RegExp[] = [
@@ -268,6 +279,8 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
         // List mode, not pattern mode — see NEVER_FROM_AWS. An EMPTY list would skip the azp check
         // entirely, so a real origin is named rather than left blank.
         CLERK_AUTHORIZED_PARTIES: context.webOrigin ?? 'http://localhost:3000',
+        // Last, so a stated value replaces even the local infrastructure defaults above it.
+        ...context.stated,
     });
 
     // ⛔ The union, not `keys`. A SECRET never appears in a task definition's `Environment`, so iterating the
@@ -370,4 +383,52 @@ export function portConflicts(
     const mine = new Set(ours);
 
     return wanted.filter((service) => taken.has(service.hostPort) && !mine.has(service.hostPort));
+}
+
+/**
+ * Host ports to publish a service on instead of its own default, from `LOCAL_SANDBOX_HOST_PORTS`
+ * (`recipes=3010,food=3012`; names are compose service names).
+ *
+ * Only the HOST side moves. The container port stays, because siblings reach each other by compose name on it.
+ * Pure.
+ *
+ * @param raw - The variable's value.
+ * @returns Service name to host port. A null-prototype record, so a service named like an inherited member is not
+ *   shadowed by one.
+ * @throws When an entry is not `name=port`, the port is not an unprivileged integer, or a name repeats.
+ */
+export function hostPortOverridesFrom(raw: string | undefined): Readonly<Record<string, number>> {
+    const overrides = Object.create(null) as Record<string, number>;
+
+    if (raw === undefined || raw.trim() === '') {
+        return overrides;
+    }
+
+    for (const entry of raw.split(',')) {
+        const match = /^\s*([a-z0-9]+)\s*=\s*(\d+)\s*$/u.exec(entry);
+        const port = match === null ? Number.NaN : Number(match[2]);
+
+        if (match === null || !Number.isInteger(port) || port < 1024 || port > 65_535 || match[1]! in overrides) {
+            throw new Error(
+                `LOCAL_SANDBOX_HOST_PORTS: '${entry.trim()}' is not a unique name=port with a port from 1024 to 65535`,
+            );
+        }
+
+        overrides[match[1]!] = port;
+    }
+
+    return overrides;
+}
+
+/**
+ * The values a local identity container is stated, beyond what the task definition declares. Pure.
+ *
+ * @param deletionQueueUrl - The local URL of the deletion queue, when one is created.
+ * @returns Name to value.
+ */
+export function identityStatedEnv(deletionQueueUrl: string | undefined): Readonly<Record<string, string>> {
+    return {
+        S3_ENDPOINT: 'http://localstack:4566',
+        ...(deletionQueueUrl === undefined ? {} : { DELETION_QUEUE_URL: deletionQueueUrl }),
+    };
 }

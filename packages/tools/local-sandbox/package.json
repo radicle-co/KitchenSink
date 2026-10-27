@@ -10,13 +10,17 @@
         "audit": "tsx bin/audit.ts",
         "consumer": "tsx bin/queueConsumer.ts",
         "test": "vitest run",
+        "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "lint": "eslint .",
         "maestro": "bash bin/localMaestro.sh",
         "typecheck": "tsc --noEmit",
         "up": "tsx bin/up.ts"
     },
     "devDependencies": {
+        "@aws-sdk/cloudfront-signer": "^3.1138.0",
         "@kitchensink/eslint": "*",
+        "@kitchensink/remote-search-edge": "*",
+        "@kitchensink/service-test-harness": "*",
         "@kitchensink/vitest": "*",
         "@types/aws-lambda": "^8.10.0",
         "@types/node": "^24.13.3",

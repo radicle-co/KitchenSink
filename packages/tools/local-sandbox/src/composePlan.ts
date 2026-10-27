@@ -28,11 +28,32 @@ export interface ServiceContainer {
     readonly environment: Readonly<Record<string, string>>;
 }
 
+/**
+ * A helper container that shares another service's network namespace (`network_mode: service:<name>`).
+ *
+ * It publishes no ports: it is reached on the loopback of the service it joins, which is the only way a service whose
+ * env schema accepts plain `http` on loopback alone (food's remote search origin) can reach a stand-in.
+ */
+export interface SidecarContainer {
+    /** Compose service name. */
+    readonly name: string;
+    readonly image: string;
+    /** The `network_mode`, e.g. `service:food`. */
+    readonly networkMode: string;
+    readonly command: readonly string[];
+    /** Bind mounts, relative to the generated compose file. */
+    readonly volumes: readonly string[];
+    readonly environment: Readonly<Record<string, string>>;
+    readonly healthcheck: Readonly<Record<string, unknown>>;
+}
+
 export interface ComposeOptions {
     /** Logical databases the CDK named, each created on first start. */
     readonly databases: readonly string[];
     /** Services built from this repo's own Dockerfiles. */
     readonly serviceContainers?: readonly ServiceContainer[];
+    /** Helper containers that join one of the services' network namespaces. */
+    readonly sidecars?: readonly SidecarContainer[];
 }
 
 /** One container in the generated stack. */
@@ -42,6 +63,10 @@ export interface ComposeService {
     readonly environment: Readonly<Record<string, string>>;
     readonly healthcheck: Readonly<Record<string, unknown>>;
     readonly volumes?: readonly string[];
+    /** `network_mode`; a service that sets it publishes no `ports`. */
+    readonly networkMode?: string;
+    /** Overrides the image's command. */
+    readonly command?: readonly string[];
     /** Compose services that must be HEALTHY before this one starts. */
     readonly dependsOn?: readonly string[];
 }
@@ -142,6 +167,21 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
             },
             dependsOn: ['postgres', 'localstack'],
         } as ComposeService;
+    }
+
+    for (const sidecar of options.sidecars ?? []) {
+        services[sidecar.name] = {
+            image: sidecar.image,
+            ports: [],
+            environment: sidecar.environment,
+            healthcheck: sidecar.healthcheck,
+            volumes: sidecar.volumes,
+            networkMode: sidecar.networkMode,
+            command: sidecar.command,
+            // The service it joins is started first by compose itself (`network_mode: service:`); LocalStack is the one
+            // thing it reads that compose cannot infer.
+            dependsOn: ['localstack'],
+        };
     }
 
     return { services, initSql: initSql(options.databases) };

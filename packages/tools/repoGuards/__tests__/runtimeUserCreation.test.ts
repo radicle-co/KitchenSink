@@ -213,6 +213,19 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
         '_ci-heavy.yml::e2e-mobile-maestro-ios': 'ios',
     } as const;
 
+    /**
+     * The ONE script outside CI that may reach the writer (2026-10-27): the local Maestro runner, which makes its own
+     * `test-local-*` users on the shared Clerk instance so that it never leases, erases or refills a user CI owns. The
+     * admitted spelling is the lane scope under the local namespace, with `--recycle` (which `poolAdmin` itself refuses
+     * outside that namespace); the script must select the namespace before it runs.
+     */
+    const LOCAL_LANE_SCRIPT = {
+        path: 'packages/tools/local-sandbox/bin/localMaestro.sh',
+        command:
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1',
+        namespace: 'export E2E_POOL_NAMESPACE=local',
+    } as const;
+
     const commands = (text: string): string =>
         text
             .split('\n')
@@ -266,11 +279,29 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
     const found = invocations();
 
     it('finds the refill in both Maestro jobs (non-vacuity — discovery still sees an invocation)', () => {
-        expect(found.map((invocation) => invocation.where)).toStrictEqual(Object.keys(REFILLING_JOBS));
+        expect(found.map((invocation) => invocation.where)).toStrictEqual([
+            ...Object.keys(REFILLING_JOBS),
+            LOCAL_LANE_SCRIPT.path,
+        ]);
     });
 
     it('⛔ every CI invocation is the scoped refill, with its platform stated and its shard from the matrix — never the whole roster', () => {
         for (const invocation of found) {
+            if (invocation.where === LOCAL_LANE_SCRIPT.path) {
+                const source = commands(readFileSync(path.join(repoRoot, invocation.where), 'utf8'));
+                const writerLines = source.split('\n').filter((line) => INVOKES_WRITER.test(line));
+
+                expect(
+                    writerLines.map((line) => line.trim()),
+                    invocation.where,
+                ).toStrictEqual([LOCAL_LANE_SCRIPT.command]);
+                expect(source, `${invocation.where} must select the local pool namespace`).toContain(
+                    LOCAL_LANE_SCRIPT.namespace,
+                );
+
+                continue;
+            }
+
             const platform = REFILLING_JOBS[invocation.where as keyof typeof REFILLING_JOBS];
 
             expect(platform, `${invocation.where} is not a known refilling job`).toBeDefined();

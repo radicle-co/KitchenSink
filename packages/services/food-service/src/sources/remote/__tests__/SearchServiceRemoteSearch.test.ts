@@ -18,7 +18,7 @@ import {
     remoteSearchQuerySchema,
 } from '@kitchensink/schema-remote-search';
 
-import { checkSignedUrl } from '../../../../tests/support/cloudFrontSignature.js';
+import { checkSignedUrl } from '@kitchensink/remote-search-edge/signature';
 import type { BudgetCharge, BudgetWindow } from '../../../foods/dao/requesterSourceBudget.dao.js';
 import type { Admission, FetchFn, SourceBlock } from '../../transport/transportPorts.js';
 import type { RemoteSourceOutcome } from '../remoteSearchPort.js';

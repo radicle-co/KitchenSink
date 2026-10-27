@@ -427,3 +427,18 @@ export function resolveParameterValues(
         return { ...resource, properties: { ...resource.properties, Value: refValueOf(referenced, target) } };
     });
 }
+
+/**
+ * The local URL of the identity deletion queue, found among the queues this run creates. Pure.
+ *
+ * The data stack names it `…-deletionqueue…` (and its dead-letter queue `…-deletiondlq…`).
+ *
+ * @param createdQueueNames - The names of the queues this run creates.
+ * @param target - The local emulator's endpoint and account.
+ * @returns The URL, or `undefined` when there is not exactly one such queue.
+ */
+export function deletionQueueUrl(createdQueueNames: Iterable<string>, target: LocalStackTarget): string | undefined {
+    const matches = [...createdQueueNames].filter((name) => /-deletionqueue[0-9a-f]*$/u.test(name));
+
+    return matches.length === 1 ? `${target.endpoint}/${target.account}/${matches[0]}` : undefined;
+}

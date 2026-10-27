@@ -33,7 +33,7 @@ import { progressiveSearchFrameSchema, type ProgressiveSearchFrame } from '../..
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
 import { foodDb } from '../support/roleDb.js';
-import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '../support/searchEdgeStandIn.js';
+import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '@kitchensink/remote-search-edge/edge';
 import { searchFunctionDouble } from '../support/searchFunctionDouble.js';
 import { startUsdaStubServer, type UsdaStubServer } from '../support/usdaStubServer.js';
 import { bootFoodApp, callFoodApi } from './harness.js';

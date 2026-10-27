@@ -214,6 +214,14 @@ describe('reconcilePool', () => {
                 }
             }),
             readExternalId: vi.fn(async () => 'ext_new'),
+            writeExternalId: vi.fn(async (userId: string, externalId: string) => {
+                const index = users.findIndex((candidate) => candidate.id === userId);
+                const found = users[index];
+
+                if (found !== undefined) {
+                    users[index] = { ...found, externalId };
+                }
+            }),
             reassertProfile: vi.fn(async (_userId: string, _profile: PoolProfileReassert) => undefined),
         } satisfies PoolAdminPort;
 
@@ -919,5 +927,263 @@ describe('setLanePhase — move one lane between its two states', () => {
 
     it('laneHoldsPhase is false for an absent lane rather than throwing', async () => {
         expect(await laneHoldsPhase(portOver([]), owner, 'settled')).toBe(false);
+    });
+});
+
+describe('reconcilePool minting external ids (a local-namespace run)', () => {
+    /**
+     * ⛔ The identity webhook writes a pool user's `external_id` — and the SANDBOX owns that webhook, which is down when
+     * the sandbox is. A local run therefore writes the id itself, for its OWN users only. The failure that matters is
+     * overwriting an id someone already wrote: it is the claim every service authorizes on.
+     */
+    const users = (...held: ObservedPoolUser[]) => {
+        const state = [...held];
+        const holding = (email: string) => state.filter((u) => u.emails.some((e) => e.toLowerCase() === email));
+        const writes: [string, string][] = [];
+
+        return {
+            writes,
+            port: {
+                findUsers: vi.fn(async (email: string) => holding(email)),
+                listUsers: vi.fn(async () => [...state]),
+                createUser: vi.fn(async (input: PoolUserCreate) => {
+                    state.push({
+                        id: `created_${input.emailAddress[0] ?? ''}`,
+                        emails: [...input.emailAddress],
+                        publicMetadata: { ...input.publicMetadata },
+                        externalId: null,
+                    });
+
+                    return { id: `created_${input.emailAddress[0] ?? ''}` };
+                }),
+                mergeMetadata: vi.fn(async () => undefined),
+                readExternalId: vi.fn(async () => null),
+                writeExternalId: vi.fn(async (userId: string, externalId: string) => {
+                    writes.push([userId, externalId]);
+                    const index = state.findIndex((u) => u.id === userId);
+                    const found = state[index];
+
+                    if (found !== undefined) {
+                        state[index] = { ...found, externalId };
+                    }
+                }),
+                reassertProfile: vi.fn(async () => undefined),
+            } satisfies PoolAdminPort,
+        };
+    };
+
+    // A clock that advances when it is slept on, so the webhook wait reaches its deadline instead of spinning.
+    let clock = 0;
+    const base = {
+        randomPassword: () => 'random',
+        now: () => clock,
+        sleep: async (ms: number) => {
+            clock += ms;
+        },
+        drift: 'skip' as const,
+    };
+    let counter = 0;
+    const mint = () => `01MINTED${String(++counter).padStart(18, '0')}`;
+
+    it('writes a minted id to a user it creates, and does not wait for a webhook that will not come', async () => {
+        const { port, writes } = users();
+
+        const report = await reconcilePool(port, { ...base, slots: [signer], apply: true, externalId: { mint } });
+
+        expect(writes).toEqual([[`created_${signer.email}`, expect.stringMatching(/^01MINTED/u)]]);
+        expect(port.readExternalId).not.toHaveBeenCalled();
+        expect(report.unleasable).toEqual([]);
+        expect(report.healthy).toBe(true);
+    });
+
+    it('gives an existing user that has none an id, and never replaces one it has', async () => {
+        const bare = { ...marked(alfa), externalId: null };
+        const claimed = { ...marked(signer), externalId: '01CLAIMEDBYANOTHERWRITER000' };
+        const { port, writes } = users(bare, claimed);
+
+        await reconcilePool(port, { ...base, slots: [alfa, signer], apply: true, externalId: { mint } });
+
+        expect(writes.map(([userId]) => userId)).toEqual([bare.id]);
+    });
+
+    it('writes nothing on a dry run', async () => {
+        const { port, writes } = users();
+
+        await reconcilePool(port, { ...base, slots: [signer], apply: false, externalId: { mint } });
+
+        expect(writes).toEqual([]);
+        expect(port.createUser).not.toHaveBeenCalled();
+    });
+
+    it('is not what the shared pool does: without the option it waits on the webhook and writes no id', async () => {
+        const { port, writes } = users();
+
+        await expect(reconcilePool(port, { ...base, slots: [signer], apply: true })).rejects.toThrow();
+        expect(port.readExternalId).toHaveBeenCalled();
+        expect(writes).toEqual([]);
+    });
+
+    it('refuses to mint through a port that cannot write', async () => {
+        const { port } = users();
+        const { writeExternalId: _unused, ...readOnly } = port;
+
+        await expect(
+            reconcilePool(readOnly, { ...base, slots: [signer], apply: true, externalId: { mint } }),
+        ).rejects.toThrow(/writeExternalId/u);
+    });
+});
+
+describe('the Maestro lane scope', () => {
+    it('parses the lane flag with its platform and shard', () => {
+        expect(parsePoolAdminArgs(['--apply', '--maestro-lane', '--platform', 'ios', '--shard', '1']).scope).toEqual({
+            kind: 'maestroLane',
+            platform: 'ios',
+            shard: 1,
+        });
+    });
+
+    it.each([
+        [['--maestro-lane', '--shard', '1']],
+        [['--maestro-lane', '--platform', 'ios']],
+        [['--maestro-lane', '--maestro-erasure', '--platform', 'ios', '--shard', '1']],
+        [['--maestro-lane', '--settle-downgraded', '--platform', 'ios', '--shard', '1']],
+        [['--maestro-lane', '--platform', 'tvos', '--shard', '1']],
+    ])('refuses %j', (argv) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it("reconciles the lane's signer, co-author and, on the erasure shard, ONE erasure subject (the Clerk cap is 100)", () => {
+        expect(
+            poolScopeOptions({ kind: 'maestroLane', platform: 'ios', shard: 1 }).slots.map((slot) => slot.id),
+        ).toEqual(['iossigner01', 'ioscoauthor01', 'erasure06']);
+        expect(
+            poolScopeOptions({ kind: 'maestroLane', platform: 'android', shard: 2 }).slots.map((slot) => slot.id),
+        ).toEqual(['signer02', 'coauthor02']);
+    });
+});
+
+describe('recycling the consumable users of a local-namespace run', () => {
+    /**
+     * ⛔ In the deployed world an erased subject is deleted from Clerk by the identity deletion worker, and the next run's
+     * refill recreates it. The local stack runs no such worker (its queue URL is a placeholder), so an erased subject
+     * would still stand in Clerk, still be the first one a lease takes, and be a CLOSED account locally. A local run
+     * therefore starts from subjects it has just made. The failure that matters is deleting anyone else: only a
+     * consumable slot IN SCOPE may go, and only when the caller asked.
+     */
+    const erasure = slotFor('maestro', 'erasure01');
+    const held = (slot: typeof erasure): ObservedPoolUser => ({ ...marked(slot), externalId: '01HELD' });
+
+    const portWith = (...users: ObservedPoolUser[]) => {
+        const state = [...users];
+        const deleted: string[] = [];
+
+        return {
+            deleted,
+            port: {
+                findUsers: vi.fn(async (email: string) => state.filter((u) => u.emails.includes(email))),
+                listUsers: vi.fn(async () => [...state]),
+                createUser: vi.fn(async (input: PoolUserCreate) => {
+                    const id = `created_${input.emailAddress[0] ?? ''}`;
+
+                    state.push({
+                        id,
+                        emails: [...input.emailAddress],
+                        publicMetadata: { ...input.publicMetadata },
+                        externalId: null,
+                    });
+
+                    return { id };
+                }),
+                mergeMetadata: vi.fn(async () => undefined),
+                readExternalId: vi.fn(async () => null),
+                writeExternalId: vi.fn(async (userId: string, externalId: string) => {
+                    const index = state.findIndex((u) => u.id === userId);
+                    const found = state[index];
+
+                    if (found !== undefined) {
+                        state[index] = { ...found, externalId };
+                    }
+                }),
+                deleteUser: vi.fn(async (userId: string) => {
+                    deleted.push(userId);
+                    state.splice(
+                        state.findIndex((u) => u.id === userId),
+                        1,
+                    );
+                }),
+                reassertProfile: vi.fn(async () => undefined),
+            } satisfies PoolAdminPort,
+        };
+    };
+
+    const base = {
+        randomPassword: () => 'random',
+        now: () => 0,
+        sleep: async () => undefined,
+        drift: 'skip' as const,
+        externalId: { mint: () => '01MINTEDMINTEDMINTEDMINTED' },
+    };
+
+    it('deletes the consumable subject in scope and makes a fresh one, and leaves the signer alone', async () => {
+        const subject = held(erasure);
+        const signerUser = held(signer);
+        const { port, deleted } = portWith(subject, signerUser);
+
+        const report = await reconcilePool(port, {
+            ...base,
+            slots: [signer, erasure],
+            apply: true,
+            recycle: 'consumables',
+        });
+
+        expect(deleted).toEqual([subject.id]);
+        expect(port.createUser).toHaveBeenCalledTimes(1);
+        expect(port.createUser).toHaveBeenCalledWith(poolUserCreateInput(erasure, 'random'));
+        expect(report.healthy).toBe(true);
+    });
+
+    it('does nothing to a slot outside the scope it was given', async () => {
+        const other = held(slotFor('maestro', 'erasure02'));
+        const { port, deleted } = portWith(other);
+
+        await reconcilePool(port, { ...base, slots: [erasure], apply: true, recycle: 'consumables' });
+
+        expect(deleted).toEqual([]);
+    });
+
+    it('deletes nothing on a dry run', async () => {
+        const { port, deleted } = portWith(held(erasure));
+
+        await reconcilePool(port, { ...base, slots: [erasure], apply: false, recycle: 'consumables' });
+
+        expect(deleted).toEqual([]);
+    });
+
+    it('deletes nothing unless asked', async () => {
+        const { port, deleted } = portWith(held(erasure));
+
+        await reconcilePool(port, { ...base, slots: [erasure], apply: true });
+
+        expect(deleted).toEqual([]);
+    });
+
+    it('refuses through a port that cannot delete', async () => {
+        const { port } = portWith(held(erasure));
+        const { deleteUser: _unused, ...cannotDelete } = port;
+
+        await expect(
+            reconcilePool(cannotDelete, { ...base, slots: [erasure], apply: true, recycle: 'consumables' }),
+        ).rejects.toThrow(/deleteUser/u);
+    });
+
+    it('is a flag only of the lanes that have consumables', () => {
+        expect(parsePoolAdminArgs(['--maestro-lane', '--recycle', '--platform', 'ios', '--shard', '1']).recycle).toBe(
+            true,
+        );
+        expect(
+            parsePoolAdminArgs(['--maestro-erasure', '--recycle', '--platform', 'ios', '--shard', '1']).recycle,
+        ).toBe(true);
+        expect(parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).recycle).toBeUndefined();
+        expect(() => parsePoolAdminArgs(['--recycle'])).toThrow(/poolAdmin/u);
     });
 });

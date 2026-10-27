@@ -325,6 +325,13 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',
+        // `remote-search-edge` (the loopback stand-in for the search service's CloudFront distribution): food's own suites
+        // and the local sandbox's tests drive the SAME edge model, so it is one package with two declared entries rather
+        // than a copy in each. `e2e-seed/remoteProbeWords` is the pure judge of which words the remote-food flows may type;
+        // the stand-in's USDA double is tested against it, so a probe word it cannot serve fails there.
+        '!@kitchensink/*/edge',
+        '!@kitchensink/*/signature',
+        '!@kitchensink/*/remoteProbeWords',
         // The three PURE entries, whose entire reason for existing is that a consumer takes the rule
         // WITHOUT the runtime the barrel drags in. `observability-scrubbers/denylist` imports nothing at
         // all, so React Native can load it; `observability-scrubbers/core` is the same package's scrubbing

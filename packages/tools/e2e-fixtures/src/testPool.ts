@@ -384,7 +384,7 @@ export function maestroShardCapacity(platform: MaestroPlatform): number {
 }
 
 /**
- * The slot a 1-based Maestro shard of one platform signs in as, for one role. Pure.
+ * The slot a 1-based Maestro shard of one platform signs in as, for one role. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * ⛔ It THROWS past the declared lanes rather than wrapping, for the reason {@link slotForShard} records: a
  * wrap would put two shards of one run on one user — the collision the pool exists to rule out — and would
@@ -429,7 +429,7 @@ export const MAESTRO_ERASURE_SHARD = 1;
 
 /**
  * The erasure subjects a 1-based Maestro shard of one platform may lease, in declared order: that platform's
- * own subjects for {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure.
+ * own subjects for {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * ## The lease contract (2026-10-08 stride -> one lane; 2026-10-13 one lane PER PLATFORM)
  *
@@ -481,9 +481,49 @@ const ADDRESS: Readonly<Record<PoolTenant, (id: string) => string>> = {
     sandbox: (id) => `test-${id}+clerk_test@radcile.com`,
 };
 
+/** The environment variable that selects the pool's address namespace. */
+export const POOL_NAMESPACE_ENV = 'E2E_POOL_NAMESPACE';
+
+/**
+ * Whose users a run signs in.
+ *
+ * - `shared` — the sandbox pool CI and the deployed suites lease. The default, and the only value any workflow sets.
+ * - `local` — users that exist for a developer's machine alone (`test-local-{id}+clerk_test@…`), on the same Clerk
+ *   instance. A local run erases and refills its erasure subjects, and the local stack's deletion worker deletes them
+ *   from Clerk; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
+ *   that writes it for the shared pool belongs to the sandbox and is down when the sandbox is.
+ */
+export type PoolNamespace = 'shared' | 'local';
+
+/**
+ * Read the namespace. Pure.
+ *
+ * Exact match only, no case folding or trimming: this decides WHICH users a run may erase.
+ *
+ * @param env - The environment.
+ * @returns `local` for exactly `local`; `shared` when unset or empty.
+ * @throws When it is set to anything else.
+ */
+export function poolNamespaceFrom(env: Readonly<Record<string, string | undefined>>): PoolNamespace {
+    const raw = env[POOL_NAMESPACE_ENV];
+
+    if (raw === undefined || raw === '') {
+        return 'shared';
+    }
+
+    if (raw === 'local') {
+        return 'local';
+    }
+
+    throw new Error(`test pool: ${POOL_NAMESPACE_ENV} must be 'local' or unset, got '${raw}'`);
+}
+
+/** The id as it appears in an address: the local namespace's users carry `local-` so no address is shared. */
+const addressId = (id: string, namespace: PoolNamespace): string => (namespace === 'local' ? `local-${id}` : id);
+
 /** Place a lane in its tier and derive its identifiers. Pure. */
-function toSlot(tier: PoolTier, declared: PoolLane): PoolSlot {
-    const email = ADDRESS.sandbox(declared.id);
+function toSlot(tier: PoolTier, declared: PoolLane, namespace: PoolNamespace): PoolSlot {
+    const email = ADDRESS.sandbox(addressId(declared.id, namespace));
 
     return {
         ...declared,
@@ -495,12 +535,29 @@ function toSlot(tier: PoolTier, declared: PoolLane): PoolSlot {
     };
 }
 
-/** Every slot, in declared order (tier order, then lane order). Pure. */
-export function rosterSlots(): readonly PoolSlot[] {
-    return POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared)));
+/** The namespace of THIS process: every public function below reads it, so a run cannot half-switch. */
+const activeNamespace = (): PoolNamespace => poolNamespaceFrom(process.env);
+
+/**
+ * Every address either namespace declares. Pure.
+ *
+ * For the owner's drift audit, which must not call a developer's local user a stray: it is marked as a test principal
+ * and holds no address of the SHARED roster.
+ */
+export function knownPoolAddresses(): ReadonlySet<string> {
+    return new Set(
+        (['shared', 'local'] as const).flatMap((namespace) =>
+            POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, namespace).email)),
+        ),
+    );
 }
 
-/** The slot a tier declares under `id`; throws for a lane that tier does not declare. Pure. */
+/** Every slot, in declared order (tier order, then lane order). Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
+export function rosterSlots(): readonly PoolSlot[] {
+    return POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, activeNamespace())));
+}
+
+/** The slot a tier declares under `id`; throws for a lane that tier does not declare. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function slotFor(tier: PoolTier, id: string): PoolSlot {
     const declared = POOL_ROSTER[tier].find((candidate) => candidate.id === id);
 
@@ -508,11 +565,11 @@ export function slotFor(tier: PoolTier, id: string): PoolSlot {
         throw new Error(`test pool: tier '${tier}' declares no lane '${id}'`);
     }
 
-    return toSlot(tier, declared);
+    return toSlot(tier, declared, activeNamespace());
 }
 
 /**
- * The slot a 1-based Playwright shard leases: the lane at index `shard - 1`. Pure.
+ * The slot a 1-based Playwright shard leases: the lane at index `shard - 1`. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * ⛔ It THROWS past the declared lanes rather than wrapping. Wrapping would put two shards of one run on one
  * user — the collision the whole pool exists to rule out — and it would do so silently.
@@ -531,12 +588,12 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
         );
     }
 
-    return toSlot(tier, declared);
+    return toSlot(tier, declared, activeNamespace());
 }
 
 /**
  * The peer of a web slot: the `webPeer` lane at the same index, the SECOND cook `sessionHandoff.spec.ts` signs in after
- * the slot's own user signs out. Pure.
+ * the slot's own user signs out. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * Derived from the slot rather than from a shard number so a caller that already holds its slot (`webPoolSlot`) does
  * not parse the shard a second time. It throws for a slot of any other tier.
@@ -565,7 +622,7 @@ export function k6VuLanes(lanes: readonly PoolLane[]): readonly PoolLane[] {
     return lanes.filter((declared) => K6_VU_ID_SET.has(declared.id));
 }
 
-/** The first `count` k6 VU slots, in declared order — never the admin. Pure. */
+/** The first `count` k6 VU slots, in declared order — never the admin. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function k6VuSlots(count: number): readonly PoolSlot[] {
     const vus = k6VuLanes(POOL_ROSTER.k6);
 
@@ -577,16 +634,18 @@ export function k6VuSlots(count: number): readonly PoolSlot[] {
         throw new Error(`test pool: ${count} k6 VUs requested, but the roster declares only ${vus.length}`);
     }
 
-    return vus.slice(0, count).map((declared) => toSlot('k6', declared));
+    return vus.slice(0, count).map((declared) => toSlot('k6', declared, activeNamespace()));
 }
 
-/** A tier's consumable slots, in declared order. Pure. */
+/** A tier's consumable slots, in declared order. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function consumableSlots(tier: PoolTier): readonly PoolSlot[] {
-    return POOL_ROSTER[tier].filter((declared) => declared.consumable).map((declared) => toSlot(tier, declared));
+    return POOL_ROSTER[tier]
+        .filter((declared) => declared.consumable)
+        .map((declared) => toSlot(tier, declared, activeNamespace()));
 }
 
 /**
- * Refuse any address that is not on the roster. Pure.
+ * Refuse any address that is not on the roster. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * Exact match after lowercasing only — no trimming, no subaddress folding — because every leniency is a way for
  * an address that is not a pool user to be admitted.

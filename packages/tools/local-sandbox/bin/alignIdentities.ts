@@ -3,8 +3,8 @@
  * id their Clerk `external_id` names (`src/identityAlignment.ts` says why). `localMaestro.sh` runs it before the
  * world is seeded and before the device signs in.
  *
- * Reads `CLERK_SECRET_KEY` and `COMMISE_E2E_SHARD` (absent is shard 1) from the environment. The database is the
- * one the running `local-sandbox-identity` container reads, found from that container's own `DB_NAME`, so this can
+ * Reads `CLERK_SECRET_KEY`, `COMMISE_E2E_SHARD` (absent is shard 1) and `MAESTRO_PLATFORM` (absent is android) from the
+ * environment. The database is the one the running `local-sandbox-identity` container reads, found from that container's own `DB_NAME`, so this can
  * never align a database the service does not serve.
  *
  * @sideEffect Reads Clerk's Backend API and the identity container's environment; writes the local identity database.
@@ -12,14 +12,15 @@
 import { spawnSync } from 'node:child_process';
 
 import { clerkLeasePort } from '@kitchensink/e2e-fixtures/lease';
-import { maestroErasureSlots, maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
+import { poolNamespaceFrom } from '@kitchensink/e2e-fixtures/testPool';
 import { accounts, isUserId, newProfileClock, profiles, users } from '@kitchensink/identity-db';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { eq, or } from 'drizzle-orm';
+import { and, eq, ne, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
 import { LOCAL_DB } from '../src/composePlan.js';
+import { alignmentSlots, laneFromEnv } from '../src/alignmentLane.js';
 import { alignPoolIdentities, type AlignmentPorts } from '../src/identityAlignment.js';
 
 const IDENTITY_CONTAINER = 'local-sandbox-identity';
@@ -51,21 +52,6 @@ function identityDatabase(): string {
     return name;
 }
 
-/** The shard from `COMMISE_E2E_SHARD`; absent is 1, anything else must be a positive integer. Pure. */
-function shardFrom(raw: string | undefined): number {
-    if (raw === undefined || raw === '') {
-        return 1;
-    }
-
-    const shard = Number(raw);
-
-    if (!Number.isInteger(shard) || shard < 1) {
-        throw new Error(`alignIdentities: COMMISE_E2E_SHARD must be a positive integer, got '${raw}'`);
-    }
-
-    return shard;
-}
-
 async function main(): Promise<void> {
     const secretKey = process.env['CLERK_SECRET_KEY'];
 
@@ -73,14 +59,8 @@ async function main(): Promise<void> {
         throw new Error('alignIdentities: CLERK_SECRET_KEY is not set');
     }
 
-    const shard = shardFrom(process.env['COMMISE_E2E_SHARD']);
-    // A local run drives the Android emulator, and says so: iOS has pool lanes of its own (2026-10-13).
-    const platform = 'android';
-    const slots = [
-        maestroSlotForShard('signer', platform, shard),
-        maestroSlotForShard('coauthor', platform, shard),
-        ...maestroErasureSlots(platform, shard),
-    ];
+    // The lane's own platform: an iOS lane has pool users of its own (2026-10-13), which this used to skip.
+    const slots = alignmentSlots(laneFromEnv(process.env));
 
     const pool = new pg.Pool({
         host: '127.0.0.1',
@@ -106,6 +86,14 @@ async function main(): Promise<void> {
         removeRow: async (identityId) => {
             await db.delete(users).where(eq(users.identityId, identityId));
         },
+        // Only the local namespace recycles users under one address (see `AlignmentPorts.removeStaleRowsForEmail`).
+        ...(poolNamespaceFrom(process.env) === 'local'
+            ? {
+                  removeStaleRowsForEmail: async (email: string, keepIdentityId: string) => {
+                      await db.delete(users).where(and(eq(users.email, email), ne(users.identityId, keepIdentityId)));
+                  },
+              }
+            : {}),
         // THE house provisioning routine, with the id fixed to the one Clerk already carries.
         provision: async ({ identityId, externalId, email }) => {
             const result = await provisionCompleteUser(

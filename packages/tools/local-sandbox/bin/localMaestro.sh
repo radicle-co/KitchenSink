@@ -35,12 +35,10 @@
 # directory (outside the repository), read back with the `read` builtin, and are never on an argv and never printed.
 # Everything after that read runs with AWS pinned to LocalStack and throwaway credentials.
 #
-# ⚠️ The Clerk users are the Maestro tier's FIXED pool slots for ANDROID shard 1, the same users CI's
-# `test-pool-sandbox-maestro-1` group signs in. Their DATA here lives in the local database, so a local run cannot
-# disturb a CI run's world, but both sign the same users in. ⚠️ They also lease the same ERASURE subjects, and this
-# run holds no lane: run concurrently with a CI shard-1 job and both may take the same subject, so one erasure fails
-# (`maestroErasureSlots` in testPool.ts records it). This run does not refill the subjects — CI's job does, through
-# `poolAdmin`.
+# ⚠️ The Clerk users are the run's OWN: `E2E_POOL_NAMESPACE=local` gives every slot a `test-local-*` address on the same
+# Clerk instance, so a local run never signs in, erases or refills a user CI leases, and can run beside a CI job. The run
+# makes them (`poolAdmin --maestro-lane`), mints their `external_id` itself (the sandbox webhook that writes it is down
+# when the sandbox is), and recycles the erasure subjects each time (nothing local deletes an erased user from Clerk).
 
 set -uo pipefail
 
@@ -53,7 +51,11 @@ LOCAL_MAESTRO_AVD='ci_pixel6'
 LOCAL_MAESTRO_CLERK_SECRET_ID='kitchensink/sandbox/identity/keys'
 LOCAL_MAESTRO_METRO_PORT=8081
 # The local sandbox's ports — each service's own `PORT` default (see `localPortFor` in `adapters.ts`).
+# What the DEVICE addresses. The host side may sit on another port when something else holds 3000 (the owner's session UI
+# does): `LOCAL_MAESTRO_RECIPE_HOST_PORT` names it, `local:up` publishes it (`LOCAL_SANDBOX_HOST_PORTS=recipes=<port>`),
+# and `adb reverse` joins the two, so the app is untouched.
 LOCAL_MAESTRO_RECIPE_ORIGIN='http://localhost:3000'
+LOCAL_MAESTRO_RECIPE_HOST_PORT="${LOCAL_MAESTRO_RECIPE_HOST_PORT:-3000}"
 LOCAL_MAESTRO_IDENTITY_ORIGIN='http://localhost:3001'
 LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # ⛔ The `azp` the seeder's tokens carry must be one the services admit: `localContainerEnv` sets
@@ -290,7 +292,7 @@ local_maestro_cleanup() {
 
 local_maestro_require_services() {
     local origin down=0
-    for origin in "$LOCAL_MAESTRO_RECIPE_ORIGIN" "$LOCAL_MAESTRO_IDENTITY_ORIGIN" "$LOCAL_MAESTRO_FOOD_ORIGIN"; do
+    for origin in "http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" "$LOCAL_MAESTRO_IDENTITY_ORIGIN" "$LOCAL_MAESTRO_FOOD_ORIGIN"; do
         if ! curl -fsS --max-time 5 -o /dev/null "${origin}/health"; then
             local_maestro_fail "${origin}/health does not answer"
             down=1
@@ -458,9 +460,11 @@ local_maestro_install_app() {
     }
 
     local port
-    for port in "$LOCAL_MAESTRO_METRO_PORT" 3000 3001 3002; do
+    for port in "$LOCAL_MAESTRO_METRO_PORT" 3001 3002; do
         adb reverse "tcp:${port}" "tcp:${port}" >/dev/null || return 1
     done
+    # The device's :3000 is recipe, wherever the host publishes it.
+    adb reverse tcp:3000 "tcp:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" >/dev/null || return 1
     # The app's committed `.env.development` names identity at :4000 (the spec's local table); the local sandbox
     # serves it at :3001 (its own `PORT` default).
     adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
@@ -481,7 +485,9 @@ local_maestro_install_app() {
 
 local_maestro_seed_env() {
     local state="$1"
-    export E2E_SEED_RECIPE_URL="$LOCAL_MAESTRO_RECIPE_ORIGIN"
+    export E2E_SEED_RECIPE_URL="http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}"
+    # ⛔ A local run signs in users of its own, never CI's: see `e2e-fixtures`' `PoolNamespace`.
+    export E2E_POOL_NAMESPACE=local
     export E2E_SEED_FOOD_URL="$LOCAL_MAESTRO_FOOD_ORIGIN"
     export E2E_SEED_IDENTITY_URL="$LOCAL_MAESTRO_IDENTITY_ORIGIN"
     export E2E_SEED_WEB_ORIGIN="$LOCAL_MAESTRO_WEB_ORIGIN"
@@ -490,6 +496,14 @@ local_maestro_seed_env() {
     # The Android emulator, stated rather than left to the seed tools' default (iOS has pool lanes of its own).
     export MAESTRO_PLATFORM=android
     export MAESTRO_FIXTURE_ENV_FILE="${state}/e2e-seed/fixture.env"
+}
+
+# Make this lane's users, which exist only for a local run: signer, co-author and the erasure subjects. The subjects are
+# RECYCLED (deleted and made again) because the local stack runs no identity deletion worker, so an erased one would
+# otherwise still stand in Clerk. `external_id` is written here too, since the sandbox webhook that writes it for the
+# shared pool is down when the sandbox is. Only Clerk is touched, and only users named `test-local-*`.
+local_maestro_provision_lane_users() {
+    npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1
 }
 
 local_maestro_reset_pool() {
@@ -546,7 +560,11 @@ local_maestro_main() {
     local_maestro_start_metro "$state" || return 1
     local_maestro_install_app "$state" || return 1
 
-    echo 'local:maestro: resetting the pool slots and seeding the world (e2e-seed)' >&2
+    echo 'local:maestro: making the local pool users, resetting their slots and seeding the world (e2e-seed)' >&2
+    local_maestro_provision_lane_users || {
+        local_maestro_fail 'the local pool users could not be made'
+        return 1
+    }
     local_maestro_reset_pool || return 1
     local_maestro_align_identities || {
         local_maestro_fail 'the local identity database could not be aligned with the Clerk external_ids'

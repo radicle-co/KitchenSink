@@ -28,7 +28,7 @@
  * @pattern Specification - pure predicates over the viewer's rule, slot standing and paid-feature state
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import type { PrivateSlotUsage } from '@kitchensink/schema-recipe';
 
 import {
@@ -94,6 +94,18 @@ export function slotStandingForRecipe(
 }
 
 const DRAFT_STANDING: SlotStanding = { kind: 'draft' };
+
+/**
+ * Whether a recipe is published, which is what makes it hold a slot when it is private (ADR-0073 section 12). Pure.
+ *
+ * Read from the recipe's STATUS and nothing else: a published recipe sent back to draft keeps its lifecycle (every save of
+ * it makes a version) but holds no slot. The one place the editor's surfaces ask it.
+ *
+ * @param recipe - The recipe as the editor was seeded with it; `undefined` for one never saved.
+ */
+export function recipeIsPublished(recipe: Pick<RecipeDetail, 'status'> | undefined): boolean {
+    return recipe?.status === RecipeStatus.PUBLISHED;
+}
 
 /**
  * What a DRAFT SAVE may be refused for. Pure.

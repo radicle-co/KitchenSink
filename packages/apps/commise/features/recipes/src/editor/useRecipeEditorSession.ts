@@ -29,7 +29,7 @@
  */
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
-import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useRebindIngredientLine,
@@ -40,7 +40,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
-import { refusalWhileDrafting } from '../actions/recipePrivateGate.js';
+import { recipeIsPublished, refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -211,9 +211,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         privateRefusal,
     });
 
-    // ADR-0073 section 12: a write that PARKS before the first publish may be a Publish refused for want of a private slot the client could not see
-    // for want of a private slot the client could not see coming (the slot read had failed or was stale, so the Publish was
-    // sent by design). Try again asks the gate with the standing as it is then, so the standing is re-read now, when it
+    // ADR-0073 section 12: a write that PARKS before the first publish may be a Publish the server refused for want of a
+    // private slot the client could not see coming (the slot read had failed or was stale, so the Publish was sent by design). Try again asks the gate with the standing as it is then, so the standing is re-read now, when it
     // matters. It is an event in the outbox, outside React, which is what an effect is for. A published recipe's Save
     // changes takes no slot, so only a recipe not yet published asks.
     const publishParked = editor.parked !== undefined && editor.lifecycle !== 'published';
@@ -295,9 +294,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
                 values: {
                     ...editor.values,
                     visibility: effectiveVisibility(
-                        seed.recipe?.status === RecipeStatus.PUBLISHED
-                            ? privateRefusal
-                            : refusalWhileDrafting(privateRefusal),
+                        recipeIsPublished(seed.recipe) ? privateRefusal : refusalWhileDrafting(privateRefusal),
                         heldVisibility(seed.recipe?.visibility ?? RecipeVisibility.PUBLIC, editor.values.visibility),
                         editor.values.visibility,
                     ),

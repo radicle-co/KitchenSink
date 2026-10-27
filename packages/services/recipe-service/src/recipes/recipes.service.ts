@@ -428,6 +428,31 @@ function assertVisibilityAllowed(
     throw invalidVisibility(decision.reason, { visibility: ask.requested, sourceType: ask.sourceType });
 }
 
+/**
+ * The C-004 question for a recipe asking to hold `requested`, without the slot fact. Pure.
+ *
+ * The one place that builds it, so create, update (publishing a private draft) and set-visibility cannot disagree about
+ * which fields the policy is asked with.
+ *
+ * @param principal - The verified caller.
+ * @param recipe - The recipe's provenance label and whether it carries a substantive edit once the write lands.
+ * @param requested - The visibility asked for.
+ */
+function visibilityAskOf(
+    principal: Principal,
+    recipe: { readonly sourceType: RecipeSourceType; readonly hasSubstantiveEdit: boolean },
+    requested: RecipeVisibility,
+): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
+    return {
+        principalKind: principal.principalKind,
+        containment: principal.containment,
+        sourceType: recipe.sourceType,
+        isPremium: isPremiumPrincipal(principal),
+        hasSubstantiveEdit: recipe.hasSubstantiveEdit,
+        requested,
+    };
+}
+
 @Injectable()
 export class RecipesService {
     public constructor(
@@ -597,14 +622,11 @@ export class RecipesService {
         const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
         const isPremium = isPremiumPrincipal(principal);
-        const visibilityAsk: Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> = {
-            principalKind: principal.principalKind,
-            containment: principal.containment,
-            sourceType: provenance.sourceType,
-            isPremium,
-            hasSubstantiveEdit: false,
+        const visibilityAsk = visibilityAskOf(
+            principal,
+            { sourceType: provenance.sourceType, hasSubstantiveEdit: false },
             requested,
-        };
+        );
         // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
         // exactly as it always was - a pure refusal must not cost a call to food. (A slot refusal does: it is only known
@@ -1103,15 +1125,18 @@ export class RecipesService {
                         after: { visibility: current.visibility, status: afterStatus },
                     });
 
+                    if (takesSlot && counted === undefined) {
+                        // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to,
+                        // which is exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
+                        throw new Error('A private draft was published without the per-user slot lock being taken.');
+                    }
+
                     assertVisibilityAllowed(
-                        {
-                            principalKind: principal.principalKind,
-                            containment: principal.containment,
-                            sourceType,
-                            isPremium,
-                            hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit || newlySubstantive,
-                            requested: RecipeVisibility.PRIVATE,
-                        },
+                        visibilityAskOf(
+                            principal,
+                            { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit || newlySubstantive },
+                            RecipeVisibility.PRIVATE,
+                        ),
                         takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
                     );
                 }
@@ -1380,14 +1405,11 @@ export class RecipesService {
 
         const isPremium = isPremiumPrincipal(principal);
         const sourceType = existing.recipe.sourceType as RecipeSourceType;
-        const visibilityAsk: Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> = {
-            principalKind: principal.principalKind,
-            containment: principal.containment,
-            sourceType,
-            isPremium,
-            hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit,
-            requested: visibility,
-        };
+        const visibilityAsk = visibilityAskOf(
+            principal,
+            { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit },
+            visibility,
+        );
         // The row's facts are only known for certain UNDER the lock (set-visibility does not bump the version, and another
         // request may publish a draft in between), so the lock is taken whenever the slot rule could apply to a move to
         // private, and the precise verdict is made from the facts read under it.

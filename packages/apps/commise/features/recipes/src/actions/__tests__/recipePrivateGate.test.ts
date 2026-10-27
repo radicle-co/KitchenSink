@@ -12,10 +12,11 @@
  * The cases are the rule's whole truth table: two rules (slots, premium) x the standing (unknown, unlimited, open, full)
  * x the paid-feature state, for the five questions a surface asks.
  */
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+    recipeIsPublished,
     refusalWhileDrafting,
     slotStandingForRecipe,
     privateRuleOf,
@@ -323,5 +324,13 @@ describe('refusalWhileDrafting - what a draft save may be refused for', () => {
         expect(refusalWhileDrafting('final')).toBe('final');
         expect(refusalWhileDrafting('premium')).toBe('premium');
         expect(refusalWhileDrafting(undefined)).toBeUndefined();
+    });
+});
+
+describe('recipeIsPublished - what makes a recipe hold a slot is its STATUS', () => {
+    it('is true only for a published recipe; a draft and a recipe never saved are not', () => {
+        expect(recipeIsPublished({ status: RecipeStatus.PUBLISHED })).toBe(true);
+        expect(recipeIsPublished({ status: RecipeStatus.DRAFT })).toBe(false);
+        expect(recipeIsPublished(undefined)).toBe(false);
     });
 });

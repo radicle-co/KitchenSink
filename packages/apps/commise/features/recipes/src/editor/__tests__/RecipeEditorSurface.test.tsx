@@ -17,7 +17,7 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -31,6 +31,7 @@ import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
+import { VISIBILITY_SECTION } from '../sections.js';
 import { useRecipePrivate } from '../../actions/useRecipePrivate.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
@@ -155,6 +156,20 @@ describe('RecipeEditorSurface — the status poller', () => {
         mount({ seed: { recipe } }, client);
 
         expect(poll.mock.calls.map(([id]) => id)).toEqual(['ing_pending']);
+    });
+});
+
+describe('RecipeEditorSurface — where the visibility field lives', () => {
+    // `VISIBILITY_SECTION` is where a Publish refused for want of a private slot takes the cook (ADR-0073 section 12). It
+    // names a section by id, so a reshuffle of the page would break it silently unless the field's section is pinned here.
+    it('renders "Who can see it" inside the section the slot refusal takes the cook to', () => {
+        mount({ paidFeatures: 'granted', knownPaidFeatures: 'granted' });
+
+        const section = screen.getByRole('heading', { level: 2, name: 'Photos & publish' }).closest('section');
+
+        expect(section).not.toBeNull();
+        expect(within(section as HTMLElement).getByRole('radio', { name: /private/i })).toBeTruthy();
+        expect(VISIBILITY_SECTION).toBe('photos');
     });
 });
 

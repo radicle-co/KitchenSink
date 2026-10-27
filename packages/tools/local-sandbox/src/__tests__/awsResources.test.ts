@@ -27,6 +27,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    deletionQueueUrl,
     creatableResources,
     importRefsOf,
     localizeQueueUrls,
@@ -436,5 +437,28 @@ describe('localizeQueueUrls', () => {
                 LOCALSTACK,
             ),
         ).toEqual({ Q: 'http://localhost:4566/000000000000/kitchensink-recipe-parse-dev' });
+    });
+});
+
+describe('deletionQueueUrl — where identity sends the Clerk deletion it owes', () => {
+    /**
+     * ⚠️ Identity reaches the queue through `Queue.fromQueueArn`, a cross-stack import no template read can flatten, so its
+     * `DELETION_QUEUE_URL` was a placeholder and EVERY self-service erasure answered "couldn't start erasing" (the enqueue
+     * throws rather than skip). The queue is created locally under its deployed name; this finds it.
+     */
+    const target = { endpoint: 'http://localstack:4566', region: 'us-east-1', account: '000000000000' };
+
+    it('is the local URL of the data stack’s deletion queue, never its dead-letter queue', () => {
+        expect(
+            deletionQueueUrl(
+                ['globaldevdatadevfb021b28-deletiondlq0f1c9c83', 'globaldevdatadevfb021b28-deletionqueuefcf7c2cd'],
+                target,
+            ),
+        ).toBe('http://localstack:4566/000000000000/globaldevdatadevfb021b28-deletionqueuefcf7c2cd');
+    });
+
+    it('is absent when no such queue is created, or when two are (a guess would send erasures to the wrong one)', () => {
+        expect(deletionQueueUrl(['kitchensink-recipe-parse-dev'], target)).toBeUndefined();
+        expect(deletionQueueUrl(['a-deletionqueue1', 'b-deletionqueue2'], target)).toBeUndefined();
     });
 });

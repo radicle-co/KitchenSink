@@ -95,6 +95,12 @@ export interface AlignmentPorts {
     readonly rowsFor: (identityId: string, externalId: string) => Promise<readonly IdentityRow[]>;
     /** Delete the row holding `identityId`, and with it the rows that depend on it. */
     readonly removeRow: (identityId: string) => Promise<void>;
+    /**
+     * Delete every local row that holds `email` under an identity other than `keepIdentityId`. Given only for the LOCAL
+     * pool namespace, whose users are deleted and recreated under one address: the old user's row would otherwise keep the
+     * address (unique among active rows) and the new user would be provisioned with a placeholder one.
+     */
+    readonly removeStaleRowsForEmail?: (email: string, keepIdentityId: string) => Promise<void>;
     /** Provision the complete user under `externalId`; resolves to the id the row actually has. */
     readonly provision: (input: {
         readonly identityId: string;
@@ -147,6 +153,8 @@ export async function alignPoolIdentities(
         }
 
         if (plan.kind !== 'aligned') {
+            await ports.removeStaleRowsForEmail?.(slot.email, target.identityId);
+
             const id = await ports.provision({ ...target, email: slot.email });
 
             if (id !== target.externalId) {

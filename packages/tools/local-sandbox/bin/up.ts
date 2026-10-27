@@ -41,13 +41,20 @@ import {
     resolveSsmParameters,
     sharedLiteralEnv,
 } from '../src/runPlan.js';
-import { discoverImageBuilds, hostPortOverridesFrom, localContainerEnv, portConflicts } from '../src/localImages.js';
+import {
+    discoverImageBuilds,
+    hostPortOverridesFrom,
+    identityStatedEnv,
+    localContainerEnv,
+    portConflicts,
+} from '../src/localImages.js';
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
 import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
 import { composeValue } from '../src/composeValue.js';
 import { foodRemoteSearchEnv, remoteSearchSidecar } from '../src/remoteSearchStandIn.js';
 import {
     creatableResources,
+    deletionQueueUrl,
     importRefsOf,
     localizeQueueUrls,
     localExportMap,
@@ -363,6 +370,7 @@ async function main(): Promise<void> {
     }
 
     const foodStated = foodRemoteSearchEnv(standIn.keys);
+    const deletionQueue = deletionQueueUrl(createdQueueNames, localStackTarget);
 
     // ── Build OUR images, then point the local stack at them ────────────────────────────────────────
     //
@@ -456,6 +464,8 @@ async function main(): Promise<void> {
                 siblings,
                 // Only food searches and picks remote hits; every other container keeps the group absent.
                 ...(name === 'food' ? { stated: foodStated } : {}),
+                // Identity's queue import cannot be flattened, so it must be stated or every erasure fails to enqueue.
+                ...(name === 'identity' ? { stated: identityStatedEnv(deletionQueue) } : {}),
                 // A literal the stack's tasks all state (`CLERK_ADMIT_NATIVE_CLIENT: 'true'`) ranks with what AWS resolved;
                 // without it every such value became a placeholder and the native app's tokens 401'd.
                 resolved: {

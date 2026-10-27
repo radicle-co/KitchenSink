@@ -3,7 +3,9 @@
  * `android`, so an iOS lane's users were never aligned: the app then read a fresh local id for its own `sub`, and the
  * services (which take the owner from Clerk's `external_id`) disagreed with it about who owns a recipe.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { poolSlotMetadata, type PoolSlot } from '@kitchensink/e2e-fixtures/testPool';
 
 import { alignmentSlots, laneFromEnv } from '../alignmentLane.js';
 import { alignPoolIdentities } from '../identityAlignment.js';
@@ -85,5 +87,71 @@ describe('a lane, through the alignment itself', () => {
             'test-ioscoauthor01+clerk_test@radcile.com',
             ...['06', '07', '08', '09', '10'].map((n) => `test-erasure${n}+clerk_test@radcile.com`),
         ]);
+    });
+});
+
+// The recycled-user cases run in the local namespace, whose addresses they assert.
+afterAll(() => {
+    vi.unstubAllEnvs();
+});
+
+describe('a recycled pool user, whose address an older local row still holds', () => {
+    /**
+     * A local run deletes its erasure subjects from Clerk and makes new ones under the SAME address. The local identity
+     * keeps the old user's row, and email is unique among active rows, so provisioning the new user fell back to a
+     * placeholder address and the app showed `user_…@no-email.invalid` where the flow expects the subject's email.
+     */
+    beforeAll(() => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+    });
+    const slot = (): PoolSlot | undefined =>
+        alignmentSlots({ platform: 'android', shard: 1 }).find((candidate) => candidate.id === 'erasure01');
+
+    const run = async (withPort: boolean) => {
+        const calls: string[] = [];
+        const user = {
+            id: 'user_new',
+            externalId: '01NEWNEWNEWNEWNEWNEWNEWNEW',
+            emailAddresses: [],
+            publicMetadata: {
+                testPrincipal: true,
+                ...(slot() === undefined ? {} : poolSlotMetadata(slot() as PoolSlot)),
+            },
+        };
+
+        await alignPoolIdentities(slot() === undefined ? [] : [slot() as PoolSlot], {
+            findUsers: () => Promise.resolve([user as never]),
+            rowsFor: () => Promise.resolve([]),
+            removeRow: () => Promise.resolve(),
+            ...(withPort
+                ? {
+                      removeStaleRowsForEmail: (email: string, keep: string) => {
+                          calls.push(`stale ${email} keep ${keep}`);
+
+                          return Promise.resolve();
+                      },
+                  }
+                : {}),
+            provision: ({ externalId }) => {
+                calls.push('provision');
+
+                return Promise.resolve(externalId);
+            },
+        }).catch((error: unknown) => {
+            calls.push(`refused ${String(error)}`);
+        });
+
+        return calls;
+    };
+
+    it('clears the stale rows of that address before provisioning, keeping the user being aligned', async () => {
+        expect((await run(true)).slice(0, 2)).toEqual([
+            'stale test-local-erasure01+clerk_test@radcile.com keep user_new',
+            'provision',
+        ]);
+    });
+
+    it('does nothing of the kind when the port is not given (the shared pool)', async () => {
+        expect(await run(false)).toEqual(['provision']);
     });
 });

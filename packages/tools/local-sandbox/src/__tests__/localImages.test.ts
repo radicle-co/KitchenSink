@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest';
 import {
     discoverImageBuilds,
     hostPortOverridesFrom,
+    identityStatedEnv,
     localContainerEnv,
     portConflicts,
     pruneStepFor,
@@ -648,5 +649,41 @@ describe('hostPortOverridesFrom — moving a published host port off one somethi
         expect(hostPortOverridesFrom('constructor=3010').constructor).not.toBe(Object);
         expect(Object.keys(hostPortOverridesFrom('constructor=3010'))).toEqual(['constructor']);
         expect({}.constructor).toBe(Object);
+    });
+});
+
+describe('localContainerEnv — the real media distribution is never given to a local container', () => {
+    /**
+     * ⛔ `MEDIA_DISTRIBUTION_ID` resolves from the sandbox's SSM, so a local identity held the id of a REAL CloudFront
+     * distribution and tried to invalidate it on every avatar removal. LocalStack has no CloudFront, the call failed, and
+     * ADR-0064 makes that failure fatal — so every self-service erasure answered 500. A non-deployed stage with no
+     * distribution gets the no-op port (`resolveMediaConfig`), which is what a local run wants.
+     */
+    it('drops it even when AWS resolved one', () => {
+        const env = localContainerEnv(['MEDIA_DISTRIBUTION_ID'], {
+            database: 'kitchensink_identity',
+            port: 3000,
+            resolved: { MEDIA_DISTRIBUTION_ID: 'E9FALAO95WK60' },
+        });
+
+        expect(env['MEDIA_DISTRIBUTION_ID']).toBeUndefined();
+    });
+});
+
+describe('identityStatedEnv — what a local identity needs to erase an account', () => {
+    /**
+     * Self-service erasure removes the avatar objects (S3) and enqueues the deletion. Against LocalStack the S3 client must
+     * use path-style addressing, which the service turns on only when `S3_ENDPOINT` is set (virtual-host style resolves
+     * `bucket.localstack`, which does not exist), and the queue URL is an import no template read can flatten.
+     */
+    it('names LocalStack for S3 and the deletion queue', () => {
+        expect(identityStatedEnv('http://localstack:4566/000000000000/q')).toEqual({
+            S3_ENDPOINT: 'http://localstack:4566',
+            DELETION_QUEUE_URL: 'http://localstack:4566/000000000000/q',
+        });
+    });
+
+    it('leaves the queue to the placeholder when none was found, rather than stating a guess', () => {
+        expect(identityStatedEnv(undefined)).toEqual({ S3_ENDPOINT: 'http://localstack:4566' });
     });
 });

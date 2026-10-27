@@ -237,6 +237,8 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
 const NEVER_FROM_AWS: readonly RegExp[] = [
     /^CLERK_AZP_PATTERN$|^CLERK_AZP_PREVIEW_MODE$/u,
     /^REMOTE_SEARCH_ORIGIN$|^REMOTE_SEARCH_KEY_PAIR_ID$|^REMOTE_SEARCH_SIGNING_KEY$|^FOOD_REMOTE_REFERENCE_KEY$/u,
+    // The id of a REAL CloudFront distribution; LocalStack has none, and an unset id is the service's no-op invalidation.
+    /^MEDIA_DISTRIBUTION_ID$/u,
 ];
 
 const OMITTED: readonly RegExp[] = [
@@ -416,4 +418,17 @@ export function hostPortOverridesFrom(raw: string | undefined): Readonly<Record<
     }
 
     return overrides;
+}
+
+/**
+ * The values a local identity container is stated, beyond what the task definition declares. Pure.
+ *
+ * @param deletionQueueUrl - The local URL of the deletion queue, when one is created.
+ * @returns Name to value.
+ */
+export function identityStatedEnv(deletionQueueUrl: string | undefined): Readonly<Record<string, string>> {
+    return {
+        S3_ENDPOINT: 'http://localstack:4566',
+        ...(deletionQueueUrl === undefined ? {} : { DELETION_QUEUE_URL: deletionQueueUrl }),
+    };
 }

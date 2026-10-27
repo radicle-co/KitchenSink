@@ -12,9 +12,10 @@
 import { spawnSync } from 'node:child_process';
 
 import { clerkLeasePort } from '@kitchensink/e2e-fixtures/lease';
+import { poolNamespaceFrom } from '@kitchensink/e2e-fixtures/testPool';
 import { accounts, isUserId, newProfileClock, profiles, users } from '@kitchensink/identity-db';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { eq, or } from 'drizzle-orm';
+import { and, eq, ne, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
@@ -85,6 +86,14 @@ async function main(): Promise<void> {
         removeRow: async (identityId) => {
             await db.delete(users).where(eq(users.identityId, identityId));
         },
+        // Only the local namespace recycles users under one address (see `AlignmentPorts.removeStaleRowsForEmail`).
+        ...(poolNamespaceFrom(process.env) === 'local'
+            ? {
+                  removeStaleRowsForEmail: async (email: string, keepIdentityId: string) => {
+                      await db.delete(users).where(and(eq(users.email, email), ne(users.identityId, keepIdentityId)));
+                  },
+              }
+            : {}),
         // THE house provisioning routine, with the id fixed to the one Clerk already carries.
         provision: async ({ identityId, externalId, email }) => {
             const result = await provisionCompleteUser(

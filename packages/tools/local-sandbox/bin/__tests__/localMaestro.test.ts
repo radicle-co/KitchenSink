@@ -394,3 +394,68 @@ describe('the local run names its platform', () => {
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3001');
     });
 });
+
+/**
+ * ADDED 2026-10-27: a local run signs in users of its own (`E2E_POOL_NAMESPACE=local`). The shared pool's erasure
+ * subjects are CI's, and the local stack runs no identity webhook to write a user's `external_id`; see `testPool.ts`.
+ */
+describe('the local run uses its own pool users', () => {
+    const fakeNpx = (sandbox: Sandbox): void => {
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            `#!/usr/bin/env bash\necho "npx $* ns=\${E2E_POOL_NAMESPACE:-unset}" >> "${sandbox.calls}"\nexit 0\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+    };
+
+    it('⛔ selects the local namespace for every seed tool', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_POOL_NAMESPACE"`);
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('local');
+    });
+
+    it('creates the lane’s users, recycling its erasure subjects, with the namespace in force', () => {
+        const sandbox = makeSandbox();
+        fakeNpx(sandbox);
+
+        expect(
+            run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_provision_lane_users`).status,
+        ).toBe(0);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 ns=local',
+        );
+    });
+
+    it('provisions the users after the Clerk keys are loaded and before the pool is reset', () => {
+        const body = run(makeSandbox(), 'declare -f local_maestro_main').stdout;
+        const at = (needle: string): number => body.indexOf(needle);
+
+        expect(at('local_maestro_provision_lane_users')).toBeGreaterThan(at('local_maestro_load_clerk_keys'));
+        // The reset that matters is the first one AFTER the provisioning (an earlier one belongs to the `reset` command).
+        const resetAfter = body.indexOf('local_maestro_reset_pool', at('local_maestro_provision_lane_users'));
+
+        expect(resetAfter).toBeGreaterThan(at('local_maestro_provision_lane_users'));
+        expect(resetAfter).toBeLessThan(at('local_maestro_align_identities'));
+    });
+});
+
+describe('a recipe host port something else holds', () => {
+    it('seeds against the moved host port, while the device keeps addressing :3000', () => {
+        const sandbox = makeSandbox();
+        const result = run(
+            sandbox,
+            `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL $LOCAL_MAESTRO_RECIPE_ORIGIN"`,
+            { LOCAL_MAESTRO_RECIPE_HOST_PORT: '3050' },
+        );
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3050 http://localhost:3000');
+    });
+
+    it('defaults to the service’s own port', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL"`);
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3000');
+    });
+});

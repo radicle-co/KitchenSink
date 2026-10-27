@@ -50,7 +50,7 @@ import { KeepAwakeToggle } from '../../keepAwake/KeepAwakeToggle.native.js';
 import { BottomSheetPanel } from '../../sheet/BottomSheetPanel.native.js';
 import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';
 import { themeFor } from '../../theme/themeFor.js';
-import { chipPressToneOf, SURFACE_TONE_NAMES, SURFACE_TONES } from '../surfaceTone.js';
+import { chipFillRoleOf, chipPressToneOf, SURFACE_TONE_NAMES } from '../surfaceTone.js';
 import { Surface } from '../Surface.native.js';
 
 afterEach(() => {
@@ -73,6 +73,33 @@ function pillOf(control: HTMLElement): HTMLElement {
 }
 
 const fill = (control: HTMLElement): string => getComputedStyle(pillOf(control)).backgroundColor;
+
+describe('a chip inside a paperRaised Surface in the dark theme (componentFixes.md §10b)', () => {
+    it('rests on paper, not on the surfaceMuted colour the surface itself paints there', () => {
+        systemScheme.current = 'dark';
+        render(
+            <Surface tone="paperRaised">
+                <Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />
+            </Surface>,
+        );
+        const chip = fill(screen.getByRole('checkbox', { name: 'Vegan' }));
+
+        expect(chip).toBe(rgb(rolesFor('dark').paper));
+        expect(chip).not.toBe(rgb(rolesFor('dark').paperRaised));
+        expect(chip).not.toBe(rgb(rolesFor('dark').surfaceMuted));
+    });
+
+    it('rests on surfaceMuted in the light theme', () => {
+        systemScheme.current = 'light';
+        render(
+            <Surface tone="paperRaised">
+                <Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />
+            </Surface>,
+        );
+
+        expect(fill(screen.getByRole('checkbox', { name: 'Vegan' }))).toBe(rgb(rolesFor('light').surfaceMuted));
+    });
+});
 
 describe.each(['light', 'dark'] as const)('a pressed control in the %s theme', (scheme) => {
     const theme = themeFor(scheme);
@@ -117,7 +144,7 @@ describe.each(['light', 'dark'] as const)('a pressed control in the %s theme', (
             );
             const chip = (): HTMLElement => screen.getByRole('checkbox', { name: 'Vegan' });
 
-            expect(fill(chip())).toBe(rgb(rolesFor(scheme)[SURFACE_TONES[tone].chipFill]));
+            expect(fill(chip())).toBe(rgb(rolesFor(scheme)[chipFillRoleOf(tone, scheme)]));
 
             press.pressed = true;
             rerender(
@@ -126,7 +153,7 @@ describe.each(['light', 'dark'] as const)('a pressed control in the %s theme', (
                 </Surface>,
             );
 
-            expect(fill(chip())).toBe(rgb(theme.press[chipPressToneOf(tone)]));
+            expect(fill(chip())).toBe(rgb(theme.press[chipPressToneOf(tone, scheme)]));
         });
     });
 

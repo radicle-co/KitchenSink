@@ -33,7 +33,15 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
-import { pressFillsOf, pressVarOf, SURFACE_TONE_NAMES } from '../surfaceTone/surfaceTone.js';
+import {
+    chipFillRoleOf,
+    chipFillVarOf,
+    chipPressToneOf,
+    chipPressVarOf,
+    pressFillsOf,
+    pressVarOf,
+    SURFACE_TONE_NAMES,
+} from '../surfaceTone/surfaceTone.js';
 import { palette, role, roleDark, semantic, semanticDark } from './colors.js';
 import { coverTint, coverTintDark } from './covers.js';
 import { difficultyTone, difficultyToneDark, proTone, proToneDark, type Difficulty, type Tone } from './tones.js';
@@ -146,6 +154,23 @@ function pressDeclarations(scheme: 'light' | 'dark'): readonly string[] {
 }
 
 /**
+ * Each surface's chip fill and chip press as `--color-chip-fill-<tone>` and `--color-chip-press-<tone>`
+ * (`surfaceTone.ts`, `componentFixes.md` §10b): a chip's fill is chosen per theme (on `paperRaised` it is `paper` in dark,
+ * where `paperRaised` is `surfaceMuted`), so each tone states its own and the surface class points at it. Pure.
+ *
+ * @param scheme - Which theme's chip fills.
+ */
+function chipDeclarations(scheme: 'light' | 'dark'): readonly string[] {
+    const colors = scheme === 'light' ? role : roleDark;
+    const press = pressFillsOf(colors, scheme);
+
+    return SURFACE_TONE_NAMES.flatMap((tone) => [
+        `    ${chipFillVarOf(tone)}: ${colors[chipFillRoleOf(tone, scheme)]};`,
+        `    ${chipPressVarOf(tone)}: ${press[chipPressToneOf(tone, scheme)]};`,
+    ]);
+}
+
+/**
  * The difficulty badge's pairs as `--color-difficulty-{level}-fill` and `-ink` (`buildSpec.md` §1.4): the same tones
  * native reads from `difficultyTone`/`difficultyToneDark`, so the two platforms cannot disagree on them. Pure.
  *
@@ -173,6 +198,7 @@ function darkThemeLines(): readonly string[] {
         '    :root {',
         ...declarations('color', roleDark).map((line) => `    ${line}`),
         ...pressDeclarations('dark').map((line) => `    ${line}`),
+        ...chipDeclarations('dark').map((line) => `    ${line}`),
         ...declarations('color', semanticDark).map((line) => `    ${line}`),
         ...declarations('color-pro', { fill: proToneDark.fill, ink: proToneDark.text }).map((line) => `    ${line}`),
         ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
@@ -216,6 +242,7 @@ export function themeCss(): string {
         // The overhaul's roles and layout (§1.2-§1.5), appended after everything above for the same reason.
         ...declarations('color', role),
         ...pressDeclarations('light'),
+        ...chipDeclarations('light'),
         ...typeRoleDeclarations(),
         ...layoutDeclarations(),
         ...declarations('color-cover', coverTint),

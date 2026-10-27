@@ -7,7 +7,7 @@
  */
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
-import { chipPressToneOf, SURFACE_TONES, type SurfaceTone } from '../surfaceTone/surfaceTone.js';
+import { chipFillRoleOf, chipPressToneOf, type SurfaceTone } from '../surfaceTone/surfaceTone.js';
 import type { Theme } from '../theme/themeFor.js';
 import { nativeTokens } from '../tokens/native.js';
 
@@ -39,7 +39,12 @@ export const chipHit: ViewStyle = { justifyContent: 'center', maxWidth: '100%' }
  *   (`componentFixes.md` §10a). Required, so a caller cannot forget it and rest on the wrong fill.
  * @returns The pill's style.
  */
-export function chipPill({ colors, press }: Theme, selected: boolean, pressed: boolean, tone: SurfaceTone): ViewStyle {
+export function chipPill(
+    { colors, press, scheme }: Theme,
+    selected: boolean,
+    pressed: boolean,
+    tone: SurfaceTone,
+): ViewStyle {
     return {
         flexDirection: 'row',
         alignItems: 'center',
@@ -58,7 +63,9 @@ export function chipPill({ colors, press }: Theme, selected: boolean, pressed: b
                   paddingHorizontal: nativeTokens.spacing[3] - (pressed ? CHIP_EDGE_PRESSED - CHIP_EDGE : 0),
               }
             : {
-                  backgroundColor: pressed ? press[chipPressToneOf(tone)] : colors[SURFACE_TONES[tone].chipFill],
+                  backgroundColor: pressed
+                      ? press[chipPressToneOf(tone, scheme)]
+                      : colors[chipFillRoleOf(tone, scheme)],
                   borderWidth: CHIP_EDGE,
                   borderColor: 'transparent',
               }),

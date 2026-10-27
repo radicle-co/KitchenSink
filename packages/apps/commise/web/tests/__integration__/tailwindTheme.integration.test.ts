@@ -37,6 +37,7 @@ import tailwind from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { role, roleDark } from '@commise/ui/colors';
 import { PRESS_FILL_CLASS, SURFACE_TONE_CLASS } from '@commise/ui/surface-tone';
 
 const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
@@ -581,21 +582,35 @@ describe('the surface tone, compiled', () => {
         expect(css).toContain('background-color:var(--cm-chip-press,var(--color-press-muted))');
     });
 
+    // §10b: a chip's fill is chosen per theme, so the compiled sheet gives paper-raised its own chip fill, and in the dark
+    // block that fill is paper, not the surface-muted colour paper-raised itself paints there.
+    it('gives a chip on paper-raised surface-muted in light and paper in dark', async () => {
+        const css = squashed(await compileAppCss());
+        const darkStart = css.indexOf('@media(prefers-color-scheme:dark)');
+        const declared = (block: string): string | undefined =>
+            /--color-chip-fill-paper-raised:(#[0-9a-fA-F]{6})/u.exec(block)?.[1]?.toLowerCase();
+
+        expect(darkStart).toBeGreaterThan(0);
+        expect(declared(css.slice(0, darkStart))).toBe(role.surfaceMuted.toLowerCase());
+        expect(declared(css.slice(darkStart))).toBe(roleDark.paper.toLowerCase());
+        expect(declared(css.slice(darkStart))).not.toBe(roleDark.paperRaised.toLowerCase());
+    });
+
     it('paints each tone and sets its four properties to the roles of the table', async () => {
         const css = squashed(await compileAppCss());
 
-        for (const [fillRole, tone, chipFill, chipPress] of [
-            ['canvas', 'canvas', 'surface-muted', 'muted'],
-            ['paper', 'paper', 'surface-muted', 'muted'],
-            ['paper-overlay', 'paper-overlay', 'surface-muted', 'muted'],
-            ['paper-raised', 'paper-raised', 'surface-muted', 'muted'],
-            ['inverse', 'inverse', 'surface-muted', 'muted'],
-            ['surface-muted', 'muted', 'paper', 'paper'],
+        for (const [fillRole, tone] of [
+            ['canvas', 'canvas'],
+            ['paper', 'paper'],
+            ['paper-overlay', 'paper-overlay'],
+            ['paper-raised', 'paper-raised'],
+            ['inverse', 'inverse'],
+            ['surface-muted', 'muted'],
         ] as const) {
             expect(css, `${tone} fill`).toContain(`--cm-surface:var(--color-${fillRole})`);
             expect(css, `${tone} press`).toContain(`--cm-press:var(--color-press-${tone})`);
-            expect(css, `${tone} chip fill`).toContain(`--cm-chip-fill:var(--color-${chipFill})`);
-            expect(css, `${tone} chip press`).toContain(`--cm-chip-press:var(--color-press-${chipPress})`);
+            expect(css, `${tone} chip fill`).toContain(`--cm-chip-fill:var(--color-chip-fill-${tone})`);
+            expect(css, `${tone} chip press`).toContain(`--cm-chip-press:var(--color-chip-press-${tone})`);
         }
     });
 

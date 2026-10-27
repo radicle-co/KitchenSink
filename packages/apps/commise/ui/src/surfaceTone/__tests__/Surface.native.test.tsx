@@ -43,7 +43,7 @@ describe('Surface (native)', () => {
             it(`${scheme} ${tone}: paints the tone's fill role`, () => {
                 systemScheme.current = scheme;
                 render(
-                    <Surface tone={tone} accessibilityLabel="surface">
+                    <Surface tone={tone} aria-label="surface">
                         <Probe label="in" />
                     </Surface>,
                 );
@@ -97,5 +97,30 @@ describe('Surface (native)', () => {
         expect(screen.getByText(`outer:paper:${press.paper}`)).not.toBeNull();
         expect(screen.getByText(`inner:muted:${press.muted}`)).not.toBeNull();
         expect(screen.getByText(`after:paper:${press.paper}`)).not.toBeNull();
+    });
+});
+
+describe('Surface (native) — the View props a bar or an alert needs', () => {
+    it('forwards role, name and layout hooks to the View it paints', () => {
+        const onLayout = vi.fn();
+
+        render(
+            <Surface tone="paper" role="alert" aria-label="Failed" collapsable={false} onLayout={onLayout}>
+                <Probe label="in" />
+            </Surface>,
+        );
+
+        expect(screen.getByRole('alert', { name: 'Failed' })).not.toBeNull();
+    });
+
+    it('invents no role or name when given none', () => {
+        const { container } = render(
+            <Surface tone="paper">
+                <Probe label="in" />
+            </Surface>,
+        );
+
+        expect(container.querySelector('[role]')).toBeNull();
+        expect(container.querySelector('[aria-label]')).toBeNull();
     });
 });

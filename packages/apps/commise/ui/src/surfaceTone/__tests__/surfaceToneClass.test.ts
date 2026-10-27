@@ -95,6 +95,7 @@ describe('PRESS_FILL_CLASS', () => {
         }
 
         expect(PRESS_FILL_CLASS.highlighted).toBe(`data-[highlighted]:bg-(${PRESS_VAR},${canvasPress})`);
+        expect(PRESS_FILL_CLASS.focused).toBe(`focus-visible:bg-(${PRESS_VAR},${canvasPress})`);
     });
 
     it('has a chip variant that reads the chip’s own press property with the muted-chip-on-canvas fallback', () => {

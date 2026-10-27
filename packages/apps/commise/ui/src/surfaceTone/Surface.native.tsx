@@ -16,15 +16,27 @@ import { surfaceFill } from './surfaceFill.js';
 import { SurfaceToneScope } from './surfaceToneContext.js';
 
 /** A native surface: painted, and stated. */
-export const Surface: FC<SurfaceProps> = ({ tone, children, accessibilityLabel, style }) => {
+export const Surface: FC<SurfaceProps> = ({
+    tone,
+    children,
+    style,
+    role,
+    'aria-label': ariaLabel,
+    collapsable,
+    onLayout,
+    accessibilityLiveRegion,
+}) => {
     const theme = useTheme();
 
     return (
         <SurfaceToneScope tone={tone}>
             <View
                 style={[{ backgroundColor: surfaceFill(theme, tone) }, style]}
-                aria-label={accessibilityLabel}
-                role={accessibilityLabel === undefined ? undefined : 'group'}
+                aria-label={ariaLabel}
+                role={role}
+                collapsable={collapsable}
+                onLayout={onLayout}
+                accessibilityLiveRegion={accessibilityLiveRegion}
             >
                 {children}
             </View>

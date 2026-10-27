@@ -12,6 +12,7 @@ import { ActionMenu } from '@commise/ui/action-menu';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -22,7 +23,7 @@ export const EditorHeader: FC<EditorHeaderProps> = ({ title, status, closeLabel,
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.bar, { backgroundColor: colors.paper, borderBottomColor: colors.lineDivider }]}>
+        <Surface tone="paper" style={[styles.bar, { borderBottomColor: colors.lineDivider }]}>
             <Pressable role="button" aria-label={closeLabel} onPress={onClose} hitSlop={4} style={styles.close}>
                 <Icon name="x" size={24} tone="ink" />
             </Pressable>
@@ -50,7 +51,7 @@ export const EditorHeader: FC<EditorHeaderProps> = ({ title, status, closeLabel,
                     }}
                 />
             )}
-        </View>
+        </Surface>
     );
 };
 

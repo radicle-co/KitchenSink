@@ -21,6 +21,7 @@ import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
 import { SearchField } from '@commise/ui/search-field';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import { useId, type FC } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
@@ -104,7 +105,7 @@ const CollectionCard: FC<{
                     ? fillTemplate(list.cardLabel, { name: collection.name, visibility })
                     : fillTemplate(list.cardLabelCounted, { name: collection.name, count, visibility })
             }
-            className={`relative flex h-full flex-col rounded-md border border-line-divider bg-paper shadow-sm ${FOCUS_RING_CLASS.within} pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100`}
+            className={`relative flex h-full flex-col rounded-md border border-line-divider ${surfaceToneClass('paper')} shadow-sm ${FOCUS_RING_CLASS.within} pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100`}
         >
             <div className="overflow-hidden rounded-t-md">
                 <CollectionCover collection={collection} />

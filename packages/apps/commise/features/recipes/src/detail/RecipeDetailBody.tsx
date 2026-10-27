@@ -31,6 +31,7 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SectionSwitch } from '@commise/ui/section-switch';
 import { StatusBadge } from '@commise/ui/status-badge';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
@@ -417,7 +418,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     {scaled.scaling.isScaled && (
                         <div
                             role="status"
-                            className="flex flex-col items-start gap-1 rounded-md bg-surface-muted px-3 py-2"
+                            className={`flex flex-col items-start gap-1 rounded-md ${surfaceToneClass('muted')} px-3 py-2`}
                         >
                             <p className="text-meta text-ink">
                                 {fillTemplate(detail.scaledFrom, { original: recipe.servings })}{' '}

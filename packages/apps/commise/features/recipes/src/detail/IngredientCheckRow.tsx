@@ -19,6 +19,7 @@ import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useId, type FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -50,7 +51,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                 )}
                 aria-describedby={statuses.length > 0 ? statusId : undefined}
                 onClick={() => onToggle(ingredient.ingredientId)}
-                className={`flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-start transition hover:bg-surface-muted ${FOCUS_RING_CLASS.inset}`}
+                className={`flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
             >
                 {/* The 18 px box sits on the text's 20 px first line, 1 px down to centre on it. */}
                 <span className="mt-px flex">

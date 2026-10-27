@@ -26,6 +26,7 @@
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { FieldLabel, Input } from '@commise/ui/input';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';
 
@@ -58,7 +59,9 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
         <Dialog.Root open={open} onOpenChange={(next) => (next || submitting ? undefined : onCancel())}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <Dialog.Content className="@container/dialog fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-paper-overlay p-6 shadow-lg">
+                <Dialog.Content
+                    className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
+                >
                     <Dialog.Title className="text-section-title text-ink">{erase.title}</Dialog.Title>
                     <div className="flex items-start gap-2">
                         <span aria-hidden="true" className="mt-0.5 shrink-0 text-danger-text">

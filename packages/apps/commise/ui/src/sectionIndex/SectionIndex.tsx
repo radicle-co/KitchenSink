@@ -44,6 +44,7 @@ import {
     type ProgressSegment,
 } from './sectionIndexModel.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** The text-colour utility of each role a tone can take (literal, so Tailwind emits them). */
 const TEXT_CLASS: Readonly<Partial<Record<Role, string>>> = {
@@ -112,7 +113,7 @@ const ListRow: FC<ListRowProps> = ({ item, current, idPrefix, index, height, onC
                 aria-describedby={describedBy === '' ? undefined : describedBy}
                 aria-current={current ? 'location' : undefined}
                 onClick={onChoose}
-                className={`relative flex flex-col justify-center gap-0.5 rounded-md py-2 ps-4 pe-3 hover:bg-surface-muted ${FOCUS} ${
+                className={`relative flex flex-col justify-center gap-0.5 rounded-md py-2 ps-4 pe-3 ${PRESS_FILL_CLASS.pointer} ${FOCUS} ${
                     height === 'rail' ? 'min-h-12' : 'min-h-14'
                 }`}
             >

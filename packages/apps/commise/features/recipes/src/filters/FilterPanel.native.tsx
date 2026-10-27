@@ -10,8 +10,9 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { FilterGroups } from './FilterGroups.native.js';
 import type { FilterPanelProps } from './filtersModel.js';
@@ -22,11 +23,12 @@ export const FilterPanel: FC<FilterPanelProps> = ({ view, ingredientSearch, onFi
     const { colors } = useTheme();
 
     return (
-        <View
+        <Surface
+            tone="paper"
             collapsable={false}
             role="complementary"
             aria-label={m.panelLabel}
-            style={[styles.panel, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}
+            style={[styles.panel, { borderColor: colors.lineDivider }]}
         >
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
                 {view.hasActive ? (
@@ -41,7 +43,7 @@ export const FilterPanel: FC<FilterPanelProps> = ({ view, ingredientSearch, onFi
                     onFilterAction={onFilterAction}
                 />
             </ScrollView>
-        </View>
+        </Surface>
     );
 };
 

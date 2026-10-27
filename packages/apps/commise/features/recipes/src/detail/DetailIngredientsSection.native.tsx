@@ -13,6 +13,7 @@ import { Button } from '@commise/ui/button';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import type { FC } from 'react';
 import { Text, View } from 'react-native';
@@ -100,10 +101,7 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
                 )}
             </View>
             {scaled.scaling.isScaled && (
-                <View
-                    accessibilityLiveRegion="polite"
-                    style={[styles.scaleNotice, { backgroundColor: colors.surfaceMuted }]}
-                >
+                <Surface tone="muted" accessibilityLiveRegion="polite" style={[styles.scaleNotice]}>
                     <Text style={[styles.meta, ink]}>
                         {fillTemplate(detail.scaledFrom, { original: recipe.servings })}
                     </Text>
@@ -111,7 +109,7 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
                     <Button variant="ghost" size="sm" onPress={() => onServingsChange(recipe.servings)}>
                         {detail.resetScale}
                     </Button>
-                </View>
+                </Surface>
             )}
             {/* Plan 002 R2 — ALWAYS MOUNTED; it takes precedence over the page-level notice (see the web leaf). */}
             <RefreshNotice

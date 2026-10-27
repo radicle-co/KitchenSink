@@ -8,13 +8,14 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 
 /** Where an `adaptive` route control stops filling the row and takes its content's width, in dp (`containerThreshold.regular`). */
 const ADAPTIVE_FROM = 600;
@@ -65,15 +66,12 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
               }));
 
     return (
-        <View
+        <Surface
+            tone="muted"
             collapsable={false}
             role={roles.track}
             aria-label={props.label}
-            style={[
-                styles.track,
-                compactTrack ? styles.trackContent : null,
-                { minHeight: trackHeight(), backgroundColor: colors.surfaceMuted },
-            ]}
+            style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: trackHeight() }]}
         >
             {faces.map((face) => (
                 <Pressable
@@ -102,7 +100,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     )}
                 </Pressable>
             ))}
-        </View>
+        </Surface>
     );
 };
 

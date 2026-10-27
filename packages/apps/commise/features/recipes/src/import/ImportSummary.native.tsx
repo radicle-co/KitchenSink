@@ -8,6 +8,7 @@ import { Button } from '@commise/ui/button';
 import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -72,12 +73,12 @@ export const ImportSummary: FC<ImportSummaryProps> = ({ onSeeAdded, onFixUnreada
                 )}
             </View>
             {copy.asWritten === undefined ? null : (
-                <View style={[styles.asWritten, { backgroundColor: colors.surfaceMuted }]}>
+                <Surface tone="muted" style={[styles.asWritten]}>
                     <Text style={[styles.body, { color: colors.ink }]}>{copy.asWritten}</Text>
                     <Button variant="secondary" icon="search" width="fill" onPress={onChooseFoods}>
                         {s.chooseFoods}
                     </Button>
-                </View>
+                </Surface>
             )}
             {wide ? (
                 <View style={[styles.coverage, { borderColor: colors.lineDivider }]}>

@@ -15,11 +15,18 @@ import type { SurfaceProps } from './props.js';
 import { surfaceToneClass } from './surfaceToneClass.js';
 
 /** A web surface: painted, and stated. */
-export const Surface: FC<SurfaceProps> = ({ tone, children, accessibilityLabel, className, as: Element = 'div' }) => (
+export const Surface: FC<SurfaceProps> = ({
+    tone,
+    children,
+    className,
+    as: Element = 'div',
+    role,
+    'aria-label': ariaLabel,
+}) => (
     <Element
         className={className === undefined ? surfaceToneClass(tone) : `${surfaceToneClass(tone)} ${className}`}
-        aria-label={accessibilityLabel}
-        role={accessibilityLabel === undefined ? undefined : 'group'}
+        aria-label={ariaLabel}
+        role={role}
     >
         {children}
     </Element>

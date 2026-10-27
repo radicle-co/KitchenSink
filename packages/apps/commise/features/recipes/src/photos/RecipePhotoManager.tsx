@@ -37,6 +37,7 @@ import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RecipeCover } from '@commise/ui/recipe-cover';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -191,7 +192,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     {/* The FRAME holds the image and what is drawn on it. A failure's prose sits BELOW
                                     it (E6), on the page background, so its contrast never depends on the photo
                                     under it. */}
-                                    <div className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-lg bg-surface-muted ring-1 ring-line-divider">
+                                    <div
+                                        className={`relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-lg ${surfaceToneClass('muted')} ring-1 ring-line-divider`}
+                                    >
                                         {item.previewUri !== undefined ? (
                                             <img
                                                 src={item.previewUri}

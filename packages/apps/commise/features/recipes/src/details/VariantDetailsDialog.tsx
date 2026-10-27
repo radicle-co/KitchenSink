@@ -24,6 +24,7 @@ import { OfflineReadSlot } from '@commise/ui/offline-notice';
 import { Sheet } from '@commise/ui/sheet';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useCallback, useId, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -223,7 +224,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                                   event.currentTarget.parentElement?.querySelector('input')?.focus();
                                   details.onClearQuery();
                               }}
-                              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
+                              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                           >
                               <Icon name="x" size={20} />
                           </button>

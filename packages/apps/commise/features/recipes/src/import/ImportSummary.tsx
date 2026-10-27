@@ -13,6 +13,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC, ReactNode } from 'react';
 
 import { importMessages } from './messages.js';
@@ -71,7 +72,7 @@ export const ImportSummary: FC<ImportSummaryProps> = ({ onSeeAdded, onFixUnreada
                     )}
                 </ul>
                 {copy.asWritten === undefined ? null : (
-                    <div className="flex flex-col items-start gap-2 rounded-lg bg-surface-muted p-4">
+                    <div className={`flex flex-col items-start gap-2 rounded-lg ${surfaceToneClass('muted')} p-4`}>
                         <p className="text-body text-ink">{copy.asWritten}</p>
                         <Button variant="secondary" icon="search" onPress={onChooseFoods}>
                             {s.chooseFoods}

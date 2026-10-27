@@ -2,6 +2,7 @@ import { themeFor, type ColorSchemeName } from './theme/themeFor.js';
 import { radius } from './tokens/radius.js';
 import { fonts, fontSizes, fontWeights } from './tokens/typography.js';
 import { FOCUS_RING_CLASS } from './focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from './surfaceTone/surfaceToneClass.js';
 
 /**
  * @module @commise/ui/clerk — the appearance object Clerk's hosted components render the auth surface with, in BOTH
@@ -157,7 +158,7 @@ export function clerkAppearanceFor(scheme: ColorSchemeName) {
             formButtonReset: 'rounded-full border border-line-control bg-paper text-card-title normal-case text-ink',
             socialButtonsBlockButton:
                 'h-12 rounded-full border border-line-control bg-paper text-card-title normal-case text-ink shadow-none ' +
-                'hover:bg-surface-muted',
+                PRESS_FILL_CLASS.pointer,
             // The cross-link is the ONLY way to register (FR-045a), so the LINK never breaks across lines. The lead-in
             // may: with both halves unbreakable the pair overran the 272 px column at 320 (W-17), so the row wraps
             // BETWEEN them and the link drops to its own line.

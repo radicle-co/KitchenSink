@@ -12,6 +12,7 @@
 import { Icon } from '@commise/ui/icon';
 import { Sheet } from '@commise/ui/sheet';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import type { MoveToGroupView } from './useIngredientGroups.js';
@@ -36,7 +37,7 @@ export const MoveToGroupSheet: FC<{ readonly view: MoveToGroupView }> = ({ view 
                         type="button"
                         aria-current={choice.current || undefined}
                         onClick={choice.onSelect}
-                        className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body-md text-ink transition hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
+                        className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body-md text-ink transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                     >
                         <span className="min-w-0 break-words">{choice.label}</span>
                         {choice.current && (

@@ -17,6 +17,7 @@ import { Icon } from '@commise/ui/icon';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useEffect, useEffectEvent, useState, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -208,14 +209,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 : {})}
             inlineEditor={
                 inline && row.editorOpen ? (
-                    <View style={[styles.inlineEditor, { backgroundColor: colors.surfaceMuted }]}>
+                    <Surface tone="muted" style={[styles.inlineEditor]}>
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
                         <View style={styles.end}>
                             <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
                                 {m.rowDone}
                             </Button>
                         </View>
-                    </View>
+                    </Surface>
                 ) : null
             }
         />

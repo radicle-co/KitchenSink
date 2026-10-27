@@ -20,6 +20,7 @@ import { useContainerClass, usePinnedFooter } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { ProgressBar } from '@commise/ui/progress-bar';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
@@ -55,12 +56,13 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
     const backTo = backTargetOf(position);
 
     const bar = (
-        <View
+        <Surface
+            tone="paper"
             collapsable={false}
             role="group"
             aria-label={w.actionsLabel}
             onLayout={pinning.onFooterLayout}
-            style={[BAR[layout].bar, { borderTopColor: colors.lineDivider, backgroundColor: colors.paper }]}
+            style={[BAR[layout].bar, { borderTopColor: colors.lineDivider }]}
         >
             <View style={BAR[layout].secondary}>
                 {backTo === undefined ? null : (
@@ -87,7 +89,7 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
             >
                 {w.next}
             </Button>
-        </View>
+        </Surface>
     );
 
     return (

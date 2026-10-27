@@ -7,6 +7,7 @@
  * Presentational: props → JSX.
  */
 import { Button } from '@commise/ui/button';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import type { ResumeNoticeProps } from './frameProps.js';
@@ -20,7 +21,7 @@ export const ResumeNotice: FC<ResumeNoticeProps> = ({
     onDiscard,
     discardUnavailable,
 }) => (
-    <section aria-label={body} className="flex flex-col gap-3 rounded-md bg-surface-muted p-4">
+    <section aria-label={body} className={`flex flex-col gap-3 rounded-lg ${surfaceToneClass('muted')} p-4`}>
         <p className="text-body-sm text-ink">{body}</p>
         <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" icon="check" onPress={onSave}>

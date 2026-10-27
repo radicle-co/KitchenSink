@@ -15,6 +15,7 @@ import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SectionSwitchProps } from './props.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 
 /** The native section switch. */
 export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, currentId, trailing, onJump }) => {
@@ -22,7 +23,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
     const { scrollToSection } = useScrollHost();
 
     return (
-        <View style={[styles.bar, { backgroundColor: colors.paper, borderBottomColor: colors.lineDivider }]}>
+        <Surface tone="paper" style={[styles.bar, { borderBottomColor: colors.lineDivider }]}>
             <View collapsable={false} role="navigation" aria-label={label} style={styles.links}>
                 <HorizontalScroller surface="bar">
                     <View style={styles.row}>
@@ -54,7 +55,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
                 </HorizontalScroller>
             </View>
             {trailing}
-        </View>
+        </Surface>
     );
 };
 

@@ -21,11 +21,12 @@ import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { stepFrom, type StepperProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** A step button: a 44 px circle on the neutral surface. */
 const STEP =
     'inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ' +
-    `hover:bg-surface-muted active:bg-surface-muted ${FOCUS_RING_CLASS.offset} ` +
+    `${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset} ` +
     'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 
 /** The web design-system stepper. */

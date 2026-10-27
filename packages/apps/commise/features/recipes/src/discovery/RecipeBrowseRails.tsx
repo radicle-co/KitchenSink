@@ -25,6 +25,7 @@ import { Icon } from '@commise/ui/icon';
 import { EnterTransition } from '@commise/ui/motion';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useState, type FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -54,7 +55,7 @@ const SECTION_STAGGER_MS = 80;
 
 /** A 36 px round ghost button, for a fine pointer only (`pointer-fine:`); a touch screen has the swipe and the peek. */
 const ROUND =
-    'hidden size-9 shrink-0 items-center justify-center rounded-full text-ink hover:bg-surface-muted pointer-fine:inline-flex ' +
+    `hidden size-9 shrink-0 items-center justify-center rounded-full text-ink ${PRESS_FILL_CLASS.pointer} pointer-fine:inline-flex ` +
     `${FOCUS_RING_CLASS.offset} aria-disabled:opacity-40 ` +
     'aria-disabled:hover:bg-transparent';
 

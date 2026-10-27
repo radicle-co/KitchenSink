@@ -33,6 +33,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { idleDetailBodyState } from '../../__fixtures__/cookMarks.js';
 import { DetailTestScope } from '../../__fixtures__/detailScope.js';
 import { ScrollHost } from '@commise/ui/scroll-host';
+import { surfaceToneOf } from '@commise/ui/testing/surface-tone-of';
 
 import { CookMarksProvider } from '../CookMarksProvider.js';
 import { memoryCookMarksBackend } from '../cookMarksStore.js';
@@ -1417,6 +1418,17 @@ describe('RecipeDetailView (web) — serving scale', () => {
                 {...idleDetailBodyState}
             />,
         );
+
+    // `componentFixes.md` §10: the scale notice paints `surfaceMuted` AND holds the Reset control, so it states that surface;
+    // the control's ring gap and press then follow the notice, not the page behind it.
+    it('⛔ states the muted surface around the scale notice, so its Reset control reads it', () => {
+        renderAt(8);
+        const notice = screen.getByText(/Amounts scaled from/).closest('[role="status"]');
+
+        expect(notice).not.toBeNull();
+        expect(surfaceToneOf(notice as Element)).toBe('muted');
+        expect(surfaceToneOf(within(notice as HTMLElement).getByRole('button'))).toBe('muted');
+    });
 
     it('opens at the serving count the recipe was created with', () => {
         render(

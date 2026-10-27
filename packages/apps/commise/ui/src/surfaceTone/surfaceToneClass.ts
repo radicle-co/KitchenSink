@@ -57,11 +57,13 @@ export function surfaceToneClass(tone: SurfaceTone): string {
  *
  *  - `pointer`: a fine-pointer hover and a press (Tailwind's `hover:` already applies only under `(hover: hover)`);
  *  - `highlighted`: a Radix menu or listbox item under the keyboard or pointer (`data-[highlighted]`);
+ *  - `focused`: a row that fills while it holds keyboard focus (`focus-visible`), beside `pointer`;
  *  - `chip`: a chip, which rests on its own fill (`--cm-chip-fill`) and so presses to that fill's row.
  */
 export const PRESS_FILL_CLASS = {
     pointer: 'hover:bg-(--cm-press,var(--color-press-canvas)) active:bg-(--cm-press,var(--color-press-canvas))',
     highlighted: 'data-[highlighted]:bg-(--cm-press,var(--color-press-canvas))',
+    focused: 'focus-visible:bg-(--cm-press,var(--color-press-canvas))',
     chip: 'hover:bg-(--cm-chip-press,var(--color-press-muted)) active:bg-(--cm-chip-press,var(--color-press-muted))',
 } as const;
 

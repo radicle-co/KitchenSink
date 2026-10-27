@@ -29,6 +29,7 @@ import { carouselBox } from '@commise/ui/layout';
 import { Modal } from '@commise/ui/modal';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { SurfaceToneScope } from '@commise/ui/surface-tone-scope';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
@@ -119,43 +120,49 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                     navigationBarTranslucent
                     onRequestClose={() => setActiveIndex(null)}
                 >
-                    <View style={[styles.lightbox, { backgroundColor: colors.scrim }]}>
-                        {/* The photo inside the safe area: a side navigation bar or a cutout never covers it. */}
-                        <View
-                            style={[
-                                styles.lightboxPhotoBox,
-                                {
-                                    paddingTop: insets.top,
-                                    paddingRight: insets.right,
-                                    paddingBottom: insets.bottom,
-                                    paddingLeft: insets.left,
-                                },
-                            ]}
-                        >
-                            <Image
-                                source={{ uri: activePhoto.url }}
-                                accessibilityLabel={altFor(activeIndex)}
-                                contentFit="contain"
-                                cachePolicy="memory-disk"
-                                style={styles.lightboxImage}
-                            />
+                    // The lightbox has no surface of its own: the scrim is not one, and its close button is a floating
+                    // control over a photo (`componentFixes.md` §10a). It states the canvas so that is a decision and
+                    not an // accident of where the modal was opened from; native draws no focus ring, so the two-tone
+                    ring is web's.
+                    <SurfaceToneScope tone="canvas">
+                        <View style={[styles.lightbox, { backgroundColor: colors.scrim }]}>
+                            {/* The photo inside the safe area: a side navigation bar or a cutout never covers it. */}
+                            <View
+                                style={[
+                                    styles.lightboxPhotoBox,
+                                    {
+                                        paddingTop: insets.top,
+                                        paddingRight: insets.right,
+                                        paddingBottom: insets.bottom,
+                                        paddingLeft: insets.left,
+                                    },
+                                ]}
+                            >
+                                <Image
+                                    source={{ uri: activePhoto.url }}
+                                    accessibilityLabel={altFor(activeIndex)}
+                                    contentFit="contain"
+                                    cachePolicy="memory-disk"
+                                    style={styles.lightboxImage}
+                                />
+                            </View>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={detail.lightboxClose}
+                                onPress={() => setActiveIndex(null)}
+                                style={[
+                                    styles.close,
+                                    { backgroundColor: colors.paper },
+                                    {
+                                        top: insets.top + nativeTokens.spacing[2],
+                                        right: insets.right + nativeTokens.spacing[2],
+                                    },
+                                ]}
+                            >
+                                <Icon name="x" size={24} tone="ink" />
+                            </Pressable>
                         </View>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={detail.lightboxClose}
-                            onPress={() => setActiveIndex(null)}
-                            style={[
-                                styles.close,
-                                { backgroundColor: colors.paper },
-                                {
-                                    top: insets.top + nativeTokens.spacing[2],
-                                    right: insets.right + nativeTokens.spacing[2],
-                                },
-                            ]}
-                        >
-                            <Icon name="x" size={24} tone="ink" />
-                        </Pressable>
-                    </View>
+                    </SurfaceToneScope>
                 </Modal>
             )}
         </View>

@@ -85,6 +85,7 @@ import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popup
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** The keys that move the caret: §3e gives Home and End to the field, and APG returns visual focus to it on all four. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight']);
@@ -584,7 +585,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             type="button"
                             aria-label={cancel.name}
                             onClick={cancel.onPress}
-                            className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
+                            className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                         >
                             {cancel.text}
                         </button>
@@ -613,7 +614,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 <div
                     ref={setFloating}
                     style={floatingStyles}
-                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-lg bg-paper-overlay p-1 shadow-lg`}
+                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-lg ${surfaceToneClass('paperOverlay')} p-1 shadow-lg`}
                 >
                     {status !== undefined && statusLine(status, loadingIcon)}
                     {listShown && (

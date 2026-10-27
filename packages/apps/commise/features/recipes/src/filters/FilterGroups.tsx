@@ -26,6 +26,7 @@ import { focusIfLost, useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { SearchField } from '@commise/ui/search-field';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useEffect, useId, useState, type FC, type ReactElement, type ReactNode } from 'react';
 
 import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
@@ -211,7 +212,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                                                         name: ingredient.name,
                                                     })}
                                                     onClick={() => pressIngredient(action)}
-                                                    className={`min-h-11 w-full rounded-md px-3 text-start text-body text-ink hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
+                                                    className={`min-h-11 w-full rounded-md px-3 text-start text-body text-ink ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                                                 >
                                                     {ingredient.name}
                                                 </button>

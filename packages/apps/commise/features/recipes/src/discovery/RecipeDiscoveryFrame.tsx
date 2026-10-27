@@ -29,6 +29,7 @@ import { Button } from '@commise/ui/button';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { SearchField } from '@commise/ui/search-field';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useState } from 'react';
 import type { FC, ReactNode } from 'react';
 
@@ -92,7 +93,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
             {showRecentSearches && (
                 <section
                     aria-label={discovery.recentSearchesLabel}
-                    className="flex flex-col gap-2 rounded-md border border-line-divider bg-paper p-3 shadow-sm"
+                    className={`flex flex-col gap-2 rounded-md border border-line-divider ${surfaceToneClass('paper')} p-3 shadow-sm`}
                 >
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-label text-ink-muted">{discovery.recentSearchesLabel}</p>
@@ -112,7 +113,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                     type="button"
                                     aria-label={fillTemplate(discovery.recentSearchLabel, { query })}
                                     onClick={() => recentSearches.onSelect(query)}
-                                    className={`inline-flex min-h-11 w-full items-center rounded-md px-2 text-start text-body text-ink hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
+                                    className={`inline-flex min-h-11 w-full items-center rounded-md px-2 text-start text-body text-ink ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                                 >
                                     {query}
                                 </button>

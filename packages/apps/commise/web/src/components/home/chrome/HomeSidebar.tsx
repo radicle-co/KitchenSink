@@ -18,6 +18,7 @@ import { AvatarDisc } from '@commise/ui/avatar';
 import { Icon } from '@commise/ui/icon';
 import { Tooltip } from '@commise/ui/tooltip';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
@@ -127,7 +128,7 @@ export function HomeSidebar({
                                 className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
                                     active
                                         ? 'bg-selected-fill font-semibold text-ink'
-                                        : 'text-ink-muted hover:bg-surface-muted hover:text-ink'
+                                        : `text-ink-muted ${PRESS_FILL_CLASS.pointer} hover:text-ink`
                                 }`}
                             >
                                 <span
@@ -148,7 +149,7 @@ export function HomeSidebar({
                 <Link
                     href={`/${locale}/profile` as Route}
                     aria-label={profileLabel}
-                    className={`${ROW_CLASS} mx-3 text-ink hover:bg-surface-muted ${collapsed ? 'justify-center' : ''}`}
+                    className={`${ROW_CLASS} mx-3 text-ink ${PRESS_FILL_CLASS.pointer} ${collapsed ? 'justify-center' : ''}`}
                 >
                     <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
                     {collapsed ? null : (
@@ -165,7 +166,7 @@ export function HomeSidebar({
                         onClick={onToggleCollapse}
                         aria-expanded={!collapsed}
                         aria-label={collapsed ? chrome.expandNav : undefined}
-                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted hover:bg-surface-muted hover:text-ink ${
+                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted ${PRESS_FILL_CLASS.pointer} hover:text-ink ${
                             collapsed ? 'justify-center' : ''
                         }`}
                     >

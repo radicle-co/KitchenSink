@@ -28,13 +28,14 @@ import { useReturnFocusOnClose } from '../dialogFocus/useReturnFocusOnClose.js';
 import type { SheetProps } from './props.js';
 import { SheetPanel } from './SheetPanel.js';
 import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /**
  * The geometry every size shares. From `sm` the sheet is a dialog centred in the visible box; with no keyboard the two
  * variables are unset and the fallbacks give the window's 50%.
  */
 const CONTENT =
-    'fixed inset-x-0 z-50 flex w-full flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
+    `fixed inset-x-0 z-50 flex w-full flex-col ${surfaceToneClass('paperOverlay')} sm:inset-x-auto sm:left-1/2 ` +
     'sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)] ' +
     'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:shadow-lg';
 

@@ -27,6 +27,7 @@ import { useState, type FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 
 /** Props for {@link PhotoCarousel} — the recipe's photos (display order) and the recipe title for alt text. */
 export interface PhotoCarouselProps {
@@ -114,7 +115,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             aria-label={detail.lightboxClose}
                             // Touch floor: `size-11` (44px) everywhere — this is overlay chrome on a
                             // full-screen image, so there is no desktop-density reason to shrink it.
-                            className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper"
+                            className={`absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper ${FOCUS_RING_CLASS.floating}`}
                         >
                             <span aria-hidden>×</span>
                         </Dialog.Close>

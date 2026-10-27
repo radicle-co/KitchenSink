@@ -26,6 +26,7 @@
  * @pattern Mediator — between the paste session, the matches and the draft
  * @pattern Command — each join, each admission and each pick is a TanStack mutation or a replayable send
  * @pattern State — the overlay, the requests and the ledger are values moved by reducers
+ * @pattern Idempotency guard — the joins and review binds started are claimed in a synchronous set, held in a ref on purpose
  */
 import {
     useAddIngredientByFood,
@@ -35,7 +36,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useEffectEvent, useReducer, useState } from 'react';
+import { useEffect, useEffectEvent, useReducer, useRef, useState } from 'react';
 
 import type { DraftAction, ResolvedRecipeFormIngredient } from '../form/draftAction.js';
 import { isIngredientLineKey, type IngredientLineKey } from '../form/lineKey.js';
@@ -182,9 +183,19 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
     const propose = useProposeParseJobMatches();
     const [host, hostDispatch] = useReducer(reducePasteMatchHost, emptyPasteMatchHost);
     const { session, requests, ledger } = host;
-    // The joins and bindings started, by `jobId:key`: claiming one keeps a re-run effect from doing it twice.
-    const [claimed] = useState(() => new Set<string>());
     const { job, jobId } = paste;
+    // The joins and bindings started, by id: claiming one keeps a re-run of the effect that starts it from doing it twice.
+    //
+    // @pattern Idempotency guard — a synchronous claim set, held in a ref on purpose. A claim must be visible to the very
+    // next call, before any render: an effect the framework runs again against the same render's values (Fast Refresh, a
+    // remount with the same deps) would otherwise meet a claim still sitting in a dispatch queue, and join the line twice,
+    // which is a duplicated ingredient. Nothing renders from it, so it is not state. It is cleared with each new job (the
+    // effect below, declared before the effects that claim), so a finished job's ids never linger. ⚠️ Tests cannot drive a
+    // same-commit replay, so this is justified by that reasoning, not by a red test.
+    const claimed = useRef(new Set<string>());
+    useEffect(() => {
+        claimed.current.clear();
+    }, [jobId]);
 
     // A new paste starts clean: its food keys (`lineIndex:foodIndex`) repeat from job to job, so nothing of the old
     // job's overlay, requests or sends may meet them, and an answer that arrives for the old job is dropped by the
@@ -310,11 +321,11 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
     const joinNext = useEffectEvent((): void => {
         const sessionKey = paste.sessionKey;
 
-        if (sessionKey === undefined || next === undefined || joinId === undefined || claimed.has(joinId)) {
+        if (sessionKey === undefined || next === undefined || joinId === undefined || claimed.current.has(joinId)) {
             return;
         }
 
-        claimed.add(joinId);
+        claimed.current.add(joinId);
         const { keepsSource } = options;
 
         join.mutate(next, {
@@ -355,7 +366,7 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
                 paste.markJoined(sessionKey, step.lineIndex, admitted.length);
             },
             onError: (_error, step) => {
-                claimed.delete(joinId);
+                claimed.current.delete(joinId);
                 paste.markJoinFailed(sessionKey, step.lineIndex);
             },
         });
@@ -385,11 +396,11 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
     const bindReviewed = useEffectEvent((): void => {
         const target = reviewed[0];
 
-        if (target === undefined || jobId === undefined || claimed.has(`review:${jobId}:${target.key}`)) {
+        if (target === undefined || jobId === undefined || claimed.current.has(`review:${jobId}:${target.key}`)) {
             return;
         }
 
-        claimed.add(`review:${jobId}:${target.key}`);
+        claimed.current.add(`review:${jobId}:${target.key}`);
         const food = { foodId: target.proposed.id, name: target.proposed.name };
 
         hostDispatch({

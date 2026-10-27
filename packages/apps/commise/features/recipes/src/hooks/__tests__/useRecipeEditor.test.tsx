@@ -41,7 +41,13 @@ import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
 import type { RebindLineSend } from '../lineCommit.js';
 import { isDiscardPromiseBrokenError } from '../../editor/discardPromiseBrokenError.js';
-import { useRecipeEditor, type EditorExit, type EditorSeed, type UseRecipeEditorResult } from '../useRecipeEditor.js';
+import {
+    useRecipeEditor,
+    type EditorExit,
+    type EditorSeed,
+    type UseRecipeEditorResult,
+    type VisibilitySend,
+} from '../useRecipeEditor.js';
 
 /** A device draft store that records what it was asked. */
 function fakeDrafts(): DraftStore & {
@@ -95,6 +101,9 @@ function mount(
     const rebindLine = vi.fn<RebindLineSend>(async () => {
         throw new Error('rebindLine: not expected in this test');
     });
+    const setVisibility = vi.fn<VisibilitySend>(async () => {
+        throw new Error('setVisibility: not expected in this test');
+    });
     const readRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
         throw new Error('readRecipe: not expected in this test');
     });
@@ -110,6 +119,7 @@ function mount(
                 onExit,
                 onRecipeRef,
                 rebindLine,
+                setVisibility,
                 readRecipe,
                 reportError,
                 pastePending: props.pastePending ?? false,
@@ -119,7 +129,7 @@ function mount(
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
     );
 
-    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine, readRecipe, reportError };
+    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine, setVisibility, readRecipe, reportError };
 }
 
 /** Type a title (the draft floor's one requirement). */
@@ -3334,5 +3344,202 @@ describe('Try again after a Publish the server refused for want of a slot', () =
         await settle();
 
         expect(port.submitted).toHaveLength(2);
+    });
+});
+
+/**
+ * ADDED for the owner rule "nothing may turn a private recipe public on its own". A never-published draft the server holds
+ * as Public, which the cook then marked Private, must have its visibility written BEFORE the publish update: the server
+ * skips the slot check for a recipe it holds as public, so the old order (publish, then visibility) published it public
+ * first. A draft takes no slot, so the write succeeds; the publish then meets the server's under-lock slot check with the
+ * recipe already private. The visibility write does not bump the version, so the publish still names the cook's version.
+ */
+describe('the visibility write comes BEFORE the first publish of a stored draft', () => {
+    const STORED_PUBLIC = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        visibility: RecipeVisibility.PUBLIC,
+    });
+    const STORED_PRIVATE = { ...STORED_PUBLIC, visibility: RecipeVisibility.PRIVATE };
+
+    function chooseVisibility(
+        view: { readonly result: { readonly current: UseRecipeEditorResult } },
+        visibility: RecipeVisibility,
+    ) {
+        act(() => {
+            view.result.current.setField('visibility', visibility);
+        });
+    }
+
+    it('⛔ sends the visibility first, then the publish update, at the same version', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        view.setVisibility.mockResolvedValue(STORED_PRIVATE);
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.setVisibility).toHaveBeenCalledExactlyOnceWith('rec_1', RecipeVisibility.PRIVATE);
+        expect(view.port.submitted).toHaveLength(1);
+        expect(view.port.submitted[0]).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { status: 'published', expectedVersion: 3 } },
+        });
+        expect(view.setVisibility.mock.invocationCallOrder[0]).toBeLessThan(
+            view.port.submitExclusive.mock.invocationCallOrder[0] ?? 0,
+        );
+    });
+
+    it('⛔ a visibility write the server refuses sends no publish, and Retry runs the step again', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        view.setVisibility.mockRejectedValueOnce(new Error('network'));
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.reportError).toHaveBeenCalledOnce();
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+        expect(view.onExit).not.toHaveBeenCalled();
+
+        view.setVisibility.mockResolvedValue(STORED_PRIVATE);
+        act(() => {
+            view.result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        expect(view.setVisibility).toHaveBeenCalledTimes(2);
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+        expect(view.result.current.parked).toBeUndefined();
+    });
+
+    it('sends no visibility write when the server already holds the cook’s choice', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
+    it('a Private the server is known to refuse for want of Premium is not sent: the recipe publishes public', async () => {
+        const view = mount({ recipe: STORED_PUBLIC }, undefined, fakePort(), 'premium');
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
+    it('⛔ a Publish pressed while a draft save is on the wire waits for it, then writes the visibility first', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        // The server answers with the recipe as it is then: the draft save made version 4.
+        view.setVisibility.mockResolvedValue({ ...STORED_PRIVATE, currentVersion: 4 });
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+        act(() => {
+            view.result.current.setField('description', 'Edited.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const draftSeq = view.port.lastSeq();
+        view.port.claim(draftSeq);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitted).toHaveLength(1);
+
+        act(() => {
+            view.port.sync(draftSeq, { ...STORED_PUBLIC, currentVersion: 4, description: 'Edited.' });
+        });
+        await settle();
+        await settle();
+
+        expect(view.setVisibility).toHaveBeenCalledExactlyOnceWith('rec_1', RecipeVisibility.PRIVATE);
+        expect(view.port.submitted[1]).toMatchObject({
+            payload: { input: { status: 'published', expectedVersion: 4 } },
+        });
+    });
+
+    /** Architect review of 32d953b2d: the write makes no version, so an answer at another version is another editor's work. */
+    it('⛔ an answer at a newer version is not adopted: no publish over the other editor’s change, Try again offered', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        view.setVisibility.mockResolvedValue({ ...STORED_PRIVATE, currentVersion: 9 });
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+    });
+
+    it('⛔ an answer that does not hold the visibility sent stops, instead of sending it again without end', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        view.setVisibility.mockResolvedValue(STORED_PUBLIC);
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.setVisibility).toHaveBeenCalledOnce();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+    });
+
+    it('a second Publish press while the visibility write is out is busy: one write, one publish', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        let answer: (detail: RecipeDetail) => void = () => undefined;
+        view.setVisibility.mockImplementation(
+            () =>
+                new Promise<RecipeDetail>((resolve) => {
+                    answer = resolve;
+                }),
+        );
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        let second: unknown;
+        act(() => {
+            second = view.result.current.publish('');
+        });
+
+        expect(second).toEqual({ kind: 'busy' });
+
+        answer(STORED_PRIVATE);
+        await settle();
+        await settle();
+
+        expect(view.setVisibility).toHaveBeenCalledOnce();
+        expect(view.port.submitted).toHaveLength(1);
     });
 });

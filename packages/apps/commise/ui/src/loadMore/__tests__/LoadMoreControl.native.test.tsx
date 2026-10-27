@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { role } from '../../tokens/colors.js';
 import { LoadMoreControl } from '../LoadMoreControl.native.js';
 import type { LoadMoreControlProps } from '../props.js';
 
@@ -59,5 +60,34 @@ describe('LoadMoreControl (native)', () => {
         render(control({ failed: true, loading: true }));
 
         expect(screen.queryByText('We couldn’t load more collections.')).toBeNull();
+    });
+
+    /** `#RRGGBB` → the `rgb(r, g, b)` spelling jsdom's `getComputedStyle` normalises colours to. */
+    function rgb(hex: string): string {
+        const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    // `componentFixes` issue 2 (2026-10-26): the label is in the action-text colour and a chevronDown follows it, so colour
+    // and glyph mark the control pressable. Mutation lens: an `ink` label, or no glyph, fails.
+    it('idle: an actionText label with an actionText chevronDown glyph', () => {
+        const { container } = render(control());
+
+        const glyph = container.querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+        expect(getComputedStyle(screen.getByText('Load more')).color).toBe(rgb(role.actionText));
+        expect(glyph?.dataset['iconName']).toBe('chevron-down');
+        expect(glyph?.dataset['iconColor']).toBe(role.actionText);
+        expect(glyph?.closest('[aria-hidden="true"]')).not.toBeNull();
+    });
+
+    it('failed: Try again keeps the quiet look, an ink label with the actionText retry glyph and no chevron', () => {
+        const { container } = render(control({ failed: true }));
+
+        const glyph = container.querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+        expect(getComputedStyle(screen.getByText('Try again')).color).toBe(rgb(role.ink));
+        expect(glyph?.dataset['iconName']).toBe('refresh-cw');
     });
 });

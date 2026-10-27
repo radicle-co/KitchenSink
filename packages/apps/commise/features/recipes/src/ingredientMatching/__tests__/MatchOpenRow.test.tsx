@@ -40,7 +40,13 @@ const FIVE_BREADS = [
 afterEach(cleanup);
 
 function renderRow(line: MatchLine, online = true, failed = false) {
-    const handlers = { onSearch: vi.fn(), onPick: vi.fn(), onHandled: vi.fn(), onRetryPick: vi.fn() };
+    const handlers = {
+        onSearch: vi.fn(),
+        onPick: vi.fn(),
+        onHandled: vi.fn(),
+        onRetryPick: vi.fn(),
+        onSeeWhy: vi.fn(),
+    };
     const row = lineRowOf(line, { expanded: true, current: false, online, pending: undefined, failed }, copy, 'en');
 
     if (row.kind !== 'open') {
@@ -56,6 +62,7 @@ function renderRow(line: MatchLine, online = true, failed = false) {
                 onPick={handlers.onPick}
                 focus={{ requested: false, onHandled: handlers.onHandled }}
                 onRetryPick={handlers.onRetryPick}
+                onSeeWhy={handlers.onSeeWhy}
                 retry={{
                     landing: { requested: false, onHandled: vi.fn() },
                     tryAgain: { requested: false, onHandled: vi.fn() },
@@ -161,5 +168,31 @@ describe('MatchOpenRow (web)', () => {
             'Whole milk, Default',
             'Keep “2 cups milk” as written\u00A0· no nutrition',
         ]);
+    });
+});
+
+/**
+ * ADDED for the AI budget spent (owner ruling 2026-10-26): a line the spent budget left for the cook offers See why under
+ * its prompt; the reason opens in place and is announced once. A line the check ran for offers no such control.
+ */
+describe('MatchOpenRow — See why on a line matched without the AI check', () => {
+    const spent = () => makeNeedsChoiceLine({ budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' } });
+    const REASON = 'Our check did not run this month, so this is our best guess. Choose the food you use.';
+
+    it('opens the reason in place and announces it once', () => {
+        const { onSeeWhy } = renderRow(spent());
+
+        expect(screen.queryByText(REASON)).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'See why' }));
+
+        expect(screen.getByText(REASON)).toBeTruthy();
+        expect(onSeeWhy).toHaveBeenCalledExactlyOnceWith(REASON);
+    });
+
+    it('offers no See why on a line the check ran for', () => {
+        renderRow(makeNeedsChoiceLine());
+
+        expect(screen.queryByRole('button', { name: 'See why' })).toBeNull();
     });
 });

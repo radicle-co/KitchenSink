@@ -270,7 +270,13 @@ describe('every state of a matched line, through the section (native)', () => {
 
         press(/^See why our check suggested Butter, salted/);
 
-        expect(screen.getByText(note.reason)).toBeTruthy();
+        // REWRITTEN for the visible disclosure (owner design 2026-10-26): the reason opens in place under the row AND is said
+        // once in the list's polite region, so two elements carry it. Pressing See why again closes the visible one.
+        expect(screen.getAllByText(note.reason)).toHaveLength(2);
+
+        press(/^See why our check suggested Butter, salted/);
+
+        expect(screen.getAllByText(note.reason)).toHaveLength(1);
     });
 });
 
@@ -287,6 +293,26 @@ describe('the summary and the notices (native)', () => {
 
         expect(screen.getByText(/You’re offline\. Your choices are saved on this device/u)).toBeTruthy();
         expect(screen.getByText('Search needs the network')).toBeTruthy();
+    });
+
+    /**
+     * ADDED for the AI budget spent (owner ruling 2026-10-26): lines matched without the check carry a notice above the
+     * list that says the check is used up and the day it comes back, the one notice for all of them.
+     */
+    it('⛔ lines matched without the AI check get ONE notice above the list, with the day the check returns', () => {
+        const spent = { resetsAt: '2026-11-01T00:00:00.000Z' };
+
+        render(
+            <Harness
+                matching={matchingOf([
+                    makeNeedsChoiceLine({ key: 'a', budgetSpent: spent }),
+                    makeNeedsChoiceLine({ key: 'b', budgetSpent: spent }),
+                ])}
+            />,
+        );
+
+        expect(screen.getAllByText(/This month’s AI check is used up/u)).toHaveLength(1);
+        expect(screen.getByText(/The check comes back on November 1\./u)).toBeTruthy();
     });
 
     it('⛔ the daily limit says when matching starts again, and keeps drawing the lines already added', () => {

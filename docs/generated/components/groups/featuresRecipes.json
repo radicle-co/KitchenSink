@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 179,
-        "implementations": 309,
-        "props": 1633,
-        "documentedComponents": 179,
-        "implementationsWithModuleDoc": 309,
-        "implementationsWithComponentDoc": 202,
-        "documentedProps": 1354,
-        "classifiedComponents": 159,
-        "componentsWithPatternTag": 82,
-        "crossPlatformComponents": 130
+        "components": 180,
+        "implementations": 311,
+        "props": 1645,
+        "documentedComponents": 180,
+        "implementationsWithModuleDoc": 311,
+        "implementationsWithComponentDoc": 204,
+        "documentedProps": 1366,
+        "classifiedComponents": 160,
+        "componentsWithPatternTag": 83,
+        "crossPlatformComponents": 131
     },
     "components": [
         {
@@ -17280,6 +17280,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
+                            "name": "onSeeWhy",
+                            "type": "(reason: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "See why was opened on the shown line: the host says the reason once in its polite region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
+                        },
+                        {
                             "name": "retry",
                             "type": "LineRetryFocus",
                             "typeDetail": null,
@@ -17375,6 +17384,15 @@
                             "defaultValue": null,
                             "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSeeWhy",
+                            "type": "(reason: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "See why was opened on the shown line: the host says the reason once in its polite region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteChoicePaneProps.ts"
                         },
                         {
                             "name": "retry",
@@ -22621,6 +22639,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
                         },
                         {
+                            "name": "onSeeWhy",
+                            "type": "(reason: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "See why was opened: the host says the reason once in its polite region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchOpenRowProps.ts"
+                        },
+                        {
                             "name": "retry",
                             "type": "LineRetryFocus",
                             "typeDetail": null,
@@ -22707,6 +22734,15 @@
                             "defaultValue": null,
                             "description": "Search for a food was pressed. Never called while a send is in flight.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/foodChoiceListProps.ts"
+                        },
+                        {
+                            "name": "onSeeWhy",
+                            "type": "(reason: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "See why was opened: the host says the reason once in its polite region.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/matchOpenRowProps.ts"
                         },
                         {
                             "name": "retry",
@@ -23058,6 +23094,158 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/ingredientMatching/SeeWhy",
+            "name": "SeeWhy",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
+            "kind": "orchestration",
+            "patterns": [
+                "Disclosure — a button with `aria-expanded` that reveals its region in place",
+                "Disclosure — a button with an expanded state that reveals its region in place"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SeeWhy",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/SeeWhy.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `SeeWhy` (web): the VISIBLE disclosure behind \"See why\"\n(owner design 2026-10-26, \"INTERACTION GAPS\"). It used to be spoken only — the reason went to the list's polite region\nand nowhere else — so a cook who looked away, or cannot hear it, never saw why. The link now toggles `aria-expanded`,\nthe reason opens in place under the row in the 14 px muted `meta` role, it is announced once (on opening, through\n`onOpen`), and pressing again closes it.\n\nIt holds the one bit of state a disclosure has — open or closed — because nothing else reads it: the host owns the\nannouncement, not the visibility. A row that remounts closes it, which is the right reading of \"tap again closes\".\nThe native leaf is `./SeeWhy.native.tsx`.\n\nOrchestration: it holds the open state, so it is not a pure render leaf.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/ingredientMatching — `SeeWhy` (web): the VISIBLE disclosure behind \"See why\""
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Disclosure — a button with `aria-expanded` that reveals its region in place"
+                        }
+                    ],
+                    "description": "The See why disclosure.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visible words (\"See why\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A longer accessible name that STARTS with {@link label} (WCAG 2.5.3), for a control that names its line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The disclosure was opened: the host says the reason once in its polite region. Not called on closing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        },
+                        {
+                            "name": "reason",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The reason the control opens.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                },
+                {
+                    "name": "SeeWhy",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/SeeWhy.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/ingredientMatching",
+                    "moduleDoc": "@commise/features-recipes/ingredientMatching — `SeeWhy` (native): the React Native leaf of `./SeeWhy.tsx`, on the\nsame props. The disclosure button carries `accessibilityState.expanded`; the reason opens in place under it in the\n14 px `meta` role, muted, is announced once on opening (`onOpen`), and closes on a second tap. Painted from the theme's\nroles (D15).\n\nOrchestration: it holds the open state, so it is not a pure render leaf.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/ingredientMatching — `SeeWhy` (native): the React Native leaf of `./SeeWhy.tsx`, on the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Disclosure — a button with an expanded state that reveals its region in place"
+                        }
+                    ],
+                    "description": "The See why disclosure.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The visible words (\"See why\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A longer accessible name that STARTS with {@link label} (WCAG 2.5.3), for a control that names its line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The disclosure was opened: the host says the reason once in its polite region. Not called on closing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        },
+                        {
+                            "name": "reason",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The reason the control opens.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/ingredientMatching/seeWhyProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

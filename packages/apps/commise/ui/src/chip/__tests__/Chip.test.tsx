@@ -47,7 +47,7 @@ describe('Chip (web) — filter', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('rests on surfaceMuted with no visible edge and an ink caption label, an ink wash on hover and press', () => {
+    it('rests on surfaceMuted with no visible edge and an ink caption label, a lineDivider fill on hover and press', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
         const tokens = tokensOf(screen.getByRole('button', { name: 'Vegan' }));
@@ -58,8 +58,8 @@ describe('Chip (web) — filter', () => {
                 'border-transparent',
                 'text-ink',
                 'text-caption',
-                'hover:bg-ink/6',
-                'active:bg-ink/6',
+                'hover:bg-line-divider',
+                'active:bg-line-divider',
                 'rounded-full',
                 'min-h-8',
                 'focus-visible:ring-focus-ring',

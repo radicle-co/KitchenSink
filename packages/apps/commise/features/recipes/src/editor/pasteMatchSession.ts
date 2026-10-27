@@ -102,6 +102,40 @@ function isUnchangedFocus(session: PasteMatchSession, key: string | undefined, c
     return key === current || (key !== undefined && draftKeyOf(session, key) === undefined);
 }
 
+/** A line joined the draft: recorded unless it already holds a join that stands (a failed join may be retried). Pure. */
+function joinLine(session: PasteMatchSession, key: string, draftKey: string): PasteMatchSession {
+    const status = session.joins.get(key)?.status;
+
+    return status === undefined || status === 'joinFailed'
+        ? { ...session, joins: withEntry(session.joins, key, { status: 'joined', draftKey }) }
+        : session;
+}
+
+/**
+ * The cook deleted a draft line: its join is terminal (`removed`), its binding goes, and an expanded or pane line that was
+ * it is let go. A draft key no join names changes nothing. Pure.
+ */
+function removeDraftLine(session: PasteMatchSession, draftKey: string): PasteMatchSession {
+    const entry = [...session.joins].find(([, join]) => join.status === 'joined' && join.draftKey === draftKey);
+
+    if (entry === undefined) {
+        return session;
+    }
+
+    const [key] = entry;
+    const bindings = new Map(session.bindings);
+
+    bindings.delete(key);
+
+    return {
+        ...session,
+        joins: withEntry(session.joins, key, { status: 'removed' }),
+        bindings,
+        expanded: session.expanded === key ? undefined : session.expanded,
+        paneKey: session.paneKey === key ? undefined : session.paneKey,
+    };
+}
+
 /**
  * The session after an event. Returns `session` itself when the event changes nothing. Pure.
  *
@@ -114,16 +148,8 @@ export function reducePasteMatchSession(session: PasteMatchSession, event: Paste
         case 'jobAccepted':
             return session.jobId === event.jobId ? session : { ...emptyPasteMatchSession, jobId: event.jobId };
 
-        case 'lineJoined': {
-            const status = session.joins.get(event.key)?.status;
-
-            return status === undefined || status === 'joinFailed'
-                ? {
-                      ...session,
-                      joins: withEntry(session.joins, event.key, { status: 'joined', draftKey: event.draftKey }),
-                  }
-                : session;
-        }
+        case 'lineJoined':
+            return joinLine(session, event.key, event.draftKey);
 
         case 'lineJoinFailed':
             return session.joins.has(event.key)
@@ -140,28 +166,8 @@ export function reducePasteMatchSession(session: PasteMatchSession, event: Paste
                 ? session
                 : { ...session, bindings: withEntry(session.bindings, event.key, event.binding) };
 
-        case 'draftLineRemoved': {
-            const entry = [...session.joins].find(
-                ([, join]) => join.status === 'joined' && join.draftKey === event.draftKey,
-            );
-
-            if (entry === undefined) {
-                return session;
-            }
-
-            const [key] = entry;
-            const bindings = new Map(session.bindings);
-
-            bindings.delete(key);
-
-            return {
-                ...session,
-                joins: withEntry(session.joins, key, { status: 'removed' }),
-                bindings,
-                expanded: session.expanded === key ? undefined : session.expanded,
-                paneKey: session.paneKey === key ? undefined : session.paneKey,
-            };
-        }
+        case 'draftLineRemoved':
+            return removeDraftLine(session, event.draftKey);
 
         case 'expanded':
             return isUnchangedFocus(session, event.key, session.expanded)

@@ -80,14 +80,16 @@ export interface MatchLineMessages {
     /** Its accessible name (contains `{food}`, `{line}`). */
     readonly seeWhyName: string;
     /**
-     * Why the check proposed the food it suggests, by the server's opaque `reason` key (ADR-0071 section 9). Only the
-     * reasons that sit under a CONFIDENT proposal can be a late note's, so only those are worded.
+     * Why the check proposed the food it suggests, by the server's opaque `reason` key (ADR-0071 section 9). The reasons
+     * that sit under a CONFIDENT proposal can be a late note's; `reviewBudgetSpent` is the one under a needsChoice line.
      */
     readonly reasons: {
         readonly exactName: string;
         readonly curatedMapping: string;
         readonly rememberedMatch: string;
         readonly reviewVerified: string;
+        /** The AI check did not run this month: the per-line reason under See why on a line matched without it. */
+        readonly reviewBudgetSpent: string;
     };
     /** Any other key, including one a newer server adds: the general sentence, never the key itself. */
     readonly reasonFallback: string;
@@ -115,6 +117,8 @@ export interface MatchLineMessages {
         readonly lateSuggestion: string;
         /** A send that did not save (contains `{line}`). */
         readonly pickFailed: string;
+        /** A checked line left for the cook because the AI check did not run (contains `{line}`). Replaces `needsChoice`. */
+        readonly budgetSpent: string;
     };
 }
 
@@ -159,8 +163,9 @@ export const matchLineMessages: LocalizedMessages<MatchLineMessages> = {
             curatedMapping: 'A person who looks after the food list matched this line to this food.',
             rememberedMatch: 'This line was matched to this food before, and the match was remembered.',
             reviewVerified: 'Our check read the line and agreed that this is the food.',
+            reviewBudgetSpent: 'Our check did not run this month, so this is our best guess. Choose the food you use.',
         },
-        reasonFallback: 'Our check suggested this food when it finished looking at your line.',
+        reasonFallback: 'Our check suggested this food for your line.',
         optionsError: 'We couldn’t load the options for this line.',
         retry: 'Try again',
         retryName: 'Try again to load the options for {line}',
@@ -172,6 +177,7 @@ export const matchLineMessages: LocalizedMessages<MatchLineMessages> = {
             optionsFailed: 'Check finished for {line}: we couldn’t load the options.',
             lateSuggestion: 'For {line}, our check suggested {food}. Your choice stays.',
             pickFailed: 'We couldn’t save the choice for {line}.',
+            budgetSpent: '{line}: our check did not run. Choose a food.',
         },
     },
 };

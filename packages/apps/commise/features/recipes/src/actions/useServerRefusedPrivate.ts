@@ -43,8 +43,8 @@ export interface ServerPrivateRefusal {
 }
 
 /**
- * Why the latest visibility write for `recipeId` was refused, when it was a Private the server refused as
- * `INVALID_VISIBILITY`.
+ * Why the latest visibility write for `recipeId` was refused, when it was a Private the server refused: as
+ * `INVALID_VISIBILITY` (the profile's words), or as `PRIVATE_SLOTS_FULL` (every slot used, with the server's limit).
  *
  * @param recipeId - The recipe the page shows.
  * @param known - The profile's own answer (`knownPaidFeaturesOf`), which picks the words.

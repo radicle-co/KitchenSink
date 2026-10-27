@@ -6,7 +6,7 @@
  * chip is pressable, so it is a pill), hit at 44 px on a coarse pointer by a transparent `::before` overlay. Buttons are
  * pills too, so a chip is told apart from a secondary button by its fill, its height and its type, not its shape: at
  * rest a `surfaceMuted` fill and no visible edge, and the `caption` role (14/500) in `ink`, never the 14/600 `label` a
- * button sets. The ink wash on hover and press replaces the fill, as on every tier of the button.
+ * button sets. The pressed fill is `lineDivider`: over a `surfaceMuted` fill a `surfaceMuted` press would not show (`componentFixes` issue 3).
  *
  * The overlay reaches 8 px past the padding box. It is placed from inside the edge, so a selected chip's 1.5 px edge
  * leaves 32 - 3 + 16 = 45 px, and a resting chip's 1 px (transparent) edge 46 px; at 6 px it would be 41 px selected.
@@ -36,7 +36,7 @@ const CHIP_BASE =
 export const CHIP_LABEL_CLASS = 'line-clamp-2 min-w-0 text-start [overflow-wrap:anywhere]';
 
 /** The resting and selected surfaces. */
-const CHIP_REST = 'border border-transparent bg-surface-muted text-ink hover:bg-ink/6 active:bg-ink/6';
+const CHIP_REST = 'border border-transparent bg-surface-muted text-ink hover:bg-line-divider active:bg-line-divider';
 const CHIP_SELECTED = 'border-[1.5px] border-selected-edge bg-selected-fill text-action-text';
 
 /**

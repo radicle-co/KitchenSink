@@ -5,7 +5,7 @@
  *
  * @pattern Registry — one frozen theme per scheme, keyed by the scheme name
  */
-import { role, roleDark, tint, type Role } from '../tokens/colors.js';
+import { role, roleDark, type Role } from '../tokens/colors.js';
 import { coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
 import { gradient, heroDark, type GradientSpec } from '../tokens/gradients.js';
 import { statusTone, statusToneDark, type RecipeStatus, type StatusTone } from '../tokens/tones.js';
@@ -24,7 +24,11 @@ export interface Theme {
     readonly hero: GradientSpec;
     /** The status badge tones. */
     readonly status: Readonly<Record<RecipeStatus, StatusTone>>;
-    /** The press (and fine-pointer hover) wash: `ink` at 6% (`darkTheme.md` §1), the native twin of `bg-ink/6`. */
+    /**
+     * The pressed fill over paper and sheets: `surfaceMuted` (`componentFixes` issue 3, 2026-10-26), the native twin of
+     * the web `bg-surface-muted` press. It replaced the `ink` 6% wash. Over a `surfaceMuted` fill (a chip) it would not
+     * show, so a chip presses to `lineDivider` instead (`chipStyle.ts`).
+     */
     readonly wash: string;
 }
 
@@ -35,7 +39,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         covers: coverTint,
         hero: gradient.hero,
         status: statusTone,
-        wash: tint(role.ink, 0.06),
+        wash: role.surfaceMuted,
     },
     dark: {
         scheme: 'dark',
@@ -43,7 +47,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         covers: coverTintDark,
         hero: heroDark,
         status: statusToneDark,
-        wash: tint(roleDark.ink, 0.06),
+        wash: roleDark.surfaceMuted,
     },
 };
 

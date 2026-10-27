@@ -258,6 +258,9 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
     // a local stage without `recipe-workers`; there is no planned stage it could pass on.
     'recipes/pasteListStalled',
+    // Mark Private, then Publish (pre-push fix pass 2026-10-26): written with the fix that sends the visibility BEFORE the first
+    // Publish and NOT run, because it was built without a device. Promote it to FLOW_PLAN once an emulator run has passed it.
+    'recipes/publishPrivateDraft',
     // The matched paste (ADR-0071; owner rulings 2026-10-25): confident, choosing a food, a line still being checked, and
     // publishing with open choices. Written with the slice and NOT run (it was built without a device); each depends on
     // what the stage's catalog and review gate answer (a foundation food by exact name, the seeded milk and salt defaults,

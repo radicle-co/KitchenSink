@@ -182,10 +182,10 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             error: 'We couldn’t change who can see this recipe. Please try again.',
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
-                // The second sentence of the editor's `webPrivate` (design wording): the premium rule is the imported public-web
-                // recipe's. COMBINED WORDING, owed a design pass (`staff-ux-engineer`).
+                // The owner's design wording of 2026-10-26 (`actions privateRefused.premium`): the premium rule is the imported
+                // public-web recipe's.
                 premium:
-                    'This recipe is still public. A recipe from a public web page needs Premium and a change of your own to be private.',
+                    'This recipe stays public. A recipe from a public web page needs Premium and a change of your own to be private.',
                 // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
                 // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
                 slots: 'Not available. All {total} of your private slots are in use.',

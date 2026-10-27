@@ -108,6 +108,9 @@ function twoEditors(held: boolean) {
                 onExit: vi.fn(),
                 reportError: vi.fn(),
                 rebindLine: vi.fn(),
+                setVisibility: vi.fn(async () => {
+                    throw new Error('setVisibility: not expected in this suite');
+                }),
                 readRecipe: (id) => service.client.getRecipeById(id),
             }),
         );

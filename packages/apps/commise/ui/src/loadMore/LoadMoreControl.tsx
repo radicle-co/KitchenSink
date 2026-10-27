@@ -1,7 +1,8 @@
 /**
  * @module @commise/ui/load-more — the web "Load more" control of a server-paged list (no infinite scroll).
  *
- * Three states over ONE button element: idle ("Load more"), busy (the next page is in flight) and failed ("Try
+ * Three states over ONE button element: idle ("Load more", an `actionText` label with a chevronDown after it, so colour
+ * and glyph mark it pressable), busy (the next page is in flight) and failed ("Try
  * again", with a message saying what happened). The element is never swapped between states, because the cook who
  * pressed it holds focus on it — a swapped element drops that focus to <body> (WCAG 2.2 SC 2.4.3). The busy half is
  * `Button`'s (`busyControlProps`), for the same reason.
@@ -12,7 +13,7 @@
  *
  * A presentational leaf: the caller derives `loading` and `failed` from its infinite query.
  *
- * @pattern Facade over the design system's quiet `Button` and an empty `alert` message slot — the radius, the busy and
+ * @pattern Facade over the design system's ghost (idle, busy) and quiet (failed) `Button` and an empty `alert` message slot — the radius, the busy and
  *     the disabled states, and the failure reason's description, all come from `Button`
  */
 import type { FC } from 'react';
@@ -35,10 +36,12 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
             </p>
             {/* ONE element in every state: the cook who pressed it holds focus on it (SC 2.4.3). */}
             <Button
-                variant="quiet"
+                variant={failed ? 'quiet' : 'ghost'}
                 busy={loading}
                 onPress={onLoadMore}
-                {...(failed ? { icon: 'refreshCw' as const } : {})}
+                {...(failed
+                    ? { icon: 'refreshCw' as const }
+                    : { icon: 'chevronDown' as const, iconPlacement: 'end' as const })}
                 {...(showFailure ? { description: labels.failed } : {})}
             >
                 {loading ? labels.loadingMore : failed ? labels.retry : labels.loadMore}

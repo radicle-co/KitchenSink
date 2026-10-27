@@ -10,6 +10,8 @@ const keepAwake = vi.hoisted(() => ({
 vi.mock('expo-keep-awake', () => keepAwake);
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
+import { role } from '../../tokens/colors.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.native.js';
 import { useKeepAwake } from '../useKeepAwake.native.js';
 
@@ -50,6 +52,65 @@ describe('KeepAwakeToggle (native)', () => {
 
         fireEvent.click(toggle);
         expect(onChange).toHaveBeenCalledWith(false);
+    });
+});
+
+/** `#RRGGBB` → the `rgb(r, g, b)` spelling jsdom's `getComputedStyle` normalises colours to. */
+function rgb(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** The painted pill: the rounded element inside the switch. */
+function pillOf(toggle: HTMLElement): HTMLElement {
+    const pill = [toggle, ...Array.from(toggle.querySelectorAll<HTMLElement>('*'))].find(
+        (element) => Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) > 0,
+    );
+
+    if (pill === undefined) {
+        throw new Error('The switch paints no pill.');
+    }
+
+    return pill;
+}
+
+// `componentFixes` issue 6 (2026-10-26): a SWITCH wearing the secondary pill, not a 32 pt chip. Mutation lens: the chip
+// geometry (32 pt, no edge), or an edge that is 1.5 pt only when on, fails.
+describe('KeepAwakeToggle (native) — the secondary pill', () => {
+    it('off: a 44 pt paper pill with a 1 pt lineControl outline and an ink cardTitle', () => {
+        render(<KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />);
+
+        const pill = getComputedStyle(pillOf(screen.getByRole('switch', { name: 'Screen on' })));
+
+        expect(pill.minHeight).toBe('44px');
+        expect(pill.backgroundColor).toBe(rgb(role.paper));
+        expect(pill.borderTopWidth).toBe('1px');
+        expect(pill.borderTopColor).toBe(rgb(role.lineControl));
+        expect(getComputedStyle(screen.getByText('Screen on')).fontSize).toBe(
+            `${String(nativeTokens.type.cardTitle.fontSize)}px`,
+        );
+    });
+
+    it('on: the selectedFill with a selectedEdge outline of the SAME width, so nothing shifts', () => {
+        render(<KeepAwakeToggle on onChange={vi.fn()} label="Screen on" display="labelled" />);
+
+        const pill = getComputedStyle(pillOf(screen.getByRole('switch', { name: 'Screen on' })));
+
+        expect(pill.minHeight).toBe('44px');
+        expect(pill.backgroundColor).toBe(rgb(role.selectedFill));
+        expect(pill.borderTopWidth).toBe('1px');
+        expect(pill.borderTopColor).toBe(rgb(role.selectedEdge));
+    });
+
+    it('draws the sun glyph, decorative, filled only when on', () => {
+        const { container } = render(
+            <KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />,
+        );
+        const sun = (): HTMLElement | null => container.querySelector('[data-commise-stub="icon"]');
+
+        expect(sun()?.dataset['iconName']).toBe('sun');
+        expect(sun()?.closest('[aria-hidden="true"]')).not.toBeNull();
     });
 });
 

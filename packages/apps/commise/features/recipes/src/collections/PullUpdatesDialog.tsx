@@ -95,9 +95,7 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                     className="fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-paper p-6 shadow-lg"
                 >
                     <div className="flex flex-col gap-1">
-                        <Dialog.Title className="text-section-title text-ink">
-                            {pull.title}
-                        </Dialog.Title>
+                        <Dialog.Title className="text-section-title text-ink">{pull.title}</Dialog.Title>
                         {attribution !== undefined && <p className="text-body-sm text-ink-muted">{attribution}</p>}
                     </div>
 

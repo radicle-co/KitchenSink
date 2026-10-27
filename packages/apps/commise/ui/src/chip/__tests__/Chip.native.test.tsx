@@ -85,8 +85,22 @@ describe('Chip (native) — filter', () => {
         const pill = getComputedStyle(pillOf(screen.getByRole('checkbox', { name: 'Vegan' })));
 
         expect(pill.backgroundColor).toBe(rgb(role.surfaceMuted));
-        expect(pill.borderTopWidth).toBe('0px');
+        // Ruling 4: the edge is there at rest, in a transparent colour, at the selected width.
+        expect(pill.borderTopWidth).toBe('1.5px');
         expect(getComputedStyle(screen.getByText('Vegan')).color).toBe(rgb(role.ink));
+    });
+
+    // Ruling 4 (`componentFixes` issue 4): selecting a chip must never shift its neighbours. Mutation lens: a rest edge of
+    // 0 (the old value) or any width other than the selected one fails the equality.
+    it('keeps the same edge width and a transparent edge colour at rest, so selecting moves nothing', () => {
+        const theme = themeFor('light');
+        const rest = chipPill(theme, false, false);
+        const selected = chipPill(theme, true, false);
+
+        expect(rest.borderWidth).toBe(1.5);
+        expect(rest.borderWidth).toBe(selected.borderWidth);
+        expect(rest.borderColor).toBe('transparent');
+        expect(selected.borderColor).toBe(theme.colors.selectedEdge);
     });
 
     it('⛔ cannot be mistaken for a secondary button: a different fill and no edge, side by side', () => {
@@ -107,15 +121,17 @@ describe('Chip (native) — filter', () => {
         expect(button.borderTopWidth).toBe('1px');
     });
 
-    it('washes the pill with the ink wash while pressed (the rest fill is replaced, as on a button), in both schemes', () => {
+    // REWRITTEN for ruling 3 (`componentFixes` issue 3): a chip rests on surface-muted, so its pressed fill is
+    // `lineDivider` (the ink-alpha wash is dropped). The 1.5 pt transparent edge stays, so a press moves nothing.
+    it('fills the pill with lineDivider while pressed (over a surface-muted fill), in both schemes', () => {
         for (const scheme of ['light', 'dark'] as const) {
             const theme = themeFor(scheme);
             const rest = chipPill(theme, false, false);
             const pressed = chipPill(theme, false, true);
 
             expect(rest.backgroundColor, scheme).toBe(theme.colors.surfaceMuted);
-            expect(pressed.backgroundColor, scheme).toBe(theme.wash);
-            expect(pressed.borderWidth, scheme).toBe(0);
+            expect(pressed.backgroundColor, scheme).toBe(theme.colors.lineDivider);
+            expect(pressed.borderWidth, scheme).toBe(1.5);
             // A press must be visible: the wash is not the resting fill.
             expect(pressed.backgroundColor, scheme).not.toBe(rest.backgroundColor);
         }

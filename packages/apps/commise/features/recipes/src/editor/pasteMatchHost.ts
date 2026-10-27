@@ -106,6 +106,35 @@ function linePickOf(attempt: SendAttempt): Extract<LineBinding, { boundBy: 'cook
         : { kind: 'food', foodId: attempt.food.foodId, name: attempt.food.name };
 }
 
+/** A paste starts: a new job starts clean, the same job changes nothing. Pure. */
+function startJob(host: PasteMatchHost, jobId: string | undefined): PasteMatchHost {
+    if (jobId === host.jobId) {
+        return host;
+    }
+
+    return {
+        ...emptyPasteMatchHost,
+        jobId,
+        session:
+            jobId === undefined
+                ? emptyPasteMatchSession
+                : reducePasteMatchSession(emptyPasteMatchSession, { type: 'jobAccepted', jobId }),
+    };
+}
+
+/** The host re-pointed a draft line: the waiting re-point for `key` is done. Pure. */
+function applyRebind(host: PasteMatchHost, key: string): PasteMatchHost {
+    if (!host.rebinds.has(key)) {
+        return host;
+    }
+
+    const rebinds = new Map(host.rebinds);
+
+    rebinds.delete(key);
+
+    return { ...host, rebinds };
+}
+
 /**
  * The state after an event. Returns `host` itself when the event changes nothing. Pure.
  *
@@ -115,31 +144,11 @@ function linePickOf(attempt: SendAttempt): Extract<LineBinding, { boundBy: 'cook
  */
 export function reducePasteMatchHost(host: PasteMatchHost, event: PasteMatchHostEvent): PasteMatchHost {
     if (event.type === 'jobStarted') {
-        return event.jobId === host.jobId
-            ? host
-            : {
-                  ...emptyPasteMatchHost,
-                  jobId: event.jobId,
-                  session:
-                      event.jobId === undefined
-                          ? emptyPasteMatchSession
-                          : reducePasteMatchSession(emptyPasteMatchSession, {
-                                type: 'jobAccepted',
-                                jobId: event.jobId,
-                            }),
-              };
+        return startJob(host, event.jobId);
     }
 
     if (event.type === 'rebindApplied') {
-        if (!host.rebinds.has(event.key)) {
-            return host;
-        }
-
-        const rebinds = new Map(host.rebinds);
-
-        rebinds.delete(event.key);
-
-        return { ...host, rebinds };
+        return applyRebind(host, event.key);
     }
 
     if (event.jobId !== host.jobId) {

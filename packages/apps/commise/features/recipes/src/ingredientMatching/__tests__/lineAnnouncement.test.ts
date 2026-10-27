@@ -120,3 +120,21 @@ describe('pickFailedAnnouncementOf', () => {
         expect(said).not.toBe('');
     });
 });
+
+/**
+ * ADDED for the AI budget spent: a checked line that now needs a choice BECAUSE the check did not run says so, instead
+ * of "Check finished for {line}: choose a food." (a check that never ran did not finish).
+ */
+describe('lineChangesOf — a line the spent budget left for the cook', () => {
+    it('says the check did not run, not that it finished', () => {
+        const after = makeNeedsChoiceLine({
+            key: 'cream',
+            line: { measure: '1/2 cup', words: 'heavy cream' },
+            budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' },
+        });
+
+        expect(lineChangesOf(snapshot([makeCheckingLine()]), snapshot([after]), copy)).toBe(
+            '1/2 cup heavy cream: our check did not run. Choose a food.',
+        );
+    });
+});

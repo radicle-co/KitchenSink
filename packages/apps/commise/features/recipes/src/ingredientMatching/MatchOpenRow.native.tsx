@@ -13,11 +13,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FoodChoiceList } from './FoodChoiceList.native.js';
 import { MatchFailureLine } from './MatchFailureLine.native.js';
 import { MatchLineText } from './MatchLineText.native.js';
+import { SeeWhy } from './SeeWhy.native.js';
 import type { MatchOpenRowProps } from './matchOpenRowProps.js';
 
 /** The expanded line. */
-export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, retry, ...list }) => {
+export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, onSeeWhy, retry, ...list }) => {
     const { colors } = useTheme();
+    const { why } = view;
 
     return (
         <View style={styles.row}>
@@ -25,6 +27,9 @@ export const MatchOpenRow: FC<MatchOpenRowProps> = ({ line, view, onRetryPick, r
                 <MatchLineText line={line} />
                 {view.prompt === undefined ? null : (
                     <Text style={[styles.prompt, { color: colors.inkMuted }]}>{view.prompt}</Text>
+                )}
+                {why === undefined ? null : (
+                    <SeeWhy label={why.label} reason={why.reason} onOpen={() => onSeeWhy(why.reason)} />
                 )}
                 {view.failure === undefined ? null : (
                     <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />

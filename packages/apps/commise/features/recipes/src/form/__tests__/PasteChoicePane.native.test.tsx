@@ -60,12 +60,16 @@ const NOTHING_SENT: ReadonlySet<string> = new Set();
 function paneOf(
     shownKey: string,
     options: { failed?: boolean; online?: boolean; focusRequested?: boolean },
-    handlers: Record<'onSearch' | 'onPick' | 'onPrevious' | 'onNext' | 'onRetryPick' | 'onHandled', () => void>,
+    handlers: Record<
+        'onSearch' | 'onPick' | 'onPrevious' | 'onNext' | 'onRetryPick' | 'onHandled' | 'onSeeWhy',
+        () => void
+    >,
+    lines: readonly MatchLine[] = RECIPE,
 ) {
     return (
         <PasteChoicePane
             view={pasteMatchPaneViewOf(
-                { lines: RECIPE, shownKey, sending: NOTHING_SENT },
+                { lines, shownKey, sending: NOTHING_SENT },
                 { online: options.online ?? true, pending: undefined, failed: options.failed ?? false },
                 m,
                 lineCopy,
@@ -76,7 +80,11 @@ function paneOf(
     );
 }
 
-function renderPane(shownKey: string, options: { failed?: boolean; online?: boolean; focusRequested?: boolean } = {}) {
+function renderPane(
+    shownKey: string,
+    options: { failed?: boolean; online?: boolean; focusRequested?: boolean } = {},
+    lines: readonly MatchLine[] = RECIPE,
+) {
     const handlers = {
         onSearch: vi.fn(),
         onPick: vi.fn(),
@@ -84,10 +92,11 @@ function renderPane(shownKey: string, options: { failed?: boolean; online?: bool
         onNext: vi.fn(),
         onRetryPick: vi.fn(),
         onHandled: vi.fn(),
+        onSeeWhy: vi.fn(),
     };
-    const result = render(paneOf(shownKey, options, handlers));
+    const result = render(paneOf(shownKey, options, handlers, lines));
 
-    return { ...handlers, rerender: (key: string) => result.rerender(paneOf(key, options, handlers)) };
+    return { ...handlers, rerender: (key: string) => result.rerender(paneOf(key, options, handlers, lines)) };
 }
 
 const disabled = (button: HTMLElement): boolean =>
@@ -189,6 +198,7 @@ describe('PasteChoicePane (native): Try again keeps the screen-reader cursor (WC
         onPrevious: vi.fn(),
         onNext: vi.fn(),
         onRetryPick: vi.fn(),
+        onSeeWhy: vi.fn(),
     };
 
     const paneWith = (shownKey: string, place: { failed: boolean; pending: PendingSend | undefined }) => (
@@ -267,6 +277,7 @@ describe('PasteChoicePane (native): the host’s retry memory', () => {
         onPrevious: vi.fn(),
         onNext: vi.fn(),
         onRetryPick: vi.fn(),
+        onSeeWhy: vi.fn(),
     };
     const pending: PendingSend = { kind: 'pick', pick: { kind: 'food', foodId: 'skim', name: 'Skim milk' } };
     const paneWith = (requested: boolean, onLanded = vi.fn()) => (
@@ -301,5 +312,29 @@ describe('PasteChoicePane (native): the host’s retry memory', () => {
         render(paneWith(false));
 
         expect(focusMoved).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * ADDED for the AI budget spent (owner ruling 2026-10-26): the pane shows the same See why as the phone's open row, for a
+ * line the spent budget left for the cook. The reason opens in place and is announced once.
+ */
+describe('PasteChoicePane — See why on a line matched without the AI check', () => {
+    const REASON = 'Our check did not run this month, so this is our best guess. Choose the food you use.';
+    const SPENT = makeNeedsChoiceLine({ budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' } });
+
+    it('opens the reason in place and announces it once', () => {
+        const { onSeeWhy } = renderPane('bread', {}, [SPENT]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'See why' }));
+
+        expect(screen.getByText(REASON)).toBeTruthy();
+        expect(onSeeWhy).toHaveBeenCalledExactlyOnceWith(REASON);
+    });
+
+    it('offers none on a line the check ran for', () => {
+        renderPane('bread');
+
+        expect(screen.queryByRole('button', { name: 'See why' })).toBeNull();
     });
 });

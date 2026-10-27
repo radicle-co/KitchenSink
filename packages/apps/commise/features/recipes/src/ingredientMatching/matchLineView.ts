@@ -144,6 +144,15 @@ export interface PickFailureView {
     readonly retry: { readonly label: string; readonly name: string };
 }
 
+/**
+ * The reason behind a line, opened in place by See why (owner design 2026-10-26). The label is the visible "See why"; its
+ * accessible name is the label alone, because only one open line shows at a time, so no other control shares it.
+ */
+export interface WhyView {
+    readonly label: string;
+    readonly reason: string;
+}
+
 /** What the expanded line shows. */
 export interface OpenLineView {
     /**
@@ -151,6 +160,12 @@ export interface OpenLineView {
      * reopened by Change, or a confident one.
      */
     readonly prompt: string | undefined;
+    /**
+     * Why the line is open without a proposal when the AI check did not run (the spent budget): See why, with the reason
+     * behind it. `undefined` for a line the check ran for and for a bound line reopened by Change. No second notice: the
+     * month's one notice sits above the list.
+     */
+    readonly why: WhyView | undefined;
     /** The line's last send failed. */
     readonly failure: PickFailureView | undefined;
     /** Whether the last send failed and whether one is in flight: what tells a retry from a first attempt. */
@@ -452,6 +467,12 @@ const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
     }
 };
 
+/** See why for a line the spent AI budget left for the cook; none once something is bound. Pure. */
+const whyOf = (line: MatchLine, copy: MatchCopy): WhyView | undefined =>
+    line.state === 'needsChoice' && line.budgetSpent !== undefined && line.binding === undefined
+        ? { label: copy.line.seeWhy, reason: copy.line.reasons.reviewBudgetSpent }
+        : undefined;
+
 /**
  * What an expanded line shows: its muted prompt, a failed send's sentence, and its food-choice list. The open row's,
  * and the side pane's (1194 and web), so the two say the same. Pure.
@@ -464,6 +485,7 @@ const promptOf = (line: MatchLine, copy: MatchCopy): string | undefined => {
 export function openLineViewOf(line: MatchLine, place: OpenPlace, copy: MatchCopy): OpenLineView {
     return {
         prompt: promptOf(line, copy),
+        why: whyOf(line, copy),
         failure: lineFailureOf(lineTextOf(line.line), place, copy),
         send: sendStateOf(line.key, place),
         list: choiceListViewOf(line, place, copy),
@@ -661,6 +683,21 @@ export function sendsOf(rows: readonly LineRow[]): readonly SendState[] {
 }
 
 /**
+ * The row of a default, needsChoice or noMatch line: open when the host expands it, else a collapsed row naming its
+ * `need` while nothing is bound, else the bound line's settled row. The three states differ only in the words of the
+ * need. Pure.
+ */
+const openableRowOf = (line: MatchLine, need: string, place: LinePlace, copy: MatchCopy): LineRow => {
+    if (place.expanded) {
+        return openRowOf(line, place, copy);
+    }
+
+    return line.binding === undefined
+        ? closedRowOf(line, need, place, copy)
+        : boundRowOf(line, line.binding, place, copy);
+};
+
+/**
  * One line's row: open when the host expands it (and it has a list to show), a collapsed row while an open line waits
  * its turn, and settled otherwise. Pure.
  *
@@ -673,43 +710,25 @@ export function sendsOf(rows: readonly LineRow[]): readonly SendState[] {
 export function lineRowOf(line: MatchLine, place: LinePlace, copy: MatchCopy, locale: string): LineRow {
     switch (line.state) {
         case 'default':
-            if (place.expanded) {
-                return openRowOf(line, place, copy);
-            }
-
-            return line.binding === undefined
-                ? closedRowOf(
-                      line,
-                      fillTemplate(pluralOf(copy.line.closedNeed.default, line.candidates.length, locale), {
-                          noun: line.noun,
-                      }),
-                      place,
-                      copy,
-                  )
-                : boundRowOf(line, line.binding, place, copy);
+            return openableRowOf(
+                line,
+                fillTemplate(pluralOf(copy.line.closedNeed.default, line.candidates.length, locale), {
+                    noun: line.noun,
+                }),
+                place,
+                copy,
+            );
 
         case 'needsChoice':
-            if (place.expanded) {
-                return openRowOf(line, place, copy);
-            }
-
-            return line.binding === undefined
-                ? closedRowOf(
-                      line,
-                      pluralOf(copy.line.closedNeed.needsChoice, line.candidates.length, locale),
-                      place,
-                      copy,
-                  )
-                : boundRowOf(line, line.binding, place, copy);
+            return openableRowOf(
+                line,
+                pluralOf(copy.line.closedNeed.needsChoice, line.candidates.length, locale),
+                place,
+                copy,
+            );
 
         case 'noMatch':
-            if (place.expanded) {
-                return openRowOf(line, place, copy);
-            }
-
-            return line.binding === undefined
-                ? closedRowOf(line, copy.line.closedNeed.noMatch, place, copy)
-                : boundRowOf(line, line.binding, place, copy);
+            return openableRowOf(line, copy.line.closedNeed.noMatch, place, copy);
 
         case 'confident':
             return place.expanded ? openRowOf(line, place, copy) : boundRowOf(line, line.binding, place, copy);

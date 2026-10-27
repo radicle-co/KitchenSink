@@ -63,6 +63,9 @@ function mountEditor(client: RecipeServiceClient, seed: EditorSeed = {}) {
             onExit,
             reportError: vi.fn(),
             rebindLine: vi.fn(),
+            setVisibility: vi.fn(async () => {
+                throw new Error('setVisibility: not expected in this suite');
+            }),
             readRecipe: (id) => client.getRecipeById(id),
         }),
     );

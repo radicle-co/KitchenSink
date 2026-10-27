@@ -20,6 +20,8 @@ export interface PasteChoicePaneProps extends Omit<FoodChoiceListProps, 'view' |
      * (`useRetryFocus`), which must still be on screen.
      */
     readonly onRetryPick: () => void;
+    /** See why was opened on the shown line: the host says the reason once in its polite region. */
+    readonly onSeeWhy: (reason: string) => void;
     /**
      * The shown line's retry focus, when the HOST holds the retry memory (`useRetryFocus` over the list's and the pane's
      * sends together). Omitted, the pane holds its own.

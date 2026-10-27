@@ -744,7 +744,7 @@ describe('RecipeDetailContainer', () => {
         describe('the refused Private, said inline on the page (§6.4)', () => {
             const FINAL = 'This recipe is still public: it couldn’t be made private.';
             const PREMIUM =
-                'This recipe is still public. A recipe from a public web page needs Premium and a change of your own to be private.';
+                'This recipe stays public. A recipe from a public web page needs Premium and a change of your own to be private.';
             const SLOTS = 'Not available. All 50 of your private slots are in use.';
 
             /** The recipe page for `ownerId` with `visibility`, arrived at through the editor's hand-off. */

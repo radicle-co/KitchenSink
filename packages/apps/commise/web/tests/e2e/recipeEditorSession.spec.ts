@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { openNewRecipe } from './utils/recipeEditor';
 
 /**
@@ -192,4 +192,57 @@ test.describe('the editor session', () => {
 
         await expect(page.getByRole('button', { name: /^Fix \d+ things? to publish$/u })).toBeVisible();
     });
+});
+
+/**
+ * Owner rule: nothing may turn a private recipe public on its own. A stored draft the server holds as Public, marked
+ * Private by the cook, must have its visibility written BEFORE the publish update: the service skips the slot check for a
+ * recipe it holds as public, so the old order (publish, then visibility) published the recipe public first. The API is
+ * intercepted (`utils/recipeApi`), which models the service's own slot rule at publish.
+ */
+test.describe('mark Private, then publish', () => {
+    test.beforeEach(async ({ page }) => {
+        await signInWithTicket(page);
+    });
+
+    for (const paidFeatures of ['granted', 'upsell'] as const) {
+        test(`⛔ ${paidFeatures}: the visibility write reaches the service before the publish, and the recipe is never public published`, async ({
+            page,
+        }) => {
+            const viewerId = await readViewerAppId(page);
+            const id = 'ec000000-0000-4000-8000-0000000000a1';
+            const store = await mockRecipeApi(page, {
+                viewerId,
+                paidFeatures,
+                recipes: [
+                    makeRecipeDetail({
+                        id,
+                        ownerId: viewerId,
+                        title: 'Private Pie',
+                        cuisine: 'Italian',
+                        status: 'draft',
+                        visibility: 'public',
+                        currentVersion: 1,
+                    }),
+                ],
+            });
+            const writes: string[] = [];
+            page.on('request', (request) => {
+                const { pathname } = new URL(request.url());
+
+                if (request.method() === 'PATCH' && pathname.includes(`/api/v1/recipes/${id}`)) {
+                    writes.push(pathname.endsWith('/visibility') ? 'visibility' : 'update');
+                }
+            });
+
+            await page.goto(route(`/recipes/${id}/edit`));
+            await page.getByRole('radio', { name: /^Private/u }).check();
+            await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+            await expect.poll(() => store.get(id)?.status).toBe('published');
+            expect(store.get(id)?.visibility).toBe('private');
+            expect(writes.indexOf('visibility')).toBeGreaterThanOrEqual(0);
+            expect(writes.indexOf('visibility')).toBeLessThan(writes.lastIndexOf('update'));
+        });
+    }
 });

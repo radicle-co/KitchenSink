@@ -1,14 +1,15 @@
 /**
  * @module @commise/ui/load-more — the native "Load more" control of a server-paged list (no infinite scroll).
  *
- * Three states over one quiet `Button`: idle, busy (the button's native `disabled`, which keeps the screen-reader
+ * Three states over one `Button`, ghost while idle and busy (an `actionText` label with a chevronDown after it, so colour
+ * and glyph mark it pressable) and quiet when failed: idle, busy (the button's native `disabled`, which keeps the screen-reader
  * cursor, plus `aria-busy`) and failed ("Try again", with the reason as its hint). The failure is SPOKEN through an
  * assertive `LiveRegion` mounted empty above the button, so it announces when its text appears on both platforms; a
  * retry in flight clears it, so a second failure announces again. The pages already loaded stay on screen.
  *
  * A presentational leaf: the caller derives `loading` and `failed` from its infinite query.
  *
- * @pattern Facade over the design system's quiet `Button` and an assertive `LiveRegion` — the same contract as the web
+ * @pattern Facade over the design system's ghost and quiet `Button` and an assertive `LiveRegion` — the same contract as the web
  *     leaf
  */
 import type { FC } from 'react';
@@ -37,10 +38,12 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
                 {showFailure ? labels.failed : ''}
             </LiveRegion>
             <Button
-                variant="quiet"
+                variant={failed ? 'quiet' : 'ghost'}
                 busy={loading}
                 onPress={onLoadMore}
-                {...(failed ? { icon: 'refreshCw' as const } : {})}
+                {...(failed
+                    ? { icon: 'refreshCw' as const }
+                    : { icon: 'chevronDown' as const, iconPlacement: 'end' as const })}
                 {...(showFailure ? { description: labels.failed } : {})}
             >
                 {label}

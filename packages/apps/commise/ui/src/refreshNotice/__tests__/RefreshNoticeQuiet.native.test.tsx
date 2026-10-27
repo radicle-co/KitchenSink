@@ -79,6 +79,8 @@ describe('LoadMoreControl (native) — the quiet Try again', () => {
 
         rerender(<LoadMoreControl hasMore loading={false} failed={false} onLoadMore={vi.fn()} labels={labels} />);
         expect(seen.buttons.at(-1)?.['accessibilityHint']).toBeUndefined();
-        expect(getComputedStyle(screen.getByText('Load more')).color).toBe(rgb(role.ink));
+        // REWRITTEN for `componentFixes` issue 2: the idle Load more is an actionText label (it was ink), so it reads as
+        // pressable; only Try again keeps the ink label.
+        expect(getComputedStyle(screen.getByText('Load more')).color).toBe(rgb(role.actionText));
     });
 });

@@ -16,6 +16,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
+import { SeeWhy } from '../ingredientMatching/SeeWhy.native.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
@@ -25,12 +26,14 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({
     onPrevious,
     onNext,
     onRetryPick,
+    onSeeWhy,
     retry: hostRetry,
     ...list
 }) => {
     const { colors } = useTheme();
     const ownRetry = useRetryFocus([view.open.send])(view.open.send.key);
     const retry = hostRetry ?? ownRetry;
+    const { why } = view.open;
 
     return (
         <View style={styles.pane}>
@@ -41,6 +44,14 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({
                 </Text>
                 {view.open.prompt === undefined ? null : (
                     <Text style={[styles.meta, { color: colors.inkMuted }]}>{view.open.prompt}</Text>
+                )}
+                {why === undefined ? null : (
+                    <SeeWhy
+                        key={view.open.send.key}
+                        label={why.label}
+                        reason={why.reason}
+                        onOpen={() => onSeeWhy(why.reason)}
+                    />
                 )}
                 {view.open.failure === undefined ? null : (
                     <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} focus={retry.tryAgain} />

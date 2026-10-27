@@ -126,13 +126,26 @@ describe('MatchSettledRow (web)', () => {
         expect(screen.getByText('Butter, unsalted\u00A0· your choice', EXACT)).toBeTruthy();
         expect(screen.getByText('Our check suggested Butter, salted. Your choice stays.')).toBeTruthy();
 
-        fireEvent.click(
-            screen.getByRole('button', {
-                name: 'See why our check suggested Butter, salted for 3 tbsp butter, melted',
-            }),
-        );
+        // REWRITTEN for the visible disclosure (owner design 2026-10-26): See why used to be spoken only. It now toggles
+        // aria-expanded, opens the reason in place, announces it once, and closes on a second press.
+        const seeWhy = screen.getByRole('button', {
+            name: 'See why our check suggested Butter, salted for 3 tbsp butter, melted',
+        });
+
+        expect(seeWhy.getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByText('The recipe adds no other salt.')).toBeNull();
+
+        fireEvent.click(seeWhy);
+
+        expect(seeWhy.getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByText('The recipe adds no other salt.')).toBeTruthy();
         expect(onSeeWhy).toHaveBeenCalledTimes(1);
         expect(onAction).not.toHaveBeenCalled();
+
+        fireEvent.click(seeWhy);
+
+        expect(screen.queryByText('The recipe adds no other salt.')).toBeNull();
+        expect(onSeeWhy).toHaveBeenCalledTimes(1);
     });
 
     it('checking, online: the proposal with its Checking tag and the still clock; Use this, then Search', () => {

@@ -121,6 +121,12 @@ export type MatchLine =
           readonly state: 'needsChoice';
           readonly candidates: readonly FoodChoice[];
           readonly binding: LineBinding | undefined;
+          /**
+           * The AI check did not run for this line because the month's budget is spent (the wire reason
+           * `reviewBudgetSpent`, owner ruling 2026-10-26): the line is matched without it and the cook chooses. Absent for a
+           * line the check ran for. `resetsAt` is when the check comes back (ISO 8601), absent if the server sent none.
+           */
+          readonly budgetSpent?: { readonly resetsAt: string | undefined };
       })
     | (LineBase & { readonly state: 'noMatch'; readonly binding: LineBinding | undefined })
     | (LineBase & {

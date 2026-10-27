@@ -31,6 +31,7 @@ import type { FC, ReactElement } from 'react';
 import { MatchFailureLine } from './MatchFailureLine.js';
 import { settledControlFocusOf } from './listControlFocus.js';
 import { MatchLineText } from './MatchLineText.js';
+import { SeeWhy } from './SeeWhy.js';
 import type { SettledStatus } from './matchLineView.js';
 import type { MatchSettledRowProps } from './matchSettledRowProps.js';
 
@@ -120,11 +121,14 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
                 <MatchFailureLine failure={view.failure} onRetry={onRetryPick} focus={retry.tryAgain} />
             )}
             {view.note === undefined ? null : (
-                <div className="flex flex-wrap items-center gap-x-2 text-list text-ink-muted">
+                <div className="flex flex-col items-start gap-1 text-list text-ink-muted">
                     <span>{view.note.sentence}</span>
-                    <Button variant="ghost" size="sm" accessibilityLabel={view.note.seeWhyName} onPress={onSeeWhy}>
-                        {view.note.seeWhy}
-                    </Button>
+                    <SeeWhy
+                        label={view.note.seeWhy}
+                        name={view.note.seeWhyName}
+                        reason={view.note.reason}
+                        onOpen={onSeeWhy}
+                    />
                 </div>
             )}
         </li>

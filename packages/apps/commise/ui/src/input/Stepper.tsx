@@ -24,7 +24,7 @@ import { stepFrom, type StepperProps } from './props.js';
 /** A step button: a 44 px circle on the neutral surface. */
 const STEP =
     'inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ' +
-    'hover:bg-ink/6 active:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ' +
+    'hover:bg-surface-muted active:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ' +
     'focus-visible:ring-offset-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 
 /** The web design-system stepper. */

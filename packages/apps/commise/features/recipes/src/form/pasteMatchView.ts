@@ -36,7 +36,9 @@ export type PasteMatchNotice =
     /** Offline: the check waits, choices are kept where the draft is (D7). */
     | { readonly kind: 'offline'; readonly keep: DraftKeep }
     /** The daily limit (004 FR-022): the lines are kept as written until it resets in the cook's time zone. */
-    | { readonly kind: 'quota'; readonly resetsAt: string; readonly timeZone: string };
+    | { readonly kind: 'quota'; readonly resetsAt: string; readonly timeZone: string }
+    /** The month's AI check is used up (owner design 2026-10-26): the foods were matched without it, until `resetsAt`. */
+    | { readonly kind: 'noAiCheck'; readonly resetsAt: string };
 
 /** The counts the summary states: how many lines were added, then the line counts (`matchCountsOf`). */
 export interface PasteMatchCounts extends MatchCounts {
@@ -99,6 +101,65 @@ export const quotaBodyOf = (resetsAt: string, copy: PasteCopy, locale: string, t
     fillTemplate(copy.pasteMatch.quota.body, {
         time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(new Date(resetsAt)),
     });
+
+/**
+ * The notice for foods matched without the AI check (board ImportPasteNoAiCheck), with the day it comes back as a day and
+ * month in the cook's locale. Pure.
+ *
+ * ⛔ The date is read in UTC. `reviewResetsAt` is the first of next month at 00:00 UTC (the spend period's end,
+ * ADR-0024), so a cook west of UTC would read "31 October" from their own zone and be told the check returns before the
+ * period ends.
+ *
+ * @param resetsAt - When the check comes back, ISO 8601 (`reviewResetsAt`).
+ * @param copy - The localised copy.
+ * @param locale - The active locale (en-GB reads "1 November", en-US "November 1").
+ * @returns The notice's sentence.
+ */
+export const noAiCheckBodyOf = (resetsAt: string, copy: PasteCopy, locale: string): string =>
+    fillTemplate(copy.pasteMatch.noAiCheck.body, {
+        date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+            new Date(resetsAt),
+        ),
+    });
+
+/** What {@link pasteMatchNoticeFor} chooses from. */
+export interface PasteMatchNoticeInput {
+    /** The daily limit's refusal, if the last paste met it. */
+    readonly quota: { readonly resetsAt: string } | undefined;
+    /** Work is waiting for a connection. */
+    readonly offline: boolean;
+    /** Where the draft is kept (D7), for the offline notice. */
+    readonly keep: DraftKeep;
+    /** The cook's IANA time zone, for the daily limit's time. */
+    readonly timeZone: string;
+    /** The paste's matched lines. */
+    readonly lines: readonly MatchLine[];
+}
+
+/**
+ * The ONE notice above the pasted lines, or none. It is a polite status, so one fact is said at a time, in this order:
+ * the daily limit (nothing was matched), being offline (the check waits), then the spent AI budget (the foods were matched
+ * without the check). A spent budget with no date from the server says nothing here; each such line still says so under
+ * its own See why. Pure.
+ *
+ * @param input - The facts.
+ * @returns The notice, or `undefined`.
+ */
+export const pasteMatchNoticeFor = (input: PasteMatchNoticeInput): PasteMatchNotice | undefined => {
+    if (input.quota !== undefined) {
+        return { kind: 'quota', resetsAt: input.quota.resetsAt, timeZone: input.timeZone };
+    }
+
+    if (input.offline && input.lines.length > 0) {
+        return { kind: 'offline', keep: input.keep };
+    }
+
+    const resetsAt = input.lines
+        .map((line) => (line.state === 'needsChoice' ? line.budgetSpent?.resetsAt : undefined))
+        .find((at): at is string => at !== undefined);
+
+    return resetsAt === undefined ? undefined : { kind: 'noAiCheck', resetsAt };
+};
 
 /** What the side pane steps through: the recipe's lines, the one it shows, and the ones being sent. */
 export interface PanePlace {
@@ -218,5 +279,7 @@ export const pasteMatchNoticeOf = (notice: PasteMatchNotice, copy: PasteCopy, lo
             return notice.keep === 'disk' ? copy.pasteMatch.offline.bodyDevice : copy.pasteMatch.offline.bodyTab;
         case 'quota':
             return quotaBodyOf(notice.resetsAt, copy, locale, notice.timeZone);
+        case 'noAiCheck':
+            return noAiCheckBodyOf(notice.resetsAt, copy, locale);
     }
 };

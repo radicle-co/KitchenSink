@@ -20,6 +20,7 @@ interface WireMatch {
     reason: string;
     proposed: { kind: 'root' | 'variant'; id: string; name: string } | null;
     candidates: { kind: 'root' | 'variant'; id: string; name: string; isDefault: boolean }[];
+    reviewResetsAt?: string;
 }
 
 const WHOLE = { kind: 'root', id: 'whole', name: 'Whole milk', isDefault: true } as const;
@@ -186,6 +187,48 @@ describe('pasteMatchLinesOf - every wire state', () => {
             name: 'Whole milk',
             isDefault: true,
         });
+    });
+
+    /**
+     * ADDED for the AI budget spent (owner ruling 2026-10-26): reason `reviewBudgetSpent` rides a `needsChoice` match, and
+     * `reviewResetsAt` says when the check comes back. The line keeps the proposal first among its candidates and binds
+     * nothing; it carries the fact so the view can word it.
+     */
+    it('⛔ a needsChoice spent for want of the AI budget carries when the check returns, and binds nothing', () => {
+        const wire: WireMatch = {
+            state: 'needsChoice',
+            reason: 'reviewBudgetSpent',
+            proposed: null,
+            candidates: [WHOLE, SKIM],
+            reviewResetsAt: '2026-11-01T00:00:00.000Z',
+        };
+
+        expect(only(linesOf(jobWith(wire)))).toMatchObject({
+            state: 'needsChoice',
+            binding: undefined,
+            budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' },
+            candidates: [{ id: 'whole' }, { id: 'skim' }],
+        });
+    });
+
+    it('a budget-spent line from a server that sent no date still says the check did not run', () => {
+        const wire: WireMatch = {
+            state: 'needsChoice',
+            reason: 'reviewBudgetSpent',
+            proposed: null,
+            candidates: [SKIM],
+        };
+
+        expect(only(linesOf(jobWith(wire)))).toMatchObject({
+            state: 'needsChoice',
+            budgetSpent: { resetsAt: undefined },
+        });
+    });
+
+    it('any other needsChoice carries no budget fact', () => {
+        const wire: WireMatch = { state: 'needsChoice', reason: 'noProposal', proposed: null, candidates: [SKIM, OAT] };
+
+        expect(only(linesOf(jobWith(wire)))).not.toHaveProperty('budgetSpent');
     });
 
     it('needsChoice carries its candidates, unbound', () => {

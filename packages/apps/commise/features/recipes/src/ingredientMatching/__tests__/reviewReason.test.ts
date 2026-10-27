@@ -39,3 +39,20 @@ describe('reviewReasonOf', () => {
         expect(sentences.size).toBe(4);
     });
 });
+
+/**
+ * ADDED for the AI budget spent (owner ruling 2026-10-26): the server's `reviewBudgetSpent` reason is the per-line reason
+ * "See why" opens on a line matched without the check. It has its own sentence, and the fallback reads the owner's
+ * 2026-10-26 words.
+ */
+describe('reviewReasonOf — the AI budget spent', () => {
+    it('says the check did not run this month, in its own words', () => {
+        expect(reviewReasonOf(copy, 'reviewBudgetSpent')).toBe(
+            'Our check did not run this month, so this is our best guess. Choose the food you use.',
+        );
+    });
+
+    it('the general sentence is the owner’s 2026-10-26 wording', () => {
+        expect(copy.reasonFallback).toBe('Our check suggested this food for your line.');
+    });
+});

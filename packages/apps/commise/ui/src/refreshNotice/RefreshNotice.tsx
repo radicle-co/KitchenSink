@@ -13,7 +13,8 @@
  *
  * The button is the quiet `Button` with the retry glyph. It used to carry a `lineDivider` hairline and a `canvas` fill so
  * a text-only control on a `surfaceMuted` row read as pressable; the `actionText` glyph is that cue now, and the tonal
- * fill is a chip's (`componentFixes.md` §4), so the control draws none.
+ * fill is a chip's (`componentFixes.md` §4), so the control draws none. The row IS `surfaceMuted`, so the button says
+ * `over="muted"` and presses to `lineDivider`: a `surfaceMuted` press would be the row's own colour and show nothing.
  *
  * A presentational leaf: the caller derives `failed` and `refreshing` from its query.
  *
@@ -33,10 +34,11 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                 {failed && !refreshing ? labels.failed : ''}
             </p>
             {failed && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-muted px-4 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-muted px-4 py-2">
                     <p className="text-body-sm text-ink-muted">{labels.failed}</p>
                     <Button
                         variant="quiet"
+                        over="muted"
                         icon="refreshCw"
                         busy={refreshing}
                         onPress={onRetry}

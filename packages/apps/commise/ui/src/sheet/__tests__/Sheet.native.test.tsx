@@ -456,17 +456,19 @@ describe('Sheet (native)', () => {
                 windowWidth(width);
                 renderSheet({ presentation: 'dialog' });
                 expect(appliedStyle(dialog(), 'max-width')).toBe('448px');
-                expect(appliedStyle(dialog(), 'border-bottom-left-radius')).toBe(`${radius.lg}px`);
+                expect(appliedStyle(dialog(), 'border-bottom-left-radius')).toBe(`${radius.xl}px`);
                 expect(appliedStyle(backdrop(), 'justify-content')).toBe('center');
                 cleanup();
             }
         });
 
-        it('rounds its top corners at radius.lg and dims the screen behind it', () => {
+        // REWRITTEN for parity item 7: a sheet is a dialog-class surface, so its corners are radius.xl (24); lg (18) is a
+        // notice's. The centred dialog above rounds all four at the same step.
+        it('rounds its top corners at radius.xl and dims the screen behind it', () => {
             renderSheet();
 
-            expect(appliedStyle(dialog(), 'border-top-left-radius')).toBe(`${radius.lg}px`);
-            expect(appliedStyle(dialog(), 'border-top-right-radius')).toBe(`${radius.lg}px`);
+            expect(appliedStyle(dialog(), 'border-top-left-radius')).toBe(`${radius.xl}px`);
+            expect(appliedStyle(dialog(), 'border-top-right-radius')).toBe(`${radius.xl}px`);
 
             const scrimColour = appliedStyle(backdrop(), 'background-color');
 

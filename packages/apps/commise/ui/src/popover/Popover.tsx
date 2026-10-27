@@ -107,7 +107,7 @@ export const Popover: FC<PopoverProps> = ({
                     onCloseAutoFocus={() => {
                         onDismissed?.();
                     }}
-                    className="z-50 flex w-[min(20rem,calc(100vw-1rem))] items-start gap-2 rounded-2xl bg-paper-overlay py-2 pl-4 pr-2 shadow-lg"
+                    className="z-50 flex w-[min(20rem,calc(100vw-1rem))] items-start gap-2 rounded-lg bg-paper-overlay py-2 pl-4 pr-2 shadow-lg"
                 >
                     <div className="min-w-0 flex-1 pt-2">
                         <h2 id={titleId} className="break-words text-body-sm font-semibold text-ink">

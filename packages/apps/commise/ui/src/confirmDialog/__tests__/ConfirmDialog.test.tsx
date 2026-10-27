@@ -59,6 +59,17 @@ function baseProps(overrides: Partial<ConfirmDialogProps> = {}): ConfirmDialogPr
     };
 }
 
+// Parity item 8: a dialog takes the largest surface step (24 px), not the notice step (18 px).
+describe('ConfirmDialog (web) — the corner radius', () => {
+    it('rounds at the xl step, not lg', () => {
+        render(<ConfirmDialog {...baseProps({ open: true })} />);
+        const tokens = screen.getByRole('alertdialog').className.split(/\s+/u);
+
+        expect(tokens).toContain('rounded-xl');
+        expect(tokens).not.toContain('rounded-lg');
+    });
+});
+
 describe('ConfirmDialog (web)', () => {
     it('renders nothing while closed', () => {
         render(<ConfirmDialog {...baseProps({ open: false })} />);

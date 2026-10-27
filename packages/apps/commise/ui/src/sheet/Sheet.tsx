@@ -36,7 +36,7 @@ import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
 const CONTENT =
     'fixed inset-x-0 z-50 flex w-full flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
     'sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)] ' +
-    'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:shadow-lg';
+    'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:shadow-lg';
 
 /** The whole visible box: `full` and `page` below `sm`. */
 const PHONE_VISIBLE_BOX = 'top-[var(--sheet-visible-top,0px)] h-[var(--sheet-visible-height,100dvh)]';

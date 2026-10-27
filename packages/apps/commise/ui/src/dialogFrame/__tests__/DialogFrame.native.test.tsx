@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
-import { bodyFontFace } from '../../tokens/scale.js';
+import { bodyFontFace, radius } from '../../tokens/scale.js';
 import { DialogFrame } from '../DialogFrame.native.js';
 import { DIALOG_CARD_MAX_WIDTH_DP } from '../dialogFrameLayout.js';
 import type { DialogFrameProps } from '../props.js';
@@ -123,6 +123,17 @@ const card = (role: 'alert' | 'dialog' = 'dialog'): HTMLElement =>
 /** The scrim: the card sits in the keyboard avoider, inside it. */
 const scrim = (role: 'alert' | 'dialog' = 'dialog'): HTMLElement =>
     card(role).parentElement?.parentElement as HTMLElement;
+
+// Parity item 8: a dialog is the largest surface step (`radius.xl`, 24); `lg` (18) is a notice's.
+describe('DialogFrame (native) — the corner radius', () => {
+    it('rounds the card at radius.xl on every corner', () => {
+        renderFrame();
+
+        for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
+            expect(appliedStyle(card(), `border-${corner}-radius`), corner).toBe(`${String(radius.xl)}px`);
+        }
+    });
+});
 
 describe('DialogFrame (native)', () => {
     it('renders nothing while closed', () => {

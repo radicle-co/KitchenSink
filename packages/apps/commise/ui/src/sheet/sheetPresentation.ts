@@ -10,6 +10,12 @@ import { spacing } from '../tokens/scale.js';
 /** The sheet's edge padding, in dp, before a device inset is added to it. */
 export const SHEET_EDGE_PADDING_DP = spacing[4];
 
+/**
+ * The grab handle's geometry, in points (`componentFixes.md` §3, owner-approved): a 36 by 5 pill, 8 from the top of the
+ * sheet and 4 above the title row. Its row is part of the swipe zone. Native bottom sheets only.
+ */
+export const SHEET_HANDLE = { width: 36, height: 5, marginTop: spacing[2], marginBottom: spacing[1] } as const;
+
 /** The window width, in dp, from which the sheet stops spanning the full width. */
 export const SHEET_WIDE_FROM_DP = 600;
 

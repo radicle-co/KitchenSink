@@ -46,7 +46,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                 <AlertDialog.Content
                     aria-modal="true"
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg bg-paper-overlay p-6 shadow-lg"
+                    className="@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl bg-paper-overlay p-6 shadow-lg"
                 >
                     <AlertDialog.Title className="text-section-title text-ink">{title}</AlertDialog.Title>
                     <AlertDialog.Description className="text-body text-ink-muted">{body}</AlertDialog.Description>

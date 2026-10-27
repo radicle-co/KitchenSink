@@ -57,6 +57,8 @@
         "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
         "./surface": "./src/surface/index.ts",
+        "./surface-tone": "./src/surfaceTone/index.ts",
+        "./focus-ring": "./src/focusRing/index.ts",
         "./input": "./src/input/index.ts",
         "./keyboard-avoider": "./src/keyboardAvoider/KeyboardAvoider.native.tsx",
         "./loading-notice": "./src/loadingNotice/index.ts",

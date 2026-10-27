@@ -33,6 +33,7 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
+import { pressFillsOf, pressVarOf, SURFACE_TONE_NAMES } from '../surfaceTone/surfaceTone.js';
 import { palette, role, roleDark, semantic, semanticDark } from './colors.js';
 import { coverTint, coverTintDark } from './covers.js';
 import { difficultyTone, difficultyToneDark, proTone, proToneDark, type Difficulty, type Tone } from './tones.js';
@@ -132,6 +133,19 @@ function layoutDeclarations(): readonly string[] {
 }
 
 /**
+ * Each surface's press fill as `--color-press-<tone>` (`surfaceTone.ts`): the surface with the theme's ink laid over it,
+ * derived there from the same table native reads, so the two platforms cannot disagree. Not a colour ROLE (a designer
+ * does not choose a press), so it is emitted beside the roles, not as one of them. Pure.
+ *
+ * @param scheme - Which theme's press fills.
+ */
+function pressDeclarations(scheme: 'light' | 'dark'): readonly string[] {
+    const press = pressFillsOf(scheme === 'light' ? role : roleDark, scheme);
+
+    return SURFACE_TONE_NAMES.map((tone) => `    ${pressVarOf(tone)}: ${press[tone]};`);
+}
+
+/**
  * The difficulty badge's pairs as `--color-difficulty-{level}-fill` and `-ink` (`buildSpec.md` §1.4): the same tones
  * native reads from `difficultyTone`/`difficultyToneDark`, so the two platforms cannot disagree on them. Pure.
  *
@@ -158,6 +172,7 @@ function darkThemeLines(): readonly string[] {
         '@media (prefers-color-scheme: dark) {',
         '    :root {',
         ...declarations('color', roleDark).map((line) => `    ${line}`),
+        ...pressDeclarations('dark').map((line) => `    ${line}`),
         ...declarations('color', semanticDark).map((line) => `    ${line}`),
         ...declarations('color-pro', { fill: proToneDark.fill, ink: proToneDark.text }).map((line) => `    ${line}`),
         ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
@@ -200,6 +215,7 @@ export function themeCss(): string {
         ...canvasGradientDeclarations(),
         // The overhaul's roles and layout (§1.2-§1.5), appended after everything above for the same reason.
         ...declarations('color', role),
+        ...pressDeclarations('light'),
         ...typeRoleDeclarations(),
         ...layoutDeclarations(),
         ...declarations('color-cover', coverTint),

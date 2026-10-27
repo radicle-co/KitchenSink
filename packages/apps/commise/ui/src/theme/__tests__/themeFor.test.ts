@@ -4,6 +4,7 @@ import { role, roleDark } from '../../tokens/colors.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { gradient, heroDark } from '../../tokens/gradients.js';
 import { proTone, proToneDark, statusTone, statusToneDark } from '../../tokens/tones.js';
+import { pressFillsOf } from '../../surfaceTone/surfaceTone.js';
 import { themeFor } from '../themeFor.js';
 
 /**
@@ -48,5 +49,12 @@ describe('themeFor', () => {
 
     it('returns the same object for the same scheme', () => {
         expect(themeFor('dark')).toBe(themeFor('dark'));
+    });
+});
+
+describe('themeFor — the press fills', () => {
+    it('carries each surface’s derived press, light and dark', () => {
+        expect(themeFor('light').press).toEqual(pressFillsOf(role, 'light'));
+        expect(themeFor('dark').press).toEqual(pressFillsOf(roleDark, 'dark'));
     });
 });

@@ -82,8 +82,60 @@ export const chartDark = {
     fiber: '#B9A2E6',
 } as const satisfies Record<keyof typeof chart, string>;
 
-/** Matches an opaque 6-digit hex colour — the only form {@link tint} can decompose into channels. */
+/** Matches an opaque 6-digit hex colour — the only form {@link hexChannels} can decompose into channels. */
 const OPAQUE_HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
+
+/**
+ * The red, green and blue channels (0..255) of an opaque `#RRGGBB` colour: the ONE hex parser, read by {@link tint},
+ * {@link mixOver} and the shadow tokens (`scale.ts`), so none of them can accept a colour another refuses. Pure.
+ *
+ * @param color - An opaque `#RRGGBB` colour.
+ * @param caller - Whose contract the error names. Defaults to `hexChannels`.
+ * @returns The three channels.
+ * @throws Error when `color` is not an opaque 6-digit hex colour.
+ */
+export function hexChannels(color: string, caller = 'hexChannels'): readonly [number, number, number] {
+    const match = OPAQUE_HEX.exec(color);
+
+    if (match === null) {
+        throw new Error(`${caller} expects an opaque #RRGGBB palette colour, received "${color}".`);
+    }
+
+    return [
+        Number.parseInt(match[1] as string, 16),
+        Number.parseInt(match[2] as string, 16),
+        Number.parseInt(match[3] as string, 16),
+    ];
+}
+
+/**
+ * An overlay laid over a base at an alpha, as the opaque `#rrggbb` the eye sees: each gamma-encoded sRGB channel is
+ * `overlay * alpha + base * (1 - alpha)`, rounded. This is the arithmetic of a translucent fill composited by the
+ * platform (CSS `color-mix(in srgb, …)` and a native alpha layer agree with it), written as the opaque result because
+ * a native colour is a plain value and a web one is a custom property. Pure.
+ *
+ * @param overlay - The opaque colour laid on top.
+ * @param base - The opaque colour beneath.
+ * @param alpha - The overlay's share, 0..1.
+ * @returns The mix as a lower-case `#rrggbb`.
+ * @throws Error when either colour is not an opaque hex colour, or `alpha` is outside 0..1.
+ */
+export function mixOver(overlay: string, base: string, alpha: number): string {
+    if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) {
+        throw new Error(`mixOver expects an alpha in 0..1, received ${alpha}.`);
+    }
+
+    const top = hexChannels(overlay, 'mixOver');
+    const bottom = hexChannels(base, 'mixOver');
+
+    return `#${top
+        .map((channel, at) =>
+            Math.round(channel * alpha + (bottom[at] as number) * (1 - alpha))
+                .toString(16)
+                .padStart(2, '0'),
+        )
+        .join('')}`;
+}
 
 /**
  * A palette colour at an alpha, as the `rgba(r, g, b, a)` string React Native understands.
@@ -106,17 +158,11 @@ const OPAQUE_HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
  *   clamp to a fully OPAQUE fill, which is both invisible in review and unmeasurable.
  */
 export function tint(color: string, alpha: number): string {
-    const match = OPAQUE_HEX.exec(color);
-
-    if (match === null) {
-        throw new Error(`tint expects an opaque #RRGGBB palette colour, received "${color}".`);
-    }
+    const [red, green, blue] = hexChannels(color, 'tint');
 
     if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) {
         throw new Error(`tint expects an alpha in 0..1, received ${alpha}.`);
     }
-
-    const [red, green, blue] = [match[1], match[2], match[3]].map((part) => Number.parseInt(part as string, 16));
 
     return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }

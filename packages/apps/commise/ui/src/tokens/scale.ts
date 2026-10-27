@@ -13,7 +13,7 @@
  * reads, for the `glow` halo's colour; `colors.ts` imports nothing, so there is no cycle.)
  */
 
-import { palette } from './colors.js';
+import { hexChannels, palette } from './colors.js';
 
 /**
  * Spacing scale in pixels on a 4px base (step index → px). Web emits `rem` (÷16, unitless `0`);
@@ -148,7 +148,7 @@ export interface ElevationLayer {
 
 /** A `#RRGGBB` colour as the `r,g,b` triplet a shadow layer carries. */
 function rgbTriplet(hex: string): string {
-    return [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)).join(',');
+    return hexChannels(hex, 'rgbTriplet').join(',');
 }
 
 /**

@@ -5,10 +5,13 @@
  *
  * The rule, read with the TypeScript parser (never by component name; a control is found by its ATTRIBUTES):
  *  - WEB: a JSX element whose `className` carries a bare `bg-paper`, `bg-paper-overlay` or `bg-surface-muted` token, and
- *    which has a descendant JSX element in the same file with `onClick`, `onPress`, `href`, `onChange` or
- *    `onValueChange`, is a violation. A `bg-*` behind a variant (`hover:bg-surface-muted`, a press) is not a surface.
+ *    which has a descendant JSX element in the same file with `onClick`, `onPress`, `href` or `onValueChange` (the
+ *    attributes of a control that wears our press and focus recipes), is a violation. A `bg-*` behind a variant (`hover:bg-surface-muted`, a press) is not a surface.
  *  - NATIVE: a JSX element whose `style` paints `backgroundColor` from `colors.paper`, `colors.paperOverlay` or
  *    `colors.surfaceMuted`, with such a descendant, is a violation.
+ *
+ * A `className` that names a same-file `const` (`className={CARD}`, `${BASE}`, `ROWS[kind]`) is followed to the constant's
+ * strings, to a fixed depth, because this codebase holds its class lists in constants.
  *
  * Known gap, stated and not hidden: the controls must be in the SAME FILE as the container. A container whose children are
  * passed in from another file (`{children}`) is not seen; those are the callers' containers, and the recipe is the fix
@@ -31,7 +34,7 @@ import { repoRoot } from './serviceSources.js';
 const EXEMPT_DIRECTORY = 'packages/apps/commise/ui/src/surfaceTone/';
 
 /** The attributes that make a descendant a control. */
-const CONTROL_ATTRIBUTES = new Set(['onClick', 'onPress', 'href', 'onChange', 'onChangeText', 'onValueChange']);
+const CONTROL_ATTRIBUTES = new Set(['onClick', 'onPress', 'href', 'onValueChange']);
 
 /** The web background tokens that paint a surface. */
 const SURFACE_CLASSES = new Set(['bg-paper', 'bg-paper-overlay', 'bg-surface-muted']);
@@ -39,27 +42,74 @@ const SURFACE_CLASSES = new Set(['bg-paper', 'bg-paper-overlay', 'bg-surface-mut
 /** The native colour roles that paint a surface. */
 const SURFACE_ROLES = new Set(['paper', 'paperOverlay', 'surfaceMuted']);
 
-/** The text of every string-like node under a node. */
-function stringsUnder(node: ts.Node): readonly string[] {
-    const found: string[] = [];
+/** The same-file `const` initialisers by name: where a `className={CARD}` finds the string it names. */
+function constantsOf(file: ts.SourceFile): ReadonlyMap<string, ts.Expression> {
+    const found = new Map<string, ts.Expression>();
 
-    const walk = (child: ts.Node): void => {
+    const walk = (node: ts.Node): void => {
         if (
-            ts.isStringLiteralLike(child) ||
-            ts.isTemplateHead(child) ||
-            ts.isTemplateMiddle(child) ||
-            ts.isTemplateTail(child)
+            ts.isVariableDeclaration(node) &&
+            ts.isIdentifier(node.name) &&
+            node.initializer !== undefined &&
+            (ts.isVariableDeclarationList(node.parent) ? (node.parent.flags & ts.NodeFlags.Const) !== 0 : false)
         ) {
-            found.push(child.text);
+            found.set(node.name.text, node.initializer);
         }
 
-        ts.forEachChild(child, walk);
+        ts.forEachChild(node, walk);
     };
 
-    walk(node);
+    walk(file);
 
     return found;
 }
+
+/**
+ * The strings an expression can contribute to a class list, and the source of every expression read to get them: its own
+ * string-like nodes, plus those of any same-file `const` it names (an identifier, `RECORD[key]` or `RECORD.key`), followed
+ * to a fixed depth. Reading a whole constant is deliberately generous: a constant that holds a surface anywhere in it is
+ * read as painting one, and the fix is to state it. Pure.
+ */
+function classListOf(
+    expression: ts.Node,
+    constants: ReadonlyMap<string, ts.Expression>,
+): { readonly strings: readonly string[]; readonly sources: readonly string[] } {
+    const strings: string[] = [];
+    const sources: string[] = [expression.getText()];
+    const seen = new Set<string>();
+
+    const walk = (node: ts.Node, depth: number): void => {
+        if (
+            ts.isStringLiteralLike(node) ||
+            ts.isTemplateHead(node) ||
+            ts.isTemplateMiddle(node) ||
+            ts.isTemplateTail(node)
+        ) {
+            strings.push(node.text);
+        }
+
+        if (ts.isIdentifier(node) && depth < MAX_CONSTANT_DEPTH && !seen.has(node.text)) {
+            const initializer = constants.get(node.text);
+
+            if (initializer !== undefined) {
+                seen.add(node.text);
+                sources.push(initializer.getText());
+                walk(initializer, depth + 1);
+            }
+        }
+
+        ts.forEachChild(node, (child) => {
+            walk(child, depth);
+        });
+    };
+
+    walk(expression, 0);
+
+    return { strings, sources };
+}
+
+/** How many constants deep a `className` is followed (`OUTER` -> `INNER` -> a literal). */
+const MAX_CONSTANT_DEPTH = 4;
 
 /** The attribute of a JSX opening element, by name. */
 function attributeOf(opening: ts.JsxOpeningLikeElement, name: string): ts.JsxAttribute | undefined {
@@ -69,19 +119,19 @@ function attributeOf(opening: ts.JsxOpeningLikeElement, name: string): ts.JsxAtt
 }
 
 /** Whether a surface painted by a web `className` is stated: the tone's classes (or a `Surface`) are there. */
-function paintsWebSurface(opening: ts.JsxOpeningLikeElement): boolean {
+function paintsWebSurface(opening: ts.JsxOpeningLikeElement, constants: ReadonlyMap<string, ts.Expression>): boolean {
     const className = attributeOf(opening, 'className');
 
     if (className === undefined) {
         return false;
     }
 
+    const { strings, sources } = classListOf(className, constants);
     // `${surfaceToneClass('paper')}` states the tone; the literal tokens around it are not a bare `bg-paper`.
-    const statesTone = /surfaceToneClass|SURFACE_TONE_CLASS/u.test(className.getText());
+    const statesTone = sources.some((source) => /surfaceToneClass|SURFACE_TONE_CLASS/u.test(source));
 
     return (
-        !statesTone &&
-        stringsUnder(className).some((text) => classTokensOf(text, false).some((token) => SURFACE_CLASSES.has(token)))
+        !statesTone && strings.some((text) => classTokensOf(text, false).some((token) => SURFACE_CLASSES.has(token)))
     );
 }
 
@@ -114,6 +164,26 @@ function paintsNativeSurface(opening: ts.JsxOpeningLikeElement): boolean {
     return painted;
 }
 
+/**
+ * Whether a web `className` states a tone AND draws an offset focus ring on the same element. The ring's gap is read from
+ * `--cm-surface`, and an element that states a tone sets its OWN `--cm-surface`, so the gap would be the card's fill and
+ * not what the card sits on. The ring belongs on an element outside the one that states the tone.
+ */
+function statesToneAndRing(opening: ts.JsxOpeningLikeElement, constants: ReadonlyMap<string, ts.Expression>): boolean {
+    const className = attributeOf(opening, 'className');
+
+    if (className === undefined) {
+        return false;
+    }
+
+    const { sources } = classListOf(className, constants);
+
+    return (
+        sources.some((source) => /surfaceToneClass|SURFACE_TONE_CLASS/u.test(source)) &&
+        sources.some((source) => /FOCUS_RING_CLASS\.(?:offset|within)\b/u.test(source))
+    );
+}
+
 /** Whether any JSX element under `element` (not counting its own attributes) carries a control attribute. */
 function holdsControl(element: ts.JsxElement): boolean {
     let held = false;
@@ -142,12 +212,25 @@ export function unstatedSurfaces(
     source: string,
 ): readonly { readonly line: number; readonly found: string }[] {
     const file = parseModule(fileName, source);
+    const constants = constantsOf(file);
     const found: { line: number; found: string }[] = [];
 
     const visit = (node: ts.Node): void => {
+        if (
+            (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
+            statesToneAndRing(ts.isJsxElement(node) ? node.openingElement : node, constants)
+        ) {
+            const opening = ts.isJsxElement(node) ? node.openingElement : node;
+
+            found.push({
+                line: file.getLineAndCharacterOfPosition(opening.getStart(file)).line + 1,
+                found: `${opening.tagName.getText()} (states a tone and rings its own focus)`,
+            });
+        }
+
         if (ts.isJsxElement(node)) {
             const opening = node.openingElement;
-            const web = paintsWebSurface(opening);
+            const web = paintsWebSurface(opening, constants);
             const native = paintsNativeSurface(opening);
 
             if ((web || native) && holdsControl(node)) {
@@ -189,14 +272,54 @@ describe('the unstated surface reader', () => {
             found: ['View'],
         },
         {
-            shape: 'a native card painting theme.colors.surfaceMuted around an input',
-            source: `const a = <View style={{ backgroundColor: theme.colors.surfaceMuted }}><TextInput onChangeText={set} /></View>;`,
+            shape: 'a native card painting theme.colors.surfaceMuted around a pressable',
+            source: `const a = <View style={{ backgroundColor: theme.colors.surfaceMuted }}><Pressable onPress={set} /></View>;`,
             found: ['View'],
         },
         {
             shape: 'a controls-holding container nested in a painted one',
             source: `const a = <div className="bg-paper"><p>text</p><div><button onClick={go}>Go</button></div></div>;`,
             found: ['div'],
+        },
+        {
+            shape: 'a className held in a same-file constant',
+            source: `const CARD = 'rounded-lg bg-paper p-4';\nconst a = <div className={CARD}><button onClick={go}>Go</button></div>;`,
+            found: ['div'],
+        },
+        {
+            shape: 'a className built from a same-file constant in a template',
+            source: 'const BASE = \'p-4 bg-surface-muted\';\nconst a = <section className={`flex ${BASE}`}><a href="/x">x</a></section>;',
+            found: ['section'],
+        },
+        {
+            shape: 'a className built from a constant through another constant',
+            source: `const INNER = 'bg-paper-overlay';\nconst OUTER = \`p-2 \${INNER}\`;\nconst a = <div className={OUTER}><button onClick={go}>Go</button></div>;`,
+            found: ['div'],
+        },
+        {
+            shape: 'a className constant that states its tone with the recipe',
+            source: "const CARD = `rounded-lg ${surfaceToneClass('paper')} p-4`;\nconst a = <div className={CARD}><button onClick={go}>Go</button></div>;",
+            found: [],
+        },
+        {
+            shape: 'a className constant that paints nothing',
+            source: `const ROW = 'flex gap-2';\nconst a = <div className={ROW}><button onClick={go}>Go</button></div>;`,
+            found: [],
+        },
+        {
+            shape: 'an element that states a tone and draws its own offset focus ring',
+            source: "const a = <div className={`${surfaceToneClass('paper')} ${FOCUS_RING_CLASS.within}`}>text</div>;",
+            found: ['div (states a tone and rings its own focus)'],
+        },
+        {
+            shape: 'a tone and a ring held in constants on one element',
+            source: "const T = surfaceToneClass('muted');\nconst R = FOCUS_RING_CLASS.offset;\nconst a = <button className={`${T} ${R}`}>x</button>;",
+            found: ['button (states a tone and rings its own focus)'],
+        },
+        {
+            shape: 'a tone on the parent and the ring on the child',
+            source: 'const a = <div className={surfaceToneClass(\'paper\')}><a href="/x" className={FOCUS_RING_CLASS.offset}>x</a></div>;',
+            found: [],
         },
         {
             shape: 'a paper card that states its tone with the recipe',
@@ -206,6 +329,11 @@ describe('the unstated surface reader', () => {
         {
             shape: 'a Surface',
             source: `const a = <Surface tone="paper"><button onClick={go}>Go</button></Surface>;`,
+            found: [],
+        },
+        {
+            shape: 'a paper card holding only a native input (no recipe-wearing control)',
+            source: `const a = <label className="bg-paper"><input type="radio" onChange={pick} /></label>;`,
             found: [],
         },
         {

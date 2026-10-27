@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { role, roleDark, tint } from '../../tokens/colors.js';
+import { role, roleDark } from '../../tokens/colors.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { gradient, heroDark } from '../../tokens/gradients.js';
 import { statusTone, statusToneDark } from '../../tokens/tones.js';
@@ -32,10 +32,11 @@ describe('themeFor', () => {
         expect(theme.status).toBe(statusToneDark);
     });
 
-    // `darkTheme.md` §1, "Pressed and hover": a wash of `ink` at 6%, the native twin of the web `bg-ink/6`.
-    it('derives the press wash from each scheme’s ink', () => {
-        expect(themeFor('light').wash).toBe(tint(role.ink, 0.06));
-        expect(themeFor('dark').wash).toBe(tint(roleDark.ink, 0.06));
+    // REWRITTEN for ruling 3 (`componentFixes` issue 3, 2026-10-26): the press wash was `ink` at 6% (`darkTheme.md` §1).
+    // Over paper and sheets the pressed fill is now each scheme's `surfaceMuted`, the native twin of `bg-surface-muted`.
+    it('presses to each scheme’s surfaceMuted, not an ink-alpha wash', () => {
+        expect(themeFor('light').wash).toBe(role.surfaceMuted);
+        expect(themeFor('dark').wash).toBe(roleDark.surfaceMuted);
     });
 
     it('returns the same object for the same scheme', () => {

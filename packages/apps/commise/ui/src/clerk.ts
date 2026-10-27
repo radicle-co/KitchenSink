@@ -151,12 +151,12 @@ export function clerkAppearanceFor(scheme: ColorSchemeName) {
             formFieldAction: 'text-meta font-medium text-action-text hover:text-ink',
             // The filled primary: 52 px, the `action` fill with a white label, `actionPressed` on hover.
             formButtonPrimary:
-                'h-[3.25rem] w-full rounded-full bg-action text-label normal-case text-on-action shadow-sm ' +
+                'h-[3.25rem] w-full rounded-full bg-action text-card-title normal-case text-on-action shadow-sm ' +
                 'hover:bg-action-pressed',
-            formButtonReset: 'rounded-full border border-line-control bg-paper text-label normal-case text-ink',
+            formButtonReset: 'rounded-full border border-line-control bg-paper text-card-title normal-case text-ink',
             socialButtonsBlockButton:
-                'h-12 rounded-full border border-line-control bg-paper text-label normal-case text-ink shadow-none ' +
-                'hover:bg-ink/6',
+                'h-12 rounded-full border border-line-control bg-paper text-card-title normal-case text-ink shadow-none ' +
+                'hover:bg-surface-muted',
             // The cross-link is the ONLY way to register (FR-045a), so the LINK never breaks across lines. The lead-in
             // may: with both halves unbreakable the pair overran the 272 px column at 320 (W-17), so the row wraps
             // BETWEEN them and the link drops to its own line.

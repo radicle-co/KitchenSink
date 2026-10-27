@@ -583,7 +583,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             type="button"
                             aria-label={cancel.name}
                             onClick={cancel.onPress}
-                            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                             {cancel.text}
                         </button>

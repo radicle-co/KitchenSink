@@ -30,7 +30,8 @@ import { BUSY_CONTROL_CLASS } from './busyControlProps.js';
 import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
 
 /**
- * Tier-independent surface: the icon+label flex row, the label type role, the `focusRing` (2 px, 2 px off, §1.4), the
+ * Tier-independent surface: the icon+label flex row, the label type role (`cardTitle`, 16/20/600: owner ruling B1, 2026-10-26;
+ * a separate `buttonLabel` role was held back because the design-artifact token table must list every role), the `focusRing` (2 px, 2 px off, §1.4), the
  * 40% disabled state (§1.10) and the busy (`aria-disabled`) treatment.
  *
  * ## `shrink-0 max-w-full` — a row wraps between controls, never inside one (F5)
@@ -48,7 +49,7 @@ import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
  * the constraint is systemic: any row of three actions on a narrow viewport hits it.
  */
 const BASE =
-    'inline-flex shrink-0 max-w-full items-center justify-center gap-2 px-3 md:px-5 text-label transition ' +
+    'inline-flex shrink-0 max-w-full items-center justify-center gap-2 px-3 md:px-5 text-card-title transition ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
     `disabled:cursor-not-allowed disabled:opacity-40 ${BUSY_CONTROL_CLASS}`;
 
@@ -91,8 +92,9 @@ const SIZE: Readonly<Record<ButtonSize, string>> = {
  * Per-tier surface (§1.10). Hover is fine-pointer only by construction: Tailwind v4's `hover:` applies under
  * `(hover: hover)`. Pressed adds the motion-safe 0.98 scale `PressScale` owns.
  *
- * Every colour is a ROLE (D15), so each tier re-themes through the dark block; hover and press are an `ink` wash at
- * 6% (`darkTheme.md` §1).
+ * Every colour is a ROLE (D15), so each tier re-themes through the dark block. Hover and press fill with
+ * `surfaceMuted`, the pressed fill over paper and sheets (`componentFixes` issue 3, 2026-10-26); the `ink` 6% wash is
+ * dropped. Over a `surfaceMuted` fill (a chip) the pressed fill is `lineDivider` instead (`chipClass.ts`).
  *
  * - `primary`: ONE flat `action` fill (the owner removed the gradient, `modernizeB.md` §3) under an `onAction` label
  *   (4.67:1), `actionPressed` on hover and press.
@@ -100,7 +102,7 @@ const SIZE: Readonly<Record<ButtonSize, string>> = {
  *   coral-outlined glass: the owner overruled coral on every control.
  * - `ghost`: an `actionText` label with no surface at rest.
  * - `quiet`: an `ink` label with no surface at rest, its glyph in `actionText` ({@link buttonGlyphClass}). It takes the
- *   same ink wash on hover and press as every other tier, so a mouse still sees the control respond, and nothing
+ *   same `surfaceMuted` press fill as every other tier, so a mouse still sees the control respond, and nothing
  *   depends on that hover. It has no tonal fill, because that fill now marks a chip (`componentFixes.md` §4).
  * - `destructive` inline: a `dangerText` label on the neutral surface; `confirm`: the `danger` fill with an `onAction`
  *   label (4.66:1), which only a confirm dialog's action takes (§1.11). Its press darkens the fill (`danger/90`):
@@ -108,10 +110,11 @@ const SIZE: Readonly<Record<ButtonSize, string>> = {
  */
 const SURFACE = {
     primary: 'bg-action text-on-action shadow-sm hover:bg-action-pressed active:bg-action-pressed',
-    secondary: 'border border-line-control bg-paper text-ink hover:bg-ink/6 active:bg-ink/6',
-    ghost: 'text-action-text hover:bg-ink/6 active:bg-ink/6',
-    quiet: 'text-ink hover:bg-ink/6 active:bg-ink/6',
-    destructiveInline: 'border border-line-control bg-paper text-danger-text hover:bg-ink/6 active:bg-ink/6',
+    secondary: 'border border-line-control bg-paper text-ink hover:bg-surface-muted active:bg-surface-muted',
+    ghost: 'text-action-text hover:bg-surface-muted active:bg-surface-muted',
+    quiet: 'text-ink hover:bg-surface-muted active:bg-surface-muted',
+    destructiveInline:
+        'border border-line-control bg-paper text-danger-text hover:bg-surface-muted active:bg-surface-muted',
     destructiveConfirm: 'bg-danger text-on-action shadow-sm hover:bg-danger/90 active:bg-danger/90',
 } as const;
 
@@ -160,4 +163,20 @@ export function buttonSurfaceClass(
     tone: DestructiveTone = 'inline',
 ): string {
     return `${BASE} ${SIZE[size]} ${SURFACE[surfaceKey(variant, tone)]}`;
+}
+
+/**
+ * The surface of a SWITCH that wears the secondary button (`componentFixes` issue 6): "Screen on". Unselected it IS the
+ * secondary surface, byte for byte. Selected it takes the `selectedFill` with a `selectedEdge` outline and holds the
+ * same 1 px edge width, so turning it on moves nothing around it; the label stays `ink`, and the press fill is held
+ * (a selected control is already filled). Pure.
+ *
+ * @param selected - Whether the switch is on.
+ * @param size - The size. Defaults to `md`.
+ * @returns The `className` to apply to the control.
+ */
+export function buttonToggleSurfaceClass(selected: boolean, size: ButtonSize = 'md'): string {
+    return selected
+        ? `${BASE} ${SIZE[size]} border border-selected-edge bg-selected-fill text-ink`
+        : buttonSurfaceClass('secondary', size);
 }

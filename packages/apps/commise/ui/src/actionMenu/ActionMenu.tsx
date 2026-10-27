@@ -42,11 +42,11 @@ const EDGE = 8;
 
 /** The bare ⋯ of a row: 44 px, with a hover wash. */
 const PLAIN_TRIGGER_CLASS =
-    'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+    'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
 
 /** An item: a 44 px row, highlighted in `pearl`. */
 const ITEM =
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none data-[highlighted]:bg-ink/6 data-[disabled]:cursor-default data-[disabled]:opacity-60';
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none data-[highlighted]:bg-surface-muted data-[disabled]:cursor-default data-[disabled]:opacity-60';
 
 /** One menu item: its glyph and label, in the tone of its place in the menu. */
 const MenuItem: FC<{

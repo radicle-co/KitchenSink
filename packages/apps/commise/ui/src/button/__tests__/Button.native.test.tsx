@@ -378,13 +378,15 @@ describe('Button (native)', () => {
         );
     });
 
-    it('sets the label in the label role’s registered face, never a face plus a weight', () => {
+    // REWRITTEN for owner ruling B1 (2026-10-26): the label is the 16/20/600 `cardTitle` role, not the 14/600 `label`.
+    it('sets the label in the cardTitle role’s registered face, never a face plus a weight', () => {
         render(<Button icon="plus">Add</Button>);
 
         const label = getComputedStyle(screen.getByText('Add'));
 
-        expect(label.fontFamily).toBe(nativeTokens.type.label.fontFamily);
-        expect(label.fontSize).toBe(`${String(nativeTokens.type.label.fontSize)}px`);
+        expect(label.fontFamily).toBe(nativeTokens.type.cardTitle.fontFamily);
+        expect(label.fontSize).toBe('16px');
+        expect(label.fontSize).not.toBe(`${String(nativeTokens.type.label.fontSize)}px`);
         expect(['', 'normal', '400']).toContain(label.fontWeight);
     });
 
@@ -435,7 +437,7 @@ describe('Button (native)', () => {
     // `max(minHeight, 8 + leading + 8)`, so a label that outgrew the small variant would stretch every small button;
     // 8 + 20 + 8 = 36 is exactly the small height, so none does. A one-line label never sets the height of any size.
     it('keeps a one-line label inside every size: padding plus the label leading never exceeds the size’s height', () => {
-        const chrome = nativeTokens.spacing[2] * 2 + (nativeTokens.type.label.lineHeight ?? 0);
+        const chrome = nativeTokens.spacing[2] * 2 + (nativeTokens.type.cardTitle.lineHeight ?? 0);
 
         for (const height of Object.values(BUTTON_VISUAL_HEIGHT)) {
             expect(chrome).toBeLessThanOrEqual(height);

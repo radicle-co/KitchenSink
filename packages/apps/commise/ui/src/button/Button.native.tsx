@@ -11,7 +11,7 @@
  *   inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44
  *   (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.
  * - **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.
- * - **Type**: the label is the `label` role — one registered Inter face per weight and never a `fontWeight` (§1.5),
+ * - **Type**: the label is the `cardTitle` role (16/20/600, owner ruling B1) — one registered Inter face per weight and never a `fontWeight` (§1.5),
  *   which on Android resolves to a synthesised or system bold instead of the face.
  * - **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to
  *   40%.
@@ -182,6 +182,6 @@ const styles = StyleSheet.create({
     },
     hitFrame: { justifyContent: 'center' },
     glyph: { flexShrink: 0 },
-    label: nativeTokens.type.label,
+    label: nativeTokens.type.cardTitle,
     inactive: { opacity: dimmedOpacity },
 });

@@ -78,6 +78,7 @@ describe('PublishOpenChoicesSheet (web)', () => {
         const seen: { dialog: HTMLElement | null }[] = [];
         const onChooseNow = vi.fn(() => seen.push({ dialog: screen.queryByRole('dialog') }));
         const onPublishAnyway = vi.fn();
+
         const Host: FC = () => {
             const [open, setOpen] = useState(true);
 
@@ -102,6 +103,7 @@ describe('PublishOpenChoicesSheet (web)', () => {
 
     it('closing another way does not go back to choose', async () => {
         const onChooseNow = vi.fn();
+
         const Host: FC = () => {
             const [open, setOpen] = useState(true);
 

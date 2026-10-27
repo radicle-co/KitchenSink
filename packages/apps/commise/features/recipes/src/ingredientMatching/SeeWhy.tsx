@@ -11,6 +11,8 @@
  * announcement, not the visibility. A row that remounts closes it, which is the right reading of "tap again closes".
  * The native leaf is `./SeeWhy.native.tsx`.
  *
+ * Orchestration: it holds the open state, so it is not a pure render leaf.
+ *
  * @pattern Disclosure — a button with `aria-expanded` that reveals its region in place
  */
 import { Button } from '@commise/ui/button';

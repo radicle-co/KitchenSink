@@ -4,6 +4,8 @@
  * 14 px `meta` role, muted, is announced once on opening (`onOpen`), and closes on a second tap. Painted from the theme's
  * roles (D15).
  *
+ * Orchestration: it holds the open state, so it is not a pure render leaf.
+ *
  * @pattern Disclosure — a button with an expanded state that reveals its region in place
  */
 import { Button } from '@commise/ui/button';

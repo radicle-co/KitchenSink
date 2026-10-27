@@ -26,6 +26,7 @@
  * @pattern Mediator — between the paste session, the matches and the draft
  * @pattern Command — each join, each admission and each pick is a TanStack mutation or a replayable send
  * @pattern State — the overlay, the requests and the ledger are values moved by reducers
+ * @pattern Idempotency guard — the joins and review binds started are claimed in a synchronous set, held in a ref on purpose
  */
 import {
     useAddIngredientByFood,

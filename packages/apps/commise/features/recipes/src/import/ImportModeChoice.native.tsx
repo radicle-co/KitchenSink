@@ -64,7 +64,7 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
                 <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                     {m.title}
                 </Text>
-                <View style={[styles.file, { borderColor: colors.lineDivider, backgroundColor: colors.paperRaised }]}>
+                <Surface tone="paperRaised" style={[styles.file, { borderColor: colors.lineDivider }]}>
                     <Icon name="bookOpen" size={20} />
                     <View style={styles.fileWords}>
                         <Text style={[styles.fileName, { color: colors.ink }]}>{fileName}</Text>
@@ -72,7 +72,7 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
                             {fillTemplate(pluralOf(m.fileSummary, recipeCount, locale), { source: sourceName })}
                         </Text>
                     </View>
-                </View>
+                </Surface>
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{m.intro}</Text>
                 <RadioList
                     label={m.groupLabel}

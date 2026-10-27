@@ -12960,7 +12960,9 @@
                             "typeDetail": [
                                 "\"canvas\"",
                                 "\"paper\"",
+                                "\"paperRaised\"",
                                 "\"paperOverlay\"",
+                                "\"inverse\"",
                                 "\"muted\""
                             ],
                             "required": true,
@@ -13139,7 +13141,9 @@
                             "typeDetail": [
                                 "\"canvas\"",
                                 "\"paper\"",
+                                "\"paperRaised\"",
                                 "\"paperOverlay\"",
+                                "\"inverse\"",
                                 "\"muted\""
                             ],
                             "required": true,

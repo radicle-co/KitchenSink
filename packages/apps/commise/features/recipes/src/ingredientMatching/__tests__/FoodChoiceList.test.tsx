@@ -21,6 +21,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BUSY_CONTROL_CLASS } from '@commise/ui/button';
 
+import { surfaceToneOf } from '@commise/ui/testing/surface-tone-of';
+
 import { recipeMessages } from '../../messages.js';
 import { cookPicked, makeDefaultLine, makeNoMatchLine, MILKS } from '../__fixtures__/matchLines.js';
 import { FoodChoiceList } from '../FoodChoiceList.js';
@@ -56,6 +58,16 @@ function renderList(
 
 const list = () => screen.getByRole('list', { name: 'Food for 2 cups milk' });
 const search = () => screen.getByRole('button', { name: 'Search for a food for 2 cups milk' });
+
+// `componentFixes.md` §10b: the option list paints `paperRaised` and holds the choice rows.
+describe('FoodChoiceList (web) — the surface it paints', () => {
+    it('states paperRaised around its rows', () => {
+        renderList(makeDefaultLine());
+
+        expect(surfaceToneOf(list())).toBe('paperRaised');
+        expect(surfaceToneOf(within(list()).getAllByRole('button')[0] as HTMLElement)).toBe('paperRaised');
+    });
+});
 
 describe('FoodChoiceList (web)', () => {
     it('Search for a food comes first, named for its line, and asks for search', async () => {

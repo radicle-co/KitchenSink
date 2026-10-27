@@ -16,8 +16,9 @@
  * native as `Theme.press`.
  *
  * `floating` (a control over a photo or over scrolling content) is NOT a row: it has no single surface and nothing is
- * read from context, so its two-tone ring is a recipe of its own (`focusRing/focusRingClass.ts`). `inverse` is not a
- * row either: no control sits on an inverse surface through the shared controls, and its "wash" is undefined in §10.
+ * read from context, so its two-tone ring is a recipe of its own (`focusRing/focusRingClass.ts`). `inverse` IS a row since
+ * the design session's §10b ruling (the Undo snackbar puts an action on it); it rings flush in `inverseAction`
+ * (`FOCUS_RING_CLASS.inverse`) because it has no gap to colour.
  *
  * @pattern Policy — one pure table of which role a surface paints, presses and rests a chip on
  */
@@ -25,12 +26,14 @@ import { mixOver, type Role } from '../tokens/colors.js';
 import { kebab } from '../tokens/emit.js';
 
 /** The surfaces a control can sit on. `canvas` is the page, and what a control reads outside every surface. */
-export type SurfaceTone = 'canvas' | 'paper' | 'paperOverlay' | 'muted';
+export type SurfaceTone = 'canvas' | 'paper' | 'paperRaised' | 'paperOverlay' | 'muted' | 'inverse';
 
 /** What one surface paints, and the roles a control on it reads. */
 export interface SurfaceToneRow {
     /** The surface's own fill; also the focus ring's gap. */
     readonly fill: Role;
+    /** The ink laid over the fill to make its press: the page's `ink`, or the surface's own on an inverse one. */
+    readonly ink: Role;
     /** What a chip rests on there. */
     readonly chipFill: Role;
 }
@@ -40,14 +43,25 @@ export const DEFAULT_SURFACE_TONE: SurfaceTone = 'canvas';
 
 /** Every tone's row. Typed over the union, so a tone added without a row does not compile. */
 export const SURFACE_TONES: Readonly<Record<SurfaceTone, SurfaceToneRow>> = {
-    canvas: { fill: 'canvas', chipFill: 'surfaceMuted' },
-    paper: { fill: 'paper', chipFill: 'surfaceMuted' },
-    paperOverlay: { fill: 'paperOverlay', chipFill: 'surfaceMuted' },
-    muted: { fill: 'surfaceMuted', chipFill: 'paper' },
+    canvas: { fill: 'canvas', ink: 'ink', chipFill: 'surfaceMuted' },
+    paper: { fill: 'paper', ink: 'ink', chipFill: 'surfaceMuted' },
+    paperRaised: { fill: 'paperRaised', ink: 'ink', chipFill: 'surfaceMuted' },
+    paperOverlay: { fill: 'paperOverlay', ink: 'ink', chipFill: 'surfaceMuted' },
+    muted: { fill: 'surfaceMuted', ink: 'ink', chipFill: 'paper' },
+    // `inverse` presses with `inverseInk`: the page ink is the same colour as the fill there and would show nothing
+    // (`componentFixes.md` §10b). Nothing rests a chip on it; the entry keeps the table total.
+    inverse: { fill: 'inverse', ink: 'inverseInk', chipFill: 'surfaceMuted' },
 };
 
 /** The tones, in table order. */
-export const SURFACE_TONE_NAMES: readonly SurfaceTone[] = ['canvas', 'paper', 'paperOverlay', 'muted'];
+export const SURFACE_TONE_NAMES: readonly SurfaceTone[] = [
+    'canvas',
+    'paper',
+    'paperRaised',
+    'paperOverlay',
+    'muted',
+    'inverse',
+];
 
 /** The inheriting custom property a web surface sets to its own fill; the focus-ring gap reads it. */
 export const SURFACE_VAR = '--cm-surface';
@@ -85,7 +99,7 @@ export function pressFillsOf(
     return Object.fromEntries(
         SURFACE_TONE_NAMES.map((tone) => [
             tone,
-            mixOver(colors.ink, colors[SURFACE_TONES[tone].fill], PRESS_INK_ALPHA[scheme]),
+            mixOver(colors[SURFACE_TONES[tone].ink], colors[SURFACE_TONES[tone].fill], PRESS_INK_ALPHA[scheme]),
         ]),
     ) as Record<SurfaceTone, string>;
 }

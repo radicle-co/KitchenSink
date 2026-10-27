@@ -588,6 +588,8 @@ describe('the surface tone, compiled', () => {
             ['canvas', 'canvas', 'surface-muted', 'muted'],
             ['paper', 'paper', 'surface-muted', 'muted'],
             ['paper-overlay', 'paper-overlay', 'surface-muted', 'muted'],
+            ['paper-raised', 'paper-raised', 'surface-muted', 'muted'],
+            ['inverse', 'inverse', 'surface-muted', 'muted'],
             ['surface-muted', 'muted', 'paper', 'paper'],
         ] as const) {
             expect(css, `${tone} fill`).toContain(`--cm-surface:var(--color-${fillRole})`);
@@ -625,6 +627,8 @@ describe('the surface tone, compiled', () => {
             ['canvas', '#d9dde1', '#293037'],
             ['paper', '#e5e6e9', '#303941'],
             ['paper-overlay', '#e8e8e9', '#3e4853'],
+            ['paper-raised', '#e8e8e9', '#39434d'],
+            ['inverse', '#2e3236', '#d2d6d9'],
             ['muted', '#d4d8dd', '#39434d'],
         ] as const) {
             expect(css.slice(0, darkAt), `${tone} light`).toContain(`--color-press-${tone}: ${light}`);

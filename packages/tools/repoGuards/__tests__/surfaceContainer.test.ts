@@ -37,10 +37,10 @@ const EXEMPT_DIRECTORY = 'packages/apps/commise/ui/src/surfaceTone/';
 const CONTROL_ATTRIBUTES = new Set(['onClick', 'onPress', 'href', 'onValueChange']);
 
 /** The web background tokens that paint a surface. */
-const SURFACE_CLASSES = new Set(['bg-paper', 'bg-paper-overlay', 'bg-surface-muted']);
+const SURFACE_CLASSES = new Set(['bg-paper', 'bg-paper-raised', 'bg-paper-overlay', 'bg-surface-muted', 'bg-inverse']);
 
 /** The native colour roles that paint a surface. */
-const SURFACE_ROLES = new Set(['paper', 'paperOverlay', 'surfaceMuted']);
+const SURFACE_ROLES = new Set(['paper', 'paperRaised', 'paperOverlay', 'surfaceMuted', 'inverse']);
 
 /** The same-file `const` initialisers by name: where a `className={CARD}` finds the string it names. */
 function constantsOf(file: ts.SourceFile): ReadonlyMap<string, ts.Expression> {
@@ -265,6 +265,21 @@ describe('the unstated surface reader', () => {
             shape: 'a template className with a bare token',
             source: 'const a = <div className={`p-4 bg-paper-overlay ${x}`}><Button onPress={go}>Go</Button></div>;',
             found: ['div'],
+        },
+        {
+            shape: 'a raised bar holding a button',
+            source: `const a = <div className="bg-paper-raised"><button onClick={go}>Go</button></div>;`,
+            found: ['div'],
+        },
+        {
+            shape: 'an inverse bar holding a button',
+            source: `const a = <div className="bg-inverse"><button onClick={go}>Undo</button></div>;`,
+            found: ['div'],
+        },
+        {
+            shape: 'a native inverse bar painting colors.inverse around a pressable',
+            source: `const a = <View style={{ backgroundColor: colors.inverse }}><Pressable onPress={go} /></View>;`,
+            found: ['View'],
         },
         {
             shape: 'a native card painting colors.paper around a pressable',

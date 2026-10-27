@@ -32,8 +32,14 @@ export const SURFACE_TONE_CLASS: Readonly<Record<SurfaceTone, string>> = {
     paper:
         'bg-paper [--cm-surface:var(--color-paper)] [--cm-press:var(--color-press-paper)] ' +
         '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+    paperRaised:
+        'bg-paper-raised [--cm-surface:var(--color-paper-raised)] [--cm-press:var(--color-press-paper-raised)] ' +
+        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
     paperOverlay:
         'bg-paper-overlay [--cm-surface:var(--color-paper-overlay)] [--cm-press:var(--color-press-paper-overlay)] ' +
+        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+    inverse:
+        'bg-inverse [--cm-surface:var(--color-inverse)] [--cm-press:var(--color-press-inverse)] ' +
         '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
     muted:
         'bg-surface-muted [--cm-surface:var(--color-surface-muted)] [--cm-press:var(--color-press-muted)] ' +

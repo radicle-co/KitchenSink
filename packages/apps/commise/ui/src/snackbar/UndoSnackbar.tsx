@@ -15,6 +15,7 @@ import type { FC } from 'react';
 
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import type { UndoSnackbarProps } from './props.js';
+import { PRESS_FILL_CLASS, surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /** The web snackbar. */
 export const UndoSnackbar: FC<UndoSnackbarProps> = ({ message, action, onPause, onResume }) => (
@@ -23,14 +24,14 @@ export const UndoSnackbar: FC<UndoSnackbarProps> = ({ message, action, onPause, 
         onPointerLeave={onResume}
         onFocus={onPause}
         onBlur={onResume}
-        className="pointer-events-auto flex w-full max-w-[36rem] items-center gap-3 rounded-md bg-inverse px-4 py-2 shadow-lg transition duration-200 starting:opacity-0 motion-safe:starting:translate-y-2"
+        className={`pointer-events-auto flex w-full max-w-[36rem] items-center gap-3 rounded-md ${surfaceToneClass('inverse')} px-4 py-2 shadow-lg transition duration-200 starting:opacity-0 motion-safe:starting:translate-y-2`}
     >
         <p className="line-clamp-2 min-w-0 flex-1 py-1 text-body text-inverse-ink">{message}</p>
         {action === undefined ? null : (
             <button
                 type="button"
                 onClick={action.onAction}
-                className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md px-2 text-label text-inverse-action hover:bg-inverse-ink/10 ${FOCUS_RING_CLASS.inverse}`}
+                className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md px-2 text-label text-inverse-action ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inverse}`}
             >
                 {action.label}
             </button>

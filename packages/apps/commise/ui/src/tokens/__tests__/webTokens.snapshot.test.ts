@@ -250,8 +250,10 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-danger-pressed: #A33F2A;
               --color-press-canvas: #d9dde1;
               --color-press-paper: #e5e6e9;
+              --color-press-paper-raised: #e8e8e9;
               --color-press-paper-overlay: #e8e8e9;
               --color-press-muted: #d4d8dd;
+              --color-press-inverse: #2e3236;
               --text-large-title: clamp(1.75rem, 1.75rem + 0cqi, 1.75rem);
               --text-large-title--line-height: calc(32 / 28);
               --text-large-title--font-weight: 600;
@@ -367,8 +369,10 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-scrim: rgba(0, 0, 0, 0.66);
                   --color-press-canvas: #293037;
                   --color-press-paper: #303941;
+                  --color-press-paper-raised: #39434d;
                   --color-press-paper-overlay: #3e4853;
                   --color-press-muted: #39434d;
+                  --color-press-inverse: #d2d6d9;
                   --color-background: #0E161E;
                   --color-foreground: #EBEFF2;
                   --color-card: #172029;

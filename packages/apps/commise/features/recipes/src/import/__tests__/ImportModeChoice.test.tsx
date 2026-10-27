@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { surfaceToneOf } from '@commise/ui/testing/surface-tone-of';
+
 import { ImportModeChoice } from '../ImportModeChoice.js';
 import { importMessages } from '../messages.js';
 import type { ImportModeChoiceProps } from '../props.js';
@@ -36,6 +38,15 @@ function renderChoice(overrides: Partial<ImportModeChoiceProps> = {}) {
 const start = () => screen.getByRole('button', { name: m.start });
 const isBlocked = (button: HTMLElement) =>
     button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true';
+
+// `componentFixes.md` §10b: the file card paints `paperRaised`.
+describe('ImportModeChoice (web) — the surface it paints', () => {
+    it('states paperRaised on the file card', () => {
+        renderChoice();
+
+        expect(surfaceToneOf(screen.getByText('My Recipes.paprikarecipes'))).toBe('paperRaised');
+    });
+});
 
 describe('ImportModeChoice (web)', () => {
     it('names the screen and the file it imports', () => {

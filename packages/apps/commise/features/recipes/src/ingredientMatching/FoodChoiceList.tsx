@@ -28,6 +28,7 @@
 import { Button } from '@commise/ui/button';
 import { ChoiceRow } from '@commise/ui/choice-row';
 import { OptionLabel } from '@commise/ui/option-label';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import type { FoodChoiceListProps } from './foodChoiceListProps.js';
@@ -60,7 +61,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
             )}
             <ul
                 aria-label={view.optionsName}
-                className="flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl border border-line-divider bg-paper-raised"
+                className={`flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl border border-line-divider ${surfaceToneClass('paperRaised')}`}
             >
                 {view.rows.map((row) => (
                     <li key={row.id}>

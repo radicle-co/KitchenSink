@@ -34,16 +34,22 @@ const MEASURED = [
     ['light', 'paper', '#FCFDFF', '#E5E6E9', 1.23],
     ['light', 'paperOverlay', '#FFFFFF', '#E8E8E9', 1.22],
     ['light', 'muted', '#E9EDF2', '#D4D8DD', 1.22],
+    ['light', 'paperRaised', '#FFFFFF', '#E8E8E9', 1.22],
+    ['light', 'inverse', '#171B20', '#2E3236', 1.34],
     ['dark', 'canvas', '#0E161E', '#293037', 1.37],
     ['dark', 'paper', '#172029', '#303941', 1.4],
     ['dark', 'paperOverlay', '#26313D', '#3E4853', 1.42],
     ['dark', 'muted', '#212B36', '#39434D', 1.42],
+    ['dark', 'paperRaised', '#212B36', '#39434D', 1.42],
+    ['dark', 'inverse', '#EBEFF2', '#D2D6D9', 1.26],
 ] as const;
 
 describe('SURFACE_TONES', () => {
-    it('covers canvas, paper, paperOverlay and muted, and nothing else', () => {
-        expect([...SURFACE_TONE_NAMES].sort()).toEqual(['canvas', 'muted', 'paper', 'paperOverlay']);
-        expect(Object.keys(SURFACE_TONES).sort()).toEqual(['canvas', 'muted', 'paper', 'paperOverlay']);
+    it('covers canvas, paper, paperRaised, paperOverlay, muted and inverse, and nothing else', () => {
+        const all = ['canvas', 'inverse', 'muted', 'paper', 'paperOverlay', 'paperRaised'];
+
+        expect([...SURFACE_TONE_NAMES].sort()).toEqual(all);
+        expect(Object.keys(SURFACE_TONES).sort()).toEqual(all);
     });
 
     it('names the fill role each surface paints', () => {
@@ -51,6 +57,17 @@ describe('SURFACE_TONES', () => {
         expect(SURFACE_TONES.paper.fill).toBe('paper');
         expect(SURFACE_TONES.paperOverlay.fill).toBe('paperOverlay');
         expect(SURFACE_TONES.muted.fill).toBe('surfaceMuted');
+        expect(SURFACE_TONES.paperRaised.fill).toBe('paperRaised');
+        expect(SURFACE_TONES.inverse.fill).toBe('inverse');
+    });
+
+    // §10b: inverse presses with its OWN ink (inverseInk) laid over it, since the page ink would vanish on a charcoal fill.
+    it('lays the inverse surface’s own ink over it, and the page ink over every other', () => {
+        expect(SURFACE_TONES.inverse.ink).toBe('inverseInk');
+
+        for (const name of SURFACE_TONE_NAMES.filter((tone) => tone !== 'inverse')) {
+            expect(SURFACE_TONES[name].ink, name).toBe('ink');
+        }
     });
 
     for (const [scheme, { colors, press }] of Object.entries(THEMES)) {
@@ -63,7 +80,10 @@ describe('SURFACE_TONES', () => {
             });
 
             it(`${scheme} ${name}: the focus ring holds 3:1 against the gap it sits in (SC 1.4.11)`, () => {
-                expect(ratio(colors.focusRing, fill)).toBeGreaterThanOrEqual(3);
+                // An inverse surface rings in its own role (`FOCUS_RING_CLASS.inverse`), flush; every other in `focusRing`.
+                expect(
+                    ratio(name === 'inverse' ? colors.inverseAction : colors.focusRing, fill),
+                ).toBeGreaterThanOrEqual(3);
             });
         }
     }

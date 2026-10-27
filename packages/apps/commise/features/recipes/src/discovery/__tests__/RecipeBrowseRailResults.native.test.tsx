@@ -105,7 +105,7 @@ describe('RecipeBrowseRailResults (native) — the scroll hint', () => {
         const { container } = render(
             <RecipeBrowseRailResults results={twoResults} saveCopy={SAVE_COPY} onSelectRecipe={noop} />,
         );
-        const [scroller, content] = measured(container);
+        const [, scroller, content] = measured(container);
 
         expect(container.querySelector(FADE)).toBeNull();
 
@@ -122,6 +122,6 @@ describe('RecipeBrowseRailResults (native) — the scroll hint', () => {
         );
 
         // react-native-web marks a ScrollView whose indicator is switched off with a `scrollbarWidth` class.
-        expect((measured(container)[0] as Element).className).not.toMatch(/scrollbarWidth/u);
+        expect((measured(container)[1] as Element).className).not.toMatch(/scrollbarWidth/u);
     });
 });

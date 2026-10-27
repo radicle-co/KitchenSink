@@ -36,6 +36,7 @@ function reporting(geometry: Geometry, onScroller?: (el: HTMLElement | null) => 
         if (el !== null) {
             Object.defineProperty(el, 'scrollWidth', { configurable: true, get: () => geometry.scrollWidth });
             Object.defineProperty(el, 'clientWidth', { configurable: true, get: () => geometry.clientWidth });
+
             if (el.parentElement !== null) {
                 Object.defineProperty(el.parentElement, 'clientWidth', {
                     configurable: true,

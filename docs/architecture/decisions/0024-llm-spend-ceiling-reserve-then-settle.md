@@ -642,6 +642,39 @@ rather than treating the whole cap as fresh input. That changes what "worst case
 the ceiling enforces, so it is a decision this ADR owes and **not** a refactor to be done in passing. Until
 it is taken, the ceiling is conservative in the safe direction — it denies early, it never under-counts.
 
+### 6. Go-live plan: the $100 ceiling stays now, and a funded budget replaces it before Pro with AI is sold
+
+Owner ruling, 2026-10-27. The $100 a month ceiling in §3 **stays as it is** until there is launch funding. The product
+is not live and has no paying cooks yet, so the owner will not pre-fund AI spend. This section records the plan for
+going live, so it is ready when the funding is.
+
+**Why $100 cannot stay.** It is one pool for the whole platform (§4c). A paying cook with uses left must never be
+refused because the pool is empty, and a $100 pool cannot promise that at any real size.
+
+**The plan, to build and amend into §3 before Pro with AI goes on sale:**
+
+1. **A separate operating-AI budget.** Parse, match, review and the 020 source check are operating cost. They are
+   never a cook's uses (010 `FR-041d`, 005 `FR-015a`). They get their own ceiling, sized to the expected spend, with
+   alarms at stated fractions of it. It keeps the reserve-then-settle counter of §2 and the same fail-closed rule.
+2. **Paid-credit headroom.** Calls that spend a paying cook's uses draw from a pool that is kept apart from the
+   operating budget. The pool is sized so a paying cook who has uses left is never refused. A ceiling denial
+   inside this pool is a page to the owner, not a message to the cook. The cook's uses are never taken by a denial
+   (the full reservation is refunded, §2).
+3. **Alarms before the limit.** Spend alarms fire at stated fractions of each pool, so a person raises a limit
+   before a cook meets it. §1 still holds: no AWS mechanism stops inference at a dollar threshold, so our counter is
+   the control and the alarms are the early warning.
+4. **Amend §3 at that time.** The new figures are a dated owner ruling. They are written into §3, not edited quietly.
+
+**Cost estimates behind the plan.** These come from the 2026-10-27 cost model. They are estimates, not measurements,
+and the model is the place to correct them:
+
+- Platform AI (parse, match and the 020 checks) is about **$0.014 per registered user a month**. At 100,000 users that
+  is about **$1,429 a month**, about 2% of the modelled revenue.
+- One cook-requested recipe call is about 1,750 tokens in and 900 out. That is about $0.007 on Claude Haiku 4.5 and
+  about $0.003 on Nova 2 Lite.
+- 300 uses cost about $2.07 in the worst case. That is about 21% of the extra $10 a month that Pro with AI costs over
+  Pro.
+
 ## Consequences
 
 **Accepted:**

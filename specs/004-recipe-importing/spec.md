@@ -483,7 +483,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > ⚠️ **Where the count lives, and the bulk allowance.** Owner ruling, 2026-10-26. The quota is counted in
     > the `import_allowance_events` ledger (recipe-service migration 0058), not over an `import_jobs` table, which
     > was never built. Each channel counts only its own rows: **paste, 200 a rolling day**, one unit per paste,
-    > and **bulk import, 1,000 recipes a rolling day**, one unit per recipe. The two never borrow from each other.
+    > and **bulk import, 1,000 recipes a rolling day on a paid plan and 200 on Free** (owner ruling, 2026-10-27), one unit per recipe. The two never borrow from each other.
     > This replaces "across all channels" for these two channels, and it replaces D-013's "one file is one
     > import". Bulk import now sends every line through the LLM parse and the match review, so a file is no longer
     > free of third-party calls. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds
@@ -854,7 +854,7 @@ The section above decides **who authors** the contract; this one is where it **r
   file import does neither (one upload, parsed locally, no third-party call). Without this carve-out a
   first-day migration would exhaust a user's daily allowance on the day they join, which is precisely backwards.
     > ⚠️ **Both halves are replaced.** Owner rulings, 2026-10-26. A file of any size is accepted, and there is no
-    > 1,000-recipe file limit. Bulk import has its own allowance of 1,000 recipes a rolling day. It counts per
+    > 1,000-recipe file limit. Bulk import has its own allowance of 1,000 recipes a rolling day on a paid plan and 200 on Free. It counts per
     > recipe, and it is separate from paste (see the note under `FR-022`). A file larger than the room left imports
     > what fits, and the rest follows as room frees up.
 - **D-012 (Bulk import, 2026-08-02)**: A single uploaded export file may contain many recipes — the realistic
@@ -895,7 +895,7 @@ The section above decides **who authors** the contract; this one is where it **r
   `@nestjs/throttler` v6 ANDs every registered throttler across every route, so a daily throttler would apply
   service-wide. Treating the allowance as domain policy also puts it where 010's tier rules will need it.
     > ⚠️ The daily allowance's count and channels changed by owner ruling, 2026-10-26: paste 200 a rolling day,
-    > bulk import 1,000 recipes a rolling day, each counted on its own. See the note under `FR-022`.
+    > bulk import 1,000 recipes a rolling day on a paid plan and 200 on Free, each counted on its own. See the note under `FR-022`.
 - **D-005 (Draft & image retention, 2026-08-02)**: Unconfirmed drafts expire **7 days** after creation, and the
   OCR source image shares that lifetime exactly — deleted on confirm, discard, or expiry, whichever is first.
   Seven days covers a user who starts an import, is interrupted, and returns the following weekend, while

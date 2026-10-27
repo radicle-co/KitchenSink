@@ -30,7 +30,7 @@ Bulk recipe import already uses **`/api/v1/import`** ([ADR-0072](../../../docs/a
 2. Library migration is a separate resource, and the owner names its URL.
 
 Until the owner answers, no migration route is built. Whatever the answer, ADR-0072's rules hold for every recipe a
-migration saves: a per-recipe source statement with a citation, the bulk allowance of 1,000 recipes a rolling day, and one
+migration saves: a per-recipe source statement with a citation, the bulk allowance of 1,000 recipes a rolling day on a paid plan (200 on Free), and one
 draft per recipe.
 
 ## Migration response

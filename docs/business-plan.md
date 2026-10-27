@@ -42,7 +42,7 @@
 | **Made-up / distinctive** | ✅ Portmanteau — strong trademark protection                                                                                    |
 | **Pronounceable**         | ✅ 2 syllables: com-MEESE                                                                                                       |
 | **Search competition**    | ✅ "Commcise" (2 m's) is a fintech/Euronext company in a completely different space. "Commise" (1 m) has no app store conflicts |
-| **Domain availability**   | TBD — check commise.com, commise.app, commise.ai, getcommise.com                                                                |
+| **Domain availability**   | We own commise.app. commise.com is a future purchase. Still to check: commise.ai, getcommise.com                                |
 
 **Company name**: TBD — waiting on decision. Options: Commise Inc., Commise Labs, Commise Kitchen. Recommendation: keep it simple — **Commise Inc.** (or LLC).
 
@@ -434,7 +434,7 @@ If Instacart commission + subscriptions cover costs and generate profit, there's
 | #   | Action                                                                                    | Owner                 | Timeline                          |
 | --- | ----------------------------------------------------------------------------------------- | --------------------- | --------------------------------- |
 | 1   | ~~Pick a name~~                                                                           | ✅ **Commise** chosen | Done                              |
-| 2   | **Register domain + social handles** for commise.com / commise.app                        | Founder               | This week                         |
+| 2   | **Register social handles**. We own commise.app. Buy commise.com later                    | Founder               | This week                         |
 | 3   | **File intent-to-use trademark** for Commise with USPTO                                   | Founder/Lawyer        | Within 30 days                    |
 | 4   | **Update all specs** to replace "Commise" / "KitchenSink" product references with Commise | Engineering           | Within 1 week                     |
 | 5   | **Ship M0** (Auth0 authentication)                                                        | Engineering           | Week 1-2                          |

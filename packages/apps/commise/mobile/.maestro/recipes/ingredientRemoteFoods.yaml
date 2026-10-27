@@ -105,8 +105,19 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: 'Actions for .*'
 - tapOn: 'Change food'
-- eraseText: 120
-- inputText: '${E2E_REMOTE_CHANGE_WORD}'
+# ⛔ Not a bare `eraseText` then `inputText`. On iOS the field read `kombuT` and the "Edit … kombu" row never appeared
+# (Android passed): `eraseText` deletes only what is BEFORE the caret, and the caret the field opens with is not always at
+# the end of the name (`Combobox.native.tsx` places it with `setSelection` straight after `focus()`, which iOS does not
+# always keep), so the word was typed in front of a one-character tail. This is the failure `common/typeIntoField.yaml`
+# was written for (CI run 39387415456, iOS shard 5): it erases, taps the field, erases again, types, and reads the field
+# back, so a tail fails HERE and not as a missing row forty seconds later. The field is the line's own name field, line 1:
+# this flow made the recipe, so the line is ours (`addIngredientLoop.yaml`).
+# ⚠️ Not run on a device from this change (no iOS runner): the next iOS run is the proof.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Ingredient 1 name'
+          TEXT: '${E2E_REMOTE_CHANGE_WORD}'
 - runFlow:
       file: common/scrollOpenList.yaml
       env:

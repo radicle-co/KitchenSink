@@ -155,30 +155,35 @@ export interface RankingTerms {
 }
 
 /**
- * A bracketed group, removed before the head is read: `Tamales (Navajo)` is a tamale, and a qualifier in brackets
- * is never the food. Non-nested on purpose, so the SQL mirror (`rank_head_of`, migration 0025) can say the same
- * thing in one `regexp_replace`.
- *
- * ⚠️ Applied ONLY through {@link replaceBracketedGroups}: on its own this pattern retries every `(` of a run with no
- * `)` after it and scans to the end each time (CodeQL js/polynomial-redos).
- */
-const BRACKETED_GROUP = /\([^)]*\)/g;
-
-/**
  * Replace every bracketed group with a space, in linear time.
  *
- * A `(` can only match if a `)` follows it, so the text after the LAST `)` can never hold a match and is not scanned;
- * inside the head every `(` has a `)` ahead, so each attempt ends in a match and the scan never restarts over the same
- * characters. The output is byte-identical to `text.replace(/\([^)]*\)/g, ' ')`, which `rankingTerms.test.ts` proves
- * exhaustively over short strings, and which the SQL mirror `rank_head_of` still agrees with.
+ * A bracketed group, removed before the head is read: `Tamales (Navajo)` is a tamale, and a qualifier in brackets
+ * is never the food. Non-nested on purpose, so the SQL mirror (`rank_head_of`, migration 0025) can say the same
+ * thing in one `regexp_replace`: a group runs from a `(` to the FIRST `)` after it, which may itself hold `(`.
+ *
+ * ⛔ A SCAN, not `/\([^)]*\)/g`: that pattern retries every `(` of a run with no `)` after it and reads to the end each
+ * time (CodeQL js/polynomial-redos; 6.5 s on 200k characters). Here each `(` and each `)` is found once, and the scan
+ * stops at the first `(` with no `)` after it. The output is byte-identical to that replacement, which
+ * `rankingTerms.test.ts` proves exhaustively over short strings, and the SQL mirror still agrees.
  *
  * @param text - A name or a typed query.
  * @returns The text with each non-nested bracketed group replaced by one space. Pure.
  */
 export function replaceBracketedGroups(text: string): string {
-    const end = text.lastIndexOf(')') + 1;
+    let result = '';
+    let from = 0;
 
-    return end === 0 ? text : text.slice(0, end).replace(BRACKETED_GROUP, ' ') + text.slice(end);
+    for (;;) {
+        const open = text.indexOf('(', from);
+        const close = open < 0 ? -1 : text.indexOf(')', open + 1);
+
+        if (close < 0) {
+            return result + text.slice(from);
+        }
+
+        result += text.slice(from, open) + ' ';
+        from = close + 1;
+    }
 }
 
 /**

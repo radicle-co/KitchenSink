@@ -12,7 +12,7 @@ import { wcagContrast, converter } from 'culori';
 import { describe, expect, it } from 'vitest';
 
 import { palette, role, roleDark, tint } from '../colors.js';
-import { difficultyTone, difficultyToneDark, proTone, statusTone, statusToneDark } from '../tones.js';
+import { difficultyTone, difficultyToneDark, proTone, proToneDark, statusTone, statusToneDark } from '../tones.js';
 
 const toRgb = converter('rgb');
 
@@ -24,11 +24,13 @@ describe('difficultyTone', () => {
         expect(Object.keys(difficultyTone).sort()).toEqual(['easy', 'hard', 'medium']);
     });
 
-    it('uses the spec’s tints and labels', () => {
+    // REWRITTEN for the redesign: a difficulty chip has no hue. Every level is the neutral surfaceMuted under ink and the
+    // three-dot meter tells them apart (it used to be three tints: success, warning, coral).
+    it('is the neutral surfaceMuted under ink for every level', () => {
         expect(difficultyTone).toEqual({
-            easy: { fill: tint(palette.success, 0.15), text: role.actionText },
-            medium: { fill: tint(palette.warning, 0.15), text: role.attention },
-            hard: { fill: tint(palette.coral, 0.15), text: role.ink },
+            easy: { fill: role.surfaceMuted, text: role.ink },
+            medium: { fill: role.surfaceMuted, text: role.ink },
+            hard: { fill: role.surfaceMuted, text: role.ink },
         });
     });
 
@@ -62,10 +64,10 @@ describe('difficultyTone', () => {
         }
     });
 
-    it('gives each difficulty its own fill, so the three never read as one', () => {
-        const fills = Object.values(difficultyTone).map((tone) => tone.fill);
-
-        expect(new Set(fills).size).toBe(fills.length);
+    // REWRITTEN for the redesign: the three fills are ONE neutral on purpose (the three-dot meter tells them apart, SC
+    // 1.4.1). It used to assert three distinct fills.
+    it('shares one neutral fill across the levels, since the meter carries the difference', () => {
+        expect(new Set(Object.values(difficultyTone).map((tone) => tone.fill)).size).toBe(1);
     });
 });
 
@@ -117,11 +119,12 @@ function over(color: string, backdrop: string): string {
  * the dark text roles, and the status tones on the dark `surfaceMuted`. Measured over dark paper and the dark canvas.
  */
 describe('the dark tones', () => {
-    it('uses the spec’s dark tints and labels', () => {
+    // REWRITTEN for the redesign: the dark levels are the neutral dark surfaceMuted under dark ink too.
+    it('uses the neutral dark pair for every level', () => {
         expect(difficultyToneDark).toEqual({
-            easy: { fill: tint(palette.success, 0.18), text: roleDark.actionText },
-            medium: { fill: tint(palette.warning, 0.18), text: roleDark.attention },
-            hard: { fill: tint(palette.coral, 0.18), text: roleDark.ink },
+            easy: { fill: roleDark.surfaceMuted, text: roleDark.ink },
+            medium: { fill: roleDark.surfaceMuted, text: roleDark.ink },
+            hard: { fill: roleDark.surfaceMuted, text: roleDark.ink },
         });
         expect(statusToneDark.draft).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'pencilLine' });
     });
@@ -147,10 +150,13 @@ describe('the dark tones', () => {
     });
 });
 
-/** The PRO badge: one fixed pair in both themes (`darkTheme.md` §2, "Premium (PRO)"), so it is not re-themed. */
+/** The PRO badge: a neutral chip in each theme. */
 describe('proTone', () => {
-    it('is premium under charcoal, in both themes', () => {
-        expect(proTone).toEqual({ fill: palette.premium, text: palette.charcoal });
+    // REWRITTEN for the redesign: PRO is a neutral chip in each theme (it was a tan fixed in both).
+    it('is surfaceMuted under ink, in each theme', () => {
+        expect(proTone).toEqual({ fill: role.surfaceMuted, text: role.ink });
+        expect(proToneDark).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink });
         expect(wcagContrast(proTone.text, proTone.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        expect(wcagContrast(proToneDark.text, proToneDark.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 });

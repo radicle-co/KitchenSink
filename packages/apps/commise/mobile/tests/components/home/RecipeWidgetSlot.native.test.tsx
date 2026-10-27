@@ -171,12 +171,12 @@ describe('RecipeWidgetSlot (mobile)', () => {
 
         renderSlot();
 
-        // Bare text on the Home screen's `sand` background — no tint of its own — so the ratio is the token
-        // against that surface: seafoam scored 3.73:1, under the 4.5:1 body floor (SC 1.4.3). Mirrors the web
+        // Bare text on the Home screen's `fog` background — no tint of its own — so the ratio is the token
+        // against that surface: steel scored 3.73:1, under the 4.5:1 body floor (SC 1.4.3). Mirrors the web
         // slot's link, which is the same control on the other platform (§14).
         const label = within(await screen.findByRole('link', { name: 'See all recipes' })).getByText('See all');
 
-        expect(computedContrast(label, { surface: palette.sand }), '“See all recipes” label').toBeGreaterThanOrEqual(
+        expect(computedContrast(label, { surface: palette.fog }), '“See all recipes” label').toBeGreaterThanOrEqual(
             4.5,
         );
     });

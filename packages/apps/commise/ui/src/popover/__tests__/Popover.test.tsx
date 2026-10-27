@@ -118,7 +118,7 @@ describe('Popover (web)', () => {
     });
 
     // Slice 2: the focus ring is the `focusRing` role every design-system control draws (3:1 on paper, canvas and
-    // pearl, measured in `surfaceClass.test.ts`), not the seafoam ring it predates; the glyph is `ink`.
+    // pearl, measured in `surfaceClass.test.ts`), not the steel ring it predates; the glyph is `ink`.
     it('draws the focusRing role on its trigger and its Close, and an ink trigger glyph', async () => {
         const user = userEvent.setup();
         renderPopover();

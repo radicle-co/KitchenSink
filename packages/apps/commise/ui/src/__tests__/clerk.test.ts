@@ -179,10 +179,9 @@ describe.each(SCHEMES)('clerkAppearanceFor(%s) — elements measured through the
                 opacity === undefined ? undefined : Number(opacity) / 100,
             );
 
-            expect(
-                wcagContrast(colour(scheme, label), painted),
-                `${textKey} on ${alertKey} over ${surface}`,
-            ).toBeGreaterThanOrEqual(AA_TEXT);
+            const measured = wcagContrast(colour(scheme, label), painted);
+
+            expect(measured, `${textKey} on ${alertKey} over ${surface}`).toBeGreaterThanOrEqual(AA_TEXT);
         }
     });
 
@@ -290,7 +289,7 @@ describe('clerkAppearanceFor — layout and behaviour', () => {
         const all = Object.values(appearance.elements).join(' ');
 
         expect(all).not.toMatch(
-            /\b(?:bg|text|border|ring)-(?:white|black|sand|charcoal|slate|seafoam|coral|red|gray|zinc)\b/,
+            /\b(?:bg|text|border|ring)-(?:white|black|fog|charcoal|slate|steel|coral|red|gray|zinc)\b/,
         );
     });
 

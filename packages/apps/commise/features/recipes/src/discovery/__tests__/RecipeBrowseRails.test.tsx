@@ -395,7 +395,7 @@ describe('RecipeBrowseRails (web) — text contrast (WCAG 2.1 AA)', () => {
         renderRails();
 
         // "See all" is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an accent owes;
-        // `seafoam` is 3.73:1 on the page background it sits on and 3.37:1 once the `mist/20` hover tint lands
+        // `steel` is 3.73:1 on the page background it sits on and 3.37:1 once the `mist/20` hover tint lands
         // underneath. The palette JSDoc in `@commise/ui`'s `tokens/colors.ts` states the rule once, and names
         // `ocean-dark` as the text-weight substitute that keeps the control in its own hue family.
         //

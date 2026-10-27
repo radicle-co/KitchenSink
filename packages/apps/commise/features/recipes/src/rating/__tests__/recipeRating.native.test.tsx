@@ -218,9 +218,9 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
      * JSDoc in `@commise/ui`'s `tokens/colors.ts`.
      *
      * Both variants sit directly on the recipe-detail screen, which paints no surface of its own, so the
-     * backdrop is the app's `sand` background — the stricter of the plausible surfaces.
+     * backdrop is the app's `fog` background — the stricter of the plausible surfaces.
      */
-    const SCREEN = palette.sand;
+    const SCREEN = palette.fog;
 
     it('draws the EMPTY community pips legibly on the screen background', () => {
         // average 2 of 5 → pips 3, 4 and 5 render EMPTY, which is what the scale is read from.
@@ -233,7 +233,7 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 computedContrast(pip, { surface: SCREEN }),
-                `empty community pip ${index + 3} of 5 on the sand screen background`,
+                `empty community pip ${index + 3} of 5 on the fog screen background`,
             ).toBeGreaterThanOrEqual(4.5);
         }
     });
@@ -250,7 +250,7 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 computedContrast(pip, { surface: SCREEN }),
-                `empty rate-input pip ${index + 3} of 5 on the sand screen background`,
+                `empty rate-input pip ${index + 3} of 5 on the fog screen background`,
             ).toBeGreaterThanOrEqual(4.5);
         }
     });

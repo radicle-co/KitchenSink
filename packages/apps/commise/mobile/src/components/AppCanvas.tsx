@@ -10,8 +10,8 @@
  * ## Why it exists, and why it is mounted ONCE at the root
  *
  * All nine wireframes paint their page with the SAME named token, `--gradient-beach-glow`, which is
- * `@commise/ui`'s `gradient.hero`. Mobile instead painted a flat `palette.sand` on each screen's own
- * container, so every surface read as a plain sand page. Mounting the wash here — above the navigator, below
+ * `@commise/ui`'s `gradient.hero`. Mobile instead painted a flat `palette.fog` on each screen's own
+ * container, so every surface read as a plain fog page. Mounting the wash here — above the navigator, below
  * the providers — is the native mirror of web's single `body` rule in `globals.css`: one gradient, one
  * definition (the token), one consumer per platform. Painting it per-screen instead would put the same
  * knowledge in a dozen places and guarantee the next screen forgets it.

@@ -1,5 +1,5 @@
-export { chart, palette, semantic, tint } from './colors.js';
-export type { Chart, Palette, Semantic } from './colors.js';
+export { chart, chartDark, palette, semantic, tint } from './colors.js';
+export type { Chart, ChartDark, Palette, Semantic } from './colors.js';
 export { size, space } from './spacing.js';
 export type { Size, Space } from './spacing.js';
 export { radius } from './radius.js';

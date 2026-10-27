@@ -200,8 +200,8 @@ describe('RecipeWidgetSlot (web)', () => {
         await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])));
 
         // The slot's only navigation affordance is bare text on the Home surface — no tint of its own — so
-        // the ratio is the token against the surface: seafoam scored 4.02:1, under the 4.5:1 body-text floor
-        // (SC 1.4.3). See the palette JSDoc in `@commise/ui` for when seafoam IS still the right token.
+        // the ratio is the token against the surface: steel scored 4.02:1, under the 4.5:1 body-text floor
+        // (SC 1.4.3). See the palette JSDoc in `@commise/ui` for when steel IS still the right token.
         const link = screen.getByRole('link', { name: 'See all recipes' });
 
         expect(utilityContrast(link.className), '“See all recipes” link').toBeGreaterThanOrEqual(4.5);

@@ -1,6 +1,6 @@
 /**
  * The level-2 bar material (`docs/design/uiOverhaul/darkTheme.md` §3.4 and §4; ownerDecisions D12): the web tab bar and
- * condensed title bar paint `paper` at 92% in light and `paperRaised` at 94% in dark, each readable with the blur off.
+ * condensed title bar paint `paper` at 92% in light and dark `paper` at 94% in dark, each readable with the blur off.
  * One value per theme, emitted as `--color-bar` and overridden by the dark block, so no component needs `dark:`.
  */
 import { describe, expect, it } from 'vitest';
@@ -13,9 +13,10 @@ const css = themeCss();
 const darkStart = css.indexOf('@media (prefers-color-scheme: dark)');
 
 describe('barMaterial', () => {
-    it('is paper at 92% in light and paperRaised at 94% in dark (darkTheme.md §3.4)', () => {
+    // REWRITTEN for the redesign: dark is the dark `paper` at 94% (rgba(23, 32, 41, 0.94) in tokens.css), not `paperRaised`.
+    it('is paper at 92% in light and dark paper at 94% in dark', () => {
         expect(barMaterial.light).toBe(tint(role.paper, 0.92));
-        expect(barMaterial.dark).toBe(tint(roleDark.paperRaised, 0.94));
+        expect(barMaterial.dark).toBe(tint(roleDark.paper, 0.94));
     });
 
     it('is declared in @theme with its light value, as a colour Tailwind makes `bg-bar` from', () => {

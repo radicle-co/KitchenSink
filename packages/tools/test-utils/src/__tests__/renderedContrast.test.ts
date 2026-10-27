@@ -19,32 +19,32 @@ describe('utilityContrast', () => {
     });
 
     it('treats an element with NO background utility as painted on the surface', () => {
-        // A bare text button (`text-seafoam transition hover:bg-seafoam/10`) paints nothing at rest, so its
+        // A bare text button (`text-steel transition hover:bg-steel/10`) paints nothing at rest, so its
         // resting ratio is the token against the surface. Before this, such a button could not be measured at
-        // rest at all — which is precisely where `text-seafoam` fails.
-        expect(utilityContrast('text-seafoam transition hover:bg-seafoam/10')).toBeCloseTo(
-            contrastRatio(palette.seafoam, palette.white),
+        // rest at all — which is precisely where `text-steel` fails.
+        expect(utilityContrast('text-steel transition hover:bg-steel/10')).toBeCloseTo(
+            contrastRatio(palette.steel, palette.white),
             10,
         );
     });
 
     it('honours a non-white surface for a background-less element', () => {
-        expect(utilityContrast('text-slate', { surface: palette.sand })).toBeCloseTo(
-            contrastRatio(palette.slate, palette.sand),
+        expect(utilityContrast('text-slate', { surface: palette.fog })).toBeCloseTo(
+            contrastRatio(palette.slate, palette.fog),
             10,
         );
     });
 
     it('COMPOSITES a translucent background instead of scoring against the raw token', () => {
         // The tint is DERIVED from the token (`/10` → `1a` hex alpha), not re-spelled: a literal `#3D8B851a`
-        // froze this expectation at the pre-#113 seafoam, so the token move broke a test of the READER rather
+        // froze this expectation at the pre-#113 steel, so the token move broke a test of the READER rather
         // than of the palette.
-        const composited = contrastRatio(palette['ocean-dark'], compositeOver(`${palette.seafoam}1a`, palette.white));
+        const composited = contrastRatio(palette['ocean-dark'], compositeOver(`${palette.steel}1a`, palette.white));
 
-        expect(utilityContrast('text-ocean-dark bg-seafoam/10')).toBeCloseTo(composited, 10);
+        expect(utilityContrast('text-ocean-dark bg-steel/10')).toBeCloseTo(composited, 10);
         // The un-composited reading is materially different — proof the composite step is doing work.
-        expect(utilityContrast('text-ocean-dark bg-seafoam/10')).not.toBeCloseTo(
-            contrastRatio(palette['ocean-dark'], palette.seafoam),
+        expect(utilityContrast('text-ocean-dark bg-steel/10')).not.toBeCloseTo(
+            contrastRatio(palette['ocean-dark'], palette.steel),
             1,
         );
     });
@@ -104,51 +104,48 @@ describe('utilityContrast', () => {
 
 describe('ringContrast', () => {
     it('measures the ring token against the surface the ring is drawn on', () => {
-        expect(ringContrast('rounded-full focus-visible:ring-2 focus-visible:ring-seafoam')).toBeCloseTo(
-            contrastRatio(palette.seafoam, palette.white),
+        expect(ringContrast('rounded-full focus-visible:ring-2 focus-visible:ring-steel')).toBeCloseTo(
+            contrastRatio(palette.steel, palette.white),
             10,
         );
     });
 
     it('IGNORES the element’s own fill, because a ring is drawn OUTSIDE the border box', () => {
-        // This is the whole reason the reader exists. A selected filter chip is `bg-seafoam`; its ring is a
+        // This is the whole reason the reader exists. A selected filter chip is `bg-steel`; its ring is a
         // spread box-shadow on the PAGE, so the page is the backdrop. Scoring it like a border would compare
-        // seafoam against seafoam (1:1) and a passing focus ring would look broken — or, with the fill and the
+        // steel against steel (1:1) and a passing focus ring would look broken — or, with the fill and the
         // ring reversed, a broken one would look fine.
-        const chip = 'bg-seafoam text-white focus-visible:ring-2 focus-visible:ring-seafoam';
+        const chip = 'bg-steel text-white focus-visible:ring-2 focus-visible:ring-steel';
 
-        expect(ringContrast(chip, { surface: palette.sand })).toBeCloseTo(
-            contrastRatio(palette.seafoam, palette.sand),
-            10,
-        );
-        expect(ringContrast(chip, { surface: palette.sand })).toBeGreaterThan(3);
+        expect(ringContrast(chip, { surface: palette.fog })).toBeCloseTo(contrastRatio(palette.steel, palette.fog), 10);
+        expect(ringContrast(chip, { surface: palette.fog })).toBeGreaterThan(3);
     });
 
     it('reads the ring whichever focus variant carries it', () => {
-        const expected = contrastRatio(palette.seafoam, palette.white);
+        const expected = contrastRatio(palette.steel, palette.white);
 
-        expect(ringContrast('focus:ring-2 focus:ring-seafoam')).toBeCloseTo(expected, 10);
-        expect(ringContrast('focus-within:ring-2 focus-within:ring-seafoam')).toBeCloseTo(expected, 10);
-        expect(ringContrast('ring-2 ring-seafoam')).toBeCloseTo(expected, 10);
+        expect(ringContrast('focus:ring-2 focus:ring-steel')).toBeCloseTo(expected, 10);
+        expect(ringContrast('focus-within:ring-2 focus-within:ring-steel')).toBeCloseTo(expected, 10);
+        expect(ringContrast('ring-2 ring-steel')).toBeCloseTo(expected, 10);
     });
 
     it('COMPOSITES a translucent backdrop, so a nested tint is not measured against the card', () => {
-        // The chip-remove control's ring sits on the chip's own `bg-seafoam/10` over the white field — two
+        // The chip-remove control's ring sits on the chip's own `bg-steel/10` over the white field — two
         // surfaces deep. Measuring it against a nominal white overstates the ratio.
-        const tinted = compositeOver(`${palette.seafoam}1a`, palette.white);
+        const tinted = compositeOver(`${palette.steel}1a`, palette.white);
 
-        expect(ringContrast('focus-visible:ring-2 focus-visible:ring-seafoam', { surface: tinted })).toBeCloseTo(
-            contrastRatio(palette.seafoam, tinted),
+        expect(ringContrast('focus-visible:ring-2 focus-visible:ring-steel', { surface: tinted })).toBeCloseTo(
+            contrastRatio(palette.steel, tinted),
             10,
         );
-        expect(ringContrast('focus-visible:ring-2 focus-visible:ring-seafoam', { surface: tinted })).toBeLessThan(
-            ringContrast('focus-visible:ring-2 focus-visible:ring-seafoam'),
+        expect(ringContrast('focus-visible:ring-2 focus-visible:ring-steel', { surface: tinted })).toBeLessThan(
+            ringContrast('focus-visible:ring-2 focus-visible:ring-steel'),
         );
     });
 
     it('applies a `/NN` suffix to the ring token', () => {
-        expect(ringContrast('ring-2 ring-seafoam/50')).toBeCloseTo(
-            contrastRatio(compositeOver(`${palette.seafoam}80`, palette.white), palette.white),
+        expect(ringContrast('ring-2 ring-steel/50')).toBeCloseTo(
+            contrastRatio(compositeOver(`${palette.steel}80`, palette.white), palette.white),
             10,
         );
     });
@@ -156,8 +153,8 @@ describe('ringContrast', () => {
     it('does not mistake ring geometry utilities for a colour', () => {
         // `ring-2` and `ring-offset-2` carry digits; `ring-inset` and `ring-ring` name no palette key. If any
         // resolved, the measurement would silently move — or the single-ring check would spuriously throw.
-        expect(ringContrast('ring-2 ring-offset-2 ring-inset ring-ring ring-seafoam')).toBeCloseTo(
-            contrastRatio(palette.seafoam, palette.white),
+        expect(ringContrast('ring-2 ring-offset-2 ring-inset ring-ring ring-steel')).toBeCloseTo(
+            contrastRatio(palette.steel, palette.white),
             10,
         );
     });
@@ -166,7 +163,7 @@ describe('ringContrast', () => {
         // `focus:outline-none` with no ring is a control with no focus indicator at all — a defect in its own
         // right, so it must throw instead of returning a comfortable 1:1-free number.
         expect(() => ringContrast('rounded-full focus:outline-none')).toThrow(/`ring-\*`/);
-        expect(() => ringContrast('focus:ring-seafoam hover:ring-coral')).toThrow(/exactly ONE/);
+        expect(() => ringContrast('focus:ring-steel hover:ring-coral')).toThrow(/exactly ONE/);
     });
 });
 
@@ -185,8 +182,8 @@ describe('computedContrast', () => {
         const element = withStyle({ color: palette['ocean-dark'] });
 
         expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette['ocean-dark'], palette.white), 5);
-        expect(computedContrast(element, { surface: palette.sand })).toBeCloseTo(
-            contrastRatio(palette['ocean-dark'], palette.sand),
+        expect(computedContrast(element, { surface: palette.fog })).toBeCloseTo(
+            contrastRatio(palette['ocean-dark'], palette.fog),
             5,
         );
     });
@@ -255,20 +252,20 @@ describe('placeholderContrast', () => {
 
         element.style.backgroundColor = 'transparent';
 
-        expect(placeholderContrast(element, { surface: palette.sand })).toBeCloseTo(
-            contrastRatio(palette.slate, palette.sand),
+        expect(placeholderContrast(element, { surface: palette.fog })).toBeCloseTo(
+            contrastRatio(palette.slate, palette.fog),
             5,
         );
     });
 
     it('lets the input OWN opaque background win over the stated surface', () => {
-        // A field painted `bg-white` on a sand page is read against white, not sand — which is why the
+        // A field painted `bg-white` on a fog page is read against white, not fog — which is why the
         // element's own background is consulted first rather than the caller's backdrop being trusted blindly.
         const element = withPlaceholderColor(palette.slate);
 
         element.style.backgroundColor = palette.white;
 
-        expect(placeholderContrast(element, { surface: palette.sand })).toBeCloseTo(
+        expect(placeholderContrast(element, { surface: palette.fog })).toBeCloseTo(
             contrastRatio(palette.slate, palette.white),
             5,
         );
@@ -296,7 +293,7 @@ describe('the readers resolve colour roles as well as palette names', () => {
 
     it('still skips a type-role utility that shares the text- prefix', () => {
         expect(utilityContrast('text-label text-danger-text')).toBeCloseTo(
-            contrastRatio(role.dangerText, '#FFFFFF'),
+            contrastRatio(role.dangerText, palette.white),
             5,
         );
     });

@@ -669,7 +669,7 @@ describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
 });
 
 describe('RecipeDetailView (native) — contrast (WCAG AA)', () => {
-    it('makes the step timer label legible (4.02:1 as seafoam, under the 4.5:1 floor)', () => {
+    it('makes the step timer label legible (4.02:1 as steel, under the 4.5:1 floor)', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
@@ -1129,7 +1129,7 @@ describe('RecipeDetailView (native) — the current step is tellable from the ot
 
         fireEvent.click(screen.getByRole('button', { name: 'Mark step 1 as current' }));
 
-        expect(numeral(1)).toBe(cssColor(palette.seafoam));
+        expect(numeral(1)).toBe(cssColor(palette.steel));
         expect(numeral(2)).not.toBe(numeral(1));
         expect(screen.getByRole('button', { name: 'Mark step 1 as current' }).getAttribute('aria-pressed')).toBe(
             'true',

@@ -18,7 +18,7 @@ import { AccessibilityInfo, Pressable, Text, type Modal as ModalType } from 'rea
 import { nativeTokens } from '../../tokens/native.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { palette, tint } from '../../tokens/colors.js';
+import { role } from '../../tokens/colors.js';
 import { radius } from '../../tokens/scale.js';
 import type { SheetProps } from '../props.js';
 import { SHEET_EDGE_PADDING_DP, SHEET_MAX_WIDTH_DP } from '../sheetPresentation.js';
@@ -470,7 +470,7 @@ describe('Sheet (native)', () => {
 
             const scrimColour = appliedStyle(backdrop(), 'background-color');
 
-            expect(scrimColour?.replace(/\s/gu, '')).toBe(tint(palette.charcoal, 0.4).replace(/\s/gu, ''));
+            expect(scrimColour?.replace(/\s/gu, '')).toBe(role.scrim.replace(/\s/gu, ''));
         });
 
         it('takes the available height at size full, and grows with its content at size content', () => {

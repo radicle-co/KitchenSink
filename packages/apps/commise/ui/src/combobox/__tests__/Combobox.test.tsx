@@ -1673,7 +1673,7 @@ describe('Combobox (web) — status lines never squeeze the list (1.4.4; `docs/d
 });
 
 describe('Combobox (web) — the active option shows a ring (`docs/design/rowEditorOpenDecisions.md` V3-4)', () => {
-    it('the active option takes the pearl fill and the inset seafoam ring the details dialog’s active row takes', async () => {
+    it('the active option takes the pearl fill and the inset steel ring the details dialog’s active row takes', async () => {
         const user = userEvent.setup();
         render(<Host />);
         await user.type(field(), 'f');

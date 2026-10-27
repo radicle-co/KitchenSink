@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/create-fab — the native face of a floating create control: its surface, glyph and label.
  *
- * - **iOS 26:** seafoam-tinted Liquid Glass, interactive, with a semibold label (D13). The system keeps the label legible
+ * - **iOS 26:** steel-tinted Liquid Glass, interactive, with a semibold label (D13). The system keeps the label legible
  *   over whatever scrolls beneath.
  * - **Android and older iOS:** a solid `action` disc or pill at level 3 with the `onAction` label.
  *

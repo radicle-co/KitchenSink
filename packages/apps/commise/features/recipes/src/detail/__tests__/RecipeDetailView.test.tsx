@@ -290,11 +290,11 @@ describe('RecipeDetailView (web) — header', () => {
 });
 
 /**
- * The hero badge row and the tag chip above are already measured; these are the three seafoam-as-TEXT leaves
- * further down the page that the same pass left under the floor. Which seafoam sites are accents (3:1) and
+ * The hero badge row and the tag chip above are already measured; these are the three steel-as-TEXT leaves
+ * further down the page that the same pass left under the floor. Which steel sites are accents (3:1) and
  * which are text (4.5:1) is stated once, in `@commise/ui`'s palette JSDoc.
  */
-describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA legible', () => {
+describe('RecipeDetailView (web) — steel-as-text below the hero is WCAG-AA legible', () => {
     it('makes a step numeral legible, current and not (the reader reads the number)', async () => {
         const user = userEvent.setup();
         render(

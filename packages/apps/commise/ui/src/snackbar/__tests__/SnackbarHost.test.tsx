@@ -10,7 +10,7 @@ import { useSnackbar } from '../useSnackbar.js';
 /**
  * SnackbarHost + UndoSnackbar (web) — spec §1.11: one at a time, a new one commits the old, six seconds unless the
  * pointer or focus is inside it (SC 2.2.1), a polite status that never takes focus, `ink` with a `paper` message and a
- * `seafoam-light` action at a 44px target, 16px above the bottom chrome, at most 36rem wide.
+ * `steel-light` action at a 44px target, 16px above the bottom chrome, at most 36rem wide.
  */
 
 beforeEach(() => {

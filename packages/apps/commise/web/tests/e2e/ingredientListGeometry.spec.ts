@@ -302,7 +302,7 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
         expect(frame.popup.bottom).toBeLessThanOrEqual(frame.viewportHeight - 8 + 0.5);
     });
 
-    test('1280 px: the keyboard’s active option has a linen (surfaceMuted) fill and a seafoam ring (V3-4, case F)', async ({
+    test('1280 px: the keyboard’s active option has a linen (surfaceMuted) fill and a steel ring (V3-4, case F)', async ({
         page,
     }) => {
         const field = await middleField(page, await openIngredients(page));

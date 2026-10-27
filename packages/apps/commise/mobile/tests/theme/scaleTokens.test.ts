@@ -34,8 +34,8 @@ describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)',
         expect(sizeScale).toEqual({ 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64, 9: 96, true: 16 });
     });
 
-    it('createTokens.radius equals the pre-U0 map (0 + sm…full)', () => {
-        expect(radiusScale).toEqual({ 0: 0, 1: 6, 2: 12, 3: 20, 4: 28, 5: 9999 });
+    it('createTokens.radius equals the redesign map (0 + sm…full: 8, 12, 18, 24; REWRITTEN, it was 6, 12, 20, 28)', () => {
+        expect(radiusScale).toEqual({ 0: 0, 1: 8, 2: 12, 3: 18, 4: 24, 5: 9999 });
     });
 
     // REWRITTEN for the owner's type-scale ruling (2026-10-25): sizes 14/16/18/28 only, capped at 28, and the leading is

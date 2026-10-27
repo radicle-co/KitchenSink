@@ -115,11 +115,12 @@ describe('StatusBadge (web)', () => {
         }
     });
 
-    // PRO is premium under charcoal in BOTH themes (`darkTheme.md` §2): `ink` would turn light in the dark theme.
-    it('paints PRO on the premium fill with a charcoal label that does not re-theme', () => {
+    // REWRITTEN for the redesign: PRO is a neutral chip (`surfaceMuted` under `ink`), as every status is, and it
+    // re-themes (`--color-pro-fill` / `--color-pro-ink` have a dark value). It used to be a tan fill fixed in both themes.
+    it('paints PRO as a neutral chip that re-themes', () => {
         render(<StatusBadge status="pro">PRO</StatusBadge>);
 
-        expect(colourOf(badgeOf('PRO').className, 'bg')).toBe(palette.premium);
+        expect(colourOf(badgeOf('PRO').className, 'bg')).toBe(palette.pearl);
         expect(colourOf(badgeOf('PRO').className, 'text')).toBe(palette.charcoal);
     });
 

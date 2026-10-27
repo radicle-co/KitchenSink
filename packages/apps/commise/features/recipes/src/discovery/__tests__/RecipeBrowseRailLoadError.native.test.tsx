@@ -46,9 +46,9 @@ describe('RecipeBrowseRailLoadError (native)', () => {
             (node) => window.getComputedStyle(node).minHeight === '44px',
         );
         expect(surface, 'Try again does not reach a 44pt target').toBeDefined();
-        expect(
-            computedContrast(within(retry).getByText('Try again'), { surface: palette.sand }),
-        ).toBeGreaterThanOrEqual(4.5);
+        expect(computedContrast(within(retry).getByText('Try again'), { surface: palette.fog })).toBeGreaterThanOrEqual(
+            4.5,
+        );
     });
 });
 

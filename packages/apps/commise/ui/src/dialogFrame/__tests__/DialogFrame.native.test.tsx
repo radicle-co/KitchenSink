@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { palette, tint } from '../../tokens/colors.js';
+import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { bodyFontFace } from '../../tokens/scale.js';
 import { DialogFrame } from '../DialogFrame.native.js';
@@ -195,12 +195,10 @@ describe('DialogFrame (native)', () => {
         expect(appliedStyle(scrim(), 'padding-left')).toBe(`${nativeTokens.spacing[4]}px`);
     });
 
-    it('dims the screen with the charcoal scrim token, not a near-charcoal of its own', () => {
+    it('dims the screen with the scrim role (REWRITTEN for the redesign: a cool 42% scrim, no longer 40% charcoal), not a colour of its own', () => {
         renderFrame();
 
-        expect(appliedStyle(scrim(), 'background-color')?.replace(/\s/gu, '')).toBe(
-            tint(palette.charcoal, 0.4).replace(/\s/gu, ''),
-        );
+        expect(appliedStyle(scrim(), 'background-color')?.replace(/\s/gu, '')).toBe(role.scrim.replace(/\s/gu, ''));
     });
 
     it('lifts the card clear of the keyboard through the shared modal keyboard avoider', () => {

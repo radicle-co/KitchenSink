@@ -1,5 +1,5 @@
-export { chart, palette, semantic, tint } from './tokens/colors.js';
-export type { Chart, Palette, Semantic } from './tokens/colors.js';
+export { chart, chartDark, palette, semantic, tint } from './tokens/colors.js';
+export type { Chart, ChartDark, Palette, Semantic } from './tokens/colors.js';
 export { size, space } from './tokens/spacing.js';
 export type { Size, Space } from './tokens/spacing.js';
 export { radius } from './tokens/radius.js';

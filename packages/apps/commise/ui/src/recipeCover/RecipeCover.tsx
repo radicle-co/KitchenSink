@@ -28,7 +28,7 @@ const ASPECT: Readonly<Record<CoverAspect, string>> = {
  * dark block overrides (D15).
  */
 const COVER_CLASS: Readonly<Record<CoverTintName, string>> = {
-    seafoam: 'bg-cover-seafoam',
+    steel: 'bg-cover-steel',
     coral: 'bg-cover-coral',
     sky: 'bg-cover-sky',
     premium: 'bg-cover-premium',

@@ -17,7 +17,7 @@ import { AccessibilityInfo } from 'react-native';
 import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 
 import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
-import { palette, tint } from '@commise/ui';
+import { palette } from '@commise/ui';
 import { role } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { BadRequestError, NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
@@ -440,18 +440,18 @@ describe('RecipeDetailScreen — error state', () => {
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps the way back’s label WCAG-AA legible on the screen’s sand background', async () => {
+    it('keeps the way back’s label WCAG-AA legible on the screen’s fog background', async () => {
         vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError());
 
         render(<RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />);
 
-        // A bare text control on the screen container's `sand` background: seafoam scored 3.73:1 there, under
+        // A bare text control on the screen container's `fog` background: steel scored 3.73:1 there, under
         // the 4.5:1 body floor (SC 1.4.3). Web's equivalent back control takes the same token (§14).
         const label = within(await screen.findByRole('button', { name: 'Back to My recipes' })).getByText(
             'Back to My recipes',
         );
 
-        expect(computedContrast(label, { surface: palette.sand }), 'back control label').toBeGreaterThanOrEqual(4.5);
+        expect(computedContrast(label, { surface: palette.fog }), 'back control label').toBeGreaterThanOrEqual(4.5);
     });
 
     it('shows the generic error, with a way out, for an id that cannot name a recipe', () => {
@@ -950,7 +950,7 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
 
-        const scrimColour = tint(palette.charcoal, 0.4).replace(/\s/gu, '');
+        const scrimColour = role.scrim.replace(/\s/gu, '');
         let scrim: Element | null = screen.getByRole('alert').parentElement;
 
         while (scrim !== null && window.getComputedStyle(scrim).backgroundColor.replace(/\s/gu, '') !== scrimColour) {

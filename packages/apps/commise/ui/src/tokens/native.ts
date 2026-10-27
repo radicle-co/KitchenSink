@@ -7,9 +7,9 @@
 import type { ContainerClass, PerContainerClass } from './layout.js';
 import {
     bodyFontFace,
-    borderSubtle,
     displayFontFace,
     elevation,
+    type ElevationLayer,
     fontSize,
     fontWeight,
     lineHeightPx,
@@ -17,13 +17,14 @@ import {
     radius,
     spacing,
 } from './scale.js';
+import { role, roleDark } from './colors.js';
 import { typeRole, type TypeRole, type TypeRoleSpec } from './typography.js';
 
 /**
  * A React Native shadow, composed from a `scale.elevation` spec. `shadowColor` + `shadowOpacity` are
  * kept separate (iOS), `shadowRadius` is the blur, `shadowOffset` the drop, and `elevation` the Android
  * depth, set per LEVEL (`androidElevation`), never from the offset. CSS `spread` has no RN equivalent and is
- * intentionally dropped.
+ * intentionally dropped, and a view has ONE shadow, so a two-layer web shadow projects its last (diffuse) layer.
  */
 export interface NativeShadow {
     readonly shadowColor: string;
@@ -33,7 +34,9 @@ export interface NativeShadow {
     readonly elevation: number;
 }
 
-function toNativeShadow(spec: (typeof elevation)[keyof typeof elevation], androidLevel: number): NativeShadow {
+function toNativeShadow(layers: readonly [ElevationLayer, ...ElevationLayer[]], androidLevel: number): NativeShadow {
+    const spec = layers[layers.length - 1] as ElevationLayer;
+
     return {
         shadowColor: `rgb(${spec.color})`,
         shadowOffset: { width: spec.offsetX, height: spec.offsetY },
@@ -144,7 +147,7 @@ const touchTarget = 48;
 /**
  * The React Native projection of the design scale. `spacing`/`radius`/`fontSize` are pixel numbers,
  * `lineHeight` is the px leading for each allowed size, `fontWeight` are numeric weights, `elevation` are RN shadow objects,
- * and `borderSubtle` is the shared string.
+ * and `borderSubtle` aliases the divider role in each theme (a hairline, never a control edge: that is `lineControl`).
  *
  * Type is projected as `fontFace` — the REGISTERED face names — and NOT as the web `fontFamily` stacks:
  * React Native resolves `fontFamily` to one registered face, so handing it a stack silently renders the
@@ -161,7 +164,7 @@ export const nativeTokens = {
     lineHeight: lineHeightPx,
     fontSize,
     elevation: nativeElevation,
-    borderSubtle,
+    borderSubtle: { light: role.lineDivider, dark: roleDark.lineDivider },
     touchTarget,
 } as const;
 

@@ -142,10 +142,11 @@ describe('the design tokens are the values the app itself consumes', () => {
         const palette = tokens.groups.find((group) => group.id === 'palette');
 
         expect(palette?.source).toBe('packages/apps/commise/ui/src/tokens/colors.ts');
-        expect(palette?.tokens.find((token) => token.name === 'seafoam')).toEqual({
-            name: 'seafoam',
+        // REWRITTEN for the redesign: the key is `steel` (it was `seafoam`) and the value is the steel blue (it was the teal).
+        expect(palette?.tokens.find((token) => token.name === 'steel')).toEqual({
+            name: 'steel',
             kind: 'color',
-            value: '#31807A',
+            value: '#325C7F',
         });
         expect(palette?.doc).toContain('WCAG');
     });

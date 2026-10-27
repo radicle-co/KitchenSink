@@ -77,6 +77,7 @@ const PROBES = [
     'size-18',
     '@regular:w-30',
     'min-[480px]:bg-paper',
+    'focus-visible:ring-offset-canvas',
 ] as const;
 
 /**
@@ -527,5 +528,22 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
 
     it('declares the caption size once, not twice', async () => {
         expect((await cssPromise).match(/--text-caption:/gu)).toHaveLength(1);
+    });
+});
+
+// Parity item 14: `ring-offset-2` paints the gap between a control and its focus ring in Tailwind's default offset colour,
+// white, so in dark every focus ring wore a white halo. Tailwind registers `--tw-ring-offset-color` with `inherits:
+// false`, so a `:root` override in the dark block never reaches a control; each control names `ring-offset-canvas`
+// beside its `ring-offset-2` instead, and the canvas role follows the theme. Read from the COMPILED stylesheet: only the
+// compiler knows what the utility resolves to.
+describe('the focus ring offset colour, compiled', () => {
+    it('resolves ring-offset-canvas to the canvas role, which the dark block re-themes', async () => {
+        const css = await compileAppCss();
+
+        // The variant is part of the selector, and the declaration is the role's custom property, which the dark block re-themes.
+        expect(css).toMatch(
+            /\.focus-visible\\:ring-offset-canvas:focus-visible\s*\{\s*--tw-ring-offset-color:\s*var\(--color-canvas\)/u,
+        );
+        expect(css).toMatch(/@property --tw-ring-offset-color\s*\{[^}]*inherits:\s*false/u);
     });
 });

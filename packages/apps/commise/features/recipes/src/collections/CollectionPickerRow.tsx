@@ -45,7 +45,7 @@ export const CollectionPickerRow: FC<CollectionPickerRowProps> = ({ recipe, chec
                         onToggle(!checked);
                     }
                 }}
-                className="flex min-h-16 cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex min-h-16 cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
                 <span aria-hidden="true" className="relative size-12 shrink-0 overflow-hidden rounded-md">
                     <RecipeCover

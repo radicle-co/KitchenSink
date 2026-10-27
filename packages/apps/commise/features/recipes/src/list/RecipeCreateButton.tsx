@@ -34,7 +34,7 @@ const RailButton: FC<{ readonly label: string; readonly onPress: () => void }> =
             type="button"
             aria-label={label}
             onClick={onPress}
-            className="inline-flex size-14 items-center justify-center rounded-full bg-action text-on-action transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2"
+            className="inline-flex size-14 items-center justify-center rounded-full bg-action text-on-action transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas "
         >
             <Icon name="plus" size={24} />
         </button>

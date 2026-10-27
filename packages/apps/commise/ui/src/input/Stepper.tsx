@@ -25,7 +25,7 @@ import { stepFrom, type StepperProps } from './props.js';
 const STEP =
     'inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ' +
     'hover:bg-surface-muted active:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ' +
-    'focus-visible:ring-offset-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
+    'focus-visible:ring-offset-2 focus-visible:ring-offset-canvas aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 
 /** The web design-system stepper. */
 export const Stepper: FC<StepperProps> = ({

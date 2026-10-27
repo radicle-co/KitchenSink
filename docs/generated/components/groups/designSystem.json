@@ -6,11 +6,11 @@
     "coverage": {
         "components": 76,
         "implementations": 133,
-        "props": 764,
+        "props": 766,
         "documentedComponents": 76,
         "implementationsWithModuleDoc": 133,
         "implementationsWithComponentDoc": 125,
-        "documentedProps": 729,
+        "documentedProps": 731,
         "classifiedComponents": 69,
         "componentsWithPatternTag": 76,
         "crossPlatformComponents": 57
@@ -926,6 +926,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
                         },
                         {
+                            "name": "over",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"paper\"",
+                                "\"muted\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the button sits on ({@link ButtonOver}). Say `muted` for a button on a `surfaceMuted` parent, so its press\nshows. The filled tiers (`primary`, a confirm) press by darkening and ignore it. Defaults to `paper`.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
                             "name": "refused",
                             "type": "boolean",
                             "typeDetail": null,
@@ -1015,7 +1027,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/button/Button.native.tsx",
                     "dir": "packages/apps/commise/ui/src/button",
-                    "moduleDoc": "@commise/ui/button — the native design-system {@link Button} (React Native).\n\nMirrors the web leaf's contract and states with a RN `StyleSheet` (`docs/design/uiOverhaul/buildSpec.md` §1.10): the\nRegistry glyph for its meaning beside its label, on the surface its tier and size select. The accessible button is\nthe {@link PressScale} `Pressable` this leaf composes — one accessibility element (`accessibilityRole=\"button\"` + a\nlabel-derived name) that also gives the pill its motion-safe press-scale, which is the native pressed state (§1.9).\nThe glyph sits in a hidden slot and is drawn in the label's colour, so the label alone is the name.\n\n- **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays\n  inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44\n  (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.\n- **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.\n- **Type**: the label is the `cardTitle` role (16/20/600, owner ruling B1) — one registered Inter face per weight and never a `fontWeight` (§1.5),\n  which on Android resolves to a synthesised or system bold instead of the face.\n- **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to\n  40%.\n\nEvery tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,\nsurface-less ghost and quiet (an `actionText` label; an `ink` label with an `actionText` glyph), and destructive's danger label (filled\n`danger` only in its `confirm` tone). Each colour comes\nfrom `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).",
+                    "moduleDoc": "@commise/ui/button — the native design-system {@link Button} (React Native).\n\nMirrors the web leaf's contract and states with a RN `StyleSheet` (`docs/design/uiOverhaul/buildSpec.md` §1.10): the\nRegistry glyph for its meaning beside its label, on the surface its tier and size select. The accessible button is\nthe {@link PressScale} `Pressable` this leaf composes — one accessibility element (`accessibilityRole=\"button\"` + a\nlabel-derived name) that also gives the pill its motion-safe press-scale, which is the native pressed state (§1.9).\nThe glyph sits in a hidden slot and is drawn in the label's colour, so the label alone is the name.\n\n- **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays\n  inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44\n  (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.\n- **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.\n- **Type**: the label is the `cardTitle` role (16/20/600, owner ruling B1) — one registered Inter face per weight and never a `fontWeight` (§1.5),\n  which on Android resolves to a synthesised or system bold instead of the face.\n- **Press**: the pill scales to 0.98 (`PressScale`, skipped under reduce-motion) AND paints its press fill\n  (`buttonSurfacePaint`: `theme.wash`, `lineDivider` over a muted parent, `actionPressed` on primary). The paint is not\n  gated by reduce-motion, so a quiet or ghost button always answers the touch.\n- **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to\n  40%.\n\nEvery tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,\nsurface-less ghost and quiet (an `actionText` label; an `ink` label with an `actionText` glyph), and destructive's danger label (filled\n`danger` only in its `confirm` tone). Each colour comes\nfrom `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1187,6 +1199,18 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Tap / click handler.",
+                            "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
+                        },
+                        {
+                            "name": "over",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"paper\"",
+                                "\"muted\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the button sits on ({@link ButtonOver}). Say `muted` for a button on a `surfaceMuted` parent, so its press\nshows. The filled tiers (`primary`, a confirm) press by darkening and ignore it. Defaults to `paper`.",
                             "declaredIn": "packages/apps/commise/ui/src/button/props.ts"
                         },
                         {
@@ -4921,8 +4945,8 @@
                             "name": "tone",
                             "type": "enum",
                             "typeDetail": [
-                                "\"canvas\"",
                                 "\"paper\"",
+                                "\"canvas\"",
                                 "\"ink\"",
                                 "\"inkMuted\"",
                                 "\"lineControl\"",
@@ -5080,8 +5104,8 @@
                             "name": "tone",
                             "type": "enum",
                             "typeDetail": [
-                                "\"canvas\"",
                                 "\"paper\"",
+                                "\"canvas\"",
                                 "\"ink\"",
                                 "\"inkMuted\"",
                                 "\"lineControl\"",
@@ -9845,7 +9869,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/refreshNotice/RefreshNotice.tsx",
                     "dir": "packages/apps/commise/ui/src/refreshNotice",
-                    "moduleDoc": "@commise/ui/refresh-notice — the web notice for a failed refresh of data that stays on screen.\n\nWhile nothing has failed it renders only a `status` region, mounted EMPTY, so a failure announces when its text\nappears. On failure the region says what happened and a visible row shows the same message with a Try again\nbutton. The rows the viewer is reading are still valid, so the region is POLITE — unlike `LoadMoreControl`'s\nassertive alert, which reports an action the viewer just took failing.\n\nA retry in flight keeps the message and the SAME button (busy through `Button`, i.e. `busyControlProps`): unmounting the pressed\nbutton would drop its focus to `<body>` (WCAG 2.2 SC 2.4.3). Only the announcement clears, so a second failure is\nannounced again. A successful refresh removes the row; where focus goes then is the surface's decision, because\nonly the surface knows what it would land on.\n\nThe button is the quiet `Button` with the retry glyph. It used to carry a `lineDivider` hairline and a `canvas` fill so\na text-only control on a `surfaceMuted` row read as pressable; the `actionText` glyph is that cue now, and the tonal\nfill is a chip's (`componentFixes.md` §4), so the control draws none.\n\nA presentational leaf: the caller derives `failed` and `refreshing` from its query.",
+                    "moduleDoc": "@commise/ui/refresh-notice — the web notice for a failed refresh of data that stays on screen.\n\nWhile nothing has failed it renders only a `status` region, mounted EMPTY, so a failure announces when its text\nappears. On failure the region says what happened and a visible row shows the same message with a Try again\nbutton. The rows the viewer is reading are still valid, so the region is POLITE — unlike `LoadMoreControl`'s\nassertive alert, which reports an action the viewer just took failing.\n\nA retry in flight keeps the message and the SAME button (busy through `Button`, i.e. `busyControlProps`): unmounting the pressed\nbutton would drop its focus to `<body>` (WCAG 2.2 SC 2.4.3). Only the announcement clears, so a second failure is\nannounced again. A successful refresh removes the row; where focus goes then is the surface's decision, because\nonly the surface knows what it would land on.\n\nThe button is the quiet `Button` with the retry glyph. It used to carry a `lineDivider` hairline and a `canvas` fill so\na text-only control on a `surfaceMuted` row read as pressable; the `actionText` glyph is that cue now, and the tonal\nfill is a chip's (`componentFixes.md` §4), so the control draws none. The row IS `surfaceMuted`, so the button says\n`over=\"muted\"` and presses to `lineDivider`: a `surfaceMuted` press would be the row's own colour and show nothing.\n\nA presentational leaf: the caller derives `failed` and `refreshing` from its query.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12535,7 +12559,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/statusBadge/StatusBadge.native.tsx",
                     "dir": "packages/apps/commise/ui/src/statusBadge",
-                    "moduleDoc": "@commise/ui/status-badge — the native badge that states a status (`Draft`, `Custom`, `Needs review`, …).\n\nReact Native's nested `Text` takes no reliable radius or padding, so the badge is a `View` holding the glyph and a\n`Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the\nweb leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its\nfill, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.",
+                    "moduleDoc": "@commise/ui/status-badge — the native badge that states a status (`Draft`, `Custom`, `Needs review`, …).\n\nReact Native's nested `Text` takes no reliable radius or padding, so the badge is a `View` holding the glyph and a\n`Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the\nweb leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its\nfill, a neutral one wears a 1 pt `lineDivider` edge, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -22,7 +22,7 @@ export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, chi
                         label={home.seeAllLabel}
                         {...(seeAll.href === undefined ? {} : { href: seeAll.href })}
                         onPress={seeAll.onPress}
-                        className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-label text-action-text hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-label text-action-text hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         {home.seeAll}
                     </RouteAction>

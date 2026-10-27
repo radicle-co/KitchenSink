@@ -54,7 +54,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                                     blocked: option.blocked,
                                                     onClick: () => onPick(option.candidateId),
                                                 })}
-                                                className={`w-full rounded-lg px-3 py-2 text-left text-body-sm text-ink transition hover:bg-ink/6 ${BUSY_CONTROL_CLASS}`}
+                                                className={`w-full rounded-lg px-3 py-2 text-left text-body-sm text-ink transition hover:bg-surface-muted ${BUSY_CONTROL_CLASS}`}
                                             >
                                                 {option.name}
                                                 {option.summary !== undefined && (

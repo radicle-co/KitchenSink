@@ -408,7 +408,7 @@ describe('RecipeBrowseRails (web) — text contrast (WCAG 2.1 AA)', () => {
         ).toBeGreaterThanOrEqual(4.5);
         expect(
             utilityContrast(seeAll.className, { surface: semantic.background, variant: 'hover' }),
-            'see-all under its hover:bg-ink/6 tint',
+            'see-all under its hover:bg-surface-muted fill',
         ).toBeGreaterThanOrEqual(4.5);
     });
 });

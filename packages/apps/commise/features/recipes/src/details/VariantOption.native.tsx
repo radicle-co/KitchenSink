@@ -44,7 +44,7 @@ export const VariantOption: FC<VariantOptionProps> = ({
     fontScale,
     onPick,
 }) => {
-    // Colour from the theme at render (D15): the press wash is `ink` at 6% (the web twin's `hover:bg-ink/6`).
+    // Colour from the theme at render (D15): the press wash is `surfaceMuted` (the web twin's `hover:bg-surface-muted`).
     const { colors, wash } = useTheme();
 
     return (

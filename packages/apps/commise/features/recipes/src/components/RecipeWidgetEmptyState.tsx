@@ -39,7 +39,7 @@ export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ firstR
                     <RouteAction
                         {...(firstRun.discoverHref === undefined ? {} : { href: firstRun.discoverHref })}
                         onPress={firstRun.onFindOnDiscover}
-                        className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-label text-action-text hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-label text-action-text hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         <Icon name="compass" size={20} />
                         {home.findOnDiscover}

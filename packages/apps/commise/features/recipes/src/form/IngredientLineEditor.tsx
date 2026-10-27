@@ -154,7 +154,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     type="button"
                     aria-expanded={view.detailsOpen}
                     onClick={view.onToggleDetails}
-                    className="inline-flex min-h-11 items-center rounded-full px-3 text-body-md font-medium text-action-text transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="inline-flex min-h-11 items-center rounded-full px-3 text-body-md font-medium text-action-text transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                     {m.rowFoodDetails}
                 </button>

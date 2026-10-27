@@ -210,7 +210,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                                                         name: ingredient.name,
                                                     })}
                                                     onClick={() => pressIngredient(action)}
-                                                    className="min-h-11 w-full rounded-md px-3 text-start text-body text-ink hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                                    className="min-h-11 w-full rounded-md px-3 text-start text-body text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                                                 >
                                                     {ingredient.name}
                                                 </button>

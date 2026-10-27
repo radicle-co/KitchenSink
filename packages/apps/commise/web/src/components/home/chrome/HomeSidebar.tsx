@@ -127,7 +127,7 @@ export function HomeSidebar({
                                 className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
                                     active
                                         ? 'bg-selected-fill font-semibold text-ink'
-                                        : 'text-ink-muted hover:bg-ink/6 hover:text-ink'
+                                        : 'text-ink-muted hover:bg-surface-muted hover:text-ink'
                                 }`}
                             >
                                 <span
@@ -148,7 +148,7 @@ export function HomeSidebar({
                 <Link
                     href={`/${locale}/profile` as Route}
                     aria-label={profileLabel}
-                    className={`${ROW_CLASS} mx-3 text-ink hover:bg-ink/6 ${collapsed ? 'justify-center' : ''}`}
+                    className={`${ROW_CLASS} mx-3 text-ink hover:bg-surface-muted ${collapsed ? 'justify-center' : ''}`}
                 >
                     <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
                     {collapsed ? null : (
@@ -165,7 +165,7 @@ export function HomeSidebar({
                         onClick={onToggleCollapse}
                         aria-expanded={!collapsed}
                         aria-label={collapsed ? chrome.expandNav : undefined}
-                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted hover:bg-ink/6 hover:text-ink ${
+                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted hover:bg-surface-muted hover:text-ink ${
                             collapsed ? 'justify-center' : ''
                         }`}
                     >

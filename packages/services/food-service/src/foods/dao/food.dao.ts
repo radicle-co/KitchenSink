@@ -724,7 +724,10 @@ export class FoodDao {
                 .from(foodPortions)
                 .leftJoin(foodSources, eq(foodSources.id, foodPortions.sourceId))
                 .leftJoin(foodNutritionCitation, eq(foodNutritionCitation.id, foodPortions.citationId))
-                .where(eq(foodPortions.itemId, itemId)),
+                // Same total order as `rootPortionRows`: the id is a monotonic ULID (`ulid.ts`), unique, so it is both
+                // the sequence (insertion order) and its own tiebreak. Without it the rows arrive in heap order.
+                .where(eq(foodPortions.itemId, itemId))
+                .orderBy(foodPortions.id),
             this.db
                 .select({ field: foodFieldProvenance.field, sourceId: foodFieldProvenance.sourceId })
                 .from(foodFieldProvenance)

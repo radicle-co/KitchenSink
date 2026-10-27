@@ -8,9 +8,7 @@ import { themeFor } from '@commise/ui/theme';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import type { ComponentProps, ReactElement } from 'react';
-import { createElement } from 'react';
-import type { Pressable as PressableType } from 'react-native';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '@commise/i18n/react';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
@@ -21,23 +19,10 @@ const press = vi.hoisted(() => ({ pressed: false }));
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+    const { pressedPressable } = await import('@commise/ui/testing/pressed-pressable');
     const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return {
-        ...actual,
-        Pressable: (props: ComponentProps<typeof PressableType>) =>
-            press.pressed
-                ? createElement(
-                      actual.View,
-                      {
-                          role: (props.role ?? props.accessibilityRole) as never,
-                          'aria-label': props['aria-label'] ?? props.accessibilityLabel,
-                          style: typeof props.style === 'function' ? props.style({ pressed: true }) : props.style,
-                      },
-                      props.children as never,
-                  )
-                : createElement(actual.Pressable, props),
-    };
+    return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
 });
 
 afterEach(() => {

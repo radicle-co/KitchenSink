@@ -15,33 +15,10 @@ const press = vi.hoisted(() => ({ pressed: false }));
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('../../testing/systemColorScheme.js');
-    const { createElement } = await import('react');
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
     const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return {
-        ...actual,
-        Pressable: (props: {
-            readonly children: unknown;
-            readonly style: (state: { pressed: boolean }) => Record<string, unknown>;
-            readonly accessibilityRole?: 'button';
-            readonly accessibilityLabel?: string;
-            readonly role?: string;
-            readonly 'aria-label'?: string;
-            readonly 'aria-checked'?: boolean;
-        }) =>
-            createElement(
-                actual.View,
-                {
-                    role: (props.role ?? props.accessibilityRole) as never,
-                    'aria-label': props['aria-label'] ?? props.accessibilityLabel,
-                    'aria-checked': props['aria-checked'],
-                    style: typeof props.style === 'function' ? props.style({ pressed: press.pressed }) : props.style,
-                },
-                typeof props.children === 'function'
-                    ? (props.children as (state: { pressed: boolean }) => never)({ pressed: press.pressed })
-                    : (props.children as never),
-            ),
-    };
+    return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
 });
 
 import { Button } from '../../button/Button.native.js';

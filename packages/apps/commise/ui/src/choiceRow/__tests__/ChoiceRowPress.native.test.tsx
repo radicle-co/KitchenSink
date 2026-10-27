@@ -4,8 +4,6 @@
  * does not toggle `pressed` from jsdom events, so it is stood in for by one that renders its `pressed` branch.
  */
 import { cleanup, render, screen } from '@testing-library/react';
-import { createElement, type ComponentProps } from 'react';
-import type { Pressable as PressableType } from 'react-native';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,21 +14,10 @@ import { ChoiceRow } from '../ChoiceRow.native.js';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('../../testing/systemColorScheme.js');
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
     const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return {
-        ...actual,
-        Pressable: (props: ComponentProps<typeof PressableType>) =>
-            createElement(
-                actual.View,
-                {
-                    role: (props.role ?? props.accessibilityRole) as never,
-                    'aria-label': props['aria-label'] ?? props.accessibilityLabel,
-                    style: typeof props.style === 'function' ? props.style({ pressed: true }) : props.style,
-                },
-                props.children as never,
-            ),
-    };
+    return { ...actual, Pressable: pressedPressable(actual) };
 });
 
 afterEach(() => {

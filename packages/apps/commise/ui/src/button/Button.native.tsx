@@ -14,7 +14,7 @@
  * - **Type**: the label is the `cardTitle` role (16/20/600, owner ruling B1) — one registered Inter face per weight and never a `fontWeight` (§1.5),
  *   which on Android resolves to a synthesised or system bold instead of the face.
  * - **Press**: the pill scales to 0.98 (`PressScale`, skipped under reduce-motion) AND paints its press fill
- *   (`buttonSurfacePaint`: `theme.wash`, `lineDivider` over a muted parent, `actionPressed` on primary). The paint is not
+ *   (`buttonSurfacePaint`: the press of the surface it sits on, `actionPressed` on primary). The paint is not
  *   gated by reduce-motion, so a quiet or ghost button always answers the touch.
  * - **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to
  *   40%.
@@ -32,6 +32,7 @@
 import { useRef, type FC, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
+import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
@@ -86,11 +87,16 @@ export const Button: FC<ButtonProps> = (props) => {
         iconPlacement = 'start',
         focusRequested = false,
         onFocusRequestHandled,
-        over = 'paper',
     } = props;
-    const { variant, tone } = surfaceOf(props);
+    const { variant, tone: destructiveTone } = surfaceOf(props);
+    // The surface the button sits on, stated once by its container (`componentFixes.md` §10): it decides the press fill.
+    const tone = useSurfaceTone();
     const surface: ButtonSurface =
-        variant === 'destructive' ? (tone === 'confirm' ? 'destructiveConfirm' : 'destructiveInline') : variant;
+        variant === 'destructive'
+            ? destructiveTone === 'confirm'
+                ? 'destructiveConfirm'
+                : 'destructiveInline'
+            : variant;
     const foreground = FOREGROUND[surface];
     const glyphRole = GLYPH[surface];
     const theme = useTheme();
@@ -130,7 +136,7 @@ export const Button: FC<ButtonProps> = (props) => {
             style={[
                 styles.base,
                 geometry,
-                buttonSurfacePaint(theme, surface, pressed && !inactive, over),
+                buttonSurfacePaint(theme, surface, tone, pressed && !inactive),
                 inactive ? styles.inactive : null,
             ]}
         >

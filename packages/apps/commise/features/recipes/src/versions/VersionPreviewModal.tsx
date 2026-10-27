@@ -35,6 +35,7 @@ import { useMessages } from '@commise/i18n/react';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import { type FC } from 'react';
 
@@ -93,7 +94,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-xl bg-paper p-6 shadow-lg md:max-w-2xl"
+                    className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg md:max-w-2xl`}
                 >
                     <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 

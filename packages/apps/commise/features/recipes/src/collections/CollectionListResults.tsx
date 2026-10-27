@@ -20,6 +20,8 @@ import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
 import { SearchField } from '@commise/ui/search-field';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import { useId, type FC } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
@@ -103,53 +105,57 @@ const CollectionCard: FC<{
                     ? fillTemplate(list.cardLabel, { name: collection.name, visibility })
                     : fillTemplate(list.cardLabelCounted, { name: collection.name, count, visibility })
             }
-            className="relative flex h-full flex-col rounded-md border border-line-divider bg-paper shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100"
+            // The article carries the focus ring, the shadow and the press scale; the paper surface is the div inside it. A
+            // tone set on the SAME element as the ring would make the ring's gap paper instead of what the card sits on.
+            className={`relative h-full rounded-md shadow-sm ${FOCUS_RING_CLASS.within} pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100`}
         >
-            <div className="overflow-hidden rounded-t-md">
-                <CollectionCover collection={collection} />
-            </div>
-            <div className="flex flex-col gap-1 p-3">
-                <h2 className="line-clamp-2 text-card-title text-ink">
-                    {href === undefined ? (
-                        <button
-                            type="button"
-                            className={`text-start ${stretch}`}
-                            onClick={() => onSelect(collection.id)}
-                        >
-                            {collection.name}
-                        </button>
-                    ) : (
-                        <a
-                            href={href}
-                            className={stretch}
-                            onClick={(event) => {
-                                if (!isModifiedClick(event)) {
-                                    event.preventDefault();
-                                    onSelect(collection.id);
-                                }
-                            }}
-                        >
-                            {collection.name}
-                        </a>
-                    )}
-                </h2>
-                <p className="flex flex-wrap items-center gap-x-1 text-meta text-ink-muted">
-                    {count === undefined ? null : (
-                        <>
-                            <span>{count}</span>
-                            <span aria-hidden="true">{card.separator.trim()}</span>
-                        </>
-                    )}
-                    <span className="inline-flex items-center gap-1">
-                        <Icon name={collection.visibility === 'public' ? 'globe' : 'lock'} size={16} />
-                        {visibility}
-                    </span>
-                </p>
-                {copiedFrom === undefined ? null : (
-                    <p className="truncate text-caption text-ink-muted">
-                        {fillTemplate(list.copiedFrom, { byline: copiedFrom })}
+            <div className={`flex h-full flex-col rounded-md border border-line-divider ${surfaceToneClass('paper')}`}>
+                <div className="overflow-hidden rounded-t-md">
+                    <CollectionCover collection={collection} />
+                </div>
+                <div className="flex flex-col gap-1 p-3">
+                    <h2 className="line-clamp-2 text-card-title text-ink">
+                        {href === undefined ? (
+                            <button
+                                type="button"
+                                className={`text-start ${stretch}`}
+                                onClick={() => onSelect(collection.id)}
+                            >
+                                {collection.name}
+                            </button>
+                        ) : (
+                            <a
+                                href={href}
+                                className={stretch}
+                                onClick={(event) => {
+                                    if (!isModifiedClick(event)) {
+                                        event.preventDefault();
+                                        onSelect(collection.id);
+                                    }
+                                }}
+                            >
+                                {collection.name}
+                            </a>
+                        )}
+                    </h2>
+                    <p className="flex flex-wrap items-center gap-x-1 text-meta text-ink-muted">
+                        {count === undefined ? null : (
+                            <>
+                                <span>{count}</span>
+                                <span aria-hidden="true">{card.separator.trim()}</span>
+                            </>
+                        )}
+                        <span className="inline-flex items-center gap-1">
+                            <Icon name={collection.visibility === 'public' ? 'globe' : 'lock'} size={16} />
+                            {visibility}
+                        </span>
                     </p>
-                )}
+                    {copiedFrom === undefined ? null : (
+                        <p className="truncate text-caption text-ink-muted">
+                            {fillTemplate(list.copiedFrom, { byline: copiedFrom })}
+                        </p>
+                    )}
+                </div>
             </div>
         </article>
     );

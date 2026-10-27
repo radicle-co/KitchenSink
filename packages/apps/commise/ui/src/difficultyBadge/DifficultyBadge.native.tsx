@@ -31,8 +31,6 @@ export const DifficultyBadge: FC<DifficultyBadgeProps> = ({ level, children }) =
                     return (
                         <View
                             key={index}
-                            // A data attribute, so a test can read the meter without a test id.
-                            {...{ dataSet: { meterDot: filled ? 'filled' : 'empty' } }}
                             style={[
                                 styles.dot,
                                 { borderColor: tone.text, backgroundColor: filled ? tone.text : 'transparent' },

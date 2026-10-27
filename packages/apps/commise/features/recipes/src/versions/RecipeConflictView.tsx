@@ -37,6 +37,7 @@
 import { Button, busyControlProps } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useId } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
@@ -102,7 +103,7 @@ const OptionCard: FC<ConflictOptionCardProps & { readonly busy: boolean }> = ({
             {...busyControlProps({ busy: busy && !disabled, blocked: disabled, onClick: onChoose })}
             aria-label={title}
             aria-describedby={descriptionId}
-            className={`flex flex-1 flex-col gap-1 rounded-lg bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:bg-surface-muted disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
+            className={`flex flex-1 flex-col gap-1 rounded-lg bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition ${PRESS_FILL_CLASS.pointer} disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
         >
             <span aria-hidden="true" className="font-display text-body-lg font-semibold text-ink">
                 {title}
@@ -228,7 +229,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 role="radiogroup"
                                 // The name carries a variant's parts (R27); the legend stays the plain label (R25).
                                 aria-label={conflictRowName(row, conflict)}
-                                className="flex flex-col gap-2 rounded-lg bg-paper p-4 ring-1 ring-line-divider"
+                                className={`flex flex-col gap-2 rounded-lg ${surfaceToneClass('paper')} p-4 ring-1 ring-line-divider`}
                             >
                                 <legend className="text-label text-ink-muted">{label}</legend>
                                 {/* Server FIRST, then Yours (X7). */}

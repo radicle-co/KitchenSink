@@ -17,6 +17,7 @@ import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { importMessages } from './messages.js';
 import type { ImportReviewRailProps } from './props.js';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 
 /** The review's recipe rail. */
 export const ImportReviewRail: FC<ImportReviewRailProps> = ({
@@ -42,7 +43,7 @@ export const ImportReviewRail: FC<ImportReviewRailProps> = ({
                                 type="button"
                                 aria-current={current ? 'step' : undefined}
                                 onClick={() => onOpenRecipe(recipe.id)}
-                                className={`flex min-h-11 w-full items-center rounded-md px-3 py-1.5 text-left text-meta outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
+                                className={`flex min-h-11 w-full items-center rounded-md px-3 py-1.5 text-left text-meta ${FOCUS_RING_CLASS.offset} ${
                                     current
                                         ? 'bg-selected-fill font-semibold text-ink ring-2 ring-inset ring-selected-edge'
                                         : 'text-ink'

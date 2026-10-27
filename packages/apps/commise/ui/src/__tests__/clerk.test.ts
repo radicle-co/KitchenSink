@@ -18,6 +18,7 @@ import { parse, wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
 import { CLERK_CSS_LAYER, clerkAppearanceFor } from '../clerk.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { themeFor, type ColorSchemeName } from '../theme/themeFor.js';
 import type { Role } from '../tokens/colors.js';
 
@@ -156,6 +157,27 @@ describe.each(SCHEMES)('clerkAppearanceFor(%s) — elements measured through the
                 wcagContrast(colour(scheme, text), colour(scheme, surface)),
                 `${key} on ${surface}`,
             ).toBeGreaterThanOrEqual(AA_TEXT);
+        }
+    });
+
+    // `componentFixes.md` §10: Clerk renders the card, so the app cannot wear `Surface` around it; the card states the surface
+    // it paints through its own classes. It is `paper` from 480 up to the wide layout (where it is the canvas again), and a
+    // field's focus-ring gap and a social button's press read it. Written after the code it covers.
+    it('states the surface the card paints, at every width, for the fields and buttons inside it', () => {
+        const stated = (variant: string, property: '--cm-surface' | '--cm-press'): string | undefined =>
+            card.filter((name) => name.startsWith(`${variant}[${property}:`)).at(-1);
+
+        expect(stated('min-[480px]:', '--cm-surface')).toBe('min-[480px]:[--cm-surface:var(--color-paper)]');
+        expect(stated('min-[480px]:', '--cm-press')).toBe('min-[480px]:[--cm-press:var(--color-press-paper)]');
+        expect(stated('lg:', '--cm-surface')).toBe('lg:[--cm-surface:var(--color-canvas)]');
+        expect(stated('lg:', '--cm-press')).toBe('lg:[--cm-press:var(--color-press-canvas)]');
+        // …and it states exactly what it paints: paper where it fills, the canvas where it is transparent.
+        expect(card).toEqual(expect.arrayContaining(['min-[480px]:bg-paper', 'lg:bg-transparent']));
+    });
+
+    it('draws the field focus ring from the one recipe, so its gap is the card’s surface', () => {
+        for (const key of ['formFieldInput', 'otpCodeFieldInput'] as const) {
+            expect(classesOf(elements[key]), key).toEqual(expect.arrayContaining(FOCUS_RING_CLASS.offset.split(' ')));
         }
     });
 

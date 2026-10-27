@@ -12,6 +12,7 @@ import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** Props of one option. */
 export interface VariantOptionProps {
@@ -45,7 +46,8 @@ export const VariantOption: FC<VariantOptionProps> = ({
     onPick,
 }) => {
     // Colour from the theme at render (D15): the press wash is `surfaceMuted` (the web twin's `hover:bg-surface-muted`).
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     return (
         <Pressable

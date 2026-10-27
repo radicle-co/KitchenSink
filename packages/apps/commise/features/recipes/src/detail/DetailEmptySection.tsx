@@ -22,7 +22,7 @@ export const DetailEmptySection: FC<DetailEmptySectionProps> = ({ text, action, 
     <div className="flex flex-col items-start gap-2 py-2">
         <p className="text-body text-ink-muted">{text}</p>
         {action !== undefined && (
-            <Link href={action} className={buttonSurfaceClass('ghost', 'sm')}>
+            <Link href={action} className={buttonSurfaceClass('ghost', { size: 'sm' })}>
                 <Icon name="plus" size={16} />
                 {actionLabel}
             </Link>

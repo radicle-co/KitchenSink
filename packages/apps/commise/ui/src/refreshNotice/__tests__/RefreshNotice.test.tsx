@@ -3,6 +3,8 @@ import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buttonSurfaceClass } from '../../button/surfaceClass.js';
+import { PRESS_FILL_CLASS, surfaceToneClass } from '../../surfaceTone/surfaceToneClass.js';
+import { surfaceToneOf } from '../../testing/surfaceToneOf.js';
 import type { RefreshNoticeProps } from '../props.js';
 import { RefreshNotice } from '../RefreshNotice.js';
 
@@ -14,16 +16,16 @@ function notice(overrides: Partial<RefreshNoticeProps> = {}): ReactElement {
     return <RefreshNotice failed={false} refreshing={false} onRetry={vi.fn()} labels={labels} {...overrides} />;
 }
 
-// Parity items 6 and 9: the quiet Try again sits on a surfaceMuted row, where a surfaceMuted press fill is invisible, so
-// it presses to lineDivider (as a chip does); and the row is a notice, the 18 px step (`rounded-lg`), not Tailwind's
-// off-scale 16 px `rounded-2xl`.
-describe('RefreshNotice (web) — over a muted row', () => {
-    it('presses Try again to lineDivider, never the invisible surfaceMuted', () => {
+// The row is `surfaceMuted`, so it STATES that surface (`componentFixes.md` §10) and its Try again reads it: the press is the
+// muted row's, with no `over` prop. The row is a notice, the 18 px step (`rounded-lg`), not Tailwind's off-scale 16 px
+// `rounded-2xl`.
+describe('RefreshNotice (web) — a muted surface', () => {
+    it('states the muted tone around Try again, and Try again presses to the surface’s fill', () => {
         render(notice({ failed: true }));
-        const tokens = screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u);
+        const button = screen.getByRole('button', { name: 'Try again' });
 
-        expect(tokens).toEqual(expect.arrayContaining(['hover:bg-line-divider', 'active:bg-line-divider']));
-        expect(tokens).not.toContain('active:bg-surface-muted');
+        expect(surfaceToneOf(button)).toBe('muted');
+        expect(button.className.split(/\s+/u)).toEqual(expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')));
     });
 
     it('draws the row on the notice radius step', () => {
@@ -31,7 +33,7 @@ describe('RefreshNotice (web) — over a muted row', () => {
         const row = screen.getByText(labels.failed, { selector: 'p:not([role])' }).parentElement;
         const tokens = (row?.className ?? '').split(/\s+/u);
 
-        expect(tokens).toContain('bg-surface-muted');
+        expect(tokens).toEqual(expect.arrayContaining(surfaceToneClass('muted').split(' ')));
         expect(tokens).toContain('rounded-lg');
         expect(tokens).not.toContain('rounded-2xl');
     });
@@ -122,7 +124,7 @@ describe('RefreshNotice (web)', () => {
         const button = screen.getByRole('button', { name: 'Try again' });
 
         // The row is surfaceMuted, so the quiet button says it sits over a muted parent: the quiet surface, press fill aside.
-        expect(button.className).toBe(buttonSurfaceClass('quiet', 'md', 'muted'));
+        expect(button.className).toBe(buttonSurfaceClass('quiet'));
         expect(button.className).not.toMatch(/\bbg-canvas\b|\bborder\b/u);
         expect(container.querySelector('svg.lucide-refresh-cw')).not.toBeNull();
     });

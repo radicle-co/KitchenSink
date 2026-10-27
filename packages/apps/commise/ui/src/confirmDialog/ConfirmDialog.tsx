@@ -21,6 +21,7 @@ import { buttonSurfaceClass } from '../button/surfaceClass.js';
 import { useReturnFocusOnClose } from '../dialogFocus/useReturnFocusOnClose.js';
 import { Icon } from '../icon/Icon.js';
 import type { ConfirmDialogProps } from './props.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 export const ConfirmDialog: FC<ConfirmDialogProps> = ({
     open,
@@ -46,7 +47,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                 <AlertDialog.Content
                     aria-modal="true"
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl bg-paper-overlay p-6 shadow-lg"
+                    className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
                 >
                     <AlertDialog.Title className="text-section-title text-ink">{title}</AlertDialog.Title>
                     <AlertDialog.Description className="text-body text-ink-muted">{body}</AlertDialog.Description>

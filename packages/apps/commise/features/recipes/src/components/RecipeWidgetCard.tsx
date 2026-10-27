@@ -5,6 +5,8 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { RouteAction } from '@commise/ui/route-link';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -22,7 +24,7 @@ export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, chi
                         label={home.seeAllLabel}
                         {...(seeAll.href === undefined ? {} : { href: seeAll.href })}
                         onPress={seeAll.onPress}
-                        className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-label text-action-text hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className={`inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-label text-action-text ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                     >
                         {home.seeAll}
                     </RouteAction>

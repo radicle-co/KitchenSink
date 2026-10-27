@@ -16,6 +16,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FC } from 'react';
 
@@ -23,15 +24,14 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { DISCOVERY_SORTS, discoverySortLabel, isDiscoverySort, type RecipeDiscoverySortControl } from './model.js';
 
-const ITEM =
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-surface-muted';
+const ITEM = `flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none ${PRESS_FILL_CLASS.highlighted}`;
 
 export const DiscoverySortMenu: FC<RecipeDiscoverySortControl> = ({ active, onChange }) => {
     const discovery = useMessages(discoveryMessages);
 
     return (
         <DropdownMenu.Root>
-            <DropdownMenu.Trigger className={buttonSurfaceClass('ghost', 'sm')}>
+            <DropdownMenu.Trigger className={buttonSurfaceClass('ghost', { size: 'sm' })}>
                 <span>{fillTemplate(discovery.sortButton, { choice: discoverySortLabel(active, discovery) })}</span>
                 <Icon name="chevronDown" size={16} />
             </DropdownMenu.Trigger>
@@ -40,7 +40,7 @@ export const DiscoverySortMenu: FC<RecipeDiscoverySortControl> = ({ active, onCh
                     align="end"
                     sideOffset={4}
                     collisionPadding={8}
-                    className="z-50 min-w-[12rem] rounded-lg bg-paper-overlay p-1 shadow-lg"
+                    className={`z-50 min-w-[12rem] rounded-lg ${surfaceToneClass('paperOverlay')} p-1 shadow-lg`}
                 >
                     <DropdownMenu.RadioGroup
                         value={active}

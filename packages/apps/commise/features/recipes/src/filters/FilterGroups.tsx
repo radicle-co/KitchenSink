@@ -25,6 +25,8 @@ import { Chip, ChipRow } from '@commise/ui/chip';
 import { focusIfLost, useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { SearchField } from '@commise/ui/search-field';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useEffect, useId, useState, type FC, type ReactElement, type ReactNode } from 'react';
 
 import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
@@ -115,7 +117,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                             <button
                                 type="button"
                                 onClick={() => toggleExpanded(id)}
-                                className="self-start rounded-full px-1 py-2 text-label text-action-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                className={`self-start rounded-full px-1 py-2 text-label text-action-text hover:underline ${FOCUS_RING_CLASS.offset}`}
                             >
                                 {expanded.has(id) ? m.showFewer : fillTemplate(m.showAll, { n: group.chips.length })}
                             </button>
@@ -154,7 +156,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                             <p
                                 ref={fullNoteRef}
                                 tabIndex={-1}
-                                className="rounded-md text-body text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                className={`rounded-md text-body text-ink-muted ${FOCUS_RING_CLASS.offset}`}
                             >
                                 {fillTemplate(m.ingredientFilterFull, { max: group.search.max })}
                             </p>
@@ -210,7 +212,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                                                         name: ingredient.name,
                                                     })}
                                                     onClick={() => pressIngredient(action)}
-                                                    className="min-h-11 w-full rounded-md px-3 text-start text-body text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                                    className={`min-h-11 w-full rounded-md px-3 text-start text-body text-ink ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                                                 >
                                                     {ingredient.name}
                                                 </button>
@@ -244,7 +246,9 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                 if (slot.kind === 'disclosure') {
                     return (
                         <details key={slot.id} open={slot.open} className="group/more flex flex-col gap-3">
-                            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md text-label text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+                            <summary
+                                className={`flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md text-label text-ink ${FOCUS_RING_CLASS.offset}`}
+                            >
                                 {slot.label}
                                 {/* The disclosure's affordance (§4.4): a chevron that turns over while the group is open. */}
                                 <span

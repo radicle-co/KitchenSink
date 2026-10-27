@@ -2,7 +2,7 @@
  * The native Button's PRESS paint (parity item 4, `componentFixes` §5 and the web twin `surfaceClass.ts`).
  *
  * Before: a native Button showed only a 0.98 scale, and under reduce-motion NOTHING, so a quiet or ghost button showed no
- * press at all. Now the press paints `theme.wash` (`lineDivider` over a muted parent) under the scale, and the paint is
+ * press at all. Now the press paints the press fill of the surface the button sits on (`theme.press`, the canvas row outside any surface) under the scale, and the paint is
  * NOT gated by reduce-motion: motion is non-essential, a response to the touch is not.
  *
  * react-native-web's `Pressable` does not toggle `pressed` from synthetic jsdom events (see `PressScale.native.test`), so
@@ -44,6 +44,7 @@ vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () =
 
 import { themeFor } from '../../theme/themeFor.js';
 import { RefreshNotice } from '../../refreshNotice/RefreshNotice.native.js';
+import { Surface } from '../../surfaceTone/Surface.native.js';
 import { Button } from '../Button.native.js';
 
 afterEach(() => {
@@ -79,14 +80,14 @@ describe('Button (native) — the press paint', () => {
         const { rerender } = render(<Button variant={variant}>Try again</Button>);
 
         expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Try again' }))).backgroundColor).not.toBe(
-            rgb(light.wash),
+            rgb(light.press.canvas),
         );
 
         press.pressed = true;
         rerender(<Button variant={variant}>Try again</Button>);
 
         expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Try again' }))).backgroundColor).toBe(
-            rgb(light.wash),
+            rgb(light.press.canvas),
         );
     });
 
@@ -96,7 +97,7 @@ describe('Button (native) — the press paint', () => {
         render(<Button variant="quiet">Try again</Button>);
         const button = screen.getByRole('button', { name: 'Try again' });
 
-        expect(getComputedStyle(pillOf(button)).backgroundColor).toBe(rgb(light.wash));
+        expect(getComputedStyle(pillOf(button)).backgroundColor).toBe(rgb(light.press.canvas));
         expect(button.style.transform).toBe('scale(1)');
     });
 
@@ -107,17 +108,17 @@ describe('Button (native) — the press paint', () => {
         expect(screen.getByRole('button', { name: 'Try again' }).style.transform).not.toBe('scale(1)');
     });
 
-    it('presses to lineDivider over a muted parent, where the wash would not show', () => {
+    it('presses to the muted surface’s press fill inside a muted surface, which the page’s press would not match', () => {
         press.pressed = true;
         render(
-            <Button variant="quiet" over="muted">
-                Try again
-            </Button>,
+            <Surface tone="muted">
+                <Button variant="quiet">Try again</Button>
+            </Surface>,
         );
+        const fill = getComputedStyle(pillOf(screen.getByRole('button', { name: 'Try again' }))).backgroundColor;
 
-        expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Try again' }))).backgroundColor).toBe(
-            rgb(light.colors.lineDivider),
-        );
+        expect(fill).toBe(rgb(light.press.muted));
+        expect(fill).not.toBe(rgb(light.press.canvas));
     });
 
     it('presses a secondary button to the wash but keeps its lineControl edge', () => {
@@ -129,7 +130,7 @@ describe('Button (native) — the press paint', () => {
         );
         const pill = getComputedStyle(pillOf(screen.getByRole('button', { name: 'Done' })));
 
-        expect(pill.backgroundColor).toBe(rgb(light.wash));
+        expect(pill.backgroundColor).toBe(rgb(light.press.canvas));
         expect(pill.borderTopColor).toBe(rgb(light.colors.lineControl));
     });
 
@@ -143,9 +144,9 @@ describe('Button (native) — the press paint', () => {
     });
 });
 
-// Parity item 6: the notice's quiet Try again sits on a surfaceMuted row, so its press must show against it.
-describe('RefreshNotice (native) — Try again over the muted row', () => {
-    it('presses to lineDivider, not the wash that matches the row', () => {
+// The notice STATES the muted surface and its quiet Try again reads it: the press is the muted row's, not the page's.
+describe('RefreshNotice (native) — Try again on the muted row', () => {
+    it('presses to the muted surface’s press fill, not the page’s', () => {
         press.pressed = true;
         render(
             <RefreshNotice
@@ -157,7 +158,7 @@ describe('RefreshNotice (native) — Try again over the muted row', () => {
         );
         const fill = getComputedStyle(pillOf(screen.getByRole('button', { name: 'Try again' }))).backgroundColor;
 
-        expect(fill).toBe(rgb(light.colors.lineDivider));
-        expect(fill).not.toBe(rgb(light.colors.surfaceMuted));
+        expect(fill).toBe(rgb(light.press.muted));
+        expect(fill).not.toBe(rgb(light.press.canvas));
     });
 });

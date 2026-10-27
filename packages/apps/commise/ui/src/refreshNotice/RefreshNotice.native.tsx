@@ -16,10 +16,11 @@
  *     contract as the web leaf
  */
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Button } from '../button/Button.native.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { RefreshNoticeProps } from './props.js';
@@ -34,11 +35,10 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                 {failed && !refreshing ? labels.failed : ''}
             </LiveRegion>
             {failed && (
-                <View style={[styles.row, { backgroundColor: colors.surfaceMuted }]}>
+                <Surface tone="muted" style={styles.row}>
                     <Text style={[styles.message, { color: colors.inkMuted }]}>{labels.failed}</Text>
                     <Button
                         variant="quiet"
-                        over="muted"
                         icon="refreshCw"
                         busy={refreshing}
                         onPress={onRetry}
@@ -46,7 +46,7 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                     >
                         {labels.retry}
                     </Button>
-                </View>
+                </Surface>
             )}
         </>
     );

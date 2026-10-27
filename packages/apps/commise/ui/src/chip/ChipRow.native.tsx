@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { nativeTokens } from '../tokens/native.js';
+import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { visibleChipLabel } from './chipLabel.js';
 import { CHIP_LABEL_LINES, chipHit, chipHitHeight, chipLabel, chipPill } from './chipStyle.js';
@@ -60,6 +61,7 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
     surface = 'canvas',
 }) => {
     const theme = useTheme();
+    const tone = useSurfaceTone();
 
     return (
         <View collapsable={false} role="radiogroup" aria-label={label}>
@@ -83,7 +85,7 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
                             style={[chipHit, { minHeight: chipHitHeight() }]}
                         >
                             {({ pressed }) => (
-                                <View style={chipPill(theme, chosen, pressed)}>
+                                <View style={chipPill(theme, chosen, pressed, tone)}>
                                     {chosen ? <Icon name="check" size={16} tone="actionText" /> : null}
                                     <Text style={chipLabel(theme, chosen)} numberOfLines={CHIP_LABEL_LINES}>
                                         {visibleChipLabel(option.label)}

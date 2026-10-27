@@ -29,6 +29,8 @@ import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import type { PopoverProps } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /**
  * The busy glyph, in the icon's own box: `currentColor`, and still under `prefers-reduced-motion` (it then shows as a
@@ -85,9 +87,9 @@ export const Popover: FC<PopoverProps> = ({
                 aria-describedby={describedBy}
                 className={
                     triggerText === undefined
-                        ? 'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
+                        ? `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`
                         : // The attention line: at least 32 px tall (2.5.8 asks 24), its words in `attention`.
-                          'inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
+                          `inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline ${FOCUS_RING_CLASS.offset}`
                 }
             >
                 <span aria-hidden="true" className="inline-flex">
@@ -107,7 +109,7 @@ export const Popover: FC<PopoverProps> = ({
                     onCloseAutoFocus={() => {
                         onDismissed?.();
                     }}
-                    className="z-50 flex w-[min(20rem,calc(100vw-1rem))] items-start gap-2 rounded-lg bg-paper-overlay py-2 pl-4 pr-2 shadow-lg"
+                    className={`z-50 flex w-[min(20rem,calc(100vw-1rem))] items-start gap-2 rounded-lg ${surfaceToneClass('paperOverlay')} py-2 pl-4 pr-2 shadow-lg`}
                 >
                     <div className="min-w-0 flex-1 pt-2">
                         <h2 id={titleId} className="break-words text-body-sm font-semibold text-ink">
@@ -119,7 +121,7 @@ export const Popover: FC<PopoverProps> = ({
                     </div>
                     <RadixPopover.Close
                         aria-label={closeLabel}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                     >
                         <Icon name="x" size={20} />
                     </RadixPopover.Close>

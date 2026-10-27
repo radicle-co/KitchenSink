@@ -17,6 +17,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { StatusBadge } from '@commise/ui/status-badge';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
@@ -27,8 +28,7 @@ import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } 
 
 // Layout and state-independent chrome only. The two state classes below are mutually exclusive, never layered on each
 // other: Tailwind's emission order, not the attribute's, decides between two utilities of one property.
-const card =
-    'flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 focus-within:ring-2 focus-within:ring-focus-ring';
+const card = `flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 ${FOCUS_RING_CLASS.within}`;
 const cardResting = 'border-line-control bg-paper';
 const cardChosen = 'border-selected-edge bg-selected-fill';
 const cardRefused = 'cursor-not-allowed';
@@ -139,7 +139,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 <button
                                     type="button"
                                     onClick={onPremiumRequired}
-                                    className="cursor-pointer text-meta font-semibold text-action underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                    className={`cursor-pointer text-meta font-semibold text-action underline ${FOCUS_RING_CLASS.offset}`}
                                 >
                                     {slotsFull.overLimit.premiumLink}
                                 </button>
@@ -152,7 +152,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 <button
                                     type="button"
                                     onClick={way.id === 'premium' ? onPremiumRequired : onFreeASlot}
-                                    className="flex min-h-14 w-full cursor-pointer flex-col items-start justify-center rounded-lg border border-line-control bg-paper px-4 py-2 text-left focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                    className={`flex min-h-14 w-full cursor-pointer flex-col items-start justify-center rounded-lg border border-line-control bg-paper px-4 py-2 text-left ${FOCUS_RING_CLASS.offset}`}
                                 >
                                     <span className="text-body font-semibold text-ink">{way.label}</span>
                                     <span className="text-meta text-ink-muted">{way.detail}</span>

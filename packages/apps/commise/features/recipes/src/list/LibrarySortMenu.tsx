@@ -14,6 +14,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FC } from 'react';
@@ -23,8 +24,7 @@ import { LIBRARY_SORTS, sortLabelOf } from './library.js';
 import { type RecipeListSortControl } from './model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 
-const ITEM =
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-surface-muted';
+const ITEM = `flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none ${PRESS_FILL_CLASS.highlighted}`;
 
 /**
  * Whether a menu value is one of the sorts. Radix reports a string; only a known key is passed on.
@@ -52,7 +52,7 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
         <DropdownMenu.Root>
             <DropdownMenu.Trigger
                 aria-label={fillTemplate(list.sortButton, { choice })}
-                className={buttonSurfaceClass('ghost', 'sm')}
+                className={buttonSurfaceClass('ghost', { size: 'sm' })}
             >
                 <span>{choice}</span>
                 <Icon name="chevronDown" size={16} />
@@ -62,7 +62,7 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
                     align="end"
                     sideOffset={4}
                     collisionPadding={8}
-                    className="z-50 min-w-[12rem] rounded-lg bg-paper-overlay p-1 shadow-lg"
+                    className={`z-50 min-w-[12rem] rounded-lg ${surfaceToneClass('paperOverlay')} p-1 shadow-lg`}
                 >
                     <DropdownMenu.RadioGroup
                         value={value}

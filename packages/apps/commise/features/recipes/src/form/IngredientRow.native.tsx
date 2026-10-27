@@ -37,6 +37,7 @@ import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy } from './rowEntryField.js';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** Props for {@link IngredientRow}. */
 export interface IngredientRowProps {
@@ -86,7 +87,8 @@ const OpenControl: FC<{
     readonly amountColumn: number;
     readonly onAmountWidth: (width: number) => void;
 }> = ({ row, expanded, amountColumn, onAmountWidth }) => {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
     const node = useRef<View>(null);
     const { requested, onHandled } = row.openFocus;
 

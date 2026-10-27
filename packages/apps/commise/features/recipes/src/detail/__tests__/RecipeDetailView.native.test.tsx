@@ -10,6 +10,7 @@ import { AccessibilityInfo } from 'react-native';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { computedContrast, guardedFoodClient, renderWithFoodClient } from '@commise/test-utils';
 import { palette } from '@commise/ui';
+import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
 
 import { cssColor } from '../../__tests__/cssColor.js';
@@ -1297,6 +1298,17 @@ describe('RecipeDetailView (native) — serving scale', () => {
 
         expect(screen.getByText(/Amounts scaled from 4 servings/)).toBeTruthy();
         expect(screen.getByText(/Cook times and step timers are shown unchanged/)).toBeTruthy();
+    });
+
+    // `componentFixes.md` §10, §10a: the scale notice paints `surfaceMuted` on the 18 pt notice corner. (Written after the
+    // code it covers.)
+    it('paints the scale notice on the muted fill with the 18 pt notice corner', () => {
+        renderAt(6);
+        const notice = screen.getByText(/Amounts scaled from 4 servings/).parentElement as HTMLElement;
+        const style = getComputedStyle(notice);
+
+        expect(style.backgroundColor).toBe(cssColor(role.surfaceMuted));
+        expect(style.borderTopLeftRadius).toBe('18px');
     });
 
     it('scales DOWN as well as up', () => {

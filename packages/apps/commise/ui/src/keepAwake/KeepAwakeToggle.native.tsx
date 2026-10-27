@@ -19,6 +19,7 @@ import { BUTTON_PILL_LAYOUT, buttonToggleSurfacePaint } from '../button/surfaceP
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { PressScale } from '../pressScale/index.js';
+import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { KeepAwakeToggleProps } from './props.js';
@@ -26,6 +27,7 @@ import type { KeepAwakeToggleProps } from './props.js';
 /** The native "Screen on" switch. */
 export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label, display }) => {
     const theme = useTheme();
+    const tone = useSurfaceTone();
     const { colors } = theme;
     const height = touchFloor();
 
@@ -46,7 +48,7 @@ export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label,
                                 minHeight: height,
                                 minWidth: height,
                                 borderRadius: height / 2,
-                                ...buttonToggleSurfacePaint(theme, on, pressed),
+                                ...buttonToggleSurfacePaint(theme, on, tone, pressed),
                             },
                         ]}
                     >

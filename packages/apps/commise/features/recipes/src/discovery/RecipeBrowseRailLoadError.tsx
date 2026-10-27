@@ -12,6 +12,7 @@ import type { FC } from 'react';
 
 import { discoveryMessages } from './messages.js';
 import type { RecipeBrowseRailLoadErrorProps } from './model.js';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 
 export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ onRetry }) => {
     const discovery = useMessages(discoveryMessages);
@@ -22,7 +23,7 @@ export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ 
             <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-semibold text-action-text transition hover:bg-surface-muted md:min-h-0"
+                className={`inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-semibold text-action-text transition ${PRESS_FILL_CLASS.pointer} md:min-h-0`}
             >
                 {discovery.retry}
             </button>

@@ -32,6 +32,7 @@ import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
 import { StatusBadge } from '@commise/ui/status-badge';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 
 import { GRID_CELL_CLASS } from './cardGridClass.js';
@@ -496,7 +497,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                             data-card-variant={variant}
                             className={`relative h-full rounded-md border border-line-divider bg-paper text-start shadow-sm transition-shadow motion-reduce:transition-none ${
                                 actionable
-                                    ? 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100'
+                                    ? `${FOCUS_RING_CLASS.within} pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100`
                                     : ''
                             } ${SHELL_CLASS[variant]}`}
                         >

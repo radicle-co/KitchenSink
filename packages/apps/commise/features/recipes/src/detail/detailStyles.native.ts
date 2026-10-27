@@ -67,7 +67,7 @@ export const detailStyles = StyleSheet.create({
     scaleNotice: {
         alignItems: 'flex-start',
         gap: nativeTokens.spacing[1],
-        borderRadius: nativeTokens.radius.md,
+        borderRadius: nativeTokens.radius.lg,
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },

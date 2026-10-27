@@ -23,6 +23,7 @@ import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SearchFieldProps } from './props.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 
 /** The pill's height, in points. */
 const PILL_HEIGHT = 48;
@@ -50,7 +51,7 @@ export const SearchField: FC<SearchFieldProps> = ({
     return (
         <View style={styles.stack}>
             {labelVisibility === 'visible' ? <FieldLabel forId={id} label={label} /> : null}
-            <View style={[styles.pill, { borderColor: colors.lineControl, backgroundColor: colors.paper }]}>
+            <Surface tone="paper" style={[styles.pill, { borderColor: colors.lineControl }]}>
                 <Icon name="search" size={20} tone="inkMuted" />
                 <TextInput
                     ref={field}
@@ -83,7 +84,7 @@ export const SearchField: FC<SearchFieldProps> = ({
                         <Icon name="x" size={20} />
                     </Pressable>
                 )}
-            </View>
+            </Surface>
         </View>
     );
 };

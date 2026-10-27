@@ -9,8 +9,8 @@
  */
 import type { ViewStyle } from 'react-native';
 
+import type { SurfaceTone } from '../surfaceTone/surfaceTone.js';
 import type { Theme } from '../theme/themeFor.js';
-import type { ButtonOver } from './props.js';
 import { nativeTokens } from '../tokens/native.js';
 
 /**
@@ -31,33 +31,34 @@ export const BUTTON_PILL_LAYOUT: ViewStyle = {
 export type ButtonSurface = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructiveInline' | 'destructiveConfirm';
 
 /**
- * The press fill of a neutral surface: THE rule for a native press, read by Button and by the Screen on switch (the
- * twin of web's `PRESS` in `surfaceClass.ts`). Over `paper` it is the theme's wash (`surfaceMuted`); over a `surfaceMuted`
- * parent that fill is the parent's own and shows nothing, so it is `lineDivider`, as a chip's is. It is painted whether
- * or not the OS asks for reduced motion: motion is non-essential, a response to the touch is not. Pure.
+ * The press fill of a neutral surface: THE rule for a native press, read by Button and by the Screen on switch (the twin
+ * of the web `PRESS_FILL_CLASS`). It is the press of the surface the control sits on (`surfaceTone.ts`): that surface with
+ * the theme's ink laid over it, so it shows on paper, on a sheet and on a muted card alike. It is painted whether or not
+ * the OS asks for reduced motion: motion is non-essential, a response to the touch is not. Pure.
  *
  * @param theme - The theme to paint in.
- * @param over - What the control sits on.
+ * @param tone - The surface the control sits on.
  */
-export function pressWash(theme: Theme, over: ButtonOver): string {
-    return over === 'muted' ? theme.colors.lineDivider : theme.wash;
+export function pressWash(theme: Theme, tone: SurfaceTone): string {
+    return theme.press[tone];
 }
 
 /**
- * A surface's paint in the current theme. While pressed, a neutral surface fills with {@link pressWash} and `primary`
+ * A surface's paint in the current theme. While pressed, a neutral surface fills with {@link pressWash} (the press of its surface) and `primary`
  * darkens to `actionPressed` (the web `hover:bg-action-pressed` twin) and a confirm to `dangerPressed` (the web
  * `hover:bg-danger-pressed` twin). Pure.
  *
  * @param theme - The theme to paint in.
  * @param surface - The surface.
+ * @param tone - The surface the control sits on (`useSurfaceTone()`). Required: a default would be a surface asserted for
+ *   every caller that had not thought about it.
  * @param pressed - Whether a press is in progress. Defaults to false.
- * @param over - What the control sits on. Defaults to `paper`.
  */
 export function buttonSurfacePaint(
     theme: Theme,
     surface: ButtonSurface,
+    tone: SurfaceTone,
     pressed = false,
-    over: ButtonOver = 'paper',
 ): ViewStyle {
     const { colors } = theme;
 
@@ -67,13 +68,13 @@ export function buttonSurfacePaint(
         case 'secondary':
         case 'destructiveInline':
             return {
-                backgroundColor: pressed ? pressWash(theme, over) : colors.paper,
+                backgroundColor: pressed ? pressWash(theme, tone) : colors.paper,
                 borderWidth: 1,
                 borderColor: colors.lineControl,
             };
         case 'ghost':
         case 'quiet':
-            return { backgroundColor: pressed ? pressWash(theme, over) : 'transparent', borderWidth: 0 };
+            return { backgroundColor: pressed ? pressWash(theme, tone) : 'transparent', borderWidth: 0 };
         case 'destructiveConfirm':
             return { backgroundColor: pressed ? colors.dangerPressed : colors.danger, borderWidth: 0 };
     }
@@ -82,19 +83,25 @@ export function buttonSurfacePaint(
 /**
  * The paint of a SWITCH that wears the secondary button (`componentFixes` issue 6): unselected it IS the secondary paint;
  * selected it takes `selectedFill` and `selectedEdge` at the SAME edge width, so turning it on moves nothing around it.
- * While pressed, an unselected switch takes the press wash (`theme.wash`, the twin of the web `bg-surface-muted` press)
+ * While pressed, an unselected switch takes the press fill of its surface ({@link pressWash}, the twin of the web press)
  * and a selected one shows a 2 pt `selectedEdge` (`componentFixes` §5), its padding one point less so the box and the
  * content stay put. Pure.
  *
  * @param theme - The theme to paint in.
  * @param selected - Whether the switch is on.
+ * @param tone - The surface the switch sits on (`useSurfaceTone()`). Required, as for {@link buttonSurfacePaint}.
  * @param pressed - Whether a press is in progress. Defaults to false.
  */
-export function buttonToggleSurfacePaint(theme: Theme, selected: boolean, pressed = false): ViewStyle {
-    const secondary = buttonSurfacePaint(theme, 'secondary');
+export function buttonToggleSurfacePaint(
+    theme: Theme,
+    selected: boolean,
+    tone: SurfaceTone,
+    pressed = false,
+): ViewStyle {
+    const secondary = buttonSurfacePaint(theme, 'secondary', tone);
 
     if (!selected) {
-        return pressed ? { ...secondary, backgroundColor: pressWash(theme, 'paper') } : secondary;
+        return pressed ? { ...secondary, backgroundColor: pressWash(theme, tone) } : secondary;
     }
 
     const on: ViewStyle = {

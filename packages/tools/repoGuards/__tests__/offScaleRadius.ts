@@ -25,6 +25,8 @@ import path from 'node:path';
 
 import ts from 'typescript';
 
+import { classTokensOf, stringLikeTexts } from './appSources.js';
+
 /** The radius steps a class suffix or token name may be. */
 const STEPS = ['sm', 'md', 'lg', 'xl', 'full'] as const;
 
@@ -126,13 +128,6 @@ function isOnScaleValue(value: ts.Expression, glyph: boolean): boolean {
     return TOKEN_REFERENCE.test(value.getText());
 }
 
-/** The class tokens of one string fragment; a fragment that runs into a `${}` drops its unfinished last token. */
-function tokensOf(text: string, openEnded: boolean): readonly string[] {
-    const tokens = text.split(/\s+/u).filter((token) => token !== '');
-
-    return openEnded && !/\s$/u.test(text) ? tokens.slice(0, -1) : tokens;
-}
-
 /**
  * Every off-scale radius in one source file. Pure.
  *
@@ -156,22 +151,17 @@ export function offScaleRadiusIn(file: string, text: string): readonly Offender[
         found.push({ file, line, text: offending });
     };
 
-    const scanText = (node: ts.Node, fragment: string, openEnded: boolean): void => {
-        for (const token of tokensOf(fragment, openEnded)) {
+    // The class tokens come from the shared string reader (`appSources.ts`); only the style properties are walked here.
+    for (const { node, text: fragment, openEnded } of stringLikeTexts(file, text)) {
+        for (const token of classTokensOf(fragment, openEnded)) {
             if (isOffScaleClass(token)) {
                 report(node, token);
             }
         }
-    };
+    }
 
     const visit = (node: ts.Node): void => {
-        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-            scanText(node, node.text, false);
-        } else if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node)) {
-            scanText(node, node.text, true);
-        } else if (ts.isTemplateTail(node)) {
-            scanText(node, node.text, false);
-        } else if (ts.isPropertyAssignment(node) && RADIUS_PROPERTY.test(node.name.getText(source))) {
+        if (ts.isPropertyAssignment(node) && RADIUS_PROPERTY.test(node.name.getText(source))) {
             if (!isOnScaleValue(node.initializer, glyph)) {
                 report(node, node.getText(source).replace(/\s+/gu, ' '));
             }

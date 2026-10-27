@@ -24,13 +24,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CandidateOption, CandidatesPanelBody as Body, CandidatesPanelBodyProps } from './candidatesPanel.js';
 import { recipeFormMessages } from './messages.js';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** Rows 6 and 7's panel body: the candidates, a pick per candidate, and None of these. */
 export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick, onRetryRead, onNoneOfThese }) => {
     const m = useMessages(recipeFormMessages);
     // Colour from the theme at render (D15): copy in `ink`, a hint in `inkMuted`, a refused pick in `dangerText` (the
     // web twin's `text-danger-text`), the press wash `surfaceMuted` (its `hover:bg-surface-muted`).
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
     const text = [styles.text, { color: colors.ink }];
     const hint = [styles.hint, { color: colors.inkMuted }];
 

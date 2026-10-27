@@ -626,7 +626,7 @@ describe('RecipeDetailContainer', () => {
 
             const back = await screen.findByRole('link', { name: 'My recipes' });
             expect(back).toHaveAttribute('href', '/en/recipes');
-            expect(back.className).toContain(buttonSurfaceClass('ghost', 'sm'));
+            expect(back.className).toContain(buttonSurfaceClass('ghost', { size: 'sm' }));
             // Below 840 the hero's disc is Back; the eyebrow link shows from there (a VIEWPORT query: the sidebar replaces
             // the tab bar at 840, not at a container width).
             expect(back.closest('[class*="nav:contents"]')?.className.split(' ')).toContain('hidden');

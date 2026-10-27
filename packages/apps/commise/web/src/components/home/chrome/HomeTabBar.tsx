@@ -26,6 +26,7 @@ import type { HomeChromeMessages } from '@commise/features-core/home';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
 import { Icon } from '@commise/ui/icon';
 import { useScrollHost } from '@commise/ui/scroll-host';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { JSX, MouseEvent, Ref } from 'react';
@@ -90,7 +91,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
                         href={href}
                         aria-current={active ? 'page' : undefined}
                         onClick={onTabClick(item.id)}
-                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-center gap-1 rounded-md [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-center gap-1 rounded-md [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:gap-2 ${FOCUS_RING_CLASS.inset} ${
                             active ? 'text-ink' : 'text-ink-muted'
                         }`}
                     >

@@ -22,6 +22,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 
 /** Props for `SubscriptionNudge`. */
 export interface SubscriptionNudgeProps {
@@ -73,7 +74,7 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                     // Tailwind's own ramp, 2rem is `p-8` — which is what keeps this foot equal to the literal
                     // `2rem` in the `calc()` beside it. Change one and you must change the other, or the sheet
                     // goes asymmetric. See `@commise/ui/tokens/themeCss`.
-                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-xl bg-paper p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
+                    className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-xl ${surfaceToneClass('paper')} p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl`}
                 >
                     <Dialog.Title className="font-display text-lg font-semibold text-ink">
                         {home.nudge.title}

@@ -18,6 +18,7 @@ import { useContainerClass, usePinnedFooter } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { RadioList } from '@commise/ui/radio-list';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -45,16 +46,16 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
     const pinning = usePinnedFooter();
 
     const bar = (
-        <View
-            collapsable={false}
+        <Surface
+            tone="paper"
             onLayout={pinning.onFooterLayout}
-            style={[styles.bar, { borderTopColor: colors.lineDivider, backgroundColor: colors.paper }]}
+            style={[styles.bar, { borderTopColor: colors.lineDivider }]}
         >
             <Button icon="check" width="fill" disabled={mode === undefined} busy={starting} onPress={onStart}>
                 {m.start}
             </Button>
             <Text style={[styles.meta, { color: colors.inkMuted }]}>{m.startHint}</Text>
-        </View>
+        </Surface>
     );
 
     return (
@@ -63,7 +64,7 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
                 <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                     {m.title}
                 </Text>
-                <View style={[styles.file, { borderColor: colors.lineDivider, backgroundColor: colors.paperRaised }]}>
+                <Surface tone="paperRaised" style={[styles.file, { borderColor: colors.lineDivider }]}>
                     <Icon name="bookOpen" size={20} />
                     <View style={styles.fileWords}>
                         <Text style={[styles.fileName, { color: colors.ink }]}>{fileName}</Text>
@@ -71,7 +72,7 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
                             {fillTemplate(pluralOf(m.fileSummary, recipeCount, locale), { source: sourceName })}
                         </Text>
                     </View>
-                </View>
+                </Surface>
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{m.intro}</Text>
                 <RadioList
                     label={m.groupLabel}

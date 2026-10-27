@@ -4,6 +4,7 @@ import { role, roleDark } from '../../tokens/colors.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { gradient, heroDark } from '../../tokens/gradients.js';
 import { proTone, proToneDark, statusTone, statusToneDark } from '../../tokens/tones.js';
+import { pressFillsOf } from '../../surfaceTone/surfaceTone.js';
 import { themeFor } from '../themeFor.js';
 
 /**
@@ -32,11 +33,10 @@ describe('themeFor', () => {
         expect(theme.status).toBe(statusToneDark);
     });
 
-    // REWRITTEN for ruling 3 (`componentFixes` issue 3, 2026-10-26): the press wash was `ink` at 6% (`darkTheme.md` §1).
-    // Over paper and sheets the pressed fill is now each scheme's `surfaceMuted`, the native twin of `bg-surface-muted`.
-    it('presses to each scheme’s surfaceMuted, not an ink-alpha wash', () => {
-        expect(themeFor('light').wash).toBe(role.surfaceMuted);
-        expect(themeFor('dark').wash).toBe(roleDark.surfaceMuted);
+    // REWRITTEN (`componentFixes.md` §10a): the single `wash` is gone; each surface has its own derived press (below).
+    it('has no single wash any more: a press belongs to a surface', () => {
+        expect('wash' in themeFor('light')).toBe(false);
+        expect('wash' in themeFor('dark')).toBe(false);
     });
 
     // The native PRO badge reads its pair from the theme, so the dark scheme paints the dark pair (it used to read the
@@ -48,5 +48,12 @@ describe('themeFor', () => {
 
     it('returns the same object for the same scheme', () => {
         expect(themeFor('dark')).toBe(themeFor('dark'));
+    });
+});
+
+describe('themeFor — the press fills', () => {
+    it('carries each surface’s derived press, light and dark', () => {
+        expect(themeFor('light').press).toEqual(pressFillsOf(role, 'light'));
+        expect(themeFor('dark').press).toEqual(pressFillsOf(roleDark, 'dark'));
     });
 });

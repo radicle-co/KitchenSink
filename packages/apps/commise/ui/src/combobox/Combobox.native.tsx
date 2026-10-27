@@ -72,6 +72,9 @@ import { FIELD_PADDING, fieldGeometry, fieldPaint } from '../input/fieldStyle.js
 import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldAccessibilityHint } from '../input/props.js';
 import { TextInput } from '../textInput/TextInput.native.js';
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
@@ -109,6 +112,43 @@ const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: Reac
         </View>
     ) : (
         <Text style={[styles.status, styles.statusText, { color: colors.inkMuted }]}>{line.text}</Text>
+    );
+};
+
+/**
+ * One option of the open list. A component of its own so it reads the press fill from INSIDE the list's surface: the list
+ * states `paperOverlay`, and a hook called in `Combobox` itself would read what the field sits on instead.
+ */
+const OptionRow: FC<{ readonly option: ComboboxOption; readonly onChoose: (option: ComboboxOption) => void }> = ({
+    option,
+    onChoose,
+}) => {
+    const wash = usePressFill();
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={option.accessibleName}
+            aria-busy={option.busy === true}
+            // React Native's own busy control is `disabled` (`@commise/ui/button`): it reads disabled, keeps its place,
+            // and stays reachable by the screen reader.
+            disabled={option.busy === true}
+            onPress={() => {
+                onChoose(option);
+            }}
+            style={({ pressed }) => [
+                styles.option,
+                pressed && { backgroundColor: wash },
+                option.busy === true && styles.busy,
+            ]}
+        >
+            <OptionLabel
+                label={option.label}
+                textSize="bodyMd"
+                {...(option.tag === undefined ? {} : { tag: option.tag })}
+                {...(option.detailParts === undefined ? {} : { detailParts: option.detailParts })}
+            />
+        </Pressable>
     );
 };
 
@@ -154,7 +194,8 @@ export const Combobox: FC<ComboboxProps> = ({
     const typedIsValue = typedText === 'isValue';
     const { height: windowHeight, fontScale } = useWindowDimensions();
     const theme = useTheme();
-    const { colors, wash } = theme;
+    const { colors } = theme;
+    const wash = usePressFill();
     const labelShown = labelVisibility === 'visible';
     // Whether the field's last blur closed an open list: the list a blur closes is reopened by the field's next focus
     // (below), while a close the field chose — a pick — and a focus no list ever followed stay shut. A refocus on
@@ -277,32 +318,7 @@ export const Combobox: FC<ComboboxProps> = ({
         onSelect(option.key);
     };
 
-    const renderOption = (option: ComboboxOption) => (
-        <Pressable
-            key={option.key}
-            accessibilityRole="button"
-            accessibilityLabel={option.accessibleName}
-            aria-busy={option.busy === true}
-            // React Native's own busy control is `disabled` (`@commise/ui/button`): it reads disabled, keeps its place,
-            // and stays reachable by the screen reader.
-            disabled={option.busy === true}
-            onPress={() => {
-                choose(option);
-            }}
-            style={({ pressed }) => [
-                styles.option,
-                pressed && { backgroundColor: wash },
-                option.busy === true && styles.busy,
-            ]}
-        >
-            <OptionLabel
-                label={option.label}
-                textSize="bodyMd"
-                {...(option.tag === undefined ? {} : { tag: option.tag })}
-                {...(option.detailParts === undefined ? {} : { detailParts: option.detailParts })}
-            />
-        </Pressable>
-    );
+    const renderOption = (option: ComboboxOption) => <OptionRow key={option.key} option={option} onChoose={choose} />;
 
     const renderGroups = () =>
         groups.map((group) => (
@@ -428,35 +444,37 @@ export const Combobox: FC<ComboboxProps> = ({
                 {alertAnnouncement}
             </LiveRegion>
             {popupShown && (
-                <View
-                    collapsable={false}
-                    accessibilityLabel={listLabel}
-                    onTouchStart={() => setTouchInList(true)}
-                    onTouchEnd={() => setTouchInList(false)}
-                    style={[styles.list, { backgroundColor: colors.paperOverlay }]}
-                >
-                    {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}
-                    {listShown &&
-                        (boundedHeight === undefined ? (
-                            renderGroups()
-                        ) : (
-                            // P2: a long list scrolls inside itself, so the rest of the page stays in reach. It stays in
-                            // the page's flow, so nothing is drawn outside its parent (Android takes no touches there),
-                            // and a drag that began on it still keeps it open — the drag now scrolls the list.
-                            <ScrollView
-                                nestedScrollEnabled
-                                keyboardShouldPersistTaps="handled"
-                                onScrollEndDrag={() => setTouchInList(false)}
-                                style={{ maxHeight: boundedHeight }}
-                            >
-                                {renderGroups()}
-                            </ScrollView>
+                <SurfaceToneScope tone="paperOverlay">
+                    <View
+                        collapsable={false}
+                        accessibilityLabel={listLabel}
+                        onTouchStart={() => setTouchInList(true)}
+                        onTouchEnd={() => setTouchInList(false)}
+                        style={[styles.list, { backgroundColor: surfaceFill(theme, 'paperOverlay') }]}
+                    >
+                        {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}
+                        {listShown &&
+                            (boundedHeight === undefined ? (
+                                renderGroups()
+                            ) : (
+                                // P2: a long list scrolls inside itself, so the rest of the page stays in reach. It stays in
+                                // the page's flow, so nothing is drawn outside its parent (Android takes no touches there),
+                                // and a drag that began on it still keeps it open — the drag now scrolls the list.
+                                <ScrollView
+                                    nestedScrollEnabled
+                                    keyboardShouldPersistTaps="handled"
+                                    onScrollEndDrag={() => setTouchInList(false)}
+                                    style={{ maxHeight: boundedHeight }}
+                                >
+                                    {renderGroups()}
+                                </ScrollView>
+                            ))}
+                        {trailingStatus.map((line, index) => (
+                            // A line has no identity beyond its place: the host passes them in the order they arrived.
+                            <StatusLine key={index} line={line} loadingIcon={loadingIcon} />
                         ))}
-                    {trailingStatus.map((line, index) => (
-                        // A line has no identity beyond its place: the host passes them in the order they arrived.
-                        <StatusLine key={index} line={line} loadingIcon={loadingIcon} />
-                    ))}
-                </View>
+                    </View>
+                </SurfaceToneScope>
             )}
         </View>
     );

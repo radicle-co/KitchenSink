@@ -19,6 +19,7 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { RadioList } from '@commise/ui/radio-list';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { pluralOf } from '../format/plural.js';
@@ -45,7 +46,9 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
         <div className="flex flex-col gap-6 @wide/main:flex-row @wide/main:items-start">
             <div className="flex min-w-0 max-w-reading flex-1 flex-col gap-4">
                 <h1 className="font-display text-large-title text-ink">{m.title}</h1>
-                <div className="flex items-center gap-3 rounded-lg border border-line-divider bg-paper-raised px-4 py-3">
+                <div
+                    className={`flex items-center gap-3 rounded-lg border border-line-divider ${surfaceToneClass('paperRaised')} px-4 py-3`}
+                >
                     <Icon name="bookOpen" size={20} />
                     <div className="flex min-w-0 flex-col">
                         <span className="break-words text-body font-semibold text-ink">{fileName}</span>

@@ -7,13 +7,43 @@
  * native announces nothing rather than announcing rudely, so the region is named but never live.
  */
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SyncNotice } from '../SyncNotice.native.js';
 
 afterEach(cleanup);
 
 const LABEL = 'Sync status';
+
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('../../testing/systemColorScheme.js');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';
+
+// `componentFixes.md` §10: the notice paints `surfaceMuted` on the 18 pt notice corner, in both themes. (Written after the
+// code it covers.)
+describe.each(['light', 'dark'] as const)('SyncNotice (native) — the surface it paints, %s theme', (scheme) => {
+    afterEach(() => {
+        systemScheme.current = null;
+    });
+
+    it('paints the muted fill on the notice corner', () => {
+        systemScheme.current = scheme;
+        render(
+            <SyncNotice
+                state={{ kind: 'offline', title: 'You’re offline', body: 'Saved here.' }}
+                regionLabel={LABEL}
+            />,
+        );
+        const style = getComputedStyle(screen.getByLabelText(LABEL));
+
+        expect(style.backgroundColor).toBe(rgb(rolesFor(scheme).surfaceMuted));
+        expect(style.borderTopLeftRadius).toBe('18px');
+    });
+});
 
 describe('SyncNotice (native)', () => {
     it('renders nothing while hidden', () => {

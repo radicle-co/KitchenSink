@@ -20,6 +20,7 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ProfileRowProps } from './props.js';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** The pressable row. */
 export const ProfileRow: FC<ProfileRowProps> = ({
@@ -33,7 +34,8 @@ export const ProfileRow: FC<ProfileRowProps> = ({
     onPress,
     focusSignal = 0,
 }) => {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
     const row = useScreenReaderFocusOnSignal<View>(focusSignal);
     const labelColor = tone === 'danger' ? colors.dangerText : colors.ink;
 

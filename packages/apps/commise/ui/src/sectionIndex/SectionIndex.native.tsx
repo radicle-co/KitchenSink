@@ -38,6 +38,7 @@ import {
     descriptionOf,
     shownCountOf,
 } from './sectionIndexModel.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 
 type Colors = ReturnType<typeof useTheme>['colors'];
 
@@ -199,11 +200,11 @@ export const SectionIndex: FC<SectionIndexProps> = ({
 
     if (containerClass === 'regular') {
         return (
-            <View
-                collapsable={false}
+            <Surface
+                tone="paperRaised"
                 role="navigation"
                 aria-label={label}
-                style={[styles.strip, { backgroundColor: colors.paperRaised, borderBottomColor: colors.lineDivider }]}
+                style={[styles.strip, { borderBottomColor: colors.lineDivider }]}
             >
                 {items.map((item) => (
                     <StripItem
@@ -216,14 +217,14 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                         }}
                     />
                 ))}
-            </View>
+            </Surface>
         );
     }
 
     const barItem = barItemOf(items, currentId);
 
     return (
-        <View style={{ backgroundColor: colors.paperRaised }}>
+        <Surface tone="paperRaised">
             <Pressable
                 role="button"
                 aria-label={barName}
@@ -296,7 +297,7 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                     />
                 ))}
             </Sheet>
-        </View>
+        </Surface>
     );
 };
 

@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { surfaceToneOf } from '@commise/ui/testing/surface-tone-of';
+
 import { ImportSummary } from '../ImportSummary.js';
 import { importMessages } from '../messages.js';
 import type { ImportSummaryProps } from '../props.js';
@@ -15,6 +17,16 @@ import type { ImportSummaryProps } from '../props.js';
 const s = importMessages.en.summary;
 
 afterEach(cleanup);
+
+// `componentFixes.md` §10: the as-written block paints `surfaceMuted` and holds Choose foods, so it states that surface.
+// (Written after the code it covers.)
+describe('ImportSummary (web) — the surface it paints', () => {
+    it('states the muted tone around Choose foods', () => {
+        renderSummary();
+
+        expect(surfaceToneOf(screen.getByRole('button', { name: s.chooseFoods }))).toBe('muted');
+    });
+});
 
 function renderSummary(overrides: Partial<ImportSummaryProps> = {}) {
     const handlers = { onSeeAdded: vi.fn(), onFixUnreadable: vi.fn(), onChooseFoods: vi.fn() };

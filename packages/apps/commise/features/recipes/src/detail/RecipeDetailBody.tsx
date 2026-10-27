@@ -31,6 +31,7 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SectionSwitch } from '@commise/ui/section-switch';
 import { StatusBadge } from '@commise/ui/status-badge';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
@@ -140,7 +141,7 @@ const statStripClass = (count: number): string => {
 const SECTION_HEADING = 'scroll-mt-28 text-section-title text-ink focus:outline-none';
 
 /** The owner's ghost Edit link on a section heading, and the footer's Version history: the ghost button surface. */
-const EDIT_LINK = buttonSurfaceClass('ghost', 'sm');
+const EDIT_LINK = buttonSurfaceClass('ghost', { size: 'sm' });
 
 /**
  * The pure `props → JSX` detail render: no state, no fetching, no ref of its own. Everything it shows for a chosen
@@ -417,7 +418,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     {scaled.scaling.isScaled && (
                         <div
                             role="status"
-                            className="flex flex-col items-start gap-1 rounded-md bg-surface-muted px-3 py-2"
+                            className={`flex flex-col items-start gap-1 rounded-lg ${surfaceToneClass('muted')} px-3 py-2`}
                         >
                             <p className="text-meta text-ink">
                                 {fillTemplate(detail.scaledFrom, { original: recipe.servings })}{' '}

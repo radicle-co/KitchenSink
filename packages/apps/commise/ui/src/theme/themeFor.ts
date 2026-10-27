@@ -5,6 +5,7 @@
  *
  * @pattern Registry — one frozen theme per scheme, keyed by the scheme name
  */
+import { pressFillsOf, type SurfaceTone } from '../surfaceTone/surfaceTone.js';
 import { role, roleDark, type Role } from '../tokens/colors.js';
 import { coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
 import { gradient, heroDark, type GradientSpec } from '../tokens/gradients.js';
@@ -35,11 +36,10 @@ export interface Theme {
     /** The PRO badge's fill and label. */
     readonly pro: Tone;
     /**
-     * The pressed fill over paper and sheets: `surfaceMuted` (`componentFixes` issue 3, 2026-10-26), the native twin of
-     * the web `bg-surface-muted` press. It replaced the `ink` 6% wash. Over a `surfaceMuted` fill (a chip) it would not
-     * show, so a chip presses to `lineDivider` instead (`chipStyle.ts`).
+     * Each surface's press fill: the surface with the theme's ink laid over it (`surfaceTone.ts`, `componentFixes.md`
+     * §10a). A control reads the one for the surface it sits on (`usePressFill`), never one of these by hand.
      */
-    readonly wash: string;
+    readonly press: Readonly<Record<SurfaceTone, string>>;
 }
 
 const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
@@ -50,7 +50,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         hero: gradient.hero,
         status: statusTone,
         pro: proTone,
-        wash: role.surfaceMuted,
+        press: pressFillsOf(role, 'light'),
     },
     dark: {
         scheme: 'dark',
@@ -59,7 +59,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         hero: heroDark,
         status: statusToneDark,
         pro: proToneDark,
-        wash: roleDark.surfaceMuted,
+        press: pressFillsOf(roleDark, 'dark'),
     },
 };
 

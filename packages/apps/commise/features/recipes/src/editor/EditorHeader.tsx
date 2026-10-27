@@ -14,6 +14,8 @@
  */
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { EDITOR_HEADER_ID, type EditorHeaderProps } from './frameProps.js';
@@ -29,13 +31,13 @@ export const EditorHeader: FC<WebEditorHeaderProps> = ({ title, status, closeLab
     <header
         ref={placeRef}
         id={EDITOR_HEADER_ID}
-        className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line-divider bg-paper px-2"
+        className={`sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line-divider ${surfaceToneClass('paper')} px-2`}
     >
         <button
             type="button"
             aria-label={closeLabel}
             onClick={onClose}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className={`inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink ${FOCUS_RING_CLASS.offset}`}
         >
             <Icon name="x" size={24} />
         </button>

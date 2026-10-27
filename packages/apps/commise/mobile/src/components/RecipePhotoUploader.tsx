@@ -50,6 +50,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** Props for {@link RecipePhotoUploader}. */
 export interface RecipePhotoUploaderProps {
@@ -115,7 +116,8 @@ function SourceRow({
     readonly label: string;
     readonly onChoose: () => void;
 }): JSX.Element {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     return (
         <Pressable

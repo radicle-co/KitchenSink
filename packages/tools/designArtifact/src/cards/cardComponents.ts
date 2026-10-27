@@ -84,6 +84,7 @@ import type { StandIn } from '@commise/ui/stand-in';
 import type { StateNotice } from '@commise/ui/state-notice';
 import type { StatusBadge } from '@commise/ui/status-badge';
 import type { GradientSurface } from '@commise/ui/surface';
+import type { Surface } from '@commise/ui/surface-tone';
 import type { SyncNotice, SyncNoticeStack, UnreadableWorkNotice } from '@commise/ui/sync-notice';
 import type { TextInput } from '@commise/ui/text-input';
 import type { Tooltip } from '@commise/ui/tooltip';
@@ -195,6 +196,7 @@ export interface CardComponents {
     readonly StandIn: typeof StandIn;
     readonly StateNotice: typeof StateNotice;
     readonly StatusBadge: typeof StatusBadge;
+    readonly Surface: typeof Surface;
     readonly Stepper: typeof Stepper;
     readonly SyncNotice: typeof SyncNotice;
     readonly SyncNoticeStack: typeof SyncNoticeStack;

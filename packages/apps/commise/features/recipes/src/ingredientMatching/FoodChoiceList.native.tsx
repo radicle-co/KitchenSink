@@ -21,6 +21,7 @@ import { ChoiceRow } from '@commise/ui/choice-row';
 import { nativeTokens } from '@commise/ui/native';
 import { OptionLabel } from '@commise/ui/option-label';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -54,11 +55,11 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
             ) : (
                 <Text style={[styles.words, { color: colors.inkMuted }]}>{search.text}</Text>
             )}
-            <View
-                collapsable={false}
+            <Surface
+                tone="paperRaised"
                 role="list"
                 aria-label={view.optionsName}
-                style={[styles.box, { borderColor: colors.lineDivider, backgroundColor: colors.paperRaised }]}
+                style={[styles.box, { borderColor: colors.lineDivider }]}
             >
                 {view.rows.map((row, index) => (
                     <View key={row.id} collapsable={false} role="listitem" style={index > 0 ? divided : null}>
@@ -95,7 +96,7 @@ export const FoodChoiceList: FC<FoodChoiceListProps> = ({ view, onSearch, onPick
                         <Text style={[styles.words, { color: colors.inkMuted }]}>{keep.label}</Text>
                     </ChoiceRow>
                 </View>
-            </View>
+            </Surface>
         </View>
     );
 };

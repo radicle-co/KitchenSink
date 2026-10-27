@@ -94,8 +94,8 @@ describe('Chip (native) — filter', () => {
     // 0 (the old value) or any width other than the selected one fails the equality.
     it('keeps the same edge width and a transparent edge colour at rest, so selecting moves nothing', () => {
         const theme = themeFor('light');
-        const rest = chipPill(theme, false, false);
-        const selected = chipPill(theme, true, false);
+        const rest = chipPill(theme, false, false, 'canvas');
+        const selected = chipPill(theme, true, false, 'canvas');
 
         expect(rest.borderWidth).toBe(1.5);
         expect(rest.borderWidth).toBe(selected.borderWidth);
@@ -121,19 +121,29 @@ describe('Chip (native) — filter', () => {
         expect(button.borderTopWidth).toBe('1px');
     });
 
-    // REWRITTEN for ruling 3 (`componentFixes` issue 3): a chip rests on surface-muted, so its pressed fill is
-    // `lineDivider` (the ink-alpha wash is dropped). The 1.5 pt transparent edge stays, so a press moves nothing.
-    it('fills the pill with lineDivider while pressed (over a surface-muted fill), in both schemes', () => {
+    // REWRITTEN for `componentFixes.md` §10a: a chip rests on its surface's chip fill (surfaceMuted, or paper on a muted
+    // surface) and presses to that fill's row of the surface table. The 1.5 pt transparent edge stays, so a press moves
+    // nothing. (The surfaces themselves are exercised on the real Chip in `surfaceTone/pressFill.native.test.tsx`.)
+    it('fills the pill with the press of the fill it rests on while pressed, in both schemes', () => {
         for (const scheme of ['light', 'dark'] as const) {
             const theme = themeFor(scheme);
-            const rest = chipPill(theme, false, false);
-            const pressed = chipPill(theme, false, true);
+            const rest = chipPill(theme, false, false, 'canvas');
+            const pressed = chipPill(theme, false, true, 'canvas');
 
             expect(rest.backgroundColor, scheme).toBe(theme.colors.surfaceMuted);
-            expect(pressed.backgroundColor, scheme).toBe(theme.colors.lineDivider);
+            expect(pressed.backgroundColor, scheme).toBe(theme.press.muted);
             expect(pressed.borderWidth, scheme).toBe(1.5);
-            // A press must be visible: the wash is not the resting fill.
+            // A press must be visible: the press is not the resting fill.
             expect(pressed.backgroundColor, scheme).not.toBe(rest.backgroundColor);
+        }
+    });
+
+    it('rests on paper on a muted surface, pressing to the paper row', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+
+            expect(chipPill(theme, false, false, 'muted').backgroundColor, scheme).toBe(theme.colors.paper);
+            expect(chipPill(theme, false, true, 'muted').backgroundColor, scheme).toBe(theme.press.paper);
         }
     });
 
@@ -142,8 +152,8 @@ describe('Chip (native) — filter', () => {
     it('shows a 2 pt selectedEdge while a selected chip is pressed, keeping the tint and the box size', () => {
         for (const scheme of ['light', 'dark'] as const) {
             const theme = themeFor(scheme);
-            const rest = chipPill(theme, true, false);
-            const pressed = chipPill(theme, true, true);
+            const rest = chipPill(theme, true, false, 'canvas');
+            const pressed = chipPill(theme, true, true, 'canvas');
 
             expect(pressed.borderWidth, scheme).toBe(2);
             expect(pressed.borderColor, scheme).toBe(theme.colors.selectedEdge);
@@ -158,15 +168,15 @@ describe('Chip (native) — filter', () => {
     it('holds the same 1.5 pt edge at rest (transparent) and selected, so selecting never resizes the pill', () => {
         const theme = themeFor('light');
 
-        expect(chipPill(theme, false, false).borderWidth).toBe(1.5);
-        expect(chipPill(theme, true, false).borderWidth).toBe(1.5);
-        expect(chipPill(theme, false, false).borderColor).toBe('transparent');
+        expect(chipPill(theme, false, false, 'canvas').borderWidth).toBe(1.5);
+        expect(chipPill(theme, true, false, 'canvas').borderWidth).toBe(1.5);
+        expect(chipPill(theme, false, false, 'canvas').borderColor).toBe('transparent');
     });
 
     it('paints the dark scheme from the dark roles', () => {
         const theme = themeFor('dark');
 
-        expect(chipPill(theme, false, false).backgroundColor).toBe(roleDark.surfaceMuted);
+        expect(chipPill(theme, false, false, 'canvas').backgroundColor).toBe(roleDark.surfaceMuted);
         expect(chipLabel(theme, false).color).toBe(roleDark.ink);
     });
 

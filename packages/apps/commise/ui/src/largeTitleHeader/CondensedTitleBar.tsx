@@ -26,6 +26,7 @@ import { ChromeSurface } from '../chromeSurface/ChromeSurface.js';
 import { Icon } from '../icon/Icon.js';
 import { RouteAction } from '../routeLink/RouteAction.js';
 import type { CondensedTitleBarWebProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The web design-system condensed title bar. */
 export const CondensedTitleBar: FC<CondensedTitleBarWebProps> = ({
@@ -47,7 +48,7 @@ export const CondensedTitleBar: FC<CondensedTitleBarWebProps> = ({
                 label={back.label}
                 onPress={back.onPress}
                 {...(back.href === undefined ? {} : { href: back.href })}
-                className="pointer-events-auto inline-flex min-h-11 min-w-11 max-w-[40%] items-center justify-start gap-1 rounded-md text-label text-action-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className={`pointer-events-auto inline-flex min-h-11 min-w-11 max-w-[40%] items-center justify-start gap-1 rounded-md text-label text-action-text ${FOCUS_RING_CLASS.offset}`}
             >
                 <Icon name="chevronLeft" size={24} />
                 {/* From tablet width (`medium`, 600) the control names its parent, as native does ("‹ Collections"); the

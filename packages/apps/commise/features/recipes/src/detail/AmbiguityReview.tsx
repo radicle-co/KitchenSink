@@ -29,6 +29,7 @@ import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { useMessages } from '@commise/i18n/react';
 import { LiveRegion } from '@commise/ui/live-region';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { useId, useState, type FC, type JSX } from 'react';
 
@@ -86,7 +87,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
     const nameId = useId();
 
     return (
-        <li className="rounded-lg border border-line-divider bg-paper p-3">
+        <li className={`rounded-lg border border-line-divider ${surfaceToneClass('paper')} p-3`}>
             {/* Named by the line's summary (`AmbiguityReviewRowModel.summary`). */}
             <div role="group" aria-labelledby={nameId} className="flex flex-col gap-2">
                 <span id={nameId} className="text-body-sm font-semibold text-ink">

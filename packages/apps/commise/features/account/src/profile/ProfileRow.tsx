@@ -14,14 +14,16 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { isModifiedClick } from '@commise/ui/route-link';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useId, type FC, type MouseEvent } from 'react';
 
 import type { ProfileRowProps } from './props.js';
 
 /** The row's box, shared by the button and the link. */
 const BOX =
-    'flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start hover:bg-surface-muted ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring';
+    `flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start ${PRESS_FILL_CLASS.pointer} ` +
+    FOCUS_RING_CLASS.inset;
 
 /** The label colour per tone. */
 const TONE = { ink: 'text-ink', danger: 'text-danger-text' } as const;

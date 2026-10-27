@@ -12,6 +12,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -43,7 +44,7 @@ export const DiscoveryRecentSearches: FC<DiscoveryRecentSearchesProps> = ({
     }
 
     return (
-        <View style={[styles.panel, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+        <Surface tone="paper" style={[styles.panel, { borderColor: colors.lineDivider }]}>
             <View style={styles.header}>
                 <Text accessibilityRole="header" style={[styles.heading, { color: colors.inkMuted }]}>
                     {discovery.recentSearchesLabel}
@@ -72,7 +73,7 @@ export const DiscoveryRecentSearches: FC<DiscoveryRecentSearchesProps> = ({
                     </Pressable>
                 ))}
             </ScrollView>
-        </View>
+        </Surface>
     );
 };
 

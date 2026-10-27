@@ -17,13 +17,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { RadioListProps } from './props.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 /** The radio circle's size, dp (`ingredientMatching.md`: 18 px radios). */
 const RADIO_SIZE = 18;
 
 /** The native design-system option list. */
 export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     return (
         <View collapsable={false} role="radiogroup" aria-label={label} style={styles.group}>

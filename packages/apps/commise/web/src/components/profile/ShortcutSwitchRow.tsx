@@ -19,6 +19,8 @@
 import { useMessages } from '@commise/i18n/react';
 import { profileMessages } from '@commise/features-account/profile';
 import type { FC } from 'react';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 
 /** Props of {@link ShortcutSwitchRow}. */
 export interface ShortcutSwitchRowProps {
@@ -38,7 +40,7 @@ export const ShortcutSwitchRow: FC<ShortcutSwitchRowProps> = ({ checked, onChang
             role="switch"
             aria-checked={checked}
             onClick={() => onChange(!checked)}
-            className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-start text-body text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+            className={`flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-start text-body text-ink ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
         >
             <span>{t.shortcuts}</span>
             <span

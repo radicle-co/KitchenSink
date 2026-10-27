@@ -11,16 +11,14 @@
  *     that command and nothing else.
  */
 import type { FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SnackbarAction, UndoSnackbarProps } from './props.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
-
-/** The action's target: 44 pt on iOS, 48 dp on Android (spec §1.6). */
-const actionTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
 
 /**
  * The Undo action. A component of its own so it reads the press fill from INSIDE the bar's inverse surface: a hook called
@@ -37,7 +35,7 @@ const UndoAction: FC<{ readonly action: SnackbarAction }> = ({ action }) => {
             onPress={action.onAction}
             style={({ pressed }) => [
                 styles.action,
-                { minHeight: actionTarget(), minWidth: actionTarget() },
+                { minHeight: touchFloor(), minWidth: touchFloor() },
                 pressed && { backgroundColor: press },
             ]}
         >

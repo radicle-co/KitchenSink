@@ -10,6 +10,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -105,8 +106,8 @@ const styles = StyleSheet.create({
     initial: { ...nativeTokens.type.label },
     by: { ...nativeTokens.type.meta, flex: 1, minWidth: 0 },
     button: {
-        width: 44,
-        height: 44,
+        width: touchFloor(),
+        height: touchFloor(),
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: nativeTokens.radius.full,

@@ -13,6 +13,7 @@ import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { Surface } from '@commise/ui/surface-tone';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    close: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
     titles: { flex: 1, minWidth: 0 },
     title: { ...nativeTokens.type.barTitle },
     status: { ...nativeTokens.type.caption },

@@ -13,6 +13,7 @@ import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { Surface } from '@commise/ui/surface-tone';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -88,5 +89,5 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[2],
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    row: { minHeight: 44, justifyContent: 'center' },
+    row: { minHeight: touchFloor(), justifyContent: 'center' },
 });

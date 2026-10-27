@@ -15,6 +15,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -106,7 +107,7 @@ const styles = StyleSheet.create({
     rateBlock: { gap: 10 },
     rateHeading: { ...nativeTokens.type.caption },
     // B10 — a ≥44×44 touch target around the 30px glyph (WCAG 2.5.5 / Apple + Android minimums).
-    starOption: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    starOption: { minWidth: touchFloor(), minHeight: touchFloor(), alignItems: 'center', justifyContent: 'center' },
     optionDisabled: { opacity: 0.6 },
     removeLabel: { ...nativeTokens.type.label },
     status: { ...nativeTokens.type.meta },

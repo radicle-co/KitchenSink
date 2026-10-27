@@ -9,6 +9,7 @@
 import type { FC } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { AvatarDisc } from './AvatarDisc.native.js';
 import type { AvatarProps } from './props.js';
 
@@ -20,5 +21,5 @@ export const Avatar: FC<AvatarProps> = ({ status, initials, label, onPress }) =>
 );
 
 const styles = StyleSheet.create({
-    target: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    target: { minWidth: touchFloor(), minHeight: touchFloor(), alignItems: 'center', justifyContent: 'center' },
 });

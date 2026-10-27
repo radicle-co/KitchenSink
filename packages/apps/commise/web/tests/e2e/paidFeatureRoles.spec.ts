@@ -48,34 +48,34 @@ async function openEditorAs(page: Page, role: keyof typeof ROLE_LANE_IDS): Promi
 
 test.describe('paid features by role (deployed identity)', () => {
     for (const role of ['premium', 'vip', 'superuser'] as const) {
-        test(`${role}: always granted — Private is a choice, with no count and no Premium badge`, async ({ page }) => {
+        test(`${role}: always granted — Private is a choice, with no count and no Pro badge`, async ({ page }) => {
             expect(await openEditorAs(page, role)).toBe('granted');
 
             await expect(page.getByRole('radio', { name: 'Private' })).toBeVisible();
-            await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-            // Premium has no slot limit, so the server reports no count and none is shown (ADR-0073).
+            await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
+            // Pro has no slot limit, so the server reports no count and none is shown (ADR-0073).
             await expect(page.getByText(/private slots left/u)).toHaveCount(0);
         });
     }
 
     for (const role of ['default', 'admin'] as const) {
-        test(`⛔ ${role}: never granted — and Private is a slot, not Premium, whatever the stage’s gate says`, async ({
+        test(`⛔ ${role}: never granted — and Private is a slot, not Pro, whatever the stage’s gate says`, async ({
             page,
         }) => {
             const paidFeatures = await openEditorAs(page, role);
 
             expect(['upsell', 'hidden']).toContain(paidFeatures);
 
-            // REWRITTEN for ADR-0073 (owner ruling 2026-10-26). This used to branch on the gate: the upsell showed a Premium
+            // REWRITTEN for ADR-0073 (owner ruling 2026-10-26). This used to branch on the gate: the upsell showed a Pro
             // badge and a sheet, `hidden` showed no Private at all. A free cook now keeps up to the server's limit of
             // recipes private, so Private is offered in both, with the server's count; the limit is the server's, so it is
             // matched by shape. Choosing it saves nothing (the draft is not stored until a title is typed).
             await expect(page.getByText(/^\d+ of \d+ private slots left$/u)).toBeVisible();
             await page.getByRole('radio', { name: /^Private/u }).check();
             await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
-            await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+            await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
             await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
-            await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
         });
     }
 });

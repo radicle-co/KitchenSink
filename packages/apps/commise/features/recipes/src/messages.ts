@@ -1043,7 +1043,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
         },
         card: {
             proBadge: 'PRO',
-            proBadgeLabel: 'Premium recipe',
+            proBadgeLabel: 'Pro recipe',
             difficultyEasy: 'Easy',
             difficultyMedium: 'Medium',
             difficultyHard: 'Hard',

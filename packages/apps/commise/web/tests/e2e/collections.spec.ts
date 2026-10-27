@@ -433,7 +433,7 @@ test.describe('collections (T109)', () => {
 
     /**
      * Visibility, premium-gated (FR-010, C1; `buildSpec.md` §5.2). The menu's "Make private" changes the collection AT
-     * ONCE and says so in a snackbar with Undo, which changes it back; a free-tier cook gets the Premium sheet and
+     * ONCE and says so in a snackbar with Undo, which changes it back; a free-tier cook gets the Pro sheet and
      * nothing is sent. The mocked viewer profile defaults to `paidFeatures: 'granted'` (`utils/recipeApi`'s `mockRecipeApi`).
      */
     test('a premium viewer makes a collection private at once, and Undo changes it back', async ({ page }) => {
@@ -465,7 +465,7 @@ test.describe('collections (T109)', () => {
         await expect(page.getByText('Public', { exact: true })).toBeVisible();
     });
 
-    test('a free-tier viewer meets the Premium sheet for Make private, and nothing is sent', async ({ page }) => {
+    test('a free-tier viewer meets the Pro sheet for Make private, and nothing is sent', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
@@ -485,7 +485,7 @@ test.describe('collections (T109)', () => {
         await page.getByRole('button', { name: 'More actions for Weeknight dinners' }).click();
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        const sheet = page.getByRole('dialog', { name: 'Private collections are part of Premium.' });
+        const sheet = page.getByRole('dialog', { name: 'Private collections are part of Pro.' });
         await expect(sheet).toBeVisible();
         await sheet.getByRole('button', { name: 'Not now' }).click();
         await expect(sheet).toHaveCount(0);

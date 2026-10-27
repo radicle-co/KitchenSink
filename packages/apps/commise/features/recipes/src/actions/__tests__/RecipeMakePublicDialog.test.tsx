@@ -2,7 +2,7 @@
 /**
  * Component tests for the web "Make this recipe public?" confirm (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5): what
  * a downgraded owner sees before a private recipe goes public. Every consequence's words, the two verb buttons (no
- * Premium button, no third choice — the deceptive-pattern rule), focus opening on Keep private, Escape as Keep, and the
+ * Pro button, no third choice — the deceptive-pattern rule), focus opening on Keep private, Escape as Keep, and the
  * busy and failed states the recipe page uses.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -45,10 +45,7 @@ describe('RecipeMakePublicDialog (web)', () => {
             'frees',
             'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
         ],
-        [
-            'premium',
-            "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
-        ],
+        ['premium', "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro."],
     ] as const)('under %s, asks "Make this recipe public?" and says plainly what it costs', (consequence, body) => {
         renderDialog({ consequence });
 
@@ -75,7 +72,7 @@ describe('RecipeMakePublicDialog (web)', () => {
         const buttons = screen.getAllByRole('button').map((button) => button.textContent);
 
         expect(buttons).toEqual(['Keep private', 'Make public']);
-        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
     });
 
     it('opens with focus on Keep private', () => {

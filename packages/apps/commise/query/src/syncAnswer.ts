@@ -4,7 +4,7 @@
  * The outbox (`@kitchensink/sync`) carries a sender's answer opaquely, in memory only, from the drain to whoever
  * subscribed (`SyncQueue.subscribe`). This is the vocabulary `recipeSender` answers in and the editor reads: the recipe
  * a create or update returned (its `currentVersion` is the next update's `expectedVersion`), the id a delete removed,
- * or a 409's two sides.
+ * a 409's two sides, or a 403's slot count.
  */
 import type { RecipeDetail, VersionConflictError } from '@kitchensink/recipe-service-client';
 
@@ -18,4 +18,6 @@ export type SyncAnswer =
     /** The recipe a delete removed: the server holds it no longer, so every cache that showed it must refresh. */
     | { readonly kind: 'recipeDeleted'; readonly id: string }
     /** A version conflict: the winning side, and the base the edit started from when the server still has it. */
-    | { readonly kind: 'recipeConflict'; readonly server: VersionConflictSide; readonly base?: VersionConflictSide };
+    | { readonly kind: 'recipeConflict'; readonly server: VersionConflictSide; readonly base?: VersionConflictSide }
+    /** A write the server refused for want of a private slot (`403 PRIVATE_SLOTS_FULL`): what it counted, and the limit. */
+    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number };

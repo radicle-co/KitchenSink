@@ -1,6 +1,6 @@
 /**
  * THE client rule for "Private" on a RECIPE (ADR-0073; owner ruling 2026-10-26): a free cook keeps up to the server's
- * limit of recipes private, in slots; Premium has no limit; only an imported public-web recipe still needs Premium.
+ * limit of recipes private, in slots; Pro has no limit; only an imported public-web recipe still needs Pro.
  *
  * Written before `recipePrivateGate.ts`. Collections keep `privateGate.ts` unchanged (their own tests pin it), so nothing
  * here may be read as a rule for a collection.
@@ -57,7 +57,7 @@ describe('slotStandingOf - the server states the number, the client never does',
         expect(slotStandingOf({ kind: 'unlimited' }, true)).toEqual({ kind: 'unlimited' });
     });
 
-    it('is unlimited for Premium, carrying no count', () => {
+    it('is unlimited for Pro, carrying no count', () => {
         expect(slotStandingOf({ kind: 'unlimited' })).toEqual({ kind: 'unlimited' });
     });
 
@@ -85,7 +85,7 @@ describe('slotStandingOf - the server states the number, the client never does',
 });
 
 describe('privateRuleOf - which rule a recipe is under', () => {
-    it('imported public-web recipes still need Premium (and a substantive edit, which the server judges)', () => {
+    it('imported public-web recipes still need Pro (and a substantive edit, which the server judges)', () => {
         expect(privateRuleOf(RecipeSourceType.IMPORTED_PUBLIC)).toBe('premium');
     });
 
@@ -169,7 +169,7 @@ describe('recipePrivateChoice - what choosing a visibility does', () => {
 
     it.each([
         ['open', OPEN, 'apply'],
-        ['unlimited (Premium)', UNLIMITED, 'apply'],
+        ['unlimited (Pro)', UNLIMITED, 'apply'],
         ['unknown (the read failed): the server decides', UNKNOWN, 'apply'],
         ['loading: the server decides', LOADING, 'apply'],
         ['full', FULL, 'slotsFull'],
@@ -215,7 +215,7 @@ describe('recipeMakePublicConsequence - public is NEVER final (owner ruling 2026
         expect(recipeMakePublicConsequence(slots(standing), PRIVATE)).toBe('frees');
     });
 
-    it('says nothing for Premium (no slots to free) and nothing while the standing is unknown (it may be Premium)', () => {
+    it('says nothing for Pro (no slots to free) and nothing while the standing is unknown (it may be Pro)', () => {
         expect(recipeMakePublicConsequence(slots(UNLIMITED), PRIVATE)).toBe('none');
         expect(recipeMakePublicConsequence(slots(UNKNOWN), PRIVATE)).toBe('none');
         expect(recipeMakePublicConsequence(slots(LOADING), PRIVATE)).toBe('none');
@@ -264,31 +264,30 @@ describe('showsRecipePremiumBadge', () => {
 describe('slotStandingForRecipe - a draft holds no slot (ADR-0073 section 12)', () => {
     it('a PUBLISHED recipe stands where the cook stands: the server count, unchanged', () => {
         for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING, UNLIMITED]) {
-            expect(slotStandingForRecipe(standing, { published: true, publishRefused: false })).toBe(standing);
+            expect(slotStandingForRecipe(standing, { published: true })).toBe(standing);
         }
     });
 
     it('a DRAFT (or a recipe never saved) has no standing to count, whatever the cook holds', () => {
         for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING]) {
-            expect(slotStandingForRecipe(standing, { published: false, publishRefused: false })).toEqual({
+            expect(slotStandingForRecipe(standing, { published: false })).toEqual({
                 kind: 'draft',
             });
         }
     });
 
-    it('⛔ Premium has no slots at all, so a draft stays `unlimited`: it never says "publishing uses a slot"', () => {
-        expect(slotStandingForRecipe(UNLIMITED, { published: false, publishRefused: false })).toBe(UNLIMITED);
+    it('⛔ Pro has no slots at all, so a draft stays `unlimited`: it never says "publishing uses a slot"', () => {
+        expect(slotStandingForRecipe(UNLIMITED, { published: false })).toBe(UNLIMITED);
     });
 
-    it('a draft whose Publish was refused for want of a slot stands where the cook stands, so the refusal can be shown', () => {
-        expect(slotStandingForRecipe(FULL, { published: false, publishRefused: true })).toBe(FULL);
-    });
+    // REMOVED with the inline refusal (owner ruling 2026-10-26): "a draft whose Publish was refused for want of a slot
+    // stands where the cook stands" served only to draw that refusal. The dialog replaces it (useRecipeEditor.test.tsx).
 });
 
 describe('a private DRAFT never meets the out-of-slots refusal; publishing it does', () => {
     const draft = (state: RecipePrivateFacts['state'] = 'hidden'): RecipePrivateFacts => ({
         rule: 'slots',
-        standing: slotStandingForRecipe(FULL, { published: false, publishRefused: false }),
+        standing: slotStandingForRecipe(FULL, { published: false }),
         state,
     });
 
@@ -311,7 +310,7 @@ describe('a private DRAFT never meets the out-of-slots refusal; publishing it do
         expect(recipePrivateChoice(publishing, PUBLIC, PRIVATE)).toBe('slotsFull');
     });
 
-    it('the premium rule is not a slot rule: a draft is still refused Private for want of Premium', () => {
+    it('the premium rule is not a slot rule: a draft is still refused Private for want of Pro', () => {
         expect(recipePrivateRefusalOf({ rule: 'premium', standing: { kind: 'draft' }, state: 'upsell' })).toBe(
             'premium',
         );

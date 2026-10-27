@@ -1,5 +1,5 @@
 /**
- * ⛔ A DOWNGRADE NEVER MAKES A PRIVATE RECIPE PUBLIC (owner ruling 2026-10-26; ADR-0073 section 4). A cook who lost Premium
+ * ⛔ A DOWNGRADE NEVER MAKES A PRIVATE RECIPE PUBLIC (owner ruling 2026-10-26; ADR-0073 section 4). A cook who lost Pro
  * keeps every private recipe, even past the limit, and no client path may turn one public by itself: not the rule, the
  * editor's write, the follow-up after a publish, nor the visibility the editor sends for an existing recipe.
  *
@@ -87,7 +87,7 @@ describe('a downgrade never makes a private recipe public - the editor over the 
                 knownPaidFeatures: 'upsell',
                 rule,
                 standing: OVER,
-                publication: { published: true, publishRefused: false },
+                publication: { published: true },
                 saved: PRIVATE,
                 values,
                 onChange,
@@ -109,7 +109,6 @@ describe('a downgrade never makes a private recipe public - the editor over the 
             expect(result.current.field.facts.standing).toStrictEqual(OVER);
             // The statement ("Public") is for a Private that will NOT stand; here it stands.
             expect(result.current.offersPrivate).toBe(true);
-            expect(result.current.statement.privateUnavailable).toBe(false);
         },
     );
 

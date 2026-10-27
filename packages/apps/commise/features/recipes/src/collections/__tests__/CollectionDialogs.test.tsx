@@ -3,8 +3,8 @@
  * The two dialogs of a collection's detail (`docs/design/uiOverhaul/buildSpec.md` §5.2).
  *
  * Delete keeps a dialog because it cannot be undone: "Delete {name}?", "The {n} recipes stay in your library.", **Delete
- * collection** (filled error) and **Keep collection**, with focus opening on Keep. The Premium sheet is what a free-tier
- * cook gets for "Make private": "Private collections are part of Premium.", **See Premium** and **Not now**, equal in
+ * collection** (filled error) and **Keep collection**, with focus opening on Keep. The Pro sheet is what a free-tier
+ * cook gets for "Make private": "Private collections are part of Pro.", **See Pro** and **Not now**, equal in
  * size and weight, side by side, nothing pre-selected — true, and not a distortion of the choice (DSA Art. 25).
  */
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -112,12 +112,12 @@ describe('CollectionUpsellSheet (web)', () => {
     it('is titled with the plain fact', () => {
         upsell();
 
-        expect(screen.getByRole('dialog', { name: 'Private collections are part of Premium.' })).toBeTruthy();
+        expect(screen.getByRole('dialog', { name: 'Private collections are part of Pro.' })).toBeTruthy();
     });
 
-    it('offers See Premium and Not now as equals: the same tier, side by side, neither the primary', () => {
+    it('offers See Pro and Not now as equals: the same tier, side by side, neither the primary', () => {
         upsell();
-        const see = screen.getByRole('button', { name: 'See Premium' });
+        const see = screen.getByRole('button', { name: 'See Pro' });
         const notNow = screen.getByRole('button', { name: 'Not now' });
 
         expect(see.className).toBe(notNow.className);
@@ -125,11 +125,11 @@ describe('CollectionUpsellSheet (web)', () => {
         expect(see.closest('.gap-3')).toBe(notNow.closest('.gap-3'));
     });
 
-    it('reports See Premium, and closes from Not now', async () => {
+    it('reports See Pro, and closes from Not now', async () => {
         const user = userEvent.setup();
         const props = upsell();
 
-        await user.click(screen.getByRole('button', { name: 'See Premium' }));
+        await user.click(screen.getByRole('button', { name: 'See Pro' }));
         expect(props.onSeePremium).toHaveBeenCalledOnce();
 
         await user.click(screen.getByRole('button', { name: 'Not now' }));

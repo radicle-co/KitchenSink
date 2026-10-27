@@ -445,9 +445,9 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             deleteBodyOther: 'The {count} recipes stay in your library.',
             deleteConfirm: 'Delete collection',
             deleteKeep: 'Keep collection',
-            upsellTitle: 'Private collections are part of Premium.',
-            upsellBody: 'Public collections are free. Premium lets you keep a collection to yourself.',
-            upsellSee: 'See Premium',
+            upsellTitle: 'Private collections are part of Pro.',
+            upsellBody: 'Public collections are free. Pro lets you keep a collection to yourself.',
+            upsellSee: 'See Pro',
             upsellNotNow: 'Not now',
             deleteFailed: 'We couldn’t delete this collection. Try again.',
             deleting: 'Deleting…',
@@ -456,7 +456,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             makePublicBodyFinal:
                 "Anyone can see a public collection and save a copy. You won't be able to make this one private again.",
             makePublicBodyPremium:
-                "Anyone can see a public collection and save a copy. To make this one private again, you'll need Premium.",
+                "Anyone can see a public collection and save a copy. To make this one private again, you'll need Pro.",
             makePublicBodyUnknown:
                 'Anyone can see a public collection and save a copy. You may not be able to make this one private again.',
             makePublicConfirm: 'Make public',

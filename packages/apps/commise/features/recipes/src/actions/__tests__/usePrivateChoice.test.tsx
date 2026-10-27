@@ -5,7 +5,7 @@
  * REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is NEVER final. A recipe is under the SLOTS rule (a
  * free cook's own, book or paid-site recipe) or the PREMIUM rule (an imported public-web recipe, where the old
  * paid-feature table still stands). The `final` and `unknown` make-public words are gone; going public from a held Private
- * says it frees a slot (slots rule) or that Premium is needed to return (premium rule, upsell only).
+ * says it frees a slot (slots rule) or that Pro is needed to return (premium rule, upsell only).
  *
  * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): the recipe is either PUBLISHED (the cook's real
  * standing decides, as every case above) or a DRAFT, which holds no slot - its last describe block. The `mount` helper
@@ -34,9 +34,8 @@ function mount(
     standing: SlotStanding = { kind: 'unknown' },
     // The profile's own answer: the state itself once settled, nothing while loading (a failed read passes `undefined`).
     knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined = state === 'loading' ? undefined : state,
-    publication: { readonly published: boolean; readonly publishRefused: boolean } = {
+    publication: { readonly published: boolean } = {
         published: true,
-        publishRefused: false,
     },
 ) {
     const onChange = vi.fn<(next: RecipeFormValues) => void>();
@@ -55,7 +54,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('⛔ under upsell, choosing Private opens the Premium sheet and the value is not changed', () => {
+    it('⛔ under upsell, choosing Private opens the Pro sheet and the value is not changed', () => {
         const { result, onChange } = mount('upsell');
 
         act(() => result.current.onPremiumRequired());
@@ -64,8 +63,21 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it.each(['hidden', 'loading'] as const)('⛔ under %s offers no Private and opens no sheet', (state) => {
-        const { result, onChange } = mount(state);
+    // REWRITTEN for the owner ruling of 2026-10-26: under `hidden` the field is still drawn, with Private REFUSED and the
+    // reason as its description, instead of a statement with no Private card (the publish-time ask then never appears).
+    it('⛔ under hidden shows the field (Private refused, not offered as a choice) and opens no sheet', () => {
+        const { result, onChange } = mount('hidden');
+
+        expect(result.current.offersPrivate).toBe(true);
+        expect(result.current.field.privateRefusal).toBe('final');
+        act(() => result.current.onPremiumRequired());
+
+        expect(result.current.sheet.open).toBe(false);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('⛔ while loading offers no Private and opens no sheet', () => {
+        const { result, onChange } = mount('loading');
 
         expect(result.current.offersPrivate).toBe(false);
         act(() => result.current.onPremiumRequired());
@@ -93,13 +105,15 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
      * Public write landed, and the server refused the Private one. Once the draft leaves Private the free return is
      * gone - the field decides from what the cook may still keep, not from what the server held at opening.
      */
-    it('⛔ under hidden, once the draft of a private recipe is Public, Private is no longer offered', () => {
+    it('⛔ under hidden, once the draft of a private recipe is Public, Private is no longer a choice: the field refuses it', () => {
         const { result } = mount('hidden', RecipeVisibility.PRIVATE, PUBLIC_DRAFT);
 
-        expect(result.current.offersPrivate).toBe(false);
+        expect(result.current.offersPrivate).toBe(true);
+        expect(result.current.field.heldVisibility).toBe(RecipeVisibility.PUBLIC);
+        expect(result.current.field.privateRefusal).toBe('final');
     });
 
-    it('⛔ under upsell, once the draft of a private recipe is Public, Private asks for Premium and changes nothing', () => {
+    it('⛔ under upsell, once the draft of a private recipe is Public, Private asks for Pro and changes nothing', () => {
         const { result, onChange } = mount('upsell', RecipeVisibility.PRIVATE, PUBLIC_DRAFT);
 
         act(() => result.current.onPremiumRequired());
@@ -110,7 +124,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
     });
 
     // Going public: only the upsell has a cost to state (public is never final).
-    it('⛔ under the upsell, choosing Public on a private recipe asks first with the Premium words, and changes nothing yet', () => {
+    it('⛔ under the upsell, choosing Public on a private recipe asks first with the Pro words, and changes nothing yet', () => {
         const { result, onChange } = mount('upsell', RecipeVisibility.PRIVATE);
 
         act(() => result.current.onConfirmPublic());
@@ -131,20 +145,6 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         },
     );
 
-    it.each([
-        ['hidden', true],
-        ['upsell', false],
-        ['granted', false],
-        ['loading', false],
-    ] as const)(
-        'a kept draft`s Private for a recipe not held private: the statement says so under %s -> %s',
-        (state, expected) => {
-            const { result } = mount(state, RecipeVisibility.PUBLIC, PRIVATE_DRAFT);
-
-            expect(result.current.statement.privateUnavailable).toBe(expected);
-        },
-    );
-
     /**
      * Review B1: a FAILED profile read shows as `hidden`, but it is not a known refusal. A kept draft's Private then
      * stands - it is what the create and the follow-up send - so the field shows it rather than a statement that says
@@ -158,7 +158,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
                 knownPaidFeatures: undefined,
                 rule: 'premium',
                 standing: { kind: 'unknown' },
-                publication: { published: true, publishRefused: false },
+                publication: { published: true },
                 saved: RecipeVisibility.PUBLIC,
                 values: PRIVATE_DRAFT,
                 onChange: vi.fn(),
@@ -166,7 +166,6 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         );
 
         expect(result.current.offersPrivate).toBe(true);
-        expect(result.current.statement.privateUnavailable).toBe(false);
         expect(result.current.field.privateRefusal).toBeUndefined();
     });
 
@@ -176,7 +175,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         );
     });
 
-    it('Not now closes the sheet, and so does See Premium (the subscription surface is not built, 010)', () => {
+    it('Not now closes the sheet, and so does See Pro (the subscription surface is not built, 010)', () => {
         const { result } = mount('upsell');
 
         act(() => result.current.onPremiumRequired());
@@ -229,10 +228,9 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         const { result } = mount('upsell', RecipeVisibility.PUBLIC, PRIVATE_DRAFT, 'slots', FULL);
 
         expect(result.current.offersPrivate).toBe(true);
-        expect(result.current.statement.privateUnavailable).toBe(false);
     });
 
-    it('"Get Premium" from the refusal opens the Premium sheet under the upsell, and changes nothing', () => {
+    it('"Get Pro" from the refusal opens the Pro sheet under the upsell, and changes nothing', () => {
         const { result, onChange } = mount('upsell', RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', FULL);
 
         act(() => result.current.onPremiumRequired());
@@ -241,7 +239,7 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it.each(['hidden', 'loading'] as const)('"Get Premium" opens no sheet when paid features are %s', (state) => {
+    it.each(['hidden', 'loading'] as const)('"Get Pro" opens no sheet when paid features are %s', (state) => {
         const { result } = mount(state, RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', FULL);
 
         act(() => result.current.onPremiumRequired());
@@ -285,7 +283,7 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         expect(confirmed.result.current.statement.focusOnMount).toBe(true);
     });
 
-    it('Premium (no slots to free) goes public at once, with no dialog', () => {
+    it('Pro (no slots to free) goes public at once, with no dialog', () => {
         const { result, onChange } = mount('granted', RecipeVisibility.PRIVATE, PRIVATE_DRAFT, 'slots', {
             kind: 'unlimited',
         });
@@ -298,12 +296,11 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
 });
 
 describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () => {
-    const DRAFT = { published: false, publishRefused: false } as const;
-    const REFUSED = { published: false, publishRefused: true } as const;
+    const DRAFT = { published: false } as const;
     const draftMount = (
         values: RecipeFormValues,
         standing: SlotStanding,
-        publication: { readonly published: boolean; readonly publishRefused: boolean },
+        publication: { readonly published: boolean },
         saved: RecipeVisibility = RecipeVisibility.PUBLIC,
     ) => mount('hidden', saved, values, 'slots', standing, 'hidden', publication);
 
@@ -313,23 +310,10 @@ describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () =>
         expect(result.current.field.privateRefusal).toBeUndefined();
         expect(result.current.field.facts.standing).toEqual({ kind: 'draft' });
         expect(result.current.offersPrivate).toBe(true);
-        expect(result.current.statement.privateUnavailable).toBe(false);
     });
 
-    it('⛔ once Publish was refused for want of a slot, the field gets the cook’s real standing, but Private stays CHOSEN (never swapped for Public)', () => {
-        const { result } = draftMount(PRIVATE_DRAFT, FULL, REFUSED);
-
-        expect(result.current.field.facts.standing).toEqual(FULL);
-        expect(result.current.field.privateRefusal).toBeUndefined();
-    });
-
-    it('⛔ a private DRAFT does not hold its slot: after a refused Publish the field decides from Public, so the refusal can be drawn', () => {
-        // The server holds this draft as Private (`saved`), but a draft holds no slot - it is the PUBLISH that needs one.
-        const { result } = draftMount(PRIVATE_DRAFT, FULL, REFUSED, RecipeVisibility.PRIVATE);
-
-        expect(result.current.field.heldVisibility).toBe(RecipeVisibility.PUBLIC);
-        expect(result.current.field.facts.standing).toEqual(FULL);
-    });
+    // REMOVED with the inline refusal (owner ruling 2026-10-26): once Publish was refused for want of a slot the field used to
+    // take the cook's real standing so it could draw the refusal. The blocked-publish dialog replaces that.
 
     it('a published private recipe DOES hold its slot (the control group)', () => {
         const { result } = mount('hidden', RecipeVisibility.PRIVATE, PRIVATE_DRAFT, 'slots', FULL);
@@ -361,7 +345,7 @@ describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () =>
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('the premium rule is unchanged for a draft: an imported public-web recipe still needs Premium', () => {
+    it('the premium rule is unchanged for a draft: an imported public-web recipe still needs Pro', () => {
         const { result } = mount('hidden', RecipeVisibility.PUBLIC, PRIVATE_DRAFT, 'premium', FULL, 'hidden', DRAFT);
 
         expect(result.current.field.privateRefusal).toBe('final');

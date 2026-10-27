@@ -29,7 +29,7 @@
  *     collapse are `BottomSheetPanel`'s Template Method.
  */
 import { useEffect, useEffectEvent, useState, type FC } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Modal } from '../modal/Modal.native.js';
@@ -38,7 +38,7 @@ import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import type { SheetProps } from './props.js';
 import { BottomSheetPanel } from './BottomSheetPanel.native.js';
-import { sheetAnimationType } from './sheetPresentation.js';
+import { sheetAnimationType, sheetIsCentred } from './sheetPresentation.js';
 import { useOpenEdges } from './useOpenEdges.js';
 
 export const Sheet: FC<SheetProps> = ({
@@ -48,11 +48,16 @@ export const Sheet: FC<SheetProps> = ({
     title,
     closeLabel,
     size,
+    presentation = 'sheet',
     toolbar,
     children,
     footer,
 }) => {
     const reduceMotion = useReduceMotion();
+    const { width } = useWindowDimensions();
+    // Only a `content` sheet is a dialog; the other sizes keep their own geometry.
+    const shape = size === 'content' ? presentation : 'sheet';
+    const centred = sheetIsCentred(shape, width);
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const [shown, setShown] = useState(0);
@@ -104,14 +109,21 @@ export const Sheet: FC<SheetProps> = ({
                     : undefined
             }
         >
-            <View style={[styles.backdrop, { paddingTop: insets.top, backgroundColor: colors.scrim }]}>
+            <View
+                style={[
+                    styles.backdrop,
+                    { paddingTop: insets.top, backgroundColor: colors.scrim },
+                    centred ? styles.centred : null,
+                ]}
+            >
                 <Pressable aria-hidden accessible={false} style={StyleSheet.absoluteFill} onPress={close} />
-                <KeyboardAvoider style={styles.avoider}>
+                <KeyboardAvoider style={[styles.avoider, centred ? styles.centred : null]}>
                     <BottomSheetPanel
                         key={opens}
                         title={title}
                         closeLabel={closeLabel}
                         size={size}
+                        presentation={shape}
                         toolbar={toolbar}
                         footer={footer}
                         focusSignal={shown}
@@ -128,6 +140,8 @@ export const Sheet: FC<SheetProps> = ({
 
 const styles = StyleSheet.create({
     backdrop: { flex: 1, justifyContent: 'flex-end' },
+    // A centred dialog (`sheetIsCentred`): the card sits mid-screen instead of on the foot.
+    centred: { justifyContent: 'center' },
     // `box-none`: a tap outside the sheet passes through this layer to the scrim beneath it.
     avoider: { flex: 1, width: '100%', justifyContent: 'flex-end', alignItems: 'center', pointerEvents: 'box-none' },
 });

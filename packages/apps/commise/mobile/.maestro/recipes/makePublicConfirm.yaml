@@ -60,7 +60,7 @@ onFlowComplete:
 - assertVisible: 'Anyone can see a public recipe and save a copy\..*'
 # Two verbs and nothing that sells.
 - assertVisible: 'Keep private'
-- assertNotVisible: 'See Premium'
+- assertNotVisible: 'See Pro'
 - tapOn: 'Keep private'
 - assertNotVisible: 'Make this recipe public?'
 - assertVisible: '^Private$'
@@ -122,7 +122,7 @@ onFlowComplete:
 - assertVisible: 'Make this collection public?'
 - assertVisible: 'Anyone can see a public collection and save a copy\..*'
 - assertVisible: 'Keep private'
-- assertNotVisible: 'See Premium'
+- assertNotVisible: 'See Pro'
 - tapOn: 'Keep private'
 - assertNotVisible: 'Make this collection public?'
 # Nothing was sent: it is still private, and no "now public" snackbar stands.

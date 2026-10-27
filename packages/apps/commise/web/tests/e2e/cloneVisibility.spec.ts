@@ -57,7 +57,7 @@ test.describe('clone + visibility (T080)', () => {
     });
 
     // Owner 2026-10-13 (B2 E1), REWRITTEN for ADR-0073 (owner ruling 2026-10-26): a free-tier owner's tap on Make private
-    // used to open the Premium sheet. A recipe the cook wrote now uses one of their private slots, so the tap makes it private.
+    // used to open the Pro sheet. A recipe the cook wrote now uses one of their private slots, so the tap makes it private.
     test('a free-tier owner taps Make private and the recipe uses a private slot', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
@@ -76,7 +76,7 @@ test.describe('clone + visibility (T080)', () => {
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
         await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
-        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
         await expect(page.getByText('Private', { exact: true })).toBeVisible();
 
         await page.getByRole('button', { name: /^More actions for /u }).click();

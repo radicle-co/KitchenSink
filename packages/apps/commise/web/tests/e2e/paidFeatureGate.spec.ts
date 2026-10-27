@@ -17,7 +17,7 @@ import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from
  *
  * REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: a RECIPE the cook wrote is no longer a paid feature. A free
  * cook keeps up to the server's limit of recipes private (a slot), whatever the gate says; only an imported public-web
- * recipe still needs Premium, and COLLECTIONS are unchanged. Public is never final.
+ * recipe still needs Pro, and COLLECTIONS are unchanged. Public is never final.
  *
  * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12, spec 001 FR-003b): a DRAFT holds no slot. A new recipe is
  * a draft, so its field counts nothing and refuses nothing; the count and the refusal belong to a PUBLISHED recipe (edit
@@ -33,20 +33,20 @@ async function openEditorAs(page: Page, paidFeatures: 'granted' | 'upsell' | 'hi
 }
 
 test.describe('private slots — the editor’s “Who can see it” (a recipe the cook wrote)', () => {
-    test('granted (Premium): Private is a choice, with no count, no Premium badge and no sheet', async ({ page }) => {
+    test('granted (Pro): Private is a choice, with no count, no Pro badge and no sheet', async ({ page }) => {
         await openEditorAs(page, 'granted');
 
         await page.getByRole('radio', { name: 'Private' }).check();
 
         await expect(page.getByRole('radio', { name: 'Private' })).toBeChecked();
         await expect(page.getByText(/private slots/u)).toHaveCount(0);
-        await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
         await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
-        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
     });
 
     for (const state of ['upsell', 'hidden'] as const) {
-        test(`${state}: a NEW recipe is a draft, so Private says it uses no slot until it is published - no count, no Premium badge, no sheet`, async ({
+        test(`${state}: a NEW recipe is a draft, so Private says it uses no slot until it is published - no count, no Pro badge, no sheet`, async ({
             page,
         }) => {
             await openEditorAs(page, state);
@@ -56,9 +56,9 @@ test.describe('private slots — the editor’s “Who can see it” (a recipe t
             await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
             await expect(page.getByText('A private draft uses no slot. Publishing it uses one.')).toBeVisible();
             await expect(page.getByText(/private slots left/u)).toHaveCount(0);
-            await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+            await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
             await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
-            await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
         });
     }
 });
@@ -129,7 +129,7 @@ test.describe('private slots — every slot used', () => {
         await expect(ways.getByRole('button')).toHaveText([
             /Make a private recipe public\s*It frees its slot/u,
             /Delete a private recipe\s*It frees its slot/u,
-            /Get Premium\s*Private recipes with no limit/u,
+            /Get Pro\s*Private recipes with no limit/u,
         ]);
 
         await page.getByRole('radio', { name: /^Private/u }).click({ force: true });
@@ -137,12 +137,10 @@ test.describe('private slots — every slot used', () => {
         await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
     });
 
-    test('“Get Premium” opens the Premium sheet; “Make a private recipe public” goes to My recipes', async ({
-        page,
-    }) => {
+    test('“Get Pro” opens the Pro sheet; “Make a private recipe public” goes to My recipes', async ({ page }) => {
         await openFullEditor(page, 'upsell', 'ownPublished');
 
-        await page.getByRole('button', { name: /Get Premium/u }).click();
+        await page.getByRole('button', { name: /Get Pro/u }).click();
         await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toBeVisible();
         await page.getByRole('button', { name: 'Not now' }).click();
 
@@ -150,16 +148,16 @@ test.describe('private slots — every slot used', () => {
         await expect(page).toHaveURL(/\/recipes\/?$/u);
     });
 
-    test('⛔ hidden: the refusal offers no Premium way - no sale where none is shown', async ({ page }) => {
+    test('⛔ hidden: the refusal offers no Pro way - no sale where none is shown', async ({ page }) => {
         await openFullEditor(page, 'hidden', 'ownPublished');
 
         await expect(page.getByText('Not available. All 2 of your private slots are in use.')).toBeVisible();
-        await expect(page.getByRole('button', { name: /Get Premium/u })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /Get Pro/u })).toHaveCount(0);
         await expect(page.getByRole('button', { name: /Delete a private recipe/u })).toBeVisible();
     });
 });
 
-test.describe('paid features — an imported public-web recipe in the editor (Premium is still its rule)', () => {
+test.describe('paid features — an imported public-web recipe in the editor (Pro is still its rule)', () => {
     const WEB_ID = 'ec000000-0000-4000-8000-0000000000f3';
 
     async function openWebRecipe(page: Page, paidFeatures: 'granted' | 'upsell' | 'hidden'): Promise<void> {
@@ -177,27 +175,29 @@ test.describe('paid features — an imported public-web recipe in the editor (Pr
         await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
     }
 
-    test('upsell: Private carries the Premium badge and opens the Premium sheet; Public stays chosen', async ({
-        page,
-    }) => {
+    test('upsell: Private carries the Pro badge and opens the Pro sheet; Public stays chosen', async ({ page }) => {
         await openWebRecipe(page, 'upsell');
 
-        await expect(page.getByText('Premium', { exact: true })).toBeVisible();
+        await expect(page.getByText('Pro', { exact: true })).toBeVisible();
         await page.getByRole('radio', { name: /^Private/u }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeVisible();
         await page.getByRole('button', { name: 'Not now' }).click();
         await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
     });
 
-    test('⛔ hidden: says “Who can see it: Public”, with no Private, no Premium and no upsell', async ({ page }) => {
+    test('⛔ hidden: Private is shown refused with its reason, with no Pro and no upsell', async ({ page }) => {
         await openWebRecipe(page, 'hidden');
 
+        // Owner ruling 2026-10-26: Private is shown REFUSED (aria-disabled, still focusable), the reason its description.
         await expect(page.getByText('Who can see it')).toBeVisible();
-        await expect(page.getByText('Anyone can find it in Discover')).toBeVisible();
-        await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
-        await expect(page.getByRole('radio', { name: 'Public' })).toHaveCount(0);
-        await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+        const card = page.getByRole('radio', { name: /^Private/u });
+        await expect(card).toHaveAttribute('aria-disabled', 'true');
+        await expect(card).toBeEnabled();
+        await expect(
+            page.getByText('Not available. A recipe from a public web page can only be public.'),
+        ).toBeVisible();
+        await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
     });
 });
 
@@ -223,23 +223,23 @@ test.describe('private slots — the recipe page’s ⋯ menu', () => {
     }
 
     for (const state of ['granted', 'upsell', 'hidden'] as const) {
-        test(`${state}: Make private makes a recipe the cook wrote private - a slot, not Premium`, async ({ page }) => {
+        test(`${state}: Make private makes a recipe the cook wrote private - a slot, not Pro`, async ({ page }) => {
             await openOwnRecipe(page, state);
 
             await page.getByRole('menuitem', { name: 'Make private' }).click();
 
             await expect(page.getByText('Private', { exact: true })).toBeVisible();
             await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
-            await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
         });
     }
 
-    test('upsell, an imported public-web recipe: Make private opens the Premium sheet', async ({ page }) => {
+    test('upsell, an imported public-web recipe: Make private opens the Pro sheet', async ({ page }) => {
         await openOwnRecipe(page, 'upsell', 'imported_public');
 
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeVisible();
     });
 
     test('⛔ hidden, an imported public-web recipe: the menu offers no Make private', async ({ page }) => {
@@ -274,12 +274,12 @@ test.describe('paid features — a collection’s ⋯ menu', () => {
         await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible();
     });
 
-    test('upsell: Make private opens the Premium sheet', async ({ page }) => {
+    test('upsell: Make private opens the Pro sheet', async ({ page }) => {
         await openOwnCollection(page, 'upsell');
 
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private collections are part of Premium.' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private collections are part of Pro.' })).toBeVisible();
     });
 
     test('⛔ hidden: the menu offers no Make private', async ({ page }) => {
@@ -294,7 +294,7 @@ test.describe('paid features — a collection’s ⋯ menu', () => {
  * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is NEVER
  * final. Making a private recipe public is confirmed first where there is a cost worth saying - it frees one of the cook's
  * private slots, and a free slot is all it takes to make it private again - and an imported public-web recipe under the
- * upsell is told Premium is needed to return. Nothing ever says the recipe cannot go private again.
+ * upsell is told Pro is needed to return. Nothing ever says the recipe cannot go private again.
  */
 test.describe('private slots — making a private recipe public', () => {
     const PRIVATE_ID = 'ec000000-0000-4000-8000-0000000000f2';
@@ -346,11 +346,11 @@ test.describe('private slots — making a private recipe public', () => {
         await expect(page.getByText(/won.t be able|may not be able/u)).toHaveCount(0);
     });
 
-    test('upsell, an imported public-web recipe: the Public card says Premium is needed; Keep private leaves it private', async ({
+    test('upsell, an imported public-web recipe: the Public card says Pro is needed; Keep private leaves it private', async ({
         page,
     }) => {
         await openPrivateRecipe(page, 'upsell', `/recipes/${PRIVATE_ID}/edit`, 'imported_public');
-        await expect(page.getByText("To make it private again, you'll need Premium.")).toBeVisible();
+        await expect(page.getByText("To make it private again, you'll need Pro.")).toBeVisible();
 
         await page.getByRole('radio', { name: /^Public/u }).click();
         const dialog = page.getByRole('alertdialog', { name: 'Make this recipe public?' });
@@ -371,11 +371,11 @@ test.describe('private slots — making a private recipe public', () => {
 
         const dialog = page.getByRole('alertdialog', { name: 'Make this recipe public?' });
         await expect(dialog).toBeVisible();
-        await expect(dialog.getByRole('button', { name: /Premium/u })).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: /Pro/u })).toHaveCount(0);
         await dialog.getByRole('button', { name: 'Make public' }).click();
 
         await expect(dialog).toHaveCount(0);
-        // Public now, and the way back is a free slot, not Premium.
+        // Public now, and the way back is a free slot, not Pro.
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await expect(page.getByRole('menuitem', { name: 'Make private' })).toBeVisible();
     });
@@ -412,7 +412,7 @@ test.describe('paid features — a downgraded owner making a private collection 
             ),
         ).toBeVisible();
         await expect(dialog.getByRole('button', { name: 'Keep private' })).toBeFocused();
-        await expect(dialog.getByRole('button', { name: /Premium/u })).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: /Pro/u })).toHaveCount(0);
         await dialog.getByRole('button', { name: 'Make public' }).click();
 
         await expect(dialog).toHaveCount(0);
@@ -426,7 +426,7 @@ test.describe('paid features — a downgraded owner making a private collection 
         const dialog = page.getByRole('alertdialog', { name: 'Make this collection public?' });
         await expect(
             dialog.getByText(
-                "Anyone can see a public collection and save a copy. To make this one private again, you'll need Premium.",
+                "Anyone can see a public collection and save a copy. To make this one private again, you'll need Pro.",
             ),
         ).toBeVisible();
         await dialog.getByRole('button', { name: 'Keep private' }).click();

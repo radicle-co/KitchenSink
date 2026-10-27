@@ -61,7 +61,7 @@ describe('useRecipePrivate', () => {
         expect(result.current.refusal).toBe('slots');
     });
 
-    it('Premium is unlimited and refuses nothing', async () => {
+    it('Pro is unlimited and refuses nothing', async () => {
         const { result } = mount('unlimited', undefined, 'granted');
 
         await waitFor(() => expect(result.current.standing.kind).toBe('unlimited'));

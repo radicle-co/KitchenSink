@@ -31,6 +31,8 @@ const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail
     makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
 
 import { DEVICE_SAVE_IDLE_MS, SERVER_CHECKPOINT_IDLE_MS } from '../../editor/checkpointPolicy.js';
+import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
+
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { errorsStillHolding } from '../../editor/gate.js';
 import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
@@ -3182,10 +3184,10 @@ describe('a private draft with every slot used (ADR-0073 section 12)', () => {
             intentKind: 'create',
             payload: { input: { status: 'draft', visibility: RecipeVisibility.PRIVATE } },
         });
-        expect(result.current.slotsRefused).toBe(false);
+        expect(result.current.publishBlocked).toBeUndefined();
     });
 
-    it('⛔ Publish is refused with slotsFull, sends nothing, and says the slots are why', async () => {
+    it('⛔ Publish is refused with slotsFull, sends nothing, and opens the noSlot dialog', async () => {
         const { result, port } = mount({}, undefined, fakePort(), 'slots');
 
         act(() => {
@@ -3198,12 +3200,12 @@ describe('a private draft with every slot used (ADR-0073 section 12)', () => {
         await settle();
 
         expect(outcome).toEqual({ kind: 'slotsFull' });
-        expect(result.current.slotsRefused).toBe(true);
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
         expect(port.submitExclusive).not.toHaveBeenCalled();
         expect(result.current.state.status).toBe('editing');
     });
 
-    it('the refusal clears when the draft is made Public, and the Publish then goes out', async () => {
+    it('⛔ Publish opens the noSlot dialog and sends nothing; Keep as draft keeps the draft and the Private choice', async () => {
         const { result, port } = mount({}, undefined, fakePort(), 'slots');
 
         act(() => {
@@ -3212,17 +3214,77 @@ describe('a private draft with every slot used (ADR-0073 section 12)', () => {
         act(() => {
             result.current.publish('');
         });
-        expect(result.current.slotsRefused).toBe(true);
+        await settle();
 
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+
+        act(() => {
+            result.current.keepAsDraft();
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toBeUndefined();
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    it('"Publish as public" on the noSlot dialog moves the choice to Public and publishes it public', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues(privateComplete());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.publishAsPublic();
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toBeUndefined();
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(port.submitted[0]).toMatchObject({ payload: { input: { status: 'published', visibility: 'public' } } });
+    });
+
+    it('⛔ a draft save never opens the dialog: only a Publish asks', async () => {
+        const { result } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues(privateComplete());
+        });
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toBeUndefined();
+    });
+
+    it('after Keep as draft, making the draft Public lets the Publish go out', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues(privateComplete());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+
+        act(() => {
+            result.current.keepAsDraft();
+        });
         act(() => {
             result.current.setValues(publicComplete());
         });
-        expect(result.current.slotsRefused).toBe(false);
-
         act(() => {
             result.current.publish('');
         });
         await settle();
+
+        expect(result.current.publishBlocked).toBeUndefined();
 
         expect(port.submitted[0]).toMatchObject({ payload: { input: { status: 'published', visibility: 'public' } } });
     });
@@ -3318,7 +3380,8 @@ describe('Try again after a Publish the server refused for want of a slot', () =
 
         expect(port.submitted).toHaveLength(1);
         expect(port.withdrawn).toEqual([seq]);
-        expect(result.current.slotsRefused).toBe(true);
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
         expect(result.current.parked).toBeUndefined();
     });
 
@@ -3434,19 +3497,6 @@ describe('the visibility write comes BEFORE the first publish of a stored draft'
         expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
     });
 
-    it('a Private the server is known to refuse for want of Premium is not sent: the recipe publishes public', async () => {
-        const view = mount({ recipe: STORED_PUBLIC }, undefined, fakePort(), 'premium');
-        chooseVisibility(view, RecipeVisibility.PRIVATE);
-
-        act(() => {
-            view.result.current.publish('');
-        });
-        await settle();
-
-        expect(view.setVisibility).not.toHaveBeenCalled();
-        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
-    });
-
     it('⛔ a Publish pressed while a draft save is on the wire waits for it, then writes the visibility first', async () => {
         const view = mount({ recipe: STORED_PUBLIC });
         // The server answers with the recipe as it is then: the draft save made version 4.
@@ -3541,5 +3591,260 @@ describe('the visibility write comes BEFORE the first publish of a stored draft'
 
         expect(view.setVisibility).toHaveBeenCalledOnce();
         expect(view.port.submitted).toHaveLength(1);
+    });
+});
+
+/**
+ * Owner ruling 2026-10-26 (the blocked-publish dialog, which replaced the stop-and-ask): the last case of "nothing turns a
+ * private recipe public on its own". A Private the server is KNOWN to refuse (an imported public-web recipe: Pro plus a change of the cook's own) no
+ * longer publishes public on Publish. REWRITES "a Private the server is known to refuse for want of Pro is not
+ * sent: the recipe publishes public", which asserted the behaviour this ruling removes.
+ */
+describe('Publish of a Private the server is known to refuse (imported public-web recipe)', () => {
+    const STORED_PUBLIC = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        visibility: RecipeVisibility.PUBLIC,
+    });
+
+    function mountPrivate(refusal: PrivateRefusal | undefined) {
+        const view = mount({ recipe: STORED_PUBLIC }, undefined, fakePort(), refusal);
+
+        act(() => {
+            view.result.current.setField('visibility', RecipeVisibility.PRIVATE);
+        });
+
+        return view;
+    }
+
+    function press(view: { readonly result: { readonly current: UseRecipeEditorResult } }) {
+        act(() => {
+            view.result.current.publish('');
+        });
+    }
+
+    it('⛔ a premium refusal opens the ask and sends nothing', async () => {
+        const view = mountPrivate('premium');
+
+        press(view);
+        await settle();
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('"Publish as public" publishes with visibility public, and the editor’s choice moves to Public', async () => {
+        const view = mountPrivate('premium');
+        press(view);
+
+        act(() => {
+            view.result.current.publishAsPublic();
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitted).toHaveLength(1);
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
+    it('⛔ "Keep as draft" sends nothing and keeps the cook’s Private', async () => {
+        const view = mountPrivate('premium');
+        press(view);
+
+        act(() => {
+            view.result.current.keepAsDraft();
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    // Owner ruling 2026-10-26, completed: a kept Private draft is a private recipe, and nothing turns it public on its own.
+    // With paid features hidden the field shows Private refused, and Publish asks (no upsell) exactly as it does where Pro
+    // is shown; only a cook who moved the choice to Public themselves publishes without it.
+    it('⛔ with paid features hidden (a final refusal) a kept Private draft is ASKED about too, and nothing is sent', async () => {
+        const view = mountPrivate('final');
+
+        press(view);
+        await settle();
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'final' });
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('⛔ with paid features hidden, a cook who moved the choice to Public themselves publishes with no ask', async () => {
+        const view = mountPrivate('final');
+        act(() => {
+            view.result.current.setField('visibility', RecipeVisibility.PUBLIC);
+        });
+
+        press(view);
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
+    it('asks again on the next Publish after Keep as draft', async () => {
+        const view = mountPrivate('premium');
+        press(view);
+        act(() => {
+            view.result.current.keepAsDraft();
+        });
+
+        press(view);
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a cook who CAN keep it private is never asked: the visibility goes first', async () => {
+        const view = mountPrivate(undefined);
+        view.setVisibility.mockResolvedValue({ ...STORED_PUBLIC, visibility: RecipeVisibility.PRIVATE });
+
+        press(view);
+        await settle();
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.setVisibility).toHaveBeenCalledExactlyOnceWith('rec_1', RecipeVisibility.PRIVATE);
+    });
+
+    it('is not asked when the cook chose Public', async () => {
+        const view = mount({ recipe: STORED_PUBLIC }, undefined, fakePort(), 'premium');
+
+        press(view);
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.port.submitted).toHaveLength(1);
+    });
+
+    it('only a Publish asks: a draft checkpoint sends no ask and no visibility', async () => {
+        const view = mountPrivate('premium');
+
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.setVisibility).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Owner ruling 2026-10-26, code owed: a server `PRIVATE_SLOTS_FULL` on the FIRST publish attempt - the client did not know
+ * the slots were full, e.g. another device used the last slot - opens the same "Your private slots are full" dialog, with
+ * the server's limit as the total, instead of parking behind Try again.
+ */
+describe('a Publish the server refuses for want of a private slot the client did not know was gone', () => {
+    const STORED_DRAFT = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        visibility: RecipeVisibility.PRIVATE,
+    });
+    const FULL = { kind: 'recipeSlotsFull', used: 50, limit: 50 } as const;
+
+    async function publishRefusedByServer() {
+        const view = mount({ recipe: STORED_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.park(seq, 403, FULL);
+        });
+        await settle();
+        await settle();
+
+        return { view, seq };
+    }
+
+    it('⛔ opens the noSlot dialog with the server’s limit, withdraws the parked write, and leaves no Try again', async () => {
+        const { view, seq } = await publishRefusedByServer();
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(view.port.withdrawn).toEqual([seq]);
+        expect(view.result.current.parked).toBeUndefined();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('Keep as draft then sends nothing more and keeps Private', async () => {
+        const { view } = await publishRefusedByServer();
+        const sent = view.port.submitted.length;
+
+        act(() => {
+            view.result.current.keepAsDraft();
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.port.submitted).toHaveLength(sent);
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('Publish as public then publishes it public', async () => {
+        const { view } = await publishRefusedByServer();
+        view.setVisibility.mockResolvedValue({ ...STORED_DRAFT, visibility: RecipeVisibility.PUBLIC });
+
+        act(() => {
+            view.result.current.publishAsPublic();
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(view.port.submitted.at(-1)).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
+    it('⛔ a visibility write the server refuses with PRIVATE_SLOTS_FULL opens the same dialog, not the failure alert', async () => {
+        const view = mount(
+            { recipe: { ...STORED_DRAFT, visibility: RecipeVisibility.PUBLIC } },
+            undefined,
+            fakePort(),
+            undefined,
+        );
+        view.setVisibility.mockRejectedValue(new PrivateSlotsFullError(50, 50));
+        act(() => {
+            view.result.current.setField('visibility', RecipeVisibility.PRIVATE);
+        });
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(view.reportError).not.toHaveBeenCalled();
+        expect(view.result.current.parked).toBeUndefined();
+    });
+
+    it('a 403 with no slots answer (anything else the server refuses) still parks behind Try again', async () => {
+        const view = mount({ recipe: STORED_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 403);
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.result.current.parked).toMatchObject({ kind: 'update' });
     });
 });

@@ -301,6 +301,31 @@ describe('Sheet (web)', () => {
     });
 
     /**
+     * Owner ruling 2026-10-26 (platform guidelines): a `dialog` presentation is a bottom sheet below `sm`, as `content`, and
+     * from `sm` a CENTRED DIALOG at most 448 px wide (`max-w-md`) - one `sm:max-w-` utility, not two.
+     */
+    describe('presentation dialog', () => {
+        const smUtilities = (prefix: string): readonly string[] =>
+            screen
+                .getByRole('dialog')
+                .className.split(/\s+/u)
+                .filter((utility) => utility.startsWith(prefix));
+
+        it('is at most 448 px wide from sm, and still a bottom sheet below it', async () => {
+            await openHost(<Host overrides={{ presentation: 'dialog' }} />);
+
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-md']);
+            expect(smUtilities('bottom-')).toHaveLength(1);
+        });
+
+        it('leaves the default presentation at the house dialog width', async () => {
+            await openHost(<Host />);
+
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+        });
+    });
+
+    /**
      * F11 (`evaluateFinal.md`): every web sheet filled a phone, short tasks included. Native was right. A `content` sheet
      * below sm is a bottom sheet: anchored to the foot of the VISIBLE box (so a keyboard lifts it), as tall as its
      * content up to the visible height less a gap, with rounded top corners. `full` keeps the whole visible box.

@@ -2,7 +2,7 @@
  * THE client rule for "Private" (plan 2026-10-14-009 D14; owner ruling 2026-10-13; UX spec in the plan): every surface
  * that offers Private — the editor field, the recipe ⋯ menu, a collection ⋯ menu and its Undo — asks these.
  *
- * `granted` uses the paid feature; `upsell` offers Premium; `hidden` shows neither; `loading` fails closed. A thing
+ * `granted` uses the paid feature; `upsell` offers Pro; `hidden` shows neither; `loading` fails closed. A thing
  * that is ALREADY private stays private and shows so, in every state: going back to what the server holds needs no
  * entitlement.
  */
@@ -194,7 +194,7 @@ describe('privateRefusalOf — a change to private the server is known to refuse
 
 describe('serverRefusalOf — why a Private the server DID refuse was refused', () => {
     // The server has already said no, so unlike `privateRefusalOf` this always answers: what the client knows picks the
-    // words (Premium would help, or nothing will), and what it does not know is told as final — a refusal that trying
+    // words (Pro would help, or nothing will), and what it does not know is told as final — a refusal that trying
     // again cannot cure.
     it.each([
         [undefined, 'final'],

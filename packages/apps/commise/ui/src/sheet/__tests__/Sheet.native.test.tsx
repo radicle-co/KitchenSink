@@ -442,6 +442,26 @@ describe('Sheet (native)', () => {
             expect(appliedStyle(dialog(), 'max-width')).toBe(`${SHEET_MAX_WIDTH_DP}px`);
         });
 
+        // Owner ruling 2026-10-26 (platform guidelines): a `dialog` presentation is a bottom sheet on a phone and a CENTRED
+        // dialog at most 448 dp wide on a tablet (834 and 1194 alike).
+        it('presentation dialog: a bottom sheet below 600 dp, a centred 448 dp dialog from it', () => {
+            windowWidth(390);
+            renderSheet({ presentation: 'dialog' });
+            expect(appliedStyle(dialog(), 'max-width')).toBeUndefined();
+            expect(appliedStyle(dialog(), 'border-bottom-left-radius')).toBeUndefined();
+            expect(appliedStyle(backdrop(), 'justify-content')).toBe('flex-end');
+            cleanup();
+
+            for (const width of [834, 1194]) {
+                windowWidth(width);
+                renderSheet({ presentation: 'dialog' });
+                expect(appliedStyle(dialog(), 'max-width')).toBe('448px');
+                expect(appliedStyle(dialog(), 'border-bottom-left-radius')).toBe(`${radius.lg}px`);
+                expect(appliedStyle(backdrop(), 'justify-content')).toBe('center');
+                cleanup();
+            }
+        });
+
         it('rounds its top corners at radius.lg and dims the screen behind it', () => {
             renderSheet();
 

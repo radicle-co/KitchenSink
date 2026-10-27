@@ -34,14 +34,14 @@ import { nativeTokens } from '../tokens/native.js';
 import { radius, spacing } from '../tokens/scale.js';
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetProps } from './props.js';
-import { SHEET_EDGE_PADDING_DP, sheetSideInsetPadding, sheetWidthStyle } from './sheetPresentation.js';
+import { SHEET_EDGE_PADDING_DP, sheetIsCentred, sheetSideInsetPadding, sheetWidthStyle } from './sheetPresentation.js';
 import { usePinnedFooter } from '../layout/usePinnedFooter.native.js';
 import { useKeyboardShown } from '../layout/useKeyboardShown.native.js';
 import { useSwipeToDismiss } from './useSwipeToDismiss.native.js';
 
 export interface BottomSheetPanelProps extends Pick<
     SheetProps,
-    'title' | 'closeLabel' | 'size' | 'toolbar' | 'footer'
+    'title' | 'closeLabel' | 'size' | 'presentation' | 'toolbar' | 'footer'
 > {
     readonly children: ReactNode;
     /** Advances each time the Modal shows; the title takes screen-reader focus on each advance. */
@@ -55,6 +55,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     title,
     closeLabel,
     size,
+    presentation = 'sheet',
     toolbar,
     footer,
     children,
@@ -91,11 +92,12 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
             style={[
                 styles.sheet,
                 { backgroundColor: colors.paperOverlay },
-                sheetWidthStyle(width),
+                sheetWidthStyle(width, presentation),
+                sheetIsCentred(presentation, width) ? styles.centredCard : null,
                 size === 'content' ? styles.content : styles.full,
                 {
-                    paddingLeft: sheetSideInsetPadding(width, insets.left),
-                    paddingRight: sheetSideInsetPadding(width, insets.right),
+                    paddingLeft: sheetSideInsetPadding(width, insets.left, presentation),
+                    paddingRight: sheetSideInsetPadding(width, insets.right, presentation),
                     transform: [{ translateY }],
                 },
             ]}
@@ -144,6 +146,8 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     content: { maxHeight: '100%' },
+    // A centred dialog rounds all four corners: it floats clear of the screen's foot.
+    centredCard: { borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
     full: { height: '100%' },
     titleRow: {
         flexDirection: 'row',

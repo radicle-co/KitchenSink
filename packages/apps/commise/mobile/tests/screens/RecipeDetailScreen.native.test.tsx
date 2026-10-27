@@ -713,7 +713,7 @@ describe('RecipeDetailScreen — owner actions', () => {
     });
 
     it('makes a granted owner’s private recipe public from the menu, at once', () => {
-        // A Premium cook has no private slots to free, so the server reports them unlimited and there is nothing to confirm.
+        // A Pro cook has no private slots to free, so the server reports them unlimited and there is nothing to confirm.
         seedSlots('unlimited');
         useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
         const mutate = vi.fn();
@@ -731,7 +731,7 @@ describe('RecipeDetailScreen — owner actions', () => {
 
     // Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is
     // NEVER final. A cook with private slots confirms first and is told it frees one; an imported public-web recipe under
-    // the upsell is told Premium is needed to return. Nothing is sent until the cook confirms.
+    // the upsell is told Pro is needed to return. Nothing is sent until the cook confirms.
     it.each([
         [
             'a recipe the cook wrote, under hidden paid features',
@@ -749,7 +749,7 @@ describe('RecipeDetailScreen — owner actions', () => {
             'an imported public-web recipe, under the upsell',
             'upsell',
             'imported_public',
-            "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+            "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
         ],
     ] as const)(
         '⛔ for %s, Make public asks first and sends nothing until confirmed',
@@ -828,7 +828,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         const notice = await screen.findByText(
-            'This recipe stays public. A recipe from a public web page needs Premium and a change of your own to be private.',
+            'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.',
         );
 
         // §6.4: in the header under the rating and visibility line, where the cook lands, not at the foot of the page.
@@ -1001,7 +1001,7 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
 describe('RecipeDetailScreen — visibility gating (C-004)', () => {
     // Plan 2026-10-14-009 D14, mirroring the web suite, REWRITTEN for ADR-0073: for a recipe the cook wrote Make private is
     // always offered (a slot); for an imported public-web recipe it is under granted and upsell only.
-    it('under upsell, offers Make private on an imported public-web recipe, and tapping it opens the Premium sheet and sends nothing', () => {
+    it('under upsell, offers Make private on an imported public-web recipe, and tapping it opens the Pro sheet and sends nothing', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public', sourceType: 'imported_public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
         const mutate = vi.fn();
@@ -1013,7 +1013,7 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-        expect(screen.getByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
     });
 
@@ -1031,7 +1031,7 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'private' });
         expect(screen.queryByRole('heading', { name: 'Keep more recipes private' })).toBeNull();
-        expect(screen.queryByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeNull();
     });
 
     it('⛔ with every slot used, Make private still SENDS the write: the server, not the count, says no', () => {
@@ -1064,7 +1064,7 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'private' });
         expect(screen.queryByRole('heading', { name: 'Keep more recipes private' })).toBeNull();
-        expect(screen.queryByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeNull();
     });
 
     it('offers a granted owner Make private', () => {
@@ -1079,7 +1079,7 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
 
     // (A failed profile read has no viewer id on native — the owner key comes from the profile — so it shows no owner
     // menu at all; the web suite covers the failed read for an owner, whose key comes from the Clerk session.)
-    it('offers Make private on a recipe the cook wrote under hidden paid features: a slot, not Premium', () => {
+    it('offers Make private on a recipe the cook wrote under hidden paid features: a slot, not Pro', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
 
@@ -1250,9 +1250,9 @@ describe('RecipeDetailScreen — Save a copy', () => {
 describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () => {
     const FINAL = 'This recipe is still public: it couldn’t be made private.';
     const PREMIUM =
-        'This recipe stays public. A recipe from a public web page needs Premium and a change of your own to be private.';
+        'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.';
     const SLOTS = 'Not available. All 50 of your private slots are in use.';
-    // REWRITTEN for ADR-0073: the Premium sentences are the rule of an imported public-web recipe (the default here); a
+    // REWRITTEN for ADR-0073: the Pro sentences are the rule of an imported public-web recipe (the default here); a
     // recipe the cook wrote is refused only for every slot used.
     const seed = (
         visibility: RecipeVisibility = RecipeVisibility.PUBLIC,
@@ -1271,7 +1271,7 @@ describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () =
         expect(screen.getByRole('heading', { name: 'Weeknight Pasta' }).parentElement?.contains(notice)).toBe(true);
     });
 
-    it('takes the words from the profile: the upsell gets the Premium sentence', () => {
+    it('takes the words from the profile: the upsell gets the Pro sentence', () => {
         seed();
         useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
 

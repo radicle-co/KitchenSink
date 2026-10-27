@@ -673,7 +673,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             kindOfDish: 'Kind of dish',
             dietAndTags: 'Diet and tags',
         },
-        premiumBadge: 'Premium',
+        premiumBadge: 'Pro',
         pasteStepsClose: 'Close paste steps',
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',

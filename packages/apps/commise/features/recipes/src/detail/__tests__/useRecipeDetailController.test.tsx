@@ -151,7 +151,7 @@ describe('useRecipeDetailController — who the viewer is', () => {
 
 describe('useRecipeDetailController — the action row and the ⋯ menu', () => {
     // REWRITTEN for ADR-0073: with no paid features known, Make private used to be withheld. A recipe the cook wrote is a
-    // slot, not a Premium feature, so it is offered between Version history and Delete.
+    // slot, not a Pro feature, so it is offered between Version history and Delete.
     it('offers the owner Edit, and Version history, Make private then Delete in the menu', () => {
         const { result } = mount({ sessionClaims: { external_id: OWNER } });
 
@@ -187,9 +187,9 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
 
     // REWRITTEN for ADR-0073. It said Make private is offered under granted and upsell and not under hidden: the paid
     // features alone decided. A free cook's own (or book, or paid-site) recipe is now under the SLOTS rule, so Make private
-    // is offered whatever the paid features say; only an imported public-web recipe keeps the Premium rule.
+    // is offered whatever the paid features say; only an imported public-web recipe keeps the Pro rule.
     it.each(['granted', 'upsell', 'hidden'] as const)(
-        'offers Make private on a recipe the cook wrote under %s: it is a slot, not a Premium feature',
+        'offers Make private on a recipe the cook wrote under %s: it is a slot, not a Pro feature',
         (paid) => {
             const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER, paid) });
 
@@ -202,7 +202,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         ['upsell', true],
         ['hidden', false],
     ] as const)(
-        'offers Make private on an imported public-web recipe under %s: %s (Premium is still its rule)',
+        'offers Make private on an imported public-web recipe under %s: %s (Pro is still its rule)',
         (paid, offered) => {
             const { result } = mount({
                 sessionClaims: { external_id: OWNER },
@@ -295,7 +295,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         },
     );
 
-    it('Premium goes public at once - no slots to free, nothing to say', async () => {
+    it('Pro goes public at once - no slots to free, nothing to say', async () => {
         const { result, client } = mount({
             sessionClaims: { external_id: OWNER },
             profile: settledProfile(OWNER, 'granted'),
@@ -476,7 +476,7 @@ describe('useRecipeDetailController — the rating block', () => {
 
 describe('useRecipeDetailController — the visibility notice', () => {
     // REWRITTEN for ADR-0073: a withheld Private is confirmed against the refusal the page KNOWS for this recipe, which is
-    // the Premium rule's for an imported public-web recipe and "every slot used" for any other. A free cook with a slot
+    // the Pro rule's for an imported public-web recipe and "every slot used" for any other. A free cook with a slot
     // free is not refused, so a forged claim says nothing to them.
     it('says a withheld Private only for the owner of a public recipe whose Private is known refused', () => {
         const web = { sourceType: RecipeSourceType.IMPORTED_PUBLIC };

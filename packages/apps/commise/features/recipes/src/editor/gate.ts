@@ -27,8 +27,8 @@ export type GateOutcome =
     | { readonly kind: 'refused'; readonly errors: RecipeFormErrors; readonly section: EditorSectionId | undefined }
     /**
      * Publish of a PRIVATE draft, while every private slot is known to be used (ADR-0073 section 12: a draft holds no slot;
-     * publishing it takes one). Nothing was sent. The cook is taken to the visibility field, which then draws the refusal
-     * and its ways forward (`RecipeEditorSurface`).
+     * publishing it takes one). Nothing was sent. The editor has opened the blocked-publish dialog (`publishBlocked`), and the
+     * visibility field draws the cook's real count (`RecipeEditorSurface`).
      */
     | { readonly kind: 'slotsFull' }
     | { readonly kind: 'busy' };

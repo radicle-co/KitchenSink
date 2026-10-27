@@ -624,3 +624,42 @@ describe('RecipeVisibilityField (web) - over the limit after a downgrade', () =>
         expect(screen.queryByText(/They stay private/u)).toBeNull();
     });
 });
+
+describe('RecipeVisibilityField (web) - an imported public-web recipe with paid features hidden', () => {
+    const REASON = 'Not available. A recipe from a public web page can only be public.';
+    const facts: RecipePrivateFacts = { rule: 'premium', standing: { kind: 'unknown' }, state: 'hidden' };
+    const descriptionOf = (element: HTMLElement): string =>
+        (element.getAttribute('aria-describedby') ?? '')
+            .split(' ')
+            .map((id) => document.getElementById(id)?.textContent ?? '')
+            .join(' ')
+            .trim();
+
+    it('⛔ shows Private refused - aria-disabled, never natively disabled - with the reason as its description', () => {
+        render(<Harness paidFeatures="hidden" facts={facts} />);
+
+        const card = radio(v.private);
+
+        expect(card.getAttribute('aria-disabled')).toBe('true');
+        expect(card.disabled).toBe(false);
+        expect(descriptionOf(card)).toBe(REASON);
+    });
+
+    it('⛔ keeps the refused Private focusable, and choosing it changes nothing and opens nothing', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const onPremiumRequired = vi.fn();
+        render(
+            <Harness paidFeatures="hidden" facts={facts} onChange={onChange} onPremiumRequired={onPremiumRequired} />,
+        );
+
+        radio(v.private).focus();
+        expect(document.activeElement).toBe(radio(v.private));
+
+        await user.click(radio(v.private));
+
+        expect(onChange).not.toHaveBeenCalled();
+        expect(onPremiumRequired).not.toHaveBeenCalled();
+        expect(radio(v.public).checked).toBe(true);
+    });
+});

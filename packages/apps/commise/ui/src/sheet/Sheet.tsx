@@ -76,6 +76,9 @@ const FROM_SM: Readonly<Record<SheetProps['size'], string>> = {
     page: 'sm:h-[var(--sheet-visible-height,100dvh)] sm:max-h-[var(--sheet-visible-height,100dvh)] sm:max-w-6xl',
 };
 
+/** A `dialog` presentation's `content` box from `sm`: the house dialog at 448 px (`max-w-md`), ONE max-width utility. */
+const DIALOG_CONTENT_FROM_SM = 'sm:h-auto sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))] sm:max-w-md';
+
 export const Sheet: FC<SheetProps> = ({
     open,
     onOpenChange,
@@ -85,6 +88,7 @@ export const Sheet: FC<SheetProps> = ({
     describedBy = [],
     closeLabel,
     size,
+    presentation = 'sheet',
     toolbar,
     children,
     footer,
@@ -117,7 +121,7 @@ export const Sheet: FC<SheetProps> = ({
                         onDismissed?.();
                     }}
                     style={style}
-                    className={`${CONTENT} ${PHONE[size]} ${FROM_SM[size]}`}
+                    className={`${CONTENT} ${PHONE[size]} ${presentation === 'dialog' && size === 'content' ? DIALOG_CONTENT_FROM_SM : FROM_SM[size]}`}
                 >
                     <SheetPanel
                         title={title}

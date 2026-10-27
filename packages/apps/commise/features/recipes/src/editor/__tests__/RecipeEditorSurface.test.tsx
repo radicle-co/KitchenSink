@@ -230,12 +230,22 @@ describe('RecipeEditorSurface — the Private choice', () => {
         expect(screen.getByRole('radio', { name: /private/i })).toBeTruthy();
     });
 
-    it('offers no Private choice for an imported public-web recipe to a viewer whose paid features hide it: Pro is still its rule', () => {
+    // REWRITTEN for the owner ruling of 2026-10-26: an imported public-web recipe with paid features hidden shows Private
+    // REFUSED (aria-disabled, still focusable, the reason as its description) instead of leaving the card out, so the
+    // publish-time ask never has to appear for it.
+    it('⛔ shows Private refused, with the reason, for an imported public-web recipe when paid features are hidden', () => {
         const recipe = makeRecipeDetail({ sourceType: 'imported_public', visibility: 'public' });
 
         mount({ seed: { recipe }, paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
 
-        expect(screen.queryByRole('radio', { name: /private/i })).toBeNull();
+        const card = screen.getByRole('radio', { name: /private/i });
+
+        expect(card.getAttribute('aria-disabled')).toBe('true');
+        expect(card.hasAttribute('disabled')).toBe(false);
+        expect(screen.getAllByText('Not available. A recipe from a public web page can only be public.').length).toBe(
+            1,
+        );
+        expect(screen.queryByRole('dialog', { name: /can.t be private yet/u })).toBeNull();
     });
 
     // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot. These two cases used a new
@@ -409,7 +419,7 @@ describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R
 describe('RecipeEditorSurface — the blocked-publish dialog', () => {
     it.each([
         [{ kind: 'noSlot' }, 'Your private slots are full'],
-        [{ kind: 'webImport', refusal: 'premium' }, 'This recipe can’t be private yet'],
+        [{ kind: 'webImport' }, 'This recipe can’t be private yet'],
     ] as const)('shows %j while the editor stands it, wired to the editor’s two answers', async (ask, title) => {
         const user = userEvent.setup();
         const keepAsDraft = vi.fn();

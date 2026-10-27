@@ -152,13 +152,21 @@ describe('recipeSender', () => {
      * itself - a second copy would meet the same full slots, and for a create an unknown outcome is never repeated.
      */
     // Only a CREATE can meet it: an update's body carries no visibility, and a visibility write is not a sendable intent.
-    it.each([['a create', 'create', 'createRecipe']] as const)(
+    it.each([
+        ['a create', 'create', 'createRecipe'],
+        ['an update (a Publish)', 'update', 'updateRecipe'],
+    ] as const)(
         '⛔ %s refused for want of a private slot parks as a terminal 403 and is never re-sent',
         async (_label, kind, method) => {
             const refuse = vi.fn().mockRejectedValue(new PrivateSlotsFullError(50, 50));
             const send = recipeSender(() => ({ [method]: refuse }) as never);
 
-            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 403 });
+            // The server's used and limit travel with the refusal (`recipeSlotsFull`), so the editor can say the number.
+            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({
+                outcome: 'failed',
+                status: 403,
+                answer: { kind: 'recipeSlotsFull', used: 50, limit: 50 },
+            });
 
             const failure = { entity: 'recipe', intentKind: kind, localId: 'r1', status: 403 } as const;
 

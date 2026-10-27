@@ -1584,6 +1584,56 @@ describe('visibilityFieldOf', () => {
         expect(model.shown).toBe(RecipeVisibility.PUBLIC);
         expect(publicCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
     });
+
+    /**
+     * Owner ruling 2026-10-26 (design): with paid features HIDDEN an imported public-web recipe can never be private, so
+     * Private is shown REFUSED - the card stays, the reason describes it - rather than offered and asked about at Publish.
+     */
+    describe('an imported public-web recipe with paid features hidden', () => {
+        const premiumRule = (state: PaidFeatureState): RecipePrivateFacts => ({
+            rule: 'premium',
+            standing: { kind: 'unknown' },
+            state,
+        });
+        const REASON = 'Not available. A recipe from a public web page can only be public.';
+
+        it('⛔ refuses the Private card and gives the reason as its note', () => {
+            const model = visibilityFieldOf({ ...base, facts: premiumRule('hidden'), refusal: 'final' });
+
+            expect(privateCard(model).refused).toBe(true);
+            expect(privateCard(model).note).toBe(REASON);
+        });
+
+        it('⛔ a kept Private draft shows as Public, and the reason is on the Private card alone', () => {
+            const model = visibilityFieldOf({
+                ...base,
+                draft: RecipeVisibility.PRIVATE,
+                facts: premiumRule('hidden'),
+                refusal: 'final',
+            });
+
+            expect(model.shown).toBe(RecipeVisibility.PUBLIC);
+            expect(publicCard(model).note).toBeUndefined();
+            expect(privateCard(model).note).toBe(REASON);
+        });
+
+        it('does not refuse Private under the upsell (it opens the Pro sheet), for a cook-written recipe, or for one already private', () => {
+            expect(
+                privateCard(visibilityFieldOf({ ...base, facts: premiumRule('upsell'), refusal: 'premium' })).refused,
+            ).toBe(false);
+            expect(privateCard(visibilityFieldOf({ ...base, facts: slots(OPEN, 'hidden') })).refused).toBe(false);
+            expect(
+                privateCard(
+                    visibilityFieldOf({
+                        ...base,
+                        saved: RecipeVisibility.PRIVATE,
+                        draft: RecipeVisibility.PRIVATE,
+                        facts: premiumRule('hidden'),
+                    }),
+                ).refused,
+            ).toBe(false);
+        });
+    });
 });
 
 describe('cuisineSuggestions (cuisineField.md §2: word-start matching, aliases, starts-with first)', () => {

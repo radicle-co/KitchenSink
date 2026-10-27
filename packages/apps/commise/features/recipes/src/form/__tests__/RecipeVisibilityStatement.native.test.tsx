@@ -28,13 +28,13 @@ afterEach(() => {
 
 describe('RecipeVisibilityStatement (native)', () => {
     it('is read as one element: "Who can see it: Public. Anyone can find it in Discover."', () => {
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(screen.getByLabelText(`${v.legend}: ${v.public}. ${v.publicHint}.`)).toBeTruthy();
     });
 
     it('shows the label, Public and the hint', () => {
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(screen.getByText(v.legend)).toBeTruthy();
         expect(screen.getByText(v.public)).toBeTruthy();
@@ -42,30 +42,22 @@ describe('RecipeVisibilityStatement (native)', () => {
     });
 
     it('⛔ offers no choice: no radio, no Private, no Pro', () => {
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(screen.queryByRole('radio')).toBeNull();
         expect(screen.queryByText(v.private)).toBeNull();
         expect(screen.queryByText(recipeFormMessages.en.premiumBadge)).toBeNull();
     });
 
-    it('says, in the one element, that a kept draft`s Private will not be kept', () => {
-        render(<RecipeVisibilityStatement privateUnavailable focusOnMount={false} />);
-
-        expect(
-            screen.getByLabelText(
-                `${v.legend}: ${v.public}. ${v.publicHint}. A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.`,
-            ),
-        ).toBeTruthy();
-    });
+    // REMOVED (owner ruling 2026-10-26): see the web statement test; the reason now lives on the refused Private card.
 
     it('⛔ moves the screen-reader cursor onto itself when it replaces the field, and never on an ordinary mount', () => {
-        const { unmount } = render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        const { unmount } = render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
         unmount();
 
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount />);
+        render(<RecipeVisibilityStatement focusOnMount />);
 
         expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
             screen.getByLabelText(`${v.legend}: ${v.public}. ${v.publicHint}.`),

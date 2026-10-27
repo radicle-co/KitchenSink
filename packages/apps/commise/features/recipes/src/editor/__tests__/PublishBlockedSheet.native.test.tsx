@@ -16,7 +16,7 @@ import { PublishBlockedSheet } from '../PublishBlockedSheet.native.js';
 afterEach(cleanup);
 
 const NO_SLOT: PublishBlocked = { kind: 'noSlot' };
-const WEB_IMPORT: PublishBlocked = { kind: 'webImport', refusal: 'premium' };
+const WEB_IMPORT: PublishBlocked = { kind: 'webImport' };
 const TITLE = 'Your private slots are full';
 
 function renderSheet(ask: PublishBlocked = NO_SLOT) {
@@ -39,11 +39,27 @@ describe('PublishBlockedSheet (native)', () => {
         ).toBeTruthy();
     });
 
-    it.each([
-        ['premium', WEB_IMPORT],
-        ['final', { kind: 'webImport', refusal: 'final' } as const],
-    ])('webImport (%s): "This recipe can’t be private yet", in the paid-features-hidden words', (_name, ask) => {
-        renderSheet(ask);
+    it('⛔ never shows a count it does not know: with no slot total, noSlot says all slots are in use, with no number', () => {
+        render(
+            <PublishBlockedSheet
+                open
+                ask={NO_SLOT}
+                slotTotal={undefined}
+                onKeepDraft={vi.fn()}
+                onPublishPublic={vi.fn()}
+            />,
+        );
+
+        expect(
+            screen.getByText(
+                'Your private slots are all in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+            ),
+        ).toBeTruthy();
+        expect(screen.queryByText(/\{total\}|All 0|\d/u)).toBeNull();
+    });
+
+    it('webImport: "This recipe can’t be private yet", in the paid-features-hidden words', () => {
+        renderSheet(WEB_IMPORT);
 
         expect(screen.getByRole('heading', { name: 'This recipe can’t be private yet' })).toBeTruthy();
         expect(

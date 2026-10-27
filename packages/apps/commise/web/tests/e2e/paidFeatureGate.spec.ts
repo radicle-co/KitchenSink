@@ -186,13 +186,17 @@ test.describe('paid features — an imported public-web recipe in the editor (Pr
         await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
     });
 
-    test('⛔ hidden: says “Who can see it: Public”, with no Private, no Pro and no upsell', async ({ page }) => {
+    test('⛔ hidden: Private is shown refused with its reason, with no Pro and no upsell', async ({ page }) => {
         await openWebRecipe(page, 'hidden');
 
+        // Owner ruling 2026-10-26: Private is shown REFUSED (aria-disabled, still focusable), the reason its description.
         await expect(page.getByText('Who can see it')).toBeVisible();
-        await expect(page.getByText('Anyone can find it in Discover')).toBeVisible();
-        await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
-        await expect(page.getByRole('radio', { name: 'Public' })).toHaveCount(0);
+        const card = page.getByRole('radio', { name: /^Private/u });
+        await expect(card).toHaveAttribute('aria-disabled', 'true');
+        await expect(card).toBeEnabled();
+        await expect(
+            page.getByText('Not available. A recipe from a public web page can only be public.'),
+        ).toBeVisible();
         await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
     });
 });

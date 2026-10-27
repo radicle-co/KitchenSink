@@ -43,6 +43,13 @@ export interface SheetProps {
      * as the detail column (72 rem). Native has no wider-than-phone variant, so there it is the same as `full`.
      */
     readonly size: 'content' | 'full' | 'page';
+    /**
+     * `sheet` (the default): the sheet at its own width. `dialog`: a bottom sheet on a phone and, from the tablet width
+     * (native 600 dp, web `sm`), a CENTRED dialog at most 448 wide (owner ruling 2026-10-26, from the platform guidelines:
+     * Apple HIG alerts and sheets, Material 3 dialogs). For an ask that is a decision, not a task. Only `size="content"`
+     * is centred; the other sizes keep their own geometry.
+     */
+    readonly presentation?: 'sheet' | 'dialog';
     /** Pinned under the title, outside the scroll region. ⛔ With a toolbar, `children` holds no text input. */
     readonly toolbar?: SheetToolbar;
     /** The scroll region. */

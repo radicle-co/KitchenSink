@@ -24,7 +24,7 @@ afterEach(cleanup);
 
 describe('RecipeVisibilityStatement (web)', () => {
     it('says who can see the recipe: its label, Public, and the hint', () => {
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(screen.getByText(v.legend)).toBeTruthy();
         expect(screen.getByText(v.public)).toBeTruthy();
@@ -33,7 +33,7 @@ describe('RecipeVisibilityStatement (web)', () => {
     });
 
     it('⛔ offers no choice: no radio, no group, no Private, no Pro', () => {
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(screen.queryByRole('radio')).toBeNull();
         expect(screen.queryByRole('group')).toBeNull();
@@ -41,23 +41,16 @@ describe('RecipeVisibilityStatement (web)', () => {
         expect(screen.queryByText(recipeFormMessages.en.premiumBadge)).toBeNull();
     });
 
-    it('says a kept draft`s Private will not be kept: the recipe will be public when it is published', () => {
-        render(<RecipeVisibilityStatement privateUnavailable focusOnMount={false} />);
-
-        expect(
-            screen.getByText(
-                'A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.',
-            ),
-        ).toBeTruthy();
-    });
+    // REMOVED (owner ruling 2026-10-26): the statement no longer says a kept Private will not be kept. With paid features
+    // hidden the field is drawn instead, with Private refused and the reason as its description (RecipeVisibilityField tests).
 
     it('⛔ takes the focus the field had when it replaces it, and never on an ordinary mount', () => {
-        const { unmount } = render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
+        const { unmount } = render(<RecipeVisibilityStatement focusOnMount={false} />);
 
         expect(document.activeElement).toBe(document.body);
         unmount();
 
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount />);
+        render(<RecipeVisibilityStatement focusOnMount />);
 
         expect(document.activeElement?.textContent).toContain(v.public);
         expect(document.activeElement?.getAttribute('tabindex')).toBe('-1');
@@ -68,7 +61,7 @@ describe('RecipeVisibilityStatement (web)', () => {
         document.body.append(field);
         field.focus();
 
-        render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount />);
+        render(<RecipeVisibilityStatement focusOnMount />);
 
         expect(document.activeElement).toBe(field);
         field.remove();

@@ -41,6 +41,7 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
             title={copy.title}
             closeLabel={m.close}
             size="content"
+            presentation="dialog"
             footer={
                 <View style={styles.actions}>
                     <View style={styles.action}>

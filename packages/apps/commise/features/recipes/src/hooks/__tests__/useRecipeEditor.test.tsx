@@ -31,6 +31,8 @@ const makeRecipeDetail = (...[overrides]: Parameters<typeof makeBaseRecipeDetail
     makeBaseRecipeDetail({ cuisine: 'Italian', ...overrides });
 
 import { DEVICE_SAVE_IDLE_MS, SERVER_CHECKPOINT_IDLE_MS } from '../../editor/checkpointPolicy.js';
+import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
+
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { errorsStillHolding } from '../../editor/gate.js';
 import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
@@ -3622,13 +3624,13 @@ describe('Publish of a Private the server is known to refuse (imported public-we
         });
     }
 
-    it.each(['premium', 'final'] as const)('⛔ a %s refusal opens the ask and sends nothing', async (refusal) => {
-        const view = mountPrivate(refusal);
+    it('⛔ a premium refusal opens the ask and sends nothing', async () => {
+        const view = mountPrivate('premium');
 
         press(view);
         await settle();
 
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal });
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport' });
         expect(view.setVisibility).not.toHaveBeenCalled();
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
         expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
@@ -3665,6 +3667,19 @@ describe('Publish of a Private the server is known to refuse (imported public-we
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
     });
 
+    // Owner ruling 2026-10-26: with paid features hidden Private is never offered for this recipe (the field shows it
+    // refused), so a kept Private draft shows as Public and the Publish goes out public with no ask.
+    it('⛔ with paid features hidden (a final refusal) there is no ask: the Publish goes out public', async () => {
+        const view = mountPrivate('final');
+
+        press(view);
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
     it('asks again on the next Publish after Keep as draft', async () => {
         const view = mountPrivate('premium');
         press(view);
@@ -3674,7 +3689,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
 
         press(view);
 
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport' });
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
     });
 
@@ -3710,5 +3725,111 @@ describe('Publish of a Private the server is known to refuse (imported public-we
 
         expect(view.result.current.publishBlocked).toBeUndefined();
         expect(view.setVisibility).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Owner ruling 2026-10-26, code owed: a server `PRIVATE_SLOTS_FULL` on the FIRST publish attempt - the client did not know
+ * the slots were full, e.g. another device used the last slot - opens the same "Your private slots are full" dialog, with
+ * the server's limit as the total, instead of parking behind Try again.
+ */
+describe('a Publish the server refuses for want of a private slot the client did not know was gone', () => {
+    const STORED_DRAFT = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        visibility: RecipeVisibility.PRIVATE,
+    });
+    const FULL = { kind: 'recipeSlotsFull', used: 50, limit: 50 } as const;
+
+    async function publishRefusedByServer() {
+        const view = mount({ recipe: STORED_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.park(seq, 403, FULL);
+        });
+        await settle();
+        await settle();
+
+        return { view, seq };
+    }
+
+    it('⛔ opens the noSlot dialog with the server’s limit, withdraws the parked write, and leaves no Try again', async () => {
+        const { view, seq } = await publishRefusedByServer();
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(view.port.withdrawn).toEqual([seq]);
+        expect(view.result.current.parked).toBeUndefined();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('Keep as draft then sends nothing more and keeps Private', async () => {
+        const { view } = await publishRefusedByServer();
+        const sent = view.port.submitted.length;
+
+        act(() => {
+            view.result.current.keepAsDraft();
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.port.submitted).toHaveLength(sent);
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('Publish as public then publishes it public', async () => {
+        const { view } = await publishRefusedByServer();
+        view.setVisibility.mockResolvedValue({ ...STORED_DRAFT, visibility: RecipeVisibility.PUBLIC });
+
+        act(() => {
+            view.result.current.publishAsPublic();
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(view.port.submitted.at(-1)).toMatchObject({ payload: { input: { status: 'published' } } });
+    });
+
+    it('⛔ a visibility write the server refuses with PRIVATE_SLOTS_FULL opens the same dialog, not the failure alert', async () => {
+        const view = mount(
+            { recipe: { ...STORED_DRAFT, visibility: RecipeVisibility.PUBLIC } },
+            undefined,
+            fakePort(),
+            undefined,
+        );
+        view.setVisibility.mockRejectedValue(new PrivateSlotsFullError(50, 50));
+        act(() => {
+            view.result.current.setField('visibility', RecipeVisibility.PRIVATE);
+        });
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(view.reportError).not.toHaveBeenCalled();
+        expect(view.result.current.parked).toBeUndefined();
+    });
+
+    it('a 403 with no slots answer (anything else the server refuses) still parks behind Try again', async () => {
+        const view = mount({ recipe: STORED_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 403);
+        });
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.result.current.parked).toMatchObject({ kind: 'update' });
     });
 });

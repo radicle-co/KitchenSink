@@ -22,25 +22,17 @@ import { editorMessages } from '../editor/messages.js';
 import type { RecipeVisibilityStatementProps } from './props.js';
 
 /** "Who can see it: Public". */
-export const RecipeVisibilityStatement: FC<RecipeVisibilityStatementProps> = ({ privateUnavailable, focusOnMount }) => {
+export const RecipeVisibilityStatement: FC<RecipeVisibilityStatementProps> = ({ focusOnMount }) => {
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
     const focusRef = useScreenReaderFocusOnMount<View>();
     const sentence = `${v.legend}: ${v.public}. ${v.publicHint}.`;
 
     return (
-        <View
-            accessible
-            aria-label={privateUnavailable ? `${sentence} ${v.privateUnavailable}` : sentence}
-            style={styles.statement}
-            {...(focusOnMount ? { ref: focusRef } : {})}
-        >
+        <View accessible aria-label={sentence} style={styles.statement} {...(focusOnMount ? { ref: focusRef } : {})}>
             <Text style={[styles.legend, { color: colors.inkMuted }]}>{v.legend}</Text>
             <Text style={[styles.value, { color: colors.ink }]}>{v.public}</Text>
             <Text style={[styles.hint, { color: colors.inkMuted }]}>{v.publicHint}</Text>
-            {privateUnavailable ? (
-                <Text style={[styles.hint, { color: colors.inkMuted }]}>{v.privateUnavailable}</Text>
-            ) : null}
         </View>
     );
 };

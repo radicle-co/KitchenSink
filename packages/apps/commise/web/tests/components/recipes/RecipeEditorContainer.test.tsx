@@ -478,19 +478,17 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
         // full" dialog with Publish as public and Keep as draft, and nothing leaves the editor. The exit checkpoint itself is
         // covered by the sibling leave tests.
 
-        // ADDED after review (ADR-0073 section 12). When the slot read had failed at the press the client sends the Publish by
-        // design (the count is a display fact), and the server answers the UPDATE with PRIVATE_SLOTS_FULL - an answer an
-        // update could not give before. That parks behind Try again. Try again must not re-send a Publish the cook's own
-        // standing now says cannot succeed (the stuck save, moved from the create to the publish): the standing is re-read when
-        // the Publish parks, and Try again draws the refusal instead.
-        it('⛔ a Publish the server refused for slots, after an unknown standing: Try again re-reads the standing and opens the dialog instead of re-sending', async () => {
+        // REWRITTEN for the owner ruling of 2026-10-26 (code owed). When the slot read had failed at the press (or another device
+        // used the last slot) the client sends the Publish by design - the count is a display fact - and the server answers the
+        // UPDATE with PRIVATE_SLOTS_FULL. That used to park behind Try again; it now opens the "Your private slots are full"
+        // dialog at once, with the SERVER's limit as the total, and leaves no failure alert behind.
+        it('⛔ a Publish the server refuses for slots, on the first attempt, opens the dialog with the server’s limit: no Try again', async () => {
             profile.paidFeatures = 'upsell';
             const client = createFakeRecipeServiceClient();
-            // The first read fails (an unknown standing at the press); every later one answers: every slot is used.
+            // The standing at the press says a slot is free; the server then finds none (another device took the last).
             const getSlots = vi
                 .spyOn(client, 'getPrivateSlots')
-                .mockRejectedValueOnce(new Error('network down'))
-                .mockResolvedValue({ kind: 'limited', used: 50, limit: 50 });
+                .mockResolvedValue({ kind: 'limited', used: 49, limit: 50 });
             const draft = makeRecipeDetail({
                 id: 'rec_stuck',
                 title: 'Secret Stew',
@@ -504,21 +502,20 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
             await waitFor(() => expect(getSlots).toHaveBeenCalled());
 
             await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
-            await screen.findByRole('button', { name: 'Try again' });
-            expect(update).toHaveBeenCalledTimes(1);
 
-            // The Publish parking re-read the standing: it now says every slot is used.
-            await waitFor(() => expect(getSlots.mock.calls.length).toBeGreaterThan(1));
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 20));
-            });
-            await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+            const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
 
-            expect(await screen.findByRole('dialog', { name: 'Your private slots are full' })).toBeTruthy();
+            expect(within(dialog).getByText(/^All 50 of your private slots are in use/u)).toBeTruthy();
             expect(update).toHaveBeenCalledTimes(1);
-            expect((screen.getByRole('radio', { name: /^Private/u, hidden: true }) as HTMLInputElement).checked).toBe(
-                true,
+            expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+
+            await userEvent.click(within(dialog).getByRole('button', { name: 'Keep as draft' }));
+
+            await waitFor(() =>
+                expect(screen.queryByRole('dialog', { name: 'Your private slots are full' })).toBeNull(),
             );
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(update).toHaveBeenCalledTimes(1);
         });
 
         it('"Get Pro" in the refusal opens the Pro sheet', async () => {
@@ -752,7 +749,9 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
 
         // Public is never final, so under hidden there is nothing to confirm: Public is at once, and the recipe then shows
         // the plain statement because the paid features offer no way back (the stuck-save defect stays closed).
-        it('⛔ under hidden, Public is at once, with no claim that it is final; then the editor offers no Private', async () => {
+        // REWRITTEN for the owner ruling of 2026-10-26: under hidden the editor keeps the Private card, REFUSED with its reason,
+        // instead of removing it.
+        it('⛔ under hidden, Public is at once, with no claim that it is final; then Private stays, refused', async () => {
             profile.paidFeatures = 'hidden';
             await openRecipe(
                 createFakeRecipeServiceClient(),
@@ -763,14 +762,31 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
 
             await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
 
-            await waitFor(() => expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull());
+            await waitFor(() =>
+                expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-disabled')).toBe('true'),
+            );
             expect(screen.queryByRole('alertdialog')).toBeNull();
             expect(screen.queryByText(/won.t be able|may not be able/u)).toBeNull();
             expect(screen.getByText('Who can see it')).toBeTruthy();
         });
 
+        it('⛔ under hidden, shows Private refused with the reason, and no Pro', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_hidden_public',
+                RecipeVisibility.PUBLIC,
+                'imported_public',
+            );
+
+            const card = await screen.findByRole('radio', { name: /^Private/u });
+
+            expect(card.getAttribute('aria-disabled')).toBe('true');
+            expect(screen.getByText('Not available. A recipe from a public web page can only be public.')).toBeTruthy();
+            expect(screen.queryByText('Pro')).toBeNull();
+        });
+
         it.each([
-            ['hidden', 'hidden'],
             ['a failed profile read', 'failed'],
             ['a profile still loading', undefined],
         ] as const)(

@@ -14,6 +14,7 @@ import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { SyncProvider } from '@commise/query/sync';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { createMemoryOutboxStore, loadOutbox } from '@kitchensink/sync';
 import { focusManager, onlineManager } from '@tanstack/react-query';
@@ -380,6 +381,37 @@ describe('RecipeEditorScreen (native)', () => {
         expect(handlers.onFinished).not.toHaveBeenCalled();
     });
 
+    // Owner ruling 2026-10-26 (code owed): the client thought a slot was free, the server found none (another device took the
+    // last). The first attempt's refusal opens the same dialog with the server's limit - no parked write, no Try again.
+    it('⛔ a Publish the server refuses for slots on the first attempt opens the sheet with the server’s limit', async () => {
+        profile.paidFeatures = 'upsell';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used: 49, limit: 50 });
+        const draft = makeRecipeDetail({
+            id: 'rec_race',
+            title: 'Ready Stew',
+            cuisine: 'Irish',
+            status: RecipeStatus.DRAFT,
+            visibility: RecipeVisibility.PRIVATE,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+        const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+        const handlers = renderScreen(client, { recipeId: 'rec_race' });
+
+        await screen.findByRole('heading', { name: 'Edit recipe' });
+        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        });
+
+        expect(await screen.findByRole('heading', { name: 'Your private slots are full' })).toBeTruthy();
+        expect(screen.getByText(/^All 50 of your private slots are in use/u)).toBeTruthy();
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expect(handlers.onFinished).not.toHaveBeenCalled();
+    });
+
     // Review B1: a FAILED profile read is not the server's answer, so the Private is sent and the server decides.
     it('⛔ after a failed profile read, the Private is still sent: an unknown state is not a refusal', async () => {
         profile.paidFeatures = 'failed';
@@ -739,7 +771,8 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
 
         // Public is never final, so under hidden there is nothing to confirm: Public is at once, and the recipe then shows
         // the plain statement because the paid features offer no way back (the stuck-save defect stays closed).
-        it('⛔ under hidden, Public is at once with no claim that it is final; then the editor offers no Private', async () => {
+        // REWRITTEN for the owner ruling of 2026-10-26: under hidden the editor keeps the Private card, REFUSED with its reason.
+        it('⛔ under hidden, Public is at once with no claim that it is final; then Private stays, refused', async () => {
             profile.paidFeatures = 'hidden';
             await openRecipe(
                 createFakeRecipeServiceClient(),
@@ -750,16 +783,37 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
 
             fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
 
-            expect(
-                await screen.findByLabelText('Who can see it: Public. Anyone can find it in Discover.'),
-            ).toBeTruthy();
+            // react-native-web does not expose the refused state as an attribute (the field's own test reads what a device is
+            // handed); here the reason drawn inside the Private card is what shows.
+            await waitFor(() =>
+                expect(
+                    within(screen.getByRole('radio', { name: /^Private/u })).getByText(
+                        'Not available. A recipe from a public web page can only be public.',
+                    ),
+                ).toBeTruthy(),
+            );
             expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
-            expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
             expect(screen.queryByText(/won.t be able|may not be able/u)).toBeNull();
         });
 
+        it('⛔ under hidden, shows Private refused with the reason, and no Pro', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_hidden_public',
+                RecipeVisibility.PUBLIC,
+                'imported_public',
+            );
+
+            const card = await screen.findByRole('radio', { name: /^Private/u });
+
+            expect(
+                within(card).getByText('Not available. A recipe from a public web page can only be public.'),
+            ).toBeTruthy();
+            expect(screen.queryByText('Pro')).toBeNull();
+        });
+
         it.each([
-            ['hidden', 'hidden'],
             ['a failed profile read', 'failed'],
             ['a profile still loading', undefined],
         ] as const)('⛔ under %s, says "Who can see it: Public" and offers no Private', async (_label, state) => {

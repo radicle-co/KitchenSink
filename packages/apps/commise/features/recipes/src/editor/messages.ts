@@ -200,6 +200,8 @@ export interface EditorMessages {
             readonly title: string;
             /** `{total}` is the cook's private-slot limit. */
             readonly body: string;
+            /** The same, said when the limit is not known: never a count the client does not have. */
+            readonly bodyNoCount: string;
             /** `{premiumFeatures}` is the list of what Premium adds. */
             readonly upsell: string;
         };
@@ -456,6 +458,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             noSlot: {
                 title: 'Your private slots are full',
                 body: 'All {total} of your private slots are in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                bodyNoCount:
+                    'Your private slots are all in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
                 upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
             },
             webImport: {
@@ -503,11 +507,11 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             publicHint: 'Anyone can find it in Discover',
             publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
             publicNeedsPremium: "To make it private again, you'll need Pro.",
-            privateUnavailable:
-                'A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.',
+            // Paid features hidden: the Private card is shown refused, and this is its reason (`publicRefused`'s pattern).
+            privateUnavailable: 'Not available. A recipe from a public web page can only be public.',
             // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
             privatePremiumOnly:
-                'A recipe from a public web page needs Pro and a change of your own to be private. If it can’t be private when you publish, we will ask what you want to do.',
+                'A recipe from a public web page needs Pro and a change of your own to be private. If it still can’t be private when you publish, we will ask what you want to do.',
             private: 'Private',
             privateHint: 'Only you can see it',
             slotsLeft: '{left} of {total} private slots left',

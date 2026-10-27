@@ -47,6 +47,7 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
             title={copy.title}
             closeLabel={m.close}
             size="content"
+            presentation="dialog"
             footer={
                 <div className="flex gap-3">
                     <Button variant="secondary" icon="pencilLine" width="fill" onPress={onKeepDraft}>

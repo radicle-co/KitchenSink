@@ -109,7 +109,6 @@ describe('a downgrade never makes a private recipe public - the editor over the 
             expect(result.current.field.facts.standing).toStrictEqual(OVER);
             // The statement ("Public") is for a Private that will NOT stand; here it stands.
             expect(result.current.offersPrivate).toBe(true);
-            expect(result.current.statement.privateUnavailable).toBe(false);
         },
     );
 

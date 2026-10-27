@@ -63,8 +63,21 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it.each(['hidden', 'loading'] as const)('⛔ under %s offers no Private and opens no sheet', (state) => {
-        const { result, onChange } = mount(state);
+    // REWRITTEN for the owner ruling of 2026-10-26: under `hidden` the field is still drawn, with Private REFUSED and the
+    // reason as its description, instead of a statement with no Private card (the publish-time ask then never appears).
+    it('⛔ under hidden shows the field (Private refused, not offered as a choice) and opens no sheet', () => {
+        const { result, onChange } = mount('hidden');
+
+        expect(result.current.offersPrivate).toBe(true);
+        expect(result.current.field.privateRefusal).toBe('final');
+        act(() => result.current.onPremiumRequired());
+
+        expect(result.current.sheet.open).toBe(false);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('⛔ while loading offers no Private and opens no sheet', () => {
+        const { result, onChange } = mount('loading');
 
         expect(result.current.offersPrivate).toBe(false);
         act(() => result.current.onPremiumRequired());
@@ -92,10 +105,12 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
      * Public write landed, and the server refused the Private one. Once the draft leaves Private the free return is
      * gone - the field decides from what the cook may still keep, not from what the server held at opening.
      */
-    it('⛔ under hidden, once the draft of a private recipe is Public, Private is no longer offered', () => {
+    it('⛔ under hidden, once the draft of a private recipe is Public, Private is no longer a choice: the field refuses it', () => {
         const { result } = mount('hidden', RecipeVisibility.PRIVATE, PUBLIC_DRAFT);
 
-        expect(result.current.offersPrivate).toBe(false);
+        expect(result.current.offersPrivate).toBe(true);
+        expect(result.current.field.heldVisibility).toBe(RecipeVisibility.PUBLIC);
+        expect(result.current.field.privateRefusal).toBe('final');
     });
 
     it('⛔ under upsell, once the draft of a private recipe is Public, Private asks for Pro and changes nothing', () => {
@@ -130,20 +145,6 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         },
     );
 
-    it.each([
-        ['hidden', true],
-        ['upsell', false],
-        ['granted', false],
-        ['loading', false],
-    ] as const)(
-        'a kept draft`s Private for a recipe not held private: the statement says so under %s -> %s',
-        (state, expected) => {
-            const { result } = mount(state, RecipeVisibility.PUBLIC, PRIVATE_DRAFT);
-
-            expect(result.current.statement.privateUnavailable).toBe(expected);
-        },
-    );
-
     /**
      * Review B1: a FAILED profile read shows as `hidden`, but it is not a known refusal. A kept draft's Private then
      * stands - it is what the create and the follow-up send - so the field shows it rather than a statement that says
@@ -165,7 +166,6 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         );
 
         expect(result.current.offersPrivate).toBe(true);
-        expect(result.current.statement.privateUnavailable).toBe(false);
         expect(result.current.field.privateRefusal).toBeUndefined();
     });
 
@@ -228,7 +228,6 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         const { result } = mount('upsell', RecipeVisibility.PUBLIC, PRIVATE_DRAFT, 'slots', FULL);
 
         expect(result.current.offersPrivate).toBe(true);
-        expect(result.current.statement.privateUnavailable).toBe(false);
     });
 
     it('"Get Pro" from the refusal opens the Pro sheet under the upsell, and changes nothing', () => {
@@ -311,7 +310,6 @@ describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () =>
         expect(result.current.field.privateRefusal).toBeUndefined();
         expect(result.current.field.facts.standing).toEqual({ kind: 'draft' });
         expect(result.current.offersPrivate).toBe(true);
-        expect(result.current.statement.privateUnavailable).toBe(false);
     });
 
     // REMOVED with the inline refusal (owner ruling 2026-10-26): once Publish was refused for want of a slot the field used to

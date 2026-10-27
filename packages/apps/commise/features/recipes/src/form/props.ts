@@ -121,8 +121,6 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
 
 /** Props for `RecipeVisibilityStatement`, both platform leaves (`usePrivateChoice().statement`). */
 export interface RecipeVisibilityStatementProps {
-    /** A kept draft's Private the server will refuse: say the recipe will be public when it is published. */
-    readonly privateUnavailable: boolean;
     /** It replaces the field the cook just used: take the focus that field had (web: only if focus is lost). */
     readonly focusOnMount: boolean;
 }
@@ -202,10 +200,13 @@ export function visibilityFieldOf(input: {
         frees: v.publicFrees,
         premium: v.publicNeedsPremium,
     }[recipeMakePublicConsequence(facts, saved)];
+    // Paid features hidden: the reason is on the Private card (shown refused), not repeated on Public.
     const refusedNote =
-        refused === undefined
+        refused === undefined || refused === 'final'
             ? undefined
-            : { final: v.privateUnavailable, premium: v.privatePremiumOnly, slots: slotsFullNote }[refused];
+            : { premium: v.privatePremiumOnly, slots: slotsFullNote }[refused];
+    const privateNeverOffered =
+        facts.rule === 'premium' && facts.state === 'hidden' && saved !== RecipeVisibility.PRIVATE;
 
     return {
         shown: effectiveVisibility(refusal, saved, draft),
@@ -224,7 +225,9 @@ export function visibilityFieldOf(input: {
                 hint: v.privateHint,
                 note: privateNoteOf(facts, saved, draft, v),
                 premium: showsRecipePremiumBadge(facts, saved),
-                refused: false,
+                // Owner ruling 2026-10-26: with paid features hidden an imported public-web recipe can never be private, so the
+                // card is shown REFUSED (aria-disabled, still focusable) with its reason, and Publish never has to ask.
+                refused: privateNeverOffered,
             },
         ],
         slotsFull:
@@ -267,9 +270,13 @@ function privateNoteOf(
     const { standing } = facts;
 
     if (facts.rule === 'premium') {
-        return saved !== RecipeVisibility.PRIVATE && (facts.state === 'upsell' || facts.state === 'hidden')
-            ? v.webPrivate
-            : undefined;
+        if (saved === RecipeVisibility.PRIVATE) {
+            return undefined;
+        }
+
+        return { upsell: v.webPrivate, hidden: v.privateUnavailable, granted: undefined, loading: undefined }[
+            facts.state
+        ];
     }
 
     switch (standing.kind) {

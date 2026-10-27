@@ -6,11 +6,11 @@
     "coverage": {
         "components": 76,
         "implementations": 133,
-        "props": 759,
+        "props": 762,
         "documentedComponents": 76,
         "implementationsWithModuleDoc": 133,
         "implementationsWithComponentDoc": 125,
-        "documentedProps": 724,
+        "documentedProps": 727,
         "classifiedComponents": 69,
         "componentsWithPatternTag": 76,
         "crossPlatformComponents": 57
@@ -11294,6 +11294,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
                         },
                         {
+                            "name": "presentation",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"dialog\"",
+                                "\"sheet\""
+                            ],
+                            "required": false,
+                            "defaultValue": "sheet",
+                            "description": "`sheet` (the default): the sheet at its own width. `dialog`: a bottom sheet on a phone and, from the tablet width\n(native 600 dp, web `sm`), a CENTRED dialog at most 448 wide (owner ruling 2026-10-26, from the platform guidelines:\nApple HIG alerts and sheets, Material 3 dialogs). For an ask that is a decision, not a task. Only `size=\"content\"`\nis centred; the other sizes keep their own geometry.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "reduceMotion",
                             "type": "boolean | undefined",
                             "typeDetail": null,
@@ -11542,6 +11554,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         },
                         {
+                            "name": "presentation",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"dialog\"",
+                                "\"sheet\""
+                            ],
+                            "required": false,
+                            "defaultValue": "sheet",
+                            "description": "`sheet` (the default): the sheet at its own width. `dialog`: a bottom sheet on a phone and, from the tablet width\n(native 600 dp, web `sm`), a CENTRED dialog at most 448 wide (owner ruling 2026-10-26, from the platform guidelines:\nApple HIG alerts and sheets, Material 3 dialogs). For an ask that is a decision, not a task. Only `size=\"content\"`\nis centred; the other sizes keep their own geometry.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "size",
                             "type": "enum",
                             "typeDetail": [
@@ -11671,6 +11695,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
+                            "name": "presentation",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"dialog\"",
+                                "\"sheet\""
+                            ],
+                            "required": false,
+                            "defaultValue": "sheet",
+                            "description": "`sheet` (the default): the sheet at its own width. `dialog`: a bottom sheet on a phone and, from the tablet width\n(native 600 dp, web `sm`), a CENTRED dialog at most 448 wide (owner ruling 2026-10-26, from the platform guidelines:\nApple HIG alerts and sheets, Material 3 dialogs). For an ask that is a decision, not a task. Only `size=\"content\"`\nis centred; the other sizes keep their own geometry.",
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         },
                         {

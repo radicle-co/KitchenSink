@@ -21,7 +21,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeVisibilityFieldProps, RecipeVisibilityStatementProps } from '../form/props.js';
 import type { RecipeFormValues } from '../form/values.js';
 import type { RecipeMakePublicDialogProps, RecipeUpsellSheetProps } from './model.js';
-import { effectiveVisibility, heldVisibility, refusedDraftPrivate } from './privateGate.js';
+import { effectiveVisibility, heldVisibility } from './privateGate.js';
 import {
     recipeMakePublicConsequence,
     recipePrivateRefusalOf,
@@ -124,8 +124,12 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
     // A draft whose Private will be SENT (no known refusal) shows as Private, whatever the display state: a statement
     // saying "Public" over a write that sends Private would be false. (Under the slots rule the gate always offers it, so a
     // kept Private the slots refuse still shows the field - where the refusal and its ways forward are.)
+    // Owner ruling 2026-10-26: an imported public-web recipe with paid features KNOWN to be hidden (a failed read is not) shows the field too, with Private
+    // REFUSED and the reason as its description, rather than a statement with no Private card.
     const offersPrivate =
-        gate.offersPrivate || effectiveVisibility(refusal, saved, values.visibility) === RecipeVisibility.PRIVATE;
+        gate.offersPrivate ||
+        effectiveVisibility(refusal, saved, values.visibility) === RecipeVisibility.PRIVATE ||
+        (rule === 'premium' && known.state === 'hidden');
 
     return {
         offersPrivate,
@@ -134,7 +138,6 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
         onConfirmPublic: makePublic.request,
         confirm: makePublic.dialog,
         statement: {
-            privateUnavailable: !offersPrivate && refusedDraftPrivate(refusal, saved, values.visibility) !== undefined,
             focusOnMount: makePublic.confirmed,
         },
         sheet: gate.sheet,

@@ -24,6 +24,7 @@
 import { isSessionSubjectChangedError, isTokenMintFailedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
+    isPrivateSlotsFullError,
     isRecipeNotFoundError,
     isRecipeServiceClientError,
     isSourceUnavailableError,
@@ -168,6 +169,16 @@ function failureFor(error: unknown): RecipeSendResult {
                 server: error.server,
                 ...(error.base === undefined ? {} : { base: error.base }),
             },
+        };
+    }
+
+    // ⛔ A PRIVATE SLOT THE SERVER FOUND GONE travels as data too: the editor asks the cook what to do and names the limit,
+    // where a bare 403 would park behind a Try again that cannot succeed. Still terminal, never re-sent by the drain.
+    if (isPrivateSlotsFullError(error)) {
+        return {
+            outcome: 'failed',
+            status: 403,
+            answer: { kind: 'recipeSlotsFull', used: error.used, limit: error.limit },
         };
     }
 

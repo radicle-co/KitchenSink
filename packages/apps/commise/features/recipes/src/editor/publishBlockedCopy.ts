@@ -31,27 +31,31 @@ export interface PublishBlockedCopy {
  * The dialog's words for a blocked Publish. Pure.
  *
  * @param ask - Which case blocked it.
- * @param slotTotal - The cook's private-slot limit, for the `noSlot` case.
+ * @param slotTotal - The cook's private-slot limit, for the `noSlot` case; `undefined` when it is not known, which says no number.
  * @param messages - The editor's words.
  * @param premiumFeatures - What Premium adds, for the upsell line (only read while the switch is on).
  */
 export function publishBlockedCopyOf(
     ask: PublishBlocked,
-    slotTotal: number,
+    slotTotal: number | undefined,
     messages: EditorMessages['publishBlocked'],
     premiumFeatures = '',
 ): PublishBlockedCopy {
     if (ask.kind === 'noSlot') {
         return {
             title: messages.noSlot.title,
-            body: fillTemplate(messages.noSlot.body, { total: slotTotal }),
+            body:
+                slotTotal === undefined
+                    ? messages.noSlot.bodyNoCount
+                    : fillTemplate(messages.noSlot.body, { total: slotTotal }),
             upsell: PUBLISH_BLOCKED_PREMIUM_UPSELL
                 ? fillTemplate(messages.noSlot.upsell, { premiumFeatures })
                 : undefined,
         };
     }
 
-    const sellsPremium = PUBLISH_BLOCKED_PREMIUM_UPSELL && ask.refusal === 'premium';
+    // The ask only arises where paid features are shown (a hidden cook's Private is refused on the field instead).
+    const sellsPremium = PUBLISH_BLOCKED_PREMIUM_UPSELL;
 
     return {
         title: messages.webImport.title,

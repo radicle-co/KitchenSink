@@ -517,3 +517,29 @@ describe('RecipeVisibilityField (native) - over the limit after a downgrade', ()
         expect(screen.queryByText(/They stay private/u)).toBeNull();
     });
 });
+
+describe('RecipeVisibilityField (native) - an imported public-web recipe with paid features hidden', () => {
+    const REASON = 'Not available. A recipe from a public web page can only be public.';
+    const facts: RecipePrivateFacts = { rule: 'premium', standing: { kind: 'unknown' }, state: 'hidden' };
+
+    it('⛔ hands a screen reader Private as refused, not natively disabled, described by the reason', () => {
+        render(<Harness paidFeatures="hidden" facts={facts} />);
+
+        expect(handed.get('Private')).toMatchObject({ disabled: true, nativelyDisabled: undefined, hint: REASON });
+        expect(within(radio(v.private)).getAllByText(REASON)).toHaveLength(1);
+    });
+
+    it('⛔ choosing the refused Private changes nothing and opens nothing', () => {
+        const onChange = vi.fn();
+        const onPremiumRequired = vi.fn();
+        render(
+            <Harness paidFeatures="hidden" facts={facts} onChange={onChange} onPremiumRequired={onPremiumRequired} />,
+        );
+
+        fireEvent.click(radio(v.private));
+
+        expect(onChange).not.toHaveBeenCalled();
+        expect(onPremiumRequired).not.toHaveBeenCalled();
+        expect(radio(v.public).getAttribute('aria-checked')).toBe('true');
+    });
+});

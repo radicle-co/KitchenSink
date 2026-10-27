@@ -32,10 +32,11 @@
  * that instant, so the room it held is available at `createdAt + 24 h` and not a tick later. The edge is defined here and
  * nowhere else ({@link importAllowanceWindowStart}); the DAL prunes and reads with it.
  *
- * ## The tier seam
+ * ## No tier input (yet)
  *
- * The tier is a parameter and today changes nothing, which is the seam 010 needs without inventing tier rules it has not
- * specified. `isPremium` is the one tier fact every policy here reads (`isPremiumPrincipal` in `auth/principal.ts`).
+ * Every caller gets the same limit today, so the decision takes no tier. 010 adds the input, and the first rule that
+ * reads it, together; an input nothing reads is a promise nothing checks. `isPremium` is the one tier fact every policy
+ * here reads (`isPremiumPrincipal` in `auth/principal.ts`).
  *
  * @pattern Specification — one pure decision over the window's events; the DAL supplies the facts, this module owns the rule
  */
@@ -46,7 +47,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** What one channel allows: how many units, over how long a trailing window. */
 export interface ImportAllowanceRule {
-    /** Units a user may spend in one window, whatever the tier (010 will vary this by tier). */
+    /** Units a user may spend in one window (the same for every caller until 010 specifies tier rules). */
     readonly limit: number;
     /** The trailing window an event counts in, in milliseconds. */
     readonly windowMs: number;
@@ -61,11 +62,6 @@ export const IMPORT_ALLOWANCE_RULES: Readonly<Record<ImportAllowanceChannel, Imp
     paste: { limit: 200, windowMs: DAY_MS },
     bulk: { limit: 1000, windowMs: DAY_MS },
 };
-
-/** The caller's tier, as far as the allowance is concerned: the same fact `isPremiumPrincipal` reads. */
-export interface ImportAllowanceTier {
-    readonly isPremium: boolean;
-}
 
 /** One spent unit on the ledger: which channel spent it, how many units, and when. */
 export interface AllowanceEvent {
@@ -87,24 +83,12 @@ export type ImportAllowanceDecision =
 export interface ImportAllowanceInput {
     /** The channel asking. Only this channel's events count against this channel's limit. */
     readonly channel: ImportAllowanceChannel;
-    readonly tier: ImportAllowanceTier;
     /** The user's ledger events. Other channels' and out-of-window ones are ignored here, so a caller may pass a superset. */
     readonly windowEvents: readonly AllowanceEvent[];
     /** Units this request would spend: a positive integer. There is no upper bound; the policy admits what fits. */
     readonly requestedUnits: number;
     /** The instant the decision is made at. */
     readonly now: Date;
-}
-
-/**
- * The limit for a channel and tier. Today every tier gets the same one; 010 will make the tier the only thing that differs.
- *
- * @param channel - The channel asking.
- * @param _tier - The caller's tier (unread until 010 specifies tier rules).
- * @returns Units per window. Pure.
- */
-function limitFor(channel: ImportAllowanceChannel, _tier: ImportAllowanceTier): number {
-    return IMPORT_ALLOWANCE_RULES[channel].limit;
 }
 
 /**
@@ -151,7 +135,7 @@ function whenUnitsLeave(
  * "admit what fits" reopens the allowance as soon as any unit frees, not when the whole request would fit. After a
  * partial admission the units being written at `now` are part of the ledger the answer is read from.
  *
- * @param input - The channel, the tier, the user's window events, the units requested and the clock.
+ * @param input - The channel, the user's window events, the units requested and the clock.
  * @returns `admit` (all of it), `partial` (the room that is left, and when more opens), or `refuse` (none, and when).
  * @throws {RangeError} when `requestedUnits` is not a positive integer: that is a caller defect, not a quota answer.
  */
@@ -166,7 +150,7 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const spent = counted.reduce((sum, event) => sum + event.units, 0);
     const { windowMs } = IMPORT_ALLOWANCE_RULES[input.channel];
-    const room = limitFor(input.channel, input.tier) - spent;
+    const room = IMPORT_ALLOWANCE_RULES[input.channel].limit - spent;
 
     if (room >= input.requestedUnits) {
         return { kind: 'admit', units: input.requestedUnits };

@@ -24,6 +24,7 @@
  * `nutrition.integration.test.ts` does it: the request URL is part of food's contract (ADR-0020 keys its
  * CDN cache on it), and an in-process mock would let that drift silently.
  */
+import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -129,8 +130,8 @@ describe('POST /api/v1/recipes/nutrition-batch (integration)', () => {
     async function seedRecipe(options: {
         id: string;
         ownerId?: string;
-        visibility?: string;
-        status?: string;
+        visibility?: RecipeVisibility;
+        status?: RecipeStatus;
         deleted?: boolean;
         ingredientId?: string | null;
     }): Promise<void> {

@@ -1392,13 +1392,15 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
         // A COUNT, not a roster. It exists so a regression that silently DROPS an alarm trips here, and so a
         // new one has to be a deliberate edit; the loop below is what actually checks each alarm can page.
-        // ⚠️ It was 11, then 15, then 16, then 17, and is now 19: the parse leg's CRF-availability, DLQ and
+        // ⚠️ It was 11, then 15, then 16, then 17, and is now 20: the parse leg's CRF-availability, DLQ and
         // throttle alarms, the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found
         // missing, ADR-0024 layer 1's input-bound alarm, §4b's residency-refusal alarm, and the two
-        // parse-pipeline detectors (the landing-discard RATE and the job-stall gauge). The earlier revision
+        // parse-pipeline detectors (the landing-discard RATE and the job-stall gauge), and the paste-fallback detector
+        // (the budget-spent count). `paste-proposals-unmade` is NOT here: recipe-service emits it, W3 requires an alarm to sit
+        // in its emitter's stack, and that stack has no alarm topic yet. The earlier revision
         // of this comment named all eleven, which is the copied list this repository keeps learning not to
         // write — so what the number guards is stated instead of which alarms make it up.
-        expect(Object.keys(alarms)).toHaveLength(19);
+        expect(Object.keys(alarms)).toHaveLength(20);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
@@ -1596,6 +1598,26 @@ describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => 
         // ⚠️ `Stage` ALONE, and this suite's `synth()` deploys the `sandbox` stage. `emitMetric` publishes
         // `[['Stage'], ['Stage','CallSite']]`, so the rollup exists and an alarm selecting the faceted set
         // would watch one leg and miss the other.
+        expect(alarm?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
+        expect(alarm?.Properties?.AlarmActions, 'an alarm nobody is paged by is a dashboard').toBeDefined();
+    });
+
+    /**
+     * ADR-0024 section 3 / ADR-0071 section 7 (owner ruling 2026-10-26): the paste fallback COMPLETES the message, so
+     * the DLQ stays flat; `VerificationBudgetSpent` is the only signal the fallback is running. A metric nothing
+     * alarms on is a dashboard nobody opens.
+     */
+    it('alarms on the paste fallback running (VerificationBudgetSpent), on the Stage rollup, at zero', () => {
+        const alarms = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { MetricName: 'VerificationBudgetSpent' },
+        });
+        const [alarm] = Object.values(alarms);
+
+        expect(Object.keys(alarms)).toHaveLength(1);
+        expect(alarm?.Properties?.Namespace).toBe('Commise/RecipeVerification');
+        expect(alarm?.Properties?.Statistic).toBe('Sum');
+        expect(alarm?.Properties?.Threshold).toBe(0);
+        expect(alarm?.Properties?.ComparisonOperator).toBe('GreaterThanThreshold');
         expect(alarm?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
         expect(alarm?.Properties?.AlarmActions, 'an alarm nobody is paged by is a dashboard').toBeDefined();
     });
@@ -2396,9 +2418,9 @@ describe('⛔ the alarm feature flag (default OFF)', () => {
         synth('pr-91', 'sandbox', false).resourceCountIs('AWS::CloudWatch::Alarm', 0);
     });
 
-    it('creates all nineteen worker alarms when the flag is on', () => {
+    it('creates all twenty worker alarms when the flag is on', () => {
         // Non-vacuity, and the count is load-bearing: this is a switch, and nothing was deleted to build it.
-        synth('pr-91', 'sandbox', true).resourceCountIs('AWS::CloudWatch::Alarm', 19);
+        synth('pr-91', 'sandbox', true).resourceCountIs('AWS::CloudWatch::Alarm', 20);
     });
 
     it('keeps the alarm topic in both states', () => {

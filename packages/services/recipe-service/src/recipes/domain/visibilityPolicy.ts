@@ -31,7 +31,7 @@
  * `evaluateContainment`, never re-derived here. `principalKind` and `containment` are REQUIRED inputs so every call
  * site had to decide what a test principal means to it.
  */
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeVisibility, privateRuleOf } from '@kitchensink/recipe-core';
 
 import { evaluateContainment, isContained, type ContainmentSubject } from '../../common/containmentPolicy.js';
 
@@ -100,20 +100,20 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             return { allowed: false, denial: 'contained', reason: containment.reason };
         }
 
-        switch (sourceType) {
-            case RecipeSourceType.USER_CREATED:
-            case RecipeSourceType.IMPORTED_PUBLIC:
-                return allow('User-created and imported-public recipes may be public.');
-            case RecipeSourceType.IMPORTED_PHYSICAL:
-                return deny('An imported physical-book recipe is private-only and may not be made public.');
-            case RecipeSourceType.IMPORTED_PAID:
-                return deny('An imported paid recipe is private-only and may never be made public.');
+        if (privateRuleOf(sourceType) !== 'privateOnly') {
+            return allow('User-created and imported-public recipes may be public.');
         }
+
+        return deny(
+            sourceType === RecipeSourceType.IMPORTED_PAID
+                ? 'An imported paid recipe is private-only and may never be made public.'
+                : 'An imported physical-book recipe is private-only and may not be made public.',
+        );
     }
 
     // requested === RecipeVisibility.PRIVATE
-    switch (sourceType) {
-        case RecipeSourceType.USER_CREATED:
+    switch (privateRuleOf(sourceType)) {
+        case 'slots':
             if (isPremium) {
                 return allow('Premium users may make their own recipes private.');
             }
@@ -121,7 +121,7 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             return hasAvailablePrivateSlot
                 ? allow('A free-tier user may keep their own recipe private in a free private slot.')
                 : denyNoSlot('All of your private slots are in use.');
-        case RecipeSourceType.IMPORTED_PUBLIC:
+        case 'premium':
             if (!isPremium) {
                 return deny('Premium is required to make an imported public recipe private.');
             }
@@ -131,8 +131,7 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             }
 
             return allow('A substantively-edited imported public recipe may be made private by a premium user.');
-        case RecipeSourceType.IMPORTED_PHYSICAL:
-        case RecipeSourceType.IMPORTED_PAID:
+        case 'privateOnly':
             // Private-only labels (they can never be public), and since ADR-0073 they use a slot like any other
             // private recipe: Premium is no longer needed, and a free cook with no slot cannot keep a new one.
             if (isPremium) {
@@ -164,7 +163,5 @@ export function defaultCloneVisibility(
         return RecipeVisibility.PRIVATE;
     }
 
-    return sourceType === RecipeSourceType.IMPORTED_PHYSICAL || sourceType === RecipeSourceType.IMPORTED_PAID
-        ? RecipeVisibility.PRIVATE
-        : RecipeVisibility.PUBLIC;
+    return privateRuleOf(sourceType) === 'privateOnly' ? RecipeVisibility.PRIVATE : RecipeVisibility.PUBLIC;
 }

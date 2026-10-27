@@ -199,7 +199,6 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 const outcome = await this.allowance.admit(tx, ownerId, {
                     channel: admission.channel,
                     units: admission.units,
-                    tier: admission.tier,
                 });
 
                 if (outcome.kind === 'refused') {

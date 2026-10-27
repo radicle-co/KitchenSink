@@ -34,6 +34,7 @@ import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
+import type { RecipeStatus } from '@kitchensink/recipe-core';
 
 const COOK = '01JPUBLISHGATECOOK00000001';
 const RECIPE_ID = '00000000-0000-4000-8000-0000000000f1';
@@ -57,7 +58,7 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: { readonly status: string; readonly cuisine?: string }) => {
+const create = vi.fn(async (input: { readonly status: RecipeStatus; readonly cuisine?: string }) => {
     stored = makeRecipeRow({
         id: RECIPE_ID,
         ownerId: COOK,
@@ -71,7 +72,7 @@ const create = vi.fn(async (input: { readonly status: string; readonly cuisine?:
 const update = vi.fn(
     async (
         _id: string,
-        patch: { readonly expectedVersion: number; readonly status?: string; readonly cuisine?: string | null },
+        patch: { readonly expectedVersion: number; readonly status?: RecipeStatus; readonly cuisine?: string | null },
     ) => {
         stored = {
             ...stored,

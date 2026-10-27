@@ -122,11 +122,11 @@ export const recipes = pgTable(
         averageRating: numeric('average_rating', { precision: 3, scale: 2 }),
         ratingCount: integer('rating_count').notNull().default(0),
 
-        visibility: text('visibility').notNull().default('public'),
+        visibility: text('visibility').$type<RecipeVisibility>().notNull().default('public'),
         // Publication status (W8-a.3 / 0013 migration) — a SECURITY boundary orthogonal to visibility and
         // deleted_at. A draft is owner-only regardless of visibility; NOT NULL default 'published' (every
         // existing row genuinely is published). Domain constrained by recipes_status_check below.
-        status: text('status').notNull().default('published'),
+        status: text('status').$type<RecipeStatus>().notNull().default('published'),
         // When the recipe was FIRST published (ADR-0058). NULL exactly while it has never been published, and that
         // is the fact that decides whether a save records a version: a never-published draft is overwritten in place,
         // and versions start at the first publish. ⛔ NOT `status`: a published recipe may be set back to draft, and
@@ -134,7 +134,7 @@ export const recipes = pgTable(
         // `recipes_first_published_at_ratchet` trigger (0053 migration) sets it on the first publish and refuses to
         // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
         firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
-        sourceType: text('source_type').notNull().default('user_created'),
+        sourceType: text('source_type').$type<RecipeSourceType>().notNull().default('user_created'),
         sourceUrl: text('source_url'),
         sourceAttribution: text('source_attribution'),
         clonedFromId: uuid('cloned_from_id').references((): AnyPgColumn => recipes.id),

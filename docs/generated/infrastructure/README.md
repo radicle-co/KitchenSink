@@ -414,6 +414,7 @@ Construct `RecipeWorkersStack` — `packages/services/recipe-workers/infra/lib/R
 | alarm | `RecipeParseJobStallAlarm` | `kitchensink-recipe-parse-job-stall-{stage}` | `props.alarmsEnabled` |
 | alarm | `RecipeParseLandingDiscardAlarm` | `kitchensink-recipe-parse-landing-discarded-{stage}` | `props.alarmsEnabled` |
 | alarm | `RecipeParseThrottlesAlarm` | `kitchensink-recipe-parse-throttles-{stage}` | `props.alarmsEnabled` |
+| alarm | `VerificationBudgetSpentAlarm` | `kitchensink-recipe-verification-budget-spent-{stage}` | `props.alarmsEnabled` |
 | alarm | `VerificationCacheTokensAlarm` | `kitchensink-recipe-verification-cache-{stage}` | `props.alarmsEnabled` |
 | alarm | `VerificationInputBoundAlarm` | `kitchensink-recipe-verification-input-bound-{stage}` | `props.alarmsEnabled` |
 | alarm | `VerificationResidencyRefusedAlarm` | `kitchensink-recipe-verification-residency-{stage}` | `props.alarmsEnabled` |

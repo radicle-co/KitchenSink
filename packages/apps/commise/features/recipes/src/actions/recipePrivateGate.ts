@@ -28,7 +28,14 @@
  * @pattern Specification - pure predicates over the viewer's rule, slot standing and paid-feature state
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import { RecipeSourceType, RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import {
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    privateRuleOf as coreRuleOf,
+    type PrivateRule,
+    type RecipeDetail,
+} from '@kitchensink/recipe-core';
 import type { PrivateSlotUsage } from '@kitchensink/schema-recipe';
 
 import {
@@ -118,15 +125,7 @@ export function refusalWhileDrafting(refusal: PrivateRefusal | undefined): Priva
     return refusal === 'slots' ? undefined : refusal;
 }
 
-/**
- * Which rule a recipe's Private is under.
- *
- * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote).
- * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a),
- *   so nothing may promise a way back from public; deleting it is the only way to free its slot (ADR-0073 section 4).
- * - `premium`: an imported public-web recipe, where Premium is still the rule.
- */
-export type PrivateRule = 'slots' | 'privateOnly' | 'premium';
+export type { PrivateRule };
 
 /** Whether the rule is a slot rule (counted against the cook's private slots), as opposed to Premium's. Pure. */
 export function usesSlots(rule: PrivateRule): boolean {
@@ -134,22 +133,13 @@ export function usesSlots(rule: PrivateRule): boolean {
 }
 
 /**
- * The rule for a recipe. Pure.
+ * The rule for a recipe. Pure. The label-to-rule table is recipe-core's `privateRuleOf` (ADR-0073 section 10), which the
+ * server's policies read too; this only supplies the label of a recipe never saved, which is `user_created`.
  *
- * @param sourceType - The recipe's label; `undefined` for one never saved (it is `user_created`).
- * @returns `premium` for an imported public-web recipe, `slots` for every other label.
+ * @param sourceType - The recipe's label; `undefined` for one never saved.
  */
 export function privateRuleOf(sourceType: RecipeSourceType | undefined): PrivateRule {
-    switch (sourceType) {
-        case RecipeSourceType.IMPORTED_PUBLIC:
-            return 'premium';
-        case RecipeSourceType.IMPORTED_PHYSICAL:
-        case RecipeSourceType.IMPORTED_PAID:
-            return 'privateOnly';
-        case RecipeSourceType.USER_CREATED:
-        case undefined:
-            return 'slots';
-    }
+    return coreRuleOf(sourceType ?? RecipeSourceType.USER_CREATED);
 }
 
 /**

@@ -40,6 +40,7 @@ import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
+import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 const AZP = 'https://recipes.example.com';
 const FREE_COOK = '01JSLOTSINTEGRATIONFREE001';
@@ -70,7 +71,11 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
 }
 
 const create = vi.fn(
-    async (input: { readonly ownerId: string; readonly visibility: string; readonly status?: string }) =>
+    async (input: {
+        readonly ownerId: string;
+        readonly visibility: RecipeVisibility;
+        readonly status?: RecipeStatus;
+    }) =>
         aggregateOf(
             makeRecipeRow({
                 id: RECIPE_ID,
@@ -81,7 +86,7 @@ const create = vi.fn(
         ),
 );
 const update = vi.fn(async () => aggregateOf({ ...stored, status: 'published' } as RecipeRow));
-const setVisibility = vi.fn(async (_id: string, visibility: string) =>
+const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) =>
     aggregateOf({ ...stored, visibility } as RecipeRow),
 );
 const lockAndCountPrivateSlots = vi.fn(async (_tx: unknown, _owner: string) => held);

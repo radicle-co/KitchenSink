@@ -15,7 +15,7 @@ import { ParseJobsDal } from '../parseJobs.dal.js';
 
 const OWNER = '01JADMISSIONOWNER000000001';
 const EXPIRES = new Date('2026-10-27T12:00:00.000Z');
-const CHARGE = { kind: 'charge', channel: 'paste', units: 1, tier: { isPremium: false } } as const;
+const CHARGE = { kind: 'charge', channel: 'paste', units: 1 } as const;
 
 function dalAnswering(answer: Awaited<ReturnType<ImportAllowanceDal['admit']>>) {
     const control = makeFakeDrizzle<RecipeDrizzle>();

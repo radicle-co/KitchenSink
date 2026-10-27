@@ -63,33 +63,35 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
 }
 
 /** The 0053 trigger's rule, played by the double: set on the first publish, never cleared. */
-function afterWrite(previous: RecipeRow | undefined, status: string): Date | null {
+function afterWrite(previous: RecipeRow | undefined, status: RecipeStatus): Date | null {
     return previous?.firstPublishedAt ?? (status === 'published' ? PUBLISHED_AT : null);
 }
 
-const create = vi.fn(async (input: { readonly status?: string }) => {
+const create = vi.fn(async (input: { readonly status?: RecipeStatus }) => {
     const status = input.status ?? 'published';
 
     stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status, firstPublishedAt: afterWrite(undefined, status) });
 
     return aggregateOf(stored);
 });
-const update = vi.fn(async (_id: string, patch: { readonly expectedVersion: number; readonly status?: string }) => {
-    if (patch.expectedVersion !== stored.currentVersion) {
-        return undefined;
-    }
+const update = vi.fn(
+    async (_id: string, patch: { readonly expectedVersion: number; readonly status?: RecipeStatus }) => {
+        if (patch.expectedVersion !== stored.currentVersion) {
+            return undefined;
+        }
 
-    const status = patch.status ?? stored.status;
+        const status = patch.status ?? stored.status;
 
-    stored = {
-        ...stored,
-        status,
-        currentVersion: stored.currentVersion + 1,
-        firstPublishedAt: afterWrite(stored, status),
-    };
+        stored = {
+            ...stored,
+            status,
+            currentVersion: stored.currentVersion + 1,
+            firstPublishedAt: afterWrite(stored, status),
+        };
 
-    return aggregateOf(stored);
-});
+        return aggregateOf(stored);
+    },
+);
 const createSnapshot = vi.fn(async (input: { readonly recipeId: string; readonly versionNumber: number }) => ({
     id: `version-${String(input.versionNumber)}`,
     ...input,

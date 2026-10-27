@@ -42,6 +42,8 @@ interface SeedNutrient {
 interface SeedPortion {
     readonly label: string;
     readonly gramWeight: string;
+    /** Pin the row id (default: a fresh monotonic ULID), so a test can decide the sort order it expects. */
+    readonly id?: string;
 }
 
 /** Everything one seeded food carries. */
@@ -120,7 +122,7 @@ describe('batched nutrition read (integration)', () => {
         for (const portion of seed.portions ?? []) {
             await pool.query(
                 'INSERT INTO food_portions (id, item_id, label, gram_weight, source_id) VALUES ($1, $2, $3, $4, $5)',
-                [newFoodId(), itemId, portion.label, portion.gramWeight, sourceId],
+                [portion.id ?? newFoodId(), itemId, portion.label, portion.gramWeight, sourceId],
             );
         }
 
@@ -320,6 +322,30 @@ describe('batched nutrition read (integration)', () => {
                 '1/2 cup diced',
                 '1 tablespoon',
             ]);
+        });
+
+        it('⛔ BOTH reads return a food`s portions in ONE total order: ascending `food_portions.id`, whatever the physical order', async () => {
+            // The two reads once disagreed: the batch ordered by id, and the per-id golden read had NO ORDER BY, so it
+            // returned heap order (`1 cup chopped` / `1 spear` flipped between runs). Here the rows are INSERTED in the
+            // reverse of their id order, so heap order is the exact opposite of the expected order: a read with no
+            // ORDER BY, or one ordered by anything but the id, fails.
+            const [first, second, third] = [newFoodId(), newFoodId(), newFoodId()];
+            const id = await seedFood({
+                name: 'scrambled portions',
+                portions: [
+                    { id: third, label: '3 third', gramWeight: '3' },
+                    { id: first, label: '1 first', gramWeight: '1' },
+                    { id: second, label: '2 second', gramWeight: '2' },
+                ],
+            });
+            const expected = ['1 first', '2 second', '3 third'];
+
+            const golden = await dao.readGoldenRecord(id);
+            const [batched] = await dao.readNutritionBatch([id]);
+
+            expect(golden?.portions.map((portion) => portion.label)).toStrictEqual(expected);
+            expect(golden?.portions.map((portion) => portion.id)).toStrictEqual([first, second, third]);
+            expect(batched?.portions.map((portion) => portion.label)).toStrictEqual(expected);
         });
 
         it('⛔ NO authored food enters the shared batch — catalog rows only (ADR-0036)', async () => {

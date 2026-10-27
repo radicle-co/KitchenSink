@@ -8,7 +8,7 @@
  * any size is accepted and the rest waits.
  *
  * Still pinned from the spec: a trailing 24 hours (plan.md §5), a refusal that names the moment more room opens
- * (FR-022), and the tier as a parameter that today changes nothing (the 010 seam).
+ * (FR-022).
  *
  * The edge rule is stated once in the policy and pinned from BOTH sides here: an event 24 h minus 1 ms old still
  * counts, an event exactly 24 h old does not.
@@ -24,8 +24,6 @@ import {
 import type { ImportAllowanceChannel } from '../../database/schema/importAllowanceEvents.js';
 
 const NOW = new Date('2026-10-26T12:00:00.000Z');
-const FREE = { isPremium: false } as const;
-const PREMIUM = { isPremium: true } as const;
 const HOUR = 3_600_000;
 
 /** An event on `channel`, `ageMs` before NOW, spending `units`. */
@@ -43,9 +41,8 @@ function decide(
     windowEvents: readonly AllowanceEvent[],
     requestedUnits: number,
     now: Date = NOW,
-    tier: { readonly isPremium: boolean } = FREE,
 ) {
-    return evaluateImportAllowance({ channel, tier, windowEvents, requestedUnits, now });
+    return evaluateImportAllowance({ channel, windowEvents, requestedUnits, now });
 }
 
 describe('the allowance numbers (ADR-0072 §8; 004 FR-022 and plan.md §5)', () => {
@@ -228,15 +225,12 @@ describe('resetsAt (paste)', () => {
     });
 });
 
-describe('the tier parameter (the 010 seam)', () => {
-    it.each([
-        ['free', FREE],
-        ['premium', PREMIUM],
-    ])('gives a %s caller the same allowance today, on both channels', (_name, tier) => {
-        expect(decide('paste', spread(199, HOUR, 1000), 1, NOW, tier)).toEqual({ kind: 'admit', units: 1 });
-        expect(decide('paste', spread(200, HOUR, 1000), 1, NOW, tier).kind).toBe('refuse');
-        expect(decide('bulk', [eventAged(HOUR, 999, 'bulk')], 1, NOW, tier)).toEqual({ kind: 'admit', units: 1 });
-        expect(decide('bulk', [eventAged(HOUR, 1000, 'bulk')], 1, NOW, tier).kind).toBe('refuse');
+describe('the limits (no tier input until 010 specifies tier rules)', () => {
+    it('allows 200 paste units and 1000 bulk units in the window, and one more is refused', () => {
+        expect(decide('paste', spread(199, HOUR, 1000), 1)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('paste', spread(200, HOUR, 1000), 1).kind).toBe('refuse');
+        expect(decide('bulk', [eventAged(HOUR, 999, 'bulk')], 1)).toEqual({ kind: 'admit', units: 1 });
+        expect(decide('bulk', [eventAged(HOUR, 1000, 'bulk')], 1).kind).toBe('refuse');
     });
 });
 

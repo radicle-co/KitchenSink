@@ -334,6 +334,34 @@ export interface Recipe {
 }
 
 /**
+ * Which rule a recipe's Private is under (ADR-0073 section 10). The ONE statement of which provenance labels can go
+ * private and how; the server's visibility and slot policies, the PRO badge and the client's Private gate all read it.
+ *
+ * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote).
+ * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a).
+ * - `premium`: an imported public-web recipe, where Premium (and a substantive edit) is still the rule.
+ */
+export type PrivateRule = 'slots' | 'privateOnly' | 'premium';
+
+/**
+ * The rule a recipe's label puts its Private under. Exhaustive: a new {@link RecipeSourceType} is a compile error here.
+ *
+ * @param sourceType - The recipe's provenance label.
+ * @returns `premium` for an imported public-web recipe, `privateOnly` for a book or paid-site one, else `slots`. Pure.
+ */
+export function privateRuleOf(sourceType: RecipeSourceType): PrivateRule {
+    switch (sourceType) {
+        case RecipeSourceType.IMPORTED_PUBLIC:
+            return 'premium';
+        case RecipeSourceType.IMPORTED_PHYSICAL:
+        case RecipeSourceType.IMPORTED_PAID:
+            return 'privateOnly';
+        case RecipeSourceType.USER_CREATED:
+            return 'slots';
+    }
+}
+
+/**
  * The single authoritative derivation of the "PRO" badge (FR-003a) — whether a recipe uses a
  * capability only a premium user has. Called by BOTH the list and the detail projection so they can
  * never disagree; never inlined or re-implemented elsewhere.
@@ -350,7 +378,7 @@ export interface Recipe {
  * @returns True when the recipe uses a premium-only capability. Pure.
  */
 export function usesPremiumCapability(recipe: Pick<Recipe, 'visibility' | 'sourceType'>): boolean {
-    return recipe.visibility === RecipeVisibility.PRIVATE && recipe.sourceType === RecipeSourceType.IMPORTED_PUBLIC;
+    return recipe.visibility === RecipeVisibility.PRIVATE && privateRuleOf(recipe.sourceType) === 'premium';
 }
 
 /**

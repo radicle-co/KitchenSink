@@ -1303,7 +1303,7 @@ export class RecipesService {
             assertNotContained(principal, 'cloneForeign');
         }
 
-        const sourceType = source.recipe.sourceType as RecipeSourceType;
+        const sourceType = source.recipe.sourceType;
         // An imported source's attribution is kept verbatim. A user_created original has none, and none is
         // invented: provenance is `clonedFromId`, and a stored "Cloned from <owner id>" put a raw user id on
         // Discover cards and outlived the original author's erasure (W-03).
@@ -1322,11 +1322,7 @@ export class RecipesService {
         // ADR-0073 section 12: a clone is always written as a DRAFT (below), and a draft holds no slot, so a clone is never
         // counted or refused for slots - whatever visibility it lands with. The slot is taken when the cook publishes it
         // (`update`).
-        const cloneVisibility = defaultCloneVisibility(
-            sourceType,
-            principal,
-            source.recipe.visibility as RecipeVisibility,
-        );
+        const cloneVisibility = defaultCloneVisibility(sourceType, principal, source.recipe.visibility);
 
         // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
         const created = await this.dal.transaction(async (tx) => {
@@ -1404,7 +1400,7 @@ export class RecipesService {
         this.assertOwner(principal.userId, existing.recipe);
 
         const isPremium = isPremiumPrincipal(principal);
-        const sourceType = existing.recipe.sourceType as RecipeSourceType;
+        const sourceType = existing.recipe.sourceType;
         const visibilityAsk = visibilityAskOf(
             principal,
             { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit },

@@ -1,6 +1,6 @@
 /**
- * The create route hands the allowance the caller's TIER, read from the verified principal's roles by the one tier
- * source every policy shares (`isPremiumPrincipal`) — never from the body (004 FR-022, the 010 seam).
+ * The create route charges the VERIFIED principal's allowance (never an id from the body) and passes no tier: the
+ * allowance is the same for every caller until 010 specifies tier rules (004 FR-022).
  */
 import 'reflect-metadata';
 
@@ -35,16 +35,12 @@ async function createAs(principal: Principal): Promise<ReturnType<typeof vi.fn>>
     return create;
 }
 
-describe('ParseJobsController.create — the tier', () => {
-    it('hands the service a free tier for a principal without a paid role', async () => {
-        const create = await createAs(BASE);
+describe('ParseJobsController.create — the allowance', () => {
+    it('charges the verified principal for the pasted text, whatever its roles', async () => {
+        const free = await createAs(BASE);
+        const paid = await createAs({ ...BASE, roles: ['premium'] });
 
-        expect(create).toHaveBeenCalledWith(BASE.userId, '1 cup milk', { isPremium: false });
-    });
-
-    it('hands the service a premium tier for a principal with a paid role', async () => {
-        const create = await createAs({ ...BASE, roles: ['premium'] });
-
-        expect(create).toHaveBeenCalledWith(BASE.userId, '1 cup milk', { isPremium: true });
+        expect(free).toHaveBeenCalledWith(BASE.userId, '1 cup milk');
+        expect(paid).toHaveBeenCalledWith(BASE.userId, '1 cup milk');
     });
 });

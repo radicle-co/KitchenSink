@@ -27,6 +27,7 @@ import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
+import type { RecipeVisibility } from '@kitchensink/recipe-core';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -98,7 +99,7 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
         .mockImplementation(
             async (input: {
                 ownerId: string;
-                visibility: string;
+                visibility: RecipeVisibility;
                 clonedFromId?: string | null;
             }): Promise<RecipeAggregate> => ({
                 recipe: makeRecipeRow({

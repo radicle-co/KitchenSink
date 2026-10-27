@@ -24,7 +24,6 @@ import type { CopyForwardCandidate } from '../domain/copyForwardPolicy.js';
 import type { ParseJobRecord, ParseJobsDalPort } from '../parseJobs.service.js';
 
 const OWNER = 'user_01ARZ3NDEKTSV4RRFFQ69G5FAV';
-const FREE_TIER = { isPremium: false } as const;
 const STRANGER = 'user_01ARZ3NDEKTSV4RRFFQ69G5FZZ';
 const JOB_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 
@@ -116,7 +115,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal();
         const queue = makeQueue();
 
-        await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`, FREE_TIER);
+        await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`);
 
         expect(enqueuedLines(queue)).toEqual([FLOUR, EGGS]);
     });
@@ -124,7 +123,7 @@ describe('create — dedup before queuing', () => {
     it('looks candidates up by the SAME lineDigest the messages and stored rows carry', async () => {
         const dal = makeDal();
 
-        await new ParseJobsService(dal, makeQueue()).create(OWNER, FLOUR, FREE_TIER);
+        await new ParseJobsService(dal, makeQueue()).create(OWNER, FLOUR);
 
         expect(dal.findCopyForwardCandidates).toHaveBeenCalledWith(OWNER, [digestOf(FLOUR)], expect.any(Number));
     });
@@ -133,7 +132,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal([candidateFor(FLOUR)]);
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, FLOUR, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue).create(OWNER, FLOUR);
 
         expect(queue.enqueue).not.toHaveBeenCalledWith(expect.arrayContaining([expect.anything()]));
         expect(enqueuedLines(queue)).toEqual([]);
@@ -145,7 +144,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal([candidateFor(FLOUR)]);
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`);
 
         expect(enqueuedLines(queue)).toEqual([EGGS]);
         expect(view.lines.map((line) => line.status)).toEqual(['parsed', 'pending']);
@@ -159,7 +158,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal([candidateFor(FLOUR), candidateFor(EGGS)]);
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`);
 
         expect(enqueuedLines(queue)).toEqual([]);
         expect(view.status).toBe('complete');
@@ -169,7 +168,7 @@ describe('create — dedup before queuing', () => {
     it('leaves a partially-copied job running, because its remaining line is still outstanding', async () => {
         const dal = makeDal([candidateFor(FLOUR)]);
 
-        const view = await new ParseJobsService(dal, makeQueue()).create(OWNER, `${FLOUR}\n${EGGS}`, FREE_TIER);
+        const view = await new ParseJobsService(dal, makeQueue()).create(OWNER, `${FLOUR}\n${EGGS}`);
 
         expect(view.status).toBe('running');
     });
@@ -178,7 +177,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal([candidateFor(FLOUR)]);
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${FLOUR}`, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${FLOUR}`);
 
         expect(view.lines).toHaveLength(2);
         expect(view.lines.map((line) => line.status)).toEqual(['parsed', 'parsed']);
@@ -194,7 +193,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal();
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, `${EGGS}\n${EGGS}`, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue).create(OWNER, `${EGGS}\n${EGGS}`);
 
         expect(view.lines).toHaveLength(2);
         expect(enqueuedLines(queue)).toEqual([EGGS, EGGS]);
@@ -204,7 +203,7 @@ describe('create — dedup before queuing', () => {
         const dal = makeDal([candidateFor(FLOUR)]);
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue).create(STRANGER, FLOUR, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue).create(STRANGER, FLOUR);
 
         expect(enqueuedLines(queue)).toEqual([FLOUR]);
         expect(view.lines[0]?.status).toBe('pending');
@@ -214,7 +213,7 @@ describe('create — dedup before queuing', () => {
         const spaced = '2  cups   flour';
         const dal = makeDal([candidateFor(spaced, { proposal: proposalFor(FLOUR) })]);
 
-        const view = await new ParseJobsService(dal, makeQueue()).create(OWNER, spaced, FREE_TIER);
+        const view = await new ParseJobsService(dal, makeQueue()).create(OWNER, spaced);
 
         expect((view.lines[0]?.proposal as { raw: string } | null)?.raw).toBe(spaced);
     });
@@ -230,7 +229,7 @@ describe('create — what copy-forward must not disturb', () => {
         const queue = makeQueue();
         queue.enqueue.mockRejectedValueOnce(new Error('sqs is down'));
 
-        await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`, FREE_TIER);
+        await new ParseJobsService(dal, queue).create(OWNER, `${FLOUR}\n${EGGS}`);
 
         expect(dal.markLinesFailedRetryable).toHaveBeenCalledWith(JOB_ID, [1]);
     });
@@ -239,7 +238,7 @@ describe('create — what copy-forward must not disturb', () => {
         const dal = makeDal([candidateFor(FLOUR)]);
         const queue = makeQueue();
 
-        await new ParseJobsService(dal, queue).create(OWNER, FLOUR, FREE_TIER);
+        await new ParseJobsService(dal, queue).create(OWNER, FLOUR);
 
         expect(queue.enqueue).not.toHaveBeenCalled();
     });
@@ -276,7 +275,7 @@ describe('create — the kill switch', () => {
         const dal = makeDal([candidateFor(FLOUR)]);
         const queue = makeQueue();
 
-        const view = await new ParseJobsService(dal, queue, 0).create(OWNER, `${FLOUR}\n${EGGS}`, FREE_TIER);
+        const view = await new ParseJobsService(dal, queue, 0).create(OWNER, `${FLOUR}\n${EGGS}`);
 
         expect(dal.findCopyForwardCandidates).not.toHaveBeenCalled();
         expect(dal.correctionsChangedAt).not.toHaveBeenCalled();

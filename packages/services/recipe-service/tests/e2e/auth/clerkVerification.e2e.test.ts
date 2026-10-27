@@ -221,7 +221,7 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
                     totalTimeMinutes: 2,
                     cuisine: 'Italian',
                     ingredientNamesText: 'held',
-                    visibility: 'private',
+                    visibility: 'private' as const,
                 })),
             );
         }

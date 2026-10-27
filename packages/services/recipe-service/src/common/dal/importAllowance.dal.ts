@@ -34,11 +34,7 @@ import {
     importAllowanceEvents,
     type ImportAllowanceChannel,
 } from '../../database/schema/importAllowanceEvents.js';
-import {
-    evaluateImportAllowance,
-    importAllowanceWindowStart,
-    type ImportAllowanceTier,
-} from '../importAllowancePolicy.js';
+import { evaluateImportAllowance, importAllowanceWindowStart } from '../importAllowancePolicy.js';
 
 /** What a caller asks the allowance for. */
 export interface AdmitRequest {
@@ -46,8 +42,6 @@ export interface AdmitRequest {
     readonly channel: ImportAllowanceChannel;
     /** How many units: a positive integer (the policy throws otherwise). More than the room left is admitted in part. */
     readonly units: number;
-    /** The caller's tier. */
-    readonly tier: ImportAllowanceTier;
 }
 
 /**
@@ -87,7 +81,7 @@ export class ImportAllowanceDal {
      *
      * @param tx - The open transaction (the lock lives and dies with it).
      * @param userId - The verified app-user ULID, never a request field.
-     * @param request - The channel, the units and the tier.
+     * @param request - The channel and the units.
      * @returns `admitted` (the units are on the ledger inside `tx`), `partial` (only the units that fit are), or `refused`
      *   with the instant the allowance reopens.
      * @throws {RangeError} when the units are not a positive integer (a caller defect).
@@ -132,7 +126,6 @@ export class ImportAllowanceDal {
 
         const decision = evaluateImportAllowance({
             channel: request.channel,
-            tier: request.tier,
             windowEvents,
             requestedUnits: request.units,
             now,

@@ -155,17 +155,45 @@ export interface RankingTerms {
 }
 
 /**
+ * Replace every bracketed group with a space, in linear time.
+ *
  * A bracketed group, removed before the head is read: `Tamales (Navajo)` is a tamale, and a qualifier in brackets
  * is never the food. Non-nested on purpose, so the SQL mirror (`rank_head_of`, migration 0025) can say the same
- * thing in one `regexp_replace`.
+ * thing in one `regexp_replace`: a group runs from a `(` to the FIRST `)` after it, which may itself hold `(`.
+ *
+ * ⛔ A SCAN, not `/\([^)]*\)/g`: that pattern retries every `(` of a run with no `)` after it and reads to the end each
+ * time (CodeQL js/polynomial-redos; 6.5 s on 200k characters). Here each `(` and each `)` is found once, and the scan
+ * stops at the first `(` with no `)` after it. The output is byte-identical to that replacement, which
+ * `rankingTerms.test.ts` proves exhaustively over short strings, and the SQL mirror still agrees.
+ *
+ * @param text - A name or a typed query.
+ * @returns The text with each non-nested bracketed group replaced by one space. Pure.
  */
-const BRACKETED_GROUP = /\([^)]*\)/g;
+export function replaceBracketedGroups(text: string): string {
+    let result = '';
+    let from = 0;
+
+    for (;;) {
+        const open = text.indexOf('(', from);
+        const close = open < 0 ? -1 : text.indexOf(')', open + 1);
+
+        if (close < 0) {
+            return result + text.slice(from);
+        }
+
+        result += text.slice(from, open) + ' ';
+        from = close + 1;
+    }
+}
 
 /**
  * A trailing phrase opened by the standalone word `in`, removed before the head is read: `walnuts in syrup` is a
  * walnut and `Fish, tuna, light, canned in water` is still a fish. The word must stand alone between ASCII
  * whitespace, so `instant` and `raisin` keep their letters. ⚠️ An `of` phrase is NOT cut: its head is final
  * (`cream of mushroom soup` is a soup), which is what the last-word rule already reads.
+ *
+ * Linear: every attempt fails or commits within a constant number of characters, and the commit consumes to the end
+ * with `[\s\S]*$`, which cannot backtrack. `rankingTerms.test.ts` times 200k-character runs of whitespace and `in`.
  */
 const IN_PHRASE = /[ \t\n\r\f\v]in[ \t\n\r\f\v][\s\S]*$/i;
 
@@ -198,7 +226,7 @@ function lastToken(tokens: readonly string[]): string | undefined {
  * @returns The head term, or `undefined` when the text holds nothing alphanumeric. Pure.
  */
 export function rankingHeadOf(text: string): string | undefined {
-    const reduced = text.replace(BRACKETED_GROUP, ' ').replace(IN_PHRASE, '');
+    const reduced = replaceBracketedGroups(text).replace(IN_PHRASE, '');
     const commaIndex = reduced.indexOf(',');
     const firstSegment = commaIndex >= 0 ? reduced.slice(0, commaIndex) : reduced;
 

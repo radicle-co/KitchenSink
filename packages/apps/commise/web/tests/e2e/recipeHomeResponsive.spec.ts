@@ -285,21 +285,23 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
         await expectNoHorizontalOverflow(page);
     });
 
-    test('the recipe detail fits the viewport and every ingredient row is a 48px tap target', async ({ page }) => {
+    test('the recipe detail fits the viewport and every ingredient row is a 44px tap target', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' })).toBeVisible();
 
         await expectNoHorizontalOverflow(page);
 
-        // The WHOLE row is the checkbox (build spec §6.3): at least 48 px tall, the drawn box inside it 24 px.
+        // The WHOLE row is the checkbox (build spec §6.3): at least 44 px tall, the drawn box inside it 18 px. REWRITTEN
+        // from 48 / 24 to the owner's decisions C5 and T1 (01c0c13ec): the row is the touch target at the 44 px floor,
+        // and `CheckBoxGlyph` keeps an 18 px visual box on the 20 px first line of the list role.
         const row = page.getByRole('checkbox', { name: /Olive oil/ });
         const box = await row.boundingBox();
         const drawn = await row.locator('[aria-hidden="true"]').first().boundingBox();
 
-        expect(box?.height ?? 0).toBeGreaterThanOrEqual(48);
-        expect(Math.round(drawn?.width ?? 0)).toBe(24);
-        expect(Math.round(drawn?.height ?? 0)).toBe(24);
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+        expect(Math.round(drawn?.width ?? 0)).toBe(18);
+        expect(Math.round(drawn?.height ?? 0)).toBe(18);
     });
 
     test('version-compare stacks the A/B columns into one', async ({ page }) => {
@@ -329,7 +331,7 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         expect(railHeight).toBeGreaterThan(400);
     });
 
-    test('the detail title is the large title and the drawn ingredient box stays 24px', async ({ page }) => {
+    test('the detail title is the large title and the drawn ingredient box stays 18px', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         const heading = page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' });
@@ -341,14 +343,14 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         const fontSize = await heading.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
         expect(fontSize).toBe(28);
 
-        // The drawn ingredient box is 24 px at every width; the row around it is the target.
+        // The drawn ingredient box is 18 px at every width (C5, 01c0c13ec); the row around it is the target.
         const drawn = await page
             .getByRole('checkbox', { name: /Olive oil/ })
             .locator('[aria-hidden="true"]')
             .first()
             .boundingBox();
-        expect(Math.round(drawn?.width ?? 0)).toBe(24);
-        expect(Math.round(drawn?.height ?? 0)).toBe(24);
+        expect(Math.round(drawn?.width ?? 0)).toBe(18);
+        expect(Math.round(drawn?.height ?? 0)).toBe(18);
 
         // Future-drift guard: the static detail article stays visually stable at desktop width.
         // ⚠️ THIS BASELINE NOW COVERS THE OWNER CONTROLS. They used to be siblings of `RecipeDetailView`,

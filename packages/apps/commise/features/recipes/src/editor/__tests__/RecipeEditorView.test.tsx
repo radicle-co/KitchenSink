@@ -7,7 +7,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { focusManager } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useContext, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -266,7 +266,9 @@ describe('the action bar', () => {
             expect(publish).toHaveBeenCalledExactlyOnceWith('');
         });
 
-        it('Choose now publishes nothing and opens the first open line', () => {
+        // REWRITTEN: Choose now hands off once the sheet is gone (`PublishOpenChoicesSheet.test.tsx` says why), so the line
+        // is opened after the dismissal, not on the press.
+        it('Choose now publishes nothing and opens the first open line', async () => {
             const publish = vi.fn(() => ({ kind: 'send' }) as const);
             const chooseNow = vi.fn();
             render(
@@ -278,7 +280,7 @@ describe('the action bar', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
             fireEvent.click(screen.getByRole('button', { name: 'Choose now' }));
 
-            expect(chooseNow).toHaveBeenCalledTimes(1);
+            await waitFor(() => expect(chooseNow).toHaveBeenCalledTimes(1));
             expect(publish).not.toHaveBeenCalled();
         });
 

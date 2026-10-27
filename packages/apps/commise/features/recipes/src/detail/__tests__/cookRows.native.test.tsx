@@ -6,10 +6,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { rgb } from '@commise/ui/testing/system-color-scheme';
 
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
@@ -60,16 +60,11 @@ describe('IngredientCheckRow (native)', () => {
         ['ios', '44px'],
         ['android', '48px'],
     ] as const)('is as tall as the platform touch floor on %s', (os, height) => {
-        const original = Platform.OS;
-        Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-        try {
+        withPlatformOs(os, () => {
             render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
 
             expect(getComputedStyle(screen.getByRole('checkbox', { name: /lamb shoulder/u })).minHeight).toBe(height);
-        } finally {
-            Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-        }
+        });
     });
 
     it('toggles when the cook presses the text, not only the box', () => {

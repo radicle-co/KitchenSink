@@ -77,9 +77,13 @@ for (const colorScheme of SCHEMES) {
             await expect(ingredients.getByRole('button', { name: /, chosen$/u })).toHaveCount(0);
             await expect(paragraphWith(ingredients, /3 to choose/u)).toBeVisible();
             // The other open lines are collapsed rows that name what they need.
-            await expect(ingredients.getByRole('button', { name: /^Choose a food\s+· 2 options/u })).toBeVisible();
             await expect(
-                ingredients.getByRole('button', { name: /^No food found\s+· search or keep as written/u }),
+                ingredients.getByRole('button', { name: /^3 bread\s+Choose a food\s+· 2 options/u }),
+            ).toBeVisible();
+            await expect(
+                ingredients.getByRole('button', {
+                    name: /^1 tsp spice mix\s+No food found\s+· search or keep as written/u,
+                }),
             ).toBeVisible();
             // Every line the cook fixes keeps a direct way to search for a food.
             await expect(ingredients.getByRole('button', { name: 'Search for a food for 2 cups milk' })).toBeVisible();
@@ -134,7 +138,7 @@ for (const colorScheme of SCHEMES) {
             });
 
             // The line is drawn by the picker now, on its own words, and not twice.
-            await expect(ingredients.getByRole('combobox')).toBeVisible();
+            await expect(ingredients.getByRole('combobox', { name: 'Ingredient 1 name' })).toBeVisible();
         });
     });
 }

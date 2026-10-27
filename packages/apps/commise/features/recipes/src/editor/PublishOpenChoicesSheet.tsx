@@ -10,13 +10,17 @@
  * At narrow the two actions stack, Publish anyway LAST, nearest the thumb; from the `nav` width they share a row, the
  * primary at its end. The DOM order is the visual order at every width, so Tab and the eye agree (U11).
  *
+ * Choose now hands off AFTER the sheet is gone (`onDismissed`), not on the press: the host opens the first open line and asks
+ * it for focus, and the sheet's own close then returns focus to its opener (Publish). Handing off on the press lost that
+ * race and left the cook on Publish. The state is only the intent to hand off, so the component still renders props.
+ *
  * Presentational: props in, markup out; the words are `openChoicesCopyOf`'s. The native leaf is
  * `./PublishOpenChoicesSheet.native.tsx`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 
 import { editorMessages } from './messages.js';
 import { openChoicesCopyOf } from './openChoicesCopy.js';
@@ -31,17 +35,32 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
     onOpenChange,
 }) => {
     const copy = openChoicesCopyOf(facts, useMessages(editorMessages), useLocale());
+    const [choosing, setChoosing] = useState(false);
 
     return (
         <Sheet
             open={open}
             onOpenChange={onOpenChange}
+            onDismissed={() => {
+                if (choosing) {
+                    setChoosing(false);
+                    onChooseNow();
+                }
+            }}
             title={copy.title}
             closeLabel={copy.close}
             size="content"
             footer={
                 <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
-                    <Button variant="secondary" icon="list" width="fill" onPress={onChooseNow}>
+                    <Button
+                        variant="secondary"
+                        icon="list"
+                        width="fill"
+                        onPress={() => {
+                            setChoosing(true);
+                            onOpenChange(false);
+                        }}
+                    >
                         {copy.chooseNow}
                     </Button>
                     <Button icon="check" width="fill" onPress={onPublishAnyway}>

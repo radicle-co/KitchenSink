@@ -1,9 +1,12 @@
 import { expect, test, type Locator } from '@playwright/test';
 
+import { role, roleDark } from '@commise/ui/colors';
+
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockSettingsApi } from './utils/settingsApi';
+import { rgb } from './utils/surfaceToneCascade';
 
 /**
  * The recipe card's layout contract on My recipes (`docs/design/uiOverhaul/buildSpec.md` §4.1, slice 4 in §13):
@@ -42,8 +45,11 @@ async function topOf(locator: Locator): Promise<number> {
     return Math.round(box?.y ?? 0);
 }
 
-/** The card surface (`paper`) per scheme: white in light, `roleDark.paper` (#1E1B18) in dark (owner ruling D15). */
-const PAPER = { light: 'rgb(255, 255, 255)', dark: 'rgb(30, 27, 24)' } as const;
+/**
+ * The card surface (`paper`) per scheme, READ FROM the role tables. It was two literals (white, `#1E1B18`) that went
+ * stale when the redesign palette moved `paper` to cloud / `#172029`; a card re-themes with the roles, so the spec does.
+ */
+const PAPER = { light: rgb(role.paper), dark: rgb(roleDark.paper) } as const;
 
 for (const colorScheme of ['light', 'dark'] as const) {
     test.describe(`recipe cards — grid alignment and covers (${colorScheme})`, () => {

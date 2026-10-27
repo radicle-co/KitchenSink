@@ -98,7 +98,9 @@ test.describe('the editor session', () => {
      * Pro sheet for a free-tier cook. A free cook now keeps recipes private in slots, so choosing Private applies it and
      * says it uses one.
      */
-    test('Private for a free-tier cook uses a slot: it applies, and says what is left', async ({ page }) => {
+    test('Private for a free-tier cook applies on a new recipe, and says a private draft uses no slot', async ({
+        page,
+    }) => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, paidFeatures: 'upsell' });
 
@@ -106,7 +108,9 @@ test.describe('the editor session', () => {
         await page.getByRole('radio', { name: /^Private/u }).click();
 
         await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
-        await expect(page.getByText('This recipe uses 1 slot. 49 of 50 left after it.')).toBeVisible();
+        // REWRITTEN for d6eaf18cd: a NEW recipe is a draft, and a private draft holds no slot, so the note says that
+        // instead of "uses 1 slot ... left". The slot is taken at Publish (`publishBlockedAsk.spec.ts`).
+        await expect(page.getByText('A private draft uses no slot. Publishing it uses one.')).toBeVisible();
         await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
         await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
     });

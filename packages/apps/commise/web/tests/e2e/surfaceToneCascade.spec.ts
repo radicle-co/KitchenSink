@@ -4,6 +4,7 @@ import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
 import {
+    canonicalHex,
     expectedFor,
     mountFixtures,
     NAMES,
@@ -56,7 +57,7 @@ for (const scheme of SCHEMES) {
             const focus = await readFocusGap(page, control);
 
             expect(focus.focusVisible, 'keyboard focus matches :focus-visible').toBe(true);
-            expect(focus.offsetColor).toBe(gap.toLowerCase());
+            expect(focus.offsetColor).toBe(canonicalHex(gap));
             expect(await readPressFill(page, control)).toBe(rgb(press));
         });
 
@@ -67,7 +68,7 @@ for (const scheme of SCHEMES) {
                 const focus = await readFocusGap(page, control);
 
                 expect(focus.focusVisible, 'keyboard focus matches :focus-visible').toBe(true);
-                expect(focus.offsetColor).toBe(gap.toLowerCase());
+                expect(focus.offsetColor).toBe(canonicalHex(gap));
                 // The band the browser paints between the control and its ring: 2px, in the surface's colour.
                 expect(focus.boxShadow).toContain(`${rgb(gap)} 0px 0px 0px 2px`);
                 expect(await readPressFill(page, control)).toBe(rgb(press));
@@ -81,14 +82,14 @@ for (const scheme of SCHEMES) {
             const after = page.getByRole('button', { name: NAMES.nestedOuter });
             const inherits = page.getByRole('button', { name: NAMES.inherits });
 
-            expect((await readFocusGap(page, nested)).offsetColor).toBe(expectedFor(scheme, 'muted').gap.toLowerCase());
+            expect((await readFocusGap(page, nested)).offsetColor).toBe(canonicalHex(expectedFor(scheme, 'muted').gap));
             expect(await readPressFill(page, nested)).toBe(rgb(expectedFor(scheme, 'muted').press));
 
-            expect((await readFocusGap(page, after)).offsetColor).toBe(expectedFor(scheme, 'paper').gap.toLowerCase());
+            expect((await readFocusGap(page, after)).offsetColor).toBe(canonicalHex(expectedFor(scheme, 'paper').gap));
             expect(await readPressFill(page, after)).toBe(rgb(expectedFor(scheme, 'paper').press));
 
             expect((await readFocusGap(page, inherits)).offsetColor).toBe(
-                expectedFor(scheme, 'paper').gap.toLowerCase(),
+                canonicalHex(expectedFor(scheme, 'paper').gap),
             );
             expect(await readPressFill(page, inherits)).toBe(rgb(expectedFor(scheme, 'paper').press));
         });
@@ -99,7 +100,7 @@ for (const scheme of SCHEMES) {
             const control = page.getByRole('button', { name: NAMES.portal });
             const { gap, press } = expectedFor(scheme, 'paperOverlay');
 
-            expect((await readFocusGap(page, control)).offsetColor).toBe(gap.toLowerCase());
+            expect((await readFocusGap(page, control)).offsetColor).toBe(canonicalHex(gap));
             expect(await readPressFill(page, control)).toBe(rgb(press));
             expect(gap).not.toBe(expectedFor(scheme, 'muted').gap);
         });

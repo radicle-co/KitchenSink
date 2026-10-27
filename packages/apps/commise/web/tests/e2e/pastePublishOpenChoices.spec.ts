@@ -82,7 +82,10 @@ for (const colorScheme of SCHEMES) {
             const sheet = page.getByRole('dialog', { name: '2 ingredients have no food yet' });
 
             await expect(sheet).toBeVisible();
-            await expect(paragraphWith(sheet, /milk and bread/u)).toBeVisible();
+            // Names the open lines as the locale writes a list (`openChoicesCopy.test.ts`). The second line is named as
+            // the stubbed parse drew it ("3 bread", its count kept), so the spec pins both names and not the wording
+            // of the stub's parse.
+            await expect(paragraphWith(sheet, /milk and .*bread/u)).toBeVisible();
             expect(writes.filter((body) => body.includes('"status":"published"'))).toEqual([]);
 
             await sheet.getByRole('button', { name: 'Choose now' }).click();

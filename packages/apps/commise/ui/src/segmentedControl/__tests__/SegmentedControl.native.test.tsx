@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 import { useState } from 'react';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { SegmentedControl } from '../SegmentedControl.native.js';
 import { palette, role } from '../../tokens/colors.js';
@@ -35,13 +35,6 @@ function rgb(hex: string): string {
     const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
 
     return `rgb(${r}, ${g}, ${b})`;
-}
-
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
 }
 
 const PLACES = [
@@ -99,9 +92,7 @@ describe('SegmentedControl (native) — route', () => {
             ['ios', '44px'],
             ['android', '48px'],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(
                     <SegmentedControl
                         form="route"
@@ -114,9 +105,7 @@ describe('SegmentedControl (native) — route', () => {
 
                 expect(getComputedStyle(screen.getByRole('tablist', { name: 'Recipes' })).minHeight, os).toBe(height);
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 

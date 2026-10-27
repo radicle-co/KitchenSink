@@ -15,29 +15,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const press = vi.hoisted(() => ({ pressed: false, reduceMotion: false }));
 
 vi.mock('react-native', async (importOriginal) => {
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
     const actual = await importOriginal<typeof import('react-native')>();
-    const { createElement } = await import('react');
 
-    return {
-        ...actual,
-        Pressable: (props: {
-            readonly children: unknown;
-            readonly style: (state: { pressed: boolean }) => Record<string, unknown>;
-            readonly accessibilityRole?: 'button';
-            readonly accessibilityLabel?: string;
-        }) =>
-            createElement(
-                actual.View,
-                {
-                    role: props.accessibilityRole,
-                    'aria-label': props.accessibilityLabel,
-                    style: props.style({ pressed: press.pressed }),
-                },
-                typeof props.children === 'function'
-                    ? (props.children as (state: { pressed: boolean }) => never)({ pressed: press.pressed })
-                    : (props.children as never),
-            ),
-    };
+    return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
 });
 
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => press.reduceMotion }));

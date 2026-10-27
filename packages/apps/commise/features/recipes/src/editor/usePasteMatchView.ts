@@ -160,6 +160,14 @@ export function usePasteMatchView(options: UsePasteMatchViewOptions): PasteMatch
         }
     }
 
+    // At the wide class the pane follows the first open line until it is placed, and a pick closes the line it is on, so a
+    // pick must place the pane first or it slides to the next open line under the cook (Next is what moves on).
+    const pinPane = (key: string, wide: boolean): void => {
+        if (wide) {
+            matching.moveTo(key);
+        }
+    };
+
     const handlersFor = (wide: boolean): Omit<MatchLineListProps, keyof MatchLineListState> => ({
         onOpen: (key) => {
             retryOf.noteAttention(key);
@@ -172,6 +180,7 @@ export function usePasteMatchView(options: UsePasteMatchViewOptions): PasteMatch
         },
         onPick: (key, pick: LinePick) => {
             retryOf.noteAttention(key);
+            pinPane(key, wide);
             matching.pick(key, pick, tagOf(wide));
         },
         onSearch: (key) => {
@@ -180,6 +189,7 @@ export function usePasteMatchView(options: UsePasteMatchViewOptions): PasteMatch
         },
         onUseProposal: (key) => {
             retryOf.noteAttention(key);
+            pinPane(key, wide);
             matching.useProposal(key, tagOf(wide));
         },
         onRetry: (key) => {

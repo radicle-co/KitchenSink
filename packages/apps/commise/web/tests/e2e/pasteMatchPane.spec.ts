@@ -56,8 +56,9 @@ for (const colorScheme of SCHEMES) {
             await pane.getByRole('button', { name: 'Next open line' }).click();
             await expect(paragraphWith(pane, 'Line 2 of 2')).toBeVisible();
             await expect(pane.getByRole('heading', { name: '3 bread' })).toBeVisible();
-            await pane.getByRole('button', { name: 'Previous' }).click();
-            await expect(paragraphWith(pane, 'Line 1 of 2')).toBeVisible();
+            // Previous steps to the open line before this one (`paneStepsOf`). Line 1 is chosen now, so nothing is
+            // open before line 2 and Previous is refused, drawn and focusable (aria-disabled), never natively disabled.
+            await expect(pane.getByRole('button', { name: 'Previous' })).toHaveAttribute('aria-disabled', 'true');
         });
 
         test('below the wide class there is no pane: the open line is expanded in the list', async ({ page }) => {

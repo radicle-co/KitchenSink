@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { SyncProvider } from '@commise/query/sync';
-import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { NotFoundError, PrivateSlotsFullError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { focusManager, onlineManager } from '@tanstack/react-query';
@@ -522,6 +522,47 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
                 (record) => (record.payload as { readonly input?: { readonly title?: string } }).input?.title,
             );
             expect(titles).toEqual(['Soup to keep']);
+        });
+
+        // ADDED after review (ADR-0073 section 12). When the slot read had failed at the press the client sends the Publish by
+        // design (the count is a display fact), and the server answers the UPDATE with PRIVATE_SLOTS_FULL - an answer an
+        // update could not give before. That parks behind Try again. Try again must not re-send a Publish the cook's own
+        // standing now says cannot succeed (the stuck save, moved from the create to the publish): the standing is re-read when
+        // the Publish parks, and Try again draws the refusal instead.
+        it('⛔ a Publish the server refused for slots, after an unknown standing: Try again re-reads the standing and draws the refusal instead of re-sending', async () => {
+            profile.paidFeatures = 'upsell';
+            const client = createFakeRecipeServiceClient();
+            // The first read fails (an unknown standing at the press); every later one answers: every slot is used.
+            const getSlots = vi
+                .spyOn(client, 'getPrivateSlots')
+                .mockRejectedValueOnce(new Error('network down'))
+                .mockResolvedValue({ kind: 'limited', used: 50, limit: 50 });
+            const draft = makeRecipeDetail({
+                id: 'rec_stuck',
+                title: 'Secret Stew',
+                visibility: RecipeVisibility.PRIVATE,
+                status: 'draft',
+            });
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+            const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+            renderEditor(client, 'rec_stuck');
+            await screen.findByDisplayValue('Secret Stew');
+            await waitFor(() => expect(getSlots).toHaveBeenCalled());
+
+            await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            await screen.findByRole('button', { name: 'Try again' });
+            expect(update).toHaveBeenCalledTimes(1);
+
+            // The Publish parking re-read the standing: it now says every slot is used.
+            await waitFor(() => expect(getSlots.mock.calls.length).toBeGreaterThan(1));
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            });
+            await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+            expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+            expect(update).toHaveBeenCalledTimes(1);
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
         });
 
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {

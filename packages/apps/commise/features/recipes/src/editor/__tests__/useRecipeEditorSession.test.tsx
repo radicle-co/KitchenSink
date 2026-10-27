@@ -12,7 +12,7 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { recipeQueries, recipeServiceKeys, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -278,6 +278,35 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         });
 
         expect(view.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+    });
+
+    // ADDED after review (ADR-0073 section 12). A Publish the client could not see coming (the slot read had failed or was
+    // stale) parks when the server refuses the update for want of a slot. Try again asks the gate with the standing as it is
+    // then, so the standing is re-read the moment the Publish parks - not whenever the tab next happens to refocus.
+    it('⛔ re-reads the private-slot standing when a Publish parks, so Try again judges it afresh', async () => {
+        const { result, port, queryClient } = mount({}, createFakeRecipeServiceClient(), { privateRefusal: undefined });
+        const key = recipeServiceKeys.recipePrivateSlots;
+        queryClient.setQueryData(key, { kind: 'limited', used: 3, limit: 50 });
+
+        act(() => {
+            result.current.editor.setValues({
+                ...toRecipeFormValues(complete()),
+                visibility: RecipeVisibility.PRIVATE,
+                photos: [],
+            });
+        });
+        act(() => {
+            result.current.editor.publish('');
+        });
+        await settle();
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+
+        act(() => {
+            port.park(port.lastSeq());
+        });
+        await settle();
+
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     });
 
     it('a discarded never-published recipe goes to My recipes; a published one`s discarded changes, to the recipe', async () => {

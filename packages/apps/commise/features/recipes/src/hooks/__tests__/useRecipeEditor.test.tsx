@@ -86,7 +86,8 @@ function mount(
     seed: EditorSeed = {},
     pasteHold?: PasteHold,
     port = fakePort(),
-    privateRefusal: PrivateRefusal | undefined = undefined,
+    // A function when the refusal changes during the case (a slot read that answers after a Publish was sent).
+    privateRefusal: PrivateRefusal | undefined | (() => PrivateRefusal | undefined) = undefined,
 ) {
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
@@ -102,7 +103,7 @@ function mount(
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
             useRecipeEditor(props.seed, {
                 locale: 'en',
-                privateRefusal,
+                privateRefusal: typeof privateRefusal === 'function' ? privateRefusal() : privateRefusal,
                 port,
                 drafts,
                 keep: 'disk',
@@ -3266,5 +3267,72 @@ describe('a private draft with every slot used (ADR-0073 section 12)', () => {
 
         expect(outcome).toEqual({ kind: 'send' });
         expect(port.submitExclusive).toHaveBeenCalledOnce();
+    });
+});
+
+/**
+ * ADDED after review. When the slot read had failed (or was stale) at the press, the client sends the Publish by design - the
+ * count is a display fact - and the server answers the UPDATE with `PRIVATE_SLOTS_FULL`, an answer an update could not give
+ * before. The write parks behind Try again. Try again must not re-send what the cook's own standing now says cannot succeed:
+ * that would be the old stuck save, moved from the create to the publish.
+ */
+describe('Try again after a Publish the server refused for want of a slot', () => {
+    it('⛔ re-asks the gate with the standing as it is NOW: nothing is re-sent, the refusal is drawn, the parked write is withdrawn', async () => {
+        let refusal: PrivateRefusal | undefined;
+        const { result, port, rerender } = mount({}, undefined, fakePort(), () => refusal);
+
+        act(() => {
+            result.current.setValues({ ...complete(), visibility: RecipeVisibility.PRIVATE });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        const seq = port.lastSeq();
+        expect(port.submitted).toHaveLength(1);
+        // The server refused it (the standing was unknown at the press), so it parks.
+        act(() => {
+            port.park(seq);
+        });
+        await settle();
+        expect(result.current.parked).toMatchObject({ kind: 'create' });
+
+        // The slot read now answers: every slot is used.
+        refusal = 'slots';
+        rerender({ seed: {} });
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        expect(port.submitted).toHaveLength(1);
+        expect(port.withdrawn).toEqual([seq]);
+        expect(result.current.slotsRefused).toBe(true);
+        expect(result.current.parked).toBeUndefined();
+    });
+
+    it('with the standing still unknown, Try again re-sends (the server decides)', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), undefined);
+
+        act(() => {
+            result.current.setValues({ ...complete(), visibility: RecipeVisibility.PRIVATE });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            port.park(port.lastSeq());
+        });
+        await settle();
+
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        expect(port.submitted).toHaveLength(2);
     });
 });

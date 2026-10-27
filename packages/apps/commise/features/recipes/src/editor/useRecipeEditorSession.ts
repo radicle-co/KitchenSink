@@ -30,7 +30,7 @@
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
-import { recipeQueries } from '@kitchensink/recipe-service-client';
+import { recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useRebindIngredientLine,
     useRecipeServiceClient,
@@ -210,6 +210,18 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         pasteHold,
         privateRefusal,
     });
+
+    // ADR-0073 section 12: a write that PARKS before the first publish may be a Publish refused for want of a private slot the client could not see
+    // for want of a private slot the client could not see coming (the slot read had failed or was stale, so the Publish was
+    // sent by design). Try again asks the gate with the standing as it is then, so the standing is re-read now, when it
+    // matters. It is an event in the outbox, outside React, which is what an effect is for. A published recipe's Save
+    // changes takes no slot, so only a recipe not yet published asks.
+    const publishParked = editor.parked !== undefined && editor.lifecycle !== 'published';
+    useEffect(() => {
+        if (publishParked) {
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePrivateSlots });
+        }
+    }, [publishParked, queryClient]);
 
     // Every way out of the editor does what × does (build spec §3.5, ADR-0057 §2): the exit checkpoint. × runs its own
     // first; any later one is refused while that write is on the wire, finds nothing changed, or finds the lane closed by

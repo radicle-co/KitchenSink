@@ -1135,6 +1135,15 @@ function retry(ctx: EditorContext): void {
     void ctx.opts.port.withdraw(parked.seq).then(
         () => {
             ctx.lane.dispatch({ type: 'withdrawn', seq: parked.seq });
+
+            // ⛔ A parked Publish goes back through the gate with the standing as it is NOW (ADR-0073 section 12). When the slot
+            // read had failed at the press, the Publish was sent by design and the server refused the UPDATE; sending it again
+            // while the standing now says every slot is used would park behind a Try again that cannot succeed - the stuck
+            // save, moved from the create to the publish. The refusal is drawn instead, and the draft is kept.
+            if (trigger === 'publish' && checkGate(ctx, ctx.gate.entryText, trigger).kind !== 'send') {
+                return;
+            }
+
             runCheckpoint(ctx, trigger, { withdrawn: parked.seq });
         },
         (error: unknown) => {

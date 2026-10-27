@@ -392,7 +392,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '201': { description: 'The created recipe.', schema: 'RecipeDetail' },
                 '403': {
-                    description: `A free cook with no private slot left asked for \`private\` (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`), or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    description: `A free cook with no private slot left created a PUBLISHED \`private\` recipe (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`); a private draft takes no slot. Or: ${TEST_PRINCIPAL_CONTAINED}`,
                     schema: 'ErrorResponse',
                 },
                 ...sharedErrorResponses(),
@@ -435,7 +435,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'getPrivateSlots',
             summary: 'The caller’s private-slot standing (ADR-0073).',
             description:
-                'A free cook holds up to a limit of private recipes (every private, undeleted recipe they own, any label, drafts included); Premium has none. `limited` carries the live count and the limit the SERVER states (`used` can exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited` carries neither. A DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private write is never withheld on it. Scoped entirely by the verified token.',
+                'A free cook holds up to a limit of private recipes (every private, PUBLISHED, undeleted recipe they own, any label; a draft holds no slot); Premium has none. `limited` carries the live count and the limit the SERVER states (`used` can exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited` carries neither. A DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private write is never withheld on it. Scoped entirely by the verified token.',
             responses: {
                 '200': { description: 'The caller’s private-slot standing.', schema: 'PrivateSlotUsage' },
                 ...sharedErrorResponses(),
@@ -495,7 +495,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             requestBody: { description: 'The fields to change.', required: true, schema: 'UpdateRecipeRequest' },
             responses: {
                 '200': { description: 'The updated recipe.', schema: 'RecipeDetail' },
-                '403': NOT_OWNER,
+                '403': {
+                    description: `The caller does not own the recipe; or a free cook with no private slot left PUBLISHED a private draft (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`; saving a private draft takes no slot).`,
+                    schema: 'ErrorResponse',
+                },
                 '404': RECIPE_NOT_FOUND,
                 '409': {
                     description: 'Version conflict — the recipe changed since the caller read it.',
@@ -524,7 +527,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '201': { description: 'The caller’s new clone.', schema: 'RecipeDetail' },
                 '403': {
-                    description: `A clone that lands private by default needs a private slot: a free cook with none left gets \`code: PRIVATE_SLOTS_FULL\` (\`details.used\`, \`details.limit\`). Or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    description: `A contained test principal tried to clone a recipe it does not own (ADR-0040). A clone is always a DRAFT and takes no private slot, so this route never answers \`PRIVATE_SLOTS_FULL\`: ${TEST_PRINCIPAL_CONTAINED}`,
                     schema: 'ErrorResponse',
                 },
                 '404': RECIPE_NOT_FOUND,
@@ -581,7 +584,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '200': { description: 'The updated recipe.', schema: 'RecipeDetail' },
                 '403': {
-                    description: `The caller does not own the recipe; or a free cook with no private slot left asked for \`private\` (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`); or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    description: `The caller does not own the recipe; or a free cook with no private slot left set a PUBLISHED recipe to \`private\` (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`; a draft takes no slot); or: ${TEST_PRINCIPAL_CONTAINED}`,
                     schema: 'ErrorResponse',
                 },
                 '404': RECIPE_NOT_FOUND,

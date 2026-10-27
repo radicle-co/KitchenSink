@@ -1,10 +1,17 @@
 /**
  * ADR-0073 - the free-tier private slots, against a REAL database (LOCAL e2e, docs/CODING_STANDARDS.md section 7.1a).
  *
+ * REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12, spec 001 FR-003b): a DRAFT holds no slot. A slot is a
+ * private recipe that is PUBLISHED and not deleted; the check runs when a recipe comes to hold one (created published,
+ * made private while published, a private draft published). The old suite counted drafts, refused a private clone at 50 and
+ * never published a draft; those assertions are replaced, not edited to pass.
+ *
  * What a mocked DAL structurally cannot prove, and this does:
- *  - the count is the LIVE row count, with the right predicate: private AND undeleted AND owned, every label, drafts too;
- *  - the per-user advisory lock really excludes a second connection, and two private writes racing at 49 land exactly one;
- *  - set-visibility's transaction, the clone path (no side door), and a tombstone freeing a slot;
+ *  - the count is the LIVE row count, with the right predicate: private AND published AND undeleted AND owned, every label;
+ *  - the per-user advisory lock really excludes a second connection, and two private writes racing at 49 land exactly one
+ *    (creates, set-visibility, and two DIFFERENT private drafts published at once);
+ *  - a free cook at 50 can still save a private draft, and publishing it is refused with PRIVATE_SLOTS_FULL;
+ *  - set-visibility's transaction, the clone path (a clone is a draft, so no slot), and a tombstone freeing a slot;
  *  - a downgraded cook holding more than 50 keeps them all and is refused a new one.
  *
  * The dev-auth bypass makes every caller FREE-tier (`permissions: []`), so the Premium arms are the unit suite's
@@ -44,6 +51,7 @@ const CREATE_BODY = {
 interface RecipeBody {
     id: string;
     visibility: string;
+    status: string;
 }
 interface UsageBody {
     kind: 'limited' | 'unlimited';
@@ -116,11 +124,33 @@ describe('Free-tier private slots (ADR-0073)', () => {
         return (await res.json()) as UsageBody;
     }
 
-    function postRecipe(visibility: 'public' | 'private', title = 'Slot Subject'): Promise<Response> {
+    function postRecipe(
+        visibility: 'public' | 'private',
+        title = 'Slot Subject',
+        status?: 'draft' | 'published',
+    ): Promise<Response> {
         return fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ ...CREATE_BODY, title, visibility }),
+            body: JSON.stringify({ ...CREATE_BODY, title, visibility, ...(status === undefined ? {} : { status }) }),
+        });
+    }
+
+    /** Publish a stored draft the way the editor's Publish does: PATCH its status at the version it holds. */
+    function publish(id: string, expectedVersion = 1): Promise<Response> {
+        return fetch(`${baseUrl}/api/v1/recipes/${id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ expectedVersion, status: 'published' }),
+        });
+    }
+
+    /** Save a stored recipe as a draft again (frees its slot if it held one), or edit a draft in place. */
+    function patchRecipe(id: string, body: Record<string, unknown>): Promise<Response> {
+        return fetch(`${baseUrl}/api/v1/recipes/${id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
         });
     }
 
@@ -137,7 +167,7 @@ describe('Free-tier private slots (ADR-0073)', () => {
             .select({ n: sql<number>`count(*)::int` })
             .from(recipes)
             .where(
-                sql`${recipes.ownerId} = ${ownerId} AND ${recipes.visibility} = 'private' AND ${recipes.deletedAt} IS NULL`,
+                sql`${recipes.ownerId} = ${ownerId} AND ${recipes.visibility} = 'private' AND ${recipes.status} = 'published' AND ${recipes.deletedAt} IS NULL`,
             );
 
         return row?.n ?? 0;
@@ -165,18 +195,19 @@ describe('Free-tier private slots (ADR-0073)', () => {
     });
 
     describe('the count', () => {
-        it('counts exactly the cook’s private, undeleted recipes: every label, drafts included; not public, not deleted, not another cook’s', async () => {
+        it('counts exactly the cook’s private, PUBLISHED, undeleted recipes: every label; not drafts, not public, not deleted, not another cook’s', async () => {
             const cook = newCook();
             await seed(cook, 2, { sourceType: 'user_created' });
             await seed(cook, 1, { sourceType: 'imported_physical' });
             await seed(cook, 1, { sourceType: 'imported_paid' });
-            await seed(cook, 1, { sourceType: 'user_created', status: 'draft' });
             // None of these may count:
+            await seed(cook, 7, { sourceType: 'user_created', status: 'draft' });
             await seed(cook, 3, { visibility: 'public' });
+            await seed(cook, 2, { visibility: 'public', status: 'draft' });
             await seed(cook, 2, { deletedAt: new Date() });
             await seed(BYSTANDER, 5);
 
-            expect(await usage()).toEqual({ kind: 'limited', used: 5, limit: 50 });
+            expect(await usage()).toEqual({ kind: 'limited', used: 4, limit: 50 });
         });
 
         it('is LIVE: deleting a private recipe frees its slot at once, and making one public frees another', async () => {
@@ -225,6 +256,98 @@ describe('Free-tier private slots (ADR-0073)', () => {
         });
     });
 
+    describe('⛔ a draft holds no slot (owner ruling 2026-10-26)', () => {
+        it('a free cook with 50 published private recipes can still SAVE a private draft; publishing it is refused with PRIVATE_SLOTS_FULL', async () => {
+            const cook = newCook();
+            await seed(cook, 50);
+
+            const saved = await postRecipe('private', 'A private draft', 'draft');
+            expect(saved.status).toBe(201);
+            const draft = (await saved.json()) as RecipeBody;
+            expect(draft).toMatchObject({ visibility: 'private', status: 'draft' });
+            expect(await usage()).toEqual({ kind: 'limited', used: 50, limit: 50 });
+
+            // Editing the private draft in place is never a slot question either.
+            const edited = await patchRecipe(draft.id, { expectedVersion: 1, title: 'Still a draft' });
+            expect(edited.status, await edited.clone().text()).toBe(200);
+            const refused = await publish(
+                draft.id,
+                ((await edited.json()) as { currentVersion: number }).currentVersion,
+            );
+            expect(refused.status).toBe(403);
+            expect((await refused.json()) as ErrorBody).toMatchObject({
+                code: 'PRIVATE_SLOTS_FULL',
+                details: { used: 50, limit: 50 },
+            });
+            // The refusal wrote nothing: it is still a draft and the count did not move.
+            const [row] = await db
+                .select({ status: recipes.status })
+                .from(recipes)
+                .where(sql`${recipes.id} = ${draft.id}`);
+            expect(row?.status).toBe('draft');
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('49 published private recipes plus many private drafts: publishing one more succeeds, and the next is refused', async () => {
+            const cook = newCook();
+            await seed(cook, 49);
+            const drafts = await Promise.all(Array.from({ length: 6 }, () => seedComplete(cook, { status: 'draft' })));
+
+            expect(await usage()).toEqual({ kind: 'limited', used: 49, limit: 50 });
+            expect((await publish(drafts[0] as string)).status).toBe(200);
+            expect(await usage()).toEqual({ kind: 'limited', used: 50, limit: 50 });
+
+            const refused = await publish(drafts[1] as string);
+            expect(refused.status).toBe(403);
+            expect(((await refused.json()) as ErrorBody).code).toBe('PRIVATE_SLOTS_FULL');
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('publishing a PUBLIC draft takes no slot, even at 50', async () => {
+            const cook = newCook();
+            await seed(cook, 50);
+            const draft = await seedComplete(cook, { status: 'draft', visibility: 'public' });
+
+            expect((await publish(draft)).status).toBe(200);
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('making a private DRAFT’s visibility private at 50 is allowed, and a published recipe made private is not', async () => {
+            const cook = newCook();
+            await seed(cook, 50);
+            const [publicDraft] = await seed(cook, 1, { status: 'draft', visibility: 'public' });
+            const [publicPublished] = await seed(cook, 1, { status: 'published', visibility: 'public' });
+
+            expect((await patchVisibility(publicDraft as string, 'private')).status).toBe(200);
+            expect((await patchVisibility(publicPublished as string, 'private')).status).toBe(403);
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('sending a published private recipe BACK to draft frees its slot, so another private draft can then be published', async () => {
+            const cook = newCook();
+            const ids = await seed(cook, 50);
+            const draft = await seedComplete(cook, { status: 'draft' });
+
+            expect((await publish(draft)).status).toBe(403);
+            const back = await patchRecipe(ids[0] as string, { expectedVersion: 1, status: 'draft' });
+            expect(back.status, await back.clone().text()).toBe(200);
+            expect(await privateCount(cook)).toBe(49);
+            expect((await publish(draft)).status).toBe(200);
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('a draft deleted frees nothing (it held nothing) and a published private deleted frees one', async () => {
+            const cook = newCook();
+            const ids = await seed(cook, 50);
+            const [draftId] = await seed(cook, 1, { status: 'draft' });
+
+            expect((await fetch(`${baseUrl}/api/v1/recipes/${draftId}`, { method: 'DELETE' })).status).toBe(204);
+            expect((await usage()).used).toBe(50);
+            expect((await fetch(`${baseUrl}/api/v1/recipes/${ids[0]}`, { method: 'DELETE' })).status).toBe(204);
+            expect((await usage()).used).toBe(49);
+        });
+    });
+
     describe('the lock', () => {
         it('two private creates racing at 49 land EXACTLY one', async () => {
             const cook = newCook();
@@ -236,6 +359,29 @@ describe('Free-tier private slots (ADR-0073)', () => {
             const statuses = responses.map((res) => res.status).sort();
 
             expect(statuses).toEqual([201, 403, 403, 403, 403, 403, 403, 403]);
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('two DIFFERENT private drafts published at once at 49 land EXACTLY one (two real connections, one cook lock)', async () => {
+            const cook = newCook();
+            await seed(cook, 49);
+            const drafts = await Promise.all(Array.from({ length: 6 }, () => seedComplete(cook, { status: 'draft' })));
+
+            const responses = await Promise.all(drafts.map((id) => publish(id)));
+
+            expect(responses.map((res) => res.status).sort()).toEqual([200, 403, 403, 403, 403, 403]);
+            expect(await privateCount(cook)).toBe(50);
+        });
+
+        it('a publish racing a set-visibility at 49 land exactly one (the two writers share the cook lock)', async () => {
+            const cook = newCook();
+            await seed(cook, 49);
+            const draft = await seedComplete(cook, { status: 'draft' });
+            const [publicId] = await seed(cook, 1, { visibility: 'public' });
+
+            const responses = await Promise.all([publish(draft), patchVisibility(publicId as string, 'private')]);
+
+            expect(responses.map((res) => res.status).sort()).toEqual([200, 403]);
             expect(await privateCount(cook)).toBe(50);
         });
 
@@ -430,9 +576,14 @@ describe('Free-tier private slots (ADR-0073)', () => {
                 expect(((await edit.json()) as RecipeBody).visibility).toBe('private');
             }
 
-            // 4. A copy of each is refused (the cook has no slot), and writes no row.
+            // 4. A copy of each is a DRAFT (a draft holds no slot), so it is allowed, stays private, and does not move the
+            //    count. It cannot be PUBLISHED: that would take a slot the cook does not have.
             for (const id of complete) {
-                expect((await fetch(`${baseUrl}/api/v1/recipes/${id}/clone`, { method: 'POST' })).status).toBe(403);
+                const copy = await fetch(`${baseUrl}/api/v1/recipes/${id}/clone`, { method: 'POST' });
+
+                expect(copy.status, await copy.clone().text()).toBe(201);
+                const body = (await copy.json()) as RecipeBody;
+                expect(body).toMatchObject({ visibility: 'private', status: 'draft' });
             }
 
             // 5. Reads, and the slot read itself, change nothing.
@@ -440,6 +591,18 @@ describe('Free-tier private slots (ADR-0073)', () => {
             await usage();
 
             expect(await privateCount(cook)).toBe(60);
+            expect(await publicCount(cook)).toBe(0);
+        });
+
+        it('publishing a private draft is refused for a cook holding 60, and the draft stays a private draft', async () => {
+            const cook = newCook();
+            await seed(cook, 60);
+            const draft = await seedComplete(cook, { status: 'draft' });
+
+            const refused = await publish(draft);
+
+            expect(refused.status).toBe(403);
+            expect(((await refused.json()) as ErrorBody).details).toEqual({ used: 60, limit: 50 });
             expect(await publicCount(cook)).toBe(0);
         });
 
@@ -454,39 +617,43 @@ describe('Free-tier private slots (ADR-0073)', () => {
         });
     });
 
-    describe('clone is not a side door', () => {
-        it('refuses an owner cloning their own private book recipe at 50, and writes no row', async () => {
+    describe('a clone is a draft, so it uses no slot', () => {
+        it('lets an owner clone their own private book recipe at 50: the copy is a private DRAFT and the count does not move', async () => {
             const cook = newCook();
             await seed(cook, 49);
             const bookId = await seedComplete(cook, { sourceType: 'imported_physical' });
-            const before = await privateCount(cook);
-            expect(before).toBe(50);
-
-            const res = await fetch(`${baseUrl}/api/v1/recipes/${bookId}/clone`, { method: 'POST' });
-
-            expect(res.status).toBe(403);
-            expect(((await res.json()) as ErrorBody).code).toBe('PRIVATE_SLOTS_FULL');
             expect(await privateCount(cook)).toBe(50);
-        });
-
-        it('lets the same cook clone it with a slot free, and the clone is private and counted', async () => {
-            const cook = newCook();
-            const bookId = await seedComplete(cook, { sourceType: 'imported_paid' });
 
             const res = await fetch(`${baseUrl}/api/v1/recipes/${bookId}/clone`, { method: 'POST' });
 
             expect(res.status).toBe(201);
-            expect(((await res.json()) as RecipeBody).visibility).toBe('private');
+            const copy = (await res.json()) as RecipeBody;
+            expect(copy).toMatchObject({ visibility: 'private', status: 'draft' });
+            expect(await privateCount(cook)).toBe(50);
+            // Its slot is taken when the cook publishes it, and at 50 there is none.
+            expect((await publish(copy.id)).status).toBe(403);
+        });
+
+        it('with a slot free, publishing the clone takes it', async () => {
+            const cook = newCook();
+            const bookId = await seedComplete(cook, { sourceType: 'imported_paid' });
+
+            const res = await fetch(`${baseUrl}/api/v1/recipes/${bookId}/clone`, { method: 'POST' });
+            const copy = (await res.json()) as RecipeBody;
+
+            expect(res.status).toBe(201);
+            expect(await privateCount(cook)).toBe(1);
+            expect((await publish(copy.id)).status).toBe(200);
             expect(await privateCount(cook)).toBe(2);
         });
 
-        it('FR-005c: cloning your OWN private user_created recipe gives a private copy', async () => {
+        it('FR-005c: cloning your OWN private user_created recipe gives a private copy (a draft)', async () => {
             const cook = newCook();
             const id = await seedComplete(cook, { sourceType: 'user_created' });
 
             const res = await fetch(`${baseUrl}/api/v1/recipes/${id}/clone`, { method: 'POST' });
 
-            expect(((await res.json()) as RecipeBody).visibility).toBe('private');
+            expect((await res.json()) as RecipeBody).toMatchObject({ visibility: 'private', status: 'draft' });
         });
 
         it('a PUBLIC clone of another cook’s recipe takes no slot, even at 50', async () => {

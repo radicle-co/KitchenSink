@@ -9,16 +9,17 @@
  *
  * ## What a slot is
  *
- * A used slot is one `recipes` row that is owned by the cook, `private`, and not deleted (ADR-0073 section 2) - every
- * label, every status, drafts included. It is counted live; this module never sees a stored counter because there is
- * none.
+ * A used slot is one `recipes` row that is owned by the cook, `private`, `published` and not deleted (ADR-0073 sections
+ * 2 and 12; owner ruling 2026-10-26: a DRAFT holds no slot) - every label. It is counted live; this module never sees a
+ * stored counter because there is none. {@link holdsPrivateSlot} is the in-memory twin of the count's `WHERE`
+ * (`dal/privateSlots.dal.ts`): change one and the other moves with it.
  *
  * ## The seam 015 will extend (ADR-0073 section 9)
  *
  * The limit is resolved in ONE place, {@link privateSlotAllowanceOf}. 015's earned slots will add to the base there and
  * nowhere else; the policy's input does not change.
  */
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /**
  * The private recipes a free cook may hold: the owner ruling of 2026-10-26. The ONLY place the number is stated.
@@ -54,27 +55,61 @@ export function hasFreePrivateSlot(allowance: PrivateSlotAllowance, used: number
     return allowance.kind === 'unlimited' || used < allowance.limit;
 }
 
+/** The two facts of a recipe that decide whether it holds a slot (its owner and tombstone are the count's concern). */
+export interface SlotFacts {
+    readonly visibility: RecipeVisibility;
+    readonly status: RecipeStatus;
+}
+
 /**
- * Whether a move to `requested` for a recipe labelled `sourceType` needs the live count at all. Pure.
+ * Whether a recipe holds a private slot: it is private AND published (ADR-0073 section 12). Pure.
  *
- * It is the gate on the per-user lock: where the answer cannot matter, taking the lock and counting is only cost.
+ * A private draft holds none; neither does anything public.
+ */
+export function holdsPrivateSlot(facts: SlotFacts): boolean {
+    return facts.visibility === RecipeVisibility.PRIVATE && facts.status === RecipeStatus.PUBLISHED;
+}
+
+/**
+ * Whether the slot rule can apply to this cook and this label at all. Pure.
  *
- *  - A public request never takes a slot (it frees one).
  *  - Premium never counts slots.
  *  - `imported_public` goes private only with Premium and a substantive edit (ADR-0073 section 6): a free cook is refused
  *    for want of Premium before slots are looked at, so a slot never makes one private.
  *
- * @returns `true` only for a free cook moving a `user_created`, `imported_physical` or `imported_paid` recipe to private.
+ * It is the cheap gate in front of the per-user lock, for a write whose recipe facts are only known under that lock.
+ */
+export function slotRuleApplies(input: {
+    readonly sourceType: RecipeSourceType;
+    readonly isPremium: boolean;
+}): boolean {
+    return !input.isPremium && input.sourceType !== RecipeSourceType.IMPORTED_PUBLIC;
+}
+
+/**
+ * Whether a write makes a recipe COME TO HOLD a slot, so that the live count must be consulted. Pure.
+ *
+ * The check runs on that transition only (ADR-0073 section 3): the recipe holds no slot before the write (or does not yet
+ * exist) and holds one after it. So a private draft saved or edited never checks; publishing it does; a published private
+ * recipe saved again does not (it already holds its slot); and making a recipe public or sending it back to draft frees one.
+ *
+ * Every field is required, so a call site cannot forget the half of the transition it did not think about.
+ *
+ * @param input.before - The recipe's facts before the write, `undefined` for one being created.
+ * @param input.after - Its facts after the write.
+ * @returns `true` only for a free cook, on a label the slot rule applies to ({@link slotRuleApplies}), when the write
+ *   takes a slot.
  */
 export function requiresPrivateSlotCheck(input: {
     readonly sourceType: RecipeSourceType;
-    readonly requested: RecipeVisibility;
     readonly isPremium: boolean;
+    readonly before: SlotFacts | undefined;
+    readonly after: SlotFacts;
 }): boolean {
     return (
-        input.requested === RecipeVisibility.PRIVATE &&
-        !input.isPremium &&
-        input.sourceType !== RecipeSourceType.IMPORTED_PUBLIC
+        slotRuleApplies(input) &&
+        !(input.before !== undefined && holdsPrivateSlot(input.before)) &&
+        holdsPrivateSlot(input.after)
     );
 }
 
@@ -87,7 +122,7 @@ export type PrivateSlotStanding =
     | { readonly hasAvailablePrivateSlot: true }
     | { readonly hasAvailablePrivateSlot: false; readonly used: number; readonly limit: number };
 
-/** The standing of a request for which no slot is needed (public, Premium, imported_public, already private): none is lacking. */
+/** The standing of a write for which no slot is needed (public, draft, Premium, imported_public, already holding one): none is lacking. */
 export const SLOT_NOT_NEEDED: PrivateSlotStanding = { hasAvailablePrivateSlot: true };
 
 /**

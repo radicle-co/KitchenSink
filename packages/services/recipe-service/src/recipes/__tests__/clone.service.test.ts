@@ -119,8 +119,6 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
         update: vi.fn(),
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
-        // ADR-0073: a clone that lands private takes the per-user lock and counts. This cook holds none, so a free slot exists.
-        lockAndCountPrivateSlots: vi.fn().mockResolvedValue(0),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 

@@ -34,6 +34,7 @@ import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
 import { activeRecipe, readableBy } from './recipePredicates.js';
 import { IngredientLinesDal, type IngredientLineInput } from './ingredientLines.dal.js';
 import { PrivateSlotsDal } from './privateSlots.dal.js';
+import type { SlotFacts } from '../domain/privateSlotPolicy.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
 export interface StepInput {
@@ -227,7 +228,7 @@ export class RecipesDal {
      *
      * @param tx - The write's open transaction.
      * @param ownerId - The cook (the verified principal, never a request field).
-     * @returns The cook's private, undeleted recipes.
+     * @returns The cook's private, published, undeleted recipes.
      * @sideEffect Takes a transaction-scoped advisory lock keyed by the cook.
      */
     public async lockAndCountPrivateSlots(tx: RecipeTx, ownerId: string): Promise<number> {
@@ -235,7 +236,7 @@ export class RecipesDal {
     }
 
     /**
-     * The cook's private, undeleted recipes WITHOUT the lock: for the slot-usage display, never for a decision.
+     * The cook's private, published, undeleted recipes WITHOUT the lock: for the slot-usage display, never for a decision.
      *
      * @param ownerId - The cook.
      */
@@ -244,25 +245,29 @@ export class RecipesDal {
     }
 
     /**
-     * An active recipe's CURRENT visibility, read `FOR UPDATE` inside the caller's transaction (ADR-0073).
+     * An active recipe's CURRENT slot facts (visibility and status), read `FOR UPDATE` inside the caller's transaction
+     * (ADR-0073).
      *
-     * The set-visibility decision is made against the value held under the lock, not the one read before the transaction
-     * opened: "already private" means the recipe already holds its slot (so asking for private again is a no-op that needs
-     * none), and a second concurrent request for the same recipe must see the first one's result.
+     * A slot decision is made against the values held under the lock, not the ones read before the transaction opened:
+     * set-visibility does not bump the version, so a compare-and-swap on `expectedVersion` cannot see a visibility that
+     * changed in between, and a status change made by another request must be seen too ("already private and published"
+     * means the recipe already holds its slot; a draft holds none).
      *
      * @param tx - The open transaction.
      * @param id - The recipe.
-     * @returns The visibility, or `undefined` when no active recipe has that id.
+     * @returns The facts, or `undefined` when no active recipe has that id.
      * @sideEffect Row-locks the `recipes` row until the transaction ends.
      */
-    public async lockVisibility(tx: RecipeTx, id: string): Promise<RecipeVisibility | undefined> {
+    public async lockSlotFacts(tx: RecipeTx, id: string): Promise<SlotFacts | undefined> {
         const [row] = await tx
-            .select({ visibility: recipes.visibility })
+            .select({ visibility: recipes.visibility, status: recipes.status })
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
             .for('update');
 
-        return row === undefined ? undefined : (row.visibility as RecipeVisibility);
+        return row === undefined
+            ? undefined
+            : { visibility: row.visibility as RecipeVisibility, status: row.status as RecipeStatus };
     }
 
     /**

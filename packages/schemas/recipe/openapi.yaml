@@ -92,9 +92,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: "A free cook with no private slot left asked for `private` (`code: PRIVATE_SLOTS_FULL`, `details.used` and
-            `details.limit`), or: A signed test principal attempted a write this stage contains (ADR-0040) — `code:
-            TEST_PRINCIPAL_CONTAINED`."
+          description: "A free cook with no private slot left created a PUBLISHED `private` recipe (`code: PRIVATE_SLOTS_FULL`,
+            `details.used` and `details.limit`); a private draft takes no slot. Or: A signed test principal attempted a
+            write this stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
           content:
             application/json:
               schema:
@@ -266,11 +266,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: "A free cook holds up to a limit of private recipes (every private, undeleted recipe they own, any label,
-        drafts included); Premium has none. `limited` carries the live count and the limit the SERVER states (`used` can
-        exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited` carries neither. A
-        DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private write is never withheld
-        on it. Scoped entirely by the verified token."
+      description: "A free cook holds up to a limit of private recipes (every private, PUBLISHED, undeleted recipe they own,
+        any label; a draft holds no slot); Premium has none. `limited` carries the live count and the limit the SERVER
+        states (`used` can exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited`
+        carries neither. A DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private
+        write is never withheld on it. Scoped entirely by the verified token."
   /api/v1/recipes/nutrition-batch:
     post:
       operationId: getRecipeNutritionBatch
@@ -442,7 +442,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the recipe; or a free cook with no private slot left PUBLISHED a private draft
+            (`code: PRIVATE_SLOTS_FULL`, `details.used` and `details.limit`; saving a private draft takes no slot)."
           content:
             application/json:
               schema:
@@ -598,9 +599,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: "A clone that lands private by default needs a private slot: a free cook with none left gets `code:
-            PRIVATE_SLOTS_FULL` (`details.used`, `details.limit`). Or: A signed test principal attempted a write this
-            stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
+          description: "A contained test principal tried to clone a recipe it does not own (ADR-0040). A clone is always a DRAFT
+            and takes no private slot, so this route never answers `PRIVATE_SLOTS_FULL`: A signed test principal
+            attempted a write this stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
           content:
             application/json:
               schema:
@@ -776,9 +777,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: "The caller does not own the recipe; or a free cook with no private slot left asked for `private` (`code:
-            PRIVATE_SLOTS_FULL`, `details.used` and `details.limit`); or: A signed test principal attempted a write this
-            stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
+          description: "The caller does not own the recipe; or a free cook with no private slot left set a PUBLISHED recipe to
+            `private` (`code: PRIVATE_SLOTS_FULL`, `details.used` and `details.limit`; a draft takes no slot); or: A
+            signed test principal attempted a write this stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
           content:
             application/json:
               schema:

@@ -1,5 +1,12 @@
 /**
- * ADR-0073 - the free-tier private slots, as `RecipesService` enforces them on create, set-visibility and clone.
+ * ADR-0073 - the free-tier private slots, as `RecipesService` enforces them on create, update (publish), set-visibility
+ * and clone.
+ *
+ * REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12, spec 001 FR-003b): a draft holds NO slot. A slot is a
+ * private recipe that is PUBLISHED and not deleted, so the check runs when a recipe comes to hold one - a private recipe
+ * created published, a published recipe made private, a private draft published - and saving a private DRAFT never checks.
+ * The old suite refused a private draft at 50, counted a clone, and had no update (publish) path at all; each of those
+ * assertions is replaced below, not edited to pass.
  *
  * Written BEFORE the service change (test-first). It pins what a fake DAL CAN pin: that the per-user lock + count is the
  * first statement of the write's transaction, that the decision is made from the number it returns, that the refusal is
@@ -11,7 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
-import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
@@ -53,12 +60,14 @@ const CREATE_DTO: CreateRecipeDto = {
 };
 
 function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
-    const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, ...overrides });
+    const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, cuisine: 'Thai', ...overrides });
 
     return {
         recipe,
         steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
-        ingredients: [],
+        // One line and a cuisine, so a patch that only says `status: 'published'` meets the publish requirements and the
+        // refusal under test is the SLOT refusal, not PUBLISH_REQUIREMENTS_UNMET.
+        ingredients: [makeIngredientLineRow({ recipeId: recipe.id })],
     };
 }
 
@@ -117,6 +126,42 @@ describe('RecipesService.create - private slots (ADR-0073)', () => {
             expect(create).not.toHaveBeenCalled();
         },
     );
+
+    it.each([50, 51, 60])(
+        'a private DRAFT is saved at %i: a draft holds no slot, so there is no lock, no count and no refusal',
+        async (used) => {
+            const { dal, lockAndCountPrivateSlots, create } = dalHolding(used);
+            create.mockResolvedValue(aggregate({ visibility: 'private', status: 'draft' }));
+
+            const response = await serviceOver(dal).create(
+                principal(),
+                { ...CREATE_DTO, visibility: 'private', status: 'draft' },
+                undefined,
+            );
+
+            expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+            expect(create).toHaveBeenCalledWith(
+                expect.objectContaining({ visibility: 'private', status: 'draft' }),
+                FAKE_TX,
+            );
+            expect(response.status).toBe('draft');
+        },
+    );
+
+    it('a private recipe created with an EXPLICIT published status is counted like an omitted one', async () => {
+        const { dal, create } = dalHolding(50);
+
+        const error = await refusalOf(
+            serviceOver(dal).create(
+                principal(),
+                { ...CREATE_DTO, visibility: 'private', status: 'published' },
+                undefined,
+            ),
+        );
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        expect(create).not.toHaveBeenCalled();
+    });
 
     it('takes the lock and counts for THIS cook, in the write transaction, BEFORE the row is written', async () => {
         const { dal, lockAndCountPrivateSlots, create } = dalHolding(0);
@@ -220,19 +265,24 @@ describe('RecipesService.create - private slots (ADR-0073)', () => {
 });
 
 describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
-    function holding(used: number, currentVisibility: 'public' | 'private', sourceType = 'user_created') {
-        const found = aggregate({ visibility: currentVisibility, sourceType });
+    function holding(
+        used: number,
+        currentVisibility: 'public' | 'private',
+        sourceType = 'user_created',
+        status: 'draft' | 'published' = 'published',
+    ) {
+        const found = aggregate({ visibility: currentVisibility, sourceType, status });
         const setVisibility = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', sourceType }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockVisibility = vi.fn(async () => currentVisibility as RecipeVisibility);
+        const lockSlotFacts = vi.fn(async () => ({ visibility: currentVisibility as RecipeVisibility, status }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
             setVisibility,
             lockAndCountPrivateSlots,
-            lockVisibility,
+            lockSlotFacts,
         });
 
-        return { dal, setVisibility, lockAndCountPrivateSlots, lockVisibility };
+        return { dal, setVisibility, lockAndCountPrivateSlots, lockSlotFacts };
     }
 
     it('lets a free cook holding 49 make a public recipe private, writing in the SAME transaction', async () => {
@@ -277,24 +327,50 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
 
     it('decides "already private" from the row read UNDER the lock, not the read before the transaction', async () => {
         // The pre-transaction read says public; by the time the lock is held another request has made it private.
-        const { dal, lockVisibility } = holding(60, 'private');
+        const { dal, lockSlotFacts } = holding(60, 'private');
         (dal.findById as ReturnType<typeof vi.fn>).mockResolvedValue(aggregate({ visibility: 'public' }));
 
         await expect(
             serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
         ).resolves.toBeDefined();
-        expect(lockVisibility).toHaveBeenCalledWith(FAKE_TX, 'r-1');
+        expect(lockSlotFacts).toHaveBeenCalledWith(FAKE_TX, 'r-1');
     });
 
     it('answers 404 when the row vanished under the lock (a concurrent tombstone)', async () => {
         const { dal } = holding(0, 'public');
-        (dal.lockVisibility as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        (dal.lockSlotFacts as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
         const error = await refusalOf(
             serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
         );
 
         expect(error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+    });
+
+    it.each([50, 60])(
+        'a DRAFT made private at %i is allowed: a draft holds no slot, so it is not refused and nothing is counted against it',
+        async (used) => {
+            const { dal, setVisibility } = holding(used, 'public', 'user_created', 'draft');
+
+            await expect(
+                serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
+            ).resolves.toBeDefined();
+            expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX);
+        },
+    );
+
+    it('decides draft-or-published from the row read UNDER the lock: a draft published meanwhile is counted', async () => {
+        // The pre-transaction read says draft; by the time the lock is held an update has published it.
+        const { dal } = holding(50, 'public', 'user_created', 'published');
+        (dal.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+            aggregate({ visibility: 'public', status: 'draft' }),
+        );
+
+        const error = await refusalOf(
+            serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
+        );
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
     });
 
     it('imported_physical and imported_paid use a slot too: refused at 50, allowed at 49, no Premium needed', async () => {
@@ -341,7 +417,13 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
     });
 });
 
-describe('RecipesService.clone - a clone that lands private is a move to private (ADR-0073 section 6)', () => {
+/**
+ * REWRITTEN (owner ruling 2026-10-26, ADR-0073 section 12). `clone` always writes `status: draft` (owner 2026-10-13), and a
+ * draft holds no slot, so a clone - private or public, any label - is NEVER counted and never refused for slots. The old
+ * suite pinned the opposite (a private clone was counted and refused at 50). Its slot is checked later, when the cook
+ * publishes the draft (the update describe below).
+ */
+describe('RecipesService.clone - a clone is a draft, so it uses no slot (ADR-0073 section 12)', () => {
     function sourceOf(overrides: Partial<Parameters<typeof makeRecipeRow>[0]>): RecipeAggregate {
         return {
             recipe: makeRecipeRow({ id: 'src', ownerId: OWNER, ...overrides }),
@@ -350,100 +432,170 @@ describe('RecipesService.clone - a clone that lands private is a move to private
         };
     }
 
-    it('REFUSES a free cook out of slots cloning a book recipe, instead of slipping a private row past the check', async () => {
-        const create = vi.fn();
+    it.each([
+        ['a book recipe (default private)', { visibility: 'private', sourceType: 'imported_physical' }],
+        ['a paid-site recipe (default private)', { visibility: 'private', sourceType: 'imported_paid' }],
+        ["the owner's own private recipe", { visibility: 'private', sourceType: 'user_created' }],
+        ['a public recipe', { ownerId: 'someone-else', visibility: 'public', sourceType: 'user_created' }],
+    ])('a free cook holding 50 clones %s as a DRAFT: no lock, no count, no refusal', async (_label, source) => {
+        const lockAndCountPrivateSlots = vi.fn(async () => 50);
+        const create = vi.fn().mockResolvedValue(aggregate({ status: 'draft' }));
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(sourceOf({ visibility: 'private', sourceType: 'imported_physical' })),
-            lockAndCountPrivateSlots: vi.fn(async () => 50),
-            create,
-        });
-
-        const error = await refusalOf(serviceOver(dal).clone(principal(), 'src', undefined));
-
-        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
-        expect(create).not.toHaveBeenCalled();
-    });
-
-    it('lets a free cook with a free slot clone a book recipe, counting under the lock first', async () => {
-        const lockAndCountPrivateSlots = vi.fn(async () => 10);
-        const create = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', sourceType: 'imported_paid' }));
-        const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(sourceOf({ visibility: 'private', sourceType: 'imported_paid' })),
+            findById: vi.fn().mockResolvedValue(sourceOf(source)),
             lockAndCountPrivateSlots,
             create,
         });
 
-        await serviceOver(dal).clone(principal(), 'src', undefined);
+        await expect(serviceOver(dal).clone(principal(), 'src', undefined)).resolves.toBeDefined();
+
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }), FAKE_TX);
+    });
+
+    it('a contained test principal (default private) on a free plan at 50 can clone: the copy is a draft', async () => {
+        const create = vi.fn().mockResolvedValue(aggregate({ status: 'draft' }));
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(sourceOf({ visibility: 'private', sourceType: 'user_created' })),
+            lockAndCountPrivateSlots: vi.fn(async () => 50),
+            create,
+        });
+
+        await expect(
+            serviceOver(dal).clone(principal({ principalKind: 'test', containment: 'enforce' }), 'src', undefined),
+        ).resolves.toBeDefined();
+    });
+});
+
+/**
+ * NEW (owner ruling 2026-10-26): publishing a private draft is where a slot is taken, and `update` had no slot check at
+ * all before, because no write there could make a recipe hold one. The decision is made from the row read FOR UPDATE
+ * under the per-user lock, because set-visibility does not bump the version and so the pre-transaction read can be stale.
+ */
+describe('RecipesService.update - publishing a private draft takes a slot (ADR-0073 sections 3 and 12)', () => {
+    const PATCH = { expectedVersion: 1, status: 'published' } as const;
+
+    function draftHolding(
+        used: number,
+        facts: { visibility: 'public' | 'private'; status: 'draft' | 'published' },
+        sourceType = 'user_created',
+    ) {
+        const found = aggregate({ visibility: 'private', status: 'draft', currentVersion: 1, sourceType });
+        const update = vi.fn().mockResolvedValue(aggregate({ visibility: facts.visibility, status: 'published' }));
+        const lockAndCountPrivateSlots = vi.fn(async () => used);
+        const lockSlotFacts = vi.fn(async () => facts);
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(found),
+            update,
+            lockAndCountPrivateSlots,
+            lockSlotFacts,
+        });
+
+        return { dal, update, lockAndCountPrivateSlots, lockSlotFacts };
+    }
+
+    it.each([50, 51, 60])(
+        'refuses publishing a private draft at %i with PRIVATE_SLOTS_FULL, writing nothing',
+        async (used) => {
+            const { dal, update } = draftHolding(used, { visibility: 'private', status: 'draft' });
+
+            const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+
+            expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+            expect(error.details).toEqual({ used, limit: 50 });
+            expect(update).not.toHaveBeenCalled();
+        },
+    );
+
+    it.each([0, 48, 49])('publishes a private draft at %i', async (used) => {
+        const { dal, update } = draftHolding(used, { visibility: 'private', status: 'draft' });
+
+        await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+        expect(update).toHaveBeenCalledOnce();
+    });
+
+    it('takes the lock and counts BEFORE the row is written, for this cook, in the write transaction', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = draftHolding(0, { visibility: 'private', status: 'draft' });
+
+        await serviceOver(dal).update(principal(), 'r-1', PATCH, undefined);
 
         expect(lockAndCountPrivateSlots).toHaveBeenCalledWith(FAKE_TX, OWNER);
         expect(lockAndCountPrivateSlots.mock.invocationCallOrder[0]).toBeLessThan(
-            create.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+            update.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
         );
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }), FAKE_TX);
     });
 
-    it('FR-005c: an owner cloning their OWN private user_created recipe gets a private copy, counted', async () => {
-        const create = vi.fn().mockResolvedValue(aggregate({ visibility: 'private' }));
-        const lockAndCountPrivateSlots = vi.fn(async () => 3);
-        const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(sourceOf({ visibility: 'private', sourceType: 'user_created' })),
-            lockAndCountPrivateSlots,
-            create,
-        });
+    it('saving a private draft AS a draft (no status, or draft) at 50 is never refused and takes no lock', async () => {
+        for (const patch of [
+            { expectedVersion: 1, title: 'x' },
+            { expectedVersion: 1, status: 'draft' as const },
+        ]) {
+            const { dal, lockAndCountPrivateSlots, update } = draftHolding(50, {
+                visibility: 'private',
+                status: 'draft',
+            });
 
-        await serviceOver(dal).clone(principal(), 'src', undefined);
-
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }), FAKE_TX);
-        expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
+            await expect(serviceOver(dal).update(principal(), 'r-1', patch, undefined)).resolves.toBeDefined();
+            expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+            expect(update).toHaveBeenCalledOnce();
+        }
     });
 
-    it('a PUBLIC clone takes no slot and no lock', async () => {
-        const lockAndCountPrivateSlots = vi.fn(async () => 60);
-        const create = vi.fn().mockResolvedValue(aggregate({ visibility: 'public' }));
-        const dal = fakeRecipesDal({
-            findById: vi
-                .fn()
-                .mockResolvedValue(
-                    sourceOf({ ownerId: 'someone-else', visibility: 'public', sourceType: 'user_created' }),
-                ),
-            lockAndCountPrivateSlots,
-            create,
-        });
+    it('publishing a PUBLIC draft at 50 is never counted: the visibility is read under the lock, not before it', async () => {
+        // Pre-read says private (stale); under the lock it is public.
+        const { dal, update } = draftHolding(50, { visibility: 'public', status: 'draft' });
 
-        await serviceOver(dal).clone(principal(), 'src', undefined);
-
-        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+        expect(update).toHaveBeenCalledOnce();
     });
 
-    it('Premium clones a book recipe with no count', async () => {
-        const lockAndCountPrivateSlots = vi.fn(async () => 60);
-        const create = vi.fn().mockResolvedValue(aggregate({ visibility: 'private' }));
+    it('counts a draft made private AFTER the pre-transaction read: the facts under the lock decide', async () => {
+        const found = aggregate({ visibility: 'public', status: 'draft', currentVersion: 1 });
+        const update = vi.fn();
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(sourceOf({ visibility: 'private', sourceType: 'imported_physical' })),
-            lockAndCountPrivateSlots,
-            create,
-        });
-
-        await serviceOver(dal).clone(premium(), 'src', undefined);
-
-        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
-        expect(create).toHaveBeenCalledOnce();
-    });
-
-    it('a contained test principal (default private) on a free plan with no slot cannot clone at all', async () => {
-        const create = vi.fn();
-        const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(sourceOf({ visibility: 'private', sourceType: 'user_created' })),
+            findById: vi.fn().mockResolvedValue(found),
+            update,
             lockAndCountPrivateSlots: vi.fn(async () => 50),
-            create,
+            lockSlotFacts: vi.fn(async () => ({ visibility: 'private' as const, status: 'draft' as const })),
         });
 
-        const error = await refusalOf(
-            serviceOver(dal).clone(principal({ principalKind: 'test', containment: 'enforce' }), 'src', undefined),
-        );
+        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
 
         expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
-        expect(create).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('Premium publishes a private draft with no lock and no count', async () => {
+        const { dal, lockAndCountPrivateSlots } = draftHolding(5_000, { visibility: 'private', status: 'draft' });
+
+        await serviceOver(dal).update(premium(), 'r-1', PATCH, undefined);
+
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+    });
+
+    it('a PUBLISHED private recipe edited at 60 (a downgraded cook) is never counted: it already holds its slot', async () => {
+        const found = aggregate({ visibility: 'private', status: 'published', currentVersion: 1 });
+        const lockAndCountPrivateSlots = vi.fn(async () => 60);
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(found),
+            update: vi.fn().mockResolvedValue(found),
+            lockAndCountPrivateSlots,
+        });
+
+        await expect(
+            serviceOver(dal).update(principal(), 'r-1', { expectedVersion: 1, title: 'New' }, undefined),
+        ).resolves.toBeDefined();
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+    });
+
+    it('answers a vanished row under the lock as the version conflict path (nothing written)', async () => {
+        const { dal, update } = draftHolding(0, { visibility: 'private', status: 'draft' });
+        (dal.lockSlotFacts as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        (dal.readConflict as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
+        expect(update).not.toHaveBeenCalled();
     });
 });
 

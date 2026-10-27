@@ -3482,6 +3482,38 @@ describe('the visibility write comes BEFORE the first publish of a stored draft'
         });
     });
 
+    /** Architect review of 32d953b2d: the write makes no version, so an answer at another version is another editor's work. */
+    it('⛔ an answer at a newer version is not adopted: no publish over the other editor’s change, Try again offered', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        view.setVisibility.mockResolvedValue({ ...STORED_PRIVATE, currentVersion: 9 });
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+    });
+
+    it('⛔ an answer that does not hold the visibility sent stops, instead of sending it again without end', async () => {
+        const view = mount({ recipe: STORED_PUBLIC });
+        view.setVisibility.mockResolvedValue(STORED_PUBLIC);
+        chooseVisibility(view, RecipeVisibility.PRIVATE);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.setVisibility).toHaveBeenCalledOnce();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+    });
+
     it('a second Publish press while the visibility write is out is busy: one write, one publish', async () => {
         const view = mount({ recipe: STORED_PUBLIC });
         let answer: (detail: RecipeDetail) => void = () => undefined;

@@ -691,6 +691,22 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
     );
 }
 
+/** The visibility write answered, but not with the visibility and version the Publish needs. */
+class VisibilityNotHeldError extends Error {
+    public constructor(recipeId: string) {
+        super(`The server did not hold the visibility just written for recipe ${recipeId}.`);
+        this.name = 'VisibilityNotHeldError';
+        Object.setPrototypeOf(this, VisibilityNotHeldError.prototype);
+    }
+}
+
+/** The visibility step failed: no Publish is sent, the failure is reported, and Try again re-runs the finish. @sideEffect */
+function stopVisibilityStep(ctx: EditorContext, error: unknown): void {
+    ctx.lane.dispatch({ type: 'deferredTaken' });
+    ctx.opts.reportError(error, { operation: 'recipeVisibility' });
+    ctx.core.dispatch({ type: 'drainFailed' });
+}
+
 /**
  * ⛔ THE VISIBILITY COMES BEFORE THE FIRST PUBLISH, never after it. The server skips the private-slot check for a recipe it
  * holds as public, so a Publish sent first and a Private after it would publish a recipe the cook marked Private as PUBLIC
@@ -734,14 +750,22 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
     void ctx.opts.setVisibility(server.recipe.id, followUp.visibility).then(
         (detail) => {
             ctx.lane.dispatch({ type: 'visibilityAnswered' });
+
+            // ⛔ The write makes no version, so an answer at another version is another editor's work: adopting it would
+            // name its version in the Publish and overwrite it with no 409. An answer that does not hold what was sent
+            // would send it again without end. Both stop the save, as a failed write does.
+            if (detail.currentVersion !== server.baseVersion || detail.visibility !== followUp.visibility) {
+                stopVisibilityStep(ctx, new VisibilityNotHeldError(detail.id));
+
+                return;
+            }
+
             adoptServerFacts(ctx, detail, undefined);
             runCheckpoint(ctx, trigger);
         },
         (error: unknown) => {
             ctx.lane.dispatch({ type: 'visibilityAnswered' });
-            ctx.lane.dispatch({ type: 'deferredTaken' });
-            ctx.opts.reportError(error, { operation: 'recipeVisibility' });
-            ctx.core.dispatch({ type: 'drainFailed' });
+            stopVisibilityStep(ctx, error);
         },
     );
 

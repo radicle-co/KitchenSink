@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/features-recipes — the native ingredient row the cook checks off (build spec §6.3): the mirror of
- * `IngredientCheckRow.tsx`. The whole row is one `checkbox` at least 44 dp tall, named with the full line and hinted
+ * `IngredientCheckRow.tsx`. The whole row is one `checkbox` at least the touch floor tall (44 pt, 48 dp on Android), named with the full line and hinted
  * with the statuses it carries (react-native-web joins a pressable's texts without spaces, so the name is stated).
  * Checked, the box fills with the signature motion and the text dims to `inkMuted`, with no strike-through. Colours
  * come from the theme at render.
@@ -11,6 +11,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { CheckBoxGlyph } from '@commise/ui/check-box-glyph';
+import { touchFloor } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
@@ -48,7 +49,12 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
             )}
             {...(statuses.length > 0 ? { accessibilityHint: statuses.map((status) => status.text).join(', ') } : {})}
             onPress={() => onToggle(ingredient.ingredientId)}
-            style={({ pressed }) => [styles.row, pressed ? { backgroundColor: wash } : null]}
+            // The floor is read at render: 44 pt on iOS, 48 dp on Android (`touchFloor()`, the Button's own source).
+            style={({ pressed }) => [
+                styles.row,
+                { minHeight: touchFloor() },
+                pressed ? { backgroundColor: wash } : null,
+            ]}
         >
             {/* The 18 pt box sits on the text's 20 pt first line, 1 pt down to centre on it. */}
             <View style={styles.box}>
@@ -96,7 +102,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: nativeTokens.spacing[3],
-        minHeight: 44,
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
         borderRadius: nativeTokens.radius.md,

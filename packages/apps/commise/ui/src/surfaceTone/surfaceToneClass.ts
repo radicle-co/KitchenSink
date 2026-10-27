@@ -72,8 +72,8 @@ export const PRESS_FILL_CLASS = {
     pointer: 'hover:bg-(--cm-press,var(--color-press-canvas)) active:bg-(--cm-press,var(--color-press-canvas))',
     highlighted: 'data-[highlighted]:bg-(--cm-press,var(--color-press-canvas))',
     focused: 'focus-visible:bg-(--cm-press,var(--color-press-canvas))',
-    chip: 'hover:bg-(--cm-chip-press,var(--color-press-muted)) active:bg-(--cm-chip-press,var(--color-press-muted))',
+    chip: 'hover:bg-(--cm-chip-press,var(--color-chip-press-canvas)) active:bg-(--cm-chip-press,var(--color-chip-press-canvas))',
 } as const;
 
-/** What a chip rests on: the surface's chip fill, falling back to the canvas row's (`surfaceMuted`). */
-export const CHIP_REST_FILL_CLASS = 'bg-(--cm-chip-fill,var(--color-surface-muted))';
+/** What a chip rests on: the surface's chip fill, falling back to the canvas row's (`--color-chip-fill-canvas`, per theme). */
+export const CHIP_REST_FILL_CLASS = 'bg-(--cm-chip-fill,var(--color-chip-fill-canvas))';

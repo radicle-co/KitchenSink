@@ -4,14 +4,14 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 181,
-        "implementations": 313,
-        "props": 1653,
-        "documentedComponents": 181,
-        "implementationsWithModuleDoc": 313,
-        "implementationsWithComponentDoc": 206,
-        "documentedProps": 1374,
-        "classifiedComponents": 161,
+        "components": 182,
+        "implementations": 314,
+        "props": 1656,
+        "documentedComponents": 182,
+        "implementationsWithModuleDoc": 314,
+        "implementationsWithComponentDoc": 207,
+        "documentedProps": 1377,
+        "classifiedComponents": 162,
         "componentsWithPatternTag": 84,
         "crossPlatformComponents": 132
     },
@@ -4478,6 +4478,85 @@
                             "defaultValue": null,
                             "description": "The source owner's CURRENT username, resolved when the copy is read (plan 2026-10-15-010 D7).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/common/SortOptionRow",
+            "name": "SortOptionRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/common",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SortOptionRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/common/SortOptionRow.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/common",
+                    "moduleDoc": "@commise/features-recipes/common — one radio row of a native sort sheet, shared by the Discover and My recipes\nmenus, which each carried a byte-identical copy. A `radio` named for its label, with a check on the sort in use and\nthe platform touch floor under it.\n\nIt is a feature-package row and not a design-system one: the web menus are Radix menus with their own item, so a\n`@commise/ui` row would owe a web leaf nothing would use. It MUST be rendered inside the sheet: `usePressFill` reads\nthe surface the SHEET states (`paperOverlay`), not the one the menu was opened from.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/common — one radio row of a native sort sheet, shared by the Discover and My recipes"
+                        }
+                    ],
+                    "description": "One radio row of a sort sheet.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The option and whether it is in use."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The row."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "chosen",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether it is the sort in use.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/common/SortOptionRow.native.tsx"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The option's localised name.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/common/SortOptionRow.native.tsx"
+                        },
+                        {
+                            "name": "onChoose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choose it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/common/SortOptionRow.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

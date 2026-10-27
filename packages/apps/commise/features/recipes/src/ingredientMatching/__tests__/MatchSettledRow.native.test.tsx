@@ -16,7 +16,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, getDefaultNormalizer, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { touchFloor } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 
 import { recipeMessages } from '../../messages.js';
 import {
@@ -245,5 +247,17 @@ describe('MatchSettledRow (native)', () => {
         expect(getComputedStyle(screen.getByText('Egg, whole, raw')).fontSize).toBe(
             `${String(nativeTokens.type.list.fontSize)}px`,
         );
+    });
+
+    it.each(['ios', 'android'] as const)('keeps the touch floor on %s', (os) => {
+        withPlatformOs(os, () => {
+            renderRow(makeConfidentLine());
+
+            // The root of the rendered tree is the settled row itself: it carries no role to query by.
+            const row = document.body.firstElementChild?.firstElementChild;
+
+            expect(row).toBeTruthy();
+            expect(getComputedStyle(row as Element).minHeight).toBe(`${String(touchFloor())}px`);
+        });
     });
 });

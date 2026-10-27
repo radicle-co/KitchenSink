@@ -7,7 +7,8 @@
  * Refused in `.native.ts(x)` app code, read with the TypeScript parser:
  *  - a `minHeight` or `minWidth` property whose value is the literal `44`;
  *  - an object literal that gives BOTH `width` and `height` the literal `44` (a square hit target);
- *  - the platform ternary `… ? 48 : 44`, which is `touchFloor()` re-spelled.
+ *  - the platform ternary `… ? 48 : 44`, which is `touchFloor()` re-spelled;
+ *  - any `.touchTarget` read (`nativeTokens.touchTarget`), a second authority that gave 48 on iOS where the floor is 44.
  *
  * Not refused: a lone `height: 44` (a bar or skeleton, not a hit target), `44` in a comment, and `touchFloor.native.ts`
  * itself, which is where the number is written.
@@ -72,6 +73,8 @@ export function literalTouchFloors(fileName: string, source: string): readonly {
             if (sized('width') && sized('height')) {
                 report(node);
             }
+        } else if (ts.isPropertyAccessExpression(node) && node.name.text === 'touchTarget') {
+            report(node);
         } else if (
             ts.isConditionalExpression(node) &&
             isNumber(node.whenTrue, 48) &&
@@ -99,6 +102,11 @@ describe('the literal touch-floor reader', () => {
             shape: 'a style sheet entry',
             source: `const s = StyleSheet.create({\n row: { minHeight: 44 },\n});`,
             lines: [2],
+        },
+        {
+            shape: 'a nativeTokens.touchTarget read',
+            source: `const s = { minHeight: nativeTokens.touchTarget };`,
+            lines: [1],
         },
         { shape: 'touchFloor()', source: `const s = { minHeight: touchFloor(), minWidth: touchFloor() };`, lines: [] },
         { shape: 'a lone height of 44', source: `const s = { height: 44, width: '50%' };`, lines: [] },

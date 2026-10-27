@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 156,
         "missing-module-doc": 21,
-        "platform-singleton": 69,
+        "platform-singleton": 70,
         "ref-api": 15,
         "unclassified-layer": 92,
         "undocumented-prop": 175
@@ -1464,6 +1464,16 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "open"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/common/SortOptionRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/common/SortOptionRow.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {

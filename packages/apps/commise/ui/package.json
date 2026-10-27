@@ -36,6 +36,8 @@
         "./testing/lucide-native": "./src/testing/lucideNativeStub.ts",
         "./testing/expo-keep-awake": "./src/testing/expoKeepAwakeStub.ts",
         "./testing/system-color-scheme": "./src/testing/systemColorScheme.ts",
+        "./testing/platform-os": "./src/testing/platformOs.native.ts",
+        "./testing/pressed-pressable": "./src/testing/pressedPressable.ts",
         "./testing/resize-observer": "./src/testing/resizeObserver.ts",
         "./testing/surface-tone-of": "./src/testing/surfaceToneOf.ts",
         "./testing/record-text-inputs": "./src/testing/recordTextInputs.native.tsx",

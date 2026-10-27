@@ -9,7 +9,7 @@
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { formatRgb } from 'culori';
-import { createElement, createRef, type ComponentProps } from 'react';
+import { createRef, type ComponentProps } from 'react';
 import type { Pressable as PressableType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -37,6 +37,8 @@ const state = vi.hoisted(() => ({
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
+    const pressed = pressedPressable(actual, () => state.pressed);
 
     return {
         ...actual,
@@ -47,17 +49,7 @@ vi.mock('react-native', async (importOriginal) => {
                 state.selected.set(props['aria-label'], props['aria-selected']);
             }
 
-            if (state.pressed) {
-                const style = typeof props.style === 'function' ? props.style({ pressed: true }) : props.style;
-
-                return createElement(
-                    actual.View,
-                    { role: props.role as never, 'aria-label': props['aria-label'], style },
-                    props.children as never,
-                );
-            }
-
-            return createElement(actual.Pressable, props);
+            return pressed(props);
         },
     };
 });

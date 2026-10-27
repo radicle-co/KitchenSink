@@ -137,13 +137,6 @@ const nativeElevation = {
 } as const;
 
 /**
- * The touch floor every native pressable row or control keeps, in dp: Android's 48 dp, which iOS's 44 pt minimum sits
- * under. One value, so a leaf never declares its own `48` and the floor cannot drift screen by screen. Web's matching
- * floor is `min-h-12`.
- */
-const touchTarget = 48;
-
-/**
  * The React Native projection of the design scale. `spacing`/`radius`/`fontSize` are pixel numbers,
  * `lineHeight` is the px leading for each allowed size, `fontWeight` are numeric weights, and `elevation` are RN shadow objects.
  *
@@ -162,7 +155,6 @@ export const nativeTokens = {
     lineHeight: lineHeightPx,
     fontSize,
     elevation: nativeElevation,
-    touchTarget,
 } as const;
 
 export type NativeTokens = typeof nativeTokens;

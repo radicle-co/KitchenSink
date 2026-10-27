@@ -206,3 +206,11 @@ A render of the merged build (edee1497f) found one drift. In dark, `paper-raised
 `surface-muted` in light (1.18:1) and on `paper` in dark (1.15:1), the same dark answer as on `surface-muted`. A chip
 fill is therefore chosen per theme, and a test holds every tone's chip fill at 1.15:1 or more against its fill in both
 themes.
+
+The peer measured every chip fill against the 1.15:1 floor and found three below it. The rulings:
+
+- Dark `paper-overlay`: a chip rests on `paper` (`#172029` on `#26313D`, 1.25:1), not on `surface-muted` (1.09:1). A
+  chip on a dark sheet, dialog or menu must show.
+- Dark `paper`: `surface-muted` stays (1.148:1). It is the same pair as a chip on dark `surface-muted`, and the gap to
+  1.15 is rounding. The test floor is 1.14:1.
+- Light `canvas` stays at 1.05:1, the one known exception, as §4 accepted: the chip's label identifies it.

@@ -9,6 +9,7 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
 import { usePressFill } from '@commise/ui/surface-tone';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
@@ -30,6 +31,7 @@ export const MatchClosedRow: FC<MatchClosedRowProps> = ({ line, need, current, r
             onPress={onOpen}
             style={({ pressed }) => [
                 styles.row,
+                { minHeight: touchFloor() },
                 current && { backgroundColor: colors.selectedFill, borderColor: colors.selectedEdge },
                 pressed && { backgroundColor: pressFill },
             ]}
@@ -52,7 +54,6 @@ export const MatchClosedRow: FC<MatchClosedRowProps> = ({ line, need, current, r
 
 const styles = StyleSheet.create({
     row: {
-        minHeight: nativeTokens.touchTarget,
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[2],

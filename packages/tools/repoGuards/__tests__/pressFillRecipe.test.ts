@@ -19,7 +19,9 @@
  *
  * Not refused: a resting `bg-surface-muted` (a surface, `G3`), a tinted status fill such as `bg-danger/10`, `text-ink/60`.
  *
- * ⛔ NO BASELINE AND NO ALLOW-LIST; the single exemption is the recipe's own directory (`ui/src/surfaceTone/`).
+ * ⛔ NO BASELINE AND NO ALLOW-LIST. Two exemptions, both an owner of the paint: the recipe's own directory
+ * (`ui/src/surfaceTone/`), and the Button's own paint (`ui/src/button/surfacePaint.native.ts`) for the native-pressable
+ * check only.
  * SCOPE: `packages/apps/**` TypeScript minus tests and fixtures (`appSources.ts`). READ WITH THE TYPESCRIPT PARSER.
  *
  * @pattern Fitness Function over the source of every app

@@ -5,6 +5,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -40,6 +41,7 @@ export const ImportReviewRail: FC<ImportReviewRailProps> = ({
                         onPress={() => onOpenRecipe(recipe.id)}
                         style={[
                             styles.row,
+                            { minHeight: touchFloor() },
                             current ? { backgroundColor: colors.selectedFill, borderColor: colors.selectedEdge } : null,
                         ]}
                     >
@@ -62,7 +64,6 @@ const styles = StyleSheet.create({
     rail: { gap: nativeTokens.spacing[1] },
     label: nativeTokens.type.label,
     row: {
-        minHeight: nativeTokens.touchTarget,
         justifyContent: 'center',
         paddingHorizontal: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.sm,

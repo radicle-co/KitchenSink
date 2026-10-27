@@ -5,7 +5,8 @@ import { fireEvent } from '@testing-library/dom';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RadioList } from '../RadioList.native.js';
 import type { RadioListOption, RadioListProps } from '../props.js';
-import { nativeTokens } from '../../tokens/native.js';
+import { touchFloor } from '../../layout/touchFloor.native.js';
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 
 /**
  * RadioList (native) — a `radiogroup` of whole-row `radio`s with `aria-checked`, rendered through react-native-web:
@@ -69,11 +70,13 @@ describe('RadioList (native)', () => {
         expect(screen.queryByRole('radio', { checked: true })).toBeNull();
     });
 
-    it('every row stands at least 48 dp tall', () => {
-        const { group } = renderList();
+    it.each(['ios', 'android'] as const)('every row stands at least the touch floor tall on %s', (os) => {
+        withPlatformOs(os, () => {
+            const { group } = renderList();
 
-        for (const radio of within(group).getAllByRole('radio')) {
-            expect(getComputedStyle(radio).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);
-        }
+            for (const radio of within(group).getAllByRole('radio')) {
+                expect(getComputedStyle(radio).minHeight).toBe(`${String(touchFloor())}px`);
+            }
+        });
     });
 });

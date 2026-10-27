@@ -11,6 +11,7 @@
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import type { FC, ReactElement } from 'react';
@@ -69,7 +70,7 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
     const { trailing } = view;
 
     return (
-        <View style={styles.row}>
+        <View style={[styles.row, { minHeight: touchFloor() }]}>
             <MatchLineText line={line} />
             <View style={styles.status}>
                 {statusOf(view.status, colors)}
@@ -134,7 +135,6 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
 const styles = StyleSheet.create({
     row: {
         gap: nativeTokens.spacing[1],
-        minHeight: nativeTokens.touchTarget,
         justifyContent: 'center',
         paddingVertical: nativeTokens.spacing[3],
     },

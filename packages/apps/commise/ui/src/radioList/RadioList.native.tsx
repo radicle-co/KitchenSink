@@ -16,6 +16,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import type { RadioListProps } from './props.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
@@ -44,7 +45,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                         }}
                         style={({ pressed }) => [
                             styles.row,
-                            { borderColor: colors.lineDivider, backgroundColor: colors.paper },
+                            { minHeight: touchFloor(), borderColor: colors.lineDivider, backgroundColor: colors.paper },
                             pressed ? { backgroundColor: wash } : null,
                         ]}
                     >
@@ -75,7 +76,6 @@ const styles = StyleSheet.create({
     group: { gap: nativeTokens.spacing[3] },
     // Each row its own bordered card on the paper, with a bolder label.
     row: {
-        minHeight: nativeTokens.touchTarget,
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[3],

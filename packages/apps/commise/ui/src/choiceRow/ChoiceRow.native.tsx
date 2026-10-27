@@ -22,6 +22,7 @@ import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocu
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import type { ChoiceRowProps } from './props.js';
 
 /** The native choice row. */
@@ -51,6 +52,7 @@ export const ChoiceRow: FC<ChoiceRowProps> = ({
             onPress={onPress}
             style={({ pressed }) => [
                 styles.row,
+                { minHeight: touchFloor() },
                 chosen && { backgroundColor: colors.selectedFill },
                 pressed && { backgroundColor: pressFill },
                 inactive && styles.inactive,
@@ -65,7 +67,6 @@ export const ChoiceRow: FC<ChoiceRowProps> = ({
 
 const styles = StyleSheet.create({
     row: {
-        minHeight: nativeTokens.touchTarget,
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[3],

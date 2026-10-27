@@ -167,14 +167,6 @@
             ]
         },
         {
-            "id": "native",
-            "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 1,
-            "kinds": [
-                "number"
-            ]
-        },
-        {
             "id": "scale.spacing",
             "source": "packages/apps/commise/ui/src/tokens/scale.ts",
             "tokenCount": 10,

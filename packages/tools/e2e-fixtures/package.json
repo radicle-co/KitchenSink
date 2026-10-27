@@ -38,6 +38,7 @@
     "dependencies": {
         "@clerk/backend": "^3.16.12",
         "@kitchensink/clerk-verify": "*",
-        "p-retry": "^8.0.0"
+        "p-retry": "^8.0.0",
+        "ulidx": "^2.4.1"
     }
 }

@@ -481,9 +481,49 @@ const ADDRESS: Readonly<Record<PoolTenant, (id: string) => string>> = {
     sandbox: (id) => `test-${id}+clerk_test@radcile.com`,
 };
 
+/** The environment variable that selects the pool's address namespace. */
+export const POOL_NAMESPACE_ENV = 'E2E_POOL_NAMESPACE';
+
+/**
+ * Whose users a run signs in.
+ *
+ * - `shared` — the sandbox pool CI and the deployed suites lease. The default, and the only value any workflow sets.
+ * - `local` — users that exist for a developer's machine alone (`test-local-{id}+clerk_test@…`), on the same Clerk
+ *   instance. A local run erases and refills its erasure subjects, and the local stack's deletion worker deletes them
+ *   from Clerk; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
+ *   that writes it for the shared pool belongs to the sandbox and is down when the sandbox is.
+ */
+export type PoolNamespace = 'shared' | 'local';
+
+/**
+ * Read the namespace. Pure.
+ *
+ * Exact match only, no case folding or trimming: this decides WHICH users a run may erase.
+ *
+ * @param env - The environment.
+ * @returns `local` for exactly `local`; `shared` when unset or empty.
+ * @throws When it is set to anything else.
+ */
+export function poolNamespaceFrom(env: Readonly<Record<string, string | undefined>>): PoolNamespace {
+    const raw = env[POOL_NAMESPACE_ENV];
+
+    if (raw === undefined || raw === '') {
+        return 'shared';
+    }
+
+    if (raw === 'local') {
+        return 'local';
+    }
+
+    throw new Error(`test pool: ${POOL_NAMESPACE_ENV} must be 'local' or unset, got '${raw}'`);
+}
+
+/** The id as it appears in an address: the local namespace's users carry `local-` so no address is shared. */
+const addressId = (id: string, namespace: PoolNamespace): string => (namespace === 'local' ? `local-${id}` : id);
+
 /** Place a lane in its tier and derive its identifiers. Pure. */
-function toSlot(tier: PoolTier, declared: PoolLane): PoolSlot {
-    const email = ADDRESS.sandbox(declared.id);
+function toSlot(tier: PoolTier, declared: PoolLane, namespace: PoolNamespace): PoolSlot {
+    const email = ADDRESS.sandbox(addressId(declared.id, namespace));
 
     return {
         ...declared,
@@ -495,9 +535,26 @@ function toSlot(tier: PoolTier, declared: PoolLane): PoolSlot {
     };
 }
 
+/** The namespace of THIS process: every public function below reads it, so a run cannot half-switch. */
+const activeNamespace = (): PoolNamespace => poolNamespaceFrom(process.env);
+
+/**
+ * Every address either namespace declares. Pure.
+ *
+ * For the owner's drift audit, which must not call a developer's local user a stray: it is marked as a test principal
+ * and holds no address of the SHARED roster.
+ */
+export function knownPoolAddresses(): ReadonlySet<string> {
+    return new Set(
+        (['shared', 'local'] as const).flatMap((namespace) =>
+            POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, namespace).email)),
+        ),
+    );
+}
+
 /** Every slot, in declared order (tier order, then lane order). Pure. */
 export function rosterSlots(): readonly PoolSlot[] {
-    return POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared)));
+    return POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, activeNamespace())));
 }
 
 /** The slot a tier declares under `id`; throws for a lane that tier does not declare. Pure. */
@@ -508,7 +565,7 @@ export function slotFor(tier: PoolTier, id: string): PoolSlot {
         throw new Error(`test pool: tier '${tier}' declares no lane '${id}'`);
     }
 
-    return toSlot(tier, declared);
+    return toSlot(tier, declared, activeNamespace());
 }
 
 /**
@@ -531,7 +588,7 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
         );
     }
 
-    return toSlot(tier, declared);
+    return toSlot(tier, declared, activeNamespace());
 }
 
 /**
@@ -577,12 +634,14 @@ export function k6VuSlots(count: number): readonly PoolSlot[] {
         throw new Error(`test pool: ${count} k6 VUs requested, but the roster declares only ${vus.length}`);
     }
 
-    return vus.slice(0, count).map((declared) => toSlot('k6', declared));
+    return vus.slice(0, count).map((declared) => toSlot('k6', declared, activeNamespace()));
 }
 
 /** A tier's consumable slots, in declared order. Pure. */
 export function consumableSlots(tier: PoolTier): readonly PoolSlot[] {
-    return POOL_ROSTER[tier].filter((declared) => declared.consumable).map((declared) => toSlot(tier, declared));
+    return POOL_ROSTER[tier]
+        .filter((declared) => declared.consumable)
+        .map((declared) => toSlot(tier, declared, activeNamespace()));
 }
 
 /**

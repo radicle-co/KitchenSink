@@ -87,7 +87,9 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     style={[
                         styles.segment,
                         compactTrack ? styles.segmentContent : null,
-                        face.selected ? [styles.selected, { backgroundColor: colors.paper }] : null,
+                        face.selected
+                            ? [styles.selected, { backgroundColor: colors.paper, borderColor: colors.lineControl }]
+                            : null,
                     ]}
                 >
                     {face.icon === undefined ? null : (
@@ -123,6 +125,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: nativeTokens.spacing[2],
         borderRadius: 999,
+        // A transparent 1 pt edge on every segment; the selected one colours it `lineControl` (`componentFixes.md` §8),
+        // so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
+        borderWidth: 1,
+        borderColor: 'transparent',
         paddingHorizontal: nativeTokens.spacing[3],
     },
     selected: nativeTokens.elevation.sm,

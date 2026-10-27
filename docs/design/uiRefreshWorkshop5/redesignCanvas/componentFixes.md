@@ -152,3 +152,24 @@ states its surface once and every control reads it.
   colour or press fill on a control.
 - A container that does not set a surface inherits its parent's, so a missed container falls back to the page, never
   to a wrong colour.
+
+### 10a. Press fills, chips on a muted surface, and floating controls (measured 2026-10-27)
+
+A press fill is the surface with the ink laid over it, the way Material 3's pressed state layer works: ink at 10% in
+light, the dark ink `#EBEFF2` at 12% in dark. Floor: a press differs from its surface by at least 1.2:1. The old light
+press, `surface-muted` on canvas, was 1.05:1, so light changes too.
+
+| Surface       | Light fill → press           | Dark fill → press            |
+| ------------- | ---------------------------- | ---------------------------- |
+| canvas        | `#EFF3F6` → `#D9DDE1` (1.22) | `#0E161E` → `#293037` (1.37) |
+| paper         | `#FCFDFF` → `#E5E6E9` (1.23) | `#172029` → `#303941` (1.40) |
+| paper-overlay | `#FFFFFF` → `#E8E8E9` (1.22) | `#26313D` → `#3E4853` (1.42) |
+| surface-muted | `#E9EDF2` → `#D4D8DD` (1.22) | `#212B36` → `#39434D` (1.42) |
+
+- The table is one fact: the press role per surface is derived as that mix, never typed per site.
+- A chip on a `surface-muted` surface rests on `paper` with no edge (light 1.16:1, dark 1.15:1). Its label identifies
+  it, and a muted chip on a muted card would be invisible. On every other surface a chip rests on `surface-muted`.
+- A control that floats over a photo or over scrolling content (the FAB, PhotoControl, any control on `photo-chip`) has
+  no single surface, so its focus ring is two-tone: a 2 px `paper-overlay` inner ring, then a 2 px `focus-ring` outer
+  ring. It reads on any background (WCAG 2.4.11 and 2.4.13).
+- Notices use `radius.lg` (18). ResumeNotice's `rounded-md` is drift.

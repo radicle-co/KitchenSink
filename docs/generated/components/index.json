@@ -10,7 +10,7 @@
         "implementationsWithComponentDoc": 443,
         "documentedProps": 2399,
         "classifiedComponents": 311,
-        "componentsWithPatternTag": 222,
+        "componentsWithPatternTag": 221,
         "crossPlatformComponents": 196
     },
     "groups": [
@@ -48,7 +48,7 @@
                 "implementationsWithComponentDoc": 207,
                 "documentedProps": 1377,
                 "classifiedComponents": 162,
-                "componentsWithPatternTag": 85,
+                "componentsWithPatternTag": 84,
                 "crossPlatformComponents": 132
             }
         },

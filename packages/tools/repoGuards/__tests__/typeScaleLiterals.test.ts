@@ -87,7 +87,7 @@ function nameOf(name: ts.PropertyName | ts.JsxAttributeName): string | undefined
  *
  * @param fileName - The module's name, which decides whether it is parsed as TSX.
  * @param source - Its text.
- * @returns One entry per literal size or arbitrary size class, in source order.
+ * @returns One entry per literal size or arbitrary size class, in line order.
  */
 export function typeScaleLiterals(
     fileName: string,

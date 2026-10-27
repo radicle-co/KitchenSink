@@ -8,8 +8,6 @@
  * the surface the SHEET states (`paperOverlay`), not the one the menu was opened from.
  *
  * Presentational: props → JSX.
- *
- * @pattern Slot — the caller hands in the label and the choice; the sheet it renders in decides the press fill
  */
 import { Icon } from '@commise/ui/icon';
 import { touchFloor } from '@commise/ui/layout';

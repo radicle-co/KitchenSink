@@ -582,8 +582,9 @@ describe('the surface tone, compiled', () => {
         expect(css).toContain('background-color:var(--cm-chip-press,var(--color-chip-press-canvas))');
     });
 
-    // The fallback outside every surface names the CANVAS chip vars, so it must resolve in BOTH themes: a fallback that
-    // named a light role would leave a chip on a dark page resting on the light fill.
+    // The fallback outside every surface names the CANVAS chip vars, so it must be declared in BOTH themes and match the
+    // table's canvas row: light surface-muted, dark surface-muted (the same role in each, resolved per theme).
+
     it('resolves the canvas chip fallback in the light block and again in the dark one', async () => {
         const css = squashed(await compileAppCss());
         const darkStart = css.indexOf('@media(prefers-color-scheme:dark)');

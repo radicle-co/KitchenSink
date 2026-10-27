@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 207,
         "documentedProps": 1377,
         "classifiedComponents": 162,
-        "componentsWithPatternTag": 85,
+        "componentsWithPatternTag": 84,
         "crossPlatformComponents": 132
     },
     "components": [
@@ -4497,9 +4497,7 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/common",
             "kind": "presentational",
-            "patterns": [
-                "Slot — the caller hands in the label and the choice; the sheet it renders in decides the press fill"
-            ],
+            "patterns": [],
             "platforms": [
                 "native"
             ],
@@ -4517,10 +4515,6 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/common — one radio row of a native sort sheet, shared by the Discover and My recipes"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Slot — the caller hands in the label and the choice; the sheet it renders in decides the press fill"
                         }
                     ],
                     "description": "One radio row of a sort sheet.",

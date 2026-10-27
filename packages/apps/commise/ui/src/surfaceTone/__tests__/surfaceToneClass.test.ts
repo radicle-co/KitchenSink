@@ -104,8 +104,9 @@ describe('PRESS_FILL_CLASS', () => {
         expect(PRESS_FILL_CLASS.focused).toBe(`focus-visible:bg-(${PRESS_VAR},${canvasPress})`);
     });
 
-    // A chip outside every surface reads the CANVAS row's chip vars, which `themeCss` emits in both themes. Naming the
-    // vars (not a role) is what lets the dark theme resolve to its own fill; a role fallback was light-only.
+    // A chip outside every surface reads the CANVAS row's chip vars, which `themeCss` emits in both themes. The old
+    // fallback named `--color-surface-muted`, which also resolves per theme to the same values; naming the canvas chip
+    // vars makes the fallback FOLLOW the table's canvas row instead of restating its role (one authority).
     const emitted = (variable: string): string[] =>
         [...themeCss().matchAll(new RegExp(`${variable}: (#[0-9a-fA-F]{6});`, 'gu'))].map((match) => match[1] ?? '');
 

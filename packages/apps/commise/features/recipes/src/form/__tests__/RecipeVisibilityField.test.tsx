@@ -662,4 +662,22 @@ describe('RecipeVisibilityField (web) - an imported public-web recipe with paid 
         expect(onPremiumRequired).not.toHaveBeenCalled();
         expect(radio(v.public).checked).toBe(true);
     });
+
+    it('⛔ a kept Private draft stays chosen but refused - never shown as Public - with the reason as its description', () => {
+        render(
+            <Harness
+                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+                paidFeatures="hidden"
+                facts={facts}
+                saved={'public'}
+            />,
+        );
+
+        const card = radio(v.private);
+
+        expect(card.checked).toBe(true);
+        expect(card.getAttribute('aria-disabled')).toBe('true');
+        expect(descriptionOf(card)).toBe(REASON);
+        expect(radio(v.public).checked).toBe(false);
+    });
 });

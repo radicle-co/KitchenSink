@@ -16,7 +16,7 @@ import { PublishBlockedSheet } from '../PublishBlockedSheet.native.js';
 afterEach(cleanup);
 
 const NO_SLOT: PublishBlocked = { kind: 'noSlot' };
-const WEB_IMPORT: PublishBlocked = { kind: 'webImport' };
+const WEB_IMPORT: PublishBlocked = { kind: 'webImport', refusal: 'premium' };
 const TITLE = 'Your private slots are full';
 
 function renderSheet(ask: PublishBlocked = NO_SLOT) {
@@ -58,16 +58,19 @@ describe('PublishBlockedSheet (native)', () => {
         expect(screen.queryByText(/\{total\}|All 0|\d/u)).toBeNull();
     });
 
-    it('webImport: "This recipe can’t be private yet", in the paid-features-hidden words', () => {
-        renderSheet(WEB_IMPORT);
+    it.each([WEB_IMPORT, { kind: 'webImport', refusal: 'final' } as const])(
+        'webImport (%j): "This recipe can’t be private yet", in the paid-features-hidden words',
+        (ask) => {
+            renderSheet(ask);
 
-        expect(screen.getByRole('heading', { name: 'This recipe can’t be private yet' })).toBeTruthy();
-        expect(
-            screen.getByText(
-                'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
-            ),
-        ).toBeTruthy();
-    });
+            expect(screen.getByRole('heading', { name: 'This recipe can’t be private yet' })).toBeTruthy();
+            expect(
+                screen.getByText(
+                    'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
+                ),
+            ).toBeTruthy();
+        },
+    );
 
     it('⛔ sells no Pro while there is no subscription page: no upsell line, no See Pro', () => {
         for (const ask of [NO_SLOT, WEB_IMPORT]) {

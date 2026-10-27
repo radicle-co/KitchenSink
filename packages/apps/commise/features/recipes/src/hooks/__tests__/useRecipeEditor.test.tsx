@@ -3630,7 +3630,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
         press(view);
         await settle();
 
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport' });
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
         expect(view.setVisibility).not.toHaveBeenCalled();
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
         expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
@@ -3667,16 +3667,31 @@ describe('Publish of a Private the server is known to refuse (imported public-we
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
     });
 
-    // Owner ruling 2026-10-26: with paid features hidden Private is never offered for this recipe (the field shows it
-    // refused), so a kept Private draft shows as Public and the Publish goes out public with no ask.
-    it('⛔ with paid features hidden (a final refusal) there is no ask: the Publish goes out public', async () => {
+    // Owner ruling 2026-10-26, completed: a kept Private draft is a private recipe, and nothing turns it public on its own.
+    // With paid features hidden the field shows Private refused, and Publish asks (no upsell) exactly as it does where Pro
+    // is shown; only a cook who moved the choice to Public themselves publishes without it.
+    it('⛔ with paid features hidden (a final refusal) a kept Private draft is ASKED about too, and nothing is sent', async () => {
         const view = mountPrivate('final');
 
         press(view);
         await settle();
 
-        expect(view.result.current.publishBlocked).toBeUndefined();
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'final' });
         expect(view.setVisibility).not.toHaveBeenCalled();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('⛔ with paid features hidden, a cook who moved the choice to Public themselves publishes with no ask', async () => {
+        const view = mountPrivate('final');
+        act(() => {
+            view.result.current.setField('visibility', RecipeVisibility.PUBLIC);
+        });
+
+        press(view);
+        await settle();
+
+        expect(view.result.current.publishBlocked).toBeUndefined();
         expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
     });
 
@@ -3689,7 +3704,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
 
         press(view);
 
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport' });
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
     });
 

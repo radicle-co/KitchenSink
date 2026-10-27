@@ -1604,7 +1604,7 @@ describe('visibilityFieldOf', () => {
             expect(privateCard(model).note).toBe(REASON);
         });
 
-        it('⛔ a kept Private draft shows as Public, and the reason is on the Private card alone', () => {
+        it('⛔ a kept Private draft is NOT shown as Public: Private stays chosen, refused, with the reason on its card', () => {
             const model = visibilityFieldOf({
                 ...base,
                 draft: RecipeVisibility.PRIVATE,
@@ -1612,8 +1612,9 @@ describe('visibilityFieldOf', () => {
                 refusal: 'final',
             });
 
-            expect(model.shown).toBe(RecipeVisibility.PUBLIC);
+            expect(model.shown).toBe(RecipeVisibility.PRIVATE);
             expect(publicCard(model).note).toBeUndefined();
+            expect(privateCard(model).refused).toBe(true);
             expect(privateCard(model).note).toBe(REASON);
         });
 

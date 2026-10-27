@@ -419,7 +419,7 @@ describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R
 describe('RecipeEditorSurface — the blocked-publish dialog', () => {
     it.each([
         [{ kind: 'noSlot' }, 'Your private slots are full'],
-        [{ kind: 'webImport' }, 'This recipe can’t be private yet'],
+        [{ kind: 'webImport', refusal: 'premium' }, 'This recipe can’t be private yet'],
     ] as const)('shows %j while the editor stands it, wired to the editor’s two answers', async (ask, title) => {
         const user = userEvent.setup();
         const keepAsDraft = vi.fn();

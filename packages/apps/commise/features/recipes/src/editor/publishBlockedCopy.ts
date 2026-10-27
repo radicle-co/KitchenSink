@@ -54,8 +54,8 @@ export function publishBlockedCopyOf(
         };
     }
 
-    // The ask only arises where paid features are shown (a hidden cook's Private is refused on the field instead).
-    const sellsPremium = PUBLISH_BLOCKED_PREMIUM_UPSELL;
+    // `final` (paid features hidden) sells nothing, whatever the switch says.
+    const sellsPremium = PUBLISH_BLOCKED_PREMIUM_UPSELL && ask.refusal === 'premium';
 
     return {
         title: messages.webImport.title,

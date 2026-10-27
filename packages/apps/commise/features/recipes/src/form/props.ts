@@ -209,7 +209,9 @@ export function visibilityFieldOf(input: {
         facts.rule === 'premium' && facts.state === 'hidden' && saved !== RecipeVisibility.PRIVATE;
 
     return {
-        shown: effectiveVisibility(refusal, saved, draft),
+        // A kept Private under `final` (paid features hidden) stays shown as chosen, on its refused card: swapping it for Public
+        // would show a public recipe the cook never chose. The Publish asks instead (`writeVisibilityFirst`).
+        shown: refusal === 'final' ? draft : effectiveVisibility(refusal, saved, draft),
         options: [
             {
                 value: RecipeVisibility.PUBLIC,

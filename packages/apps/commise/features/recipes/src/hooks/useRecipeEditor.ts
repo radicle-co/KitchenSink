@@ -393,13 +393,18 @@ export interface UseRecipeEditorResult {
     };
 }
 
+/** Why a Private is refused for an imported public-web recipe: `premium` (Pro would allow it) or `final` (paid features hidden). */
+export type PublicOnlyRefusal = Exclude<PrivateRefusal, 'slots'>;
+
 /**
  * Why a Publish with Private chosen did not go out, and asks the cook what to do (owner ruling 2026-10-26): every private
  * slot is used (`noSlot`; `total` is the limit when the SERVER said it), or the recipe is an imported public-web one that
- * needs Pro and a change of the cook's own (`webImport`, only where paid features are shown: with them hidden the field
- * refuses Private and nothing is asked).
+ * needs Pro and a change of the cook's own (`webImport`; `refusal` `final` is the paid-features-hidden variant, which sells
+ * nothing). Nothing turns a private recipe public on its own, so a kept Private draft is asked about either way.
  */
-export type PublishBlocked = { readonly kind: 'noSlot'; readonly total?: number } | { readonly kind: 'webImport' };
+export type PublishBlocked =
+    | { readonly kind: 'noSlot'; readonly total?: number }
+    | { readonly kind: 'webImport'; readonly refusal: PublicOnlyRefusal };
 
 /** An answer on the settlement bus. */
 type Settlement = SettlementEvent<EditorWriteAnswer>;
@@ -761,10 +766,10 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
 
     const followUp = visibilityFollowUp(draft.visibility, server.recipe, ctx.opts.privateRefusal);
 
-    // Only where paid features are shown. With them hidden (`final`) the field shows Private refused, a kept Private draft
-    // shows as Public, and the Publish goes out as the field says.
-    if (followUp.kind === 'refused' && followUp.refusal === 'premium') {
-        ctx.setPublishBlocked({ kind: 'webImport' });
+    // Whether or not paid features are shown (`final` is the hidden variant): a kept Private is never published public
+    // without the cook's answer. A cook who moved the choice to Public themselves has no follow-up and is not asked.
+    if (followUp.kind === 'refused' && followUp.refusal !== 'slots') {
+        ctx.setPublishBlocked({ kind: 'webImport', refusal: followUp.refusal });
 
         return true;
     }

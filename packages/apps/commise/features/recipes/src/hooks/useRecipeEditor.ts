@@ -124,7 +124,8 @@ import { visibilityFollowUp } from '../editor/visibilityFollowUp.js';
 import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
 import type { PasteHold } from '../editor/pasteHold.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
-import { createLaneStore, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
+import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
+import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
 import { draftFloorErrors, validateRecipeForm } from '../form/validate.js';
@@ -718,15 +719,6 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
     );
 }
 
-/** The visibility write answered, but not with the visibility and version the Publish needs. */
-class VisibilityNotHeldError extends Error {
-    public constructor(recipeId: string) {
-        super(`The server did not hold the visibility just written for recipe ${recipeId}.`);
-        this.name = 'VisibilityNotHeldError';
-        Object.setPrototypeOf(this, VisibilityNotHeldError.prototype);
-    }
-}
-
 /** The visibility step failed: no Publish is sent, the failure is reported, and Try again re-runs the finish. @sideEffect */
 function stopVisibilityStep(ctx: EditorContext, error: unknown): void {
     ctx.lane.dispatch({ type: 'deferredTaken' });
@@ -840,7 +832,7 @@ function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: 
     }
 
     if (
-        ctx.lane.get().settingVisibility === true ||
+        isSettingVisibility(ctx.lane.get()) ||
         ctx.core.get().commands.length > 0 ||
         (trigger === 'saveChanges' && drainHeld(ctx))
     ) {
@@ -901,7 +893,7 @@ function checkGate(
 function runDeferred(ctx: EditorContext, options: CheckpointOptions = {}): void {
     const { deferred, outstanding } = ctx.lane.get();
 
-    if (deferred === undefined || outstanding !== undefined || ctx.lane.get().settingVisibility === true) {
+    if (deferred === undefined || outstanding !== undefined || isSettingVisibility(ctx.lane.get())) {
         return;
     }
 
@@ -1281,7 +1273,7 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
     if (
         ctx.core.get().commands.length > 0 ||
         lane.outstanding?.finishing === true ||
-        lane.settingVisibility === true ||
+        isSettingVisibility(lane) ||
         isFinishingTrigger(lane.deferred)
     ) {
         return { kind: 'busy' };

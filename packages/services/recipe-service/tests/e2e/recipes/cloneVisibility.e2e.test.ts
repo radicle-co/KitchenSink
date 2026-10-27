@@ -109,7 +109,7 @@ async function seedPrivateRows(db: RecipeDrizzle, ownerId: string, count: number
             totalTimeMinutes: 2,
             cuisine: 'Italian',
             ingredientNamesText: 'filler',
-            visibility: 'private',
+            visibility: 'private' as const,
         })),
     );
 }

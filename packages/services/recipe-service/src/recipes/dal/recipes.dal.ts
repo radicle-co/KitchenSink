@@ -265,9 +265,7 @@ export class RecipesDal {
             .where(and(eq(recipes.id, id), activeRecipe()))
             .for('update');
 
-        return row === undefined
-            ? undefined
-            : { visibility: row.visibility as RecipeVisibility, status: row.status as RecipeStatus };
+        return row === undefined ? undefined : { visibility: row.visibility, status: row.status };
     }
 
     /**

@@ -15,7 +15,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, RecipeVisibility, type RecipeSourceType } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
@@ -268,7 +268,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
     function holding(
         used: number,
         currentVisibility: 'public' | 'private',
-        sourceType = 'user_created',
+        sourceType: RecipeSourceType = 'user_created',
         status: 'draft' | 'published' = 'published',
     ) {
         const found = aggregate({ visibility: currentVisibility, sourceType, status });
@@ -374,7 +374,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
     });
 
     it('imported_physical and imported_paid use a slot too: refused at 50, allowed at 49, no Premium needed', async () => {
-        for (const sourceType of ['imported_physical', 'imported_paid']) {
+        for (const sourceType of ['imported_physical', 'imported_paid'] as const) {
             const allowed = holding(49, 'public', sourceType);
             const refused = holding(50, 'public', sourceType);
 
@@ -433,10 +433,10 @@ describe('RecipesService.clone - a clone is a draft, so it uses no slot (ADR-007
     }
 
     it.each([
-        ['a book recipe (default private)', { visibility: 'private', sourceType: 'imported_physical' }],
-        ['a paid-site recipe (default private)', { visibility: 'private', sourceType: 'imported_paid' }],
-        ["the owner's own private recipe", { visibility: 'private', sourceType: 'user_created' }],
-        ['a public recipe', { ownerId: 'someone-else', visibility: 'public', sourceType: 'user_created' }],
+        ['a book recipe (default private)', { visibility: 'private', sourceType: 'imported_physical' } as const],
+        ['a paid-site recipe (default private)', { visibility: 'private', sourceType: 'imported_paid' } as const],
+        ["the owner's own private recipe", { visibility: 'private', sourceType: 'user_created' } as const],
+        ['a public recipe', { ownerId: 'someone-else', visibility: 'public', sourceType: 'user_created' } as const],
     ])('a free cook holding 50 clones %s as a DRAFT: no lock, no count, no refusal', async (_label, source) => {
         const lockAndCountPrivateSlots = vi.fn(async () => 50);
         const create = vi.fn().mockResolvedValue(aggregate({ status: 'draft' }));
@@ -477,7 +477,7 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
     function draftHolding(
         used: number,
         facts: { visibility: 'public' | 'private'; status: 'draft' | 'published' },
-        sourceType = 'user_created',
+        sourceType: RecipeSourceType = 'user_created',
         hasSubstantiveEdit = false,
     ) {
         const found = aggregate({

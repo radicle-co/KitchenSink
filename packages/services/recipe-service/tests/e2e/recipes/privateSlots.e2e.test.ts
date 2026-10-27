@@ -95,7 +95,7 @@ describe('Free-tier private slots (ADR-0073)', () => {
             totalTimeMinutes: 2,
             cuisine: 'Italian',
             ingredientNamesText: 'seeded',
-            visibility: 'private',
+            visibility: 'private' as const,
             ...values,
         }));
         const inserted = await db.insert(recipes).values(rows).returning({ id: recipes.id });

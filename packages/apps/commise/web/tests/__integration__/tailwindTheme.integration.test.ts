@@ -597,6 +597,16 @@ describe('the surface tone, compiled', () => {
         }
     });
 
+    it('lets the Clerk card state the surface it paints from 480 up and the canvas again at the wide layout', async () => {
+        const css = squashed(await compileAppCss());
+        const at = (query: string, declaration: string): boolean =>
+            new RegExp(`@media\\(${query}\\)\\{[^@]*?${declaration.replace(/[()]/gu, '\\$&')}`, 'u').test(css);
+
+        expect(at('width>=480px', '--cm-surface:var(--color-paper)')).toBe(true);
+        expect(at('width>=480px', '--cm-press:var(--color-press-paper)')).toBe(true);
+        expect(at('width>=64rem', '--cm-surface:var(--color-canvas)')).toBe(true);
+    });
+
     it('registers none of the tone properties, so they inherit down the tree', async () => {
         const css = await compileAppCss();
 

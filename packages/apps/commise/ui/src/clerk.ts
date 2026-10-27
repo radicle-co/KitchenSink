@@ -135,10 +135,15 @@ export function clerkAppearanceFor(scheme: ColorSchemeName) {
             // A size container, so the title's `text-large-title` clamps against THIS column (28 px) and not the window.
             rootBox: '@container w-full max-w-[27.5rem] lg:max-w-[25rem]',
             cardBox: 'w-full shadow-none',
+            // The card paints `paper` from 480 up to the wide layout and is transparent over the canvas outside it, and Clerk
+            // renders it, so it states that surface here (`surfaceToneClass.ts` spells the same properties; a test holds
+            // the two to one table): a field's focus-ring gap and a social button's press read it.
             card:
                 'w-full gap-6 border-0 bg-transparent p-0 shadow-none ' +
                 'min-[480px]:rounded-xl min-[480px]:bg-paper min-[480px]:p-8 min-[480px]:shadow-sm ' +
-                'lg:bg-transparent lg:p-0 lg:shadow-none',
+                'min-[480px]:[--cm-surface:var(--color-paper)] min-[480px]:[--cm-press:var(--color-press-paper)] ' +
+                'lg:bg-transparent lg:p-0 lg:shadow-none ' +
+                'lg:[--cm-surface:var(--color-canvas)] lg:[--cm-press:var(--color-press-canvas)]',
             headerTitle: 'font-display text-large-title text-ink',
             // The brand line, "Your recipes, in one place." (`localization.signIn.start.subtitle`).
             headerSubtitle: 'text-body text-ink-muted',

@@ -3278,8 +3278,8 @@ describe('a private draft with every slot used (ADR-0073 section 12)', () => {
  */
 describe('Try again after a Publish the server refused for want of a slot', () => {
     it('⛔ re-asks the gate with the standing as it is NOW: nothing is re-sent, the refusal is drawn, the parked write is withdrawn', async () => {
-        let refusal: PrivateRefusal | undefined;
-        const { result, port, rerender } = mount({}, undefined, fakePort(), () => refusal);
+        const standing: { refusal: PrivateRefusal | undefined } = { refusal: undefined };
+        const { result, port, rerender } = mount({}, undefined, fakePort(), () => standing.refusal);
 
         act(() => {
             result.current.setValues({ ...complete(), visibility: RecipeVisibility.PRIVATE });
@@ -3298,7 +3298,7 @@ describe('Try again after a Publish the server refused for want of a slot', () =
         expect(result.current.parked).toMatchObject({ kind: 'create' });
 
         // The slot read now answers: every slot is used.
-        refusal = 'slots';
+        standing.refusal = 'slots';
         rerender({ seed: {} });
         act(() => {
             result.current.retry();

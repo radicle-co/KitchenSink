@@ -190,11 +190,19 @@ The peer built §10 and §10a and listed seven deviations. The design lead ruled
    `press-inverse` is the inverse fill with the inverse ink mixed over it by the §10a rule (10% light, 12% dark):
    light `#171B20` → `#2E3236` (1.34:1), dark `#EBEFF2` → `#D2D6D9` (1.26:1). Both pass the 1.2:1 floor.
 3. Changed: `paper-raised` is a distinct tone, built like the other four, with its press derived by the same rule:
-   light `#FFFFFF` → `#E8E8E9`, dark `#212B36` → `#39434D`. It is stated by SectionIndex, FoodChoiceList,
-   ImportModeChoice and ChromeSurface.
+   light `#FFFFFF` → `#E8E8E9`, dark `#212B36` → `#39434D`. It is stated by SectionIndex, FoodChoiceList and
+   ImportModeChoice. ChromeSurface does not state it: it is a backdrop with no children and is hidden from assistive
+   technology, so a tone there reaches no control. It paints `paper-raised` only as its fallback when reduced
+   transparency or high contrast is on, and stating the tone always would make the translucent bar opaque.
 4. Accepted: the 2 px gap between ring and control, the press fill on `:active`, and the ring on `:focus-visible` only.
 5. Confirmed: the Clerk card states `paper` from 480 px. Below 480 px it is the page and states nothing.
 6. Accepted: the additions the peer made beyond §10a.
 7. Accepted: the scale notice uses `radius.lg` (18), as every notice does.
 
 The Design System shows the tones on its Surface card: each tone holds a secondary button and a filter chip.
+
+A render of the merged build (edee1497f) found one drift. In dark, `paper-raised` is `#212B36`, the same colour as
+`surface-muted`, so a chip resting on `surface-muted` there is invisible. A chip on `paper-raised` rests on
+`surface-muted` in light (1.18:1) and on `paper` in dark (1.15:1), the same dark answer as on `surface-muted`. A chip
+fill is therefore chosen per theme, and a test holds every tone's chip fill at 1.15:1 or more against its fill in both
+themes.

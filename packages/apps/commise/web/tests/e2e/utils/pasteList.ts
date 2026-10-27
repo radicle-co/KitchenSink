@@ -67,7 +67,9 @@ export function recordRequests(page: Page): RecordedRequests {
  * @returns The line.
  */
 export function matchedLine(scope: Locator, words: string | RegExp): Locator {
-    return scope.getByRole('listitem').filter({ hasText: words });
+    // An expanded line holds a nested list of its foods, whose "Keep ... as written" item carries the line's words too, so
+    // the filter alone matches two items. The line is the OUTER one: the first in document order.
+    return scope.getByRole('listitem').filter({ hasText: words }).first();
 }
 
 /**

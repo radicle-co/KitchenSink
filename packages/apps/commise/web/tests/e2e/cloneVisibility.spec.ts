@@ -113,6 +113,7 @@ test.describe('clone + visibility (T080)', () => {
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(page.getByText('Not available. All 50 of your private slots are in use.')).toBeVisible();
+        // The total is the server's number (ADR-0073), here the stub's `privateSlotLimit: 1`, not the default 50.
+        await expect(page.getByText('Not available. All 1 of your private slots are in use.')).toBeVisible();
     });
 });

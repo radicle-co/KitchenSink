@@ -193,7 +193,10 @@ test.describe('paid features — an imported public-web recipe in the editor (Pr
         await expect(page.getByText('Who can see it')).toBeVisible();
         const card = page.getByRole('radio', { name: /^Private/u });
         await expect(card).toHaveAttribute('aria-disabled', 'true');
-        await expect(card).toBeEnabled();
+        // "Still focusable" is the claim. Playwright's `toBeEnabled` reads `aria-disabled="true"` as disabled, so it
+        // contradicted the line above; focusing the card is what a keyboard cook does and what the refusal needs.
+        await card.focus();
+        await expect(card).toBeFocused();
         await expect(
             page.getByText('Not available. A recipe from a public web page can only be public.'),
         ).toBeVisible();

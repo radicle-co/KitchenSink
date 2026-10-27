@@ -114,6 +114,23 @@ export function rgb(hex: string): string {
 }
 
 /**
+ * A hex colour in one spelling: lower case, six digits. A computed custom property keeps the text the stylesheet was
+ * minified to (`#fff`), where a token is written `#FFFFFF`; the spec compares colours, not spellings. Pure.
+ *
+ * @param value - A computed or token colour. Anything that is not a 3- or 6-digit hex colour comes back trimmed.
+ */
+export function canonicalHex(value: string): string {
+    const text = value.trim();
+    const short = /^#([\da-f])([\da-f])([\da-f])$/iu.exec(text);
+
+    if (short !== null) {
+        return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
+    }
+
+    return /^#[\da-f]{6}$/iu.test(text) ? text.toLowerCase() : text;
+}
+
+/**
  * Focus a control the way a keyboard does (so `:focus-visible` matches), and read its focus-ring gap: the computed
  * `--tw-ring-offset-color`, and the offset band the browser actually paints in `box-shadow`.
  *
@@ -130,15 +147,17 @@ export async function readFocusGap(
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
 
-    return control.evaluate((element) => {
+    const read = await control.evaluate((element) => {
         const style = getComputedStyle(element);
 
         return {
-            offsetColor: style.getPropertyValue('--tw-ring-offset-color').trim().toLowerCase(),
+            offsetColor: style.getPropertyValue('--tw-ring-offset-color'),
             boxShadow: style.boxShadow,
             focusVisible: element.matches(':focus-visible'),
         };
     });
+
+    return { ...read, offsetColor: canonicalHex(read.offsetColor) };
 }
 
 /**

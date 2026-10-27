@@ -267,7 +267,11 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
         await sheet.getByRole('button', { name: 'Add 1 ingredient' }).click();
         await applyTextScale(page, testInfo);
 
-        await expect(page.getByRole('list', { name: 'Ingredients' }).getByRole('listitem').first()).toBeVisible();
+        // The pasted lines are the matched-line list (ADR-0071), an unnamed list inside the Ingredients region; the name
+        // `Ingredients` belongs to the region, not to the list.
+        await expect(
+            page.getByRole('region', { name: 'Ingredients', exact: true }).getByRole('listitem').first(),
+        ).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 });

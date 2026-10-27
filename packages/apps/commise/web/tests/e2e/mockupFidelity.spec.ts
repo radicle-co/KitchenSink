@@ -352,6 +352,9 @@ const TOKEN_SCALE = {
 
 // Browser-level, so it MUST sit at the file top level: Playwright rejects `launchOptions` inside a
 // `test.describe` because it is worker-scoped. These are the rasterization-determinism flags.
+/** The direction CSS assumes for `linear-gradient`; a browser leaves it out when it serializes one. */
+const DEFAULT_GRADIENT_ANGLE = 180;
+
 test.use(VISUAL_LAUNCH);
 
 test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
@@ -537,7 +540,12 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
                 'page wash, and the implementation must paint the shipped wash too (issue #145). The wash is flat since the redesign.';
 
             expect(image, context).toContain('linear-gradient(');
-            expect(image, context).toContain(`${gradient.hero.angle}deg`);
+
+            // A computed `background-image` drops the direction when it is the default (180deg, "to bottom"), so a
+            // flat wash at 180 never contains "180deg". The angle is asserted only where the browser keeps it.
+            if (gradient.hero.angle !== DEFAULT_GRADIENT_ANGLE) {
+                expect(image, context).toContain(`${String(gradient.hero.angle)}deg`);
+            }
 
             for (const stop of heroStops) {
                 expect(image, `${context} Missing token stop ${stop}.`).toContain(stop);

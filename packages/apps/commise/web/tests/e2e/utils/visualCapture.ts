@@ -23,7 +23,7 @@
  *
  * ## `document.fonts.check()` is not the font assertion — verified, not assumed
  *
- * `FontFaceSet.check('700 36px "Playfair Display"')` returns **`true` on a document with zero webfonts
+ * `FontFaceSet.check('700 36px "Manrope"')` returns **`true` on a document with zero webfonts
  * loaded** — it answers "can this be rendered", and a fallback face satisfies it. Measured directly against
  * `docs/mockups/screens/screenHome.html`, which loads no webfonts at all (its Google-Fonts `@import` sits
  * below other rules and is dropped as invalid CSS): `fonts.check` said `true` while `[...document.fonts]` was
@@ -73,7 +73,7 @@ export const PHONE_VIEWPORT = { width: 390, height: 844 } as const;
  * `JetBrains Mono` is deliberately absent: it is only used for code/data and no captured surface renders it,
  * so requiring it would fail a capture for a font the image does not contain.
  */
-export const BRAND_WEBFONTS: readonly string[] = ['Inter', 'Playfair Display'];
+export const BRAND_WEBFONTS: readonly string[] = ['Inter', 'Manrope'];
 
 /**
  * Chromium launch flags that remove the RASTERIZATION variance between a developer machine and a CI runner.
@@ -194,7 +194,7 @@ export async function loadedWebfontFamilies(page: Page): Promise<string[]> {
 
         document.fonts.forEach((face) => {
             if (face.status === 'loaded') {
-                // Family names arrive quoted when they contain a space (`"Playfair Display"`).
+                // Family names arrive quoted when they contain a space (`"Manrope"`).
                 families.add(face.family.replace(/^["']|["']$/g, ''));
             }
         });

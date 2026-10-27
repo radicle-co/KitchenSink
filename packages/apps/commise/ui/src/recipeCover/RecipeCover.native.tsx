@@ -2,7 +2,7 @@
  * @module @commise/ui/recipe-cover — the native design-system {@link RecipeCover} (spec §1.8).
  *
  * With a photo it draws the photo through `expo-image` (disk-cached), covering its box from the centre 40% down.
- * Without one it draws a monogram on the recipe's own tint: the title's first letter in Playfair 700 `ink` at 40% of
+ * Without one it draws a monogram on the recipe's own tint: the title's first letter in Manrope 700 `ink` at 40% of
  * the cover's height, and the cuisine as a `caption` under it from 96 pt tall, unless the caller lays a chip over the cover. React Native has no container
  * query, so the cover measures its own height (`onLayout`) and holds it as local view state. The cover is hidden from
  * assistive tech either way: the title is the name of the control it sits in. Each aspect reserves its box.

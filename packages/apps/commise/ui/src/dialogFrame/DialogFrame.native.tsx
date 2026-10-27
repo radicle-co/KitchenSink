@@ -109,6 +109,6 @@ const styles = StyleSheet.create({
     // `flexGrow: 0`: the card is as tall as its content until the avoided box caps it, and then the content scrolls.
     scroller: { flexGrow: 0 },
     content: { padding: nativeTokens.spacing[5], gap: nativeTokens.spacing[3] },
-    // `sectionTitle`, the web dialog's title role (`buildSpec.md` §1.5): Playfair sets names only (F8).
+    // `sectionTitle`, the web dialog's title role (`buildSpec.md` §1.5): Manrope sets names only (F8).
     title: { ...nativeTokens.type.sectionTitle },
 });

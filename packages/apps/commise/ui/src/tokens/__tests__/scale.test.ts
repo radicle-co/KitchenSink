@@ -30,14 +30,15 @@ describe('scale — radius', () => {
 describe('scale — type', () => {
     it('names the display, body, and mono font stacks', () => {
         expect(fontFamily).toEqual({
-            display: '"Playfair Display", Georgia, serif',
+            display: '"Manrope", Inter, system-ui, sans-serif',
             body: 'Inter, system-ui, sans-serif',
             mono: '"JetBrains Mono", monospace',
         });
     });
 
     it('exposes numeric font weights', () => {
-        expect(fontWeight).toEqual({ normal: 400, medium: 500, semibold: 600, bold: 700 });
+        // REWRITTEN for the redesign: the weight ceiling is 600, so `bold` is 600 (it was 700).
+        expect(fontWeight).toEqual({ normal: 400, medium: 500, semibold: 600, bold: 600 });
     });
 
     it('exposes a px line height for each allowed font size, on the 4 px grid', () => {

@@ -84,8 +84,8 @@ export const bodyLineHeight = {
 } as const;
 
 /**
- * Display (Playfair) `createFont` size ramp, positions `1…9`. Steps `1-3` are the display scale (16 → 18); `4-9`
- * are the 28 px large title, the most Playfair sets.
+ * Display (Manrope) `createFont` size ramp, positions `1…9`. Steps `1-3` are the display scale (16 → 18); `4-9`
+ * are the 28 px large title, the most Manrope sets.
  */
 export const displayFontSize = {
     1: fontSize.bodyMd,

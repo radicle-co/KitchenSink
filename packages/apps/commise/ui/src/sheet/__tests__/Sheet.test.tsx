@@ -351,7 +351,7 @@ describe('Sheet (web)', () => {
         expect(classes.some((utility) => utility.startsWith('bottom-'))).toBe(false);
     });
 
-    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Playfair sets names only.
+    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Manrope sets names only.
     it('sets the title in the barTitle role, never the display face', async () => {
         await openHost(<Host />);
 

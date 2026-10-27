@@ -247,7 +247,7 @@ describe('recipe rating (web) — text contrast (WCAG 2.1 AA)', () => {
 });
 
 /**
- * F8 and F15 (`evaluateFinal.md`): "Community rating" was the one Playfair H2 among Inter siblings, and its section
+ * F8 and F15 (`evaluateFinal.md`): "Community rating" was the one Manrope H2 among Inter siblings, and its section
  * carried its own gutter and centring, so it started 16 px inside the column the other headings share.
  */
 describe('RatingSection (web) — the heading and the column edge', () => {

@@ -78,12 +78,12 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 
-    // U8 brand leaf: the title must resolve to a REGISTERED Playfair face. A CSS font stack renders as the
+    // U8 brand leaf: the title must resolve to a REGISTERED Manrope face. A CSS font stack renders as the
     // system font on device with no error at all, so this reads the family react-native-web actually applied
     // (the class-compiled rule — `getComputedStyle` does not resolve it) and rejects any stack.
     // REWRITTEN: the large title is the registered 600 face since 60cf38d84 (owner rule C1, the redesign's weight cap),
     // so this reads the face from the role rather than naming a weight.
-    it('paints the title in the large title role’s registered Playfair face, never a CSS font stack', () => {
+    it('paints the title in the large title role’s registered Manrope face, never a CSS font stack', () => {
         render(
             <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ title: 'Lamb' })} />,
         );

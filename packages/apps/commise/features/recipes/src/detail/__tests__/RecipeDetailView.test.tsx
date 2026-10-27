@@ -141,7 +141,7 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByText('by \u2068@braise\u2069 (\u2068Eliza Moreno\u2069)')).toBeTruthy();
     });
 
-    // F8 (`evaluateFinal.md`): the recipe title is Playfair `largeTitle` (§1.5). `text-large-title` alone sets no face.
+    // F8 (`evaluateFinal.md`): the recipe title is Manrope `largeTitle` (§1.5). `text-large-title` alone sets no face.
     it('sets the title in the display face', () => {
         render(
             <RecipeDetailView

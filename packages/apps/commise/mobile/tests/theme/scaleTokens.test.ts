@@ -48,16 +48,17 @@ describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)',
         expect(bodyLineHeight).toEqual({ 1: 20, 2: 24, 3: 24, 4: 24, 5: 24, 6: 24, 7: 32, 8: 32, 9: 32 });
     });
 
-    it('display (Playfair) createFont size ramp stops at the 28 px large title', () => {
+    it('display (Manrope) createFont size ramp stops at the 28 px large title', () => {
         expect(displayFontSize).toEqual({ 1: 16, 2: 18, 3: 18, 4: 28, 5: 28, 6: 28, 7: 28, 8: 28, 9: 28 });
     });
 
-    it('display (Playfair) createFont lineHeight ramp is whole px', () => {
+    it('display (Manrope) createFont lineHeight ramp is whole px', () => {
         expect(displayLineHeight).toEqual({ 1: 24, 2: 24, 3: 24, 4: 32, 5: 32, 6: 32, 7: 32, 8: 32, 9: 32 });
     });
 
-    it('shared createFont weight ramp is unchanged', () => {
-        expect(fontWeightRamp).toEqual({ 1: '400', 2: '500', 3: '600', 4: '700' });
+    // REWRITTEN for the redesign: the weight ceiling is 600, so step 4 (bold) is '600' (it was '700').
+    it('shared createFont weight ramp tops out at 600', () => {
+        expect(fontWeightRamp).toEqual({ 1: '400', 2: '500', 3: '600', 4: '600' });
     });
 });
 
@@ -97,7 +98,7 @@ describe('mobile Tamagui token ramps — SINGLE-SOURCE (derived from @commise/ui
         });
     });
 
-    it('display sizes select the Playfair ramp steps, which stop at the 28 px large title', () => {
+    it('display sizes select the Manrope ramp steps, which stop at the 28 px large title', () => {
         expect(displayFontSize).toEqual({
             1: fontSize.bodyMd,
             2: fontSize.headingMd,

@@ -1,6 +1,6 @@
 /**
  * Guard for the native font-face contract (U8). React Native resolves `fontFamily` to ONE **registered
- * face name**; a CSS font stack (`'"Playfair Display", Georgia, serif'`) is not a face, so RN silently
+ * face name**; a CSS font stack (`'"Manrope", Inter, system-ui, sans-serif'`) is not a face, so RN silently
  * falls back to the system font and the brand type never renders — a defect with no visible failure.
  *
  * These tests make that class of bug unrepresentable from the token side:
@@ -24,14 +24,14 @@ const REGISTERED_FACE = /^[A-Za-z][A-Za-z0-9_]*$/u;
 /** The body family's PRIMARY family name, spaces stripped (`Inter`). */
 const bodyFamilyToken = (fontFamily.body.split(',')[0] ?? '').replaceAll('"', '').replaceAll(' ', '');
 
-/** The display family's PRIMARY family name, quotes and spaces stripped (`PlayfairDisplay`). */
+/** The display family's PRIMARY family name, quotes and spaces stripped (`Manrope`). */
 const displayFamilyToken = (fontFamily.display.split(',')[0] ?? '').replaceAll('"', '').replaceAll(' ', '');
 
 describe('displayFontFace — registered native faces', () => {
-    it('names the faces `@expo-google-fonts/playfair-display` registers', () => {
+    it('names the faces `@expo-google-fonts/manrope` registers', () => {
         expect(displayFontFace).toEqual({
-            semibold: 'PlayfairDisplay_600SemiBold',
-            bold: 'PlayfairDisplay_700Bold',
+            semibold: 'Manrope_600SemiBold',
+            bold: 'Manrope_600SemiBold',
         });
     });
 
@@ -51,13 +51,14 @@ describe('displayFontFace — registered native faces', () => {
     });
 });
 
-describe('bodyFontFace — registered native faces (§1.5: Inter 400/500/600/700)', () => {
+describe('bodyFontFace — registered native faces (§1.5: Inter 400/500/600; bold is 600)', () => {
     it('names the faces `@expo-google-fonts/inter` registers', () => {
         expect(bodyFontFace).toEqual({
             normal: 'Inter_400Regular',
             medium: 'Inter_500Medium',
             semibold: 'Inter_600SemiBold',
-            bold: 'Inter_700Bold',
+            // REWRITTEN for the redesign: the weight ceiling is 600, so the bold step is the 600 face.
+            bold: 'Inter_600SemiBold',
         });
     });
 

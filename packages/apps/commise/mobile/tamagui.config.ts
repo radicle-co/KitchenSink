@@ -87,10 +87,10 @@ const displayFont = createFont({
         9: 0,
     },
     face: {
-        400: { normal: 'PlayfairDisplay' },
-        500: { normal: 'PlayfairDisplay' },
-        600: { normal: 'PlayfairDisplay' },
-        700: { normal: 'PlayfairDisplay' },
+        400: { normal: 'Manrope_600SemiBold' },
+        500: { normal: 'Manrope_600SemiBold' },
+        600: { normal: 'Manrope_600SemiBold' },
+        700: { normal: 'Manrope_600SemiBold' },
     },
 });
 

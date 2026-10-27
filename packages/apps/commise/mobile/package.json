@@ -28,7 +28,7 @@
         "@commise/query": "*",
         "@commise/ui": "^0.0.0",
         "@expo-google-fonts/inter": "^0.4.2",
-        "@expo-google-fonts/playfair-display": "^0.4.2",
+        "@expo-google-fonts/manrope": "^0.4.2",
         "@expo/metro-runtime": "~57.0.7",
         "@formatjs/intl-getcanonicallocales": "^3.2.11",
         "@formatjs/intl-listformat": "^8.3.13",

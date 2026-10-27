@@ -7,7 +7,7 @@
  * `web/tests/__integration__/tailwindTheme.integration.test.ts`, which runs the real compiler. This file proves the
  * numbers.
  *
- * Mutation lens: change a size, weight or leading in the table and the table row fails; set a number in Playfair and the
+ * Mutation lens: change a size, weight or leading in the table and the table row fails; set a number in Manrope and the
  * "never sets a number" row fails; let a native role carry `fontWeight` and the native row fails; flatten the large
  * title's clamp to a `vw` or a fixed size and the clamp rows fail.
  */
@@ -44,8 +44,8 @@ describe('typeRole — the §1.5 table', () => {
         });
     });
 
-    // §1.5: "Playfair sets names only … It never sets a number."
-    it('sets every figure in the body face, never Playfair', () => {
+    // §1.5: "Manrope sets names only … It never sets a number."
+    it('sets every figure in the body face, never Manrope', () => {
         for (const spec of Object.values(typeRole)) {
             if ('figure' in spec) {
                 expect(spec.face).toBe('body');

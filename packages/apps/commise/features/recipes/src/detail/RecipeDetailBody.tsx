@@ -241,7 +241,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             ))}
                         </p>
                     )}
-                    {/* `min-w-0`: a recipe title is user-authored and unbounded. Playfair `largeTitle`, the header primitive's
+                    {/* `min-w-0`: a recipe title is user-authored and unbounded. Manrope `largeTitle`, the header primitive's
                         class, so the title cannot lose its face again (F8). */}
                     <h1
                         ref={titleRef}

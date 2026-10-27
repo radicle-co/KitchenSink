@@ -62,7 +62,7 @@ export const radius = {
  * {@link displayFontFace} instead (and `nativeTokens` deliberately exposes no stack at all).
  */
 export const fontFamily = {
-    display: '"Playfair Display", Georgia, serif',
+    display: '"Manrope", Inter, system-ui, sans-serif',
     body: 'Inter, system-ui, sans-serif',
     mono: '"JetBrains Mono", monospace',
 } as const;
@@ -72,14 +72,15 @@ export const fontFamily = {
  *
  * React Native resolves `fontFamily` to a single registered face name; handed the CSS stack above it falls
  * back to the system face **silently** — brand type that never renders and never errors. These are the
- * faces the apps load at start-up (`@expo-google-fonts/playfair-display`), and they are single-sourced here
+ * faces the apps load at start-up (`@expo-google-fonts/manrope`), and they are single-sourced here
  * so no consumer re-types a face-name literal. Their shape is asserted against {@link fontFamily}.display
  * and {@link fontWeight} in the token tests, so renaming the family or moving a weight step cannot leave a
  * stale name pointing at a font nobody loads.
  */
 export const displayFontFace = {
-    semibold: 'PlayfairDisplay_600SemiBold',
-    bold: 'PlayfairDisplay_700Bold',
+    semibold: 'Manrope_600SemiBold',
+    // The weight ceiling is 600 (`fontWeight.bold`), so the bold step is the same face. No 700 face is loaded.
+    bold: 'Manrope_600SemiBold',
 } as const;
 
 /**
@@ -91,7 +92,7 @@ export const bodyFontFace = {
     normal: 'Inter_400Regular',
     medium: 'Inter_500Medium',
     semibold: 'Inter_600SemiBold',
-    bold: 'Inter_700Bold',
+    bold: 'Inter_600SemiBold',
 } as const;
 
 /** Numeric font weights (web stringifies them; native/Tamagui keep the `'400'`-style string form). */
@@ -99,7 +100,8 @@ export const fontWeight = {
     normal: 400,
     medium: 500,
     semibold: 600,
-    bold: 700,
+    // The ceiling is 600 (redesign): `bold` is the semibold step. A 700 weight is never drawn.
+    bold: 600,
 } as const;
 
 /**

@@ -6,7 +6,7 @@ import { coverTintOf } from '../coverTint.js';
 
 /**
  * RecipeCover (web) — spec §1.8: the photo when there is one; otherwise a monogram cover — one of six tints chosen by
- * the recipe's id, the title's first letter in Playfair 700 `ink` at 40% of the cover's height, and the cuisine as an
+ * the recipe's id, the title's first letter in Manrope 700 `ink` at 40% of the cover's height, and the cuisine as an
  * `caption` under it, but never on a cover under 96 px tall. Either way the cover is decorative: the title is the
  * name of the link it sits in. Every cover states its aspect ratio, so nothing shifts as an image loads.
  */

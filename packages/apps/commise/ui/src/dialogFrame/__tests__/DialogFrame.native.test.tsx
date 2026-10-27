@@ -140,7 +140,7 @@ describe('DialogFrame (native)', () => {
     });
 
     // Rewritten for F8 (`evaluateFinal.md`): a dialog title is `sectionTitle` (Inter 600), the web dialog's role.
-    // Playfair sets names only, so neither a dialog nor a sheet title is the display face any longer.
+    // Manrope sets names only, so neither a dialog nor a sheet title is the display face any longer.
     it('sets its title in the sectionTitle role, as the web dialog does', () => {
         renderFrame();
 

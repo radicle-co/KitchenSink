@@ -122,7 +122,7 @@ describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
     // react-native-web's class-compiled family, so this reads the injected declaration and rejects any stack.
     // REWRITTEN: the large title is the registered 600 face since 60cf38d84 (owner rule C1, the redesign's weight cap),
     // so this reads the face from the role rather than naming a weight.
-    it('paints the heading in the large title role’s registered Playfair face, never a CSS font stack', () => {
+    it('paints the heading in the large title role’s registered Manrope face, never a CSS font stack', () => {
         render(frame());
 
         const applied = appliedFontFamily(screen.getByRole('heading', { name: 'Recipes' }));
@@ -138,7 +138,9 @@ describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
         const heading = screen.getByRole('heading', { name: 'Recipes' });
 
         expect(appliedFontFamily(heading)).toBe(nativeTokens.type.largeTitle.narrow.fontFamily);
-        expect(appliedFontFamily(heading)).not.toBe(nativeTokens.fontFace.display.bold);
+        // REWRITTEN: the bold step is now the 600 face too (the weight ceiling), so the old `not.toBe(bold)` could no
+        // longer fail. What is held is that no 700 face is ever named.
+        expect(appliedFontFamily(heading)).not.toMatch(/700/u);
     });
 
     it('does not wrap the heading in a gradient title band', () => {

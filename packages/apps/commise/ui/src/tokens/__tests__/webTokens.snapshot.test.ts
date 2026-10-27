@@ -73,7 +73,7 @@ describe('web tokens — byte-identical values and order', () => {
 
     it('fonts, fontSizes, fontWeights are unchanged (fontSizes REWRITTEN for the 14/16/18/28 ruling, 2026-10-25)', () => {
         expectExact(fonts, {
-            display: '"Playfair Display", Georgia, serif',
+            display: '"Manrope", Inter, system-ui, sans-serif',
             body: 'Inter, system-ui, sans-serif',
             mono: '"JetBrains Mono", monospace',
         });
@@ -87,7 +87,7 @@ describe('web tokens — byte-identical values and order', () => {
             'body-sm': '0.875rem',
             caption: '0.875rem',
         });
-        expectExact(fontWeights, { normal: '400', medium: '500', semibold: '600', bold: '700' });
+        expectExact(fontWeights, { normal: '400', medium: '500', semibold: '600', bold: '600' });
     });
 
     // REWRITTEN for the redesign: `semantic.border` follows the `lineDivider` role (it was the shared subtle-border string).
@@ -194,7 +194,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-destructive: #C05238;
               --color-border: #DFE3E8;
               --color-ring: #325C7F;
-              --font-display: "Playfair Display", Georgia, serif;
+              --font-display: "Manrope", Inter, system-ui, sans-serif;
               --font-body: Inter, system-ui, sans-serif;
               --font-mono: "JetBrains Mono", monospace;
               --text-display-md: 1.75rem;
@@ -208,7 +208,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --font-weight-normal: 400;
               --font-weight-medium: 500;
               --font-weight-semibold: 600;
-              --font-weight-bold: 700;
+              --font-weight-bold: 600;
               --radius-sm: 0.5rem;
               --radius-md: 0.75rem;
               --radius-lg: 1.125rem;

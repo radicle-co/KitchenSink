@@ -561,7 +561,7 @@ User-approved canonical personas for the entire portfolio. **All product-specs M
 | **P8**  | **Alex**   | Commise Power User       | Multi-feature daily power use, integrations, automation                                  |
 | **P9**  | **Drew**   | Professional Chef        | Restaurant prep, scaled batches, brand presence                                          |
 | **P10** | **Sage**   | Heritage Archivist       | Digitize hard-copy recipes (cards, cookbooks); share with family circle                  |
-| **P11** | **Robin**  | Recipe Creator           | Public creator profile (`commise.com/@robin`); food-blogger brand; audience monetization |
+| **P11** | **Robin**  | Recipe Creator           | Public creator profile (`commise.app/@robin`); food-blogger brand; audience monetization |
 | **P12** | **Jamie**  | Cooking Student          | Learn technique from videos (knife skills, food science)                                 |
 | **P13** | **Reese**  | Cooking Educator         | Teach via video; build a "school" of subscribers                                         |
 

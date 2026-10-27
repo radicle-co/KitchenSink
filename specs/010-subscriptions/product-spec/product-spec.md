@@ -83,7 +83,7 @@ All open questions from the bootstrap revalidation are closed. The table below i
 
 **Archetype**: Recipe Creator
 
-**Motivation**: Public creator profile (`commise.com/@robin`), food-blogger brand, and audience monetization.
+**Motivation**: Public creator profile (`commise.app/@robin`), food-blogger brand, and audience monetization.
 
 **Subscription-specific goals and pains**:
 

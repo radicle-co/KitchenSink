@@ -603,6 +603,23 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
 - **FR-029a**: The operator MUST NOT price, package or gate a paid tier on access to imported third-party
   content, so that no financial benefit is directly attributable to it.
 
+    **Import guardrails** _(owner ruling 2026-10-25, restored 2026-10-27)_. Every import channel is open on every plan
+    (`004-FR-028`). A book or paid-site recipe uses one of a free cook's 50 private slots, and Pro removes that limit
+    for every private recipe alike ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).
+    So that imported content is never the draw:
+    1. Pro is never marketed, priced or described in terms of importing. No "import your cookbooks with Pro", no
+       import-specific offer, and no Pro benefit that names a source.
+    2. When a free cook has no free slot at the moment of an import, the product shows the same out-of-slots message
+       it shows for any private recipe. The free ways forward come first and Pro comes last. There is no
+       import-specific upsell.
+    3. No metric, experiment or target measures or optimises Pro conversion from imports.
+    4. The slot limit applies identically to every private recipe, whatever its source.
+
+    These four come from a counsel brief on the design branch, `counselBriefPrivateRoom.md`, deleted in commit
+    `ba678b489` (read it with `git show ba678b489^:specs/016-legal-compliance-framework/counselBriefPrivateRoom.md`).
+    That brief also described a "private room" model, which is retired (`010-FR-041g`). The guardrails do not depend
+    on it. Counsel's question is in `FR-050`.
+
 #### E. Corpus rights and anti-extraction
 
 - **FR-030**: The terms MUST include an anti-extraction provision covering systematic extraction, scraping,
@@ -731,6 +748,22 @@ they do not create a second mechanism.
           **What breaks:** an app rejected or removed from a store.
         - _Plan change._ What the page must say about the amount and the timing of an upgrade or a downgrade,
           before the cook confirms (`010-FR-042h`).
+    - **Pro and imported recipes.** Added 2026-10-27, from the deleted counsel brief (commit `ba678b489`). A book or
+      paid-site import uses a private slot, and Pro removes the slot limit. Does selling Pro give a "financial benefit
+      directly attributable to the infringing activity" under 17 U.S.C. §512(c)(1)(B), for any infringing imported
+      content? The product view is that the risk is low. Pro is a flat subscription paid alike by every cook. The
+      imported recipe is private, so it draws no one else. And the `FR-029a` guardrails stop imports being the pitch.
+      Counsel confirms this, says whether a further guardrail is needed (for example, what the product can say at the
+      moment of an import), and says whether an EU or UK market needs something different. **What breaks** if the
+      answer is yes: the §512(c) safe harbor is lost for that content, and our takedown defence for it goes with it.
+      The fixes then are product changes, such as not counting imported book and paid-site recipes toward the
+      benefit only Pro gives, or pricing that does not track the volume of imported content.
+    - **Retention after erasure.** Added 2026-10-25. When a cook erases their account, some records outlive it:
+      payment records for tax and accounting, and records of reports and moderation decisions. The Erase screen
+      shows placeholder periods, 7 years for payments and 3 years for reports. Counsel sets the payment period, and
+      confirms `FR-052a`'s 3 years, for each market we launch in. **What breaks.** A record kept too long loses the
+      legal basis that let it survive erasure (`FR-052a`). A record purged too early leaves a tax filing or a
+      moderation decision without its evidence.
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.
 

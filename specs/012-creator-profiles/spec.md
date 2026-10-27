@@ -89,7 +89,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Public Profile URL & Discovery (FR-006 … FR-009)
 
-- **FR-006** Every active `CreatorProfile` MUST be accessible at `commise.com/@{handle}` (canonical URL) without authentication.
+- **FR-006** _(domain corrected 2026-10-26, owner ruling)_ Every active `CreatorProfile` MUST be accessible at `commise.app/@{handle}` (canonical URL) without authentication.
 
 - **FR-007** Profile pages MUST be server-side rendered (Next.js SSR) with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields.
 

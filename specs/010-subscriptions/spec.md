@@ -463,21 +463,21 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 | Pro         | Recorded 2026-10-26 | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | None. Pro has no AI                                                                                                  | Trainer nutrition planning (`009-FR-038`)    |
 | Pro with AI | Recorded 2026-10-26 | $19.99 a month or $199.99 a year. 14-day trial | No limit                                          | The full monthly allowance, the second credit level. Smaller in the trial. Amount: [O-2](#owner-inputs-still-needed) | Everything in Pro, and the AI features below |
 
-| Feature                                                    | FR                          | Plan that includes it                                          |
-| ---------------------------------------------------------- | --------------------------- | -------------------------------------------------------------- |
-| More than 50 private recipes                               | `001-FR-003`                | Pro, Pro with AI                                               |
-| Private `imported_public` recipe, after a substantive edit | `001-FR-003`, ADR-0073 §1   | Pro, Pro with AI                                               |
-| AI recipe generation                                       | `005-FR-016`                | Free and Pro with AI, using credits                            |
-| AI instruction optimization                                | `005-FR-019`                | Free and Pro with AI, using credits                            |
-| AI meal suggestions                                        | `006-FR-025`                | Free and Pro with AI, using credits                            |
-| Auto-generated meal plans                                  | `006-FR-026`                | Free and Pro with AI, using credits                            |
-| Food waste optimization                                    | `006-FR-027`                | Free and Pro with AI, using credits                            |
-| Trainer nutrition planning                                 | `009-FR-038`                | Pro, Pro with AI                                               |
-| AI recipe swap suggestions                                 | `009-FR-039`                | Free and Pro with AI, using credits. Inferred: 009 calls it AI |
-| Online grocery ordering                                    | `007-FR-031`                | No plan, until a store partner exists                          |
-| Every import channel                                       | `004-FR-028`, `016-FR-029a` | Every plan. A paid plan never sells access to imported content |
-| Ingredient parse and match checks                          | ADR-0071, ADR-0072          | Every plan. Not a credit use (`FR-041d`)                       |
-| The content source check                                   | `020`                       | Every plan. Not a credit use                                   |
+| Feature                                                    | FR                          | Plan that includes it                                                                     |
+| ---------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
+| More than 50 private recipes                               | `001-FR-003`                | Pro, Pro with AI                                                                          |
+| Private `imported_public` recipe, after a substantive edit | `001-FR-003`, ADR-0073 §1   | Pro, Pro with AI                                                                          |
+| AI recipe generation                                       | `005-FR-016`                | Free and Pro with AI, using credits                                                       |
+| AI instruction optimization                                | `005-FR-019`                | Free and Pro with AI, using credits                                                       |
+| AI meal suggestions                                        | `006-FR-025`                | Free and Pro with AI, using credits                                                       |
+| Auto-generated meal plans                                  | `006-FR-026`                | Free and Pro with AI, using credits                                                       |
+| Food waste optimization                                    | `006-FR-027`                | Free and Pro with AI, using credits                                                       |
+| Trainer nutrition planning                                 | `009-FR-038`                | Pro, Pro with AI                                                                          |
+| AI recipe swap suggestions                                 | `009-FR-039`                | Free and Pro with AI, using credits. Inferred: 009 calls it AI                            |
+| Online grocery ordering                                    | `007-FR-031`                | No plan, until a store partner exists                                                     |
+| Every import channel                                       | `004-FR-028`, `016-FR-029a` | Every plan. A paid plan never sells access to imported content (`016-FR-029a` guardrails) |
+| Ingredient parse and match checks                          | ADR-0071, ADR-0072          | Every plan. Not a credit use (`FR-041d`)                                                  |
+| The content source check                                   | `020`                       | Every plan. Not a credit use                                                              |
 
 ## Owner inputs still needed
 

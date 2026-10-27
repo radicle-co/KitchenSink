@@ -17,7 +17,7 @@ const SurfaceToneContext = createContext<SurfaceTone>(DEFAULT_SURFACE_TONE);
 
 /**
  * States a tone to everything inside, painting nothing. For a root that paints itself (an animated sheet) and so cannot
- * be a {@link Surface}; it paints its fill with `surfaceFill`, so the paint and the statement still come from one row.
+ * be a `Surface`; it paints its fill with `surfaceFill`, so the paint and the statement still come from one row.
  */
 export const SurfaceToneScope: FC<{ readonly tone: SurfaceTone; readonly children?: ReactNode }> = ({
     tone,

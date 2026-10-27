@@ -48,7 +48,6 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
     const bar = (
         <Surface
             tone="paper"
-            collapsable={false}
             onLayout={pinning.onFooterLayout}
             style={[styles.bar, { borderTopColor: colors.lineDivider }]}
         >

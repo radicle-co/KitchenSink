@@ -7,6 +7,8 @@
  * A portal leaves the DOM tree, so a popup root (a sheet, a dialog, a menu) states its own tone rather than inheriting
  * what it was opened from; it does so with `surfaceToneClass` directly on the element the library gives it.
  *
+ * A presentational leaf: props to an element, with no state and no behaviour.
+ *
  * @pattern Ambient Context — the provider half: a surface states its tone once as inherited custom properties
  */
 import type { FC } from 'react';

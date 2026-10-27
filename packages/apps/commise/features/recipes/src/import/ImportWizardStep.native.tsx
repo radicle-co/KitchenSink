@@ -58,7 +58,6 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
     const bar = (
         <Surface
             tone="paper"
-            collapsable={false}
             role="group"
             aria-label={w.actionsLabel}
             onLayout={pinning.onFooterLayout}

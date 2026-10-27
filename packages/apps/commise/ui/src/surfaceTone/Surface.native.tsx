@@ -5,6 +5,8 @@
  *
  * Colour is read from the theme at render, never from a static sheet (D15), so the surface repaints with the scheme.
  *
+ * A presentational leaf: props to a painted, stated `View`, with no state and no behaviour.
+ *
  * @pattern Ambient Context — the provider half: a surface states its tone once, and the controls inside read it
  */
 import type { FC } from 'react';
@@ -22,7 +24,6 @@ export const Surface: FC<SurfaceProps> = ({
     style,
     role,
     'aria-label': ariaLabel,
-    collapsable,
     onLayout,
     accessibilityLiveRegion,
 }) => {
@@ -34,7 +35,8 @@ export const Surface: FC<SurfaceProps> = ({
                 style={[{ backgroundColor: surfaceFill(theme, tone) }, style]}
                 aria-label={ariaLabel}
                 role={role}
-                collapsable={collapsable}
+                // Kept in the native tree: a named or roled `View` must not be flattened away (`nativeLabelledViews`).
+                collapsable={false}
                 onLayout={onLayout}
                 accessibilityLiveRegion={accessibilityLiveRegion}
             >

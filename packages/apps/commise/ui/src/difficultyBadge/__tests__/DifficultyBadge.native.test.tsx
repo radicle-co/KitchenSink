@@ -36,10 +36,12 @@ describe('DifficultyBadge (native)', () => {
         ['hard', 3],
     ])('%s fills %i of three dots', (level, filled) => {
         const { container } = render(<DifficultyBadge level={level}>Word</DifficultyBadge>);
-        const dots = container.querySelectorAll('[data-meter-dot]');
+        // The production markup carries no test hook: the meter is the badge's first child (the three dots, before the
+        // word), and a dot is filled when it paints a colour and empty when it is clear.
+        const dots = Array.from(container.firstElementChild?.firstElementChild?.children ?? []);
 
         expect(dots).toHaveLength(3);
-        expect([...dots].filter((dot) => dot.getAttribute('data-meter-dot') === 'filled')).toHaveLength(filled);
+        expect(dots.filter((dot) => getComputedStyle(dot).backgroundColor !== 'rgba(0, 0, 0, 0)')).toHaveLength(filled);
     });
 
     it.each<['light' | 'dark', typeof difficultyTone, string]>([

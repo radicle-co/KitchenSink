@@ -105,7 +105,7 @@ describe('Surface (native) — the View props a bar or an alert needs', () => {
         const onLayout = vi.fn();
 
         render(
-            <Surface tone="paper" role="alert" aria-label="Failed" collapsable={false} onLayout={onLayout}>
+            <Surface tone="paper" role="alert" aria-label="Failed" onLayout={onLayout}>
                 <Probe label="in" />
             </Surface>,
         );

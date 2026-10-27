@@ -54,11 +54,20 @@ function renderPanel(): void {
     );
 }
 
-/** The handle: found by the data attribute it publishes (no test id), since it has no role or text. */
+/**
+ * The handle: it has no role or text and the production markup carries no test hook, so it is found by what it IS, the
+ * decorative 36 by 5 pt pill inside the dialog.
+ */
 const handle = (): HTMLElement => {
-    const found = document.querySelector<HTMLElement>('[data-sheet-handle]');
+    const found = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] [aria-hidden="true"]')).find(
+        (element) => {
+            const style = getComputedStyle(element);
 
-    if (found === null) {
+            return style.width === '36px' && style.height === '5px';
+        },
+    );
+
+    if (found === undefined) {
         throw new Error('The sheet draws no grab handle.');
     }
 

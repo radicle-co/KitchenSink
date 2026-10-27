@@ -25,7 +25,6 @@ export const FilterPanel: FC<FilterPanelProps> = ({ view, ingredientSearch, onFi
     return (
         <Surface
             tone="paper"
-            collapsable={false}
             role="complementary"
             aria-label={m.panelLabel}
             style={[styles.panel, { borderColor: colors.lineDivider }]}

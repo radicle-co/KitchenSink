@@ -120,8 +120,6 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                     <View
                         aria-hidden
                         importantForAccessibility="no-hide-descendants"
-                        // A data attribute, so a test can find the decoration without a test id.
-                        {...{ dataSet: { sheetHandle: '' } }}
                         style={[styles.handle, { backgroundColor: colors.lineDivider }]}
                     />
                     <View style={styles.titleRow}>

@@ -1,5 +1,5 @@
 /**
- * @module @commise/ui/surface-tone — the platform-neutral prop contract of {@link Surface}, the container that states
+ * @module @commise/ui/surface-tone — the platform-neutral prop contract of `Surface`, the container that states
  * what it is painted (`componentFixes.md` §10). The web (`Surface.tsx`) and native (`Surface.native.tsx`) leaves both
  * implement it; each ignores the one hook that belongs to the other platform.
  */
@@ -23,8 +23,6 @@ export interface SurfaceProps {
     readonly as?: 'div' | 'section';
     /** Native only: extra style for the surface's `View` (layout, radius, padding). Ignored on web. */
     readonly style?: StyleProp<ViewStyle>;
-    /** Native only: keep the `View` in the native tree. Ignored on web. */
-    readonly collapsable?: boolean;
     /** Native only: the surface's layout, for a bar that is measured. Ignored on web. */
     readonly onLayout?: (event: LayoutChangeEvent) => void;
     /** Native only: announce changes inside the surface. Ignored on web (use `role="status"`). */

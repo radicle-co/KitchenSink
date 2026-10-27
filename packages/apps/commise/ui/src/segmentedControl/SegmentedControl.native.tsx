@@ -68,7 +68,6 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
     return (
         <Surface
             tone="muted"
-            collapsable={false}
             role={roles.track}
             aria-label={props.label}
             style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: trackHeight() }]}

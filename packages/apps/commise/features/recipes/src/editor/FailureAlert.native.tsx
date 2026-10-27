@@ -18,12 +18,7 @@ export const FailureAlert: FC<FailureAlertProps> = ({ body, primary, secondary }
     const { colors } = useTheme();
 
     return (
-        <Surface
-            tone="paper"
-            collapsable={false}
-            role="alert"
-            style={[styles.alert, { borderColor: colors.lineControl }]}
-        >
+        <Surface tone="paper" role="alert" style={[styles.alert, { borderColor: colors.lineControl }]}>
             <Text style={[styles.body, { color: colors.ink }]}>{body}</Text>
             <View style={styles.actions}>
                 <Button size="sm" icon={primary.icon} onPress={primary.onPress}>

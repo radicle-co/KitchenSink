@@ -58,10 +58,13 @@ const CURRENT_TONE = 'border-line-control bg-paper font-semibold text-ink shadow
 /** Every other segment: `inkMuted`, and a TRANSPARENT edge of the same width, so selecting one moves nothing. */
 const OTHER_TONE = 'border-transparent text-ink-muted hover:text-ink';
 
-/** Every segment. */
+/**
+ * Every segment. The overlay is `-inset-y-[5px]`: 4 px of track padding plus the pill's own 1 px border, because an
+ * absolutely placed box is offset from the padding box, inside the border (`segmentClass.test.ts`).
+ */
 const SEGMENT_BASE =
     'relative inline-flex items-center justify-center gap-2 rounded-full border px-3 text-label transition ' +
-    "before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] " +
+    "before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] " +
     FOCUS_RING_CLASS.offset;
 
 /**

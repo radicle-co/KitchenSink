@@ -18,6 +18,11 @@ import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from
  * REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: a RECIPE the cook wrote is no longer a paid feature. A free
  * cook keeps up to the server's limit of recipes private (a slot), whatever the gate says; only an imported public-web
  * recipe still needs Premium, and COLLECTIONS are unchanged. Public is never final.
+ *
+ * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12, spec 001 FR-003b): a DRAFT holds no slot. A new recipe is
+ * a draft, so its field counts nothing and refuses nothing; the count and the refusal belong to a PUBLISHED recipe (edit
+ * one) and to a draft whose Publish was refused. ⚠️ Playwright against a deployed target: not run by the change that wrote
+ * this edit.
  */
 async function openEditorAs(page: Page, paidFeatures: 'granted' | 'upsell' | 'hidden'): Promise<void> {
     await signInWithTicket(page);
@@ -41,16 +46,16 @@ test.describe('private slots — the editor’s “Who can see it” (a recipe t
     });
 
     for (const state of ['upsell', 'hidden'] as const) {
-        test(`${state}: a free cook sees how many slots are left, and Private uses one - no Premium badge, no sheet`, async ({
+        test(`${state}: a NEW recipe is a draft, so Private says it uses no slot until it is published - no count, no Premium badge, no sheet`, async ({
             page,
         }) => {
             await openEditorAs(page, state);
 
-            await expect(page.getByText('50 of 50 private slots left')).toBeVisible();
             await page.getByRole('radio', { name: /^Private/u }).check();
 
             await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
-            await expect(page.getByText('This recipe uses 1 slot. 49 of 50 left after it.')).toBeVisible();
+            await expect(page.getByText('A private draft uses no slot. Publishing it uses one.')).toBeVisible();
+            await expect(page.getByText(/private slots left/u)).toHaveCount(0);
             await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
             await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
             await expect(page.getByRole('dialog', { name: 'Private needs Premium for this recipe' })).toHaveCount(0);
@@ -59,8 +64,14 @@ test.describe('private slots — the editor’s “Who can see it” (a recipe t
 });
 
 test.describe('private slots — every slot used', () => {
-    /** The editor for a free cook who holds `limit` private recipes, in a world whose limit is `limit`. */
-    async function openFullEditor(page: Page, paidFeatures: 'upsell' | 'hidden'): Promise<void> {
+    const OWN_PUBLIC_ID = 'ec000000-0000-4000-8000-0000000001ff';
+
+    /** The editor for a free cook who holds `limit` private recipes (a limit of `limit`): a NEW recipe, which is a draft. */
+    async function openFullEditor(
+        page: Page,
+        paidFeatures: 'upsell' | 'hidden',
+        target: 'new' | 'ownPublished',
+    ): Promise<void> {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const limit = 2;
@@ -70,15 +81,48 @@ test.describe('private slots — every slot used', () => {
                 ownerId: viewerId,
                 title: `Held ${index}`,
                 visibility: 'private',
+                status: 'published',
             }),
         );
-        await mockRecipeApi(page, { viewerId, paidFeatures, recipes: held, privateSlotLimit: limit });
-        await page.goto(route('/recipes/new'));
-        await expect(page.getByRole('heading', { level: 1, name: 'New recipe' })).toBeVisible();
+        const ownPublished = makeRecipeDetail({
+            id: OWN_PUBLIC_ID,
+            ownerId: viewerId,
+            title: 'Own Dish',
+            visibility: 'public',
+            status: 'published',
+        });
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures,
+            recipes: [...held, ownPublished],
+            privateSlotLimit: limit,
+        });
+
+        if (target === 'new') {
+            await page.goto(route('/recipes/new'));
+            await expect(page.getByRole('heading', { level: 1, name: 'New recipe' })).toBeVisible();
+        } else {
+            await page.goto(route(`/recipes/${OWN_PUBLIC_ID}/edit`));
+            await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
+        }
     }
 
-    test('refuses Private with the total and three ways forward; choosing it changes nothing', async ({ page }) => {
-        await openFullEditor(page, 'upsell');
+    test('⛔ a NEW recipe (a draft) shows NO refusal even with every slot used: a private draft takes no slot', async ({
+        page,
+    }) => {
+        await openFullEditor(page, 'upsell', 'new');
+
+        await page.getByRole('radio', { name: /^Private/u }).check();
+
+        await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+        await expect(page.getByText('Not available. All 2 of your private slots are in use.')).toHaveCount(0);
+        await expect(page.getByText('A private draft uses no slot. Publishing it uses one.')).toBeVisible();
+    });
+
+    test('a PUBLISHED recipe refuses Private with the total and three ways forward; choosing it changes nothing', async ({
+        page,
+    }) => {
+        await openFullEditor(page, 'upsell', 'ownPublished');
 
         await expect(page.getByText('Not available. All 2 of your private slots are in use.')).toBeVisible();
         const ways = page.getByRole('group', { name: 'To keep this recipe private' });
@@ -96,7 +140,7 @@ test.describe('private slots — every slot used', () => {
     test('“Get Premium” opens the Premium sheet; “Make a private recipe public” goes to My recipes', async ({
         page,
     }) => {
-        await openFullEditor(page, 'upsell');
+        await openFullEditor(page, 'upsell', 'ownPublished');
 
         await page.getByRole('button', { name: /Get Premium/u }).click();
         await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toBeVisible();
@@ -107,7 +151,7 @@ test.describe('private slots — every slot used', () => {
     });
 
     test('⛔ hidden: the refusal offers no Premium way - no sale where none is shown', async ({ page }) => {
-        await openFullEditor(page, 'hidden');
+        await openFullEditor(page, 'hidden', 'ownPublished');
 
         await expect(page.getByText('Not available. All 2 of your private slots are in use.')).toBeVisible();
         await expect(page.getByRole('button', { name: /Get Premium/u })).toHaveCount(0);

@@ -87,7 +87,9 @@ describe('recipeWriteIntent — a create never carries a refused Private', () =>
         visibility: RecipeVisibility.PRIVATE,
     };
 
-    it.each(['final', 'premium', 'slots'] as const)(
+    // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot, so a create that is only a
+    // DRAFT SAVE goes out private under the slots refusal. This table used to include `slots`.
+    it.each(['final', 'premium'] as const)(
         'under a %s refusal, a private draft is created public',
         (privateRefusal) => {
             const intent = recipeWriteIntent({
@@ -101,6 +103,18 @@ describe('recipeWriteIntent — a create never carries a refused Private', () =>
             expect(intent.payload).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
         },
     );
+
+    it('⛔ under the slots refusal a private draft is still created PRIVATE: saving a draft takes no slot', () => {
+        const intent = recipeWriteIntent({
+            server: unsaved,
+            draft: privateDraft,
+            ref: LOCAL,
+            publish: false,
+            privateRefusal: 'slots',
+        });
+
+        expect(intent.payload).toMatchObject({ input: { visibility: RecipeVisibility.PRIVATE, status: 'draft' } });
+    });
 
     it('with no known refusal, a private draft is created private', () => {
         const intent = recipeWriteIntent({

@@ -61,7 +61,7 @@
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
-import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
+import { RecipeVisibility, type RecipeDetail, type VersionConflictSide } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import {
     isLocalRef,
@@ -260,6 +260,10 @@ export interface UseRecipeEditorOptions {
     /**
      * Why the server would refuse a change to private for this cook, if it is known to (`privateRefusalOf`): a create
      * then never carries Private (`recipeWriteIntent`). REQUIRED, so no host can leave the stuck save reachable.
+     *
+     * ⛔ This is the refusal for a write that PUBLISHES. A draft holds no slot (ADR-0073 section 12, owner ruling
+     * 2026-10-26), so under `slots` a draft save still carries Private (`refusalWhileDrafting`), and it is the Publish of a
+     * private draft that is refused with the `slotsFull` outcome.
      */
     readonly privateRefusal: PrivateRefusal | undefined;
 }
@@ -284,6 +288,11 @@ export interface UseRecipeEditorResult {
     readonly refusedFields: ReadonlySet<RefusedField>;
     /** Whether Publish (or Save changes) has been refused in this editor: the section index then shows "Fix". */
     readonly publishAttempted: boolean;
+    /**
+     * Whether the last Publish was refused for want of a private slot AND the draft still asks for Private. Derived from
+     * the draft as it is now, so it clears the moment the cook makes it Public (or frees a slot and publishes again).
+     */
+    readonly slotsRefused: boolean;
     readonly lifecycle: RecipeLifecycle;
     /** The recipe's server id, once it has one. */
     readonly recipeId: string | undefined;
@@ -373,6 +382,8 @@ type LineCommandAnswer =
 interface GateState {
     readonly refused: ReadonlySet<RefusedField>;
     readonly attempted: boolean;
+    /** Whether the last Publish press was refused for want of a private slot (`slotsRefused` reads it with the draft). */
+    readonly slotsPressed: boolean;
     /** What the ingredient entry held when Publish or Save changes was pressed: a deferred one is validated with it. */
     readonly entryText: string;
 }
@@ -698,17 +709,28 @@ function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: 
  *
  * @returns The gate's outcome. @sideEffect Sets the gate's state.
  */
-function checkGate(ctx: EditorContext, entryText: string): Exclude<GateOutcome, { readonly kind: 'busy' }> {
-    const found = validateRecipeForm(ctx.core.get().draft, entryText);
+function checkGate(
+    ctx: EditorContext,
+    entryText: string,
+    trigger: CheckpointTrigger,
+): Exclude<GateOutcome, { readonly kind: 'busy' }> {
+    const { draft } = ctx.core.get();
+    const found = validateRecipeForm(draft, entryText);
     const outcome = gateOutcomeOf(found);
+    // ⛔ ADR-0073 section 12: a draft holds no slot, and PUBLISHING a private one takes it. Only the first Publish is asked:
+    // a published recipe holds its slot already (a Save changes never takes another), and the visibility write that follows
+    // one is judged by the server and by `visibilityFollowUp`.
+    const needsSlot =
+        trigger === 'publish' && ctx.opts.privateRefusal === 'slots' && draft.visibility === RecipeVisibility.PRIVATE;
 
     ctx.setGate((gate) => ({
         refused: refusedFieldsOf(found),
-        attempted: gate.attempted || outcome.kind === 'refused',
+        attempted: gate.attempted || outcome.kind === 'refused' || needsSlot,
+        slotsPressed: needsSlot,
         entryText,
     }));
 
-    return outcome;
+    return outcome.kind === 'send' && needsSlot ? { kind: 'slotsFull' } : outcome;
 }
 
 /**
@@ -727,7 +749,7 @@ function runDeferred(ctx: EditorContext, options: CheckpointOptions = {}): void 
 
     ctx.lane.dispatch({ type: 'deferredTaken' });
 
-    if (isFinishingTrigger(deferred) && checkGate(ctx, ctx.gate.entryText).kind === 'refused') {
+    if (isFinishingTrigger(deferred) && checkGate(ctx, ctx.gate.entryText, deferred).kind !== 'send') {
         return;
     }
 
@@ -1078,11 +1100,11 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
         return { kind: 'busy' };
     }
 
-    const outcome = checkGate(ctx, entryText);
+    const outcome = checkGate(ctx, entryText, trigger);
 
     ctx.core.dispatch({ type: 'drainReset' });
 
-    if (outcome.kind === 'refused') {
+    if (outcome.kind !== 'send') {
         return outcome;
     }
 
@@ -1642,7 +1664,12 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const lane = useSyncExternalStore(stores.lane.subscribe, stores.lane.get, stores.lane.get);
     const [resume, setResume] = useState<ResumeNotice | undefined>(stores.resume);
     const [memento, setMemento] = useState<MementoWrite>(stores.resume === undefined ? 'none' : 'written');
-    const [gate, setGate] = useState<GateState>({ refused: new Set(), attempted: false, entryText: '' });
+    const [gate, setGate] = useState<GateState>({
+        refused: new Set(),
+        attempted: false,
+        slotsPressed: false,
+        entryText: '',
+    });
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -1701,6 +1728,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         values: core.draft,
         refusedFields: gate.refused,
         publishAttempted: gate.attempted,
+        slotsRefused:
+            gate.slotsPressed && core.draft.visibility === RecipeVisibility.PRIVATE && view.lifecycle !== 'published',
         lifecycle: view.lifecycle,
         recipeId: view.serverId,
         saveStatus: view.saveStatus,

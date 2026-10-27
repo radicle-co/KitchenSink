@@ -275,6 +275,8 @@ function privateNoteOf(
     switch (standing.kind) {
         case 'loading':
             return v.slotsLoading;
+        case 'draft':
+            return v.slotsDraft;
         case 'unknown':
         case 'unlimited':
             return undefined;

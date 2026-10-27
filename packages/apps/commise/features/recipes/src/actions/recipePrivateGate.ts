@@ -20,6 +20,11 @@
  * ⛔ PUBLIC IS NEVER FINAL (owner ruling 2026-10-26). Making a private recipe public frees a slot, and a free slot is
  * all it takes to make it private again, so no consequence here says "you won't be able to".
  *
+ * ⛔ A DRAFT HOLDS NO SLOT (owner ruling 2026-10-26, ADR-0073 section 12). A slot is a private recipe that is PUBLISHED, so
+ * a private draft is never refused for want of one - only PUBLISHING it is. That is carried in the standing, not in a flag
+ * beside it: a draft's standing is {@link slotStandingForRecipe}'s `draft`, which no question below ever refuses or counts,
+ * and the Publish press asks the same questions with the cook's real standing.
+ *
  * @pattern Specification - pure predicates over the viewer's rule, slot standing and paid-feature state
  */
 import type { PaidFeatureState } from '@commise/features-account';
@@ -42,6 +47,8 @@ import {
  */
 export type SlotStanding =
     | { readonly kind: 'loading' }
+    /** The recipe is a draft: it holds no slot and takes none until it is published, so there is nothing to count or refuse. */
+    | { readonly kind: 'draft' }
     | { readonly kind: 'unknown' }
     | { readonly kind: 'unlimited' }
     | { readonly kind: 'open'; readonly used: number; readonly limit: number; readonly left: number }
@@ -67,6 +74,36 @@ export function slotStandingOf(usage: PrivateSlotUsage | undefined, pending = fa
     return usage.used < usage.limit
         ? { kind: 'open', used: usage.used, limit: usage.limit, left: usage.limit - usage.used }
         : { kind: 'full', used: usage.used, limit: usage.limit };
+}
+
+/**
+ * The standing a RECIPE is judged on. Pure.
+ *
+ * @param standing - The cook's standing ({@link slotStandingOf}).
+ * @param recipe.published - Whether the recipe is published (a recipe never saved is not).
+ * @param recipe.publishRefused - Whether a Publish of this draft was just refused for want of a slot: the cook's real
+ *   standing is then what the editor shows, so the refusal and its ways forward can be drawn.
+ * @returns The cook's standing for a published recipe or a refused Publish; `unlimited` stays `unlimited` (Premium has no
+ *   slots to hold or take); otherwise `draft`.
+ */
+export function slotStandingForRecipe(
+    standing: SlotStanding,
+    recipe: { readonly published: boolean; readonly publishRefused: boolean },
+): SlotStanding {
+    return recipe.published || recipe.publishRefused || standing.kind === 'unlimited' ? standing : DRAFT_STANDING;
+}
+
+const DRAFT_STANDING: SlotStanding = { kind: 'draft' };
+
+/**
+ * What a DRAFT SAVE may be refused for. Pure.
+ *
+ * @param refusal - Why a write that publishes a private recipe would be refused (`recipePrivateRefusalOf` over the real
+ *   standing).
+ * @returns The same, without the slots refusal: saving a draft takes no slot, so a Private draft is sent as chosen.
+ */
+export function refusalWhileDrafting(refusal: PrivateRefusal | undefined): PrivateRefusal | undefined {
+    return refusal === 'slots' ? undefined : refusal;
 }
 
 /**

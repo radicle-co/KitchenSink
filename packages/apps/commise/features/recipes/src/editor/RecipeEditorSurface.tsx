@@ -21,7 +21,7 @@
 import type { PaidFeatureState } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
 import type { PrivateRule, SlotStanding } from '../actions/recipePrivateGate.js';
@@ -112,6 +112,11 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         knownPaidFeatures,
         rule: privateRule,
         standing: slotStanding,
+        // ADR-0073 section 12: a draft holds no slot, so the field counts and refuses nothing for one - until a Publish was
+        // refused for want of a slot, when it draws that refusal and the ways forward.
+        // `published` is the recipe's STATUS, not its lifecycle: a published recipe sent back to draft keeps its lifecycle
+        // (versions) but holds no slot.
+        publication: { published: seed.recipe?.status === RecipeStatus.PUBLISHED, publishRefused: editor.slotsRefused },
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,

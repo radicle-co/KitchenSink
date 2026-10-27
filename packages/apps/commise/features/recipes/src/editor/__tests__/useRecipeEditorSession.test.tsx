@@ -245,19 +245,39 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         expect(port.submitted.at(-1)?.payload).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
     });
 
-    // Review S1: the preview shows what will be sent, as the field does — one answer (`effectiveVisibility`).
-    it('⛔ the preview shows a refused draft Private as Public, and an unrefused one as Private', () => {
+    // Review S1: the preview shows what will be sent, as the field does - one answer (`effectiveVisibility`).
+    // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot, so the slots refusal no
+    // longer turns a DRAFT's Private into Public; `final` and `premium` still do, and a PUBLISHED recipe still meets `slots`.
+    it('⛔ the preview shows a draft Private as Public only under a refusal that applies to drafts', () => {
         const values = { ...toRecipeFormValues(complete()), visibility: RecipeVisibility.PRIVATE, photos: [] };
-        const refused = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
+        const final = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'final' });
+        const slots = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
         const granted = mount({}, createFakeRecipeServiceClient(), { privateRefusal: undefined });
 
         act(() => {
-            refused.result.current.editor.setValues(values);
+            final.result.current.editor.setValues(values);
+            slots.result.current.editor.setValues(values);
             granted.result.current.editor.setValues(values);
         });
 
-        expect(refused.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(final.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(slots.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PRIVATE);
         expect(granted.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('a PUBLISHED recipe asked for Private with every slot used previews as Public (a published move needs the slot)', () => {
+        const published = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PUBLIC });
+        const view = mount({ recipe: published }, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
+
+        act(() => {
+            view.result.current.editor.setValues({
+                ...toRecipeFormValues(published),
+                visibility: RecipeVisibility.PRIVATE,
+                photos: [],
+            });
+        });
+
+        expect(view.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
     });
 
     it('a discarded never-published recipe goes to My recipes; a published one`s discarded changes, to the recipe', async () => {

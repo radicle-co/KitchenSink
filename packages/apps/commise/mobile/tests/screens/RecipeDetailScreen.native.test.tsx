@@ -20,13 +20,7 @@ import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commi
 import { palette, tint } from '@commise/ui';
 import { role } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
-import {
-    BadRequestError,
-    NotFoundError,
-    PrivateSlotsFullError,
-    recipeQueries,
-    recipeServiceKeys,
-} from '@kitchensink/recipe-service-client';
+import { BadRequestError, NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
     useCloneRecipe,
@@ -1147,58 +1141,6 @@ describe('RecipeDetailScreen — a book or paid-site recipe can never be public'
             expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeTruthy();
         },
     );
-});
-
-describe('RecipeDetailScreen — Save a copy with no private slot (ADR-0073)', () => {
-    const TITLE = 'No private slot for this copy';
-
-    const refused = (paid: 'upsell' | 'hidden') => {
-        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
-        useUserProfileMock.mockReturnValue(profile('usr_viewer', paid));
-        const reset = vi.fn();
-        useCloneRecipeMock.mockReturnValue(
-            mutation<ReturnType<typeof useCloneRecipe>>({ error: new PrivateSlotsFullError(50, 50), reset }),
-        );
-
-        render(<RecipeDetailScreen recipeId="rec_1" />);
-
-        return { reset };
-    };
-
-    it('⛔ shows the refusal with Not now and See Premium, and nothing that makes the copy public', () => {
-        refused('upsell');
-
-        expect(screen.getByRole('heading', { name: TITLE })).toBeTruthy();
-        expect(
-            screen.getByText(
-                'This copy would be private, and all 50 of your private slots are in use. To free a slot, make a private recipe public or delete one. Premium has no limit.',
-            ),
-        ).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'See Premium' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Not now' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: /public/iu })).toBeNull();
-    });
-
-    it('⛔ with paid features hidden, says no word of Premium and offers one OK, which forgets the refusal', () => {
-        const { reset } = refused('hidden');
-
-        expect(screen.getByRole('heading', { name: TITLE })).toBeTruthy();
-        expect(screen.queryByText(/Premium/u)).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
-
-        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
-
-        expect(reset).toHaveBeenCalled();
-    });
-
-    it('shows nothing when the copy has not been refused', () => {
-        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
-        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
-
-        render(<RecipeDetailScreen recipeId="rec_1" />);
-
-        expect(screen.queryByRole('heading', { name: TITLE })).toBeNull();
-    });
 });
 
 describe('RecipeDetailScreen — rating error does not leak across a recipeId change (mutation lens)', () => {

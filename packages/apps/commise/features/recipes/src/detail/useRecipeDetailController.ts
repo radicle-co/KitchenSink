@@ -21,7 +21,6 @@ import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from 
 import { useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
 import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
-import { isPrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
@@ -287,18 +286,6 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             recipeTitle: recipe.title,
             upsell: privateGate.sheet,
             makePublic: { ...makePublic.dialog, busy: setVisibility.isPending, error: setVisibility.error !== null },
-            cloneRefusal: {
-                // Driven by the SERVER's answer, never predicted here: whether a copy lands private is the server's rule
-                // (`defaultCloneVisibility`), and it refuses before any row is written.
-                open: isPrivateSlotsFullError(cloneRecipe.error),
-                total: isPrivateSlotsFullError(cloneRecipe.error) ? cloneRecipe.error.limit : 0,
-                // Premium is offered only where paid features are shown (DSA Art. 25: no sale where none is shown).
-                offer:
-                    paidFeatureStateOf(profile) === 'upsell'
-                        ? { kind: 'premium', onSeePremium: cloneRecipe.reset }
-                        : { kind: 'none' },
-                onClose: cloneRecipe.reset,
-            },
             delete: {
                 open: deleteOpen,
                 deleting: deleteRecipe.isPending,

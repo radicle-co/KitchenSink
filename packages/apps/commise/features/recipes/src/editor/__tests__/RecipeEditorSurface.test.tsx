@@ -17,7 +17,7 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -210,15 +210,25 @@ describe('RecipeEditorSurface — the Private choice', () => {
         expect(screen.queryByRole('radio', { name: /private/i })).toBeNull();
     });
 
-    it('shows how many private slots are left, from the server`s read', async () => {
-        mount({ paidFeatures: 'upsell', knownPaidFeatures: 'upsell' }, withSlots(38));
+    // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot. These two cases used a new
+    // recipe (a draft) and expected the count and the refusal; they now use a PUBLISHED recipe, which is what holds one,
+    // and the draft cases follow.
+    const PUBLISHED_PUBLIC: EditorSeed = {
+        recipe: makeRecipeDetail({ status: RecipeStatus.PUBLISHED, visibility: 'public', cuisine: 'Italian' }),
+    };
+
+    it('shows how many private slots are left, from the server`s read, on a published recipe', async () => {
+        mount({ seed: PUBLISHED_PUBLIC, paidFeatures: 'upsell', knownPaidFeatures: 'upsell' }, withSlots(38));
 
         expect(await screen.findByText('12 of 50 private slots left')).toBeTruthy();
     });
 
-    it('⛔ with every slot used, refuses Private with its three ways forward; the first two go to My recipes, Premium opens the sheet', async () => {
+    it('⛔ with every slot used, refuses Private on a published recipe with its three ways forward; the first two go to My recipes, Premium opens the sheet', async () => {
         const user = userEvent.setup();
-        const { props } = mount({ paidFeatures: 'upsell', knownPaidFeatures: 'upsell' }, withSlots(50));
+        const { props } = mount(
+            { seed: PUBLISHED_PUBLIC, paidFeatures: 'upsell', knownPaidFeatures: 'upsell' },
+            withSlots(50),
+        );
 
         expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
 
@@ -228,6 +238,60 @@ describe('RecipeEditorSurface — the Private choice', () => {
 
         await user.click(screen.getByRole('button', { name: /Get Premium/u }));
         expect(await screen.findByRole('dialog')).toBeTruthy();
+    });
+
+    describe('a private DRAFT with every slot used (ADR-0073 section 12)', () => {
+        const REFUSAL = 'Not available. All 50 of your private slots are in use.';
+        const PRIVATE_DRAFT_SEED: EditorSeed = {
+            recipe: makeRecipeDetail({ status: RecipeStatus.DRAFT, visibility: 'private', cuisine: 'Italian' }),
+        };
+
+        /** Mount, and wait until the surface has the cook's real standing, so what follows is not a read still in flight. */
+        async function mountFull(seed: EditorSeed) {
+            const client = withSlots(50);
+            const view = mount({ seed, paidFeatures: 'hidden', knownPaidFeatures: 'hidden' }, client);
+
+            await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+            // Let the query settle and the surface re-render with the answer (a macrotask: the cache notifies on one).
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            });
+
+            return view;
+        }
+
+        it('⛔ shows NO out-of-slots refusal: it says a private draft uses no slot, and keeps Private chosen', async () => {
+            await mountFull(PRIVATE_DRAFT_SEED);
+
+            expect(screen.queryByText(REFUSAL)).toBeNull();
+            expect(screen.queryByRole('button', { name: /Delete a private recipe/u })).toBeNull();
+            expect(screen.getAllByText('A private draft uses no slot. Publishing it uses one.').length).toBeGreaterThan(
+                0,
+            );
+            expect((screen.getByRole('radio', { name: /private/i }) as HTMLInputElement).checked).toBe(true);
+        });
+
+        it('⛔ PUBLISHING it shows the refusal and its ways forward, and keeps Private chosen', async () => {
+            const user = userEvent.setup();
+
+            await mountFull(PRIVATE_DRAFT_SEED);
+            await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+            expect(await screen.findByText(REFUSAL)).toBeTruthy();
+            expect(screen.getByRole('button', { name: /Delete a private recipe/u })).toBeTruthy();
+            expect((screen.getByRole('radio', { name: /private/i }) as HTMLInputElement).checked).toBe(true);
+        });
+
+        it('the refusal goes when the cook makes it Public: a public draft publishes without a slot', async () => {
+            const user = userEvent.setup();
+
+            await mountFull(PRIVATE_DRAFT_SEED);
+            await user.click(screen.getByRole('button', { name: 'Publish' }));
+            await screen.findByText(REFUSAL);
+            await user.click(screen.getByRole('radio', { name: /public/i }));
+
+            expect(screen.queryByText(REFUSAL)).toBeNull();
+        });
     });
 
     it('Premium sees no count', async () => {

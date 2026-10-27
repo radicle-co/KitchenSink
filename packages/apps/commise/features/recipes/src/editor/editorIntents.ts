@@ -11,6 +11,7 @@ import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { isLocalRef, type FailureClass, type Intent } from '@kitchensink/sync';
 
 import { effectiveVisibility, type PrivateRefusal } from '../actions/privateGate.js';
+import { refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { toCreateRecipeInput, toUpdateRecipeInput } from '../form/wire.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
@@ -41,6 +42,10 @@ export interface RecipeWriteInput {
  * succeed. It goes out public — a draft is the owner's alone whatever its visibility — and the publish-time follow-up
  * says why it stayed public (`visibilityFollowUp`). Try again builds a fresh intent, so a parked create heals the same way.
  *
+ * ⛔ EXCEPT for slots (owner ruling 2026-10-26, ADR-0073 section 12): a draft holds no slot, so a create that only SAVES a
+ * draft ({@link RecipeWriteInput.publish} false) carries the cook's Private even when every slot is used
+ * ({@link refusalWhileDrafting}). The editor refuses a Publish that would need the slot before it reaches here.
+ *
  * @param input - What the server holds, the draft, the ref and whether to publish.
  * @returns The intent.
  */
@@ -61,7 +66,11 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
             payload: {
                 input: {
                     ...create,
-                    visibility: effectiveVisibility(input.privateRefusal, RecipeVisibility.PUBLIC, draft.visibility),
+                    visibility: effectiveVisibility(
+                        input.publish ? input.privateRefusal : refusalWhileDrafting(input.privateRefusal),
+                        RecipeVisibility.PUBLIC,
+                        draft.visibility,
+                    ),
                 },
             },
         };

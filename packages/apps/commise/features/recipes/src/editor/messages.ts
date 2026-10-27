@@ -238,6 +238,8 @@ export interface EditorMessages {
         readonly slotsFull: string;
         /** While the standing is being read. */
         readonly slotsLoading: string;
+        /** Private chosen on a DRAFT: it uses no slot; publishing it does (ADR-0073 section 12). */
+        readonly slotsDraft: string;
         /**
          * Under the Public card of a book or paid-site recipe, which can never be public (004 FR-014a): the reason, as the
          * card's accessible description. The same words the import statement gives for the same fact.
@@ -462,6 +464,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             slotsUses: 'This recipe uses 1 slot. {left} of {total} left after it.',
             slotsFull: 'Not available. All {total} of your private slots are in use.',
             slotsLoading: 'Checking your private slots…',
+            slotsDraft: 'A private draft uses no slot. Publishing it uses one.',
             publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',

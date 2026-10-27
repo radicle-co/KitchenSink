@@ -335,8 +335,11 @@ describe('RecipeEditorScreen (native)', () => {
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
-    // ADR-0073: the same hand-off for a free cook's own recipe, refused because every private slot is KNOWN used.
-    it('⛔ with every slot known used, sends no Private the server would refuse, and the hand-off says so', async () => {
+    // ADR-0073, REWRITTEN for the owner ruling of 2026-10-26 (section 12): a draft holds no slot, and PUBLISHING a private
+    // one takes it. With every slot KNOWN used, Publish is refused before anything is sent - the old hand-off published the
+    // recipe public behind the cook's back and told them afterwards. The editor stays open, draws the refusal, and keeps
+    // Private chosen.
+    it('⛔ with every slot known used, Publish of a private draft is refused: nothing is sent, the refusal is drawn, Private stays chosen', async () => {
         profile.paidFeatures = 'upsell';
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used: 50, limit: 50 });
@@ -349,28 +352,23 @@ describe('RecipeEditorScreen (native)', () => {
             currentVersion: 2,
         });
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
-        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
-            ...draft,
-            status: RecipeStatus.PUBLISHED,
-            visibility: RecipeVisibility.PUBLIC,
-            currentVersion: 3,
-        } as RecipeDetail);
+        const update = vi.spyOn(client, 'updateRecipe');
         const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
         const handlers = renderScreen(client, { recipeId: 'rec_full' });
 
         await screen.findByRole('heading', { name: 'Edit recipe' });
         await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        // Not yet: a private draft shows no refusal.
+        expect(screen.queryByText('Not available. All 50 of your private slots are in use.')).toBeNull();
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         });
 
-        await waitFor(() =>
-            expect(handlers.onFinished).toHaveBeenCalledWith('rec_full', {
-                outcome: 'firstPublish',
-                privateRefused: 'slots',
-            }),
-        );
+        expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+        expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+        expect(update).not.toHaveBeenCalled();
         expect(setVisibility).not.toHaveBeenCalled();
+        expect(handlers.onFinished).not.toHaveBeenCalled();
     });
 
     // Review B1: a FAILED profile read is not the server's answer, so the Private is sent and the server decides.
@@ -440,29 +438,45 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
         id: string,
         visibility: RecipeVisibility,
         sourceType: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid' = 'user_created',
-    ): Promise<void> => {
+        status: RecipeStatus = RecipeStatus.PUBLISHED,
+    ): Promise<ReturnType<typeof renderScreen>> => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id, title: 'Secret Stew', visibility, sourceType }),
+            makeRecipeDetail({ id, title: 'Secret Stew', visibility, sourceType, status }),
         );
-        renderScreen(client, { recipeId: id });
+        const handlers = renderScreen(client, { recipeId: id });
         await screen.findByRole('heading', { name: 'Edit recipe' });
+
+        return handlers;
     };
 
     const confirmDialog = (): HTMLElement =>
         screen.getByRole('heading', { name: 'Make this recipe public?' }).closest('[role="alert"]') as HTMLElement;
 
     describe('a recipe the cook wrote: the slots rule', () => {
-        it('shows how many private slots are left, from the server`s read', async () => {
+        it('shows how many private slots are left, from the server`s read, on a published recipe', async () => {
             profile.paidFeatures = 'upsell';
-            renderScreen(clientWithSlots({ used: 38, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 38, limit: 50 }), 'rec_count', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText('12 of 50 private slots left')).toBeTruthy();
         });
 
+        it('⛔ a NEW recipe is a draft: it shows no count and no refusal, even with every slot used', async () => {
+            profile.paidFeatures = 'upsell';
+            renderScreen(clientWithSlots({ used: 50, limit: 50 }));
+            await screen.findByRole('heading', { name: 'New recipe' });
+
+            choosePrivate();
+
+            expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+            expect(screen.getAllByText('A private draft uses no slot. Publishing it uses one.').length).toBeGreaterThan(
+                0,
+            );
+            expect(screen.queryByText('Not available. All 50 of your private slots are in use.')).toBeNull();
+        });
+
         it('⛔ lets a free cook choose Private even when paid features are hidden: a slot, not Premium', async () => {
             profile.paidFeatures = 'hidden';
-            renderScreen(clientWithSlots({ used: 3, limit: 50 }));
-            await screen.findByRole('heading', { name: 'New recipe' });
+            await openRecipe(clientWithSlots({ used: 3, limit: 50 }), 'rec_choose', RecipeVisibility.PUBLIC);
 
             choosePrivate();
 
@@ -473,7 +487,11 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
         it('⛔ with every slot used, refuses Private with its ways forward; the first two go to My recipes', async () => {
             profile.paidFeatures = 'upsell';
-            const handlers = renderScreen(clientWithSlots({ used: 50, limit: 50 }));
+            const handlers = await openRecipe(
+                clientWithSlots({ used: 50, limit: 50 }),
+                'rec_full_ways',
+                RecipeVisibility.PUBLIC,
+            );
 
             expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
             choosePrivate();
@@ -491,19 +509,33 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
         it('⛔ leaving by "Make a private recipe public" keeps what the cook typed: the exit checkpoint runs', async () => {
             profile.paidFeatures = 'upsell';
             const client = clientWithSlots({ used: 50, limit: 50 });
-            const create = vi
-                .spyOn(client, 'createRecipe')
-                .mockResolvedValue(
-                    makeRecipeDetail({ id: 'rec_kept', title: 'Soup to keep', status: RecipeStatus.DRAFT }),
-                );
+            // A private DRAFT: the ways forward appear only once its Publish was refused for want of a slot.
+            const draft = makeRecipeDetail({
+                id: 'rec_kept',
+                title: 'Secret Stew',
+                cuisine: 'Irish',
+                status: RecipeStatus.DRAFT,
+                visibility: RecipeVisibility.PRIVATE,
+                currentVersion: 2,
+            });
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+            const update = vi
+                .spyOn(client, 'updateRecipe')
+                .mockResolvedValue({ ...draft, title: 'Soup to keep', currentVersion: 3 } as RecipeDetail);
             let leave: (() => void) | undefined;
             renderScreen(client, {
+                recipeId: 'rec_kept',
                 subscribeToLeave: (listener) => {
                     leave = listener;
 
                     return () => undefined;
                 },
                 onDiscarded: () => leave?.(),
+            });
+            await screen.findByRole('heading', { name: 'Edit recipe' });
+            await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
             });
             await screen.findByText('Not available. All 50 of your private slots are in use.');
             fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Soup to keep' } });
@@ -512,13 +544,14 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
                 fireEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
             });
 
-            await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
-            expect(create.mock.calls[0]?.[0]).toMatchObject({ title: 'Soup to keep', status: 'draft' });
+            await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+            expect(update.mock.calls[0]?.[1]).toMatchObject({ title: 'Soup to keep' });
+            expect(update.mock.calls[0]?.[1]).not.toHaveProperty('status', 'published');
         });
 
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {
             profile.paidFeatures = 'upsell';
-            renderScreen(clientWithSlots({ used: 50, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_premium', RecipeVisibility.PUBLIC);
 
             fireEvent.click(await screen.findByRole('button', { name: /Get Premium/u }));
 
@@ -527,7 +560,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
         it('offers no Premium way when paid features are hidden', async () => {
             profile.paidFeatures = 'hidden';
-            renderScreen(clientWithSlots({ used: 50, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_hidden', RecipeVisibility.PUBLIC);
 
             await screen.findByText('Not available. All 50 of your private slots are in use.');
 
@@ -640,14 +673,14 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
         it('⛔ says what the cook holds and that it stays private, from the server`s numbers', async () => {
             profile.paidFeatures = 'upsell';
-            renderScreen(clientWithSlots({ used: 60, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText(SENTENCE)).toBeTruthy();
         });
 
         it('⛔ About Premium opens the noSlot sheet with the server`s limit', async () => {
             profile.paidFeatures = 'upsell';
-            renderScreen(clientWithSlots({ used: 60, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             fireEvent.click(await screen.findByRole('button', { name: 'About Premium' }));
 
@@ -661,7 +694,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
         it('⛔ with paid features hidden, says the sentence and offers no Premium link', async () => {
             profile.paidFeatures = 'hidden';
-            renderScreen(clientWithSlots({ used: 60, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText(SENTENCE)).toBeTruthy();
             expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();

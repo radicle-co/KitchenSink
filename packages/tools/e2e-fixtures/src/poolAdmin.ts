@@ -213,7 +213,7 @@ export type PoolScope =
     | { readonly kind: 'maestroErasure'; readonly platform: MaestroPlatform; readonly shard: number }
     /**
      * Everything one local Maestro lane signs in: its signer, its co-author and, on the platform's erasure shard, its
-     * erasure subjects. Only for the local namespace (`main` refuses it otherwise): the shared pool's signers are the
+     * FIRST erasure subject (see {@link poolScopeOptions}). Only for the local namespace (`main` refuses it otherwise): the shared pool's signers are the
      * owner's, provisioned by the owner's whole-roster run.
      */
     | { readonly kind: 'maestroLane'; readonly platform: MaestroPlatform; readonly shard: number };
@@ -239,7 +239,10 @@ export function poolScopeOptions(scope: PoolScope): {
                 slots: [
                     maestroSlotForShard('signer', scope.platform, scope.shard),
                     maestroSlotForShard('coauthor', scope.platform, scope.shard),
-                    ...maestroErasureSlots(scope.platform, scope.shard),
+                    // ONE erasure subject, not the five: the lane recycles it, so the first one standing is always the
+                    // one just made and the lease takes it. Five would spend four of the Clerk development instance's
+                    // 100 users (a hard cap CI's pool already sits near) on subjects nothing leases.
+                    ...maestroErasureSlots(scope.platform, scope.shard).slice(0, 1),
                 ],
                 drift: 'skip',
                 profile: 'leave',

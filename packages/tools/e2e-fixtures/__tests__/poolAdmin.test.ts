@@ -1052,10 +1052,10 @@ describe('the Maestro lane scope', () => {
         expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
     });
 
-    it("reconciles the lane's signer, co-author and, on the erasure shard, its erasure subjects", () => {
+    it("reconciles the lane's signer, co-author and, on the erasure shard, ONE erasure subject (the Clerk cap is 100)", () => {
         expect(
             poolScopeOptions({ kind: 'maestroLane', platform: 'ios', shard: 1 }).slots.map((slot) => slot.id),
-        ).toEqual(['iossigner01', 'ioscoauthor01', 'erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10']);
+        ).toEqual(['iossigner01', 'ioscoauthor01', 'erasure06']);
         expect(
             poolScopeOptions({ kind: 'maestroLane', platform: 'android', shard: 2 }).slots.map((slot) => slot.id),
         ).toEqual(['signer02', 'coauthor02']);

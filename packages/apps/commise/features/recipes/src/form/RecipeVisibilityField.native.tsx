@@ -17,6 +17,7 @@ import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
     legend: nativeTokens.type.label,
     cards: { gap: nativeTokens.spacing[2] },
     overLimit: { gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
-    link: { minHeight: 44, justifyContent: 'center' },
+    link: { minHeight: touchFloor(), justifyContent: 'center' },
     linkText: { ...nativeTokens.type.label, textDecorationLine: 'underline' },
     ways: { gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[1] },
     card: {

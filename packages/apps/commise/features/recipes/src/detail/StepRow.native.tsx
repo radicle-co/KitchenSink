@@ -14,6 +14,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -66,7 +67,7 @@ const styles = StyleSheet.create({
         paddingStart: nativeTokens.spacing[3],
     },
     hereBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: 3, borderRadius: nativeTokens.radius.full },
-    toggle: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    toggle: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
     numeral: {
         width: 32,
         height: 32,

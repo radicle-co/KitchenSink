@@ -12,7 +12,10 @@ import { describe, expect, it } from 'vitest';
 import { mixOver, role, roleDark, type Role } from '../../tokens/colors.js';
 import { ratio } from '../../tokens/__tests__/utils/contrast.js';
 import {
+    chipFillRoleOf,
+    chipFillVarOf,
     chipPressToneOf,
+    chipPressVarOf,
     PRESS_INK_ALPHA,
     PRESS_VAR,
     pressFillsOf,
@@ -113,38 +116,76 @@ describe('the derived press (§10a)', () => {
     });
 });
 
-describe('a chip rests on paper on a muted surface, and on surfaceMuted everywhere else (§10a)', () => {
-    it('picks the resting fill per tone', () => {
-        const rest = (tone: SurfaceTone): Role => SURFACE_TONES[tone].chipFill;
+describe('a chip rests on a fill chosen per theme (§10a, §10b)', () => {
+    const rest = (tone: SurfaceTone, scheme: 'light' | 'dark'): Role => chipFillRoleOf(tone, scheme);
 
-        expect(rest('muted')).toBe('paper');
-        expect(rest('canvas')).toBe('surfaceMuted');
-        expect(rest('paper')).toBe('surfaceMuted');
-        expect(rest('paperOverlay')).toBe('surfaceMuted');
+    it('picks the resting fill per tone: paper on a muted surface, surfaceMuted elsewhere', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            expect(rest('muted', scheme)).toBe('paper');
+            expect(rest('canvas', scheme)).toBe('surfaceMuted');
+            expect(rest('paper', scheme)).toBe('surfaceMuted');
+            expect(rest('paperOverlay', scheme)).toBe('surfaceMuted');
+        }
     });
 
-    it('presses to the table row of the surface it rests on', () => {
-        expect(chipPressToneOf('muted')).toBe('paper');
-        expect(chipPressToneOf('canvas')).toBe('muted');
-        expect(chipPressToneOf('paper')).toBe('muted');
-        expect(chipPressToneOf('paperOverlay')).toBe('muted');
+    // §10b: dark paperRaised IS surfaceMuted (#212B36), so a surfaceMuted chip there is invisible.
+    it('rests a chip on paperRaised on surfaceMuted in light and on paper in dark', () => {
+        expect(rest('paperRaised', 'light')).toBe('surfaceMuted');
+        expect(rest('paperRaised', 'dark')).toBe('paper');
+    });
+
+    it('presses to the table row of the surface it rests on, per theme', () => {
+        expect(chipPressToneOf('muted', 'light')).toBe('paper');
+        expect(chipPressToneOf('muted', 'dark')).toBe('paper');
+        expect(chipPressToneOf('canvas', 'light')).toBe('muted');
+        expect(chipPressToneOf('paperRaised', 'light')).toBe('muted');
+        expect(chipPressToneOf('paperRaised', 'dark')).toBe('paper');
+    });
+
+    /**
+     * The chip fills below 1.14:1 (§10b states 1.15; the unrounded floor is the measured 1.148, as for a muted card).
+     * Each is a DECISION recorded, not a pass: the test requires this list to be exactly the failing set, so fixing a
+     * fill (or breaking another) fails here by name.
+     *  - light canvas: 1.05:1, accepted by `componentFixes.md` §4 (the row's label and the 32 px height carry it);
+     *  - dark paperOverlay: 1.09:1, NOT ruled. A chip on a dark sheet, dialog or menu is weakly visible.
+     */
+    const BELOW_FLOOR = ['light canvas', 'dark paperOverlay'];
+    const CHIP_FLOOR = 1.14;
+
+    it('holds every other tone’s chip fill at 1.14:1 (the ruled 1.15) or more against its fill, in both themes', () => {
+        const below: string[] = [];
+
+        for (const [scheme, { colors }] of Object.entries(THEMES)) {
+            for (const name of SURFACE_TONE_NAMES) {
+                const chip = colors[chipFillRoleOf(name, scheme as 'light' | 'dark')];
+
+                if (ratio(chip, colors[SURFACE_TONES[name].fill]) < CHIP_FLOOR) {
+                    below.push(`${scheme} ${name}`);
+                }
+            }
+        }
+
+        expect(below.sort()).toEqual([...BELOW_FLOOR].sort());
     });
 
     for (const [scheme, { colors, press }] of Object.entries(THEMES)) {
-        it(`${scheme}: a chip on a muted card reads (>= 1.14:1, the measured 1.16 and 1.15 unrounded) and every chip press clears 1.2:1`, () => {
-            // §10a measured 1.16 (light) and 1.15 (dark) for paper on a muted surface. The other surfaces keep the
-            // chip's existing resting fill ("as now"), so only the muted case carries a new floor.
-            expect(
-                ratio(colors[SURFACE_TONES.muted.chipFill], colors[SURFACE_TONES.muted.fill]),
-            ).toBeGreaterThanOrEqual(1.14);
-
+        it(`${scheme}: every chip press clears 1.2:1 against the fill the chip rests on`, () => {
             for (const name of SURFACE_TONE_NAMES) {
+                const s = scheme as 'light' | 'dark';
+
                 expect(
-                    ratio(press[chipPressToneOf(name)], colors[SURFACE_TONES[name].chipFill]),
+                    ratio(press[chipPressToneOf(name, s)], colors[chipFillRoleOf(name, s)]),
+                    `${scheme} ${name}`,
                 ).toBeGreaterThanOrEqual(1.2);
             }
         });
     }
+
+    it('is emitted under --color-chip-fill-<tone> and --color-chip-press-<tone>', () => {
+        expect(chipFillVarOf('paperRaised')).toBe('--color-chip-fill-paper-raised');
+        expect(chipPressVarOf('paperRaised')).toBe('--color-chip-press-paper-raised');
+        expect(chipFillVarOf('muted')).toBe('--color-chip-fill-muted');
+    });
 });
 
 describe('the custom properties', () => {

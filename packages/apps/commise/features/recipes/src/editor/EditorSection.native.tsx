@@ -13,6 +13,7 @@
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -48,7 +49,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         columnGap: nativeTokens.spacing[2],
         rowGap: nativeTokens.spacing[1],
-        minHeight: 44,
+        minHeight: touchFloor(),
     },
     heading: { ...nativeTokens.type.sectionTitle, flexShrink: 1 },
 });

@@ -10,6 +10,7 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
+import { usePressFill } from '@commise/ui/surface-tone';
 import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -27,7 +28,6 @@ import { fillTemplate } from '../format/fillTemplate.js';
  */
 export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) => {
     const { list } = useMessages(recipeMessages);
-    const { colors } = useTheme();
     const [open, setOpen] = useState(false);
     const choice = sortLabelOf(value, list);
 
@@ -57,30 +57,48 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
                         const chosen = sort === value;
 
                         return (
-                            <Pressable
+                            <SortOption
                                 key={sort}
-                                role="radio"
-                                aria-checked={chosen}
-                                aria-label={sortLabelOf(sort, list)}
-                                onPress={() => {
+                                label={sortLabelOf(sort, list)}
+                                chosen={chosen}
+                                onChoose={() => {
                                     onChange(sort);
                                     setOpen(false);
                                 }}
-                                style={({ pressed }) => [
-                                    styles.row,
-                                    pressed ? { backgroundColor: colors.surfaceMuted } : null,
-                                ]}
-                            >
-                                <View style={styles.check}>
-                                    {chosen ? <Icon name="check" size={20} tone="ink" /> : null}
-                                </View>
-                                <Text style={[styles.label, { color: colors.ink }]}>{sortLabelOf(sort, list)}</Text>
-                            </Pressable>
+                            />
                         );
                     })}
                 </View>
             </Sheet>
         </>
+    );
+};
+
+interface SortOptionProps {
+    readonly label: string;
+    readonly chosen: boolean;
+    readonly onChoose: () => void;
+}
+
+/**
+ * One radio row of the sort sheet. Its own component, so `usePressFill` reads the surface the SHEET states
+ * (`paperOverlay`), not the one the menu was opened from.
+ */
+const SortOption: FC<SortOptionProps> = ({ label, chosen, onChoose }) => {
+    const { colors } = useTheme();
+    const pressFill = usePressFill();
+
+    return (
+        <Pressable
+            role="radio"
+            aria-checked={chosen}
+            aria-label={label}
+            onPress={onChoose}
+            style={({ pressed }) => [styles.row, pressed ? { backgroundColor: pressFill } : null]}
+        >
+            <View style={styles.check}>{chosen ? <Icon name="check" size={20} tone="ink" /> : null}</View>
+            <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
+        </Pressable>
     );
 };
 

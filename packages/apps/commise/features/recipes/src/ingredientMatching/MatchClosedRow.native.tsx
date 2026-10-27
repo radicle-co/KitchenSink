@@ -9,6 +9,7 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { usePressFill } from '@commise/ui/surface-tone';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -19,6 +20,7 @@ import type { MatchClosedRowProps } from './matchClosedRowProps.js';
 /** One collapsed open line. */
 export const MatchClosedRow: FC<MatchClosedRowProps> = ({ line, need, current, refusing, failure, onOpen }) => {
     const { colors } = useTheme();
+    const pressFill = usePressFill();
 
     return (
         <Pressable
@@ -29,7 +31,7 @@ export const MatchClosedRow: FC<MatchClosedRowProps> = ({ line, need, current, r
             style={({ pressed }) => [
                 styles.row,
                 current && { backgroundColor: colors.selectedFill, borderColor: colors.selectedEdge },
-                pressed && { backgroundColor: colors.surfaceMuted },
+                pressed && { backgroundColor: pressFill },
             ]}
         >
             <View style={styles.text}>

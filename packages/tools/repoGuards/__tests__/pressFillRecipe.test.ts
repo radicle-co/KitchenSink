@@ -12,6 +12,11 @@
  *    exactly the per-site decision the recipe removes;
  *  - an ink-alpha fill, `bg-ink/6`, `bg-ink-muted/10`, `bg-ink/[0.06]`, behind ANY variant (the earlier rule, kept).
  *
+ * NATIVE (`.native.tsx`): the pressed branch (`pressed ? … : …`, `pressed && …`) of a `Pressable` style function that
+ * destructures `pressed` may not paint `backgroundColor` from `colors.<role>` / `theme.colors.<role>`. A pressed native control reads `usePressFill()` (the surface's press), as its web
+ * twin reads `--cm-press`; six native rows pressed to `colors.surfaceMuted` while the web used the derived press. Exempt: the
+ * recipe directory and `button/surfacePaint.native.ts` (the Button's own paint).
+ *
  * Not refused: a resting `bg-surface-muted` (a surface, `G3`), a tinted status fill such as `bg-danger/10`, `text-ink/60`.
  *
  * ⛔ NO BASELINE AND NO ALLOW-LIST; the single exemption is the recipe's own directory (`ui/src/surfaceTone/`).
@@ -22,13 +27,17 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { appSourceModules, classTokensOf, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** The directory that owns the recipe, and so may write the tokens. */
 const RECIPE_DIRECTORY = 'packages/apps/commise/ui/src/surfaceTone/';
+
+/** The Button's own paint, which owns its press (it is not a bare pressable). */
+const BUTTON_PAINT = 'packages/apps/commise/ui/src/button/surfacePaint.native.ts';
 
 /** A variant that makes a fill a PRESS fill. */
 const PRESS_VARIANT = /^(?:hover|active|focus-visible|data-\[highlighted\])$/u;
@@ -80,6 +89,99 @@ export function handWrittenPresses(
             .filter(isHandWrittenPress)
             .map((found) => ({ line, found })),
     );
+}
+
+/** Whether an expression reads a role off a theme's colours: `colors.surfaceMuted`, `theme.colors.surfaceMuted`. */
+function readsThemeRole(node: ts.Node): boolean {
+    let found = false;
+
+    const visit = (child: ts.Node): void => {
+        if (ts.isPropertyAccessExpression(child)) {
+            const owner = child.expression;
+
+            if (
+                (ts.isIdentifier(owner) && owner.text === 'colors') ||
+                (ts.isPropertyAccessExpression(owner) && owner.name.text === 'colors')
+            ) {
+                found = true;
+            }
+        }
+
+        ts.forEachChild(child, visit);
+    };
+
+    visit(node);
+
+    return found;
+}
+
+/** Whether a function's first parameter destructures `pressed`: `({ pressed }) => …`, `({ pressed, hovered }) => …`. */
+function destructuresPressed(fn: ts.ArrowFunction | ts.FunctionExpression): boolean {
+    const first = fn.parameters[0]?.name;
+
+    return (
+        first !== undefined &&
+        ts.isObjectBindingPattern(first) &&
+        first.elements.some((element) => ts.isIdentifier(element.name) && element.name.text === 'pressed')
+    );
+}
+
+/** Whether an expression mentions the identifier `pressed`. */
+function mentionsPressed(node: ts.Node): boolean {
+    return (ts.isIdentifier(node) && node.text === 'pressed') || ts.forEachChild(node, mentionsPressed) === true;
+}
+
+/**
+ * The 1-based line of every `backgroundColor` painted from a theme role in the PRESSED branch of a style function that
+ * destructures `pressed`: the `whenTrue` of `pressed ? … : …` and the right of `pressed && …`. A resting fill in the same
+ * function (`colors.paper`) is a surface, and a chosen-state fill is not a press, so neither is read. Pure.
+ *
+ * @param fileName - The module's name.
+ * @param source - Its text.
+ */
+export function nativeHandWrittenPresses(fileName: string, source: string): readonly { readonly line: number }[] {
+    const file = parseModule(fileName, source);
+    const hits: { line: number }[] = [];
+    const lineOf = (node: ts.Node): number => file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
+
+    const painted = (node: ts.Node): void => {
+        if (
+            ts.isPropertyAssignment(node) &&
+            (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) &&
+            node.name.text === 'backgroundColor' &&
+            readsThemeRole(node.initializer)
+        ) {
+            hits.push({ line: lineOf(node) });
+        }
+
+        ts.forEachChild(node, painted);
+    };
+
+    const inStyleFunction = (node: ts.Node): void => {
+        if (ts.isConditionalExpression(node) && mentionsPressed(node.condition)) {
+            painted(node.whenTrue);
+        } else if (
+            ts.isBinaryExpression(node) &&
+            node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+            mentionsPressed(node.left)
+        ) {
+            painted(node.right);
+        }
+
+        ts.forEachChild(node, inStyleFunction);
+    };
+
+    const visit = (node: ts.Node): void => {
+        if ((ts.isArrowFunction(node) || ts.isFunctionExpression(node)) && destructuresPressed(node)) {
+            inStyleFunction(node.body);
+        }
+
+        ts.forEachChild(node, visit);
+    };
+
+    visit(file);
+
+    return hits;
 }
 
 describe('the hand-written press fill reader', () => {
@@ -168,6 +270,67 @@ describe('the hand-written press fill reader', () => {
     }
 });
 
+describe('the native hand-written press fill reader', () => {
+    const cases: readonly { readonly shape: string; readonly source: string; readonly lines: readonly number[] }[] = [
+        {
+            shape: 'a pressed branch painting colors.surfaceMuted',
+            source: `const s = ({ pressed }) => [pressed ? { backgroundColor: colors.surfaceMuted } : null];`,
+            lines: [1],
+        },
+        {
+            shape: 'a pressed && branch painting theme.colors.<role>',
+            source: `const s = ({ pressed }) => [pressed && { backgroundColor: theme.colors.lineDivider }];`,
+            lines: [1],
+        },
+        {
+            shape: 'a function-expression style',
+            source: `const s = function ({ pressed }) {\n return pressed ? { backgroundColor: colors.canvas } : null; };`,
+            lines: [2],
+        },
+        {
+            shape: 'a pressed branch painting the usePressFill() value',
+            source: `const s = ({ pressed }) => [pressed ? { backgroundColor: pressFill } : null];`,
+            lines: [],
+        },
+        {
+            shape: 'a pressed branch painting a press from the theme (theme.press.<tone>)',
+            source: `const s = ({ pressed }) => [pressed ? { backgroundColor: theme.press[tone] } : null];`,
+            lines: [],
+        },
+        {
+            shape: 'a resting fill in the same style function (a surface, not a press)',
+            source: `const s = ({ pressed }) => [{ backgroundColor: colors.paper }, pressed ? { opacity: 0.5 } : null];`,
+            lines: [],
+        },
+        {
+            shape: 'a chosen-state fill beside the press',
+            source: `const s = ({ pressed }) => [chosen && { backgroundColor: colors.selectedFill }, pressed && { opacity: 1 }];`,
+            lines: [],
+        },
+        {
+            shape: 'colours outside any pressed style function (a resting fill)',
+            source: `const s = { backgroundColor: colors.surfaceMuted };\nconst t = (state) => ({ backgroundColor: colors.canvas });`,
+            lines: [],
+        },
+        {
+            shape: 'a style function that does not destructure pressed',
+            source: `const s = (state) => [state.pressed ? { backgroundColor: colors.surfaceMuted } : null];`,
+            lines: [],
+        },
+        {
+            shape: 'a colour named in a comment',
+            source: `const s = ({ pressed }) => [pressed ? null : null]; // backgroundColor: colors.surfaceMuted`,
+            lines: [],
+        },
+    ];
+
+    for (const { shape, source, lines } of cases) {
+        it(`reads ${shape}`, () => {
+            expect(nativeHandWrittenPresses('fixture.native.tsx', source).map((hit) => hit.line)).toEqual(lines);
+        });
+    }
+});
+
 describe('apps write no press fill by hand', () => {
     const modules = appSourceModules().filter((file) => !file.startsWith(RECIPE_DIRECTORY));
 
@@ -177,6 +340,19 @@ describe('apps write no press fill by hand', () => {
         expect(modules).toContain('packages/apps/commise/ui/src/button/surfaceClass.ts');
         expect(modules).not.toContain(`${RECIPE_DIRECTORY}surfaceToneClass.ts`);
         expect(modules.length).toBeGreaterThan(500);
+        expect(modules.filter((file) => /\.native\.tsx$/u.test(file)).length).toBeGreaterThan(100);
+    });
+
+    it('lets no native pressable paint its pressed state from a theme role', () => {
+        const offenders = modules
+            .filter((file) => /\.native\.tsx?$/u.test(file) && file !== BUTTON_PAINT)
+            .flatMap((file) =>
+                nativeHandWrittenPresses(file, readFileSync(path.join(repoRoot, file), 'utf8')).map(
+                    (hit) => `${file}:${String(hit.line)}`,
+                ),
+            );
+
+        expect(offenders).toEqual([]);
     });
 
     it('lets no app module outside the recipe state a press fill', () => {

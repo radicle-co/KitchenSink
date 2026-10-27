@@ -14,6 +14,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { RecipeCover } from '@commise/ui/recipe-cover';
+import { usePressFill } from '@commise/ui/surface-tone';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -27,6 +28,7 @@ import { collectionMessages } from './messages.js';
 export const CollectionPickerRow: FC<CollectionPickerRowProps> = ({ recipe, checked, failed, onToggle }) => {
     const { picker } = useMessages(collectionMessages);
     const { colors } = useTheme();
+    const pressFill = usePressFill();
     const model = toRecipeCardModel(recipe);
     const view = useRecipeCardView(model);
     const meta = [recipe.cuisine, view.meta.duration].filter(
@@ -41,7 +43,7 @@ export const CollectionPickerRow: FC<CollectionPickerRowProps> = ({ recipe, chec
                 aria-label={recipe.title}
                 accessibilityState={{ checked }}
                 onPress={() => onToggle(!checked)}
-                style={({ pressed }) => [styles.row, pressed ? { backgroundColor: colors.surfaceMuted } : null]}
+                style={({ pressed }) => [styles.row, pressed ? { backgroundColor: pressFill } : null]}
             >
                 <View aria-hidden style={styles.thumb}>
                     <RecipeCover

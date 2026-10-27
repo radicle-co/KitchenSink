@@ -13,7 +13,7 @@
  * @pattern Adapter over `@commise/ui/text-input` — the label, glyph and clear control are the primitive's
  */
 import { useState, type FC } from 'react';
-import { Platform, Pressable, StyleSheet, View, type TextInput as NativeTextInput } from 'react-native';
+import { Pressable, StyleSheet, View, type TextInput as NativeTextInput } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
@@ -23,13 +23,11 @@ import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SearchFieldProps } from './props.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
 
 /** The pill's height, in points. */
 const PILL_HEIGHT = 48;
-
-/** The clear control's target: 44 pt on iOS, 48 dp on Android. */
-const clearTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
 
 /** The native design-system search field. */
 export const SearchField: FC<SearchFieldProps> = ({
@@ -79,7 +77,7 @@ export const SearchField: FC<SearchFieldProps> = ({
                             onChangeText('');
                             setClears((count) => count + 1);
                         }}
-                        style={[styles.clear, { minWidth: clearTarget(), minHeight: clearTarget() }]}
+                        style={[styles.clear, { minWidth: touchFloor(), minHeight: touchFloor() }]}
                     >
                         <Icon name="x" size={20} />
                     </Pressable>

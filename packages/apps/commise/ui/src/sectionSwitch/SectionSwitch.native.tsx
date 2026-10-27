@@ -10,6 +10,7 @@
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.native.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
     },
     links: { flex: 1, minWidth: 0 },
     row: { flexDirection: 'row', alignItems: 'center' },
-    link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
+    link: { minHeight: touchFloor(), justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
     label: { ...nativeTokens.type.label },
     hereBar: {
         position: 'absolute',

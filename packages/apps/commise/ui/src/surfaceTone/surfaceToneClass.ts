@@ -12,7 +12,9 @@
  * ## How a control reads its surface
  *
  * A surface sets four INHERITING custom properties (`--cm-surface`, `--cm-press`, `--cm-chip-fill`, `--cm-chip-press`)
- * to role colours (`var(--color-…)`), which the dark block re-themes. A descendant reads them in its own utility, so a
+ * to colour properties (`var(--color-…)`), which the dark block re-themes. The chip pair names the tone's own
+ * `--color-chip-fill-<tone>` and `--color-chip-press-<tone>`, because a chip's fill is chosen per theme (§10b) and the
+ * stylesheet gives each its light and dark value from the table. A descendant reads them in its own utility, so a
  * container that states nothing hands its parent's tone down unchanged, and a control outside every surface reads the
  * fallback in its utility: the canvas row. All four are set on every tone, so a surface nested in another never
  * inherits a stale press.
@@ -28,22 +30,22 @@ import type { SurfaceTone } from './surfaceTone.js';
 export const SURFACE_TONE_CLASS: Readonly<Record<SurfaceTone, string>> = {
     canvas:
         'bg-canvas [--cm-surface:var(--color-canvas)] [--cm-press:var(--color-press-canvas)] ' +
-        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+        '[--cm-chip-fill:var(--color-chip-fill-canvas)] [--cm-chip-press:var(--color-chip-press-canvas)]',
     paper:
         'bg-paper [--cm-surface:var(--color-paper)] [--cm-press:var(--color-press-paper)] ' +
-        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+        '[--cm-chip-fill:var(--color-chip-fill-paper)] [--cm-chip-press:var(--color-chip-press-paper)]',
     paperRaised:
         'bg-paper-raised [--cm-surface:var(--color-paper-raised)] [--cm-press:var(--color-press-paper-raised)] ' +
-        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+        '[--cm-chip-fill:var(--color-chip-fill-paper-raised)] [--cm-chip-press:var(--color-chip-press-paper-raised)]',
     paperOverlay:
         'bg-paper-overlay [--cm-surface:var(--color-paper-overlay)] [--cm-press:var(--color-press-paper-overlay)] ' +
-        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+        '[--cm-chip-fill:var(--color-chip-fill-paper-overlay)] [--cm-chip-press:var(--color-chip-press-paper-overlay)]',
     inverse:
         'bg-inverse [--cm-surface:var(--color-inverse)] [--cm-press:var(--color-press-inverse)] ' +
-        '[--cm-chip-fill:var(--color-surface-muted)] [--cm-chip-press:var(--color-press-muted)]',
+        '[--cm-chip-fill:var(--color-chip-fill-inverse)] [--cm-chip-press:var(--color-chip-press-inverse)]',
     muted:
         'bg-surface-muted [--cm-surface:var(--color-surface-muted)] [--cm-press:var(--color-press-muted)] ' +
-        '[--cm-chip-fill:var(--color-paper)] [--cm-chip-press:var(--color-press-paper)]',
+        '[--cm-chip-fill:var(--color-chip-fill-muted)] [--cm-chip-press:var(--color-chip-press-muted)]',
 };
 
 /**

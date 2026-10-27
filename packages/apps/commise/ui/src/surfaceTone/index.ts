@@ -4,7 +4,10 @@
  * `@commise/ui/surface-tone`.
  */
 export {
+    chipFillRoleOf,
+    chipFillVarOf,
     chipPressToneOf,
+    chipPressVarOf,
     DEFAULT_SURFACE_TONE,
     PRESS_INK_ALPHA,
     pressFillsOf,

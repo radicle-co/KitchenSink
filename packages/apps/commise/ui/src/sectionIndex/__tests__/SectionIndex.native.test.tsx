@@ -16,6 +16,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ContainerClass } from '../../layout/containerClass.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
+import { Surface } from '../../surfaceTone/Surface.native.js';
+import { themeFor } from '../../theme/themeFor.js';
 import { role, roleDark } from '../../tokens/colors.js';
 import type { SectionIndexItem, SectionIndexProps } from '../props.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
@@ -29,6 +31,8 @@ const state = vi.hoisted(() => ({
     /** Each pressable's `aria-selected`, by its `aria-label`: React Native has no `aria-current`, so this is what a
      * device's screen reader hears (react-native-web writes `aria-current` to the DOM; a device ignores it). */
     selected: new Map<string, boolean | undefined>(),
+    /** Whether every pressable renders its `pressed` branch (react-native-web does not toggle it from jsdom events). */
+    pressed: false,
 }));
 
 vi.mock('react-native', async (importOriginal) => {
@@ -41,6 +45,16 @@ vi.mock('react-native', async (importOriginal) => {
             if (typeof props['aria-label'] === 'string') {
                 state.hints.set(props['aria-label'], props.accessibilityHint);
                 state.selected.set(props['aria-label'], props['aria-selected']);
+            }
+
+            if (state.pressed) {
+                const style = typeof props.style === 'function' ? props.style({ pressed: true }) : props.style;
+
+                return createElement(
+                    actual.View,
+                    { role: props.role as never, 'aria-label': props['aria-label'], style },
+                    props.children as never,
+                );
             }
 
             return createElement(actual.Pressable, props);
@@ -57,6 +71,7 @@ afterEach(() => {
     state.scheme = null;
     state.hints.clear();
     state.selected.clear();
+    state.pressed = false;
 });
 
 const ITEMS: readonly SectionIndexItem[] = [
@@ -257,5 +272,33 @@ describe('SectionIndex (native)', () => {
             expect(seen).toEqual(['jump steps, sheet closed', 'onJump steps']);
             expect(screen.queryByText('Sections')).toBeNull();
         });
+    });
+});
+
+describe('SectionIndex (native) — a pressed row takes the press of the surface it sits on (componentFixes.md §10a)', () => {
+    it.each(['light', 'dark'] as const)('presses a rail row to the paperRaised press in %s', (scheme) => {
+        state.scheme = scheme;
+        state.pressed = true;
+        render(
+            <ScrollHostContext.Provider value={fakeHost(vi.fn())}>
+                <Surface tone="paperRaised">
+                    <SectionIndex
+                        label={NAV}
+                        sheetTitle="Sections"
+                        sheetCloseLabel="Close sections"
+                        items={ITEMS}
+                        currentId="ingredients"
+                        barName={BAR_NAME}
+                        barCount="⚠ 3"
+                    />
+                </Surface>
+            </ScrollHostContext.Provider>,
+        );
+        const row = within(screen.getByRole('navigation', { name: NAV })).getByRole('link', { name: 'Steps' });
+
+        expect(getComputedStyle(row).backgroundColor).toBe(formatRgb(themeFor(scheme).press.paperRaised));
+        expect(getComputedStyle(row).backgroundColor).not.toBe(
+            formatRgb(scheme === 'dark' ? roleDark.surfaceMuted : role.surfaceMuted),
+        );
     });
 });

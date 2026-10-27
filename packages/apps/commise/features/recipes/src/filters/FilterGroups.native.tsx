@@ -23,6 +23,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { SearchField } from '@commise/ui/search-field';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import { useId, useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -274,13 +275,13 @@ const styles = StyleSheet.create({
     meta: { ...nativeTokens.type.meta },
     textButton: {
         alignSelf: 'flex-start',
-        minHeight: 44,
+        minHeight: touchFloor(),
         justifyContent: 'center',
         paddingHorizontal: nativeTokens.spacing[1],
     },
-    option: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
+    option: { minHeight: touchFloor(), justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
     disclosure: {
-        minHeight: 44,
+        minHeight: touchFloor(),
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',

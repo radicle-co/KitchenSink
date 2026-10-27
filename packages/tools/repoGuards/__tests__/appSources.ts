@@ -4,7 +4,8 @@
  * ## Why this is a module and not copied into each guard
  *
  * `pressWashLiterals`, `ringOffsetColour` and `typeScaleLiterals` each carried their own "list the app modules" and "visit
- * every string-like node", and `offScaleRadius` a third reading with its own directory walk. They had already drifted (one
+ * every string-like node", and `offScaleRadius` a third reading with its own directory walk (which also read `ui/test/stubs`, that the others
+ * excluded). They had already drifted (one
  * excluded `/ui/src/tokens/`, one did not; one listed the index, one the tree). A guard that silently stops reading a
  * file passes vacuously forever, so the discovery and the reading are written once, here, beside `serviceSources.ts`,
  * and a guard supplies only its rule. Mechanism lives here; invariants live in the guards.

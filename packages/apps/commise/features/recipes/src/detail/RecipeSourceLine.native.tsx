@@ -18,6 +18,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
 import { safeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
     // would take its full intrinsic width and push the link past the screen edge — the same failure the
     // detail's ingredient row already documents.
     attribution: { ...nativeTokens.type.meta, flexShrink: 1 },
-    linkTouch: { flexShrink: 1, minHeight: 44, justifyContent: 'center' },
+    linkTouch: { flexShrink: 1, minHeight: touchFloor(), justifyContent: 'center' },
     // Contrast (WCAG AA): `actionText` is 6.20:1 on the light page, 9.61:1 on the dark one (`darkTheme.md` §3.1). Underlined so the affordance does not
     // ride on colour alone (SC 1.4.1).
     link: {

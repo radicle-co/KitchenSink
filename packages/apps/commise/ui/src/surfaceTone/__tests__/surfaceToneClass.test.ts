@@ -13,7 +13,10 @@ import type { Role } from '../../tokens/colors.js';
 import {
     CHIP_FILL_VAR,
     CHIP_PRESS_VAR,
+    chipFillRoleOf,
+    chipFillVarOf,
     chipPressToneOf,
+    chipPressVarOf,
     PRESS_VAR,
     pressVarOf,
     SURFACE_TONES,
@@ -26,7 +29,7 @@ import { CHIP_REST_FILL_CLASS, PRESS_FILL_CLASS, SURFACE_TONE_CLASS, surfaceTone
 /** The role a `var(--color-<kebab>)` reads, from its kebab name. */
 function roleOfVar(declaration: string): Role {
     const name = /var\(--color-([a-z-]+)\)/u.exec(declaration)?.[1];
-    const roles = new Set<Role>(Object.values(SURFACE_TONES).flatMap((row) => [row.fill, row.chipFill]));
+    const roles = new Set<Role>(Object.values(SURFACE_TONES).map((row) => row.fill));
     const found = [...roles].find((candidate) => kebab(candidate) === name);
 
     if (found === undefined) {
@@ -72,8 +75,9 @@ describe('SURFACE_TONE_CLASS', () => {
             expect(classes.split(/\s+/u)).toContain(`bg-${kebab(row.fill)}`);
             expect(roleOfVar(propertyOf(classes, SURFACE_VAR))).toBe(row.fill);
             expect(pressToneOfVar(propertyOf(classes, PRESS_VAR))).toBe(name);
-            expect(roleOfVar(propertyOf(classes, CHIP_FILL_VAR))).toBe(row.chipFill);
-            expect(pressToneOfVar(propertyOf(classes, CHIP_PRESS_VAR))).toBe(chipPressToneOf(name));
+            // The chip's fill is per theme, so the class names the tone's own property and the stylesheet resolves it.
+            expect(propertyOf(classes, CHIP_FILL_VAR)).toBe(`var(${chipFillVarOf(name)})`);
+            expect(propertyOf(classes, CHIP_PRESS_VAR)).toBe(`var(${chipPressVarOf(name)})`);
         });
     }
 
@@ -99,7 +103,7 @@ describe('PRESS_FILL_CLASS', () => {
     });
 
     it('has a chip variant that reads the chip’s own press property with the muted-chip-on-canvas fallback', () => {
-        const fallback = `var(${pressVarOf(chipPressToneOf('canvas'))})`;
+        const fallback = `var(${pressVarOf(chipPressToneOf('canvas', 'light'))})`;
 
         expect(PRESS_FILL_CLASS.chip).toBe(
             `hover:bg-(${CHIP_PRESS_VAR},${fallback}) active:bg-(${CHIP_PRESS_VAR},${fallback})`,
@@ -107,6 +111,8 @@ describe('PRESS_FILL_CLASS', () => {
     });
 
     it('rests a chip on the surface’s chip fill, falling back to the canvas row’s', () => {
-        expect(CHIP_REST_FILL_CLASS).toBe(`bg-(${CHIP_FILL_VAR},var(--color-${kebab(SURFACE_TONES.canvas.chipFill)}))`);
+        expect(CHIP_REST_FILL_CLASS).toBe(
+            `bg-(${CHIP_FILL_VAR},var(--color-${kebab(chipFillRoleOf('canvas', 'light'))}))`,
+        );
     });
 });

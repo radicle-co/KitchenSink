@@ -6,8 +6,9 @@
  *
  * A tone names two colour ROLES (D15), so each re-themes through the dark block with no per-site work:
  *  - `fill`: what the surface paints, and the colour of the focus ring's gap around a control on it;
- *  - `chipFill`: what a chip rests on there. Paper on a muted surface, because a muted chip on a muted card would be
- *    invisible; `surfaceMuted` on every other (§10a).
+ *  - `chipFill`: what a chip rests on there, PER THEME. Paper on a muted surface, because a muted chip on a muted card
+ *    would be invisible; `surfaceMuted` on every other (§10a), except that on `paperRaised` it is `paper` in dark, where
+ *    `paperRaised` IS `surfaceMuted` (#212B36) and a `surfaceMuted` chip would vanish (§10b).
  *
  * The PRESS is not stored: it is the fill with the theme's ink laid over it ({@link pressFillsOf}), so it cannot drift
  * from the fill it presses. A chip's press is the press of the surface whose fill the chip rests on
@@ -34,23 +35,26 @@ export interface SurfaceToneRow {
     readonly fill: Role;
     /** The ink laid over the fill to make its press: the page's `ink`, or the surface's own on an inverse one. */
     readonly ink: Role;
-    /** What a chip rests on there. */
-    readonly chipFill: Role;
+    /** What a chip rests on there, in each theme. Read through {@link chipFillRoleOf}. */
+    readonly chipFill: Readonly<Record<PressScheme, Role>>;
 }
 
 /** The tone a control reads when no surface states one: the page. */
 export const DEFAULT_SURFACE_TONE: SurfaceTone = 'canvas';
 
+/** A chip on `surfaceMuted` in both themes: the resting fill of every tone but `muted` and `paperRaised`. */
+const REST_ON_MUTED: Readonly<Record<PressScheme, Role>> = { light: 'surfaceMuted', dark: 'surfaceMuted' };
+
 /** Every tone's row. Typed over the union, so a tone added without a row does not compile. */
 export const SURFACE_TONES: Readonly<Record<SurfaceTone, SurfaceToneRow>> = {
-    canvas: { fill: 'canvas', ink: 'ink', chipFill: 'surfaceMuted' },
-    paper: { fill: 'paper', ink: 'ink', chipFill: 'surfaceMuted' },
-    paperRaised: { fill: 'paperRaised', ink: 'ink', chipFill: 'surfaceMuted' },
-    paperOverlay: { fill: 'paperOverlay', ink: 'ink', chipFill: 'surfaceMuted' },
-    muted: { fill: 'surfaceMuted', ink: 'ink', chipFill: 'paper' },
+    canvas: { fill: 'canvas', ink: 'ink', chipFill: REST_ON_MUTED },
+    paper: { fill: 'paper', ink: 'ink', chipFill: REST_ON_MUTED },
+    paperRaised: { fill: 'paperRaised', ink: 'ink', chipFill: { light: 'surfaceMuted', dark: 'paper' } },
+    paperOverlay: { fill: 'paperOverlay', ink: 'ink', chipFill: REST_ON_MUTED },
+    muted: { fill: 'surfaceMuted', ink: 'ink', chipFill: { light: 'paper', dark: 'paper' } },
     // `inverse` presses with `inverseInk`: the page ink is the same colour as the fill there and would show nothing
     // (`componentFixes.md` §10b). Nothing rests a chip on it; the entry keeps the table total.
-    inverse: { fill: 'inverse', ink: 'inverseInk', chipFill: 'surfaceMuted' },
+    inverse: { fill: 'inverse', ink: 'inverseInk', chipFill: REST_ON_MUTED },
 };
 
 /** The tones, in table order. */
@@ -105,19 +109,31 @@ export function pressFillsOf(
 }
 
 /**
- * The surface a chip's press follows: the one whose fill IS the chip's resting fill on `tone`, found in the table
- * rather than stored beside it, so a chip's press cannot disagree with the surface it rests on. Pure.
+ * The role a chip rests on over `tone` in one theme. Pure.
  *
  * @param tone - The surface the chip sits on.
+ * @param scheme - Which theme.
+ * @returns The chip's resting fill role.
+ */
+export function chipFillRoleOf(tone: SurfaceTone, scheme: PressScheme): Role {
+    return SURFACE_TONES[tone].chipFill[scheme];
+}
+
+/**
+ * The surface a chip's press follows: the one whose fill IS the chip's resting fill on `tone` in `scheme`, found in the
+ * table rather than stored beside it, so a chip's press cannot disagree with the surface it rests on. Pure.
+ *
+ * @param tone - The surface the chip sits on.
+ * @param scheme - Which theme.
  * @returns The tone whose press the chip takes.
  * @throws Error when no surface paints the chip's resting fill (the table was edited into an inconsistent state).
  */
-export function chipPressToneOf(tone: SurfaceTone): SurfaceTone {
-    const resting = SURFACE_TONES[tone].chipFill;
+export function chipPressToneOf(tone: SurfaceTone, scheme: PressScheme): SurfaceTone {
+    const resting = chipFillRoleOf(tone, scheme);
     const surface = SURFACE_TONE_NAMES.find((name) => SURFACE_TONES[name].fill === resting);
 
     if (surface === undefined) {
-        throw new Error(`No surface paints ${resting}, the fill a chip rests on over "${tone}".`);
+        throw new Error(`No surface paints ${resting}, the fill a chip rests on over "${tone}" in ${scheme}.`);
     }
 
     return surface;
@@ -126,4 +142,14 @@ export function chipPressToneOf(tone: SurfaceTone): SurfaceTone {
 /** The custom property a tone's press fill is emitted under (`themeCss.ts`): `--color-press-paper-overlay`. */
 export function pressVarOf(tone: SurfaceTone): string {
     return `--color-press-${kebab(tone)}`;
+}
+
+/** The custom property a tone's chip fill is emitted under (`themeCss.ts`): `--color-chip-fill-paper-raised`. */
+export function chipFillVarOf(tone: SurfaceTone): string {
+    return `--color-chip-fill-${kebab(tone)}`;
+}
+
+/** The custom property a tone's chip press fill is emitted under (`themeCss.ts`): `--color-chip-press-paper-raised`. */
+export function chipPressVarOf(tone: SurfaceTone): string {
+    return `--color-chip-press-${kebab(tone)}`;
 }

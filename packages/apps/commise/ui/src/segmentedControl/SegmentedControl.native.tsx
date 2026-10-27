@@ -8,13 +8,14 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
 
 /** Where an `adaptive` route control stops filling the row and takes its content's width, in dp (`containerThreshold.regular`). */
@@ -22,9 +23,6 @@ const ADAPTIVE_FROM = 600;
 
 /** A content-width route segment's floor, in dp: two place names must not squeeze (W-25). */
 const CONTENT_SEGMENT_MIN = 136;
-
-/** The track's height: 44 pt on iOS, 48 dp on Android (spec §1.6). */
-const trackHeight = (): number => (Platform.OS === 'android' ? 48 : 44);
 
 /** One segment, with the roles its control's form gives it. */
 interface SegmentFace {
@@ -70,7 +68,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
             tone="muted"
             role={roles.track}
             aria-label={props.label}
-            style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: trackHeight() }]}
+            style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: touchFloor() }]}
         >
             {faces.map((face) => (
                 <Pressable

@@ -35,7 +35,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { APP_SOURCE_EXCLUDED, appSourceModules } from './appSources.js';
+import { APP_SOURCE_EXCLUDED, appSourceModules, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** A Tailwind arbitrary text size: `text-[13px]`, `text-[0.8125rem]`, behind any variant prefix. */
@@ -138,21 +138,19 @@ export function typeScaleLiterals(
             if (literal !== undefined) {
                 report(node, `${key ?? ''}={${literal.text}}`);
             }
-        } else if (
-            (ts.isStringLiteralLike(node) ||
-                ts.isTemplateHead(node) ||
-                ts.isTemplateMiddle(node) ||
-                ts.isTemplateTail(node) ||
-                ts.isJsxText(node)) &&
-            ARBITRARY_TEXT_SIZE.test(node.text)
-        ) {
-            report(node, (ARBITRARY_TEXT_SIZE.exec(node.text)?.[0] ?? '').replace(/^[\s"'`:]+/u, ''));
         }
 
         ts.forEachChild(node, visit);
     };
 
     visit(file);
+
+    // The arbitrary-size class is a string-like node's text, read by the shared reader (`appSources.ts`).
+    for (const { node, text } of stringLikeTexts(fileName, source)) {
+        if (ARBITRARY_TEXT_SIZE.test(text)) {
+            report(node, (ARBITRARY_TEXT_SIZE.exec(text)?.[0] ?? '').replace(/^[\s"'`:]+/u, ''));
+        }
+    }
 
     return found;
 }

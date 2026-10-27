@@ -4,11 +4,11 @@
  * ring gaps in canvas around a control on paper, and a press shows nothing on a muted card.
  *
  * The rule, read with the TypeScript parser (never by component name; a control is found by its ATTRIBUTES):
- *  - WEB: a JSX element whose `className` carries a bare `bg-paper`, `bg-paper-overlay` or `bg-surface-muted` token, and
+ *  - WEB: a JSX element whose `className` carries a bare `bg-paper`, `bg-paper-raised`, `bg-paper-overlay`, `bg-surface-muted` or `bg-inverse` token, and
  *    which has a descendant JSX element in the same file with `onClick`, `onPress`, `href` or `onValueChange` (the
  *    attributes of a control that wears our press and focus recipes), is a violation. A `bg-*` behind a variant (`hover:bg-surface-muted`, a press) is not a surface.
- *  - NATIVE: a JSX element whose `style` paints `backgroundColor` from `colors.paper`, `colors.paperOverlay` or
- *    `colors.surfaceMuted`, with such a descendant, is a violation.
+ *  - NATIVE: a JSX element whose `style` paints `backgroundColor` from `colors.paper`, `colors.paperRaised`,
+ *    `colors.paperOverlay`, `colors.surfaceMuted` or `colors.inverse`, with such a descendant, is a violation.
  *
  * A `className` that names a same-file `const` (`className={CARD}`, `${BASE}`, `ROWS[kind]`) is followed to the constant's
  * strings, to a fixed depth, because this codebase holds its class lists in constants.

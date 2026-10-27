@@ -20,12 +20,13 @@
  *
  * @pattern Visitor — a walk over the parsed syntax tree
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import ts from 'typescript';
 
-import { classTokensOf, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
+import { repoRoot } from './serviceSources.js';
 
 /** The radius steps a class suffix or token name may be. */
 const STEPS = ['sm', 'md', 'lg', 'xl', 'full'] as const;
@@ -47,23 +48,6 @@ const RADIUS_PROPERTY = /^border(?:(?:Top|Bottom)(?:Left|Right|Start|End)|(?:Sta
 
 /** A radius token reference: `radius.md`, `nativeTokens.radius.lg`. */
 const TOKEN_REFERENCE = new RegExp(`(?:^|\\.)radius\\.(?:${STEPS.join('|')})$`, 'u');
-
-/** A directory the scan never enters. */
-const SKIPPED_DIRECTORIES = new Set([
-    'node_modules',
-    'dist',
-    '.next',
-    '.expo',
-    '.turbo',
-    'coverage',
-    '__tests__',
-    '__fixtures__',
-    'tests',
-    'test-results',
-    'playwright-report',
-    'android',
-    'ios',
-]);
 
 /** One off-scale radius: where it is and what it says. */
 export interface Offender {
@@ -135,13 +119,7 @@ function isOnScaleValue(value: ts.Expression, glyph: boolean): boolean {
  * @param text - The source.
  */
 export function offScaleRadiusIn(file: string, text: string): readonly Offender[] {
-    const source = ts.createSourceFile(
-        file,
-        text,
-        ts.ScriptTarget.Latest,
-        true,
-        file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-    );
+    const source = parseModule(file, text);
     const glyph = GLYPH_PATTERN.test(text);
     const found: Offender[] = [];
 
@@ -177,39 +155,26 @@ export function offScaleRadiusIn(file: string, text: string): readonly Offender[
     return found;
 }
 
-/** Every app source file (not a test, fixture or build output) under a directory. Impure. */
-function sourcesUnder(directory: string): readonly string[] {
-    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-        const full = path.join(directory, entry.name);
-
-        if (entry.isDirectory()) {
-            return SKIPPED_DIRECTORIES.has(entry.name) ? [] : sourcesUnder(full);
-        }
-
-        return /\.tsx?$/u.test(entry.name) && !/\.(?:test|spec|d)\.tsx?$/u.test(entry.name) ? [full] : [];
-    });
-}
-
 /**
- * The app source files the guard reads.
+ * The app source files the guard reads: `appSourceModules()`, the one discovery every app guard shares.
  *
- * @param appsRoot - The absolute path of `packages/apps`.
- * @sideEffect Reads the file system.
+ * @returns Repo-relative paths, sorted.
+ * @sideEffect Shells out to git and stats the working tree.
  */
-export function appSources(appsRoot: string): readonly string[] {
-    return sourcesUnder(appsRoot);
+export function appSources(): readonly string[] {
+    return appSourceModules();
 }
 
 /**
  * Every off-scale radius under `packages/apps`, as `path:line  text`.
  *
- * @param appsRoot - The absolute path of `packages/apps`.
+ * @returns One line per offender, the path repo-relative.
  * @sideEffect Reads the file system.
  */
-export function offScaleRadiusUnder(appsRoot: string): readonly string[] {
-    return appSources(appsRoot).flatMap((file) =>
-        offScaleRadiusIn(file, readFileSync(file, 'utf8')).map(
-            (hit) => `${path.relative(appsRoot, hit.file)}:${String(hit.line)}  ${hit.text}`,
+export function offScaleRadiusUnder(): readonly string[] {
+    return appSources().flatMap((file) =>
+        offScaleRadiusIn(file, readFileSync(path.join(repoRoot, file), 'utf8')).map(
+            (hit) => `${hit.file}:${String(hit.line)}  ${hit.text}`,
         ),
     );
 }

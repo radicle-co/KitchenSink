@@ -26,7 +26,7 @@ appId: ${APP_ID}
       visible: 'Your recipe box is empty'
       timeout: 40000
 - assertVisible: 'Add a recipe you love, or paste an ingredient list and we’ll set it up.'
-- assertVisible: 'Add your first recipe'
+- assertVisible: 'Add a recipe'
 # Slice 4 (`buildSpec.md` §4.3): the first run offers paste beside the editor, and hides the search.
 - assertVisible: 'Paste ingredients'
 - assertNotVisible: 'Search your recipes'
@@ -45,7 +45,7 @@ appId: ${APP_ID}
 
 # The empty state is not a dead end: its CTA is a real control that opens the one-page editor (its × is the editor's
 # own control; 'New recipe' would also match the FAB).
-- tapOn: 'Add your first recipe'
+- tapOn: 'Add a recipe'
 - extendedWaitUntil:
       visible: 'Close editor'
       timeout: 30000

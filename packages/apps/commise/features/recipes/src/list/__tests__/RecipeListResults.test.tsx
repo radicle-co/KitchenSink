@@ -215,7 +215,7 @@ describe('RecipeListResults (web) — the first run', () => {
         expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
         expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
 
-        await userEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
         await userEvent.click(screen.getByRole('button', { name: 'Paste ingredients' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);

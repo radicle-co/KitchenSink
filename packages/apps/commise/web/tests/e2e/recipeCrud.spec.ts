@@ -39,7 +39,7 @@ test.describe('recipe CRUD (T079)', () => {
         // permanent skeleton reached a human. The first-run state has its own spec now
         // (`recipeListEmptyStates.spec.ts`); this one pins the populated state it actually exercises.
         await expect(page.getByRole('article', { name: 'Seed Recipe' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Add your first recipe' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Add a recipe' })).toHaveCount(0);
         await page.getByRole('button', { name: 'New recipe' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 

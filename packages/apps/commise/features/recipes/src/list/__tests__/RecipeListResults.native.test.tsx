@@ -224,7 +224,7 @@ describe('RecipeListResults (native) — states', () => {
         expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
         fireEvent.click(screen.getByRole('button', { name: 'Paste ingredients' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);

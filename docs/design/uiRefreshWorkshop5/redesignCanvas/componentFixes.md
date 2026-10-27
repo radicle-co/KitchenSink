@@ -133,3 +133,22 @@ The parity fixes merged into `@commise/ui` on fix/ingredient-matching with these
 6. A pressed primary button takes `actionPressed` on both platforms. A pressed danger button takes `dangerPressed`:
    `#A33F2A` light (white label 6.36:1), `#CC6A52` dark (dark label 4.99:1).
 7. The neutral, difficulty and PRO badges are pinned as values retuned after the handoff.
+
+## 10. A surface states itself once (amends §9 items 3 and 4)
+
+Decided 2026-10-27, after the push check found the `over="muted"` prop on only one of six controls that sit on a muted
+card, and a focus-ring gap painted in `canvas` around controls on paper, sheets and muted cards (in dark, a `#0E161E`
+ring on `#172029`). A per-call-site prop and 43 hand-copied ring classes cannot stay correct, so each surface container
+states its surface once and every control reads it.
+
+- The surfaces are `canvas` (the default), `paper`, `paper-raised`, `paper-overlay` (sheets, dialogs, menus),
+  `surface-muted` and `inverse`.
+- Web: the surface container sets an inheriting custom property `--surface` to its own colour token. A control reads it:
+  the focus ring offset is `--surface`, and the press fill is `surface-muted`, or `line-divider` when the surface is
+  `surface-muted`. On `inverse` the press fill is the inverse wash and the focus ring is `inverse-action`.
+- Native: a surface context with the same values, set by the same containers. Button and the other pressables read it
+  by default.
+- The `over` prop and the per-site `ring-offset-canvas` classes are retired. A guard refuses a hand-written ring-offset
+  colour or press fill on a control.
+- A container that does not set a surface inherits its parent's, so a missed container falls back to the page, never
+  to a wrong colour.

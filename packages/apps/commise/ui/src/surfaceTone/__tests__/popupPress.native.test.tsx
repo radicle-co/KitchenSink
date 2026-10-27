@@ -124,6 +124,7 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
     it('a Combobox option in its list presses to paperOverlay, while the field’s own buttons press to the muted row', () => {
         systemScheme.current = scheme;
         press.pressed = true;
+
         const Host: FC = () => {
             const [value, setValue] = useState('');
 

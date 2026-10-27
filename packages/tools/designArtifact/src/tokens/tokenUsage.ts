@@ -48,6 +48,7 @@ export const ROLE_USAGE: Readonly<Record<Role, string>> = {
     attention: 'Caution text.',
     attentionTint: 'Caution surface under ink or attention text.',
     danger: 'Destructive fill. Carries a white label.',
+    dangerPressed: 'Pressed end of the destructive fill. Carries the same label as the fill.',
     dangerText: 'Error copy and destructive labels.',
     inverse: 'Surface that flips the theme, such as a toast.',
     inverseInk: 'Text on inverse.',

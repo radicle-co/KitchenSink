@@ -235,3 +235,25 @@ describe('laneReducer — a Discard storage refused', () => {
         expect(laneReducer(closed, { type: 'discardFailed' })).toBe(closed);
     });
 });
+
+/**
+ * ADDED with the visibility-first Publish: the lane records that the visibility write before a first Publish is out, so
+ * the editor holds checkpoints and answers a second Publish busy until it answers.
+ */
+describe('laneReducer — the visibility write before a first Publish', () => {
+    const sending = laneReducer(EMPTY_LANE, { type: 'visibilityStarted' });
+
+    it('is recorded while the write is out, and cleared by its answer', () => {
+        expect(sending).toStrictEqual({ settingVisibility: true });
+        expect(laneReducer(sending, { type: 'visibilityAnswered' })).toStrictEqual({});
+    });
+
+    it('is idempotent both ways, and keeps a deferred trigger across the answer', () => {
+        expect(laneReducer(sending, { type: 'visibilityStarted' })).toBe(sending);
+        expect(laneReducer(EMPTY_LANE, { type: 'visibilityAnswered' })).toBe(EMPTY_LANE);
+
+        const deferred = laneReducer(sending, { type: 'refusedInFlight', trigger: 'publish' });
+
+        expect(laneReducer(deferred, { type: 'visibilityAnswered' })).toStrictEqual({ deferred: 'publish' });
+    });
+});

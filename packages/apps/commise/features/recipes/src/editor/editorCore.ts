@@ -59,7 +59,10 @@ export type ServerFacts =
           readonly baseVersion: number;
           /** A published recipe's re-picks, held until Save changes (blueprint A3), oldest first, one per line. */
           readonly held: readonly PendingRebind[];
-          /** A held re-pick failed while Save changes drained it: the save stopped, and Retry runs it again. */
+          /**
+           * A step before the finishing write failed: a held re-pick while Save changes drained it, or the visibility write
+           * before a first Publish. The write stopped, and Retry runs it again.
+           */
           readonly drainFailed: boolean;
       };
 

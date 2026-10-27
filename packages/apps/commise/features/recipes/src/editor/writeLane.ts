@@ -44,6 +44,12 @@ export interface LaneState {
     /** The strongest checkpoint refused while a write was on the wire, run once its answer lands. */
     readonly deferred?: CheckpointTrigger;
     /**
+     * The visibility write that comes before a first Publish is on the wire (`writeVisibilityFirst`). It is no outbox
+     * record, so it is no `outstanding` write; but a draft write or a second Publish sent meanwhile would race it, so every
+     * checkpoint is deferred and Publish answers busy until it answers.
+     */
+    readonly settingVisibility?: true;
+    /**
      * The editor handed off (published, saved, discarded or left): no checkpoint runs again. It lives here, not in
      * React state, because a trigger can arrive in the same tick as the hand-off — navigation announces a leave
      * synchronously, inside the exit — and must see it before the next render does.
@@ -91,6 +97,8 @@ export type LaneEvent =
     | { readonly type: 'parked'; readonly seq: number }
     | { readonly type: 'withdrawn'; readonly seq: number }
     | { readonly type: 'deferredTaken' }
+    | { readonly type: 'visibilityStarted' }
+    | { readonly type: 'visibilityAnswered' }
     | { readonly type: 'closed' }
     | { readonly type: 'discarding' }
     /** The outbox declined the Discard because a write of the recipe is on the wire: nothing was queued or dropped. */
@@ -191,6 +199,15 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
             const { deferred: _taken, ...rest } = state;
 
             return rest;
+        }
+
+        case 'visibilityStarted':
+            return state.settingVisibility === true ? state : { ...state, settingVisibility: true };
+
+        case 'visibilityAnswered': {
+            const { settingVisibility: _answered, ...rest } = state;
+
+            return state.settingVisibility === true ? rest : state;
         }
 
         case 'closed': {

@@ -120,6 +120,7 @@ import {
     liveRecipeOf,
     outstandingOf,
 } from '../editor/editorView.js';
+import { visibilityFollowUp } from '../editor/visibilityFollowUp.js';
 import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
 import type { PasteHold } from '../editor/pasteHold.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
@@ -142,6 +143,12 @@ import {
     type QueuedLineCommand,
     type RebindLineSend,
 } from './lineCommit.js';
+
+/**
+ * Sends one visibility write and answers with the recipe it produced. It makes no version, so the next update still names
+ * the version the editor holds.
+ */
+export type VisibilitySend = (id: string, visibility: RecipeVisibility) => Promise<RecipeDetail>;
 
 /** A recipe write's answer, as the outbox's sender reports it (the app's `SyncAnswer`, structurally). */
 export type EditorWriteAnswer =
@@ -238,6 +245,12 @@ export interface UseRecipeEditorOptions {
     readonly onRecipeRef?: (ref: string) => void;
     /** Sends one rebind command: how Save changes drains a published recipe's held re-picks (`useRebindIngredientLine`). */
     readonly rebindLine: RebindLineSend;
+    /**
+     * Sends the visibility write that must precede a first Publish (`writeVisibilityFirst`): the app's
+     * `useSetRecipeVisibility`, so the write lands in the mutation cache the recipe page reads a refusal from. REQUIRED, so
+     * no host can publish a recipe public that the cook marked Private.
+     */
+    readonly setVisibility: VisibilitySend;
     /**
      * Reads the recipe the server holds as `id`: how the editor adopts a create another editor of the recipe made, whose
      * answer it never heard (the outbox answers `resolved`). A cache read where the outbox's answer is already cached.
@@ -679,6 +692,63 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
 }
 
 /**
+ * ⛔ THE VISIBILITY COMES BEFORE THE FIRST PUBLISH, never after it. The server skips the private-slot check for a recipe it
+ * holds as public, so a Publish sent first and a Private after it would publish a recipe the cook marked Private as PUBLIC
+ * (owner rule: nothing may turn a private recipe public on its own). A draft takes no slot, so the visibility write
+ * succeeds; the Publish then meets the server's check under its lock with the recipe already private, and is refused
+ * there if no slot is free. The write makes no version (`setVisibility` does not bump it), so the Publish names the same
+ * `expectedVersion`.
+ *
+ * This is the ONE owner of that ordering. It holds the lane while the write is out (`settingVisibility`: checkpoints
+ * defer, a second Publish is busy), adopts the recipe the write answered with, and then runs the Publish again; a write
+ * that fails sends no Publish and stops the save the way a failed held re-pick does (`drainFailed`: the alert with Try
+ * again). A Private the server is known to refuse (`visibilityFollowUp`) is not sent: the Publish goes out public and the
+ * finish says so. A recipe the server does not hold yet needs none: its create carries the visibility.
+ *
+ * @pattern Pipeline step — the first stage of a first Publish, holding the lane like the held re-picks' command queue
+ * @returns Whether the step took over: the Publish runs again when it answers. @sideEffect Sends the visibility write.
+ */
+function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): boolean {
+    const { server, draft } = ctx.core.get();
+
+    if (trigger !== 'publish' || server.kind !== 'stored') {
+        return false;
+    }
+
+    const followUp = visibilityFollowUp(draft.visibility, server.recipe, ctx.opts.privateRefusal);
+
+    if (followUp.kind !== 'send') {
+        return false;
+    }
+
+    // ⛔ A draft save of this editor's own is still out: it makes a version, and the answer adopted below would race its
+    // answer. The Publish waits for it, as any checkpoint does, and the step runs when it lands.
+    if (ctx.lane.get().outstanding !== undefined) {
+        ctx.lane.dispatch({ type: 'refusedInFlight', trigger });
+
+        return true;
+    }
+
+    ctx.lane.dispatch({ type: 'visibilityStarted' });
+
+    void ctx.opts.setVisibility(server.recipe.id, followUp.visibility).then(
+        (detail) => {
+            ctx.lane.dispatch({ type: 'visibilityAnswered' });
+            adoptServerFacts(ctx, detail, undefined);
+            runCheckpoint(ctx, trigger);
+        },
+        (error: unknown) => {
+            ctx.lane.dispatch({ type: 'visibilityAnswered' });
+            ctx.lane.dispatch({ type: 'deferredTaken' });
+            ctx.opts.reportError(error, { operation: 'recipeVisibility' });
+            ctx.core.dispatch({ type: 'drainFailed' });
+        },
+    );
+
+    return true;
+}
+
+/**
  * Write the device draft and, when the policy says so, submit the server write for `trigger`. A write already in the
  * lane, a rebind command, or the held re-picks a Save changes drains first, defer it.
  *
@@ -695,9 +765,17 @@ function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: 
         return;
     }
 
-    if (ctx.core.get().commands.length > 0 || (trigger === 'saveChanges' && drainHeld(ctx))) {
+    if (
+        ctx.lane.get().settingVisibility === true ||
+        ctx.core.get().commands.length > 0 ||
+        (trigger === 'saveChanges' && drainHeld(ctx))
+    ) {
         ctx.lane.dispatch({ type: 'refusedInFlight', trigger });
 
+        return;
+    }
+
+    if (writeVisibilityFirst(ctx, trigger)) {
         return;
     }
 
@@ -743,7 +821,7 @@ function checkGate(
 function runDeferred(ctx: EditorContext, options: CheckpointOptions = {}): void {
     const { deferred, outstanding } = ctx.lane.get();
 
-    if (deferred === undefined || outstanding !== undefined) {
+    if (deferred === undefined || outstanding !== undefined || ctx.lane.get().settingVisibility === true) {
         return;
     }
 
@@ -1095,6 +1173,7 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
     if (
         ctx.core.get().commands.length > 0 ||
         lane.outstanding?.finishing === true ||
+        lane.settingVisibility === true ||
         isFinishingTrigger(lane.deferred)
     ) {
         return { kind: 'busy' };
@@ -1119,7 +1198,7 @@ function retry(ctx: EditorContext): void {
     const { server } = ctx.core.get();
 
     if (server.kind === 'stored' && server.drainFailed) {
-        finish(ctx, ctx.gate.entryText, 'saveChanges');
+        finish(ctx, ctx.gate.entryText, finishingTrigger(lifecycleNow(ctx)));
 
         return;
     }

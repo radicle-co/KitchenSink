@@ -143,6 +143,31 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
     });
 
+    /**
+     * ADDED for the owner rule "nothing may turn a private recipe public on its own": a stored draft the server holds as
+     * Public, marked Private, has the visibility written through the real mutation BEFORE the publish update is queued.
+     */
+    it('⛔ a stored public draft marked Private has its visibility written before the publish is queued', async () => {
+        const client = createFakeRecipeServiceClient();
+        const stored = complete({ visibility: RecipeVisibility.PUBLIC });
+        const setVisibility = vi
+            .spyOn(client, 'setRecipeVisibility')
+            .mockResolvedValue({ ...stored, visibility: RecipeVisibility.PRIVATE });
+        const { result, port } = mount({ recipe: stored }, client);
+
+        act(() => {
+            result.current.editor.setField('visibility', RecipeVisibility.PRIVATE);
+        });
+        act(() => {
+            result.current.editor.publish('');
+        });
+
+        expect(port.submitted).toHaveLength(0);
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(port.submitted).toHaveLength(1));
+        expect(port.submitted[0]).toMatchObject({ intentKind: 'update', payload: { input: { status: 'published' } } });
+    });
+
     it('Save changes on a published recipe finishes as changesSaved', async () => {
         const stored = complete({ status: RecipeStatus.PUBLISHED });
         const { result, port, nav } = mount({ recipe: stored });

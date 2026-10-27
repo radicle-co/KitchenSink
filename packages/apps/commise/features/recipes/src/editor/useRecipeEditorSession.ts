@@ -9,9 +9,10 @@
  * The session binds the editor's lifecycle (`useRecipeEditor`) to everything else it needs:
  *
  * - **The hand-offs, through a navigation port** ({@link EditorNavigation}): the editor says how it handed off, and each
- *   platform says where that goes (web pushes a route, native goes back or to the recipe). A Publish or Save changes
- *   first sends the visibility the write's answer lacks (`visibilityFollowUp`) — never a Private the server is known to
- *   refuse, which the finish reports instead.
+ *   platform says where that goes (web pushes a route, native goes back or to the recipe). A first Publish is
+ *   preceded by the visibility write (the editor's `writeVisibilityFirst`), so a recipe marked Private is never public
+ *   first; a Save changes of a published recipe sends the visibility its answer lacks afterwards (`visibilityFollowUp`).
+ *   Never a Private the server is known to refuse, which the finish reports instead.
  * - **A leave by another route than ×**: the exit checkpoint. Native hears Back and the swipe through `subscribeToLeave`
  *   (`beforeRemove`); on both platforms the editor UNMOUNTING is a leave too, because the web has no such event — browser
  *   Back or a shell link simply unmounts it.
@@ -205,6 +206,9 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         reportError,
         ...(onRecipeRef === undefined ? {} : { onRecipeRef }),
         rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
+        // The first Publish's visibility goes first (`writeVisibilityFirst`), through the same mutation the recipe page reads
+        // a refusal from.
+        setVisibility: (id, visibility) => setVisibility.mutateAsync({ id, visibility }),
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,

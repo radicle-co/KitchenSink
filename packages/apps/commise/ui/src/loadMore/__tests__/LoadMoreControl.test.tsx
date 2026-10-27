@@ -80,30 +80,60 @@ describe('LoadMoreControl (web)', () => {
         expect(screen.getByRole('button', { name: 'Loading…' }).hasAttribute('aria-describedby')).toBe(false);
     });
 
-    // `componentFixes.md` §1: the control wears the quiet surface (it hand-rolled a `surface-muted` pill, which now marks a
-    // chip), so it inherits the radius, busy and disabled states from Button.
-    it('⛔ is the quiet Button in every state, never a tonal pill a chip could be mistaken for', () => {
+    // REWRITTEN for `componentFixes` issue 2 (2026-10-26): Load more was an `ink` label on the quiet surface, which read
+    // as text. Idle and busy now wear the ghost surface (an `actionText` label and glyph, no fill at rest) with a
+    // chevronDown after the label, so colour and glyph mark it pressable. Try again keeps the quiet surface (ink label,
+    // actionText refreshCw). The element is still the SAME button across all three, which a focus test pins below.
+    it('⛔ is a ghost Button while idle and busy, a quiet one when failed; never a tonal pill a chip could be mistaken for', () => {
         const { rerender } = render(control());
         const button = screen.getByRole('button', { name: 'Load more' });
 
-        expect(button.className).toBe(buttonSurfaceClass('quiet'));
-        expect(button.className).not.toContain('surface-muted');
+        expect(button.className).toBe(buttonSurfaceClass('ghost'));
+        expect(button.className).toContain('text-action-text');
+        expect(button.className.split(' ')).not.toContain('text-ink');
+        // No RESTING fill (a pressed fill is surface-muted, behind a `hover:`/`active:` prefix).
+        expect(button.className.split(' ')).not.toContain('bg-surface-muted');
 
         rerender(control({ loading: true }));
         expect(screen.getByRole('button', { name: 'Loading…' })).toBe(button);
-        expect(button.className).toBe(buttonSurfaceClass('quiet'));
+        expect(button.className).toBe(buttonSurfaceClass('ghost'));
 
         rerender(control({ failed: true }));
         expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
         expect(button.className).toBe(buttonSurfaceClass('quiet'));
     });
 
-    it('draws the retry glyph on Try again only', () => {
+    it('draws a chevronDown after the label while idle, as a decorative glyph outside the name', () => {
+        const { container } = render(control());
+        const button = screen.getByRole('button', { name: 'Load more' });
+        const chevron = container.querySelector('svg.lucide-chevron-down');
+
+        expect(chevron).not.toBeNull();
+        expect(button.contains(chevron)).toBe(true);
+        expect(chevron?.closest('[aria-hidden="true"]')).not.toBeNull();
+        expect(button.lastElementChild?.contains(chevron)).toBe(true);
+    });
+
+    it('⛔ keeps focus on the same button from idle through busy to failed', () => {
+        const { rerender } = render(control());
+        const button = screen.getByRole('button', { name: 'Load more' });
+        button.focus();
+
+        rerender(control({ loading: true }));
+        expect(document.activeElement).toBe(button);
+
+        rerender(control({ failed: true }));
+        expect(document.activeElement).toBe(button);
+        expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
+    });
+
+    it('draws the retry glyph on Try again only, and the chevron not there', () => {
         const { container, rerender } = render(control());
 
         expect(container.querySelector('svg.lucide-refresh-cw')).toBeNull();
 
         rerender(control({ failed: true }));
         expect(container.querySelector('svg.lucide-refresh-cw')).not.toBeNull();
+        expect(container.querySelector('svg.lucide-chevron-down')).toBeNull();
     });
 });

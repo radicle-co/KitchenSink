@@ -126,7 +126,7 @@ export function HomeSidebar({
                                 aria-current={active ? 'page' : undefined}
                                 className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
                                     active
-                                        ? 'bg-action/10 font-semibold text-ink'
+                                        ? 'bg-selected-fill font-semibold text-ink'
                                         : 'text-ink-muted hover:bg-ink/6 hover:text-ink'
                                 }`}
                             >

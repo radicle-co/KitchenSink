@@ -6,6 +6,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the platform expression of the web leaf
  */
+import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account/subscriptionEntryPoints';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
@@ -27,7 +28,7 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
     onPublishPublic,
 }) => {
     const { publishBlocked: m } = useMessages(editorMessages);
-    const copy = publishBlockedCopyOf(ask, slotTotal, m);
+    const copy = publishBlockedCopyOf(ask, slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON);
     const { colors } = useTheme();
 
     return (

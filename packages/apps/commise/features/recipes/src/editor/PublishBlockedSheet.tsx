@@ -9,13 +9,14 @@
  * Escape, the scrim and Close all mean Keep as draft, so dismissing can never publish (DSA Art. 25: no nudge into making
  * public what the cook asked to keep private). On the design-system `Sheet`, not `ConfirmDialog`, as
  * `PublishOpenChoicesSheet` is: that primitive is for a destructive step, and this is a non-destructive choice. The Premium
- * line is off until feature 010 exists (`PUBLISH_BLOCKED_PREMIUM_UPSELL`).
+ * line is off until feature 010 exists (`SUBSCRIPTION_ENTRY_POINTS_ON`).
  *
  * Presentational: props in, markup out; the words are `publishBlockedCopyOf`'s. The native leaf is
  * `./PublishBlockedSheet.native.tsx`.
  *
  * @pattern Adapter over the design-system `Sheet` — the ask's words and the one dismiss path on the house sheet
  */
+import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account/subscriptionEntryPoints';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
@@ -34,7 +35,7 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
     onPublishPublic,
 }) => {
     const { publishBlocked: m } = useMessages(editorMessages);
-    const copy = publishBlockedCopyOf(ask, slotTotal, m);
+    const copy = publishBlockedCopyOf(ask, slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON);
 
     return (
         <Sheet

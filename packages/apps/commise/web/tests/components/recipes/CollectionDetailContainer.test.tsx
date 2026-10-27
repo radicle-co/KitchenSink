@@ -543,7 +543,8 @@ describe('CollectionDetailContainer — visibility, with Undo and the Pro sheet'
         await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make private' }));
 
         const sheet = await screen.findByRole('dialog', { name: 'Private collections are part of Pro.' });
-        expect(within(sheet).getByRole('button', { name: 'See Pro' })).toBeInTheDocument();
+        // The subscription entry points ship off (spec 010 T-035): the sheet states the fact and offers only a close control.
+        expect(within(sheet).queryByRole('button', { name: 'See Pro' })).not.toBeInTheDocument();
         expect(update).not.toHaveBeenCalled();
 
         await user.click(within(sheet).getByRole('button', { name: 'Not now' }));

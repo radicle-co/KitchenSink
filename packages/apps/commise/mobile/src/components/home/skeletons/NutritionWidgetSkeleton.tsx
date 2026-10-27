@@ -8,6 +8,7 @@
  */
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -44,9 +45,9 @@ export function NutritionWidgetSkeleton(): JSX.Element {
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-    ring: { width: 64, height: 64, borderRadius: 32, borderWidth: 4 },
+    ring: { width: 64, height: 64, borderRadius: nativeTokens.radius.full, borderWidth: 4 },
     textBlock: { flex: 1, gap: 8 },
-    bar: { borderRadius: 4 },
+    bar: { borderRadius: nativeTokens.radius.sm },
     barOverline: { height: 12, width: 80 },
     barFigure: { height: 28, width: 112 },
     barCaption: { height: 12, width: 96 },

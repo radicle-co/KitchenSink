@@ -102,7 +102,7 @@ const OptionCard: FC<ConflictOptionCardProps & { readonly busy: boolean }> = ({
             {...busyControlProps({ busy: busy && !disabled, blocked: disabled, onClick: onChoose })}
             aria-label={title}
             aria-describedby={descriptionId}
-            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:bg-surface-muted disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
+            className={`flex flex-1 flex-col gap-1 rounded-lg bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:bg-surface-muted disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
         >
             <span aria-hidden="true" className="font-display text-body-lg font-semibold text-ink">
                 {title}
@@ -142,7 +142,7 @@ const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndCl
  * replacement for it).
  */
 const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => (
-    <div className="flex-1 rounded-2xl bg-paper p-4 ring-1 ring-line-divider">
+    <div className="flex-1 rounded-lg bg-paper p-4 ring-1 ring-line-divider">
         <p className="text-label text-ink">{heading}</p>
         {savedLine !== undefined && <p className="text-body-sm text-ink-muted">{savedLine}</p>}
     </div>
@@ -165,7 +165,7 @@ const SideValue: FC<SideValueProps> = ({ children, parts }) => (
  * on wording or behavior. `role="alert"` (mirrors `RecipeDeleteDialog`'s own alert-role warning surfaces).
  */
 const StaleBaseWarning: FC<StaleBaseWarningProps> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
-    <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-attention-tint p-4 ring-1 ring-attention">
+    <div role="alert" className="flex flex-col gap-2 rounded-lg bg-attention-tint p-4 ring-1 ring-attention">
         <p className="text-body-sm text-ink">{warning}</p>
         <label className="flex items-center gap-2 text-body-sm font-medium text-ink">
             <input
@@ -228,7 +228,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 role="radiogroup"
                                 // The name carries a variant's parts (R27); the legend stays the plain label (R25).
                                 aria-label={conflictRowName(row, conflict)}
-                                className="flex flex-col gap-2 rounded-2xl bg-paper p-4 ring-1 ring-line-divider"
+                                className="flex flex-col gap-2 rounded-lg bg-paper p-4 ring-1 ring-line-divider"
                             >
                                 <legend className="text-label text-ink-muted">{label}</legend>
                                 {/* Server FIRST, then Yours (X7). */}
@@ -285,7 +285,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             <p className="text-body-md text-ink-muted">{conflict.explanation}</p>
 
             {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
-            <div className="flex flex-col gap-1 rounded-2xl bg-paper p-4 ring-1 ring-line-divider">
+            <div className="flex flex-col gap-1 rounded-lg bg-paper p-4 ring-1 ring-line-divider">
                 <p className="text-body-md text-ink">{formatServerBanner(server, now, conflict, locale)}</p>
                 <p className="text-body-md text-ink">{conflict.mineBanner}</p>
             </div>
@@ -343,7 +343,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         {diff.rows.map((row) => (
                             <li
                                 key={row.key}
-                                className="flex flex-col gap-2 rounded-2xl bg-paper p-3 ring-1 ring-line-divider"
+                                className="flex flex-col gap-2 rounded-lg bg-paper p-3 ring-1 ring-line-divider"
                             >
                                 <div className="flex items-center gap-2">
                                     <span

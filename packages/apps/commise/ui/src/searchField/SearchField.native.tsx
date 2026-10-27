@@ -101,5 +101,5 @@ const styles = StyleSheet.create({
         paddingEnd: nativeTokens.spacing[1],
     },
     input: { ...nativeTokens.type.body, flex: 1, minHeight: PILL_HEIGHT - 2 },
-    clear: { alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+    clear: { alignItems: 'center', justifyContent: 'center', borderRadius: nativeTokens.radius.full },
 });

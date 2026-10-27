@@ -1310,7 +1310,9 @@
             "kind": "presentational",
             "patterns": [
                 "Adapter over React Native's imperative `Animated` spring — the signature check motion, owned here so the\n    rows that draw it stay pure",
-                "Adapter over a CSS transition — the signature check motion, declared once for every whole-row checkbox"
+                "Adapter over a CSS transition — the signature check motion, declared once for every whole-row checkbox",
+                "Glyph — a fixed 18 pt mark that owns its corner (`GLYPH_CORNER`), which no radius step fits",
+                "Glyph — a fixed 18 px mark that owns its corner (`GLYPH_CORNER`), which no radius step fits"
             ],
             "platforms": [
                 "web",
@@ -1334,6 +1336,10 @@
                         {
                             "name": "pattern",
                             "text": "Adapter over a CSS transition — the signature check motion, declared once for every whole-row checkbox"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Glyph — a fixed 18 px mark that owns its corner (`GLYPH_CORNER`), which no radius step fits"
                         }
                     ],
                     "description": "The web whole-row checkbox's box.",
@@ -1372,6 +1378,10 @@
                         {
                             "name": "pattern",
                             "text": "Adapter over React Native's imperative `Animated` spring — the signature check motion, owned here so the\n    rows that draw it stay pure"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Glyph — a fixed 18 pt mark that owns its corner (`GLYPH_CORNER`), which no radius step fits"
                         }
                     ],
                     "description": "The native whole-row checkbox's box.",
@@ -4971,7 +4981,8 @@
                                 "\"photoChip\"",
                                 "\"scrim\"",
                                 "\"onAction\"",
-                                "\"actionPressed\""
+                                "\"actionPressed\"",
+                                "\"dangerPressed\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -5130,7 +5141,8 @@
                                 "\"photoChip\"",
                                 "\"scrim\"",
                                 "\"onAction\"",
-                                "\"actionPressed\""
+                                "\"actionPressed\"",
+                                "\"dangerPressed\""
                             ],
                             "required": false,
                             "defaultValue": "ink",

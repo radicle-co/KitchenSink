@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     heading: { ...nativeTokens.type.sectionTitle },
     explanation: { ...nativeTokens.type.meta },
     banner: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 4,
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
     versionCardRow: { flexDirection: 'row', gap: 12 },
     versionCard: {
         flex: 1,
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 4,
@@ -440,14 +440,14 @@ const styles = StyleSheet.create({
     versionCardHeading: { ...nativeTokens.type.label },
     versionCardLine: { ...nativeTokens.type.meta },
     staleWarning: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 8,
     },
     staleWarningText: { ...nativeTokens.type.meta },
     optionCard: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 4,
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     optionTitle: { ...nativeTokens.type.cardTitle },
     optionDescription: { ...nativeTokens.type.meta },
     group: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 8,
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     subheading: { ...nativeTokens.type.cardTitle },
     changedFields: { gap: 8 },
     changedFieldRow: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 12,
         gap: 8,
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     radioDot: {
         width: 18,
         height: 18,
-        borderRadius: 9,
+        borderRadius: nativeTokens.radius.full,
         borderWidth: 2,
     },
     optionLabel: { ...nativeTokens.type.body, flexShrink: 1 },

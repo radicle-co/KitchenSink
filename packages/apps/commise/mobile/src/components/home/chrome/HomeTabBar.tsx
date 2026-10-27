@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
         top: 0,
         width: 32,
         height: 3,
-        borderBottomLeftRadius: 2,
-        borderBottomRightRadius: 2,
+        borderBottomLeftRadius: nativeTokens.radius.full,
+        borderBottomRightRadius: nativeTokens.radius.full,
     },
     labelActive: { fontFamily: nativeTokens.fontFace.body.semibold },
 });

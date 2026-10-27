@@ -82,11 +82,15 @@ describe.each(['light', 'dark'] as const)('the native press fill (%s)', (scheme)
         expect(buttonSurfacePaint(theme, 'quiet', false, 'muted')).toEqual(buttonSurfacePaint(theme, 'quiet'));
     });
 
-    it('presses primary to actionPressed and keeps confirm as it is', () => {
+    // Rewritten: the confirm used to keep its fill on press (no native role for web's `danger/90`). dangerPressed is that role.
+    it('presses primary to actionPressed and confirm to dangerPressed', () => {
         expect(buttonSurfacePaint(theme, 'primary', true).backgroundColor).toBe(theme.colors.actionPressed);
-        expect(buttonSurfacePaint(theme, 'destructiveConfirm', true)).toEqual(
-            buttonSurfacePaint(theme, 'destructiveConfirm'),
-        );
+        expect(buttonSurfacePaint(theme, 'destructiveConfirm').backgroundColor).toBe(theme.colors.danger);
+        expect(buttonSurfacePaint(theme, 'destructiveConfirm', true)).toEqual({
+            backgroundColor: theme.colors.dangerPressed,
+            borderWidth: 0,
+        });
+        expect(theme.colors.dangerPressed).not.toBe(theme.colors.danger);
     });
 
     it('the Screen on switch presses with the same rule', () => {

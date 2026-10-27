@@ -15,7 +15,7 @@ export function AccountStateNotice({ message }: AccountStateNoticeProps) {
         <div
             role="alert"
             aria-labelledby="account-state-title"
-            className="flex flex-col gap-2 rounded-2xl border border-danger/40 bg-danger/10 p-6"
+            className="flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/10 p-6"
         >
             <h2 id="account-state-title" className="text-section-title text-danger-text">
                 {message.title}

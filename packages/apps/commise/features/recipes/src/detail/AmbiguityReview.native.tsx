@@ -229,20 +229,20 @@ const TARGET_DP = 48;
 
 const styles = StyleSheet.create({
     section: { gap: 10 },
-    banner: { borderRadius: 12, flexDirection: 'row', gap: 10, padding: 12 },
+    banner: { borderRadius: nativeTokens.radius.lg, flexDirection: 'row', gap: 10, padding: 12 },
     bannerText: { ...nativeTokens.type.meta, flex: 1 },
     entry: {
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         flexDirection: 'row',
         gap: 8,
         padding: 12,
     },
     entryText: { ...nativeTokens.type.caption, flex: 1 },
-    entryBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    entryBadge: { borderRadius: nativeTokens.radius.full, paddingHorizontal: 10, paddingVertical: 4 },
     entryBadgeLabel: { ...nativeTokens.type.label },
-    row: { borderRadius: 10, borderWidth: 1, gap: 8, padding: 10 },
+    row: { borderRadius: nativeTokens.radius.lg, borderWidth: 1, gap: 8, padding: 10 },
     rowPhrase: { ...nativeTokens.type.label },
     candidates: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     candidate: {

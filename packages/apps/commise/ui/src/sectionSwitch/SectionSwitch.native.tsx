@@ -77,6 +77,6 @@ const styles = StyleSheet.create({
         start: nativeTokens.spacing[2],
         end: nativeTokens.spacing[2],
         height: 3,
-        borderRadius: 2,
+        borderRadius: nativeTokens.radius.full,
     },
 });

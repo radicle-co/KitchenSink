@@ -64,6 +64,6 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
     },
     meter: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-    dot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1 },
+    dot: { width: 6, height: 6, borderRadius: nativeTokens.radius.full, borderWidth: 1 },
     word: { ...nativeTokens.type.caption, flexShrink: 1 },
 });

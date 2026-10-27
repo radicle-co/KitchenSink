@@ -34,7 +34,7 @@ export function ResumeCookingWidgetSkeleton(): JSX.Element {
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                     {/* The in-progress recipe's title, then its progress bar (an empty track — any filled
                         width would assert a real progress figure). */}
-                    <div className="h-4 w-3/4 rounded bg-surface-muted" />
+                    <div className="h-4 w-3/4 rounded-sm bg-surface-muted" />
                     <div className="h-1 w-full rounded-full bg-surface-muted" />
                 </div>
                 {/* The "Continue" action, as a shape. */}

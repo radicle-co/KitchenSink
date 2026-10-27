@@ -4,6 +4,7 @@ import { AccessibilityInfo, Animated } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { CheckBoxGlyph } from '../CheckBoxGlyph.native.js';
+import { GLYPH_CORNER } from '../props.js';
 
 /**
  * The native `CheckBoxGlyph` (build spec §1.9): checked, the check springs in from 0.9 with the signature overshoot
@@ -38,7 +39,8 @@ describe('CheckBoxGlyph (native)', () => {
 
         expect(box.width).toBe('18px');
         expect(box.height).toBe('18px');
-        expect(box.borderTopLeftRadius).toBe('4px');
+        expect(box.borderTopLeftRadius).toBe(`${String(GLYPH_CORNER)}px`);
+        expect(GLYPH_CORNER).toBe(4);
     });
 
     it('shows the check only when checked', () => {

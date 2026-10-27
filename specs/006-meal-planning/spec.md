@@ -8,7 +8,7 @@ requirement below has been re-derived from what actually exists. See **Clarifica
 **Status**: Draft — ready for planning. Not implemented. Phase 1 (FR-022/023/024 + FR-028..FR-041) is implementable
 today; Phase 2 (FR-025/026/027) is **blocked** on features 005 and 010 and is deliberately out of the first
 implementation scope (see Clarification C-006-009). FR-041 is the Phase-1 obligation that deferral depends on: the
-premium surfaces are **unreachable**, not merely unbuilt.
+Pro with AI surfaces are **unreachable**, not merely unbuilt.
 **Input**: Split from `001-commise-recipe-app` — meal plan creation, recipe assignment, nutritional summaries, and
 AI-powered meal suggestions.
 
@@ -23,10 +23,10 @@ AI-powered meal suggestions.
 | [005-ai-integration](../005-ai-integration/spec.md)         | **Required for Phase 2 — NOT BUILT.** FR-025/026/027 cannot be implemented until an AI provider surface exists.                                                                                                                                                                                           |
 | [007-grocery-lists](../007-grocery-lists/spec.md)           | **Downstream — NOT BUILT.** Grocery lists are generated from meal plans. 006 exposes a stable read projection for it (FR-036) but does **not** build list generation.                                                                                                                                     |
 | [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Downstream — NOT BUILT.** Nutrition plans link to meal plans for compliance.                                                                                                                                                                                                                            |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Required for Phase 2 — NOT BUILT.** Premium entitlement gates FR-025/026/027. Today `subscriptionTier` lives in the identity service's `accounts` table and is **not** a session-token claim, so no entitlement gate can be enforced yet (C-006-009).                                                   |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Required for Phase 2 — NOT BUILT.** Pro with AI entitlement gates FR-025/026/027. Today `subscriptionTier` lives in the identity service's `accounts` table and is **not** a session-token claim, so no entitlement gate can be enforced yet (C-006-009).                                               |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -79,11 +79,11 @@ draft. They are recorded here rather than silently folded into the requirements.
   and leftovers need a consumption model, neither of which any current requirement drives. This resolves W-001 and
   W-002 from the 2026-05-12 verify report, which were left unresolved for three months.
 - **C-006-009 — FR-025/026/027 (AI suggestions, auto-generation, waste optimization) are Phase 2 and deferred.** They
-  require 005 (not built) for the AI surface and 010 (not built) for the premium entitlement. Critically, the
+  require 005 (not built) for the AI surface and 010 (not built) for the Pro with AI entitlement. Critically, the
   entitlement cannot be enforced today at all: `subscriptionTier` is stored in the identity service's `accounts` table,
   while the session token's `public_metadata` carries only `scopes`/`permissions` — a fact asserted by
   `packages/shared/clerk-verify/src/__tests__/clerkVerify.test.ts`. A guard reading `tier` from the token would deny
-  every user. Phase 1 ships the capability seam and no premium surface.
+  every user. Phase 1 ships the capability seam and no Pro with AI surface.
 - **C-006-010 — Meal planning ships to web and mobile in the same release.** `CODING_STANDARDS §14.1` is a hard rule and
   names `tasks.md` explicitly. The draft had zero mobile tasks, zero mobile wireframes, and a web-only drag-and-drop
   interaction model. Mobile uses a distinct assignment interaction (FR-034); no waiver is taken.
@@ -105,7 +105,7 @@ draft. They are recorded here rather than silently folded into the requirements.
   drop; tightening it later would be a data migration — so the cheap-to-reverse direction is to constrain now. The
   uniqueness constraint does **not** retire the FR-032 idempotency ledger: only the ledger distinguishes a retry from
   a deliberate reassignment, and only the ledger covers multi-row template application.
-- **C-006-013 — The Phase-1 obligation for premium features is that they are unreachable, not that they are gated.**
+- **C-006-013 — The Phase-1 obligation for Pro with AI features is that they are unreachable, not that they are gated.**
   The constraint "AI features MUST be restricted to entitled subscribers" cannot be verified in Phase 1 — there is no
   entitlement to check (C-006-009) — so as written it was a top-priority requirement nothing could test. The
   enforceable Phase-1 obligation is stated instead as FR-041 (no such surface is reachable), which is inspectable
@@ -326,12 +326,12 @@ confirm the live widget renders today's entries and that the roadmap skeleton no
 
 ### User Story 6 (US-006-006) - AI Suggestions, Auto-Generation and Waste Optimization (Priority: P4 — **Phase 2, deferred**)
 
-A premium user asks the system to suggest a recipe for a slot, to generate a whole draft plan from constraints, or to
+A Pro with AI user asks the system to suggest a recipe for a slot, to generate a whole draft plan from constraints, or to
 rearrange a plan to reuse overlapping ingredients and reduce waste.
 
 **Status**: **Deferred — not in the Phase 1 implementation scope.** Blocked on 005 (AI provider surface) and 010
-(premium entitlement). See C-006-009. Requirements FR-025/026/027 remain specified so the cross-feature index and 010's
-entitlement work stay anchored, but no task in this feature's `tasks.md` implements them, and no premium surface ships.
+(Pro with AI entitlement). See C-006-009. Requirements FR-025/026/027 remain specified so the cross-feature index and 010's
+entitlement work stay anchored, but no task in this feature's `tasks.md` implements them, and no Pro with AI surface ships.
 
 **Acceptance Scenarios**: deferred with the story. They will be written against 005's actual provider contract and 010's
 actual entitlement mechanism rather than guessed at now — the previous draft guessed, and guessed wrong about where the
@@ -408,14 +408,14 @@ are added by this reconciliation.
   computation MUST NOT issue one request per entry; it depends on an additive batch nutrition projection added to the
   recipe service (001), specified in [plan.md](./plan.md) §API Contracts.
 
-**Premium / AI — Phase 2, deferred (C-006-009)**
+**Pro with AI — Phase 2, deferred (C-006-009)**
 
 - **FR-025**: System MUST provide AI-powered meal suggestions for a slot based on user preferences, dietary needs and
-  the user's readable recipes. _(Premium — deferred, blocked on 005 + 010.)_
+  the user's readable recipes. _(Pro with AI — deferred, blocked on 005 + 010.)_
 - **FR-026**: System MUST provide auto-generation of a complete draft meal plan from user-defined constraints, presented
-  for review before it is applied. _(Premium — deferred, blocked on 005 + 010.)_
+  for review before it is applied. _(Pro with AI — deferred, blocked on 005 + 010.)_
 - **FR-027**: System MUST provide food-waste optimization that proposes recipe rearrangements or swaps maximising shared
-  ingredient usage across the plan. _(Premium — deferred, blocked on 005 + 010.)_
+  ingredient usage across the plan. _(Pro with AI — deferred, blocked on 005 + 010.)_
 
 **Templates**
 
@@ -448,6 +448,13 @@ are added by this reconciliation.
   persists and remains visible and removable, is labelled as unavailable with text (not colour alone), and is excluded
   from nutrition totals while marking the affected day partial. Orphan state MUST be determined at read time from the
   recipe service's response; the system MUST NOT replicate recipe state or depend on a deletion notification.
+- **FR-033a** _(owner ruling, 2026-10-27; the rule is `001-FR-003b`)_: A recipe its owner sets back to draft MUST leave
+  **every** meal plan that holds it, including every other cook's shared plan. It is removed, not shown as orphaned.
+  Publishing it again MUST NOT restore those entries. The owner's confirmation names the shared plans, so 006 MUST be
+  able to list, for one recipe, the plans that hold it across cooks. ⚠️ Two open design points for this feature's
+  plan: shared plans exist only once 017's household (D18) lands, since `FR-029` scopes every plan to one owner today;
+  and `FR-033` forbids depending on a notification, so how a planner learns that a recipe went back to draft must be
+  designed, not assumed.
 
 **Presentation**
 
@@ -489,7 +496,7 @@ are added by this reconciliation.
   source-agnostic and its data is denormalized onto recipe rows by 001 long before 006 reads it (C-006-003, C-006-005).
   This is the FR that FR-032's pruning clause depends on.
 - **FR-041**: No AI suggestion, auto-generation or waste-optimization surface (FR-025/026/027) may be **reachable** in
-  Phase 1 — not as a disabled control, a feature-flagged route, or an API endpoint. The premium entitlement those
+  Phase 1 — not as a disabled control, a feature-flagged route, or an API endpoint. The Pro with AI entitlement those
   features require cannot be enforced on the current platform (C-006-009), so the Phase-1 obligation is that they do
   not ship at all rather than ship ungated. This is verifiable today; the entitlement gate itself is not.
 
@@ -502,7 +509,7 @@ are added by this reconciliation.
 - **NFR-003**: Every UI element MUST expose an accessible name queryable via `getByRole`/`getByLabel`; `data-testid` and
   `page.waitForTimeout()` are banned in Playwright specs. Drag-and-drop MUST have a keyboard-operable equivalent.
   _(Principles IV & VII)_
-- **NFR-004**: Colour MUST NOT be the sole conveyor of state; partial-nutrition, orphaned-entry and premium-gated states
+- **NFR-004**: Colour MUST NOT be the sole conveyor of state; partial-nutrition, orphaned-entry and plan-gated states
   MUST each pair colour with an icon or text label. _(Principle VII)_
 - **NFR-005**: Tests are written **before** the code they cover (TDD red → green), and every category in
   `CODING_STANDARDS §7.1` that this feature touches MUST have passing tests of every required kind — component tests for

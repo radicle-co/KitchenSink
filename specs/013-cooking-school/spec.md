@@ -37,8 +37,8 @@ Both P12 and P13 are co-primary. This feature cannot be designed for one side wi
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — course purchases, educator subscription tiers, revenue share                 |
 | [012-creator-profiles](../012-creator-profiles/spec.md)     | **Required** — `CreatorProfile` provides educator identity and `@handle` pages              |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 

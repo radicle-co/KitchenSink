@@ -7,16 +7,16 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                   |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [006-meal-planning](../006-meal-planning/spec.md)           | **Required** — nutrition plans link to meal plans for compliance analysis                      |
-| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — nutritional calculations depend on food data                                    |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — recipe nutritional data is the basis for compliance calculations                |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication; trainer-client requires user relationships |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — trainer nutrition planning and AI recipe swaps are premium features           |
+| Spec                                                        | Relationship                                                                                                |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [006-meal-planning](../006-meal-planning/spec.md)           | **Required** — nutrition plans link to meal plans for compliance analysis                                   |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — nutritional calculations depend on food data                                                 |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — recipe nutritional data is the basis for compliance calculations                             |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication; trainer-client requires user relationships              |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — trainer nutrition planning is a Pro feature, and AI recipe swaps are a Pro with AI feature |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -34,8 +34,8 @@ A personal trainer or diet-conscious user creates nutrition plans that define da
 
 1. **Given** a user creates a nutrition plan, **When** they define daily calorie and macro targets (protein, carbs, fat), **Then** the plan is saved and visible on their dashboard.
 2. **Given** a nutrition plan linked to a meal plan, **When** the user views the plan, **Then** they see a comparison of planned nutrition vs. targets with clear indicators for gaps or excesses.
-3. **Given** a personal trainer, **When** they create a nutrition plan for a client, **Then** the client can view the plan and use it to guide their meal planning. _(Premium feature)_
-4. **Given** a meal plan does not meet nutrition targets, **When** the user views the analysis, **Then** the system suggests recipe swaps or adjustments to better meet goals. _(Premium feature)_
+3. **Given** a personal trainer, **When** they create a nutrition plan for a client, **Then** the client can view the plan and use it to guide their meal planning. _(Pro feature)_
+4. **Given** a meal plan does not meet nutrition targets, **When** the user views the analysis, **Then** the system suggests recipe swaps or adjustments to better meet goals. _(Pro with AI feature)_
 
 ---
 
@@ -51,8 +51,8 @@ None identified specific to this spec.
 
 - **FR-036**: System MUST allow users to create nutrition plans with daily caloric and macronutrient targets (protein, carbs, fat).
 - **FR-037**: System MUST allow linking meal plans to nutrition plans and display compliance analysis.
-- **FR-038**: System MUST allow users with appropriate permissions to create nutrition plans for other users (trainer-client model). _(Premium)_
-- **FR-039**: System MUST suggest recipe swaps to better align meal plans with nutrition targets. _(Premium)_
+- **FR-038**: System MUST allow users with appropriate permissions to create nutrition plans for other users (trainer-client model). _(Pro)_
+- **FR-039**: System MUST suggest recipe swaps to better align meal plans with nutrition targets. _(Pro with AI)_
 
 ### Non-Functional Requirements _(constitution-derived)_
 

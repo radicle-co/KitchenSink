@@ -52,8 +52,8 @@ Decades of family recipes exist only on paper — fragile, unsearchable, and loc
 | P1       | [004-recipe-importing](../004-recipe-importing/spec.md)     | ⏳ pending | **blocks**   | **011 lands AFTER 004 and adds the image branch to 004's import spine** ([ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md)). 011 does **not** create its own path to a saved recipe — it submits extracted candidates to 004's **bulk import processor** (`004-FR-047`). See "Ownership of the photo channel" below. |
 | P1       | [010-monetisation](../010-subscriptions/spec.md)            | ⏳ pending | complements  | Optional entitlement check before enqueuing OCR (Q-002 deferred to implementation). 011 ships ungated if 010 is not yet live.                                                                                                                                                                                                                |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -87,8 +87,8 @@ this section is the single place the boundary now lives.
 
 **What 011 inherits rather than re-derives.** 004's photo-specific _rules_ transfer with the channel and are
 binding on 011 (004 § "Channel-ownership transfer"): the private-slot rule on `imported_physical`
-(`004-FR-028` and D-014 as amended 2026-10-26: no premium gate, but every photo recipe a free-tier user keeps
-uses one of their 50 private slots, ADR-0073; premium is read via the shared entitlement mechanism — never by
+(`004-FR-028` and D-014 as amended 2026-10-26: no Pro gate, but every photo recipe a free-tier user keeps
+uses one of their 50 private slots, ADR-0073; Pro is read via the shared entitlement mechanism — never by
 importing the identity service, ADR-0017 decision 3), the tighter per-photo/OCR sub-quota (`004-FR-022`), deletion of OCR
 artifacts on draft expiry (`004-FR-018`), and the OCR vendor's classification as an untrusted third-party
 boundary whose output is parsed with zod at the boundary (ADR-0015, `CODING_STANDARDS` §15-d).
@@ -733,17 +733,17 @@ ordering discipline, and adding one is a decision, not an implementation detail.
 
 ### A-5. Submission classifies `imported_paid`, never `imported_physical`
 
-Recorded here because it is the one place the premium gate could quietly lose its enforcement point.
+Recorded here because it is the one place the Pro gate could quietly lose its enforcement point.
 
 011 does not create recipes. It submits corrected candidates to **004's bulk import contract**
 (`004-FR-047`), and 004's convergence point creates them. The `sourceType` 011 declares is **`imported_paid`**.
 
 **Why not `imported_physical`, which is what a photograph of a cookbook literally is.** A client-declared
 `imported_physical` is **not representable** in 004's DTO (`004-FR-025`, HAZ-057): a caller that could declare
-it would grant itself a private recipe the C-004 policy reserves for premium. `imported_paid` is therefore the
+it would grant itself a private recipe the C-004 policy reserves for Pro. `imported_paid` is therefore the
 only non-public class a client is permitted to declare at all.
 
 **The gate is not weakened by the substitution.** Under the shipped `evaluateVisibility`, `imported_physical`
 and `imported_paid` are behaviourally identical: both are **private-only**, and `imported_paid` may _never_ be
-made public. The premium gate keeps its enforcement point — 004's convergence point, where provenance and
+made public. The Pro gate keeps its enforcement point — 004's convergence point, where provenance and
 quota are enforced once for every channel — rather than moving into 011 where it would have to be re-derived.

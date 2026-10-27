@@ -11,8 +11,8 @@
 ## Context
 
 Today a free cook cannot keep a recipe they wrote private. `visibilityPolicy.ts` allows `user_created` to go private
-only with Premium (001 FR-003). Book and paid-site recipes (`imported_physical`, `imported_paid`) are private-only, and
-the policy lets anyone keep them private with no limit and no Premium. Spec 004 FR-028 and D-014 then put a Premium gate
+only with Pro (001 FR-003). Book and paid-site recipes (`imported_physical`, `imported_paid`) are private-only, and
+the policy lets anyone keep them private with no limit and no Pro. Spec 004 FR-028 and D-014 then put a Pro gate
 in front of the channels that make those labels. Spec 015 planned to un-gate free privacy through earned slots. That
 was decision D4a, and it stayed open.
 
@@ -21,21 +21,24 @@ The owner ruled on 2026-10-26:
 - A free cook gets **50 private slots**, fixed, now. 015's earning rules come later and add to the 50.
 - A slot is used by **every** recipe a free cook holds as private, from any route: the editor, paste, photo, URL and
   bulk import. Book and paid-site recipes count too.
-- A Premium cook has no slot limit.
+- A Pro cook has no slot limit.
 - When a free cook runs out of slots during an import, the import pauses, warns them, and lets them choose: stop
   there, or make the rest public after confirming each recipe's statement.
 - A recipe we can tell is from a book or paid site can never go public. Otherwise we rely on the cook's statement.
   Spec 020 will specify an automated provenance check.
-- An imported public-web recipe the cook chooses to make private keeps today's rule: Premium and a substantive edit.
+- An imported public-web recipe the cook chooses to make private keeps today's rule: Pro and a substantive edit.
 
 This reverses 001 FR-003's "free-tier recipes are always public". It decides D4a as "private within 50 slots".
 
+"Pro" here is the paid plan in spec 010's plan register (Pro and Pro with AI both remove the limit). The ruling
+used the older name, "Premium".
+
 ## Decision
 
-### 1. A free cook can hold 50 private recipes. Premium has no limit.
+### 1. A free cook can hold 50 private recipes. Pro has no limit.
 
 - The 50 is a constant owned by one pure module, next to `visibilityPolicy.ts`. Nothing else states the number.
-- Premium is read from the signed token, as today (`isPremiumPrincipal`). Premium never counts slots.
+- Pro is read from the signed token, as today (`isPremiumPrincipal`). Pro never counts slots.
 - A free cook's limit is the base of 50. When 015 ships, the limit becomes the base plus the cook's earned
   slots (§9).
 
@@ -49,7 +52,7 @@ A used slot is one row in `recipes` where all of these hold:
   its slot at once.
 
 Every label counts: `user_created`, `imported_physical`, `imported_paid`, and an `imported_public` recipe made private
-while the cook had Premium. **Status matters: a draft holds no slot** (owner ruling, 2026-10-26, §12). So a fourth
+while the cook had Pro. **Status matters: a draft holds no slot** (owner ruling, 2026-10-26, §12). So a fourth
 condition holds for every used slot: `status = 'published'`. The existing index serves it, because a cook's own rows
 are few.
 
@@ -79,7 +82,7 @@ When the live count is below the limit, a free cook has a free slot.
 
 ### 4. On a downgrade, the cook keeps every private recipe
 
-A Premium cook can hold any number of private recipes. If they lose Premium with more than 50, they keep every one of
+A Pro cook can hold any number of private recipes. If they lose Pro with more than 50, they keep every one of
 them private. Nothing is made public or deleted. They cannot make a new recipe private until their count is below the
 limit again.
 
@@ -112,16 +115,16 @@ The policy stays pure. The caller resolves the slot fact under the lock and pass
 `VisibilityPolicyInput` gains `hasAvailablePrivateSlot: boolean`. It is **required**, so every call site fails to
 compile until it decides what the fact is. With a default, a site can keep the old behaviour and nobody notices.
 
-| Requested | Label               | Allowed when                                                   |
-| --------- | ------------------- | -------------------------------------------------------------- |
-| public    | `user_created`      | Always (containment runs first, ADR-0040)                      |
-| public    | `imported_public`   | Always (containment runs first)                                |
-| public    | `imported_physical` | Never                                                          |
-| public    | `imported_paid`     | Never                                                          |
-| private   | `user_created`      | Premium, or a free slot                                        |
-| private   | `imported_public`   | Premium and a substantive edit. Slots never apply. (Unchanged) |
-| private   | `imported_physical` | Premium, or a free slot                                        |
-| private   | `imported_paid`     | Premium, or a free slot                                        |
+| Requested | Label               | Allowed when                                               |
+| --------- | ------------------- | ---------------------------------------------------------- |
+| public    | `user_created`      | Always (containment runs first, ADR-0040)                  |
+| public    | `imported_public`   | Always (containment runs first)                            |
+| public    | `imported_physical` | Never                                                      |
+| public    | `imported_paid`     | Never                                                      |
+| private   | `user_created`      | Pro, or a free slot                                        |
+| private   | `imported_public`   | Pro and a substantive edit. Slots never apply. (Unchanged) |
+| private   | `imported_physical` | Pro, or a free slot                                        |
+| private   | `imported_paid`     | Pro, or a free slot                                        |
 
 - A refusal for want of a slot is a denial of its own kind, not the generic `INVALID_VISIBILITY`. The client must tell
   the cook why, show how many slots they use, and offer the choices in §8. The wire carries the code
@@ -129,17 +132,17 @@ compile until it decides what the fact is. With a default, a site can keep the o
 - The status is 403, not 409. The recipe client maps any 409 code it does not know to a version conflict
   (`client.ts`, the `case 409` fallback). An installed build that predates this code then opens the conflict
   view for a slot refusal. A 403 reaches those builds as a plain refusal, and newer builds branch on the code.
-- `imported_public` keeps today's rule. A free cook is refused for want of Premium before slots are looked at, so a
+- `imported_public` keeps today's rule. A free cook is refused for want of Pro before slots are looked at, so a
   slot never makes an imported public-web recipe private.
 - `defaultCloneVisibility` stops being a side door. Today it defaults a clone of a book or paid-site recipe, and
   every clone by a contained test principal, to private with no check. Under this ADR a clone that lands private
   takes the lock and the slot check like any other private write. A free cook with no slot cannot make it.
 
-### 7. Book and paid-site recipes now use slots, and Premium is no longer needed
+### 7. Book and paid-site recipes now use slots, and Pro is no longer needed
 
 - A free cook can bring a book or paid-site recipe in by any route: paste with a statement, photo import (011), URL
   import whose rights check allows private only, or bulk import. Each one uses a slot.
-- Premium is not required. This reverses 004 FR-028 and D-014 ("non-public creation is premium").
+- Pro is not required. This reverses 004 FR-028 and D-014 ("non-public creation is premium").
 - A free cook with no free slot **cannot keep a new book or paid-site recipe at all**. It can never go public, so
   there is nowhere else for it to go. The single-recipe routes refuse the save with `PRIVATE_SLOTS_FULL`. Bulk import
   pauses (§8).
@@ -171,7 +174,7 @@ waits in review unless every part is green (ADR-0072 §3). A private one holds i
   private recipe without a free slot (two private writes, one slipping past the lock), it stays private and the cook
   is over the limit, as after a downgrade (§4).
 - The cook's choice is stored on the item, the way the wizard's choices are, so `advance` stays safe to repeat.
-- A Premium cook never pauses for slots.
+- A Pro cook never pauses for slots.
 - This pause is separate from the daily allowance pause (`IMPORT_QUOTA_EXCEEDED`, ADR-0072 §8). An import can be in
   both at once.
 - An imported public-web recipe chosen private is still refused for a free cook, as ADR-0072 §9 records. Slots do not
@@ -187,13 +190,13 @@ waits in review unless every part is green (ADR-0072 §3). A private one holds i
 - 015's own numbers were written for a zero start: a schedule that ends at 50 earned slots, and a ceiling of 50
   private recipes. When 015 is un-stopped, both are decided again.
 
-### 10. The PRO badge no longer reads privacy as Premium
+### 10. The PRO badge no longer reads privacy as Pro
 
 001 FR-003a derives the PRO badge from "private AND (`user_created` or `imported_public`)". Once a free cook can hold
-a private `user_created` recipe, privacy no longer means Premium. The badge then marks free cooks' recipes PRO.
+a private `user_created` recipe, privacy no longer means Pro. The badge then marks free cooks' recipes PRO.
 
 - The badge marks **private `imported_public`** recipes only. That is the one kind of privacy that still needs
-  Premium.
+  Pro.
 - It is still derived on read, in one place, and it changes in the same commit as the policy.
 
 ### 11. A public recipe in review uses no slot, a private one holds its slot, and a recipe not approved becomes private
@@ -243,13 +246,13 @@ cook holds a recipe whose slot status this changes.
 
 - A free cook can keep a recipe private for the first time, up to 50. GDPR Art. 25(2)'s "public by default" concern
   is now answered for the first 50 recipes. A new recipe still defaults to public.
-- A free cook can bring in book and paid-site recipes without Premium. Those recipes now count against the same 50.
-- Photo import (011) is no longer Premium-only. D-014 also kept Textract spend to paying users. That bound is gone.
+- A free cook can bring in book and paid-site recipes without Pro. Those recipes now count against the same 50.
+- Photo import (011) is no longer Pro-only. D-014 also kept Textract spend to paying users. That bound is gone.
   The per-photo sub-quota (004 FR-022) is now the only bound on it.
 - Every move to private takes a per-user lock. One cook's private writes run one at a time, and nobody else's wait.
 - 015 starts from a live base of 50 instead of zero.
 - ADR-0023 still keeps `imported_physical` and `imported_paid` undeclarable on `POST /api/v1/recipes`. One of its two
-  reasons, the FR-028 Premium gate, is gone. The other stands: the attestation and citation that must travel with
+  reasons, the FR-028 Pro gate, is gone. The other stands: the attestation and citation that must travel with
   those labels are not built on that route.
 
 ## One-way doors
@@ -270,7 +273,7 @@ cook holds a recipe whose slot status this changes.
 - **Downgraded cooks over 50 cannot make anything new private** until they delete or publish. The refusal copy must
   tell them how many slots they are over.
 - **A contained test principal on a free plan, out of slots, cannot clone a book recipe or make any clone at all.**
-  Containment blocks public, and slots block private. The test pool's signer already carries Premium
+  Containment blocks public, and slots block private. The test pool's signer already carries Pro
   (`e2e-seed/src/provision.ts`), so today's seeded runs are not affected.
 - **The count runs inside the write transaction.** It reads one cook's rows through an existing index. If a cook ever
   holds very many recipes this is the read to watch.
@@ -290,8 +293,8 @@ cook holds a recipe whose slot status this changes.
 5. **The PRO badge.** The one derivation behind FR-003a changes to private `imported_public` only.
 6. **The editor.** The Private choice for a free cook with no slot is refused with localized copy. It says how many
    slots they use and what they can do: make this recipe public, delete or publish another private recipe, or go
-   Premium. Book and paid-site saves on single routes get the same refusal, without the "make public" choice.
-7. **The channel gates.** Remove the Premium gate FR-028 put on photo import and on attested paid-source paste. The
+   Pro. Book and paid-site saves on single routes get the same refusal, without the "make public" choice.
+7. **The channel gates.** Remove the Pro gate FR-028 put on photo import and on attested paid-source paste. The
    channels stay advertised to free cooks.
 8. **The design system.** The design session removed `ImportNoPrivateSlot` on features canvas v21. It must restore
    an out-of-slots pause board for bulk import. The board offers stop, make the rest public with a confirmation per

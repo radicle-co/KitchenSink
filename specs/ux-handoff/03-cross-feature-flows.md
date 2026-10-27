@@ -10,7 +10,7 @@ These flows are where users experience Commise as one product rather than a set 
 2. App lands on Home, not a blank recipe list.
 3. Home shows a starter path: add/import recipe, explore public recipes, create first meal plan, set nutrition goal.
 4. If the user imported or created something during onboarding, Home shows it as the first "continue" object.
-5. Premium messaging appears only as contextual value, not as a blocker to core use.
+5. Pro messaging appears only as contextual value, not as a blocker to core use.
 
 **Mockup requirement**: new-user Home and returning-user Home must be separate mockups for web and mobile.
 
@@ -47,8 +47,8 @@ These flows are where users experience Commise as one product rather than a set 
 ## Flow 5 — Grocery list to online order status
 
 1. User opens a grocery list.
-2. Free users can shop in-store; premium online ordering is gated contextually.
-3. Premium user connects a supported store, Walmart first.
+2. Free users can shop in-store; Pro online ordering is gated contextually.
+3. Pro user connects a supported store, Walmart first.
 4. App maps list items to products and asks user to review substitutions/unavailable items.
 5. App submits/redirects order through supported API/handoff.
 6. Grocery list shows order status via polling and preserves list state if provider is down.
@@ -61,7 +61,7 @@ These flows are where users experience Commise as one product rather than a set 
 2. User links goals to meal plan.
 3. App shows daily/weekly compliance and gaps.
 4. User drills into a meal/recipe causing a gap.
-5. App suggests swaps if premium and available; otherwise provides manual adjustment guidance.
+5. App suggests swaps if Pro with AI and available; otherwise provides manual adjustment guidance.
 
 **Mockup requirement**: planned-vs-target view must connect back to recipes and meal slots.
 
@@ -77,7 +77,7 @@ These flows are where users experience Commise as one product rather than a set 
 
 ## Flow 8 — AI recipe generation to saved recipe
 
-1. Premium/BYOK-configured user opens AI generation.
+1. Pro with AI or BYOK-configured user opens AI generation.
 2. User enters prompt/constraints or starts from pantry/meal-plan context.
 3. AI returns recipe preview with confidence and guard messaging.
 4. User accepts or rejects.
@@ -98,7 +98,7 @@ These flows are where users experience Commise as one product rather than a set 
 
 ## Flow 10 — Subscription upgrade and lapse
 
-1. User encounters premium feature.
+1. User encounters Pro feature.
 2. Inline teaser explains value.
 3. Active invocation opens paywall modal/bottom sheet.
 4. Pricing page shows $6.99/month, $59.99/year, 14-day trial, and feature comparison. _(Out of date 2026-10-26: see 010's [plan register](../010-subscriptions/spec.md#plan-register).)_

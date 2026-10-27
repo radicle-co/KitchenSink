@@ -18,10 +18,10 @@ These briefs translate the portfolio requirements into concrete design assignmen
 - Shopping status: active grocery list or online order state.
 - Nutrition snapshot: goal/compliance summary if configured.
 - Explore: public recipes or starter suggestions.
-- Premium nudge: contextual and dismissible for the session; never blocks free-tier core tasks.
+- Pro nudge: contextual and dismissible for the session; never blocks free-tier core tasks.
 - Personalization controls: let users reorder or hide non-critical modules after onboarding while preserving pinned continuation/sync/safety alerts.
 
-**States to mock**: new user empty, returning active user, no meal plan, active cooking session, customized module order, premium prompt, degraded/offline summary.
+**States to mock**: new user empty, returning active user, no meal plan, active cooking session, customized module order, Pro prompt, degraded/offline summary.
 
 **Source**: [01-information-architecture.md](./01-information-architecture.md), [001 product spec](../001-commise-recipe-app/product-spec/product-spec.md).
 
@@ -36,7 +36,7 @@ These briefs translate the portfolio requirements into concrete design assignmen
 - Primary actions: Cook, Add to meal plan, Add ingredients to list, Share, Clone, Edit.
 - Ingredient nutrition status: pending, fetched, ambiguous, not found, failed.
 
-**States to mock**: empty library, search no results, recipe with pending nutrition, imported attributed recipe, free-user public-only recipe, premium private recipe.
+**States to mock**: empty library, search no results, recipe with pending nutrition, imported attributed recipe, free-user public-only recipe, Pro private recipe.
 
 **Source**: [001 product spec](../001-commise-recipe-app/product-spec/product-spec.md), [003 product spec](../003-usda-food-data/product-spec/product-spec.md), [004 product spec](../004-recipe-importing/product-spec/product-spec.md).
 
@@ -68,20 +68,20 @@ These briefs translate the portfolio requirements into concrete design assignmen
 - Nutrition summary visible without leaving planner.
 - Generate grocery list handoff.
 
-**States to mock**: empty week, partially planned week, locked/finalized plan, orphaned/deleted recipe slot, nutrition pending, premium AI suggestion teaser.
+**States to mock**: empty week, partially planned week, locked/finalized plan, orphaned/deleted recipe slot, nutrition pending, Pro with AI suggestion teaser.
 
 **Source**: [006 product spec](../006-meal-planning/product-spec/product-spec.md), [009 product spec](../009-nutrition-planning/product-spec/product-spec.md), [007 product spec](../007-grocery-lists/product-spec/product-spec.md).
 
 ## Brief 5 — Grocery Lists and Ordering
 
-**Goal**: Support both in-store shopping and premium online ordering without making basic lists feel second-class.
+**Goal**: Support both in-store shopping and Pro online ordering without making basic lists feel second-class.
 
 **Must show**:
 
 - Dedicated Grocery Lists page with history, active lists, create list, generate from meal plan.
 - Generated-list review with deduped quantities, pantry exclusions, source meal-plan link.
 - In-store shopping mode with aisle grouping and one-handed check-off.
-- Store connection and order review for premium users.
+- Store connection and order review for Pro users.
 - Order status card on the list.
 
 **States to mock**: standalone manual list, generated list, offline list view, store not connected, provider outage, item unavailable/substitution needed, order processing/complete/failed.
@@ -116,7 +116,7 @@ These briefs translate the portfolio requirements into concrete design assignmen
 - Meal/recipe breakdown with macro and key micronutrient signals.
 - Deficiency/gap alert with safe language and suggested actions.
 
-**States to mock**: no goal configured, no linked meal plan, pending USDA data, compliance gap, premium recipe-swap suggestion, trainer/client consent if explored.
+**States to mock**: no goal configured, no linked meal plan, pending USDA data, compliance gap, Pro with AI recipe-swap suggestion, trainer/client consent if explored.
 
 **Source**: [009 product spec](../009-nutrition-planning/product-spec/product-spec.md), [003 product spec](../003-usda-food-data/product-spec/product-spec.md).
 
@@ -142,13 +142,13 @@ These briefs translate the portfolio requirements into concrete design assignmen
 
 **Must show**:
 
-- Inline premium teaser at feature entry point.
+- Inline Pro teaser at feature entry point.
 - Modal/bottom-sheet paywall on active invocation.
 - Pricing page: $6.99/month, $59.99/year, 14-day trial. _(Out of date 2026-10-26: see 010's [plan register](../010-subscriptions/spec.md#plan-register).)_
 - Account subscription status and billing portal/deep-link.
 - Lapse/downgrade messaging preserving existing private recipes.
 
-**States to mock**: free, trialing, active premium, past_due within 7-day grace, lapsed/downgraded, mobile web-checkout handoff.
+**States to mock**: free, trialing, active Pro, past_due within 7-day grace, lapsed/downgraded, mobile web-checkout handoff.
 
 **Source**: [010 product spec](../010-subscriptions/product-spec/product-spec.md).
 

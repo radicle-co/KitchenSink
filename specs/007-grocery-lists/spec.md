@@ -15,10 +15,10 @@
 | [001-FR-003b](../001-commise-recipe-app/spec.md)            | **Required** — a draft, or a recipe in review ([020](../020-content-source-check/spec.md) FR-014a), cannot send its ingredients to a list and is hidden, with no note, in the list picker. Items a recipe already put on a list stay, as plain ingredients, when it is set back to draft |
 | [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — ingredient identity and unit normalization                                                                                                                                                                                                                                |
 | [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all grocery features require authentication                                                                                                                                                                                                                               |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a premium feature                                                                                                                                                                                                                                    |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a Pro feature                                                                                                                                                                                                                                        |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -28,7 +28,7 @@
 
 From a meal plan, a user generates a consolidated grocery list. The list aggregates all ingredients across the planned recipes, combines duplicates (e.g., two recipes needing onions), adjusts quantities, and accounts for items the user already has. The user can then order the groceries online through a supported grocery store — if and when a store integration is available and configured.
 
-**Why this priority**: Grocery list generation is a natural extension of meal planning that delivers tangible time savings. Online ordering integration is a key premium feature that drives subscription value.
+**Why this priority**: Grocery list generation is a natural extension of meal planning that delivers tangible time savings. Online ordering integration is a key Pro feature that drives subscription value.
 
 **Independent Test**: Can be tested by generating a grocery list from a 3-day meal plan and verifying ingredient aggregation and quantity calculations are correct.
 
@@ -37,7 +37,7 @@ From a meal plan, a user generates a consolidated grocery list. The list aggrega
 1. **Given** a completed meal plan, **When** the user generates a grocery list, **Then** all ingredients are aggregated with combined quantities.
 2. **Given** a grocery list, **When** duplicate ingredients exist across recipes, **Then** quantities are summed and displayed as a single line item.
 3. **Given** a grocery list, **When** the user marks items as "already have," **Then** those items are excluded from the shopping list.
-4. **Given** a grocery list and a configured grocery store integration, **When** the user initiates online ordering, **Then** the system maps ingredients to store products and returns a checkout handoff URL. _(Premium feature — requires store integration to be available and configured; see FR-030 and FR-031.)_
+4. **Given** a grocery list and a configured grocery store integration, **When** the user initiates online ordering, **Then** the system maps ingredients to store products and returns a checkout handoff URL. _(Pro feature — requires store integration to be available and configured; see FR-030 and FR-031.)_
 5. **Given** a user has not configured a grocery store, **When** the user attempts to order, **Then** the app guides them through store setup before proceeding.
 6. **Given** a user on the dedicated Shopping Lists page, **When** the user creates a new list, **Then** they can start from scratch or link an existing meal plan.
 7. **Given** a grocery list linked to a meal plan, **When** the user views the list, **Then** a link back to the originating meal plan is visible and navigable.
@@ -68,7 +68,7 @@ From a meal plan, a user generates a consolidated grocery list. The list aggrega
 - **FR-028**: System MUST generate a consolidated grocery list from a meal plan, aggregating and deduplicating ingredients with summed quantities.
 - **FR-029**: System MUST allow users to mark grocery items as "already have" to exclude them from the list.
 - **FR-030**: System MUST allow users to configure supported grocery store integrations for online ordering. _(Store integrations are implemented as adapters; availability depends on partner API access — see Assumptions.)_
-- **FR-031**: System MUST map grocery list ingredients to store products and provide a checkout handoff URL when a store integration is active. _(Premium — requires FR-030 store to be configured and reachable.)_
+- **FR-031**: System MUST map grocery list ingredients to store products and provide a checkout handoff URL when a store integration is active. _(Pro — requires FR-030 store to be configured and reachable.)_
 - **FR-032**: System MUST provide a dedicated Shopping Lists page where users can view all their lists, create a new standalone list, or generate a list from a meal plan — independent of navigating through the meal plan view.
 - **FR-033**: System MUST display a link from a grocery list back to its originating meal plan (when one exists), and display a list of associated grocery lists from within the meal plan view.
 

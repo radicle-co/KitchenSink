@@ -22,15 +22,15 @@ renumbered so existing links and the index entry keep resolving.
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                                                                                                                                                                                                               |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required — and largely already shipped.** Owns the Recipe entity, attribution columns, clone, and the C-004 visibility policy. See _Relationship to shipped 001_ below.                                                                                                                  |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all import actions require authentication                                                                                                                                                                                                                                   |
-| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — imported ingredient lines resolve against the food catalog via `@kitchensink/food-service-client`                                                                                                                                                                           |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — premium entitlement gates clone-to-private (`004-FR-011`) and lifts the free-tier limit of 50 private recipes (`004-FR-028` as amended 2026-10-26, ADR-0073). Until 010 ships, premium is derived from the signed token's `permissions` (the shipped `PREMIUM_PERMISSION`). |
+| Spec                                                        | Relationship                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required — and largely already shipped.** Owns the Recipe entity, attribution columns, clone, and the C-004 visibility policy. See _Relationship to shipped 001_ below.                                                                                                          |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all import actions require authentication                                                                                                                                                                                                                           |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — imported ingredient lines resolve against the food catalog via `@kitchensink/food-service-client`                                                                                                                                                                   |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — Pro entitlement gates clone-to-private (`004-FR-011`) and lifts the free-tier limit of 50 private recipes (`004-FR-028` as amended 2026-10-26, ADR-0073). Until 010 ships, Pro is derived from the signed token's `permissions` (the shipped `PREMIUM_PERMISSION`). |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -188,7 +188,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > import as public, import as private, or block. Each outcome sets the label. An allowed-public link is stored
     > as `imported_public`. A link the check allows only as private is stored as `imported_paid`, which is
     > private-only on every plan and never public. It is NOT stored as `imported_public`, because that label stays
-    > private only with Premium and a substantive edit. A blocked link is not imported. The design session drew
+    > private only with Pro and a substantive edit. A blocked link is not imported. The design session drew
     > these three outcomes on features canvas v21 (ImportReviewDraft, ImportLinkPrivateOnly, ImportPaidSiteBlocked).
     > The check itself is not designed yet. It belongs to this URL flow only. Bulk import is a separate flow, where the cook's per-recipe statement sets the label
     > ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9).
@@ -394,12 +394,12 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
 - **FR-028** _(amended 2026-10-26, owner ruling — [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md))_:
   An import channel whose result is **non-public by policy** — photo/OCR import (`imported_physical`), attested
   paid-source entry (`imported_paid`), a URL the rights check allows only as private, and bulk import — MUST NOT
-  require a premium entitlement. Every such recipe a free-tier user keeps uses one of their 50 private slots
+  require a Pro entitlement. Every such recipe a free-tier user keeps uses one of their 50 private slots
   (`001-FR-003`). A free-tier user with no free slot MUST be refused with a distinct, machine-readable code that
   states the slots used and the limit, not a generic authorization error, so the client can explain the choices.
   Such a recipe can never be made public, so the single-recipe channels refuse the save, and bulk import pauses
   ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9). The channels MUST stay
-  advertised to free-tier users. Premium users have no slot limit.
+  advertised to free-tier users. Pro users have no slot limit.
 - **FR-024** _(PARTIALLY IMPLEMENTED 2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe creation
   MUST accept an explicit provenance (`sourceType` plus optional source URL and attribution) rather than
   assuming `user_created`, and MUST evaluate the C-004 visibility policy against the **actual** provenance.
@@ -755,7 +755,7 @@ The section above decides **who authors** the contract; this one is where it **r
       Textract** — the account is already AWS-native, credentials are IAM rather than a new vendor secret, and
       `sharp` is already a service dependency for image preprocessing. It sits behind an `OcrProvider` port so
       the pipeline is testable without the vendor and the choice is reversible. **Amended by D-014**: OCR
-      import is premium-only, which also bounds Textract spend to paying users.~~
+      import is Pro-only, which also bounds Textract spend to paying users.~~
     - **Amended:** **photo/OCR does not ship with 004.** The image branch is owned by
       [011-recipe-digitization](../011-recipe-digitization/spec.md), lands **after** 004, routes to a
       dedicated **stateless** image-processing service, and then submits its extracted candidates to 004's
@@ -771,7 +771,7 @@ The section above decides **who authors** the contract; this one is where it **r
       confidence, and a side-by-side correction UI — is a product in its own right and far exceeds 004's
       single `FR-012` sentence. Folding it into 004 would have discarded the differentiator 011 exists for.
     - **Consequence for D-014.** D-014's rule moves with the channel and becomes 011's to enforce. Since
-      2026-10-26 that rule is the private-slot limit, not a premium gate (ADR-0073). It is read through the
+      2026-10-26 that rule is the private-slot limit, not a Pro gate (ADR-0073). It is read through the
       same shared entitlement mechanism, never an import of the identity service (ADR-0017 decision 3).
 - **D-002 (Instagram)**: `FR-009` is **fully specified but gated**. The public no-auth oEmbed endpoint
   (`api.instagram.com/oembed`) was withdrawn on 2020-10-24; oEmbed now requires a Meta app credential and App
@@ -845,7 +845,7 @@ The section above decides **who authors** the contract; this one is where it **r
   not public no longer requires a subscription. A free-tier user holds up to 50 private recipes, and every one
   uses a slot, including where the privacy is imposed by policy rather than chosen. Photo/OCR import and attested
   paid-source entry are open to the free tier, within its slots. The decision of 2026-08-02 made both
-  premium-only, and it also confined Textract spend to paying users. That spend bound is gone: free-tier OCR is
+  Pro-only, and it also confined Textract spend to paying users. That spend bound is gone: free-tier OCR is
   now bounded only by the OCR sub-quota (`FR-022`). The slot check is a visibility rule in the C-004 policy, not
   a gate on the channel (`FR-028`).
 - **D-013 (Bulk limits, 2026-08-02)**: A single export file may contain up to **1,000 recipes**; above that it

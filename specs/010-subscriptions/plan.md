@@ -71,8 +71,8 @@ money path.
   added, is owner input O-9 (`FR-042i`). If store purchase is added, the entitlement source gains the store as a
   second writer, and that needs its own design.
 - **Design first.** The page goes through `staff-ux-engineer` (DESIGN, SPECIFY, EVALUATE) before it is built. The
-  design boards on the design branch draw Pro and Pro with AI only, and they need the third plan once O-1 is
-  answered.
+  design boards on the design branch draw Pro and Pro with AI. They still need Free's small AI allowance (spec
+  `FR-041a`), and every "Premium" string becomes "Pro" (`FR-041a1`).
 
 ---
 
@@ -83,7 +83,7 @@ money path.
 ```typescript
 // Add to existing Account entity
 // ⚠️ 2026-10-26: 'free' | 'premium' is out of date. The plan is one of the plans in spec.md's plan register
-// (Free, Pro, Pro with AI, and possibly a third, owner input O-1). The billing interval (month or year), a
+// (Free, Pro and Pro with AI, owner 2026-10-27). The billing interval (month or year), a
 // downgrade waiting for the period end, and the AI credit level also need a home. Settle the shape with
 // staff-architect before T-002 (see §4).
 @Column({ type: 'varchar', default: 'free' })
@@ -220,7 +220,7 @@ routes likewise), so the guard is a **shared** concern under `packages/shared/*`
 forbids an app depending on a service package, and ADR-0014's rejected alternative 2 is exactly this — it drags
 NestJS, Drizzle and the AWS SDK into every consumer and inverts the build order. ⚠️ §4's `PlanGuard` sketch reads
 `user.plan` / `user.subscriptionStatus` off the request; under `FR-044` those values arrive from the verified
-token claim, and every consumer **fails closed** — an absent or unreadable claim is `free`, never premium.
+token claim, and every consumer **fails closed** — an absent or unreadable claim is `free`, never Pro.
 
 **Flip condition (ADR-0017)**: extract a billing service when 010 grows **marketplace payments** — Stripe
 Connect, creator payouts, 1099 reporting, all explicitly out of scope today. That surface carries a different
@@ -241,7 +241,7 @@ Stripe SDK type**, since importing one would drag a third-party shape into a con
   (GR-015 §15-b.4).
 - **The `SubscriptionStatus` shape and the plan/entitlement enum are the load-bearing case.** Every gated
   surface across 004, 007, 009, 012 and 013 branches on them. A client that re-declares that enum can drift
-  from the server by one member and **fail open** — showing a premium feature to a free user, or the reverse —
+  from the server by one member and **fail open** — showing a Pro feature to a free user, or the reverse —
   with `typecheck` green. It is imported, never re-declared.
 - **Derive** any divergent consumer shape (a paywall banner model, a plan-comparison row) with
   `Pick` / `Omit` / `Partial`. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
@@ -367,7 +367,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
       every bounded column has an entry or a reasoned exemption, and every entry names a column that exists.
 - **⚠️ An entitlement decision must never branch on an unparsed field.** The `SubscriptionStatus` shape and the
   plan/entitlement enum gate 004, 007, 009, 012 and 013. A webhook body whose `status` string was never checked
-  against the enum can **fail open** — granting premium — with `typecheck` green. The enum is validated at the
+  against the enum can **fail open** — granting Pro — with `typecheck` green. The enum is validated at the
   boundary and mapped explicitly; an unrecognised value is a **rejection plus an alarm**, never a default.
 - **Non-HTTP ingress is in scope.** Any retry queue, DLQ replay or reconciliation job this feature adds **parses
   its payload against an authored zod before acting on it** — a pipe reaches none of them, and these are the
@@ -610,14 +610,14 @@ body handling for **every** identity endpoint to no purpose.
 
 ## 6. Open Questions (OQ from Research)
 
-| #    | Question                              | Decision                                                                   |
-| ---- | ------------------------------------- | -------------------------------------------------------------------------- |
-| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                    |
-| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                      |
-| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                 |
-| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                   |
-| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                           |
-| OQ-6 | Plans, credits, names, mobile billing | Open. Spec [owner inputs](./spec.md#owner-inputs-still-needed) O-1 to O-11 |
+| #    | Question                              | Decision                                                                                                                |
+| ---- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                                                                 |
+| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                                                                   |
+| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                                                              |
+| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                                                                |
+| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                                                                        |
+| OQ-6 | Plans, credits, names, mobile billing | Plans and names decided 2026-10-27. Credits and the rest open: spec [owner inputs](./spec.md#owner-inputs-still-needed) |
 
 ---
 
@@ -630,6 +630,6 @@ body handling for **every** identity endpoint to no purpose.
 | Checkout          | Stripe Checkout (hosted)                | No PCI scope; fastest to ship                             |
 | Portal            | Stripe Customer Portal                  | Handles plan switch, cancel, payment update; no custom UI |
 | Upgrade proration | `always_invoice`                        | User pays and gets access immediately                     |
-| Downgrade timing  | `schedule_at_period_end`                | User retains premium until period end                     |
+| Downgrade timing  | `schedule_at_period_end`                | User retains Pro until period end                         |
 | Grace period      | 7 days `past_due`                       | Reduces churn from transient payment failures             |
 | Data on lapse     | Retain all data; gate actions not reads | FR-043 compliance                                         |

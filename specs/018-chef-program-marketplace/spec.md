@@ -22,8 +22,8 @@
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md) | **Constraining** — consumer disclosure (`016-FR-040`…`044`), the content licence (`016-FR-010`…`015b`), notice-and-action (`016-FR-016`…`019`), per-market posture (`016-FR-048`) |
 | [014-notification-service](../014-notification-service/spec.md)             | **Referenced** — application decisions, payout events, dispute deadlines and takedown notices need a delivery channel                                                             |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -1488,7 +1488,7 @@ reasoning is specific and survives scrutiny:
   on price loses money on exactly the power users who generate word of mouth. `ADR-0024` exists because
   inference cost already binds.
 - **The $60–80 "category ceiling" anchors to a failing category** — MacroFactor charges **$71.99/yr with no
-  free tier at all**; MyFitnessPal Premium+ is **$99.99/yr**.
+  free tier at all**; MyFitnessPal Pro+ is **$99.99/yr**.
 - **"No forced subscription" is the #9 stated churn reason** in their users' own words, with **D23** proposing
   a one-time or lifetime tier (Paprika $29.99 once, Recipe Fox $10 once, Copy Me That $65 lifetime, Crouton's
   $24.99-once-plus-optional-sub are the proven shapes).

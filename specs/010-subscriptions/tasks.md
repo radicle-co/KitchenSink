@@ -10,7 +10,7 @@
 
 | US     | Title                                     | Priority | FRs                                             |
 | ------ | ----------------------------------------- | -------- | ----------------------------------------------- |
-| US-001 | Free and Premium Subscription Tiers       | P3       | FR-040, FR-041                                  |
+| US-001 | Free and Pro Subscription Tiers           | P3       | FR-040, FR-041                                  |
 | US-002 | Checkout & Billing Management             | P3       | FR-041                                          |
 | US-003 | Subscription Lifecycle & Webhook Handling | P3       | FR-043                                          |
 | US-004 | Upgrade Prompts & Frontend Integration    | P3       | FR-042                                          |
@@ -69,9 +69,9 @@ either.
 
 ---
 
-## User Story 1 — Free and Premium Subscription Tiers (P3)
+## User Story 1 — Free and Pro Subscription Tiers (P3)
 
-> Gate premium features; free tier delivers full core value. Implements FR-040, FR-041.
+> Gate Pro features; free tier delivers full core value. Implements FR-040, FR-041.
 
 - [ ] **T-001** [P0] [US-001] Add `stripe` dependency and env schema vars to `@kitchensink/identity-service`  
       — `packages/services/identity/package.json`, `packages/services/identity/src/config/`  
@@ -105,7 +105,7 @@ either.
       — `packages/services/identity/src/billing/guards/plan.guard.ts`  
       **Depends on**: T-004  
       **Implements**: FR-041, FR-043 (grace period per product-spec D-3)  
-      **Acceptance**: Free user denied with `403 PREMIUM_REQUIRED`; premium/trialing allowed; `past_due` within 7-day grace allowed; `past_due` beyond grace denied.
+      **Acceptance**: Free user denied with `403 PREMIUM_REQUIRED`; Pro/trialing allowed; `past_due` within 7-day grace allowed; `past_due` beyond grace denied.
 
 - [ ] **T-006** [P1] [US-001] Apply `@RequirePremium()` to all gated downstream endpoints  
       — `packages/services/recipe-service/src/…` (001's gated routes, plus 006 meal plans / 007 grocery lists / 009 nutrition plans, all of which land in this service per ADR-0017), and each further owning service as it is built  
@@ -113,8 +113,8 @@ either.
       **Implements**: FR-041 (Feature Gating Map per plan.md §4), FR-044  
       **⚠️ Three paths in this task did not exist and were removed.** `packages/services/recipe/src/…` is really **`packages/services/recipe-service/`**; `packages/services/ai/src/…` and `packages/services/meal-plan/src/…` **do not exist at all** — meal planning is **not** a service ([ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md) puts 006 in `@kitchensink/recipe-service`), and 005's `ai-service` is unbuilt and unratified (ADR-0017 explicitly declines to decide it). Do not scaffold a service to satisfy this task.  
       **⛔ The guard is a SHARED package reading a signed CLAIM — it is NOT an import of the identity service.** Per ADR-0017 decision 3 and `plan.md` L162-175: every gated route lives in some _other_ service, so `@RequirePremium()` / `PlanGuard` sit under `packages/shared/*` and read the entitlement from the **verified Clerk session token** (FR-044, the mechanism `packages/shared/clerk-verify` already implements for admin `scopes`/`permissions`). Importing `@kitchensink/identity-service` to gate a route drags NestJS, Drizzle and the AWS SDK into every consumer, inverts the build order, and is already forbidden by `packages/tools/repoGuards/__tests__/appServiceDependency.test.ts`.  
-      **Acceptance**: Each gated endpoint returns `403 PREMIUM_REQUIRED` for free-tier users; premium and `trialing` pass through. **Every consumer fails CLOSED** — an absent, unreadable or unparsed claim is `free`, **never** premium. ⚠️ The entitlement enum is **parsed before it is branched on**: a `status` string that never met its enum can **fail open and grant premium with `typecheck` green**, which is the paywall failing silently in production.  
-      **Tests**: unit (free/premium/trialing/past-due-in-grace/past-due-beyond-grace; absent claim ⇒ `free`; malformed claim ⇒ `free` **and** a recorded rejection, never a pass-through) **AND** integration (a real gated route on a booted service returns `403` for a free token and `200` for a premium one).
+      **Acceptance**: Each gated endpoint returns `403 PREMIUM_REQUIRED` for free-tier users; Pro and `trialing` pass through. **Every consumer fails CLOSED** — an absent, unreadable or unparsed claim is `free`, **never** Pro. ⚠️ The entitlement enum is **parsed before it is branched on**: a `status` string that never met its enum can **fail open and grant Pro with `typecheck` green**, which is the paywall failing silently in production.  
+      **Tests**: unit (free/Pro/trialing/past-due-in-grace/past-due-beyond-grace; absent claim ⇒ `free`; malformed claim ⇒ `free` **and** a recorded rejection, never a pass-through) **AND** integration (a real gated route on a booted service returns `403` for a free token and `200` for a Pro one).
 
 - [ ] **T-007** [P1] [US-001] Unit tests for `PlanGuard` and `@RequirePremium()`  
       — `packages/services/identity/src/billing/guards/__tests__/plan.guard.test.ts`  
@@ -227,7 +227,7 @@ either.
       **Depends on**: T-016, T-017, T-018, T-019  
       **Implements**: FR-043, NFR-001, GR-018 AC-018-c  
       **⚠️ Filename corrected — the old one used a BANNED suffix.** `webhook-handlers.e2e-spec.ts` is neither tier's convention: per CODING_STANDARDS §7 "Test File Location", **bare `*.spec.ts` is reserved for Playwright** (a shared suffix makes Playwright try to run vitest files and crash the run on their `vitest` imports), and every vitest tier uses `*.test.ts` — integration as `*.integration.test.ts` in `tests/`. The handlers also moved to `identity-webhooks` (T-014).  
-      **Acceptance**: All state transitions verified (free→premium, active→past_due, active→canceled); idempotency confirmed under concurrent duplicate delivery; data retention on cancellation confirmed. **Plus all THREE GR-018 dispositions** — ⚠️ **corrected 2026-08-12; this line previously asked for "both halves" (invalid ⇒ `2xx`, valid ⇒ success), and AC-018-c requires three because any TWO of them pass on a handler that always returns the same thing**: a **shape** failure behind a valid signature yields **`2xx`** + a recorded rejection + the shape counter + **no** row; a **signature** failure yields **non-2xx (`401`)** with the same shape + the signature counter + no row; a **valid** body yields its normal success. The two-of-three version would have passed a handler that `2xx`-ed a **forged** signature.  
+      **Acceptance**: All state transitions verified (free→Pro, active→past_due, active→canceled); idempotency confirmed under concurrent duplicate delivery; data retention on cancellation confirmed. **Plus all THREE GR-018 dispositions** — ⚠️ **corrected 2026-08-12; this line previously asked for "both halves" (invalid ⇒ `2xx`, valid ⇒ success), and AC-018-c requires three because any TWO of them pass on a handler that always returns the same thing**: a **shape** failure behind a valid signature yields **`2xx`** + a recorded rejection + the shape counter + **no** row; a **signature** failure yields **non-2xx (`401`)** with the same shape + the signature counter + no row; a **valid** body yields its normal success. The two-of-three version would have passed a handler that `2xx`-ed a **forged** signature.  
       **Tests**: this task **is** the integration tier; the matching unit tier lives with each handler (T-016…T-019), and the deployable's k6 load profile is T-034.
 
 ---
@@ -240,7 +240,7 @@ either.
       — `packages/apps/commise/web/src/lib/billing-interceptor.ts`  
       **Depends on**: T-005  
       **Implements**: FR-042 (three-tier prompt hierarchy per spec.md)  
-      **Acceptance**: Attempting a premium action as free user shows upgrade CTA modal, not generic error toast; CTA links to checkout flow.
+      **Acceptance**: Attempting a Pro action as free user shows upgrade CTA modal, not generic error toast; CTA links to checkout flow.
 
 - [ ] **T-022** [P1] [US-004] Build reusable `<UpgradePrompt>` component (web)  
       — `packages/apps/commise/web/src/components/UpgradePrompt.tsx`  
@@ -258,19 +258,19 @@ either.
       — `packages/apps/commise/mobile/src/components/UpgradeSheet.tsx`  
       **Depends on**: T-021  
       **Implements**: FR-042 (mobile deep-link per spec.md Assumptions)  
-      **Acceptance**: Premium action on mobile shows upgrade bottom sheet; tapping CTA opens system browser to web checkout URL.
+      **Acceptance**: Pro action on mobile shows upgrade bottom sheet; tapping CTA opens system browser to web checkout URL.
 
 - [ ] **T-025** [P2] [US-004] E2E tests — upgrade flow (Playwright)  
       — `packages/apps/commise/web/tests/e2e/upgrade-flow.spec.ts`  
       **Depends on**: T-022, T-023  
       **Implements**: FR-042, NFR-003  
-      **Acceptance**: Free user hits gated feature → upgrade prompt appears; `past_due` banner visible on dashboard; premium user accesses gated feature without prompt.
+      **Acceptance**: Free user hits gated feature → upgrade prompt appears; `past_due` banner visible on dashboard; Pro user accesses gated feature without prompt.
 
 ---
 
 ## User Story 5 — Data Retention on Subscription Lapse (P3)
 
-> All user data is retained when premium lapses; only premium actions are gated. Implements FR-043.
+> All user data is retained when Pro lapses; only Pro actions are gated. Implements FR-043.
 
 - [ ] **T-026** [P1] [US-005] Verify data retention policy in cancellation handler  
       — `packages/services/identity/src/billing/webhook/handlers/subscription.handler.ts`  
@@ -278,7 +278,7 @@ either.
       **Implements**: FR-043 (spec.md §Edge Cases, product-spec D-3)  
       **Acceptance**: Code review confirms NO data deletion; integration test verifies recipe count unchanged after `customer.subscription.deleted`.
 
-- [ ] **T-027** [P1] [US-005] Read-only access for lapsed premium content  
+- [ ] **T-027** [P1] [US-005] Read-only access for lapsed Pro content  
       — `packages/services/identity/src/billing/guards/plan.guard.ts`, downstream service authorization layers  
       **Depends on**: T-006, T-026  
       **Implements**: FR-043 (spec.md Edge Cases)  
@@ -288,7 +288,7 @@ either.
       — `packages/apps/commise/mobile/src/screens/SubscriptionScreen.tsx`  
       **Depends on**: T-011, T-024  
       **Implements**: FR-041, FR-043 (mobile billing surface per spec.md Assumptions)  
-      **Acceptance**: Free user sees upgrade CTA; active premium user sees plan details and Manage button; `past_due` user sees recovery banner; all buttons open correct URLs in system browser via `Linking.openURL`.
+      **Acceptance**: Free user sees upgrade CTA; active Pro user sees plan details and Manage button; `past_due` user sees recovery banner; all buttons open correct URLs in system browser via `Linking.openURL`.
 
 ---
 
@@ -335,7 +335,7 @@ either.
 
 - [ ] **T-040** [P0] [US-006] Design the multi-plan entitlement model with `staff-architect`  
       — `docs/architecture/decisions/`, `specs/governance-rules.md`  
-      **Depends on**: owner inputs O-1, O-3  
+      **Depends on**: — (the plans and names were decided 2026-10-27)  
       **Implements**: FR-041b, FR-044  
       **Acceptance**: An ADR states how the signed token and identity's rows name each plan and each AI credit level. It states how `hasPaidFeatures(roles)` (GR-012 AC-012-c) and `account.paidFeatures` change, and how `@RequirePremium()` becomes a per-feature check. GR-012 is amended in the same change.  
       **Tests**: none (a design task). T-002 and T-004 to T-006 do not start before it lands.
@@ -390,7 +390,7 @@ either.
       **⛔ This is the OPPOSITE case to T-029, in the same feature.** We do **not** serve Stripe's API: there is no service of ours to own its types, and Stripe versions its contract independently of us.  
       **Acceptance**: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted` and `customer.subscription.trial_will_end` each have a zod schema validating the **raw upstream shape at the boundary**, applied **after** signature verification and **before any field drives a `subscriptions` or `stripe_webhook_events` write**. This adapter **MAY declare its own types**; Stripe's types stay on **Stripe's side of the adapter**; **NO OpenAPI document is written for Stripe**; and rules 17-b.1–17-b.5 do not apply to it. Only unknown/unregistered event types are ignored — and ignored **loudly**, with a counter, never silently.  
       **⛔ Deleting these schemas in the name of §15-b is a SECURITY and CORRECTNESS regression, not a cleanup — this is the code path that decides who has paid.** `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be touched in this rule's name.  
-      **⚠️ Parse before you branch.** The plan/entitlement enum gates 004, 007, 009, 012 and 013. A `status` string that was never checked against the enum can **fail open — granting premium — with `typecheck` green**.  
+      **⚠️ Parse before you branch.** The plan/entitlement enum gates 004, 007, 009, 012 and 013. A `status` string that was never checked against the enum can **fail open — granting Pro — with `typecheck` green**.  
       **Tests**: unit (each event schema rejects a renamed, missing, wrong-typed and null-valued field; an unknown event type is counted, not thrown; the normalized `SubscriptionStatus` is asserted **independent** of Stripe's raw shape) **AND** integration (recorded real Stripe test-mode payloads parse clean; a mutated payload is rejected at the boundary and drives **no** write).
 
 - [ ] **T-033** [P1] [US-002] Consume billing through the schema package on web and mobile, validating responses on receipt  
@@ -455,7 +455,7 @@ either.
 | T-037 | Subscription page, mobile                                  | US-006 | T-036, O-9          |
 | T-038 | Plan change and cancel, downgrade rule                     | US-006 | T-012, T-036        |
 | T-039 | AI credit level in the entitlement                         | US-006 | T-040               |
-| T-040 | Multi-plan entitlement model (staff-architect)             | US-006 | O-1, O-3            |
+| T-040 | Multi-plan entitlement model (staff-architect)             | US-006 | —                   |
 
 **Total tasks: 40** (was 34).
 

@@ -20,8 +20,8 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 | [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001. |
 | [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                          |
 
-> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
-> credits differ by plan. Which plan carries which feature is in 010's
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
 > [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
 > [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
@@ -203,7 +203,7 @@ any of the above.
 > ### Dependency status — creator compensation is blocked
 >
 > `FR-031` … `FR-034` assume 010 provides one-time payments and payouts. **It provides neither.** Feature
-> 010's entire functional scope is `010-FR-040` … `010-FR-044`: a free/premium **subscriber** tier on Stripe
+> 010's entire functional scope is `010-FR-040` … `010-FR-044`: a free/Pro **subscriber** tier on Stripe
 > Checkout + Customer Portal, upgrade prompts, downgrade retention, and the tier as a signed token claim. It
 > has no one-time payment, marketplace, revenue-split, or payout surface, and its Out-of-Scope section rules
 > out even multi-seat family plans.

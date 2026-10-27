@@ -38,7 +38,7 @@ import { compositeOver, contrastRatio } from './contrast.js';
 
 /**
  * A `text-…` / `bg-…` / `border-…` / `ring-…` utility with an optional leading variant and an optional `/NN`
- * opacity suffix — `bg-coral/10`, `text-slate`, `hover:bg-coral/25`, `border-mist`,
+ * opacity suffix — `bg-cream/10`, `text-slate`, `hover:bg-cream/25`, `border-mist`,
  * `focus-visible:ring-steel`.
  *
  * Sizing, side and geometry variants fall out naturally: `border-2`, `border-b-2`, `ring-2` and
@@ -53,6 +53,9 @@ const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border|ring)-([a-z-]+?)(?:\/(\d{
  */
 const NAMED_COLOURS: Readonly<Record<string, string>> = {
     ...palette,
+    // Tailwind's own `white` utility is pure #FFFFFF. The palette has no key of that name (the card colour is `cloud`),
+    // so without this a `bg-white` would read as an unknown name and be skipped.
+    white: palette.snow,
     ...Object.fromEntries(
         Object.entries(role).map(([name, value]) => [
             name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
@@ -192,7 +195,7 @@ function background(className: string, variant: string | undefined, surface: str
  * @returns The ratio, 1..21.
  */
 export function utilityContrast(className: string, options: UtilityContrastOptions = {}): number {
-    const { surface = palette.white, variant, foreground: role = 'text' } = options;
+    const { surface = palette.cloud, variant, foreground: role = 'text' } = options;
 
     return contrastRatio(
         compositeOver(foreground(className, role, variant), surface),
@@ -228,7 +231,7 @@ export function utilityContrast(className: string, options: UtilityContrastOptio
  *   silently measure the surface against itself.
  */
 export function ringContrast(className: string, options: RingContrastOptions = {}): number {
-    const { surface = palette.white } = options;
+    const { surface = palette.cloud } = options;
     const found = colorUtilities(className, 'ring');
 
     if (found.length !== 1) {
@@ -256,7 +259,7 @@ export function ringContrast(className: string, options: RingContrastOptions = {
  * @throws Error when the element has no computed colour (it was never rendered, or carries no colour style).
  */
 export function computedContrast(element: Element, options: ComputedContrastOptions = {}): number {
-    const { surface = palette.white } = options;
+    const { surface = palette.cloud } = options;
     const style = window.getComputedStyle(element);
 
     // ⛔ THE CONDITION IS "NEVER RENDERED", AND IT IS NOW TESTED DIRECTLY.
@@ -313,7 +316,7 @@ const PLACEHOLDER_COLOR_PROPERTY = '--placeholderTextColor';
  *   be asserting the platform default rather than the design token it means to pin).
  */
 export function placeholderContrast(element: Element, options: ComputedContrastOptions = {}): number {
-    const { surface = palette.white } = options;
+    const { surface = palette.cloud } = options;
     const style = window.getComputedStyle(element);
     const color = style.getPropertyValue(PLACEHOLDER_COLOR_PROPERTY).trim();
 

@@ -12,7 +12,9 @@
  * naming it fails; restore a retired key (`seafoam`, `sand`, `honey`, `premium`) and the rename rows fail.
  *
  * Renamed on purpose (a name that still said teal or sand would mislead the next reader): `seafoam` to `steel`,
- * `seafoam-light` to `steel-light`, `sand` to `fog`, and the cover tint `seafoam` to `steel`. Retired because the
+ * `seafoam-light` to `steel-light`, `sand` to `fog`, `coral` to `cream`, `white` to `cloud` (the card colour; pure white is
+ * `snow`, and the emitted theme must carry no `--color-white`), and the cover tints `seafoam` to `steel`, `coral` to
+ * `cream` and `premium` to `peach`. Retired because the
  * redesign made each a copy of another entry: `honey` (now the `charcoal` value) and `premium` (now `slate`).
  *
  * Deliberately NOT here: the display font and `fontWeight.bold` (`redesignFont.test.ts`).
@@ -29,7 +31,15 @@ import { difficultyTone, difficultyToneDark, proTone, proToneDark } from '../ton
 import { NATIVE, NATIVE_LITERALS, WEB_DARK, WEB_LIGHT } from '../__fixtures__/redesignValues.js';
 
 /** The source's palette key to ours. Every other key keeps its name. */
-const RENAMED = { seafoam: 'steel', 'seafoam-light': 'steel-light', sand: 'fog' } as const;
+const RENAMED = {
+    seafoam: 'steel',
+    'seafoam-light': 'steel-light',
+    sand: 'fog',
+    coral: 'cream',
+    white: 'cloud',
+} as const;
+/** The source's cover tint to ours (`premium` is a RETIRED palette key but a live cover tint, so it has its own map). */
+const COVER_RENAMED = { seafoam: 'steel', coral: 'cream', premium: 'peach' } as const;
 /** Source palette keys that no longer exist, each a copy of another entry. */
 const RETIRED = ['honey', 'premium'] as const;
 /**
@@ -42,6 +52,11 @@ const RETUNED_AFTER_HANDOFF = new Set(['pro-fill', 'pro-ink']);
 /** Our name for a source palette key. */
 function ours(key: string): string {
     return (RENAMED as Readonly<Record<string, string>>)[key] ?? key;
+}
+
+/** Our name for a source cover tint key. */
+function coverOurs(key: string): string {
+    return (COVER_RENAMED as Readonly<Record<string, string>>)[key] ?? key;
 }
 
 /** A CSS value in the one spelling both sides compare in: single quotes, lower case, `, ` closed up, single spaces. Pure. */
@@ -92,7 +107,7 @@ function emittedName(source: string): string | undefined {
     const cover = /^cover-(.+)$/.exec(source)?.[1];
 
     if (cover !== undefined) {
-        return `color-cover-${ours(cover)}`;
+        return `color-cover-${(COVER_RENAMED as Readonly<Record<string, string>>)[cover] ?? cover}`;
     }
 
     return source;
@@ -199,11 +214,11 @@ describe('native: nativeTheme.json, every replacement', () => {
     });
 
     it.each(Object.entries(NATIVE['coverTint'] ?? {}))('coverTint.%s', (key, value) => {
-        expect(coverTint[ours(key) as keyof typeof coverTint]).toBe(value);
+        expect(coverTint[coverOurs(key) as keyof typeof coverTint]).toBe(value);
     });
 
     it.each(Object.entries(NATIVE['coverTintDark'] ?? {}))('coverTintDark.%s', (key, value) => {
-        expect(coverTintDark[ours(key) as keyof typeof coverTintDark]).toBe(value);
+        expect(coverTintDark[coverOurs(key) as keyof typeof coverTintDark]).toBe(value);
     });
 
     it.each(Object.entries(NATIVE['radius'] ?? {}))('radius.%s', (key, value) => {
@@ -259,5 +274,18 @@ describe('the retuned danger colours and nutrition series', () => {
         });
         expect(new Set(Object.values(chart)).size).toBe(5);
         expect(new Set(Object.values(chartDark)).size).toBe(5);
+    });
+});
+
+// Tailwind ships its own `white` (#FFFFFF). The card colour used to be a palette key called `white`, which emitted
+// `--color-white: #FCFDFF` and quietly repainted every `bg-white` a hair off pure white. It is `cloud` now, and the
+// emitted theme must not declare `--color-white` at all, so Tailwind's own stays pure and `snow` names the pure white.
+describe('web: the card colour is cloud and Tailwind’s white is left alone', () => {
+    it('emits --color-cloud and --color-snow, and no --color-white, in either theme block', () => {
+        expect(light.get('color-cloud')).toBe('#fcfdff');
+        expect(light.get('color-snow')).toBe('#ffffff');
+        expect(light.has('color-white')).toBe(false);
+        expect(dark.has('color-white')).toBe(false);
+        expect(css).not.toMatch(/--color-white\s*:/);
     });
 });

@@ -90,6 +90,42 @@ function hexHits(text: string): readonly string[] {
 /** `seafoam` and `Playfair` are retired in any spelling: no current token, family or recipe word contains either. */
 const RETIRED_WORDS = /seafoam|playfair/i;
 /**
+ * Palette and cover-tint names retired by the cream, cloud and peach renames. Each word is ordinary English or a live
+ * domain word elsewhere (`premium` is a recipe rule all through `features/recipes`; coral is a lobster's roe), so only
+ * its use AS A TOKEN is retired: a colour utility (`bg-coral`, `text-cover-premium`), a custom property
+ * (`--color-coral`, `--brand-premium`), a palette or cover lookup (`palette.coral`, `coverTint.premium`).
+ * `white` is different again: Tailwind's own `white` utility and `--color-white` are legitimate (pure #FFFFFF), so ONLY
+ * the palette lookup `palette.white` is retired. The palette key was renamed `cloud`.
+ */
+const RETIRED_PALETTE_NAMES =
+    /\b(?:bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|shadow)-(?:cover-)?(?:coral|premium)\b|--(?:color-|brand-|cover-)?(?:coral|premium)\b/;
+/** The tables a retired key is looked up in. */
+const RETIRED_KEY_TABLES = new Set(['palette', 'coverTint', 'coverTintDark', 'covers']);
+/** A key read from one of those tables: `coral` and `premium` (palette or cover), `white` (palette only). */
+const RETIRED_KEYS = /^(?:coral|premium|white)$/;
+
+/** The retired lookup a node makes: `palette.white`, `coverTint['premium']`. `undefined` for any other node. */
+function retiredLookup(node: ts.Node): string | undefined {
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
+        return RETIRED_KEY_TABLES.has(node.expression.text) && RETIRED_KEYS.test(node.name.text)
+            ? `${node.expression.text}.${node.name.text}`
+            : undefined;
+    }
+
+    if (
+        ts.isElementAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        ts.isStringLiteralLike(node.argumentExpression)
+    ) {
+        return RETIRED_KEY_TABLES.has(node.expression.text) && RETIRED_KEYS.test(node.argumentExpression.text)
+            ? `${node.expression.text}['${node.argumentExpression.text}']`
+            : undefined;
+    }
+
+    return undefined;
+}
+
+/**
  * `sand` and `honey` are ordinary English (an ingredient, a beach), so only their use AS A TOKEN NAME is retired:
  * a Tailwind utility (`bg-sand`), a CSS custom property (`--brand-honey`) or a palette lookup (`palette.sand`).
  */
@@ -98,7 +134,9 @@ const RETIRED_TOKEN_NAMES =
 
 /** Whether text names a retired token. */
 function namesRetired(text: string): string | undefined {
-    return RETIRED_WORDS.exec(text)?.[0] ?? RETIRED_TOKEN_NAMES.exec(text)?.[0];
+    return (
+        RETIRED_WORDS.exec(text)?.[0] ?? RETIRED_TOKEN_NAMES.exec(text)?.[0] ?? RETIRED_PALETTE_NAMES.exec(text)?.[0]
+    );
 }
 
 /** The retired names a TypeScript file USES: identifiers, string and template literals. Comments and JSX text are not read. */
@@ -107,6 +145,12 @@ function tsNameHits(file: string, text: string): readonly string[] {
     const hits: string[] = [];
 
     const visit = (node: ts.Node): void => {
+        const lookup = retiredLookup(node);
+
+        if (lookup !== undefined) {
+            hits.push(lookup);
+        }
+
         if (ts.isIdentifier(node)) {
             const hit = namesRetired(node.text);
             const key = ts.isPropertyAccessExpression(node.parent) || ts.isPropertyAssignment(node.parent);
@@ -177,6 +221,17 @@ describe('the retired teal-and-sand values', () => {
         expect(keys.filter((key) => namesRetired(key) !== undefined || /^(?:sand|honey)$/.test(key))).toEqual([]);
     });
 
+    // A bare key is not a name `namesRetired` can see (it needs a `palette.` or `bg-` around it), so the renamed keys are
+    // asserted directly: no palette `white`, `coral` or `premium`; no cover tint `coral` or `premium`.
+    it('keep no palette key white, coral or premium and no cover tint key coral or premium', () => {
+        expect(Object.keys(palette).filter((key) => ['white', 'coral', 'premium'].includes(key))).toEqual([]);
+        expect(
+            [...Object.keys(coverTint), ...Object.keys(coverTintDark)].filter((key) =>
+                ['coral', 'premium'].includes(key),
+            ),
+        ).toEqual([]);
+    });
+
     it('are not hard-coded, by value or by name, in app or feature source', () => {
         expect(SCANNED.flatMap((root) => scan(join(APPS, root), CODE_FILE, true))).toEqual([]);
     });
@@ -203,5 +258,33 @@ describe('the retired-name reader', () => {
         ].join('\n');
 
         expect(tsNameHits('x.tsx', code)).toEqual(['bg-sand', 'honey', 'seafoam', 'seafoam', 'Playfair']);
+    });
+});
+
+describe('the renamed palette names', () => {
+    it('finds a retired token use and ignores the same word as code, copy or Tailwind’s own white', () => {
+        const code = [
+            "const a = 'bg-coral';",
+            "const b = 'bg-cover-premium';",
+            'const c = palette.white;',
+            "const d = palette['coral'];",
+            'const e = coverTint.premium;',
+            "const f = 'var(--color-coral)';",
+            "const ok1 = 'bg-white';",
+            "const ok2 = 'var(--color-white)';",
+            "const ok3 = { rule: 'premium' };",
+            "const ok4 = 'coral reef';",
+            'const ok5 = palette.cloud;',
+            'const ok6 = coverTint.peach;',
+        ].join('\n');
+
+        expect(tsNameHits('x.tsx', code)).toEqual([
+            'bg-coral',
+            'bg-cover-premium',
+            'palette.white',
+            "palette['coral']",
+            'coverTint.premium',
+            '--color-coral',
+        ]);
     });
 });

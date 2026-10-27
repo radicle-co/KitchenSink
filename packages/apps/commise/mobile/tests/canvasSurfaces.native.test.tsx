@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
 const SCREEN_DIRS = ['src/screens', 'src/components/home'] as const;
 
 /** The opaque page-background fills that must never dress a screen-level container again. */
-const OPAQUE_CANVAS_FILLS = ['palette.fog', 'palette.pearl', 'palette.white'] as const;
+const OPAQUE_CANVAS_FILLS = ['palette.fog', 'palette.pearl', 'palette.cloud'] as const;
 
 /**
  * Every `.tsx` source directly under the given directories, as `[relativePath, contents]`.

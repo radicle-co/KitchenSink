@@ -29,9 +29,9 @@ const ASPECT: Readonly<Record<CoverAspect, string>> = {
  */
 const COVER_CLASS: Readonly<Record<CoverTintName, string>> = {
     steel: 'bg-cover-steel',
-    coral: 'bg-cover-coral',
+    cream: 'bg-cover-cream',
     sky: 'bg-cover-sky',
-    premium: 'bg-cover-premium',
+    peach: 'bg-cover-peach',
     success: 'bg-cover-success',
     warning: 'bg-cover-warning',
 };

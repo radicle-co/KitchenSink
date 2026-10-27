@@ -25,13 +25,16 @@
  * said teal or sand would mislead the next reader, so they were renamed with every consumer (`bg-steel`,
  * `from-steel`, `palette['steel-light']` ...). `honey` (the amber star) and `premium` (the PRO tan) are gone: the
  * redesign made each a copy of another entry (`charcoal`, `slate`), and a duplicate that keeps a stale name is a trap.
+ * Two more keys were renamed to say what they are: `coral` (a pale cream, not a coral) is `cream`, and `white` (the
+ * card colour, a hair off pure white) is `cloud`, so Tailwind's own `white` stays pure #FFFFFF and `snow` is the pure
+ * white we name.
  * `__tests__/redesignRetired.test.ts` fails if a retired value comes back.
  */
 export const palette = {
     steel: '#325C7F',
     'steel-light': '#96BCDE',
     // The pale cream and pale blue are fills under `charcoal`, and the cover tints of the same names.
-    coral: '#F7E9D7',
+    cream: '#F7E9D7',
     sky: '#DDEEFC',
     // The page. A mist-grey, cool: the redesign's canvas.
     fog: '#EFF3F6',
@@ -41,8 +44,9 @@ export const palette = {
     slate: '#5C646E',
     mist: '#DFE3E8',
     pearl: '#E9EDF2',
-    // The card surface: a hair off pure white so it does not glare on the cool canvas.
-    white: '#FCFDFF',
+    // The card surface: a hair off pure white so it does not glare on the cool canvas. Not called `white`: that key
+    // would emit `--color-white` and repaint Tailwind's own pure `white` (#FFFFFF).
+    cloud: '#FCFDFF',
     // Pure white: raised and overlay surfaces and the label on a filled control.
     snow: '#FFFFFF',
     success: '#4CAF7C',
@@ -137,7 +141,7 @@ export function tint(color: string, alpha: number): string {
  */
 export const role = {
     canvas: palette.fog,
-    paper: palette.white,
+    paper: palette.cloud,
     ink: palette.charcoal,
     inkMuted: palette.slate,
     lineControl: palette.pewter,
@@ -160,7 +164,7 @@ export const role = {
     inverse: palette.charcoal,
     inverseInk: palette.snow,
     inverseAction: palette['steel-light'],
-    photoChip: tint(palette.white, 0.94),
+    photoChip: tint(palette.cloud, 0.94),
     scrim: tint('#0A1018', 0.42),
     // The label on the `action` and `danger` fills. Named here so that nothing reads a palette white directly.
     onAction: palette.snow,

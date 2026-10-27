@@ -10,7 +10,7 @@ import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../covers.js';
 
 describe('cover tints', () => {
     it('names six hues, in a fixed order the hash buckets index', () => {
-        expect(COVER_TINT_NAMES).toEqual(['steel', 'coral', 'sky', 'premium', 'success', 'warning']);
+        expect(COVER_TINT_NAMES).toEqual(['steel', 'cream', 'sky', 'peach', 'success', 'warning']);
     });
 
     // REWRITTEN for the redesign: the pale washes of the cool palette (light) and their dusk versions (dark). The first
@@ -18,20 +18,27 @@ describe('cover tints', () => {
     it('holds the redesign values in both themes', () => {
         expect(coverTint).toEqual({
             steel: '#E1EDFA',
-            coral: '#F7E9D7',
+            cream: '#F7E9D7',
             sky: '#DDEEFC',
-            premium: '#F5E9DF',
+            peach: '#F5E9DF',
             success: '#E4EDF2',
             warning: '#F7E9D7',
         });
         expect(coverTintDark).toEqual({
             steel: '#202B37',
-            coral: '#342817',
+            cream: '#342817',
             sky: '#1C2C38',
-            premium: '#32281F',
+            peach: '#32281F',
             success: '#232B30',
             warning: '#342817',
         });
+    });
+
+    // `warning` is the same wash as `cream`, and one value has one source: it reads `cream`'s constant. A value check
+    // cannot prove that, so the same-reference-by-construction is shown by the two staying equal in both themes.
+    it('gives warning exactly cream’s wash in both themes', () => {
+        expect(coverTint.warning).toBe(coverTint.cream);
+        expect(coverTintDark.warning).toBe(coverTintDark.cream);
     });
 
     it.each(COVER_TINT_NAMES)('ink lettering reads on the %s cover in both themes', (name) => {

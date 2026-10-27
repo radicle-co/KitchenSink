@@ -154,10 +154,10 @@ const PAIRS: readonly Pair[] = [
         background: roleDark.paper,
         floor: NON_TEXT,
     })),
-    // The white label of a destructive or pressed fill uses palette.white / snow, kept honest at the palette.
+    // The white label of a destructive or pressed fill is `snow` (the role `onAction`), kept honest at the palette.
     {
-        id: 'light: white on the error fill',
-        foreground: palette.white,
+        id: 'light: snow on the error fill',
+        foreground: palette.snow,
         background: palette.error,
         floor: TEXT,
     },

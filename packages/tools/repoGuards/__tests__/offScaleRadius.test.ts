@@ -12,31 +12,26 @@
  * Mutation lens: write `rounded-2xl` in any app file, a `borderRadius: 16`, a `borderRadius: size / 2` or a `999`, and
  * the file and line are listed.
  */
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { appSources, isOffScaleClass, offScaleRadiusIn, offScaleRadiusUnder } from './offScaleRadius.js';
-
-/** `packages/apps` — this file sits at `packages/tools/repoGuards/__tests__/`. */
-const APPS_ROOT = join(import.meta.dirname, '../../../apps');
 
 const scan = (text: string, file = 'Sample.tsx'): readonly string[] =>
     offScaleRadiusIn(file, text).map((hit) => hit.text);
 
 describe('radius scale, every app', () => {
     it('reads the design system, the features and both apps (a vacuous pass would hide the rule)', () => {
-        const files = appSources(APPS_ROOT).map((file) => file.slice(APPS_ROOT.length + 1));
+        const files = appSources();
 
-        expect(files).toContain(join('commise', 'ui', 'src', 'sheet', 'Sheet.tsx'));
-        expect(files).toContain(join('commise', 'features', 'recipes', 'src', 'versions', 'RecipeConflictView.tsx'));
-        expect(files).toContain(join('commise', 'features', 'recipes', 'src', 'card', 'RecipeCard.native.tsx'));
-        expect(files.some((file) => file.startsWith(join('commise', 'web', 'src')))).toBe(true);
-        expect(files.some((file) => file.startsWith(join('commise', 'mobile', 'src')))).toBe(true);
+        expect(files).toContain('packages/apps/commise/ui/src/sheet/Sheet.tsx');
+        expect(files).toContain('packages/apps/commise/features/recipes/src/versions/RecipeConflictView.tsx');
+        expect(files).toContain('packages/apps/commise/features/recipes/src/card/RecipeCard.native.tsx');
+        expect(files.some((file) => file.startsWith('packages/apps/commise/web/src/'))).toBe(true);
+        expect(files.some((file) => file.startsWith('packages/apps/commise/mobile/src/'))).toBe(true);
     });
 
     it('draws only the scale steps in a Tailwind class or a native radius', () => {
-        expect(offScaleRadiusUnder(APPS_ROOT)).toEqual([]);
+        expect(offScaleRadiusUnder()).toEqual([]);
     });
 
     it('recognises the classes it forbids', () => {

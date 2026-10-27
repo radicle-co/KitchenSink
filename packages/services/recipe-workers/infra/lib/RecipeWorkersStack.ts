@@ -323,6 +323,15 @@ const HANDLE_SYNC_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(90);
 const VERIFICATION_METRIC_NAMESPACE = 'Commise/RecipeVerification';
 
 /**
+ * The EMF namespace recipe-service publishes its resolution and paste metrics under.
+ *
+ * ⛔ MUST EQUAL `RECIPE_RESOLUTION_NAMESPACE` in recipe-service's `resolutionMetrics.ts`. This stack owns the alarm
+ * because it is the recipe domain's one alarm topic (and relay); the emitter is the recipe-service Fargate task, whose
+ * stack has none. `RecipeWorkersStack.test.ts` pins the pairing.
+ */
+const RESOLUTION_METRIC_NAMESPACE = 'Commise/RecipeResolution';
+
+/**
  * Age at which the oldest outstanding erasure job pages someone.
  *
  * NOT the archive's "backlog over 100": there will never be 100 concurrent erasures, so a count threshold
@@ -1633,7 +1642,7 @@ export class RecipeWorkersStack extends Stack {
         // costs nothing. Gating it would thread an `SnsAction | undefined` through every alarm for $0. The
         // reasoning and the enforcement live in `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
         //
-        // ⚠️ SEVENTEEN alarms sit in this one block — the largest concentration in the repository, and the
+        // ⚠️ TWENTY-ONE alarms sit in this one block — the largest concentration in the repository, and the
         // reason a `pr-{N}` preview alone provisioned ten. FR-007b-i and ADR-0024's layer 4 still REQUIRE
         // every one of them in the stage that is actually running the pipeline; none is deleted here.
         if (props.alarmsEnabled) {
@@ -1944,6 +1953,50 @@ export class RecipeWorkersStack extends Stack {
                 treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
             });
             residencyRefusedAlarm.addAlarmAction(alarmAction);
+
+            // ⛔ ADR-0024 section 3 / ADR-0071 section 7 (owner ruling 2026-10-26) — THE ONLY SIGNAL THAT THE PASTE
+            // FALLBACK IS RUNNING. A ceiling denial on the paste path is ACKNOWLEDGED, not retried, so the DLQ stays
+            // flat and a month with the ceiling spent looks like a healthy queue while every cook's paste matches
+            // without the AI check. `Stage` ALONE: the emitter publishes `[['Stage'], ['Stage','CallSite']]`, so the
+            // rollup catches whichever leg (review or parse) was refused. Sum over 5 minutes, threshold 0: one is real.
+            const budgetSpentAlarm = new cloudwatch.Alarm(this, 'VerificationBudgetSpentAlarm', {
+                alarmName: `kitchensink-recipe-verification-budget-spent-${props.stage}`,
+                alarmDescription:
+                    'The LLM verification ceiling denied a paste-path call and the fallback completed without the AI check (ADR-0024 section 3). The DLQ is flat by design, so this alarm is the only signal.',
+                metric: new cloudwatch.Metric({
+                    namespace: VERIFICATION_METRIC_NAMESPACE,
+                    metricName: 'VerificationBudgetSpent',
+                    dimensionsMap: { Stage: props.stage },
+                    statistic: 'Sum',
+                    period: Duration.minutes(5),
+                }),
+                threshold: 0,
+                evaluationPeriods: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            budgetSpentAlarm.addAlarmAction(alarmAction);
+
+            // A paste call that left (line, food) proposals unmade (recipe-service `emitUnmadeProposals`): the budget ran
+            // out before every proposal got a row. Emitted by the recipe-service task, alarmed here (see
+            // RESOLUTION_METRIC_NAMESPACE). `Stage` alone, like every metric built by `buildStageCountMetricLine`.
+            const pasteUnmadeAlarm = new cloudwatch.Alarm(this, 'PasteProposalsUnmadeAlarm', {
+                alarmName: `kitchensink-recipe-paste-proposals-unmade-${props.stage}`,
+                alarmDescription:
+                    'A paste-match call returned with proposals unmade because its time budget ran out. The cook sees fewer suggestions than were owed; sustained occurrences mean the budget or the catalog search is too slow.',
+                metric: new cloudwatch.Metric({
+                    namespace: RESOLUTION_METRIC_NAMESPACE,
+                    metricName: 'paste-proposals-unmade',
+                    dimensionsMap: { Stage: props.stage },
+                    statistic: 'Sum',
+                    period: Duration.minutes(5),
+                }),
+                threshold: 0,
+                evaluationPeriods: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            pasteUnmadeAlarm.addAlarmAction(alarmAction);
 
             // ── the parse leg's own alarms (the DETECTION half of the never-deployed CRF defect) ───────
             //

@@ -198,12 +198,13 @@ The builder made three choices where the blueprint was silent. They are recorded
   The ruling says "binds every top match", and a default is a suggestion, not a match. The default sits first in the
   list (ADR-0070), so the food is usually the same and only the origin differs. The pinned test names this reading.
 
-### 8. Bulk import has its own allowance: 1,000 recipes a rolling day
+### 8. Bulk import has its own allowance: 200 recipes a rolling day on Free, 1,000 on a paid plan
 
 The owner ruled that bulk import has an allowance of its own, separate from paste's.
 
 - **Paste: 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
-- **Bulk import: 1,000 recipes a rolling day**, one unit per recipe.
+- **Bulk import: 1,000 recipes a rolling day on a paid plan (Pro, Pro with AI), 200 on Free**, one unit per recipe.
+  The lower Free limit is an owner ruling of 2026-10-27. The plan decides the limit at the first send of a line.
 - Both are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the per-user
   advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
   `importAllowancePolicy.ts` defines.
@@ -339,8 +340,8 @@ is reached, this path does not wait for the budget to return.
   and `autoBest` lines. `importFlagOf` flags only a bound line, so it cannot list a line saved as written. The builder
   owes both: a spent budget makes `bindingOf` keep every line without a cook choice as written, and the "to check"
   list covers those lines.
-- **A large library takes days.** At 1,000 recipes a rolling day, 017 SC-004's 2,000-recipe export finishes on the
-  second day at the earliest.
+- **A large library takes days.** At 1,000 recipes a rolling day (a paid plan), 017 SC-004's 2,000-recipe export
+  finishes on the second day at the earliest. On Free's 200 a day it takes ten days.
 
 ## Follow-ups
 

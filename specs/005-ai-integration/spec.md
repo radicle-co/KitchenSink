@@ -66,31 +66,49 @@ class, and it is not claimed to be more.
 
 **AI Integration**
 
-- **FR-015**: System MUST allow users to configure their preferred AI provider (e.g., OpenAI, Gemini, Anthropic) by securely storing their own API credentials (BYOK model).
-- **FR-015a** _(new 2026-10-26, owner ruling)_: A **Pro with AI** subscriber (`010-FR-041`) MUST get a monthly AI allowance, counted in **uses** (one generation, suggestion set or optimization each), not in money. The number is set from the measured cost per use so the tier keeps its margin, and it resets each billing month. Spend MUST be metered per user with the reserve-then-settle counter (ADR-0024).
-- **FR-015b** _(new 2026-10-26, owner ruling)_: When a user adds their own key (`FR-015`), the system MUST ask, at that moment, for permission to use the key **automatically** once their allowance is used up, and MUST offer a switch to turn that automatic use on and off at any time **without removing the key**. With the switch on, an exhausted allowance falls through to the user's key with no further prompt, and the AI screens MUST show which account is paying ("Using your OpenAI key"). With the switch off, or with no key, AI stops with a plain message until the allowance resets.
-- **FR-015c** _(new 2026-10-26, owner ruling: "the subscriptions have two levels of AI credits")_: The number of AI
-  uses a cook gets MUST come from their plan, as 010's [plan register](../010-subscriptions/spec.md#plan-register)
-  states it. There are two credit levels (owner, 2026-10-27): a Free cook gets a small monthly allowance, and a Pro
-  with AI cook gets the full one (`FR-015a`). A Pro cook gets none, because Pro has no AI. Both amounts are open
-  (010 [O-2](../010-subscriptions/spec.md#owner-inputs-still-needed)). What one use
-  is, per feature, is 010 O-4. When the allowance resets is 010 O-5: `FR-015a` says each billing month, and the
-  design board shows a calendar month.
-- **FR-015d** _(new 2026-10-26)_: When a cook has no uses left, AI MUST stop with a plain message that gives the reset
-  date, and keep what the cook typed. With the `FR-015b` switch on, the call goes to the cook's own key and the
-  screen says so. A higher plan is named only if one exists and the subscription page is live (010 `FR-041e`,
-  `FR-042j`). There is no countdown and no repeated prompt.
-- **FR-015e** _(new 2026-10-26)_: A cook's uses and the platform spend ceiling
+- **FR-015** _(amended 2026-10-27, owner ruling)_: System MUST allow a **Pro** or **Pro with AI** cook (`010-FR-041`) to
+  configure their own AI providers by securely storing their own API credentials (BYOK model). **Free cooks never
+  get this.** A cook may add several keys (e.g., OpenAI, Gemini, Anthropic) and MUST be able to set the order in which
+  they are tried. A Pro cook has no allowance, so every AI call uses their keys in that order. A Pro with AI cook uses
+  the platform allowance first and falls back to their keys only after the allowance runs out (`FR-015b`). Decision D-005
+  in `review.md` still holds: one active key per provider. The order is across providers.
+- **FR-015a** _(new 2026-10-26, amended 2026-10-27, owner ruling)_: A **Pro with AI** subscriber (`010-FR-041`) MUST
+  get a monthly AI allowance of **300 uses**. A use is **one AI call made on the cook's request**, whatever it
+  produces (a plan or a recipe). Parse, match and review calls are operating cost and are **never a use**. Uses reset
+  on the cook's **billing date**, not on the calendar month. A yearly plan resets on the same day each month. A Free
+  cook resets on the day the account was created. Unused uses do not roll over. Spend MUST be metered per user with
+  the reserve-then-settle counter (ADR-0024).
+- **FR-015b** _(new 2026-10-26, amended 2026-10-27, owner ruling)_: When a Pro with AI cook adds their own key
+  (`FR-015`), the system MUST ask, at that moment, for permission to use the keys **automatically** once their
+  allowance is used up, and MUST offer a switch to turn that automatic use on and off at any time **without removing
+  a key**. With the switch on, an exhausted allowance falls through to the cook's keys, in the order they set, with no
+  further prompt, and the AI screens MUST show which account is paying ("Using your OpenAI key"). With the switch
+  off, or with no key, AI stops with a plain message until the allowance resets. A Pro cook has no allowance, so
+  their keys are used directly and the switch does not apply.
+- **FR-015c** _(new 2026-10-26, amended 2026-10-27, owner ruling: "the subscriptions have two levels of AI credits")_:
+  The number of AI uses a cook gets MUST come from their plan, as 010's
+  [plan register](../010-subscriptions/spec.md#plan-register) states it:
+    - **Free**: 3 single-call uses a month (see `FR-015f`).
+    - **Pro**: none. Pro has no allowance.
+    - **Pro with AI**: 300 uses a month (`FR-015a`).
+    - **Pro with AI trial**: 100 uses for the trial (`010-FR-041h`).
+- **FR-015d** _(new 2026-10-26, amended 2026-10-27)_: When a cook has no uses left, AI MUST stop with a plain message
+  that gives the reset date, and keep what the cook typed. With the `FR-015b` switch on, the call goes to the cook's
+  own key and the screen says so. A higher plan is named only if one exists and the subscription page is live (010
+  `FR-041e`, `FR-042j`). There is no countdown and no repeated prompt. The Free allowance is reviewed at 90 days
+  after launch. The review either cuts it to 0 or raises it to 5.
+- **FR-015e** _(new 2026-10-26, amended 2026-10-27)_: A cook's uses and the platform spend ceiling
   ([ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)) are two limits with
-  two messages (010 `FR-041d`). A ceiling denial MUST NOT take a use. The ceiling is temporary in the owner's words,
-  and it MUST be amended to fit the credits sold before Pro with AI goes on sale. If an allowance-funded call runs on
-  Bedrock, it is a new `SPEND_CALL_SITES` entry under the one verification role (ADR-0024 layer 4b), never a second
+  two messages (010 `FR-041d`). A ceiling denial MUST NOT take a use. The $100 ceiling stays until launch funding.
+  ADR-0024 holds the go-live plan that replaces it before Pro with AI goes on sale. If an allowance-funded call runs
+  on Bedrock, it is a new `SPEND_CALL_SITES` entry under the one verification role (ADR-0024 layer 4b), never a second
   role with `bedrock:InvokeModel`. Which model and provider an allowance-funded call uses is a plan decision for this
   feature.
-- **FR-015f** _(new 2026-10-26, amended 2026-10-27)_: A Pro cook gets no allowance, and a Free cook gets only the
-  small one. Whether a Pro cook, or a Free cook whose allowance is used up, can still use AI with their own key is 010
-  [O-7](../010-subscriptions/spec.md#owner-inputs-still-needed). While the subscription page is not live, a cook
-  without credits sees no AI upsell (010 `FR-042j`).
+- **FR-015f** _(new 2026-10-26, amended 2026-10-27)_: A Pro cook gets no allowance. A Free cook gets **3 single-call
+  uses a month** and nothing more. **Auto-generated meal plans and food waste optimization are Pro with AI only.**
+  Free uses cover single-call features such as one recipe or one set of suggestions. A Free cook has no own-key
+  fallback (`FR-015`). While the subscription page is not live, a cook without credits sees no AI upsell (010
+  `FR-042j`).
 - **FR-016**: System MUST call the user's configured AI provider to generate recipes based on criteria (ingredients, dietary restrictions, cuisine, calorie targets) and return results within the app.
 - **FR-017**: System MUST allow users to preview AI-generated recipes before optionally saving them to their collection.
 - **FR-018**: System MUST expose an OAuth 2.1-protected API that allows authorized external agents (e.g., ChatGPT GPT Actions, Gemini Extensions) to read the user's recipe collection and create recipes on their behalf. Users MUST explicitly grant consent before any agent can access their account. Read access (`recipes:read`) and write access (`recipes:create`) are separate grants requiring separate, clearly labeled consent steps; users may grant read without granting write, and the two MUST be presented as two distinct checkboxes, never a bundled grant. **The consent surface is Commise's own UI, and the grant is stored in Commise's own record — it is NOT the identity provider's consent screen.** Identity is proven by the provider's OAuth flow; authorization (which scopes an agent holds) is owned and enforced by Commise. _(Decision D-001, 2026-05-10; mechanism revised 2026-08-02 — see ADR-0012)_

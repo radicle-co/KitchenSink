@@ -2031,7 +2031,7 @@ INTERFACE AccessTokenClaims {
         userId: string    // UUIDv4 — same as sub
     }
     iss: string           // "https://IDP_DOMAIN/"
-    aud: string           // "https://api.ourcommise.com"
+    aud: string           // "https://api.commise.app"
     iat: number           // Unix timestamp
     exp: number           // Unix timestamp
     scope: string

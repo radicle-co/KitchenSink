@@ -610,14 +610,14 @@ body handling for **every** identity endpoint to no purpose.
 
 ## 6. Open Questions (OQ from Research)
 
-| #    | Question                              | Decision                                                                                                                |
-| ---- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                                                                 |
-| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                                                                   |
-| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                                                              |
-| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                                                                |
-| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                                                                        |
-| OQ-6 | Plans, credits, names, mobile billing | Plans and names decided 2026-10-27. Credits and the rest open: spec [owner inputs](./spec.md#owner-inputs-still-needed) |
+| #    | Question                              | Decision                                                                                                                                                                       |
+| ---- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                                                                                                                        |
+| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                                                                                                                          |
+| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                                                                                                                     |
+| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                                                                                                                       |
+| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                                                                                                                               |
+| OQ-6 | Plans, credits, names, mobile billing | Decided 2026-10-27: plans, names, credits (3 / 300 / 100), reset, change timing, trial. Mobile billing (O-9) is open: spec [owner inputs](./spec.md#owner-inputs-still-needed) |
 
 ---
 

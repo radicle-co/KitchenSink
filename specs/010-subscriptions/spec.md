@@ -39,8 +39,8 @@ New users start on a free tier that provides core functionality: creating, viewi
 
 1. **Given** a new user signs up, **When** their account is created, **Then** they are on the free tier with access to all basic features. New recipes are public by default, and the cook can hold up to 50 private recipes ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). _(Amended 2026-10-26.)_
 2. **Given** a free-tier user holds 50 private recipes, **When** they try to make another private, **Then** the system refuses with the out-of-slots reason (`001-FR-003`). The free ways forward come first. The paid plans appear only while the subscription page is live (`FR-042j`). _(Amended 2026-10-26.)_
-3. **Given** a free-tier user, **When** they attempt to use AI recipe generation, **Then** they see a preview or teaser of the feature with a prompt to upgrade.
-4. **Given** a free-tier user, **When** they attempt to use food waste optimization in meal planning, **Then** they are prompted to upgrade.
+3. **Given** a free-tier user, **When** they attempt to use AI recipe generation, **Then** they see a preview or teaser of the feature. The prompt to upgrade appears only while the subscription page is live (`FR-042j`). _(Amended 2026-10-26.)_
+4. **Given** a free-tier user, **When** they attempt to use food waste optimization in meal planning, **Then** they are prompted to upgrade, but only while the subscription page is live (`FR-042j`). _(Amended 2026-10-26.)_
 5. **Given** a user upgrades to a paid plan, **When** they use that plan's features, **Then** the features are available at once, with no private-recipe limit. _(Amended 2026-10-26: "premium" is now one of the paid plans in the [plan register](#plan-register).)_
 6. **Given** a paid-plan user, **When** their subscription lapses, **Then** they keep all their data and every private recipe stays private. Nothing is made public or deleted ([ADR-0073 §4](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). Paid features are locked until renewal. A cook who holds more than 50 private recipes cannot make a new recipe private until they hold fewer than 50. _(Amended 2026-10-26. Was: imported recipes stay public and no new recipe can go private until renewal.)_
 
@@ -93,13 +93,13 @@ it, and check that the changes are still there. Then check each state in `FR-042
 
 **Subscription & Monetization**
 
-- **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. All free-tier recipes are public by default; private visibility is not available on the free tier. _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md): the last sentence no longer holds. New recipes are public by default, and a free cook can hold up to 50 private recipes, `001-FR-003`.)_
+- **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. New recipes are public by default, and a free cook can hold up to 50 private recipes (`001-FR-003`). _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md). Was: "All free-tier recipes are public by default; private visibility is not available on the free tier.")_
 - **FR-041** _(amended 2026-10-26, owner ruling)_: System MUST provide two paid tiers, each billed **monthly or yearly** at the cook's choice, with a small discount for yearly billing:
     - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning. It includes no AI.
     - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a monthly **AI allowance** (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization and AI instruction optimization.
       New subscribers to **either** tier receive a **14-day free trial** before the first charge. A Pro with AI trial carries a smaller trial allowance, set from the measured cost per use. Online grocery ordering is not a benefit of either tier until a store partner exists. _(Was: one premium tier at $6.99/month or $59.99/year.)_
 - **FR-042**: System MUST gate premium features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
-- **FR-043**: System MUST retain all user data and non-premium functionality if a premium subscription lapses. Existing private recipes remain private after downgrade; the lapsed user cannot create new private recipes until they renew. _(Amended 2026-10-26 by `FR-043a`. A lapsed cook who holds fewer than 50 private recipes can make another private.)_ A **7-day grace period** applies after a failed payment before premium access is removed.
+- **FR-043**: System MUST retain all user data and non-premium functionality if a premium subscription lapses. Existing private recipes remain private after downgrade (`FR-043a`). A lapsed cook who holds fewer than 50 private recipes can make another private. _(Amended 2026-10-26, ADR-0073 §4. Was: "the lapsed user cannot create new private recipes until they renew.")_ A **7-day grace period** applies after a failed payment before premium access is removed.
 - **FR-043a** _(added 2026-10-26, [ADR-0073 §4](../../docs/architecture/decisions/0073-free-tier-private-slots.md))_: On
   a downgrade or a lapse, every private recipe MUST stay private. Nothing is made public or deleted on a billing
   event. A cook who holds more than 50 private recipes is over the limit: they keep every recipe, and they cannot
@@ -199,8 +199,9 @@ the page's UX and legal requirements)_
   cook and the cancel action. A store purchase routes the cook to the store's own
   cancel flow (`016-FR-042`).
 - **FR-042f**: Where a market gives a withdrawal right, the page MUST state it at purchase (`016-FR-043`). In the EU
-  and UK a consumer has 14 days to withdraw from a distance contract. For digital content supplied at once, that
-  right can end only with the consumer's express consent and acknowledgement. v1 serves the US only (`016-FR-048`). So this is
+  and UK a consumer has 14 days to withdraw from a distance contract. How that right applies to an app subscription
+  is a question for counsel: whether it counts as digital content or a digital service, and what consent and
+  acknowledgement end the right early. v1 serves the US only (`016-FR-048`). So this is
   built as a seam under `016-FR-048b`, and the wording goes to counsel (`016-FR-050`).
 - **FR-042g**: The page MUST design and build every state, each with its copy and its localization key:
     - loading, and an error that offers a retry.
@@ -247,16 +248,19 @@ the page's UX and legal requirements)_
     | `hidden`               | No sheet, no badge, no mention of a paid plan.                                                                                                         | The same. The page cannot be reached.                                           |
 
 - **FR-042k**: The switch MUST cover every entry point. Today these are:
-    - `RecipeUpsellSheet`, web and native (making a recipe private under the premium rule).
+    - `RecipeUpsellSheet`, web and native, with its "See Premium" button. The recipe editor opens it when the cook
+      chooses Private under the premium rule (`RecipeVisibilityField`'s `onPremiumRequired`, wired by
+      `usePrivateChoice` and `useGatedPrivate`). This is the "See Premium" the publish step shows.
+    - The slots-full refusal in `RecipeVisibilityField`, web and native: its "Get Premium" way forward
+      (`wayPremium`) and its "About Premium" link (`aboutPremium`).
     - `CollectionUpsellSheet`, web and native.
-    - the "See Premium" link in the recipe editor's publish dialog.
-    - `RecipeSaveCopyNoSlot`, its premium offer.
-    - the slots-full refusal in `RecipeVisibilityField`, its Premium way forward and its "About Premium" link.
-    - the Home `SubscriptionNudge`, web and native.
+    - The Home `SubscriptionNudge`, web and native.
     - account settings (tier 3 of `FR-042`).
     - the AI paid-plan gate and the out-of-credits screen (`005-FR-015a`).
 
     A new entry point MUST read the same switch. A guard that finds every caller is part of the build (T-035).
+    Copy that only states a fact, such as "needs Premium" in the editor, is not a link. Whether that fact names a plan
+    the cook cannot buy yet is a `staff-ux-engineer` question for T-035.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -468,8 +472,14 @@ says "Premium", it means a paid plan. Which name the product uses is owner input
 
 Each item is **[NEEDS OWNER INPUT]**. Other specs link to an item here. They do not copy it.
 
-1. <a id="o-1"></a>**O-1. The three plans.** Are they Free, Pro and Pro with AI, or three paid plans? If there is a
-   third paid plan: its name, its monthly and yearly price, its trial, and what it includes.
+1. <a id="o-1"></a>**O-1. The three plans.** Which reading is right?
+    - Free, Pro and Pro with AI, as recorded. The second credit level is then Pro with AI's smaller trial allowance,
+      or a small allowance for Pro.
+    - Three paid plans, with a new paid plan that carries a second, larger credit level.
+    - Three paid plans, where the third is the family plan with a household seat count (`017-FR-034`).
+
+    For a new paid plan: its name, its monthly and yearly price, its trial, and what it includes.
+
 2. <a id="o-2"></a>**O-2. The two levels of AI credits.** Which plans carry which level, and how many uses each level
    gives per month. The design boards' "50 uses" is a placeholder, not a decision. Also: the trial allowance for each
    level.

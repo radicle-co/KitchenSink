@@ -624,3 +624,30 @@ describe('Button (native) — horizontal padding equals web’s', () => {
         expect(nativeTokens.spacing[3]).toBe(12);
     });
 });
+
+/** ADDED for the visible "See why" disclosure: `expanded` reaches the accessibility state, and only when stated. */
+describe('Button (native) — expanded', () => {
+    afterEach(cleanup);
+
+    it('states expanded true and false for a disclosure, and nothing otherwise', () => {
+        const { rerender } = render(
+            <Button variant="ghost" expanded={false}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('false');
+
+        rerender(
+            <Button variant="ghost" expanded>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('true');
+
+        rerender(<Button variant="ghost">See why</Button>);
+
+        expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
+    });
+});

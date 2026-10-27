@@ -90,6 +90,12 @@ interface ButtonCommon {
      */
     readonly accessibilityLabel?: string;
     /**
+     * Whether the region this button opens is open: the control is a DISCLOSURE ("See why"). Web sets `aria-expanded`,
+     * native `accessibilityState.expanded`. Stated only for a disclosure: `false` reads COLLAPSED, and absent says
+     * nothing about expansion.
+     */
+    readonly expanded?: boolean;
+    /**
      * Sizing across the parent: `fill` fills a column with the label centred, and keeps content width in a row.
      * Defaults to `auto`, which leaves the size to the parent. Passed through to `PressScale`, which owns the box.
      */

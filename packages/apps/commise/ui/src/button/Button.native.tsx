@@ -101,6 +101,7 @@ export const Button: FC<ButtonProps> = (props) => {
         refused = false,
         accessibilityLabel,
         description,
+        expanded,
         width = 'auto',
         iconPlacement = 'start',
         focusRequested = false,
@@ -159,6 +160,7 @@ export const Button: FC<ButtonProps> = (props) => {
             accessibilityRole="button"
             accessibilityLabel={resolveAccessibilityLabel(accessibilityLabel, children)}
             accessibilityHint={description}
+            expanded={expanded}
             width={width}
         >
             {/* `sm` draws below the touch floor, so a transparent frame carries the hit area around it. */}

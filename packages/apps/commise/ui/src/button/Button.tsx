@@ -50,6 +50,7 @@ export const Button: FC<ButtonProps> = (props) => {
         refused = false,
         accessibilityLabel,
         description,
+        expanded,
         width = 'auto',
         iconPlacement = 'start',
         focusRequested = false,
@@ -82,6 +83,7 @@ export const Button: FC<ButtonProps> = (props) => {
                     // drops focus from a disabled control. The rule, and why the click is cancelled, is `busyControlProps`'s.
                     {...busyControlProps({ busy, refused, blocked: disabled, onClick: () => onPress?.() })}
                     aria-label={accessibilityLabel}
+                    aria-expanded={expanded}
                     aria-describedby={description === undefined ? undefined : descriptionId}
                     // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
                     className={width === 'fill' ? `${surface} w-full` : surface}

@@ -536,3 +536,38 @@ describe('Button (web) — iconPlacement (A-018)', () => {
         expect(button.lastElementChild?.querySelector('svg.lucide')).not.toBeNull();
     });
 });
+
+/**
+ * ADDED for the visible "See why" disclosure: a button may state that it opens a region (`expanded`), which is a claim
+ * about the control, so it is `aria-expanded` and absent unless stated (`false` is COLLAPSED; absent is "not a
+ * disclosure").
+ */
+describe('Button (web) — expanded', () => {
+    it('states aria-expanded true and false for a disclosure', () => {
+        const { rerender } = render(
+            <Button variant="ghost" expanded={false} onPress={vi.fn()}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('false');
+
+        rerender(
+            <Button variant="ghost" expanded onPress={vi.fn()}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('says nothing about expansion when not a disclosure', () => {
+        render(
+            <Button variant="ghost" onPress={vi.fn()}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
+    });
+});

@@ -61,6 +61,7 @@ function pairsOf(name: string, theme: Theme): readonly Pair[] {
         pair('onAction on action', theme.onAction, theme.action, TEXT),
         pair('onAction on actionPressed', theme.onAction, theme.actionPressed, TEXT),
         pair('onAction on danger', theme.onAction, theme.danger, TEXT),
+        pair('onAction on dangerPressed', theme.onAction, theme.dangerPressed, TEXT),
         pair('actionText on selectedFill', theme.actionText, theme.selectedFill, TEXT),
         pair('ink on selectedFill', theme.ink, theme.selectedFill, TEXT),
         pair('selectedFill stands off paper', theme.selectedFill, theme.paper, 1),

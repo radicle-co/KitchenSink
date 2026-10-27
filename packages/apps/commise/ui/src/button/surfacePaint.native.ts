@@ -45,8 +45,8 @@ export function pressWash(theme: Theme, over: ButtonOver): string {
 
 /**
  * A surface's paint in the current theme. While pressed, a neutral surface fills with {@link pressWash} and `primary`
- * darkens to `actionPressed` (the web `hover:bg-action-pressed` twin); a confirm keeps its fill, because the web twin
- * darkens with an alpha (`danger/90`) that has no native role. Pure.
+ * darkens to `actionPressed` (the web `hover:bg-action-pressed` twin) and a confirm to `dangerPressed` (the web
+ * `hover:bg-danger-pressed` twin). Pure.
  *
  * @param theme - The theme to paint in.
  * @param surface - The surface.
@@ -75,7 +75,7 @@ export function buttonSurfacePaint(
         case 'quiet':
             return { backgroundColor: pressed ? pressWash(theme, over) : 'transparent', borderWidth: 0 };
         case 'destructiveConfirm':
-            return { backgroundColor: colors.danger, borderWidth: 0 };
+            return { backgroundColor: pressed ? colors.dangerPressed : colors.danger, borderWidth: 0 };
     }
 }
 

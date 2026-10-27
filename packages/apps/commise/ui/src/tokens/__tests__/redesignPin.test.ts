@@ -269,6 +269,15 @@ describe('the retuned danger colours and nutrition series', () => {
         expect(roleDark.danger).toBe('#E07A60');
     });
 
+    it('presses the danger fill one step deeper in light and one step darker in dark (dangerPressed)', () => {
+        expect(role.dangerPressed).toBe('#A33F2A');
+        expect(roleDark.dangerPressed).toBe('#CC6A52');
+        expect(light.get('color-danger-pressed')).toBe('#a33f2a');
+        expect(dark.get('color-danger-pressed')).toBe('#cc6a52');
+        expect(role.dangerPressed).not.toBe(role.danger);
+        expect(roleDark.dangerPressed).not.toBe(roleDark.danger);
+    });
+
     it('holds the light and dark series, with no teal and five distinct hues', () => {
         expect(chart).toEqual({
             calories: '#325C7F',

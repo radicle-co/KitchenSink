@@ -250,9 +250,17 @@ describe('colour roles (§1.4)', () => {
         }
     });
 
-    it('draws every role but the four derived fills from a palette entry', () => {
+    // REWRITTEN: `dangerPressed` is a fifth role with no palette entry (a press step off `error`, like the dark theme's
+    // own `danger`), so it joins the exemptions; every other role is still a palette entry.
+    it('draws every role but the five derived or press fills from a palette entry', () => {
         const paletteValues = new Set<string>(Object.values(palette));
-        const derived = new Set<keyof typeof role>(['selectedFill', 'attentionTint', 'photoChip', 'scrim']);
+        const derived = new Set<keyof typeof role>([
+            'selectedFill',
+            'attentionTint',
+            'photoChip',
+            'scrim',
+            'dangerPressed',
+        ]);
 
         for (const [name, value] of Object.entries(role)) {
             if (!derived.has(name as keyof typeof role)) {

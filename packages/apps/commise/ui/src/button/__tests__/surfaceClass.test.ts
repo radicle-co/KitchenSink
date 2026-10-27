@@ -267,7 +267,12 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
     it('fills destructive with error only in its confirm tone', () => {
         // `dangerText` is light in the dark theme, so it cannot be a pressed FILL: the press darkens the fill itself.
         expect(tokensOf(buttonSurfaceClass('destructive', 'md', 'confirm'))).toEqual(
-            expect.arrayContaining(['bg-danger', 'text-on-action', 'hover:bg-danger/90', 'active:bg-danger/90']),
+            expect.arrayContaining([
+                'bg-danger',
+                'text-on-action',
+                'hover:bg-danger-pressed',
+                'active:bg-danger-pressed',
+            ]),
         );
         expect(tokensOf(buttonSurfaceClass('destructive'))).not.toContain('bg-danger');
     });
@@ -438,6 +443,14 @@ describe('buttonSurfaceClass — the press fill over a muted parent', () => {
     it('presses to surfaceMuted over paper, the default', () => {
         expect(tokensOf(buttonSurfaceClass('quiet'))).toEqual(expect.arrayContaining(PAPER_PRESS));
         expect(buttonSurfaceClass('quiet', 'md', 'paper')).toBe(buttonSurfaceClass('quiet'));
+    });
+
+    // dangerPressed replaces `danger/90`: the alpha had no native role, so the confirm button did not change on press there.
+    it('presses a confirm to the dangerPressed role, not an alpha of danger', () => {
+        const tokens = tokensOf(buttonSurfaceClass('destructive', 'md', 'confirm'));
+
+        expect(tokens).toEqual(expect.arrayContaining(['hover:bg-danger-pressed', 'active:bg-danger-pressed']));
+        expect(tokens.some((token) => token.includes('danger/90'))).toBe(false);
     });
 
     it('leaves the filled tiers alone: primary keeps actionPressed and confirm keeps its danger press', () => {

@@ -170,6 +170,8 @@ export const role = {
     onAction: palette.snow,
     // The `action` fill under a press or a fine-pointer hover.
     actionPressed: palette['ocean-dark'],
+    // The `danger` fill under a press or a fine-pointer hover (white label 6.36:1; a visible step from `danger`).
+    dangerPressed: '#A33F2A',
 } as const;
 
 /** A colour role's name. */
@@ -196,6 +198,8 @@ export const roleDark: Readonly<Record<Role, string>> = {
     // The label on a filled action is the canvas-dark ink: it is the label on the light steel-light fill.
     onAction: '#0E161E',
     actionPressed: '#B4CFE8',
+    // Darker than the dark `danger` fill, so the near-black `onAction` label holds 4.99:1 on it.
+    dangerPressed: '#CC6A52',
     selectedFill: '#1F3548',
     selectedEdge: palette['steel-light'],
     hereBar: palette['steel-light'],

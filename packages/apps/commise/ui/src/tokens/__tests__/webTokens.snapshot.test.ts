@@ -247,6 +247,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-scrim: rgba(10, 16, 24, 0.42);
               --color-on-action: #FFFFFF;
               --color-action-pressed: #264A68;
+              --color-danger-pressed: #A33F2A;
               --text-large-title: clamp(1.75rem, 1.75rem + 0cqi, 1.75rem);
               --text-large-title--line-height: calc(32 / 28);
               --text-large-title--font-weight: 600;
@@ -345,6 +346,7 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-action-text: #96BCDE;
                   --color-on-action: #0E161E;
                   --color-action-pressed: #B4CFE8;
+                  --color-danger-pressed: #CC6A52;
                   --color-selected-fill: #1F3548;
                   --color-selected-edge: #96BCDE;
                   --color-here-bar: #96BCDE;

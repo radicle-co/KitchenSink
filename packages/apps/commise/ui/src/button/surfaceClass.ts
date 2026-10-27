@@ -106,7 +106,7 @@ const SIZE: Readonly<Record<ButtonSize, string>> = {
  *   same `surfaceMuted` press fill as every other tier, so a mouse still sees the control respond, and nothing
  *   depends on that hover. It has no tonal fill, because that fill now marks a chip (`componentFixes.md` §4).
  * - `destructive` inline: a `dangerText` label on the neutral surface; `confirm`: the `danger` fill with an `onAction`
- *   label (4.66:1), which only a confirm dialog's action takes (§1.11). Its press darkens the fill (`danger/90`):
+ *   label (4.66:1), which only a confirm dialog's action takes (§1.11). Its press paints `dangerPressed`:
  *   `dangerText` is a light red in the dark theme and cannot be a fill.
  */
 const SURFACE = {
@@ -115,7 +115,7 @@ const SURFACE = {
     ghost: 'text-action-text',
     quiet: 'text-ink',
     destructiveInline: 'border border-line-control bg-paper text-danger-text',
-    destructiveConfirm: 'bg-danger text-on-action shadow-sm hover:bg-danger/90 active:bg-danger/90',
+    destructiveConfirm: 'bg-danger text-on-action shadow-sm hover:bg-danger-pressed active:bg-danger-pressed',
 } as const;
 
 /**

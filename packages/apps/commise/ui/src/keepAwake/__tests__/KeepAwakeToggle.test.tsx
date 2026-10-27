@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, renderHook, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { buttonSurfaceClass, buttonToggleSurfaceClass } from '../../button/surfaceClass.js';
+import { chipClass } from '../../chip/chipClass.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.js';
 import { useKeepAwake } from '../useKeepAwake.js';
 
@@ -46,6 +48,48 @@ describe('KeepAwakeToggle (web)', () => {
 
         expect(toggle.getAttribute('aria-checked')).toBe('false');
         expect(toggle.textContent).toContain('Screen on');
+    });
+
+    // `componentFixes` issue 6 (2026-10-26): "Screen on" is a SWITCH, not a chip. It wears the secondary 44 px outline
+    // pill (the Button surface), and when on the selected fill with a selected-edge outline. Mutation lens: the chip
+    // recipe (a 32 px muted fill with no edge), or a 1.5 px edge only when on (a layout shift), fails below.
+    it('⛔ off: the secondary Button surface (paper, lineControl outline, 44 px), never the chip recipe', () => {
+        render(<KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />);
+
+        const toggle = screen.getByRole('switch', { name: 'Screen on' });
+
+        expect(toggle.className).toBe(`${buttonSurfaceClass('secondary', 'md')}`);
+        expect(toggle.className).not.toBe(chipClass(false));
+        expect(toggle.className).toContain('min-h-11');
+        expect(toggle.className).toContain('border-line-control');
+        expect(toggle.className).toContain('text-card-title');
+    });
+
+    it('on: the selectedFill with a selectedEdge outline, the same edge width and size as off', () => {
+        render(<KeepAwakeToggle on onChange={vi.fn()} label="Screen on" display="labelled" />);
+
+        const toggle = screen.getByRole('switch', { name: 'Screen on' });
+
+        expect(toggle.className).toBe(buttonToggleSurfaceClass(true));
+        expect(toggle.className).toContain('bg-selected-fill');
+        expect(toggle.className).toContain('border-selected-edge');
+        expect(toggle.className).not.toContain('bg-paper');
+        expect(toggle.className).not.toContain('border-line-control');
+        // Selecting must not move the neighbours: the border width token is the same one off uses.
+        expect(toggle.className.split(' ')).toContain('border');
+        expect(toggle.className).not.toMatch(/border-\[/u);
+        expect(toggle.className).toContain('min-h-11');
+    });
+
+    it('draws the sun glyph at 20 px, decorative, outside the name', () => {
+        const { container } = render(
+            <KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />,
+        );
+
+        const sun = container.querySelector('svg.lucide-sun');
+
+        expect(sun?.getAttribute('width')).toBe('20');
+        expect(sun?.closest('[aria-hidden="true"]')).not.toBeNull();
     });
 
     it('reports the opposite of its state when pressed', () => {

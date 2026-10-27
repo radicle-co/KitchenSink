@@ -350,25 +350,19 @@ export interface ResolutionTier {
     resolve(query: ResolutionQuery, context: ResolutionContext): Promise<TierOutcome>;
 }
 
-/** What the cascade as a whole concluded. */
+/**
+ * What the cascade as a whole concluded.
+ *
+ * The `resolved` member IS the winning tier's {@link TierOutcome} `resolved` member, plus the two facts only the cascade
+ * knows, so a field added to a tier's answer reaches the cascade's without a second edit (one authoritative shape).
+ */
 export type CascadeOutcome =
-    | {
-          readonly kind: 'resolved';
-          readonly tier: ResolutionTierId;
-          /** The food the winning tier resolved to: a root or a variant. */
-          readonly food: FoodRef;
-          readonly evidence: string;
-          /** Passed through from the winning tier's outcome — see {@link TierOutcome}'s resolved member. */
-          readonly confidence?: number | undefined;
-          readonly shortlist?: readonly ScoredCandidate[] | undefined;
-          readonly rung?: string | undefined;
-          readonly candidates?: readonly RankedCandidate[] | undefined;
-          readonly authorAugmented?: boolean | undefined;
+    | (Extract<TierOutcome, { readonly kind: 'resolved' }> & {
           /** The tiers consulted, in order, up to and including the one that answered. */
           readonly consulted: readonly ResolutionTierId[];
           /** The consulted tiers whose I/O FAILED. Never overlaps with the tier that answered. */
           readonly unavailable: readonly ResolutionTierId[];
-      }
+      })
     | {
           readonly kind: 'exhausted';
           readonly consulted: readonly ResolutionTierId[];

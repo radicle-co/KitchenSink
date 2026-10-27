@@ -14,6 +14,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { themeFor } from '@commise/ui/theme';
 
 import { recipeMessages } from '../../messages.js';
@@ -150,9 +152,11 @@ describe('MatchClosedRow (native)', () => {
         expect(screen.queryByText(/Choose a food/)).toBeNull();
     });
 
-    it('keeps the native touch floor', () => {
-        renderRow(makeNeedsChoiceLine());
+    it.each(['ios', 'android'] as const)('keeps the touch floor on %s', (os) => {
+        withPlatformOs(os, () => {
+            renderRow(makeNeedsChoiceLine());
 
-        expect(getComputedStyle(screen.getByRole('button')).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);
+            expect(getComputedStyle(screen.getByRole('button')).minHeight).toBe(`${String(touchFloor())}px`);
+        });
     });
 });

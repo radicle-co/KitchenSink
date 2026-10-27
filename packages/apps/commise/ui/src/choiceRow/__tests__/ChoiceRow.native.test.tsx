@@ -10,7 +10,8 @@ import { fireEvent } from '@testing-library/dom';
 import type { ComponentProps } from 'react';
 import { AccessibilityInfo, Text } from 'react-native';
 
-import { nativeTokens } from '../../tokens/native.js';
+import { touchFloor } from '../../layout/touchFloor.native.js';
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { ChoiceRow } from '../ChoiceRow.native.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus request reads its calls.
@@ -95,10 +96,12 @@ describe('ChoiceRow (native)', () => {
         expect(getComputedStyle(theRow()).opacity).not.toBe('0.6');
     });
 
-    it('keeps the native touch floor', () => {
-        render(row());
+    it.each(['ios', 'android'] as const)('keeps the touch floor on %s', (os) => {
+        withPlatformOs(os, () => {
+            render(row());
 
-        expect(getComputedStyle(theRow()).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);
+            expect(getComputedStyle(theRow()).minHeight).toBe(`${String(touchFloor())}px`);
+        });
     });
 
     it('moves the screen-reader cursor to the row on a focus request, once, and acknowledges', () => {

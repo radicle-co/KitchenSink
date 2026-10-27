@@ -8,7 +8,7 @@
  * press sends the row's pick (`onPick`); Keep as written is the `quiet` Button with its hint after it; the focus request
  * is the house `ControlFocus`; the held food says ", chosen" in its name and draws a check, with NO `selected` state
  * (staff-ux 2026-10-25: both would say it twice). NEW: a pick in flight reads busy and every row refuses a second
- * press; rows keep the native touch floor (`nativeTokens.touchTarget`).
+ * press; rows keep the native touch floor (`touchFloor()`).
  *
  * REWRITTEN for the UI fix pass (2026-10-25), each case seen red first: the options and Keep sit in ONE bordered box
  * whose group is a named `list` (U2, U12); Keep is ONE string with "no nutrition" (U6); a busy row spins and every
@@ -21,6 +21,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 
 const focus = vi.hoisted(() => ({ moved: vi.fn() }));
 
@@ -237,11 +239,13 @@ describe('FoodChoiceList (native)', () => {
         expect(onHandled).toHaveBeenCalledTimes(1);
     });
 
-    it('each option keeps the native touch floor', () => {
-        renderList(makeDefaultLine());
+    it.each(['ios', 'android'] as const)('each option keeps the touch floor on %s', (os) => {
+        withPlatformOs(os, () => {
+            renderList(makeDefaultLine());
 
-        expect(getComputedStyle(screen.getByRole('button', { name: 'Skim milk' })).minHeight).toBe(
-            `${String(nativeTokens.touchTarget)}px`,
-        );
+            expect(getComputedStyle(screen.getByRole('button', { name: 'Skim milk' })).minHeight).toBe(
+                `${String(touchFloor())}px`,
+            );
+        });
     });
 });

@@ -2,7 +2,8 @@
  * Native component tests for `ImportReviewRail`, rendered through react-native-web under jsdom. Mirrors
  * `ImportReviewRail.test.tsx`.
  */
-import { nativeTokens } from '@commise/ui/native';
+import { touchFloor } from '@commise/ui/layout';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { themeFor } from '@commise/ui/theme';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -53,20 +54,22 @@ describe('ImportReviewRail (native)', () => {
         expect(onOpenRecipe).toHaveBeenCalledWith('beef');
     });
 
-    it('every recipe row keeps the native touch floor', () => {
-        render(
-            <ImportReviewRail
-                total={309}
-                recipes={RECIPES}
-                currentId="lemon"
-                addedWithoutStep={0}
-                onOpenRecipe={vi.fn()}
-            />,
-        );
+    it.each(['ios', 'android'] as const)('every recipe row keeps the touch floor on %s', (os) => {
+        withPlatformOs(os, () => {
+            render(
+                <ImportReviewRail
+                    total={309}
+                    recipes={RECIPES}
+                    currentId="lemon"
+                    addedWithoutStep={0}
+                    onOpenRecipe={vi.fn()}
+                />,
+            );
 
-        for (const row of screen.getAllByRole('button')) {
-            expect(getComputedStyle(row).minHeight).toBe(`${String(nativeTokens.touchTarget)}px`);
-        }
+            for (const row of screen.getAllByRole('button')) {
+                expect(getComputedStyle(row).minHeight).toBe(`${String(touchFloor())}px`);
+            }
+        });
     });
 
     // U10: the current recipe pairs the selected fill (1.2:1 on the paper, under WCAG 1.4.11's 3:1) with a 2 pt

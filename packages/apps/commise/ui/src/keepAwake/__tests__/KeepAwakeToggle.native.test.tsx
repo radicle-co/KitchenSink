@@ -10,6 +10,7 @@ const keepAwake = vi.hoisted(() => ({
 vi.mock('expo-keep-awake', () => keepAwake);
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
+import { Button } from '../../button/Button.native.js';
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.native.js';
@@ -101,6 +102,32 @@ describe('KeepAwakeToggle (native) — the secondary pill', () => {
         expect(pill.backgroundColor).toBe(rgb(role.selectedFill));
         expect(pill.borderTopWidth).toBe('1px');
         expect(pill.borderTopColor).toBe(rgb(role.selectedEdge));
+    });
+
+    it('off: paints exactly as the md secondary Button does (no paint or layout of its own)', () => {
+        const { container } = render(
+            <>
+                <Button variant="secondary" icon="sun">
+                    Screen on
+                </Button>
+                <KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />
+            </>,
+        );
+        const button = getComputedStyle(pillOf(container.querySelector<HTMLElement>('[role="button"]') ?? container));
+        const toggle = getComputedStyle(pillOf(screen.getByRole('switch', { name: 'Screen on' })));
+
+        for (const property of [
+            'backgroundColor',
+            'borderTopWidth',
+            'borderTopColor',
+            'minHeight',
+            'borderTopLeftRadius',
+            'paddingLeft',
+            'paddingTop',
+            'columnGap',
+        ] as const) {
+            expect(toggle[property], property).toBe(button[property]);
+        }
     });
 
     it('draws the sun glyph, decorative, filled only when on', () => {

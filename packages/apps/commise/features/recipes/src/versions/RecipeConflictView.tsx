@@ -338,9 +338,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
             {diff.rows.length > 0 ? (
                 <section aria-label={conflict.changedFieldsHeading} className="flex flex-col gap-3">
-                    <h3 className="text-section-title text-ink">
-                        {conflict.changedFieldsHeading}
-                    </h3>
+                    <h3 className="text-section-title text-ink">{conflict.changedFieldsHeading}</h3>
                     <ul className="flex flex-col gap-2">
                         {diff.rows.map((row) => (
                             <li
@@ -355,9 +353,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                     >
                                         {conflictMarkerGlyph(row.marker, conflict)}
                                     </span>
-                                    <span className="text-label text-ink-muted">
-                                        {conflictRowLabel(row, conflict)}
-                                    </span>
+                                    <span className="text-label text-ink-muted">{conflictRowLabel(row, conflict)}</span>
                                 </div>
                                 {row.base !== undefined && (
                                     <SideValue parts={conflictSideParts(row, 'base')}>

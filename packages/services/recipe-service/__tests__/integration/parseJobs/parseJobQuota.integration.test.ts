@@ -120,7 +120,9 @@ describe('POST /api/v1/recipe-parse-jobs — the daily import allowance', () => 
         expect(enqueue).toHaveBeenCalledTimes(1);
     });
 
-    it("asks the DAL to admit ONE paste unit for the verified caller's tier", async () => {
+    // REWRITTEN (the import allowance dropped its unread `tier` input): the admission is now exactly one paste unit
+    // for the verified caller, with no tier field for anything to vary on.
+    it('asks the DAL to admit ONE paste unit for the verified caller', async () => {
         createJob.mockResolvedValue({ kind: 'refused', resetsAt: RESETS_AT });
 
         await paste('a\nb\nc');
@@ -131,7 +133,6 @@ describe('POST /api/v1/recipe-parse-jobs — the daily import allowance', () => 
             kind: 'charge',
             channel: 'paste',
             units: 1,
-            tier: { isPremium: false },
         });
     });
 });

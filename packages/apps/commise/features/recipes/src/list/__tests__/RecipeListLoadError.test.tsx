@@ -41,7 +41,7 @@ describe('RecipeListLoadError (web)', () => {
     it('offers no first-run CTA — the library has not said it is empty', () => {
         render(<RecipeListLoadError onRetry={noop} />);
 
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
         expect(screen.queryByText('Your recipe box is empty')).toBeNull();
     });
 

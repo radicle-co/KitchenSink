@@ -92,7 +92,7 @@ describe('RecipeListScreen — while the library loads', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
     });
 });
 
@@ -127,7 +127,7 @@ describe('RecipeListScreen — the floating create button, by the library`s stat
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(create()).toBeNull();
-        expect(screen.getByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Add a recipe' })).toBeTruthy();
     });
 
     it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
@@ -139,7 +139,7 @@ describe('RecipeListScreen — the floating create button, by the library`s stat
         act(() => {
             seedLibrary([]);
         });
-        await screen.findByRole('button', { name: 'Add your first recipe' });
+        await screen.findByRole('button', { name: 'Add a recipe' });
         expect(create()).toBeTruthy();
 
         act(() => button.blur());
@@ -280,7 +280,7 @@ describe('RecipeListScreen — an empty library', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={onCreateRecipe} />);
 
         expect(screen.getByText('Your recipe box is empty')).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
@@ -325,7 +325,7 @@ describe('RecipeListScreen — a populated library', () => {
         fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'zzz' } });
 
         expect(screen.getByText('No recipes match')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 });
@@ -357,7 +357,7 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
         fireEvent.click(screen.getByText('Italian'));
 
         expect(screen.getByText('No recipes match')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
     });
 
     it('surfaces an "Under 30 min" chip that filters to recipes under the 30-minute threshold (#4)', () => {

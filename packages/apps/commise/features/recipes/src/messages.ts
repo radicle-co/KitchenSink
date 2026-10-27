@@ -900,7 +900,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             noMatchTitle: 'No recipes match',
             noMatchBody: 'No recipes match your search. Try a different term.',
             createCta: 'New recipe',
-            emptyCreateCta: 'Add your first recipe',
+            emptyCreateCta: 'Add a recipe',
             tabMine: 'My recipes',
             tabCommunity: 'Community',
             tabsLabel: 'Recipe source',

@@ -85,7 +85,7 @@ describe('RecipeListContainer — the floating create button, by the library`s s
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
         expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
 
-        await screen.findByRole('button', { name: 'Add your first recipe' });
+        await screen.findByRole('button', { name: 'Add a recipe' });
         expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
     });
 
@@ -134,7 +134,7 @@ describe('RecipeListContainer — the floating create button, by the library`s s
         });
 
         expect(await screen.findByRole('button', { name: 'New recipe' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).not.toBeInTheDocument();
     });
 });
 
@@ -160,7 +160,7 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).not.toBeInTheDocument();
     });
 
     it('keeps the heading, the segments and the search field on screen while the library loads', () => {
@@ -298,7 +298,7 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         // Empty list → the create control is the empty-state CTA (the FAB is suppressed on empty; L1).
-        await user.click(await screen.findByRole('button', { name: 'Add your first recipe' }));
+        await user.click(await screen.findByRole('button', { name: 'Add a recipe' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
@@ -354,7 +354,7 @@ describe('RecipeListContainer', () => {
 
         expect(screen.getByText('No recipes match')).toBeInTheDocument();
         expect(screen.queryByText('Your recipe box is empty')).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeInTheDocument();
     });
 
@@ -380,7 +380,7 @@ describe('RecipeListContainer', () => {
 
         expect(screen.getByText('No recipes match')).toBeInTheDocument();
         expect(screen.queryByText('Your recipe box is empty')).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).not.toBeInTheDocument();
     });
 
     // Slice 4 (`buildSpec.md` §4.3): the Community source is gone — Discover is its own destination — and the Recipes

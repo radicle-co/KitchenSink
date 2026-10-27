@@ -38,7 +38,7 @@ appId: ${APP_ID}
 # Populated ⇒ the pinned FAB is the create control and the first-run CTA is absent (L1: exactly one create
 # control per state). Asserted as a PAIR, because either one alone is satisfied by more than one state.
 - assertVisible: 'New recipe'
-- assertNotVisible: 'Add your first recipe'
+- assertNotVisible: 'Add a recipe'
 - assertNotVisible: 'Your recipe box is empty'
 
 # W1/L8 — pull-to-refresh: a downward swipe on the list triggers the RefreshControl (smoke: the list

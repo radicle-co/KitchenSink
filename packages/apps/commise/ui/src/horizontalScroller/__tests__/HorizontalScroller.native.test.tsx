@@ -45,14 +45,19 @@ function layOut(element: Element, width: number): void {
     act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
 }
 
-/** The views of a rendered scroller that report their size: the scroller, then the content inside it. */
+/** The views of a rendered scroller that report their size: the box around it, the scroller, then the content. */
 function measured(container: HTMLElement): readonly Element[] {
     return [...container.querySelectorAll('*')].filter(
         (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
     );
 }
 
-function mount(props: Partial<HorizontalScrollerProps> = {}, sizes: readonly [number, number] | null = [300, 640]) {
+function mount(
+    props: Partial<HorizontalScrollerProps> = {},
+    sizes: readonly [number, number] | null = [300, 640],
+    // The box around the scroller and the chevron's column; by default as wide as the scroller, i.e. no column yet.
+    outer: number | undefined = undefined,
+) {
     const result = render(
         <HorizontalScroller {...props}>
             <View>
@@ -60,9 +65,10 @@ function mount(props: Partial<HorizontalScrollerProps> = {}, sizes: readonly [nu
             </View>
         </HorizontalScroller>,
     );
-    const [scroller, content] = measured(result.container);
+    const [box, scroller, content] = measured(result.container);
 
     if (sizes !== null) {
+        layOut(box as Element, outer ?? sizes[0]);
         layOut(scroller as Element, sizes[0]);
         layOut(content as Element, sizes[1]);
     }
@@ -109,23 +115,44 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         expect(container.querySelector(FADE)).toBeNull();
     });
 
-    it('shows the chevron on a 40 dp band at the start of a scroller that overflows', () => {
+    it('shows the chevron at the start of a scroller that overflows, over the same 16 dp fade the scroller always has', () => {
         const { container } = mount();
         const fade = container.querySelector<HTMLElement>(FADE);
 
         expect(chevronOpacity(container)).toBe('1');
-        expect(getComputedStyle(fade?.parentElement as HTMLElement).width).toBe('40px');
+        expect(getComputedStyle(fade?.parentElement as HTMLElement).width).toBe('16px');
     });
 
-    it('hides the chevron on the first scroll and narrows the fade to 24 dp while more lies ahead', () => {
-        const { container, scroller } = mount();
+    // The chevron sits in a column of its own beside the scroller (`horizontalScrollHint.md` §3.6): drawn over the
+    // scroller on a solid 24 dp band it hid the last characters of the chip at the edge.
+    it('puts the chevron in a 24 dp column beside the scroller, not over it, while the content overflows', () => {
+        const { container } = mount({}, [276, 640], 300);
+        const chevron = getComputedStyle(chevronOf(container) as HTMLElement);
+
+        expect(chevron.position).not.toBe('absolute');
+        expect(chevron.display).not.toBe('none');
+        expect(chevron.width).toBe('24px');
+    });
+
+    it('keeps the column through a scroll, so nothing reflows when the chevron fades', () => {
+        const { container, scroller } = mount({}, [276, 640], 300);
 
         scrollTo(scroller, 5);
 
         expect(chevronOpacity(container)).toBe('0');
+        expect(getComputedStyle(chevronOf(container) as HTMLElement).display).not.toBe('none');
         expect(getComputedStyle(container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement).width).toBe(
-            '24px',
+            '16px',
         );
+    });
+
+    it('takes no room while the content fits, though the scroller is as narrow as a column would leave it', () => {
+        // 280 fits the 300 box; read against the 276 scroller it would overflow and the column would flip on and off.
+        const { container } = mount({}, [276, 280], 300);
+
+        expect(getComputedStyle(chevronOf(container) as HTMLElement).display).toBe('none');
+        expect(chevronOpacity(container)).toBe('0');
+        expect(container.querySelector(FADE)).toBeNull();
     });
 
     it('shows neither at the end, and both again back at the start', () => {
@@ -150,7 +177,7 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
 
     it('measures again when the content grows', () => {
         const { container, scroller } = mount({}, [400, 240]);
-        const content = measured(container)[1] as Element;
+        const content = measured(container)[2] as Element;
 
         expect(chevronOpacity(container)).toBe('0');
         expect(scroller).toBeTruthy();

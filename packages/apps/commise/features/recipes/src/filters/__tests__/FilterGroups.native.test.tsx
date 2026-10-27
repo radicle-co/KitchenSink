@@ -212,11 +212,12 @@ describe('FilterGroups (native) — time', () => {
             .filter((node) => (node as HTMLElement & { __reactLayoutHandler?: unknown }).__reactLayoutHandler)
             .sort((a, b) => (a.contains(b) ? -1 : 1));
 
+        // The box around the scroller, the scroller, then its content: the first two are as wide as the screen gives them.
         for (const [index, node] of handlers.entries()) {
             const handler = (node as HTMLElement & { __reactLayoutHandler: (event: unknown) => void })
                 .__reactLayoutHandler;
 
-            act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width: index === 0 ? 200 : 900, height: 36 } } }));
+            act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width: index < 2 ? 200 : 900, height: 36 } } }));
         }
 
         const fade = row.parentElement?.querySelector<HTMLElement>('[data-commise-stub="linear-gradient"]');

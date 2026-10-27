@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
-import { chevronOf, expectChevron, overflows, scrollTo } from './utils/scrollHint';
+import { chevronOf, expectChevron, expectChevronBesideScroller, overflows, scrollTo } from './utils/scrollHint';
 
 /**
  * The horizontal-scroll hint on a browse rail (`docs/design/uiOverhaul/horizontalScrollHint.md`), in a real browser:
@@ -47,6 +47,7 @@ test.describe('the rail scroll hint', () => {
 
         expect(await overflows(rail)).toBe(true);
         await expectChevron(chevron, 'shown');
+        await expectChevronBesideScroller(rail);
 
         // More than half a card, so the track's mandatory snap settles on the next card and not back at the start.
         await scrollTo(rail, 300);

@@ -62,7 +62,7 @@ test.describe('recipe list — zero-row states', () => {
         // stuck skeleton: it is now withheld while the list is LOADING too (it used to mount over an
         // unsettled library and then unmount as the empty state resolved). The live-region assertion below
         // carries that discrimination on its own.
-        await expect(page.getByRole('button', { name: 'Add your first recipe' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Add a recipe' })).toBeVisible();
         // The results' floating button, inside `main` — the shell's sidebar carries its own "New recipe" from 840 px.
         await expect(page.getByRole('main').getByRole('button', { name: 'New recipe' })).toHaveCount(0);
 
@@ -72,7 +72,7 @@ test.describe('recipe list — zero-row states', () => {
         await expect(page.getByRole('status', { name: 'Loading recipes' })).toHaveCount(0);
 
         // The empty state is not a dead end: its CTA opens the editor.
-        await page.getByRole('button', { name: 'Add your first recipe' }).click();
+        await page.getByRole('button', { name: 'Add a recipe' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
     });
 
@@ -119,7 +119,7 @@ test.describe('recipe list — zero-row states', () => {
         await expect(page.getByRole('heading', { level: 2, name: 'No recipes match' })).toBeVisible();
         await expect(page.getByText('No recipes match these filters.')).toBeVisible();
         await expect(page.getByText('Your recipe box is empty')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Add your first recipe' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Add a recipe' })).toHaveCount(0);
 
         // …and the viewer is not stranded: the no-match body carries no CTA, so the pinned FAB must survive
         // (the defect suppressed it here, leaving the state with no create affordance at all).

@@ -9,7 +9,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { kebab } from '../../tokens/emit.js';
-import type { Role } from '../../tokens/colors.js';
+import { role, roleDark, type Role } from '../../tokens/colors.js';
+import { themeCss } from '../../tokens/themeCss.js';
 import {
     CHIP_FILL_VAR,
     CHIP_PRESS_VAR,
@@ -18,6 +19,7 @@ import {
     chipPressToneOf,
     chipPressVarOf,
     PRESS_VAR,
+    pressFillsOf,
     pressVarOf,
     SURFACE_TONES,
     SURFACE_TONE_NAMES,
@@ -102,17 +104,32 @@ describe('PRESS_FILL_CLASS', () => {
         expect(PRESS_FILL_CLASS.focused).toBe(`focus-visible:bg-(${PRESS_VAR},${canvasPress})`);
     });
 
-    it('has a chip variant that reads the chip’s own press property with the muted-chip-on-canvas fallback', () => {
-        const fallback = `var(${pressVarOf(chipPressToneOf('canvas', 'light'))})`;
+    // A chip outside every surface reads the CANVAS row's chip vars, which `themeCss` emits in both themes. Naming the
+    // vars (not a role) is what lets the dark theme resolve to its own fill; a role fallback was light-only.
+    const emitted = (variable: string): string[] =>
+        [...themeCss().matchAll(new RegExp(`${variable}: (#[0-9a-fA-F]{6});`, 'gu'))].map((match) => match[1] ?? '');
+
+    it('has a chip variant that reads the chip’s own press property, falling back to the canvas chip press', () => {
+        const fallback = `var(${chipPressVarOf('canvas')})`;
 
         expect(PRESS_FILL_CLASS.chip).toBe(
             `hover:bg-(${CHIP_PRESS_VAR},${fallback}) active:bg-(${CHIP_PRESS_VAR},${fallback})`,
         );
     });
 
-    it('rests a chip on the surface’s chip fill, falling back to the canvas row’s', () => {
-        expect(CHIP_REST_FILL_CLASS).toBe(
-            `bg-(${CHIP_FILL_VAR},var(--color-${kebab(chipFillRoleOf('canvas', 'light'))}))`,
-        );
+    it('rests a chip on the surface’s chip fill, falling back to the canvas chip fill', () => {
+        expect(CHIP_REST_FILL_CLASS).toBe(`bg-(${CHIP_FILL_VAR},var(${chipFillVarOf('canvas')}))`);
     });
+
+    it.each(['light', 'dark'] as const)(
+        'the canvas chip fallback resolves to the table’s role in the %s theme',
+        (scheme) => {
+            const colors = scheme === 'light' ? role : roleDark;
+
+            expect(emitted(chipFillVarOf('canvas'))).toContain(colors[chipFillRoleOf('canvas', scheme)]);
+            expect(emitted(chipPressVarOf('canvas'))).toContain(
+                pressFillsOf(colors, scheme)[chipPressToneOf('canvas', scheme)],
+            );
+        },
+    );
 });

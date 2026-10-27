@@ -578,8 +578,27 @@ describe('the surface tone, compiled', () => {
     it('lets a chip rest on the surface’s chip fill and press to its chip press, each with a fallback', async () => {
         const css = squashed(await compileAppCss());
 
-        expect(css).toContain('background-color:var(--cm-chip-fill,var(--color-surface-muted))');
-        expect(css).toContain('background-color:var(--cm-chip-press,var(--color-press-muted))');
+        expect(css).toContain('background-color:var(--cm-chip-fill,var(--color-chip-fill-canvas))');
+        expect(css).toContain('background-color:var(--cm-chip-press,var(--color-chip-press-canvas))');
+    });
+
+    // The fallback outside every surface names the CANVAS chip vars, so it must resolve in BOTH themes: a fallback that
+    // named a light role would leave a chip on a dark page resting on the light fill.
+    it('resolves the canvas chip fallback in the light block and again in the dark one', async () => {
+        const css = squashed(await compileAppCss());
+        const darkStart = css.indexOf('@media(prefers-color-scheme:dark)');
+        const declared = (block: string, name: string): string | undefined =>
+            new RegExp(`${name}:(#[0-9a-fA-F]{6})`, 'u').exec(block)?.[1]?.toLowerCase();
+
+        expect(darkStart).toBeGreaterThan(0);
+
+        for (const name of ['--color-chip-fill-canvas', '--color-chip-press-canvas']) {
+            expect(declared(css.slice(0, darkStart), name), `${name} in light`).toBeDefined();
+            expect(declared(css.slice(darkStart), name), `${name} in dark`).toBeDefined();
+        }
+
+        expect(declared(css.slice(0, darkStart), '--color-chip-fill-canvas')).toBe(role.surfaceMuted.toLowerCase());
+        expect(declared(css.slice(darkStart), '--color-chip-fill-canvas')).toBe(roleDark.surfaceMuted.toLowerCase());
     });
 
     // §10b: a chip's fill is chosen per theme, so the compiled sheet gives paper-raised its own chip fill, and in the dark

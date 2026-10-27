@@ -1,0 +1,72 @@
+appId: ${APP_ID}
+---
+# Publish with Private chosen, where the server will refuse Private, opens a bottom sheet and never goes public on its own
+# (owner ruling 2026-10-26). The mobile twin of `web/tests/e2e/publishBlockedAsk.spec.ts`. Case B here: an imported public-web
+# recipe, "This recipe can't be private yet". Keep as draft and Publish as public carry EQUAL weight, side by side. Back, the
+# scrim and Close all mean Keep as draft. (Case A, "Your private slots are full", needs a cook holding every slot and is
+# covered by the component suites.)
+#
+# ⚠️ NOT RUN. Written without a device, and it needs a precondition the e2e seed does not provide: a DRAFT recipe of an
+# imported public-web recipe titled 'Maestro Blocked Publish Draft', held public by the server, whose device draft says
+# Private, owned by a cook who is NOT entitled (a `roles` default user). That state exists only after a downgrade, so the seed
+# would have to mint the device draft too. The title is a literal because the seeder's manifest does not emit it yet
+# (`maestroFixtureVariables.test.ts` refuses a variable it does not); promote this flow to FLOW_PLAN once the seed carries it
+# and an emulator run has passed it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Maestro Blocked Publish Draft'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Maestro Blocked Publish Draft'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+
+# Publish stops and asks. Nothing has been published.
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'This recipe can.t be private yet'
+      timeout: 10000
+- assertVisible: 'A recipe from a public web page can only be public.*'
+- assertNotVisible: 'Recipe published.'
+
+# Back means Keep as draft: the sheet closes, the editor stays, nothing is published.
+- back
+- extendedWaitUntil:
+      notVisible: 'This recipe can.t be private yet'
+      timeout: 10000
+- assertVisible: 'Close editor'
+- assertNotVisible: 'Recipe published.'
+
+# Ask again, then Keep as draft with its own button.
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'This recipe can.t be private yet'
+      timeout: 10000
+- tapOn: 'Keep as draft'
+- extendedWaitUntil:
+      notVisible: 'This recipe can.t be private yet'
+      timeout: 10000
+- assertVisible: 'Close editor'
+- assertNotVisible: 'Recipe published.'
+
+# Ask once more; only "Publish as public" publishes.
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'This recipe can.t be private yet'
+      timeout: 10000
+- tapOn:
+      text: 'Publish as public'
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000

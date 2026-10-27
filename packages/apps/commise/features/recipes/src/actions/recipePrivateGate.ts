@@ -88,16 +88,12 @@ export function slotStandingOf(usage: PrivateSlotUsage | undefined, pending = fa
  *
  * @param standing - The cook's standing ({@link slotStandingOf}).
  * @param recipe.published - Whether the recipe is published (a recipe never saved is not).
- * @param recipe.publishRefused - Whether a Publish of this draft was just refused for want of a slot: the cook's real
- *   standing is then what the editor shows, so the refusal and its ways forward can be drawn.
- * @returns The cook's standing for a published recipe or a refused Publish; `unlimited` stays `unlimited` (Premium has no
- *   slots to hold or take); otherwise `draft`.
+ * @returns The cook's standing for a published recipe; `unlimited` stays `unlimited` (Premium has no slots to hold or
+ *   take); otherwise `draft`. ⛔ A Publish refused for want of a slot no longer changes it (owner ruling 2026-10-26): the
+ *   editor asks in the blocked-publish dialog instead of drawing the refusal inline.
  */
-export function slotStandingForRecipe(
-    standing: SlotStanding,
-    recipe: { readonly published: boolean; readonly publishRefused: boolean },
-): SlotStanding {
-    return recipe.published || recipe.publishRefused || standing.kind === 'unlimited' ? standing : DRAFT_STANDING;
+export function slotStandingForRecipe(standing: SlotStanding, recipe: { readonly published: boolean }): SlotStanding {
+    return recipe.published || standing.kind === 'unlimited' ? standing : DRAFT_STANDING;
 }
 
 const DRAFT_STANDING: SlotStanding = { kind: 'draft' };

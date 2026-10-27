@@ -24,7 +24,7 @@ import { editorMessages, type EditorMessages } from './messages.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import { publishNoteOf, readyLineOf, type ReadyLine } from './publishNote.js';
 import { sectionIndexEntries, type SectionIndexEntries } from './sectionIndexEntries.js';
-import { EDITOR_SECTIONS, isEditorSectionId, VISIBILITY_SECTION, type EditorSectionId } from './sections.js';
+import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sections.js';
 import { newlyComplete, sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
 
 /** A section the cook's own edit completed, to announce; `n` advances once per announcement. */
@@ -212,13 +212,8 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
 
             onRefused?.(outcome);
         } else if (outcome.kind === 'slotsFull') {
-            // ADR-0073 section 12: Publish of a private draft needs a slot the cook does not have. The visibility field (in
-            // Photos & publish) draws the refusal and its ways forward; it has no single control, so the heading takes the cook.
-            scrollToSection(VISIBILITY_SECTION);
-            setRefusalHeadings((counts) => ({
-                ...counts,
-                [VISIBILITY_SECTION]: (counts[VISIBILITY_SECTION] ?? 0) + 1,
-            }));
+            // ADR-0073 section 12, owner ruling 2026-10-26: Publish of a private draft needs a slot the cook does not have. The
+            // editor has opened the blocked-publish dialog (`publishBlocked`); the page does not jump anywhere.
             onRefused?.(outcome);
         }
     };

@@ -264,31 +264,30 @@ describe('showsRecipePremiumBadge', () => {
 describe('slotStandingForRecipe - a draft holds no slot (ADR-0073 section 12)', () => {
     it('a PUBLISHED recipe stands where the cook stands: the server count, unchanged', () => {
         for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING, UNLIMITED]) {
-            expect(slotStandingForRecipe(standing, { published: true, publishRefused: false })).toBe(standing);
+            expect(slotStandingForRecipe(standing, { published: true })).toBe(standing);
         }
     });
 
     it('a DRAFT (or a recipe never saved) has no standing to count, whatever the cook holds', () => {
         for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING]) {
-            expect(slotStandingForRecipe(standing, { published: false, publishRefused: false })).toEqual({
+            expect(slotStandingForRecipe(standing, { published: false })).toEqual({
                 kind: 'draft',
             });
         }
     });
 
     it('⛔ Premium has no slots at all, so a draft stays `unlimited`: it never says "publishing uses a slot"', () => {
-        expect(slotStandingForRecipe(UNLIMITED, { published: false, publishRefused: false })).toBe(UNLIMITED);
+        expect(slotStandingForRecipe(UNLIMITED, { published: false })).toBe(UNLIMITED);
     });
 
-    it('a draft whose Publish was refused for want of a slot stands where the cook stands, so the refusal can be shown', () => {
-        expect(slotStandingForRecipe(FULL, { published: false, publishRefused: true })).toBe(FULL);
-    });
+    // REMOVED with the inline refusal (owner ruling 2026-10-26): "a draft whose Publish was refused for want of a slot
+    // stands where the cook stands" served only to draw that refusal. The dialog replaces it (useRecipeEditor.test.tsx).
 });
 
 describe('a private DRAFT never meets the out-of-slots refusal; publishing it does', () => {
     const draft = (state: RecipePrivateFacts['state'] = 'hidden'): RecipePrivateFacts => ({
         rule: 'slots',
-        standing: slotStandingForRecipe(FULL, { published: false, publishRefused: false }),
+        standing: slotStandingForRecipe(FULL, { published: false }),
         state,
     });
 

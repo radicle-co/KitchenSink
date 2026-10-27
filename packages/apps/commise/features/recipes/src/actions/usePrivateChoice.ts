@@ -50,10 +50,9 @@ export interface UsePrivateChoiceOptions {
     readonly standing: SlotStanding;
     /**
      * Whether the recipe holds a slot yet (ADR-0073 section 12: a DRAFT holds none). `published` is the recipe's stored
-     * status; `publishRefused` is whether this editor's last Publish was refused for want of a slot, which is the one time a
-     * draft is shown the cook's real standing.
+     * status.
      */
-    readonly publication: { readonly published: boolean; readonly publishRefused: boolean };
+    readonly publication: { readonly published: boolean };
     /** The visibility the server held when the editor opened (`public` for a recipe never saved). */
     readonly saved: RecipeVisibility;
     readonly values: RecipeFormValues;

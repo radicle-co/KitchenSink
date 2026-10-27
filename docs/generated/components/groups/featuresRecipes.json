@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 180,
-        "implementations": 311,
-        "props": 1645,
-        "documentedComponents": 180,
-        "implementationsWithModuleDoc": 311,
-        "implementationsWithComponentDoc": 204,
-        "documentedProps": 1366,
-        "classifiedComponents": 160,
-        "componentsWithPatternTag": 83,
-        "crossPlatformComponents": 131
+        "components": 181,
+        "implementations": 313,
+        "props": 1655,
+        "documentedComponents": 181,
+        "implementationsWithModuleDoc": 313,
+        "implementationsWithComponentDoc": 206,
+        "documentedProps": 1376,
+        "classifiedComponents": 161,
+        "componentsWithPatternTag": 84,
+        "crossPlatformComponents": 132
     },
     "components": [
         {
@@ -13257,6 +13257,176 @@
                             "defaultValue": null,
                             "description": "Called with the polled id and what the poll observed — the binding the server answered with (a different id once\nthe line settled, plan 002) and its status. Must be idempotent.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/IngredientStatusPoller.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/editor/PublishBlockedSheet",
+            "name": "PublishBlockedSheet",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/editor",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `Sheet` — the ask's words and the one dismiss path on the house sheet",
+                "Adapter over the design-system `Sheet` — the platform expression of the web leaf"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PublishBlockedSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/PublishBlockedSheet.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — `PublishBlockedSheet` (web): what Publish says when the cook chose Private and\ncannot keep it - every private slot is used, or the recipe is an imported public-web one that needs Premium and a change\nof the cook's own (owner ruling 2026-10-26). A polite dialog with two choices of EQUAL weight, side by side, neither\npreselected: Keep as draft and Publish as public.\n\nEscape, the scrim and Close all mean Keep as draft, so dismissing can never publish (DSA Art. 25: no nudge into making\npublic what the cook asked to keep private). On the design-system `Sheet`, not `ConfirmDialog`, as\n`PublishOpenChoicesSheet` is: that primitive is for a destructive step, and this is a non-destructive choice. The Premium\nline is off until feature 010 exists (`PUBLISH_BLOCKED_PREMIUM_UPSELL`).\n\nPresentational: props in, markup out; the words are `publishBlockedCopyOf`'s. The native leaf is\n`./PublishBlockedSheet.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — `PublishBlockedSheet` (web): what Publish says when the cook chose Private and"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — the ask's words and the one dismiss path on the house sheet"
+                        }
+                    ],
+                    "description": "The blocked-publish dialog.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ask",
+                            "type": "PublishBlocked",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which case blocked the Publish, which decides the words (`publishBlockedCopyOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "onKeepDraft",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep the recipe a draft with the cook's Private choice intact; nothing is sent. EVERY way out of the sheet calls\nthis (Close, Escape, the scrim, a swipe, Android Back): dismissing never publishes.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "onPublishPublic",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Publish with visibility public. Only this control calls it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "slotTotal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's private-slot limit, for the `noSlot` words.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PublishBlockedSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/PublishBlockedSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — `PublishBlockedSheet` (native): the React Native leaf of\n`./PublishBlockedSheet.tsx`, on the same props and words. A bottom sheet whose two actions, Keep as draft and Publish as\npublic, sit side by side with EQUAL weight (both the secondary pill, neither preselected). The platform Back route, a\ntap on the scrim and Close all mean Keep as draft (`onKeepDraft`): dismissing never publishes.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — `PublishBlockedSheet` (native): the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — the platform expression of the web leaf"
+                        }
+                    ],
+                    "description": "The blocked-publish sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ask",
+                            "type": "PublishBlocked",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which case blocked the Publish, which decides the words (`publishBlockedCopyOf`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "onKeepDraft",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep the recipe a draft with the cook's Private choice intact; nothing is sent. EVERY way out of the sheet calls\nthis (Close, Escape, the scrim, a swipe, Android Back): dismissing never publishes.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "onPublishPublic",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Publish with visibility public. Only this control calls it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "slotTotal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's private-slot limit, for the `noSlot` words.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         }
                     ],
                     "usesRefApi": [],

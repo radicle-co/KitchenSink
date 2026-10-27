@@ -27,11 +27,10 @@ import type { PaidFeatureState } from '@commise/features-account';
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { recipeFormMessages } from '../../form/messages.js';
-import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
+import type { EditorSeed, PublishBlocked } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
-import { VISIBILITY_SECTION } from '../sections.js';
 import { useRecipePrivate } from '../../actions/useRecipePrivate.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
@@ -54,6 +53,12 @@ interface HarnessProps {
     readonly onOpenMyRecipes: () => void;
     /** The paste's lines with no food yet, as the Facade would report them (R23). */
     readonly openChoices?: IngredientsPaste['openChoices'];
+    /** The editor's standing publish-as-public ask, as `useRecipeEditor` would raise it (its own tests drive the raising). */
+    readonly publishBlocked?: {
+        readonly ask: PublishBlocked;
+        readonly keepAsDraft: () => void;
+        readonly publishAsPublic: () => void;
+    };
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -75,11 +80,22 @@ function Harness(props: HarnessProps): ReactElement {
 
     return (
         <RecipeEditorSurface
-            session={
-                props.openChoices === undefined
-                    ? session
-                    : { ...session, paste: { ...session.paste, openChoices: props.openChoices } }
-            }
+            session={{
+                ...session,
+                ...(props.openChoices === undefined
+                    ? {}
+                    : { paste: { ...session.paste, openChoices: props.openChoices } }),
+                ...(props.publishBlocked === undefined
+                    ? {}
+                    : {
+                          editor: {
+                              ...session.editor,
+                              publishBlocked: props.publishBlocked.ask,
+                              keepAsDraft: props.publishBlocked.keepAsDraft,
+                              publishAsPublic: props.publishBlocked.publishAsPublic,
+                          },
+                      }),
+            }}
             seed={seed}
             mode={seed.recipe === undefined ? 'create' : 'edit'}
             keep="disk"
@@ -160,16 +176,13 @@ describe('RecipeEditorSurface — the status poller', () => {
 });
 
 describe('RecipeEditorSurface — where the visibility field lives', () => {
-    // `VISIBILITY_SECTION` is where a Publish refused for want of a private slot takes the cook (ADR-0073 section 12). It
-    // names a section by id, so a reshuffle of the page would break it silently unless the field's section is pinned here.
-    it('renders "Who can see it" inside the section the slot refusal takes the cook to', () => {
+    it('renders "Who can see it" inside Photos & publish', () => {
         mount({ paidFeatures: 'granted', knownPaidFeatures: 'granted' });
 
         const section = screen.getByRole('heading', { level: 2, name: 'Photos & publish' }).closest('section');
 
         expect(section).not.toBeNull();
         expect(within(section as HTMLElement).getByRole('radio', { name: /private/i })).toBeTruthy();
-        expect(VISIBILITY_SECTION).toBe('photos');
     });
 });
 
@@ -286,26 +299,33 @@ describe('RecipeEditorSurface — the Private choice', () => {
             expect((screen.getByRole('radio', { name: /private/i }) as HTMLInputElement).checked).toBe(true);
         });
 
-        it('⛔ PUBLISHING it shows the refusal and its ways forward, and keeps Private chosen', async () => {
+        // REWRITTEN for the owner ruling of 2026-10-26: PUBLISHING a private draft with every slot used used to draw the
+        // refusal and its ways forward inline. It now opens the "Your private slots are full" dialog and draws nothing inline.
+        it('⛔ PUBLISHING it opens the dialog, keeps Private chosen, and draws no inline refusal', async () => {
             const user = userEvent.setup();
 
             await mountFull(PRIVATE_DRAFT_SEED);
             await user.click(screen.getByRole('button', { name: 'Publish' }));
 
-            expect(await screen.findByText(REFUSAL)).toBeTruthy();
-            expect(screen.getByRole('button', { name: /Delete a private recipe/u })).toBeTruthy();
-            expect((screen.getByRole('radio', { name: /private/i }) as HTMLInputElement).checked).toBe(true);
+            const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+            expect(within(dialog).getByText(/^All 50 of your private slots are in use, so this recipe/u)).toBeTruthy();
+            expect(screen.queryByText(REFUSAL)).toBeNull();
+            expect(screen.queryByRole('button', { name: /Delete a private recipe/u })).toBeNull();
         });
 
-        it('the refusal goes when the cook makes it Public: a public draft publishes without a slot', async () => {
+        it('Keep as draft closes it and keeps Private chosen; nothing is published', async () => {
             const user = userEvent.setup();
 
             await mountFull(PRIVATE_DRAFT_SEED);
             await user.click(screen.getByRole('button', { name: 'Publish' }));
-            await screen.findByText(REFUSAL);
-            await user.click(screen.getByRole('radio', { name: /public/i }));
+            await screen.findByRole('dialog', { name: 'Your private slots are full' });
+            await user.click(screen.getByRole('button', { name: 'Keep as draft' }));
 
-            expect(screen.queryByText(REFUSAL)).toBeNull();
+            await waitFor(() =>
+                expect(screen.queryByRole('dialog', { name: 'Your private slots are full' })).toBeNull(),
+            );
+            expect((screen.getByRole('radio', { name: /private/i }) as HTMLInputElement).checked).toBe(true);
         });
     });
 
@@ -383,5 +403,33 @@ describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(screen.queryByRole('dialog', { name: /have no food yet|has no food yet/u })).toBeNull();
+    });
+});
+
+describe('RecipeEditorSurface — the blocked-publish dialog', () => {
+    it.each([
+        [{ kind: 'noSlot' }, 'Your private slots are full'],
+        [{ kind: 'webImport', refusal: 'premium' }, 'This recipe can’t be private yet'],
+    ] as const)('shows %j while the editor stands it, wired to the editor’s two answers', async (ask, title) => {
+        const user = userEvent.setup();
+        const keepAsDraft = vi.fn();
+        const publishAsPublic = vi.fn();
+
+        mount({ publishBlocked: { ask, keepAsDraft, publishAsPublic } });
+
+        expect(screen.getByRole('dialog', { name: title })).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: 'Keep as draft' }));
+        expect(keepAsDraft).toHaveBeenCalledTimes(1);
+        expect(publishAsPublic).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'Publish as public' }));
+        expect(publishAsPublic).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows nothing while no ask stands', () => {
+        mount();
+
+        expect(screen.queryByRole('dialog', { name: /private slots are full|can.t be private yet/u })).toBeNull();
     });
 });

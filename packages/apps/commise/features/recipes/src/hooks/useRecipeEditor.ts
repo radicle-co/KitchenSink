@@ -302,10 +302,11 @@ export interface UseRecipeEditorResult {
     /** Whether Publish (or Save changes) has been refused in this editor: the section index then shows "Fix". */
     readonly publishAttempted: boolean;
     /**
-     * Whether the last Publish was refused for want of a private slot AND the draft still asks for Private. Derived from
-     * the draft as it is now, so it clears the moment the cook makes it Public (or frees a slot and publishes again).
+     * The ask a Publish made instead of going out: the cook chose Private and the server is KNOWN to refuse it for them (no
+     * private slot left, or an imported public-web recipe), and nothing turns a private recipe public on its own (owner
+     * ruling 2026-10-26). `undefined` while no ask stands. Raised by a Publish only, never by a save.
      */
-    readonly slotsRefused: boolean;
+    readonly publishBlocked: PublishBlocked | undefined;
     readonly lifecycle: RecipeLifecycle;
     /** The recipe's server id, once it has one. */
     readonly recipeId: string | undefined;
@@ -356,6 +357,16 @@ export interface UseRecipeEditorResult {
     readonly publish: (pendingEntryText: string) => GateOutcome;
     /** A published recipe's Save changes: the same gate, then one update. */
     readonly saveChanges: (pendingEntryText: string) => GateOutcome;
+    /**
+     * "Publish as public" on {@link UseRecipeEditorResult.publishBlocked}: the editor's choice moves to Public and the
+     * Publish runs again. A no-op while no ask stands.
+     */
+    readonly publishAsPublic: () => void;
+    /**
+     * "Keep as draft" on {@link UseRecipeEditorResult.publishBlocked}, and every way of dismissing it: nothing is sent and
+     * the cook's Private stays. A no-op while no ask stands.
+     */
+    readonly keepAsDraft: () => void;
     /** Withdraw the parked write and send the draft again: the cook's consent to a parked record (ADR-0057). */
     readonly retry: () => void;
     /**
@@ -380,6 +391,17 @@ export interface UseRecipeEditorResult {
     };
 }
 
+/** Why a Private is refused for an imported public-web recipe: every refusal but the slots, which has its own case. */
+export type PublicOnlyRefusal = Exclude<PrivateRefusal, 'slots'>;
+
+/**
+ * Why a Publish with Private chosen did not go out, and asks the cook what to do (owner ruling 2026-10-26): every private
+ * slot is used (`noSlot`), or the recipe is an imported public-web one that needs Premium and a change of the cook's own
+ * (`webImport`; `refusal` says whether paid features are shown).
+ */
+export type PublishBlocked =
+    { readonly kind: 'noSlot' } | { readonly kind: 'webImport'; readonly refusal: PublicOnlyRefusal };
+
 /** An answer on the settlement bus. */
 type Settlement = SettlementEvent<EditorWriteAnswer>;
 
@@ -395,8 +417,6 @@ type LineCommandAnswer =
 interface GateState {
     readonly refused: ReadonlySet<RefusedField>;
     readonly attempted: boolean;
-    /** Whether the last Publish press was refused for want of a private slot (`slotsRefused` reads it with the draft). */
-    readonly slotsPressed: boolean;
     /** What the ingredient entry held when Publish or Save changes was pressed: a deferred one is validated with it. */
     readonly entryText: string;
 }
@@ -417,6 +437,9 @@ interface EditorContext {
     readonly setMemento: Dispatch<SetStateAction<MementoWrite>>;
     readonly gate: GateState;
     readonly setGate: Dispatch<SetStateAction<GateState>>;
+    /** The standing publish-as-public ask, if any (`writeVisibilityFirst` raises it). */
+    readonly publishBlocked: PublishBlocked | undefined;
+    readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
     readonly clearResume: () => void;
 }
 
@@ -718,8 +741,14 @@ function stopVisibilityStep(ctx: EditorContext, error: unknown): void {
  * This is the ONE owner of that ordering. It holds the lane while the write is out (`settingVisibility`: checkpoints
  * defer, a second Publish is busy), adopts the recipe the write answered with, and then runs the Publish again; a write
  * that fails sends no Publish and stops the save the way a failed held re-pick does (`drainFailed`: the alert with Try
- * again). A Private the server is known to refuse (`visibilityFollowUp`) is not sent: the Publish goes out public and the
- * finish says so. A recipe the server does not hold yet needs none: its create carries the visibility.
+ * again). A recipe the server does not hold yet needs none: its create carries the visibility.
+ *
+ * ⛔ THE SAME STEP OWNS THE LAST CASE OF "nothing turns a private recipe public on its own" (owner ruling 2026-10-26). A
+ * Private the server is KNOWN to refuse for the Premium rule (`visibilityFollowUp` says `refused`: an imported public-web
+ * recipe) is not sent, and the Publish does not go out public either: it STOPS and raises the ask
+ * ({@link UseRecipeEditorResult.publishBlocked}). Nothing is sent until the cook answers: "Publish as public" moves the
+ * draft to Public and runs the Publish again (the follow-up is then `none`), "Keep as draft" clears the ask. The slots
+ * refusal is not asked here: the gate has already stopped that Publish (`slotsFull`).
  *
  * @pattern Pipeline step — the first stage of a first Publish, holding the lane like the held re-picks' command queue
  * @returns Whether the step took over: the Publish runs again when it answers. @sideEffect Sends the visibility write.
@@ -732,6 +761,12 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
     }
 
     const followUp = visibilityFollowUp(draft.visibility, server.recipe, ctx.opts.privateRefusal);
+
+    if (followUp.kind === 'refused' && followUp.refusal !== 'slots') {
+        ctx.setPublishBlocked({ kind: 'webImport', refusal: followUp.refusal });
+
+        return true;
+    }
 
     if (followUp.kind !== 'send') {
         return false;
@@ -828,11 +863,17 @@ function checkGate(
     ctx.setGate((gate) => ({
         refused: refusedFieldsOf(found),
         attempted: gate.attempted || outcome.kind === 'refused' || needsSlot,
-        slotsPressed: needsSlot,
         entryText,
     }));
 
-    return outcome.kind === 'send' && needsSlot ? { kind: 'slotsFull' } : outcome;
+    if (outcome.kind === 'send' && needsSlot) {
+        // Owner ruling 2026-10-26: the Publish does not go out, and does not just refuse inline - it asks what the cook wants.
+        ctx.setPublishBlocked({ kind: 'noSlot' });
+
+        return { kind: 'slotsFull' };
+    }
+
+    return outcome;
 }
 
 /**
@@ -1215,6 +1256,23 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
     runCheckpoint(ctx, trigger);
 
     return outcome;
+}
+
+/**
+ * The cook answered the publish-as-public ask with "Publish as public": the choice moves to Public, which is what the
+ * follow-up then finds the server already holding, and the Publish runs again through the gate. @sideEffect
+ */
+function publishAsPublic(ctx: EditorContext): void {
+    if (ctx.publishBlocked === undefined) {
+        return;
+    }
+
+    ctx.setPublishBlocked(undefined);
+    ctx.core.dispatch({
+        type: 'draftReplaced',
+        draft: { ...ctx.core.get().draft, visibility: RecipeVisibility.PUBLIC },
+    });
+    finish(ctx, ctx.gate.entryText, 'publish');
 }
 
 /** Withdraw the parked write and send the draft again, or run a stopped Save changes again. @sideEffect */
@@ -1779,9 +1837,9 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const [gate, setGate] = useState<GateState>({
         refused: new Set(),
         attempted: false,
-        slotsPressed: false,
         entryText: '',
     });
+    const [publishBlocked, setPublishBlocked] = useState<PublishBlocked | undefined>(undefined);
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -1793,6 +1851,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         setMemento,
         gate,
         setGate,
+        publishBlocked,
+        setPublishBlocked,
         clearResume: () => {
             setResume(undefined);
         },
@@ -1840,8 +1900,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         values: core.draft,
         refusedFields: gate.refused,
         publishAttempted: gate.attempted,
-        slotsRefused:
-            gate.slotsPressed && core.draft.visibility === RecipeVisibility.PRIVATE && view.lifecycle !== 'published',
+        publishBlocked,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,
         saveStatus: view.saveStatus,
@@ -1873,6 +1932,12 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         },
         publish: (pendingEntryText) => finish(ctx, pendingEntryText, 'publish'),
         saveChanges: (pendingEntryText) => finish(ctx, pendingEntryText, 'saveChanges'),
+        publishAsPublic: () => {
+            publishAsPublic(ctx);
+        },
+        keepAsDraft: () => {
+            ctx.setPublishBlocked(undefined);
+        },
         retry: () => {
             retry(ctx);
         },

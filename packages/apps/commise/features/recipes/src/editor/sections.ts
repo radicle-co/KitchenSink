@@ -22,12 +22,6 @@ export const EDITOR_SECTIONS = ['details', 'ingredients', 'steps', 'photos'] as 
 /** One editor section. */
 export type EditorSectionId = (typeof EDITOR_SECTIONS)[number];
 
-/**
- * The section that holds the "Who can see it" field, where a Publish refused for want of a private slot takes the cook
- * (`GateOutcome` `slotsFull`). It is not a validation field, so it is not in {@link FIELD_SECTION}.
- */
-export const VISIBILITY_SECTION = 'photos' as const satisfies EditorSectionId;
-
 /** Which section each validation field belongs to. */
 const FIELD_SECTION: Readonly<Record<keyof RecipeFormErrors, EditorSectionId>> = {
     title: 'details',

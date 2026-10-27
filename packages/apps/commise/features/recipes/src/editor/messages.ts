@@ -186,6 +186,36 @@ export interface EditorMessages {
         readonly close: string;
     };
 
+    /**
+     * The dialog (web) or bottom sheet (native) a Publish opens when the cook chose Private and cannot keep it (owner
+     * ruling 2026-10-26, replacing the earlier stop-and-ask): `noSlot` when every private slot is used, `webImport` for an
+     * imported public-web recipe (Premium and a change of the cook's own). The spec's `recipe.publish.noSlot.*`,
+     * `recipe.publish.webImport.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
+     *
+     * The `upsell` lines and `seePremium` exist for when there is a subscription page to go to (feature 010) and are
+     * unused until `PUBLISH_BLOCKED_PREMIUM_UPSELL` is turned on (`publishBlockedCopy.ts`).
+     */
+    readonly publishBlocked: {
+        readonly noSlot: {
+            readonly title: string;
+            /** `{total}` is the cook's private-slot limit. */
+            readonly body: string;
+            /** `{premiumFeatures}` is the list of what Premium adds. */
+            readonly upsell: string;
+        };
+        readonly webImport: {
+            readonly title: string;
+            readonly body: string;
+            /** Paid features hidden: the Premium sentence is gone. */
+            readonly bodyNoPaid: string;
+            readonly upsell: string;
+        };
+        readonly publishPublic: string;
+        readonly keepDraft: string;
+        readonly seePremium: string;
+        readonly close: string;
+    };
+
     readonly steps: {
         readonly label: string;
         readonly addTimer: string;
@@ -422,6 +452,25 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             close: 'Close',
         },
 
+        publishBlocked: {
+            noSlot: {
+                title: 'Your private slots are full',
+                body: 'All {total} of your private slots are in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                upsell: 'Premium gives you unlimited private recipes, plus {premiumFeatures}.',
+            },
+            webImport: {
+                title: 'This recipe can’t be private yet',
+                body: 'A recipe from a public web page can be private with Premium, once you have changed it yourself. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                bodyNoPaid:
+                    'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
+                upsell: 'Premium gives you unlimited private recipes, plus {premiumFeatures}. This one also needs a change of your own.',
+            },
+            publishPublic: 'Publish as public',
+            keepDraft: 'Keep as draft',
+            seePremium: 'See Premium',
+            close: 'Close',
+        },
+
         steps: {
             label: 'Step {n}',
             addTimer: 'Add a timer',
@@ -454,10 +503,11 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             publicHint: 'Anyone can find it in Discover',
             publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
             publicNeedsPremium: "To make it private again, you'll need Premium.",
-            privateUnavailable: "Private isn't available, so this recipe will be public when you publish.",
+            privateUnavailable:
+                'A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.',
             // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
             privatePremiumOnly:
-                'A recipe from a public web page needs Premium and a change of your own to be private. Until then, it will be public when you publish.',
+                'A recipe from a public web page needs Premium and a change of your own to be private. If it can’t be private when you publish, we will ask what you want to do.',
             private: 'Private',
             privateHint: 'Only you can see it',
             slotsLeft: '{left} of {total} private slots left',

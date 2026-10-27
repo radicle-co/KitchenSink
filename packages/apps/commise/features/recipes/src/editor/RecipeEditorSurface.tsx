@@ -39,9 +39,11 @@ import { RecipeVisibilityStatement } from '../form/RecipeVisibilityStatement.js'
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
+import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
+import { PublishBlockedSheet } from './PublishBlockedSheet.js';
 import { RecipeEditorView } from './RecipeEditorView.js';
 import { RecipePreviewSheet } from './RecipePreviewSheet.js';
 import { errorsStillHolding } from './gate.js';
@@ -103,6 +105,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    // Kept while the sheet closes, so its words do not change under its own animation.
+    const blocked = useLastDefined(editor.publishBlocked);
     // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
     // here and refused with its ways forward when none is left); for an imported public-web recipe still from the viewer's
     // paid features alone. "Saved" is what the server held when the editor opened (a new recipe is public), so a choice
@@ -112,11 +116,11 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         knownPaidFeatures,
         rule: privateRule,
         standing: slotStanding,
-        // ADR-0073 section 12: a draft holds no slot, so the field counts and refuses nothing for one - until a Publish was
-        // refused for want of a slot, when it draws that refusal and the ways forward.
+        // ADR-0073 section 12: a draft holds no slot, so the field counts and refuses nothing for one. A Publish that
+        // needs a slot asks in the blocked-publish dialog instead (owner ruling 2026-10-26).
         // `published` is the recipe's STATUS, not its lifecycle: a published recipe sent back to draft keeps its lifecycle
         // (versions) but holds no slot.
-        publication: { published: recipeIsPublished(seed.recipe), publishRefused: editor.slotsRefused },
+        publication: { published: recipeIsPublished(seed.recipe) },
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,
@@ -221,6 +225,15 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             />
             <RecipeUpsellSheet {...privateChoice.sheet} />
             <RecipeMakePublicDialog {...privateChoice.confirm} />
+            {blocked === undefined ? null : (
+                <PublishBlockedSheet
+                    open={editor.publishBlocked !== undefined}
+                    ask={blocked}
+                    slotTotal={slotStanding.kind === 'full' || slotStanding.kind === 'open' ? slotStanding.limit : 0}
+                    onKeepDraft={editor.keepAsDraft}
+                    onPublishPublic={editor.publishAsPublic}
+                />
+            )}
         </>
     );
 };

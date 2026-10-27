@@ -261,6 +261,10 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Mark Private, then Publish (pre-push fix pass 2026-10-26): written with the fix that sends the visibility BEFORE the first
     // Publish and NOT run, because it was built without a device. Promote it to FLOW_PLAN once an emulator run has passed it.
     'recipes/publishPrivateDraft',
+    // Publish with Private chosen, where the server will refuse Private, opens a sheet (owner ruling 2026-10-26): written NOT run. It needs a seeded
+    // draft of an imported public-web recipe, held public, with a device draft saying Private, for a cook who is not entitled,
+    // and the e2e seed does not mint that. Promote it to FLOW_PLAN once the seed carries it and an emulator run has passed it.
+    'recipes/publishBlockedAsk',
     // The matched paste (ADR-0071; owner rulings 2026-10-25): confident, choosing a food, a line still being checked, and
     // publishing with open choices. Written with the slice and NOT run (it was built without a device); each depends on
     // what the stage's catalog and review gate answer (a foundation food by exact name, the seeded milk and salt defaults,

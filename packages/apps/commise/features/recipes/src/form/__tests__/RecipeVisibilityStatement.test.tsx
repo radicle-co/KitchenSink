@@ -45,7 +45,9 @@ describe('RecipeVisibilityStatement (web)', () => {
         render(<RecipeVisibilityStatement privateUnavailable focusOnMount={false} />);
 
         expect(
-            screen.getByText("Private isn't available, so this recipe will be public when you publish."),
+            screen.getByText(
+                'A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.',
+            ),
         ).toBeTruthy();
     });
 

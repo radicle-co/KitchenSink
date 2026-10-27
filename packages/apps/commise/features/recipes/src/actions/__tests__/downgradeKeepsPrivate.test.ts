@@ -87,7 +87,7 @@ describe('a downgrade never makes a private recipe public - the editor over the 
                 knownPaidFeatures: 'upsell',
                 rule,
                 standing: OVER,
-                publication: { published: true, publishRefused: false },
+                publication: { published: true },
                 saved: PRIVATE,
                 values,
                 onChange,

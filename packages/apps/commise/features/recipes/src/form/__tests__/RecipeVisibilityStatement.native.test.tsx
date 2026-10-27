@@ -54,7 +54,7 @@ describe('RecipeVisibilityStatement (native)', () => {
 
         expect(
             screen.getByLabelText(
-                `${v.legend}: ${v.public}. ${v.publicHint}. Private isn't available, so this recipe will be public when you publish.`,
+                `${v.legend}: ${v.public}. ${v.publicHint}. A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.`,
             ),
         ).toBeTruthy();
     });

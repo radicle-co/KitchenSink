@@ -149,17 +149,17 @@ describe('useEditorPage — a refused Publish', () => {
         expect(page().refusalHeadings).toEqual({});
     });
 
-    // ADDED for the owner ruling of 2026-10-26 (ADR-0073 section 12): publishing a private draft with every slot used is
-    // refused with `slotsFull`. The visibility field lives in Photos & publish, which is where the cook is taken, and there
-    // is no single control to land on, so the section's heading is the answer.
-    it('takes the cook to the visibility field’s section when Publish is refused for want of a slot', () => {
+    // REWRITTEN for the owner ruling of 2026-10-26 (blocked-publish dialog): a Publish refused for want of a slot used to
+    // take the cook to the visibility field's section. The editor now opens the dialog (its own tests), so the page does not
+    // jump and counts no heading.
+    it('does not jump anywhere when Publish is refused for want of a slot: the dialog is the answer', () => {
         const { page, press } = mountRefusing({}, undefined, undefined, { kind: 'slotsFull' });
 
         press();
 
-        expect(host.scrollToSection).toHaveBeenCalledExactlyOnceWith('photos');
+        expect(host.scrollToSection).not.toHaveBeenCalled();
         expect(host.scrollToField).not.toHaveBeenCalled();
-        expect(page().refusalHeadings).toEqual({ photos: 1 });
+        expect(page().refusalHeadings).toEqual({});
     });
 
     it('counts nothing when Publish is not refused', () => {

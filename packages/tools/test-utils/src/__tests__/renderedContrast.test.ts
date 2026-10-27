@@ -12,10 +12,20 @@ import { computedContrast, placeholderContrast, ringContrast, utilityContrast } 
 
 describe('utilityContrast', () => {
     it('measures the palette pair the class list names', () => {
-        expect(utilityContrast('text-charcoal bg-white')).toBeCloseTo(
-            contrastRatio(palette.charcoal, palette.white),
+        expect(utilityContrast('text-charcoal bg-cloud')).toBeCloseTo(
+            contrastRatio(palette.charcoal, palette.cloud),
             10,
         );
+    });
+
+    // Tailwind's own `white` is pure #FFFFFF (the palette no longer shadows it with the card colour), which is `snow`.
+    // A class list that says `bg-white` is read as pure white, not skipped as an unknown name.
+    it('reads Tailwind’s own white as snow, and the card colour only as cloud', () => {
+        expect(utilityContrast('text-charcoal bg-white')).toBeCloseTo(
+            contrastRatio(palette.charcoal, palette.snow),
+            10,
+        );
+        expect(utilityContrast('text-charcoal bg-white')).not.toBeCloseTo(utilityContrast('text-charcoal bg-cloud'), 4);
     });
 
     it('treats an element with NO background utility as painted on the surface', () => {
@@ -23,7 +33,7 @@ describe('utilityContrast', () => {
         // resting ratio is the token against the surface. Before this, such a button could not be measured at
         // rest at all — which is precisely where `text-steel` fails.
         expect(utilityContrast('text-steel transition hover:bg-steel/10')).toBeCloseTo(
-            contrastRatio(palette.steel, palette.white),
+            contrastRatio(palette.steel, palette.cloud),
             10,
         );
     });
@@ -39,7 +49,7 @@ describe('utilityContrast', () => {
         // The tint is DERIVED from the token (`/10` → `1a` hex alpha), not re-spelled: a literal `#3D8B851a`
         // froze this expectation at the pre-#113 steel, so the token move broke a test of the READER rather
         // than of the palette.
-        const composited = contrastRatio(palette['ocean-dark'], compositeOver(`${palette.steel}1a`, palette.white));
+        const composited = contrastRatio(palette['ocean-dark'], compositeOver(`${palette.steel}1a`, palette.cloud));
 
         expect(utilityContrast('text-ocean-dark bg-steel/10')).toBeCloseTo(composited, 10);
         // The un-composited reading is materially different — proof the composite step is doing work.
@@ -50,17 +60,17 @@ describe('utilityContrast', () => {
     });
 
     it('prefers the requested variant and falls back to the base utility for the other half', () => {
-        const hover = utilityContrast('text-slate bg-coral/10 hover:bg-coral/25', { variant: 'hover' });
+        const hover = utilityContrast('text-slate bg-cream/10 hover:bg-cream/25', { variant: 'hover' });
 
-        expect(hover).toBeCloseTo(contrastRatio(palette.slate, compositeOver(`${palette.coral}40`, palette.white)), 10);
+        expect(hover).toBeCloseTo(contrastRatio(palette.slate, compositeOver(`${palette.cream}40`, palette.cloud)), 10);
         // The text has no `hover:` utility, so the hover state inherits the base label colour — a variant read
         // that silently dropped the base would measure nothing at all.
-        expect(hover).not.toBeCloseTo(utilityContrast('text-slate bg-coral/10 hover:bg-coral/25'), 2);
+        expect(hover).not.toBeCloseTo(utilityContrast('text-slate bg-cream/10 hover:bg-cream/25'), 2);
     });
 
     it('skips type utilities that merely share the `text-` prefix', () => {
         expect(utilityContrast('text-body-sm text-caption font-medium text-charcoal')).toBeCloseTo(
-            contrastRatio(palette.charcoal, palette.white),
+            contrastRatio(palette.charcoal, palette.cloud),
             10,
         );
     });
@@ -80,7 +90,7 @@ describe('utilityContrast', () => {
         const cls = 'flex size-8 rounded border-2 border-mist bg-transparent';
 
         expect(utilityContrast(cls, { foreground: 'border' })).toBeCloseTo(
-            contrastRatio(palette.mist, palette.white),
+            contrastRatio(palette.mist, palette.cloud),
             10,
         );
     });
@@ -91,7 +101,7 @@ describe('utilityContrast', () => {
         const cls = 'border-2 border-b-2 border-l-[3px] border-border border-slate';
 
         expect(utilityContrast(cls, { foreground: 'border' })).toBeCloseTo(
-            contrastRatio(palette.slate, palette.white),
+            contrastRatio(palette.slate, palette.cloud),
             10,
         );
     });
@@ -105,7 +115,7 @@ describe('utilityContrast', () => {
 describe('ringContrast', () => {
     it('measures the ring token against the surface the ring is drawn on', () => {
         expect(ringContrast('rounded-full focus-visible:ring-2 focus-visible:ring-steel')).toBeCloseTo(
-            contrastRatio(palette.steel, palette.white),
+            contrastRatio(palette.steel, palette.cloud),
             10,
         );
     });
@@ -122,7 +132,7 @@ describe('ringContrast', () => {
     });
 
     it('reads the ring whichever focus variant carries it', () => {
-        const expected = contrastRatio(palette.steel, palette.white);
+        const expected = contrastRatio(palette.steel, palette.cloud);
 
         expect(ringContrast('focus:ring-2 focus:ring-steel')).toBeCloseTo(expected, 10);
         expect(ringContrast('focus-within:ring-2 focus-within:ring-steel')).toBeCloseTo(expected, 10);
@@ -132,7 +142,7 @@ describe('ringContrast', () => {
     it('COMPOSITES a translucent backdrop, so a nested tint is not measured against the card', () => {
         // The chip-remove control's ring sits on the chip's own `bg-steel/10` over the white field — two
         // surfaces deep. Measuring it against a nominal white overstates the ratio.
-        const tinted = compositeOver(`${palette.steel}1a`, palette.white);
+        const tinted = compositeOver(`${palette.steel}1a`, palette.cloud);
 
         expect(ringContrast('focus-visible:ring-2 focus-visible:ring-steel', { surface: tinted })).toBeCloseTo(
             contrastRatio(palette.steel, tinted),
@@ -145,7 +155,7 @@ describe('ringContrast', () => {
 
     it('applies a `/NN` suffix to the ring token', () => {
         expect(ringContrast('ring-2 ring-steel/50')).toBeCloseTo(
-            contrastRatio(compositeOver(`${palette.steel}80`, palette.white), palette.white),
+            contrastRatio(compositeOver(`${palette.steel}80`, palette.cloud), palette.cloud),
             10,
         );
     });
@@ -154,7 +164,7 @@ describe('ringContrast', () => {
         // `ring-2` and `ring-offset-2` carry digits; `ring-inset` and `ring-ring` name no palette key. If any
         // resolved, the measurement would silently move — or the single-ring check would spuriously throw.
         expect(ringContrast('ring-2 ring-offset-2 ring-inset ring-ring ring-steel')).toBeCloseTo(
-            contrastRatio(palette.steel, palette.white),
+            contrastRatio(palette.steel, palette.cloud),
             10,
         );
     });
@@ -163,7 +173,7 @@ describe('ringContrast', () => {
         // `focus:outline-none` with no ring is a control with no focus indicator at all — a defect in its own
         // right, so it must throw instead of returning a comfortable 1:1-free number.
         expect(() => ringContrast('rounded-full focus:outline-none')).toThrow(/`ring-\*`/);
-        expect(() => ringContrast('focus:ring-steel hover:ring-coral')).toThrow(/exactly ONE/);
+        expect(() => ringContrast('focus:ring-steel hover:ring-cream')).toThrow(/exactly ONE/);
     });
 });
 
@@ -181,7 +191,7 @@ describe('computedContrast', () => {
     it('measures the leaf colour the DOM actually computed against the given surface', () => {
         const element = withStyle({ color: palette['ocean-dark'] });
 
-        expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette['ocean-dark'], palette.white), 5);
+        expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette['ocean-dark'], palette.cloud), 5);
         expect(computedContrast(element, { surface: palette.fog })).toBeCloseTo(
             contrastRatio(palette['ocean-dark'], palette.fog),
             5,
@@ -190,7 +200,7 @@ describe('computedContrast', () => {
 
     it('composites the element OWN translucent background over the surface', () => {
         const element = withStyle({ color: palette['ocean-dark'], backgroundColor: 'rgba(61, 139, 133, 0.1)' });
-        const composited = compositeOver('rgba(61, 139, 133, 0.1)', palette.white);
+        const composited = compositeOver('rgba(61, 139, 133, 0.1)', palette.cloud);
 
         expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette['ocean-dark'], composited), 5);
     });
@@ -198,7 +208,7 @@ describe('computedContrast', () => {
     it('treats a fully transparent background as no background at all', () => {
         const element = withStyle({ color: palette.slate, backgroundColor: 'rgba(0, 0, 0, 0)' });
 
-        expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette.slate, palette.white), 5);
+        expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette.slate, palette.cloud), 5);
     });
 
     /**
@@ -243,7 +253,7 @@ describe('placeholderContrast', () => {
 
         // The distinction is the whole point: charcoal-on-white is 12.68:1, so a reader of the input's `color`
         // would call an illegible mist placeholder a pass.
-        expect(placeholderContrast(element)).toBeCloseTo(contrastRatio(palette.mist, palette.white), 5);
+        expect(placeholderContrast(element)).toBeCloseTo(contrastRatio(palette.mist, palette.cloud), 5);
         expect(placeholderContrast(element)).toBeLessThan(2);
     });
 
@@ -259,14 +269,14 @@ describe('placeholderContrast', () => {
     });
 
     it('lets the input OWN opaque background win over the stated surface', () => {
-        // A field painted `bg-white` on a fog page is read against white, not fog — which is why the
+        // A field painted `bg-cloud` on a fog page is read against cloud, not fog — which is why the
         // element's own background is consulted first rather than the caller's backdrop being trusted blindly.
         const element = withPlaceholderColor(palette.slate);
 
-        element.style.backgroundColor = palette.white;
+        element.style.backgroundColor = palette.cloud;
 
         expect(placeholderContrast(element, { surface: palette.fog })).toBeCloseTo(
-            contrastRatio(palette.slate, palette.white),
+            contrastRatio(palette.slate, palette.cloud),
             5,
         );
     });
@@ -293,7 +303,7 @@ describe('the readers resolve colour roles as well as palette names', () => {
 
     it('still skips a type-role utility that shares the text- prefix', () => {
         expect(utilityContrast('text-label text-danger-text')).toBeCloseTo(
-            contrastRatio(role.dangerText, palette.white),
+            contrastRatio(role.dangerText, palette.cloud),
             5,
         );
     });

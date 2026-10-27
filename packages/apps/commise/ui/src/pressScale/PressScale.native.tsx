@@ -38,6 +38,7 @@ export const PressScale: FC<PressScaleProps> = ({
     accessibilityRole = 'button',
     ref,
     expanded,
+    checked,
     width = 'auto',
 }) => {
     // A press gate has nothing to show before the first press, so the not-yet-known preference collapses to
@@ -53,7 +54,12 @@ export const PressScale: FC<PressScaleProps> = ({
             accessibilityLabel={accessibilityLabel}
             accessibilityHint={accessibilityHint}
             // `expanded` only when stated: `false` is COLLAPSED, and absent means "not a disclosure".
-            accessibilityState={{ disabled, busy, ...(expanded === undefined ? {} : { expanded }) }}
+            accessibilityState={{
+                disabled,
+                busy,
+                ...(expanded === undefined ? {} : { expanded }),
+                ...(checked === undefined ? {} : { checked }),
+            }}
             // `aria-busy` is React Native's own first-class ALIAS for `accessibilityState.busy` (declared in
             // `ViewAccessibility.d.ts`), NOT a web-only attribute — so it is device-correct on
             // VoiceOver/TalkBack. Both forms are emitted deliberately: react-native-web reads
@@ -65,12 +71,14 @@ export const PressScale: FC<PressScaleProps> = ({
             aria-busy={busy || undefined}
             // The same dual-channel reasoning as `aria-busy` above, for disclosure state.
             aria-expanded={expanded}
+            // And for a switch's state: `accessibilityState.checked` reaches the device, `aria-checked` the DOM.
+            aria-checked={checked}
             style={({ pressed }): StyleProp<ViewStyle> => ({
                 ...WIDTH_STYLE[width],
                 transform: [{ scale: pressedScale({ pressed, disabled, reduceMotion }) }],
             })}
         >
-            {children}
+            {typeof children === 'function' ? ({ pressed }) => children({ pressed }) : children}
         </Pressable>
     );
 };

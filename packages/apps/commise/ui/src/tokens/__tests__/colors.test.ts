@@ -83,12 +83,12 @@ const FILLED_ACCENTS: readonly FilledAccent[] = [
     // The FOREGROUND red is also a legal fill (the pressed end of a destructive control), same as `ocean-dark`.
     { fill: 'error-dark', label: 'snow' },
     // Photo-overlay chrome.
-    { fill: 'charcoal', label: 'white' },
+    { fill: 'charcoal', label: 'snow' },
     // Light/pastel fills. A white label on any of these is FAR below the floor (1.88:1 on warning), so they
     // take a dark label instead — darkening them enough to carry white would cost the tone its identity.
     { fill: 'success', label: 'charcoal' },
     { fill: 'warning', label: 'charcoal' },
-    { fill: 'coral', label: 'charcoal' },
+    { fill: 'cream', label: 'charcoal' },
 ];
 
 /** The tiers a fill may legitimately be drawn from — the set rule (2) polices. */
@@ -96,7 +96,7 @@ const ACCENT_TIERS = [
     'steel',
     'steel-light',
     'ocean-dark',
-    'coral',
+    'cream',
     'sky',
     'success',
     'warning',
@@ -117,7 +117,7 @@ const BRAND_HUE: Readonly<Record<(typeof ACCENT_TIERS)[number], number>> = {
     'steel-light': 245.7,
     'ocean-dark': 245.7,
     // Pale cream and pale blue washes (the same values as the cover tints).
-    coral: 74.3,
+    cream: 74.3,
     sky: 242.7,
     success: 158.2,
     warning: 75.3,
@@ -138,10 +138,7 @@ describe('filled-accent label contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     });
 
     it.each(ACCENT_TIERS)('%s is labelable — white or charcoal clears 4.5:1 on it', (tier) => {
-        const best = Math.max(
-            wcagContrast(palette.white, palette[tier]),
-            wcagContrast(palette.charcoal, palette[tier]),
-        );
+        const best = Math.max(wcagContrast(palette.snow, palette[tier]), wcagContrast(palette.charcoal, palette[tier]));
 
         expect(best, `no legible label exists for a filled ${tier}`).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
@@ -160,7 +157,7 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     // at 4.36:1 while the single-token `error` was believed to pass, because only the flat surfaces were ever
     // measured. The tint is derived from the FILL token (`bg-danger/10` is what the markup says), so a re-theme
     // of either half moves this assertion.
-    it.each(['white', 'fog', 'pearl'] as const)('error-dark reads as text on %s', (surface) => {
+    it.each(['cloud', 'fog', 'pearl'] as const)('error-dark reads as text on %s', (surface) => {
         expect(wcagContrast(palette['error-dark'], palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
@@ -168,7 +165,7 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     // (`pearl`, D11): there it is 4.30:1, so an error banner never sits on a muted surface (raised with the designer).
     // The tint is measured over the two surfaces an alert banner sits on. (`error-dark` was retuned to #A53E27 by the
     // design session so the banner clears 4.5:1 over the cool canvas too; the old #B1442B measured 4.45:1 there.)
-    it.each(['white', 'fog'] as const)('error-dark reads as text on a 10%-alpha error tint over %s', (surface) => {
+    it.each(['cloud', 'fog'] as const)('error-dark reads as text on a 10%-alpha error tint over %s', (surface) => {
         expect(
             wcagContrast(palette['error-dark'], over(tint(palette.error, 0.1), palette[surface])),
         ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
@@ -183,7 +180,7 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     // `text-ink`; the amber is never painted on its own tint, so that pairing has no call site to measure.
     // The red's case is the opposite — its alert copy sits INSIDE the `error/10` banner — which is why the tint
     // is asserted there and not here.
-    it.each(['white', 'fog', 'pearl'] as const)('warning-dark reads as text on %s', (surface) => {
+    it.each(['cloud', 'fog', 'pearl'] as const)('warning-dark reads as text on %s', (surface) => {
         expect(wcagContrast(palette['warning-dark'], palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
@@ -217,7 +214,7 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     // an already-PASSING pair back under the floor.
     it('ocean-dark reads on a 10%-alpha steel tint over white', () => {
         expect(
-            wcagContrast(palette['ocean-dark'], over(tint(palette.steel, 0.1), palette.white)),
+            wcagContrast(palette['ocean-dark'], over(tint(palette.steel, 0.1), palette.cloud)),
         ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 });
@@ -240,6 +237,19 @@ describe('colour roles (§1.4)', () => {
         expect(role.rating).toBe(palette.charcoal);
     });
 
+    // The palette names its tones for what they are. `cloud` is the card colour (#FCFDFF) and `snow` the pure white; a
+    // key `white` would shadow Tailwind's own `white` (#FFFFFF) in the emitted theme, so it must not exist.
+    it('names the card colour cloud and the pale cream cream, and keeps no key called white, coral or premium', () => {
+        expect(palette.cloud).toBe('#FCFDFF');
+        expect(palette.snow).toBe('#FFFFFF');
+        expect(palette.cream).toBe('#F7E9D7');
+        expect(role.paper).toBe(palette.cloud);
+
+        for (const retired of ['white', 'coral', 'premium', 'honey']) {
+            expect(Object.keys(palette), retired).not.toContain(retired);
+        }
+    });
+
     it('draws every role but the four derived fills from a palette entry', () => {
         const paletteValues = new Set<string>(Object.values(palette));
         const derived = new Set<keyof typeof role>(['selectedFill', 'attentionTint', 'photoChip', 'scrim']);
@@ -254,7 +264,7 @@ describe('colour roles (§1.4)', () => {
     it('names each role after the tier the spec assigns it', () => {
         expect(role).toMatchObject({
             canvas: palette.fog,
-            paper: palette.white,
+            paper: palette.cloud,
             ink: palette.charcoal,
             inkMuted: palette.slate,
             lineControl: palette.pewter,
@@ -359,7 +369,7 @@ describe('colour roles (§1.4)', () => {
 
 describe('tint', () => {
     it('spells a palette colour at an alpha in the notation React Native and jsdom both use', () => {
-        expect(tint(palette.coral, 0.1)).toBe('rgba(247, 233, 215, 0.1)');
+        expect(tint(palette.cream, 0.1)).toBe('rgba(247, 233, 215, 0.1)');
     });
 
     it('derives from the token, so re-theming a tier moves its tint with it', () => {

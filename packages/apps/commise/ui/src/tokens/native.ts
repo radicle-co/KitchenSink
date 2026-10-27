@@ -17,7 +17,6 @@ import {
     radius,
     spacing,
 } from './scale.js';
-import { role, roleDark } from './colors.js';
 import { typeRole, type TypeRole, type TypeRoleSpec } from './typography.js';
 
 /**
@@ -146,8 +145,7 @@ const touchTarget = 48;
 
 /**
  * The React Native projection of the design scale. `spacing`/`radius`/`fontSize` are pixel numbers,
- * `lineHeight` is the px leading for each allowed size, `fontWeight` are numeric weights, `elevation` are RN shadow objects,
- * and `borderSubtle` aliases the divider role in each theme (a hairline, never a control edge: that is `lineControl`).
+ * `lineHeight` is the px leading for each allowed size, `fontWeight` are numeric weights, and `elevation` are RN shadow objects.
  *
  * Type is projected as `fontFace` — the REGISTERED face names — and NOT as the web `fontFamily` stacks:
  * React Native resolves `fontFamily` to one registered face, so handing it a stack silently renders the
@@ -164,7 +162,6 @@ export const nativeTokens = {
     lineHeight: lineHeightPx,
     fontSize,
     elevation: nativeElevation,
-    borderSubtle: { light: role.lineDivider, dark: roleDark.lineDivider },
     touchTarget,
 } as const;
 

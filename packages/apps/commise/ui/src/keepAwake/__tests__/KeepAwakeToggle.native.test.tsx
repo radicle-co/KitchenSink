@@ -56,6 +56,26 @@ describe('KeepAwakeToggle (native)', () => {
     });
 });
 
+// The switch presses as a Button does: the SAME `PressScale`, so a held press shrinks it and reduce-motion calms it.
+// A bare `Pressable` carries no transform at all, so this fails if the toggle does not adopt the primitive.
+describe('KeepAwakeToggle (native) — presses like Button', () => {
+    it.each([true, false])('carries the press-scale transform Button carries, on=%s', (on) => {
+        render(
+            <>
+                <Button icon="check" variant="secondary" onPress={vi.fn()}>
+                    Done
+                </Button>
+                <KeepAwakeToggle on={on} onChange={vi.fn()} label="Screen on" display="labelled" />
+            </>,
+        );
+
+        const toggle = screen.getByRole('switch', { name: 'Screen on' });
+
+        expect(toggle.style.transform).toBe('scale(1)');
+        expect(toggle.style.transform).toBe(screen.getByRole('button', { name: 'Done' }).style.transform);
+    });
+});
+
 /** `#RRGGBB` → the `rgb(r, g, b)` spelling jsdom's `getComputedStyle` normalises colours to. */
 function rgb(hex: string): string {
     const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));

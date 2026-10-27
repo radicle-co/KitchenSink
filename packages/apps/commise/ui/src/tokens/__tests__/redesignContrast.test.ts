@@ -107,7 +107,25 @@ function toneRows(name: string, tones: Readonly<Record<string, { fill: string; t
     }));
 }
 
+/** The PRO badge's fill must be seen on every muted surface it can sit on (SC 1.4.11), as well as its label read. */
+const PRO_EDGE_ROWS: readonly Pair[] = [
+    ...(
+        [
+            ['light', proTone, role],
+            ['dark', proToneDark, roleDark],
+        ] as const
+    ).flatMap(([name, tone, theme]) =>
+        (['canvas', 'paper', 'surfaceMuted'] as const).map((surface) => ({
+            id: `${name}: the PRO fill on ${surface}`,
+            foreground: tone.fill,
+            background: theme[surface],
+            floor: NON_TEXT,
+        })),
+    ),
+];
+
 const PAIRS: readonly Pair[] = [
+    ...PRO_EDGE_ROWS,
     ...THEMES.flatMap(([name, theme]) => pairsOf(name, theme)),
     ...toneRows('light', { ...difficultyTone, pro: proTone }),
     ...toneRows('dark', { ...difficultyToneDark, pro: proToneDark }),
@@ -136,10 +154,10 @@ const PAIRS: readonly Pair[] = [
         background: roleDark.paper,
         floor: NON_TEXT,
     })),
-    // The white label of a destructive or pressed fill uses palette.white / snow, kept honest at the palette.
+    // The white label of a destructive or pressed fill is `snow` (the role `onAction`), kept honest at the palette.
     {
-        id: 'light: white on the error fill',
-        foreground: palette.white,
+        id: 'light: snow on the error fill',
+        foreground: palette.snow,
         background: palette.error,
         floor: TEXT,
     },

@@ -38,7 +38,7 @@ function frame(key: number, native: boolean, bar: ReactNode): ReactNode {
             key={key}
             style={{
                 position: 'relative',
-                border: '1px dashed var(--line)',
+                border: '1px dashed var(--line-divider)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 padding: native ? 0 : '0 16px',

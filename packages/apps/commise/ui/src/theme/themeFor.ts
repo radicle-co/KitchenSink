@@ -8,7 +8,15 @@
 import { role, roleDark, type Role } from '../tokens/colors.js';
 import { coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
 import { gradient, heroDark, type GradientSpec } from '../tokens/gradients.js';
-import { statusTone, statusToneDark, type RecipeStatus, type StatusTone } from '../tokens/tones.js';
+import {
+    proTone,
+    proToneDark,
+    statusTone,
+    statusToneDark,
+    type RecipeStatus,
+    type StatusTone,
+    type Tone,
+} from '../tokens/tones.js';
 
 /** A colour scheme. */
 export type ColorSchemeName = 'light' | 'dark';
@@ -24,6 +32,8 @@ export interface Theme {
     readonly hero: GradientSpec;
     /** The status badge tones. */
     readonly status: Readonly<Record<RecipeStatus, StatusTone>>;
+    /** The PRO badge's fill and label. */
+    readonly pro: Tone;
     /**
      * The pressed fill over paper and sheets: `surfaceMuted` (`componentFixes` issue 3, 2026-10-26), the native twin of
      * the web `bg-surface-muted` press. It replaced the `ink` 6% wash. Over a `surfaceMuted` fill (a chip) it would not
@@ -39,6 +49,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         covers: coverTint,
         hero: gradient.hero,
         status: statusTone,
+        pro: proTone,
         wash: role.surfaceMuted,
     },
     dark: {
@@ -47,6 +58,7 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         covers: coverTintDark,
         hero: heroDark,
         status: statusToneDark,
+        pro: proToneDark,
         wash: roleDark.surfaceMuted,
     },
 };

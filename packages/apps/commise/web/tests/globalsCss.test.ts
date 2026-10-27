@@ -11,7 +11,7 @@ import { withoutCssComments } from '@kitchensink/repo-guards/sourceComments';
  * `@import` placed after any other rule is INVALID and is silently discarded by the CSS optimizer — the
  * `next build` log mentions it, but nothing fails. That is exactly how the Google Fonts import came to sit
  * below the Tailwind `@source` rules and get dropped, shipping a production bundle with zero webfonts:
- * every heading fell back from Manrope to Georgia and every body string from Inter to system-ui,
+ * every heading fell back from the title face to a system face and every body string from Inter to system-ui,
  * gracefully enough that no test and no reviewer noticed.
  */
 // Comments can contain anything, including the literal '@import' in prose like this file's own header.

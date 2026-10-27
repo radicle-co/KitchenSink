@@ -67,6 +67,73 @@ describe('PressScale (native)', () => {
 });
 
 /**
+ * A control that paints its own pressed state (the "Screen on" switch) needs the `pressed` flag the `Pressable` owns.
+ * The children may be a function of it; at rest it is false. (react-native-web does not toggle `pressed` from synthetic
+ * jsdom events, so the true branch is `Pressable`'s own and the paint it selects is unit-tested in the button paint.)
+ */
+describe('PressScale (native) — pressed state for children', () => {
+    it('hands a function child the pressed flag, false at rest', () => {
+        const seen: boolean[] = [];
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                {({ pressed }) => {
+                    seen.push(pressed);
+
+                    return <Text>Tap me</Text>;
+                }}
+            </PressScale>,
+        );
+
+        expect(screen.getByText('Tap me')).toBeTruthy();
+        expect(seen.length).toBeGreaterThan(0);
+        expect(seen.every((pressed) => !pressed)).toBe(true);
+    });
+});
+
+/**
+ * A SWITCH that presses like a button (the "Screen on" toggle wears `PressScale` as `Button` does). The pressable must
+ * keep the switch role and state it had before adopting `PressScale`: a role that fell back to `button` would drop the
+ * on/off state from a screen reader (SC 4.1.2). Both channels are emitted, as `aria-busy` is: react-native-web forwards
+ * only the literal `aria-*` props to the DOM.
+ */
+describe('PressScale (native) — as a switch', () => {
+    it.each([true, false])('exposes role switch with aria-checked=%s', (checked) => {
+        render(
+            <PressScale onPress={vi.fn()} accessibilityRole="switch" checked={checked} accessibilityLabel="Screen on">
+                <Text>Screen on</Text>
+            </PressScale>,
+        );
+
+        const toggle = screen.getByRole('switch', { name: 'Screen on' });
+
+        expect(toggle.getAttribute('aria-checked')).toBe(String(checked));
+        expect(toggle.style.transform).toBe('scale(1)');
+    });
+
+    it('states no checked value when it is not a switch', () => {
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                <Text>Tap me</Text>
+            </PressScale>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Tap me' }).getAttribute('aria-checked')).toBeNull();
+    });
+
+    it('fires onPress as a switch', () => {
+        const onPress = vi.fn();
+        render(
+            <PressScale onPress={onPress} accessibilityRole="switch" checked={false} accessibilityLabel="Screen on">
+                <Text>Screen on</Text>
+            </PressScale>,
+        );
+
+        fireEvent.click(screen.getByRole('switch', { name: 'Screen on' }));
+        expect(onPress).toHaveBeenCalledOnce();
+    });
+});
+
+/**
  * `width` (R9, `docs/design/rowEditorOpenDecisions.md`). `auto` adds nothing, so the parent decides for every card and
  * the FAB; `fill` stretches the pressable across a parent that would otherwise centre it.
  * Read off the same inline style channel as the transform above.

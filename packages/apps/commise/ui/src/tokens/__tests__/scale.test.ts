@@ -5,7 +5,6 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { palette } from '../colors.js';
 import { dimmedOpacity, elevation, fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '../scale.js';
 
 describe('scale — spacing', () => {
@@ -72,7 +71,9 @@ describe('scale — type', () => {
 describe('scale — elevation', () => {
     // REWRITTEN for the redesign: cool, soft shadows, and `md` and `lg` are two layers (web emits both, native takes the
     // last). `glow` is a 3 px steel ring now, not a 32 px teal haze. The values are pinned to tokens.css in
-    // `redesignPin.test.ts`; this pins the spec's SHAPE.
+    // `redesignPin.test.ts`; this pins the spec's SHAPE. There is no second test that the `glow` colour agrees with
+    // `palette.steel`: it used to be a decimal twin of it (`scale.ts` could not import `colors.ts`), kept in step by a
+    // test that read both. It is derived from `palette.steel` now, and the pinned triplet below fails if either moves.
     it('specifies each shadow as one or two layers of offset/blur/spread + rgb-triplet colour + opacity', () => {
         expect(elevation).toEqual({
             sm: [{ offsetX: 0, offsetY: 1, blur: 2, spread: 0, color: '20,30,45', opacity: 0.05 }],
@@ -87,15 +88,6 @@ describe('scale — elevation', () => {
             xl: [{ offsetX: 0, offsetY: 12, blur: 30, spread: 0, color: '10,20,30', opacity: 0.18 }],
             glow: [{ offsetX: 0, offsetY: 0, blur: 0, spread: 3, color: '50,92,127', opacity: 0.25 }],
         });
-    });
-
-    it('keeps the glow halo pointed at the steel TOKEN, which it can only re-spell in decimal', () => {
-        // `colors.ts` is imported by the token modules that read `scale.ts`, so `scale.ts` cannot import the palette back —
-        // which makes `glow.color` the one place a palette colour is written twice. A halo one hue-step off its own
-        // button is what this assertion exists to prevent.
-        const channels = [1, 3, 5].map((at) => Number.parseInt(palette.steel.slice(at, at + 2), 16));
-
-        expect(elevation.glow[0].color).toBe(channels.join(','));
     });
 });
 

@@ -139,9 +139,8 @@ describe('elevation agreement', () => {
 // REWRITTEN for the redesign: the hairline is the `lineDivider` role on BOTH platforms and in both themes. The old shared
 // string (rgba(178, 190, 195, 0.3)) is gone, so there is one source and web and native cannot disagree on "border".
 describe('border agreement', () => {
-    it('web semantic.border, native borderSubtle and the divider role are one colour per theme', () => {
+    it('web semantic.border and the divider role are one colour per theme', () => {
         expect(semantic.border).toBe(role.lineDivider);
         expect(semanticDark.border).toBe(roleDark.lineDivider);
-        expect(nativeTokens.borderSubtle).toEqual({ light: role.lineDivider, dark: roleDark.lineDivider });
     });
 });

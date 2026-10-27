@@ -168,7 +168,7 @@ describe('web tokens — generated theme.css artifact', () => {
           @theme {
               --color-steel: #325C7F;
               --color-steel-light: #96BCDE;
-              --color-coral: #F7E9D7;
+              --color-cream: #F7E9D7;
               --color-sky: #DDEEFC;
               --color-fog: #EFF3F6;
               --color-ocean-dark: #264A68;
@@ -176,7 +176,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-slate: #5C646E;
               --color-mist: #DFE3E8;
               --color-pearl: #E9EDF2;
-              --color-white: #FCFDFF;
+              --color-cloud: #FCFDFF;
               --color-snow: #FFFFFF;
               --color-success: #4CAF7C;
               --color-warning: #F5B041;
@@ -290,13 +290,13 @@ describe('web tokens — generated theme.css artifact', () => {
               --pinned-bar-height: 3.5rem;
               --pinned-bar-block: calc(var(--pinned-bar-height) + env(safe-area-inset-top));
               --color-cover-steel: #E1EDFA;
-              --color-cover-coral: #F7E9D7;
+              --color-cover-cream: #F7E9D7;
               --color-cover-sky: #DDEEFC;
-              --color-cover-premium: #F5E9DF;
+              --color-cover-peach: #F5E9DF;
               --color-cover-success: #E4EDF2;
               --color-cover-warning: #F7E9D7;
-              --color-pro-fill: #E9EDF2;
-              --color-pro-ink: #171B20;
+              --color-pro-fill: #5C646E;
+              --color-pro-ink: #FFFFFF;
               --color-difficulty-easy-fill: #E9EDF2;
               --color-difficulty-easy-ink: #171B20;
               --color-difficulty-medium-fill: #E9EDF2;
@@ -369,12 +369,12 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-destructive: #E07A60;
                   --color-border: #262F38;
                   --color-ring: #96BCDE;
-                  --color-pro-fill: #212B36;
-                  --color-pro-ink: #EBEFF2;
+                  --color-pro-fill: #A3ACB6;
+                  --color-pro-ink: #171B20;
                   --color-cover-steel: #202B37;
-                  --color-cover-coral: #342817;
+                  --color-cover-cream: #342817;
                   --color-cover-sky: #1C2C38;
-                  --color-cover-premium: #32281F;
+                  --color-cover-peach: #32281F;
                   --color-cover-success: #232B30;
                   --color-cover-warning: #342817;
                   --color-difficulty-easy-fill: #212B36;

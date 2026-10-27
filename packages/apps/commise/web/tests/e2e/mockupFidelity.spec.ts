@@ -492,7 +492,7 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
         //
         // Asserted against the SPECIFIC `semantic.background` token, not against "any colour in the palette".
         // The looser version was written first and the hardcoding regression walked straight through it: white
-        // is `palette.white`, so a surface painted `#FFFFFF` is still "on palette" while the ROLE it is meant to
+        // is `palette.snow`, so a surface painted `#FFFFFF` is still "on palette" while the ROLE it is meant to
         // express has been abandoned. Set membership over a 20-colour palette is nearly always satisfiable by
         // accident; the role-specific check is not.
         const expectedSurface = tokenRgbStrings({ background: semantic.background });

@@ -150,13 +150,33 @@ describe('the dark tones', () => {
     });
 });
 
-/** The PRO badge: a neutral chip in each theme. */
+/**
+ * The PRO badge: a GREY chip that stands off every muted surface (owner ruling 2026-10-27). The neutral
+ * `surfaceMuted` chip it used to be vanished on a `surfaceMuted` area such as the editor's visibility card.
+ */
 describe('proTone', () => {
-    // REWRITTEN for the redesign: PRO is a neutral chip in each theme (it was a tan fixed in both).
-    it('is surfaceMuted under ink, in each theme', () => {
-        expect(proTone).toEqual({ fill: role.surfaceMuted, text: role.ink });
-        expect(proToneDark).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink });
-        expect(wcagContrast(proTone.text, proTone.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
-        expect(wcagContrast(proToneDark.text, proToneDark.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    it('is snow on slate in light and charcoal on a light grey in dark, and grey, not steel', () => {
+        expect(proTone).toEqual({ fill: '#5C646E', text: '#FFFFFF' });
+        expect(proToneDark).toEqual({ fill: '#A3ACB6', text: '#171B20' });
+        expect(proTone.fill).toBe(palette.slate);
+        expect(proTone.text).toBe(palette.snow);
+        expect(proToneDark.text).toBe(palette.charcoal);
+        expect([proTone.fill, proToneDark.fill]).not.toContain(palette.steel);
+    });
+
+    it.each([
+        ['light', proTone],
+        ['dark', proToneDark],
+    ] as const)('%s: the label clears 4.5:1 on the fill', (_theme, tone) => {
+        expect(wcagContrast(tone.text, tone.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+
+    // The bug: the badge vanished on `surfaceMuted`. A not-equal check would pass at 1.01:1, so measure the edge (SC 1.4.11).
+    it.each([
+        ['light', proTone, role],
+        ['dark', proToneDark, roleDark],
+    ] as const)('%s: the fill differs from surfaceMuted by at least 3:1', (_theme, tone, theme) => {
+        expect(tone.fill).not.toBe(theme.surfaceMuted);
+        expect(wcagContrast(tone.fill, theme.surfaceMuted)).toBeGreaterThanOrEqual(3);
     });
 });

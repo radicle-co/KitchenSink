@@ -11,27 +11,32 @@
  */
 
 /** The tint names, in the order the cover hash indexes them. */
-export const COVER_TINT_NAMES = ['steel', 'coral', 'sky', 'premium', 'success', 'warning'] as const;
+export const COVER_TINT_NAMES = ['steel', 'cream', 'sky', 'peach', 'success', 'warning'] as const;
 
 /** A cover tint's name. */
 export type CoverTintName = (typeof COVER_TINT_NAMES)[number];
 
+/** The pale cream wash, light. `warning` is this same wash, so both read this one constant. */
+const CREAM = '#F7E9D7';
+/** The pale cream wash, dark. */
+const CREAM_DARK = '#342817';
+
 /** The light cover tints. */
 export const coverTint: Readonly<Record<CoverTintName, string>> = {
     steel: '#E1EDFA',
-    coral: '#F7E9D7',
+    cream: CREAM,
     sky: '#DDEEFC',
-    premium: '#F5E9DF',
+    peach: '#F5E9DF',
     success: '#E4EDF2',
-    warning: '#F7E9D7',
+    warning: CREAM,
 };
 
 /** The dark cover tints. */
 export const coverTintDark: Readonly<Record<CoverTintName, string>> = {
     steel: '#202B37',
-    coral: '#342817',
+    cream: CREAM_DARK,
     sky: '#1C2C38',
-    premium: '#32281F',
+    peach: '#32281F',
     success: '#232B30',
-    warning: '#342817',
+    warning: CREAM_DARK,
 };

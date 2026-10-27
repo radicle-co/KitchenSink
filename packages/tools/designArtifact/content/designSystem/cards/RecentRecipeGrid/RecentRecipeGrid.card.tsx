@@ -1,6 +1,6 @@
 /**
  * @module RecentRecipeGrid.card — the design-system card of the RecentRecipeGrid in its compact variant, at phone
- * width: rated, premium, private and draft recipes.
+ * width: rated, Pro, private and draft recipes.
  */
 import type { ComponentProps } from 'react';
 

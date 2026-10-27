@@ -168,8 +168,8 @@ export function buttonSurfaceClass(
 /**
  * The surface of a SWITCH that wears the secondary button (`componentFixes` issue 6): "Screen on". Unselected it IS the
  * secondary surface, byte for byte. Selected it takes the `selectedFill` with a `selectedEdge` outline and holds the
- * same 1 px edge width, so turning it on moves nothing around it; the label stays `ink`, and the press fill is held
- * (a selected control is already filled). Pure.
+ * same 1 px edge width, so turning it on moves nothing around it; the label stays `ink`. Pressing while on shows a 2 px
+ * `selectedEdge` (`componentFixes` §5): a 1 px inset ring over the 1 px border, so the box does not move. Pure.
  *
  * @param selected - Whether the switch is on.
  * @param size - The size. Defaults to `md`.
@@ -177,6 +177,6 @@ export function buttonSurfaceClass(
  */
 export function buttonToggleSurfaceClass(selected: boolean, size: ButtonSize = 'md'): string {
     return selected
-        ? `${BASE} ${SIZE[size]} border border-selected-edge bg-selected-fill text-ink`
+        ? `${BASE} ${SIZE[size]} border border-selected-edge bg-selected-fill text-ink active:ring-1 active:ring-inset active:ring-selected-edge`
         : buttonSurfaceClass('secondary', size);
 }

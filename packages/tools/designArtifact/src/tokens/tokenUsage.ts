@@ -14,7 +14,7 @@ import type { TypeRole } from '@commise/ui/tokens/typography';
 type Role = keyof typeof role;
 
 /** A palette tone the artifact lists as a brand tone. The rest are reachable only through a role. */
-export type BrandTone = Exclude<keyof typeof palette, 'slate' | 'mist' | 'pearl' | 'white' | 'pewter'>;
+export type BrandTone = Exclude<keyof typeof palette, 'slate' | 'mist' | 'pearl' | 'cloud' | 'pewter'>;
 
 /** The group a type style is filed under. */
 export type TypeGroupName = 'Display' | 'Headings' | 'Text';
@@ -69,7 +69,7 @@ export const BRAND_USAGE: Readonly<Record<BrandTone, string>> = {
     steel: 'Brand storm blue. Accent, fill, border.',
     'steel-light': 'Light storm blue. Accent only, never a fill under white text.',
     'ocean-dark': 'Dark storm blue for the pressed fill and text on light surfaces.',
-    coral: 'Pale cream fill. Carries a charcoal label.',
+    cream: 'Pale cream fill. Carries a charcoal label.',
     sky: 'Pale blue fill. Carries a charcoal label.',
     fog: 'Cool mist-grey page tone.',
     charcoal: 'Deep ink.',

@@ -339,7 +339,7 @@ describe('RecipeEditorScreen (native)', () => {
     // one takes it. With every slot KNOWN used, Publish is refused before anything is sent - the old hand-off published the
     // recipe public behind the cook's back and told them afterwards. The editor stays open, draws the refusal, and keeps
     // Private chosen.
-    it('⛔ with every slot known used, Publish of a private draft is refused: nothing is sent, the refusal is drawn, Private stays chosen', async () => {
+    it('⛔ with every slot known used, Publish of a private draft opens the dialog: nothing is sent, Private stays chosen; Keep as draft closes it', async () => {
         profile.paidFeatures = 'upsell';
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used: 50, limit: 50 });
@@ -364,10 +364,19 @@ describe('RecipeEditorScreen (native)', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         });
 
-        expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
-        expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+        expect(await screen.findByRole('heading', { name: 'Your private slots are full' })).toBeTruthy();
+        expect(screen.queryByText('Not available. All 50 of your private slots are in use.')).toBeNull();
         expect(update).not.toHaveBeenCalled();
         expect(setVisibility).not.toHaveBeenCalled();
+        expect(handlers.onFinished).not.toHaveBeenCalled();
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Keep as draft' }));
+        });
+
+        expect(screen.queryByRole('heading', { name: 'Your private slots are full' })).toBeNull();
+        expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+        expect(update).not.toHaveBeenCalled();
         expect(handlers.onFinished).not.toHaveBeenCalled();
     });
 
@@ -503,51 +512,10 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             expect(screen.getByRole('button', { name: /Get Premium/u })).toBeTruthy();
         });
 
-        // The ways forward leave the editor, so they must do what × does: the exit checkpoint. The route hands the screen
-        // `onDiscarded`, which only navigates; the navigator then announces the leave (`beforeRemove`), which the screen hears
-        // through `subscribeToLeave` and answers with the checkpoint. Simulated here, as the sibling leave test does.
-        it('⛔ leaving by "Make a private recipe public" keeps what the cook typed: the exit checkpoint runs', async () => {
-            profile.paidFeatures = 'upsell';
-            const client = clientWithSlots({ used: 50, limit: 50 });
-            // A private DRAFT: the ways forward appear only once its Publish was refused for want of a slot.
-            const draft = makeRecipeDetail({
-                id: 'rec_kept',
-                title: 'Secret Stew',
-                cuisine: 'Irish',
-                status: RecipeStatus.DRAFT,
-                visibility: RecipeVisibility.PRIVATE,
-                currentVersion: 2,
-            });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
-            const update = vi
-                .spyOn(client, 'updateRecipe')
-                .mockResolvedValue({ ...draft, title: 'Soup to keep', currentVersion: 3 } as RecipeDetail);
-            let leave: (() => void) | undefined;
-            renderScreen(client, {
-                recipeId: 'rec_kept',
-                subscribeToLeave: (listener) => {
-                    leave = listener;
-
-                    return () => undefined;
-                },
-                onDiscarded: () => leave?.(),
-            });
-            await screen.findByRole('heading', { name: 'Edit recipe' });
-            await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
-            await act(async () => {
-                fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
-            });
-            await screen.findByText('Not available. All 50 of your private slots are in use.');
-            fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Soup to keep' } });
-
-            await act(async () => {
-                fireEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
-            });
-
-            await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
-            expect(update.mock.calls[0]?.[1]).toMatchObject({ title: 'Soup to keep' });
-            expect(update.mock.calls[0]?.[1]).not.toHaveProperty('status', 'published');
-        });
+        // REMOVED (owner ruling 2026-10-26): "leaving by Make a private recipe public keeps what the cook typed" drove the ways
+        // forward a refused Publish of a private DRAFT used to draw inline. That Publish now opens the "Your private slots are
+        // full" dialog (below) with two choices, Publish as public and Keep as draft, and no way forward leaves the editor.
+        // The exit checkpoint itself is covered by the sibling leave tests.
 
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {
             profile.paidFeatures = 'upsell';

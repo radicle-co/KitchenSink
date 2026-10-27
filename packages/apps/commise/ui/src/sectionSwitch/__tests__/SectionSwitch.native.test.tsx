@@ -113,9 +113,9 @@ describe('SectionSwitch (native) — scrolling links', () => {
         expect(scroller?.contains(screen.getByText('Screen on'))).toBe(false);
     });
 
-    it('hints at more links with the chevron on a band into the bar’s own surface', () => {
+    it('hints at more links with the chevron beside a fade into the bar’s own surface', () => {
         const { container } = bar();
-        const [scroller, content] = measured(container);
+        const [, scroller, content] = measured(container);
 
         layOut(scroller as Element, 120);
         layOut(content as Element, 360);
@@ -128,7 +128,7 @@ describe('SectionSwitch (native) — scrolling links', () => {
 
     it('draws no hint while the links fit', () => {
         const { container } = bar();
-        const [scroller, content] = measured(container);
+        const [, scroller, content] = measured(container);
 
         layOut(scroller as Element, 400);
         layOut(content as Element, 200);

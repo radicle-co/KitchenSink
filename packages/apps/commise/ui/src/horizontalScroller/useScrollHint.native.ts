@@ -20,7 +20,10 @@ import { scrollExtentOf, startOffsetOf, type ScrollExtent } from './scrollHint.j
 
 /** What the leaf needs to draw the hint and to wire the `ScrollView`. */
 export interface NativeScrollHintBinding {
+    /** The scroller's own layout. */
     readonly onLayout: (event: LayoutChangeEvent) => void;
+    /** The layout of the box around the scroller and the chevron's column. */
+    readonly onBoxLayout: (event: LayoutChangeEvent) => void;
     readonly onContentSizeChange: (width: number) => void;
     readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     /** Where the scroller rests. */
@@ -29,21 +32,22 @@ export interface NativeScrollHintBinding {
 
 interface Measures {
     readonly viewport: number;
+    readonly outer: number;
     readonly content: number;
     readonly x: number;
 }
 
-const UNMEASURED: Measures = { viewport: 0, content: 0, x: 0 };
+const UNMEASURED: Measures = { viewport: 0, outer: 0, content: 0, x: 0 };
 
 /**
  * Follow one `ScrollView`.
  *
  * @param onPosition - The owner's callback for where the scroller rests.
- * @returns The three `ScrollView` callbacks and where the scroller rests.
+ * @returns The `ScrollView` and box callbacks and where the scroller rests.
  */
 export function useScrollHint(onPosition: ((extent: ScrollExtent) => void) | undefined): NativeScrollHintBinding {
     const [measures, setMeasures] = useState<Measures>(UNMEASURED);
-    const { viewport, content, x } = measures;
+    const { viewport, outer, content, x } = measures;
     const extent = scrollExtentOf({
         startOffset: startOffsetOf(
             x,
@@ -53,6 +57,7 @@ export function useScrollHint(onPosition: ((extent: ScrollExtent) => void) | und
             Platform.OS === 'android' ? 'android' : 'ios',
         ),
         viewport,
+        outer,
         content,
     });
     const { measured, overflows, atStart, atEnd } = extent;
@@ -69,6 +74,11 @@ export function useScrollHint(onPosition: ((extent: ScrollExtent) => void) | und
             const width = event.nativeEvent.layout.width;
 
             setMeasures((current) => (current.viewport === width ? current : { ...current, viewport: width }));
+        },
+        onBoxLayout: (event) => {
+            const width = event.nativeEvent.layout.width;
+
+            setMeasures((current) => (current.outer === width ? current : { ...current, outer: width }));
         },
         onContentSizeChange: (width) => {
             setMeasures((current) => (current.content === width ? current : { ...current, content: width }));

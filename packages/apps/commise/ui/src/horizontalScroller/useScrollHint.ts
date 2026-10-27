@@ -12,8 +12,8 @@
  * state would re-render the scroller each time); state changes only when the scroller reaches or leaves an end.
  *
  * @pattern Adapter over a scroll container's position and ResizeObserver
- * @sideEffect Subscribes to the scroller's `scroll` and `scrollend` events and to the size of the scroller and its
- *     content while mounted; writes `data-scrolling` on the scroller.
+ * @sideEffect Subscribes to the scroller's `scroll` and `scrollend` events and to the size of the scroller, its
+ *     content and the box around it while mounted; writes `data-scrolling` on the scroller.
  */
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
@@ -73,6 +73,8 @@ export function useScrollHint(
             const next = scrollExtentOf({
                 startOffset: startOffsetOf(scrollLeft, clientWidth, scrollWidth, rtl, 'web'),
                 viewport: clientWidth,
+                // The wrapper is the scroller's parent: the box the chevron's column is carved out of.
+                outer: scroller.parentElement?.clientWidth ?? 0,
                 content: scrollWidth,
             });
 
@@ -98,6 +100,10 @@ export function useScrollHint(
         const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
 
         observer?.observe(scroller);
+
+        if (scroller.parentElement !== null) {
+            observer?.observe(scroller.parentElement);
+        }
 
         if (content !== null) {
             observer?.observe(content);

@@ -13,7 +13,9 @@ import type { ChipRowProps } from '../props.js';
  * colour and the chevron; its own suite owns their behaviour, and this one pins that the row is wired to it.
  *
  * ⚠️ REWRITTEN. This suite pinned a 24 dp fade built in the row, shown by `hasMoreAhead` and with no chevron. The fade
- * is now the scroller's: 40 dp with the chevron while the row rests at its start, 24 dp once it has been scrolled.
+ * is now the scroller's: a 16 dp ramp at the scroller's own edge, with the chevron in a 24 dp column beside it while the
+ * row rests at its start (`horizontalScrollHint.md` §3.6; it was a 40 dp band over the chips, which hid the last chip's
+ * characters).
  * The `hasMoreAhead` table moved to `horizontalScroller/__tests__/scrollHint.test.ts`.
  */
 
@@ -32,7 +34,7 @@ function layOut(element: Element, width: number): void {
     act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
 }
 
-/** The views of a rendered scrolling row that report their size: the scroller, then the content inside it. */
+/** The views of a rendered scrolling row that report their size: the box around it, the scroller, then the content inside it. */
 function measured(container: HTMLElement): readonly Element[] {
     return [...container.querySelectorAll('*')].filter(
         (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
@@ -60,9 +62,9 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
         expect(container.querySelector(FADE)).toBeNull();
     });
 
-    it('draws a 40 dp band with the chevron at the start while the chips run past the box', () => {
+    it('draws a 16 dp fade with the chevron beside it at the start while the chips run past the box', () => {
         const { container } = row('scroll');
-        const [scroller, content] = measured(container);
+        const [, scroller, content] = measured(container);
 
         layOut(scroller as Element, 300);
         layOut(content as Element, 640);
@@ -72,16 +74,16 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
         expect(fade).not.toBeNull();
         const box = fade?.parentElement as HTMLElement;
 
-        expect(getComputedStyle(box).width).toBe('40px');
+        expect(getComputedStyle(box).width).toBe('16px');
         // It decorates, and it must never take a touch meant for the chip under it.
         expect(box.getAttribute('aria-hidden')).toBe('true');
         expect(getComputedStyle(box).pointerEvents).toBe('none');
         expect(container.querySelector('[data-icon-name="chevron-right"]')).not.toBeNull();
     });
 
-    it('narrows to the 24 dp fade, without the chevron, once the row has been scrolled', () => {
+    it('keeps the 16 dp fade, without the chevron, once the row has been scrolled', () => {
         const { container } = row('scroll');
-        const [scroller, content] = measured(container);
+        const [, scroller, content] = measured(container);
 
         layOut(scroller as Element, 300);
         layOut(content as Element, 640);
@@ -90,7 +92,7 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
 
         const box = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
 
-        expect(getComputedStyle(box).width).toBe('24px');
+        expect(getComputedStyle(box).width).toBe('16px');
         expect(
             container.querySelector('[data-icon-name="chevron-right"]')?.closest<HTMLElement>('[style*="opacity"]')
                 ?.style.opacity,
@@ -100,7 +102,7 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
     it('fades into the canvas by default, and into the sheet’s surface when the row sits on one', () => {
         const fadeColours = (surface?: 'canvas' | 'overlay'): string | undefined => {
             const { container, unmount } = row('scroll', surface);
-            const [scroller, content] = measured(container);
+            const [, scroller, content] = measured(container);
 
             layOut(scroller as Element, 300);
             layOut(content as Element, 640);
@@ -118,7 +120,7 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
 
     it('draws none when every chip fits', () => {
         const { container } = row('scroll');
-        const [scroller, content] = measured(container);
+        const [, scroller, content] = measured(container);
 
         layOut(scroller as Element, 400);
         layOut(content as Element, 240);

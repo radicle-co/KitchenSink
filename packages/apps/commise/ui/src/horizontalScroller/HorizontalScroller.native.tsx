@@ -3,9 +3,15 @@
  * (`docs/design/uiOverhaul/horizontalScrollHint.md`).
  *
  * A horizontal `ScrollView` that keeps the platform's own scroll indicator (iOS and Android show it only while the
- * reader scrolls), a gradient over the inline-end edge into the surface colour while more lies ahead, and a decorative
- * chevron on that gradient's solid end while the content overflows and the scroller rests at its start. React Native
- * has no CSS mask, so the fade is a gradient to the colour behind the scroller: say which with `surface`.
+ * reader scrolls), a 16 dp gradient over its inline-end edge into the surface colour while more lies ahead, and a
+ * decorative chevron while the content overflows and the scroller rests at its start. React Native has no CSS mask, so
+ * the fade is a gradient to the colour behind the scroller: say which with `surface`.
+ *
+ * The chevron has a 24 dp COLUMN of its own beside the scroller while the content overflows, so it never sits on the
+ * chip at the edge (the old solid band drawn over the scroller hid that chip's last characters). The column stays for
+ * as long as the content overflows and only the chevron's opacity changes, so nothing reflows on the first scroll.
+ * Overflow is read against the box around the scroller AND the column, which the column does not move, never against
+ * the scroller, which it does (`scrollHint.ts`, `outer`).
  *
  * The chevron changes opacity over 150 ms, instantly while the OS reduce-motion preference is on or not yet known.
  *
@@ -25,10 +31,9 @@ import type { HorizontalScrollerProps, ScrollerSurface } from './props.js';
 import { scrollHintOf } from './scrollHint.js';
 import { useScrollHint } from './useScrollHint.native.js';
 
-/** The fade alone, and the band the chevron sits in: a 16 dp ramp, then 24 dp solid. */
-const FADE_WIDTH = 24;
-const BAND_WIDTH = 40;
-const RAMP = (BAND_WIDTH - FADE_WIDTH) / BAND_WIDTH;
+/** The fade at the scroller's own inline-end edge, and the chevron's column. */
+const FADE_WIDTH = 16;
+const CHEVRON_WIDTH = 24;
 
 /** How long the chevron takes to appear or go. */
 const CHEVRON_MS = 150;
@@ -48,7 +53,7 @@ export const HorizontalScroller: FC<HorizontalScrollerProps> = ({
     onPosition,
 }) => {
     const { colors } = useTheme();
-    const { onLayout, onContentSizeChange, onScroll, extent } = useScrollHint(onPosition);
+    const { onLayout, onBoxLayout, onContentSizeChange, onScroll, extent } = useScrollHint(onPosition);
     const hint = scrollHintOf(extent);
     const reduceMotion = useReduceMotion();
     // Created once and never replaced, like `EnterTransition`'s progress: state is its home, not a ref.
@@ -82,43 +87,47 @@ export const HorizontalScroller: FC<HorizontalScrollerProps> = ({
         return () => animation.stop();
     }, [extent.measured, hint.chevron, reduceMotion, opacity]);
 
-    const band = hint.chevron ? BAND_WIDTH : FADE_WIDTH;
     const side = rtl ? styles.left : styles.right;
 
     return (
-        <View style={styles.box}>
-            {/* One `scrollsToTop` per screen: a row never takes the iOS status-bar tap from the screen's scroller. */}
-            <ScrollView
-                horizontal
-                scrollsToTop={false}
-                keyboardShouldPersistTaps="handled"
-                scrollEventThrottle={32}
-                {...(regionLabel === undefined ? {} : { role: 'region' as const, 'aria-label': regionLabel })}
-                {...(snap?.kind === 'card'
-                    ? {
-                          snapToInterval: snap.interval,
-                          snapToAlignment: 'start' as const,
-                          decelerationRate: 'fast' as const,
-                      }
-                    : {})}
-                onLayout={onLayout}
-                onContentSizeChange={onContentSizeChange}
-                onScroll={onScroll}
+        <View style={styles.box} onLayout={onBoxLayout}>
+            <View style={styles.track}>
+                {/* One `scrollsToTop` per screen: a row never takes the iOS status-bar tap from the screen's scroller. */}
+                <ScrollView
+                    horizontal
+                    scrollsToTop={false}
+                    keyboardShouldPersistTaps="handled"
+                    scrollEventThrottle={32}
+                    {...(regionLabel === undefined ? {} : { role: 'region' as const, 'aria-label': regionLabel })}
+                    {...(snap?.kind === 'card'
+                        ? {
+                              snapToInterval: snap.interval,
+                              snapToAlignment: 'start' as const,
+                              decelerationRate: 'fast' as const,
+                          }
+                        : {})}
+                    onLayout={onLayout}
+                    onContentSizeChange={onContentSizeChange}
+                    onScroll={onScroll}
+                >
+                    {children}
+                </ScrollView>
+                {hint.fade ? (
+                    <View aria-hidden style={[styles.edge, styles.inert, side, { width: FADE_WIDTH }]}>
+                        <LinearGradient
+                            colors={[`${ground}00`, ground]}
+                            locations={[0, 1]}
+                            start={{ x: rtl ? 1 : 0, y: 0 }}
+                            end={{ x: rtl ? 0 : 1, y: 0 }}
+                            style={styles.gradient}
+                        />
+                    </View>
+                ) : null}
+            </View>
+            <Animated.View
+                aria-hidden
+                style={[styles.inert, styles.chevron, extent.overflows ? null : styles.gone, { opacity }]}
             >
-                {children}
-            </ScrollView>
-            {hint.fade ? (
-                <View aria-hidden style={[styles.edge, styles.inert, side, { width: band }]}>
-                    <LinearGradient
-                        colors={hint.chevron ? [`${ground}00`, ground, ground] : [`${ground}00`, ground]}
-                        locations={hint.chevron ? [0, RAMP, 1] : [0, 1]}
-                        start={{ x: rtl ? 1 : 0, y: 0 }}
-                        end={{ x: rtl ? 0 : 1, y: 0 }}
-                        style={styles.gradient}
-                    />
-                </View>
-            ) : null}
-            <Animated.View aria-hidden style={[styles.edge, styles.inert, styles.chevron, side, { opacity }]}>
                 <Icon name="chevronRight" size={20} tone="inkMuted" />
             </Animated.View>
         </View>
@@ -126,11 +135,13 @@ export const HorizontalScroller: FC<HorizontalScrollerProps> = ({
 };
 
 const styles = StyleSheet.create({
-    box: { position: 'relative' },
+    box: { flexDirection: 'row' },
+    track: { flex: 1, minWidth: 0, position: 'relative' },
     edge: { position: 'absolute', top: 0, bottom: 0 },
     right: { right: 0 },
     left: { left: 0 },
     inert: { pointerEvents: 'none' },
     gradient: { flex: 1 },
-    chevron: { width: FADE_WIDTH, alignItems: 'center', justifyContent: 'center' },
+    chevron: { width: CHEVRON_WIDTH, alignItems: 'center', justifyContent: 'center' },
+    gone: { display: 'none' },
 });

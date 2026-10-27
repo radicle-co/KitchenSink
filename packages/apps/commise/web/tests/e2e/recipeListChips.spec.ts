@@ -3,7 +3,15 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
-import { chevronOf, expectChevron, overflows, scrollTo, scrollerAround } from './utils/scrollHint';
+import {
+    chevronOf,
+    expectChevron,
+    expectChevronBesideScroller,
+    expectLastItemWholeAndPressable,
+    overflows,
+    scrollTo,
+    scrollerAround,
+} from './utils/scrollHint';
 
 /**
  * Recipe-list card parity (mockup-parity plan #2/#4), driven through the real web UI (Next dev server + Clerk
@@ -200,6 +208,29 @@ test.describe('recipe list chips — labels, clearing and untimed recipes (W-10,
 
             await scrollTo(scroller, 0);
             await expectChevron(chevron, 'shown');
+        });
+
+        // Owner report 2026-10-27: in a 255 px filters panel the chevron sat on the last chip ("Vegan 21" read
+        // "Vegan 2›"). The box is squeezed to that width here, since the shipped panel wraps its chips.
+        test('keeps the chevron beside the chips, and the last chip whole and pressable at the end (255 px box)', async ({
+            page,
+        }) => {
+            const scroller = await openWithCuisines(page, 320);
+            const chips = page.getByRole('group', { name: 'Quick filters' });
+
+            await scroller.evaluate((element) => {
+                (element.parentElement as HTMLElement).style.width = '255px';
+            });
+
+            expect(await overflows(scroller)).toBe(true);
+            await expectChevron(chevronOf(scroller), 'shown');
+            await expectChevronBesideScroller(scroller);
+
+            await scrollTo(scroller, 40);
+            await expectChevron(chevronOf(scroller), 'hidden');
+            await expectChevronBesideScroller(scroller);
+
+            await expectLastItemWholeAndPressable(scroller, chips.getByRole('button').last());
         });
 
         test('is not drawn at a width where the chips wrap and there is nothing to scroll (1280 px)', async ({

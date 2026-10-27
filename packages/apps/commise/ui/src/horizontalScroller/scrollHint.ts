@@ -18,8 +18,15 @@ const SLACK_PX = 1;
 export interface ScrollGeometry {
     /** The distance from the START edge, in px; negative while the platform overscrolls past it. */
     readonly startOffset: number;
-    /** The width of the box that shows the content. */
+    /** The width of the scroller: the box that shows the content, which is what the reader scrolls. */
     readonly viewport: number;
+    /**
+     * The width of the box around the scroller AND the chevron's gutter. The gutter exists only while the content
+     * overflows, so the scroller is narrower than this exactly then; overflow is therefore decided against this width,
+     * which the gutter does not move, and never against `viewport`, which it does. Absent, or not yet laid out (0), it
+     * reads as `viewport`.
+     */
+    readonly outer?: number;
     /** The width of the content. */
     readonly content: number;
 }
@@ -45,16 +52,18 @@ export const UNMEASURED_EXTENT: ScrollExtent = { measured: false, overflows: fal
  * @param geometry - The scroller's offset and sizes.
  * @returns Whether it is measured, whether it overflows, and whether it is at either end.
  */
-export function scrollExtentOf({ startOffset, viewport, content }: ScrollGeometry): ScrollExtent {
+export function scrollExtentOf({ startOffset, viewport, outer, content }: ScrollGeometry): ScrollExtent {
     if (viewport <= 0 || content <= 0) {
         return UNMEASURED_EXTENT;
     }
 
+    const overflows = content - (outer !== undefined && outer > 0 ? outer : viewport) > SLACK_PX;
+
     return {
         measured: true,
-        overflows: content - viewport > SLACK_PX,
+        overflows,
         atStart: startOffset <= SLACK_PX,
-        atEnd: content - viewport - startOffset <= SLACK_PX,
+        atEnd: !overflows || content - viewport - startOffset <= SLACK_PX,
     };
 }
 

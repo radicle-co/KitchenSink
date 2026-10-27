@@ -1511,6 +1511,14 @@
                         },
                         {
                             "kind": "alarm",
+                            "logicalId": "VerificationBudgetSpentAlarm",
+                            "nameTemplate": "kitchensink-recipe-verification-budget-spent-{stage}",
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
                             "logicalId": "CrfEngineUnavailableAlarm",
                             "nameTemplate": "kitchensink-recipe-parse-crf-unavailable-{stage}",
                             "handler": null,

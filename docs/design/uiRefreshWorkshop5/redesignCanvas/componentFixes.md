@@ -133,6 +133,12 @@ The parity fixes merged into `@commise/ui` on fix/ingredient-matching with these
 6. A pressed primary button takes `actionPressed` on both platforms. A pressed danger button takes `dangerPressed`:
    `#A33F2A` light (white label 6.36:1), `#CC6A52` dark (dark label 4.99:1).
 7. The neutral, difficulty and PRO badges are pinned as values retuned after the handoff.
+8. Radii, more cases: an in-page view's cards, banners and alerts are 18 even when the view resolves a conflict
+   (RecipeConflictView); only a true dialog container is 24 (VersionPreviewModal). A box whose radius is half its height
+   (Button, so a label wrapped at 200% keeps its shape) stays computed. Skeleton bars use `radius.sm` (8). Tiny bars and
+   dots use `radius.full`.
+9. A glyph owns its own geometry: CheckBoxGlyph's 4 px corner is a named constant inside the glyph module, read by web
+   and native, and only a module whose `@pattern` names it a glyph may own one. There is no `xs` radius step.
 
 ## 10. A surface states itself once (amends §9 items 3 and 4)
 

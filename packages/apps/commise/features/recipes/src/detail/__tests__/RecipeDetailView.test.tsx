@@ -195,6 +195,8 @@ describe('RecipeDetailView (web) — header', () => {
         expect(lamb.className).toContain('text-label');
         // C5/C6 (redesign): a group name is weight 500, muted, in sentence case (no uppercase transform).
         expect(lamb.className).toContain('font-medium');
+        // T1: 16 above a group name.
+        expect(lamb.className).toContain('pt-4');
         expect(lamb.className).toContain('text-ink-muted');
         expect(lamb.className).not.toMatch(/uppercase/u);
         expect(
@@ -1153,7 +1155,7 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
 });
 
 describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
-    it('gives the step toggle a 44px target and every ingredient row 48px', () => {
+    it('gives the step toggle a 44px target and every ingredient row 44px (REWRITTEN for owner C5 + T1: it was 48)', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -1167,7 +1169,7 @@ describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
         }
 
         for (const row of screen.getAllByRole('checkbox')) {
-            expect(row.className).toContain('min-h-12');
+            expect(row.className).toContain('min-h-11');
         }
     });
 });

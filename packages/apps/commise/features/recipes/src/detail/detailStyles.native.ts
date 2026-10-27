@@ -16,7 +16,7 @@ export const detailStyles = StyleSheet.create({
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     // Weight 500, sentence case (owner decisions C5/C6): the medium face, which is the `caption` role's.
     groupLabel: { ...nativeTokens.type.caption },
-    groupHeading: { paddingTop: nativeTokens.spacing[2] },
+    groupHeading: { paddingTop: nativeTokens.spacing[4] },
     title: { ...nativeTokens.type.largeTitle.narrow },
     ratingLine: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     inline: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },

@@ -32,6 +32,15 @@ describe('CheckBoxGlyph (native)', () => {
         expect(getComputedStyle(container.querySelector('[aria-hidden="true"]') as Element).borderTopWidth).toBe('1px');
     });
 
+    it('is an 18 dp box with a 4 dp corner', () => {
+        const { container } = render(<CheckBoxGlyph checked={false} />);
+        const box = getComputedStyle(container.querySelector('[aria-hidden="true"]') as Element);
+
+        expect(box.width).toBe('18px');
+        expect(box.height).toBe('18px');
+        expect(box.borderTopLeftRadius).toBe('4px');
+    });
+
     it('shows the check only when checked', () => {
         const { container, rerender } = render(<CheckBoxGlyph checked={false} />);
         expect(container.querySelector('[data-icon-name]')).toBeNull();

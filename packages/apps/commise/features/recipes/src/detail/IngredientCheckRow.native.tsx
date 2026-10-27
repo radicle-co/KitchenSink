@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/features-recipes — the native ingredient row the cook checks off (build spec §6.3): the mirror of
- * `IngredientCheckRow.tsx`. The whole row is one `checkbox` at least 48 dp tall, named with the full line and hinted
+ * `IngredientCheckRow.tsx`. The whole row is one `checkbox` at least 44 dp tall, named with the full line and hinted
  * with the statuses it carries (react-native-web joins a pressable's texts without spaces, so the name is stated).
  * Checked, the box fills with the signature motion and the text dims to `inkMuted`, with no strike-through. Colours
  * come from the theme at render.
@@ -50,8 +50,10 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
             onPress={() => onToggle(ingredient.ingredientId)}
             style={({ pressed }) => [styles.row, pressed ? { backgroundColor: wash } : null]}
         >
-            {/* The 24 pt box and the text's 24 pt first line start together, so the box is centred on that line. */}
-            <CheckBoxGlyph checked={checked} />
+            {/* The 18 pt box sits on the text's 20 pt first line, 1 pt down to centre on it. */}
+            <View style={styles.box}>
+                <CheckBoxGlyph checked={checked} />
+            </View>
             <View style={styles.text}>
                 {isStandInName(ingredient) ? (
                     <>
@@ -94,13 +96,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: nativeTokens.spacing[3],
-        minHeight: 48,
+        minHeight: 44,
         paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: nativeTokens.spacing[3],
+        paddingVertical: nativeTokens.spacing[2],
         borderRadius: nativeTokens.radius.md,
     },
     text: { flex: 1, minWidth: 0, alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
-    line: { ...nativeTokens.type.body },
-    amount: { fontWeight: '600', fontVariant: ['tabular-nums', 'lining-nums'] },
-    detail: { ...nativeTokens.type.meta },
+    box: { marginTop: 1 },
+    // The `list` role: 14 / 20, regular. The amount alone is the registered 600 face, never a weight on a family.
+    line: { ...nativeTokens.type.list },
+    amount: { fontFamily: nativeTokens.fontFace.body.semibold, fontVariant: ['tabular-nums', 'lining-nums'] },
+    detail: { ...nativeTokens.type.list },
 });

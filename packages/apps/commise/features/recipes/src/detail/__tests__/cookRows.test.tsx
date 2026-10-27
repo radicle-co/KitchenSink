@@ -56,6 +56,39 @@ describe('IngredientCheckRow (web)', () => {
         expect(amount.className).not.toContain('text-figure-inline');
     });
 
+    // Owner C5 + T1: the row text is the `list` role (14, amount 600, the rest 400 ink), the row pads 8 above and below,
+    // and the WHOLE row is the touch target, at least 44 tall.
+    it('sets the line in the list role, pads 8 and is at least 44 tall', () => {
+        const { container } = render(
+            <ul>
+                <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+        const row = screen.getByRole('checkbox', { name: /lamb shoulder/u });
+        const text = container.querySelector('[data-line-text]');
+
+        expect(row.className).toContain('min-h-11');
+        expect(row.className).not.toMatch(/min-h-12|py-3/u);
+        expect(row.className).toContain('py-2');
+        expect(text?.className).toContain('text-list');
+        expect(text?.className).not.toContain('text-body');
+    });
+
+    it('toggles when the cook presses anywhere on the row, the amount and the preparation included', () => {
+        const onToggle = vi.fn();
+        render(
+            <ul>
+                <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={onToggle} />
+            </ul>,
+        );
+
+        fireEvent.click(screen.getByText('2 kg'));
+        fireEvent.click(screen.getByText('trimmed of excess fat'));
+
+        expect(onToggle).toHaveBeenCalledTimes(2);
+        expect(onToggle).toHaveBeenCalledWith('ing_lamb');
+    });
+
     // D11: a scaled amount read "1.5 cup". The visible text and the checkbox's name carry the same plural (SC 2.5.3).
     it('pluralises a word unit for a scaled amount, in the visible text AND the name', () => {
         const flour = makeIngredientView({
@@ -114,14 +147,15 @@ describe('IngredientCheckRow (web)', () => {
         expect(document.getElementById(describedBy)?.textContent).toContain('Needs review');
     });
 
-    it('is at least 48 px tall', () => {
+    // REWRITTEN for owner C5 + T1: the row floor is 44 (it was 48), the same as every other touch target.
+    it('is at least 44 px tall', () => {
         render(
             <ul>
                 <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />
             </ul>,
         );
 
-        expect(screen.getByRole('checkbox').className).toContain('min-h-12');
+        expect(screen.getByRole('checkbox').className).toContain('min-h-11');
     });
 });
 

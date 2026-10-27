@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes — the web ingredient row the cook checks off (build spec §6.3).
  *
- * The WHOLE row is one checkbox — a `button` with `role="checkbox"` at least 48 px tall — named with the full line
+ * The WHOLE row is one checkbox — a `button` with `role="checkbox"` at least 44 px tall — named with the full line
  * (`ingredientRowName`), and described by the statuses it carries. Checked, the box fills with the signature motion and
  * the text dims to `inkMuted`: no strike-through, because a cook re-reads a checked amount and a strike-through damages
  * the word shape.
@@ -49,13 +49,15 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                 )}
                 aria-describedby={statuses.length > 0 ? statusId : undefined}
                 onClick={() => onToggle(ingredient.ingredientId)}
-                className="flex min-h-12 w-full items-start gap-3 rounded-md px-3 py-3 text-start transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+                className="flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-start transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
             >
-                {/* The 24 px box and the text's 24 px first line start together, so the box is centred on that line. */}
-                <CheckBoxGlyph checked={checked} />
+                {/* The 18 px box sits on the text's 20 px first line, 1 px down to centre on it. */}
+                <span className="mt-px flex">
+                    <CheckBoxGlyph checked={checked} />
+                </span>
                 <span
                     data-line-text
-                    className={`min-w-0 flex-1 break-words text-body transition-colors motion-reduce:transition-none ${checked ? 'text-ink-muted' : 'text-ink'}`}
+                    className={`min-w-0 flex-1 break-words text-list transition-colors motion-reduce:transition-none ${checked ? 'text-ink-muted' : 'text-ink'}`}
                 >
                     {amount !== '' && (
                         <>
@@ -85,7 +87,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                     {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
                         <>
                             {' '}
-                            <span className="text-meta text-ink-muted">{ingredient.notes}</span>
+                            <span className="text-ink-muted">{ingredient.notes}</span>
                         </>
                     )}
                     {statuses.length > 0 && (

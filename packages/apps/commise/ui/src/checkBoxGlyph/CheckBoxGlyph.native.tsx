@@ -70,8 +70,8 @@ export const CheckBoxGlyph: FC<CheckBoxGlyphProps> = ({ checked }) => {
 
 const styles = StyleSheet.create({
     box: {
-        width: 24,
-        height: 24,
+        width: 18,
+        height: 18,
         borderRadius: 4,
         borderWidth: 1,
         alignItems: 'center',

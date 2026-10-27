@@ -79,6 +79,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/remote-search-edge": "*",
         "@kitchensink/repo-guards": "*",
         "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",

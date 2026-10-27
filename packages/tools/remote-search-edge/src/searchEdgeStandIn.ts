@@ -107,6 +107,7 @@ async function sendTo(response: ServerResponse, result: OriginResult): Promise<b
  * @param options.origin - The function.
  * @param options.publicKey - The trusted public key.
  * @param options.keyPairId - Its id.
+ * @param options.port - The port to bind; defaults to an ephemeral one.
  * @param options.now - Pins the stand-in's clock at this value, epoch milliseconds; defaults to the live
  * wall clock, because the e2e tier's transport waits out the retry delay for real.
  * @returns The running stand-in.
@@ -117,6 +118,11 @@ export async function startSearchEdgeStandIn(options: {
     readonly publicKey: KeyObject;
     readonly keyPairId: string;
     readonly now?: number;
+    /**
+     * The loopback port to listen on; defaults to an ephemeral one. The signature covers the whole URL, host and port
+     * included, so a caller that signs for a fixed origin (the local sandbox's sidecar) must bind exactly it.
+     */
+    readonly port?: number;
 }): Promise<SearchEdgeStandIn> {
     const cache = new Map<string, CachedObject>();
     const originRequests: string[] = [];
@@ -176,7 +182,7 @@ export async function startSearchEdgeStandIn(options: {
     });
 
     await new Promise<void>((resolve) => {
-        server.listen(0, '127.0.0.1', resolve);
+        server.listen(options.port ?? 0, '127.0.0.1', resolve);
     });
 
     const address = server.address();

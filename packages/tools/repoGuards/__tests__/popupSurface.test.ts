@@ -73,6 +73,7 @@ function opensPopup(file: ts.SourceFile): boolean {
 /** Whether a module uses any of the names that state a surface, as an identifier (a comment does not count). Pure. */
 function statesSurface(file: ts.SourceFile): boolean {
     let found = false;
+
     const walk = (node: ts.Node): void => {
         if (ts.isIdentifier(node) && STATES_SURFACE.has(node.text)) {
             found = true;

@@ -42,6 +42,7 @@ const SURFACE_ROLES = new Set(['paper', 'paperOverlay', 'surfaceMuted']);
 /** The text of every string-like node under a node. */
 function stringsUnder(node: ts.Node): readonly string[] {
     const found: string[] = [];
+
     const walk = (child: ts.Node): void => {
         if (
             ts.isStringLiteralLike(child) ||
@@ -93,6 +94,7 @@ function paintsNativeSurface(opening: ts.JsxOpeningLikeElement): boolean {
     }
 
     let painted = false;
+
     const walk = (node: ts.Node): void => {
         if (
             ts.isPropertyAssignment(node) &&
@@ -115,6 +117,7 @@ function paintsNativeSurface(opening: ts.JsxOpeningLikeElement): boolean {
 /** Whether any JSX element under `element` (not counting its own attributes) carries a control attribute. */
 function holdsControl(element: ts.JsxElement): boolean {
     let held = false;
+
     const walk = (node: ts.Node): void => {
         if (ts.isJsxAttribute(node) && CONTROL_ATTRIBUTES.has(node.name.getText())) {
             held = true;

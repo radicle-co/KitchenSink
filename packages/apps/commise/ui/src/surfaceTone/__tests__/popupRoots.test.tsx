@@ -105,6 +105,7 @@ describe('a web popup states its own surface, whatever it was opened from', () =
 
     it('Combobox: the listbox is paperOverlay', async () => {
         const user = userEvent.setup();
+
         const Host: FC = () => {
             const [value, setValue] = useState('');
 

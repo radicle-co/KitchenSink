@@ -6,8 +6,11 @@
  *
  * - **Difficulty** is neutral for every level and always travels with the three-dot meter, so it never relies on
  *   colour (SC 1.4.1). `error` is never a difficulty.
- * - **Status** (Draft, Private, Public) is neutral for every status — `surfaceMuted` with `ink`, never amber — and the
+ * - **Status** (Draft, Private, Public) is neutral for every status — `paper` with `inkMuted`, never amber — and the
  *   icon is what tells the three apart.
+ * - **A neutral badge is paper with a 1 px `lineDivider` edge** (`componentFixes.md` §7, 2026-10-27). It used to be
+ *   `surfaceMuted`, so it vanished on any `surfaceMuted` parent (a notice, a pressed row, a raised dark surface). The
+ *   edge is the component's, not the tone's: a tone is the fill and the label, and PRO and `attention` have no edge.
  * - Each tone has a dark twin (`*ToneDark`), PRO included.
  *
  * Pure data. `StatusBadge` reads the status tones; the difficulty tones wait for the difficulty badge (slice 4).
@@ -41,30 +44,30 @@ export interface StatusTone extends Tone {
  * (redesign: a difficulty chip has no hue). Typed by level so a new difficulty is a compile error until it has a tone.
  */
 export const difficultyTone: Readonly<Record<Difficulty, Tone>> = {
-    easy: { fill: role.surfaceMuted, text: role.ink },
-    medium: { fill: role.surfaceMuted, text: role.ink },
-    hard: { fill: role.surfaceMuted, text: role.ink },
+    easy: { fill: role.paper, text: role.inkMuted },
+    medium: { fill: role.paper, text: role.inkMuted },
+    hard: { fill: role.paper, text: role.inkMuted },
 };
 
 /** The status tones: one neutral pair for every status, told apart by the icon. */
 export const statusTone: Readonly<Record<RecipeStatus, StatusTone>> = {
-    draft: { fill: role.surfaceMuted, text: role.ink, icon: 'pencilLine' },
-    private: { fill: role.surfaceMuted, text: role.ink, icon: 'lock' },
-    public: { fill: role.surfaceMuted, text: role.ink, icon: 'globe' },
+    draft: { fill: role.paper, text: role.inkMuted, icon: 'pencilLine' },
+    private: { fill: role.paper, text: role.inkMuted, icon: 'lock' },
+    public: { fill: role.paper, text: role.inkMuted, icon: 'globe' },
 };
 
-/** The difficulty tones in the dark theme: the dark `surfaceMuted` under dark `ink`. */
+/** The difficulty tones in the dark theme: dark `paper` under dark `inkMuted`. */
 export const difficultyToneDark: Readonly<Record<Difficulty, Tone>> = {
-    easy: { fill: roleDark.surfaceMuted, text: roleDark.ink },
-    medium: { fill: roleDark.surfaceMuted, text: roleDark.ink },
-    hard: { fill: roleDark.surfaceMuted, text: roleDark.ink },
+    easy: { fill: roleDark.paper, text: roleDark.inkMuted },
+    medium: { fill: roleDark.paper, text: roleDark.inkMuted },
+    hard: { fill: roleDark.paper, text: roleDark.inkMuted },
 };
 
-/** The status tones in the dark theme: the dark `surfaceMuted` under dark `ink`, glyphs as in light. */
+/** The status tones in the dark theme: dark `paper` under dark `inkMuted`, glyphs as in light. */
 export const statusToneDark: Readonly<Record<RecipeStatus, StatusTone>> = {
-    draft: { fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'pencilLine' },
-    private: { fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'lock' },
-    public: { fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'globe' },
+    draft: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'pencilLine' },
+    private: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'lock' },
+    public: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'globe' },
 };
 
 /**

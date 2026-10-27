@@ -4,7 +4,7 @@
  * React Native's nested `Text` takes no reliable radius or padding, so the badge is a `View` holding the glyph and a
  * `Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the
  * web leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its
- * fill, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.
+ * fill, a neutral one wears a 1 pt `lineDivider` edge, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.
  *
  * @pattern Registry consumer — the status picks its pair and glyph from closed `Record`s (`BADGE_GLYPH`, the tones)
  */
@@ -21,19 +21,23 @@ import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js
  * Each status's fill and label in the current theme: the web leaf's pairs (see its note on the `attention` fallback).
  * Every pair re-themes, PRO's included (grey in both). Pure.
  */
-function badgePair({ colors, pro }: Theme, status: BadgeStatus): { readonly fill: string; readonly text: string } {
+function badgePair(
+    { colors, pro }: Theme,
+    status: BadgeStatus,
+): { readonly fill: string; readonly text: string; readonly edge: string | undefined } {
     switch (status) {
         case 'pro':
-            return pro;
-        case 'note':
-            return { fill: colors.surfaceMuted, text: colors.inkMuted };
+            return { ...pro, edge: undefined };
         case 'attention':
-            return { fill: colors.attentionTint, text: colors.ink };
+            return { fill: colors.attentionTint, text: colors.ink, edge: undefined };
         case 'draft':
         case 'private':
         case 'public':
         case 'soon':
-            return { fill: colors.surfaceMuted, text: colors.ink };
+        case 'note':
+            // A neutral badge (`componentFixes.md` §7): paper under inkMuted with a 1 pt lineDivider edge, so it reads on
+            // a `surfaceMuted` parent as well as on paper and the canvas.
+            return { fill: colors.paper, text: colors.inkMuted, edge: colors.lineDivider };
     }
 }
 
@@ -43,7 +47,13 @@ export const StatusBadge: FC<StatusBadgeProps> = ({ status, children }) => {
     const pair = badgePair(useTheme(), status);
 
     return (
-        <View style={[styles.badge, { backgroundColor: pair.fill }]}>
+        <View
+            style={[
+                styles.badge,
+                { backgroundColor: pair.fill },
+                pair.edge === undefined ? null : { borderWidth: 1, borderColor: pair.edge },
+            ]}
+        >
             {glyph === null ? null : <Icon name={glyph} size={16} tone="ink" />}
             <Text style={[styles.label, { color: pair.text }]}>{children}</Text>
         </View>

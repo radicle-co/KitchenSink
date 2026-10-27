@@ -10,9 +10,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { formatRgb, wcagContrast } from 'culori';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { palette, role } from '../../tokens/colors.js';
+import { role } from '../../tokens/colors.js';
 import { proTone } from '../../tokens/tones.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { View } from 'react-native';
+
 import { StatusBadge } from '../StatusBadge.native.js';
 import { BADGE_STATUSES } from '../props.js';
 
@@ -68,7 +70,8 @@ describe('StatusBadge (native)', () => {
         }
     });
 
-    it('paints the recipe statuses pearl and ink, each with its glyph', () => {
+    // REWRITTEN for componentFixes §7: paper under inkMuted (was pearl under ink, invisible on a pearl parent).
+    it('paints the recipe statuses paper and inkMuted, each with its glyph', () => {
         for (const [status, glyph] of [
             ['draft', 'pencil-line'],
             ['private', 'lock'],
@@ -76,14 +79,39 @@ describe('StatusBadge (native)', () => {
         ] as const) {
             const { container, unmount } = render(<StatusBadge status={status}>Word</StatusBadge>);
 
-            expect(getComputedStyle(badgeOf('Word')).backgroundColor, status).toBe(formatRgb(palette.pearl));
-            expect(getComputedStyle(screen.getByText('Word')).color, status).toBe(formatRgb(role.ink));
+            expect(getComputedStyle(badgeOf('Word')).backgroundColor, status).toBe(formatRgb(role.paper));
+            expect(getComputedStyle(screen.getByText('Word')).color, status).toBe(formatRgb(role.inkMuted));
             expect(
                 container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'],
                 status,
             ).toBe(glyph);
             unmount();
         }
+    });
+
+    // componentFixes §7: every neutral badge is paper with a 1 pt lineDivider edge, so it reads on a surfaceMuted parent.
+    it.each(['draft', 'private', 'public', 'soon', 'note'] as const)(
+        '%s keeps its own paper fill and a 1 pt lineDivider edge on a surfaceMuted parent',
+        (status) => {
+            render(
+                <View style={{ backgroundColor: role.surfaceMuted }}>
+                    <StatusBadge status={status}>Word</StatusBadge>
+                </View>,
+            );
+            const style = getComputedStyle(badgeOf('Word'));
+
+            expect(style.backgroundColor).toBe(formatRgb(role.paper));
+            expect(style.backgroundColor).not.toBe(formatRgb(role.surfaceMuted));
+            expect(style.borderTopWidth).toBe('1px');
+            expect(style.borderTopColor).toBe(formatRgb(role.lineDivider));
+            expect(getComputedStyle(screen.getByText('Word')).color).toBe(formatRgb(role.inkMuted));
+        },
+    );
+
+    it.each(['pro', 'attention'] as const)('%s draws no edge', (status) => {
+        render(<StatusBadge status={status}>Word</StatusBadge>);
+
+        expect(getComputedStyle(badgeOf('Word')).borderTopWidth).not.toBe('1px');
     });
 
     it('takes the ink-on-tint fallback for attention', () => {

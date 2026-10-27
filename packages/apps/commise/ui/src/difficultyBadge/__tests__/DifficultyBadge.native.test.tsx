@@ -63,3 +63,19 @@ describe('DifficultyBadge (native)', () => {
         }
     });
 });
+
+// componentFixes §7: the neutral rule, on a surfaceMuted parent, in both schemes.
+describe('DifficultyBadge (native) — neutral edge', () => {
+    it.each<['light' | 'dark', Readonly<Record<'lineDivider' | 'surfaceMuted', string>>]>([
+        ['light', role],
+        ['dark', roleDark],
+    ])('%s: a 1 pt lineDivider edge, and a fill that is not the muted parent', (name, colors) => {
+        scheme.current = name;
+        render(<DifficultyBadge level="medium">Word</DifficultyBadge>);
+        const badge = getComputedStyle(screen.getByText('Word').parentElement as HTMLElement);
+
+        expect(badge.borderTopWidth).toBe('1px');
+        expect(badge.borderTopColor).toBe(formatRgb(colors.lineDivider));
+        expect(badge.backgroundColor).not.toBe(formatRgb(colors.surfaceMuted));
+    });
+});

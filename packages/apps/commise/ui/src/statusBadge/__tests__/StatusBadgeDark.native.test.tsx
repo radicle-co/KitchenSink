@@ -7,6 +7,7 @@ vi.mock('react-native', async (importOriginal) => ({
     useColorScheme: () => 'dark',
 }));
 
+import { roleDark } from '../../tokens/colors.js';
 import { proToneDark } from '../../tokens/tones.js';
 import { StatusBadge } from '../StatusBadge.native.js';
 
@@ -25,5 +26,17 @@ describe('StatusBadge (native, dark scheme)', () => {
             formatRgb(proToneDark.fill),
         );
         expect(getComputedStyle(screen.getByText('PRO')).color).toBe(formatRgb(proToneDark.text));
+    });
+
+    // componentFixes §7 in the dark scheme: a raised dark surface is surfaceMuted, and the neutral badge must not be it.
+    it('paints a neutral badge dark paper with a dark lineDivider edge and inkMuted text', () => {
+        render(<StatusBadge status="draft">Draft</StatusBadge>);
+        const badge = getComputedStyle(screen.getByText('Draft').parentElement as HTMLElement);
+
+        expect(badge.backgroundColor).toBe(formatRgb(roleDark.paper));
+        expect(badge.backgroundColor).not.toBe(formatRgb(roleDark.surfaceMuted));
+        expect(badge.borderTopWidth).toBe('1px');
+        expect(badge.borderTopColor).toBe(formatRgb(roleDark.lineDivider));
+        expect(getComputedStyle(screen.getByText('Draft')).color).toBe(formatRgb(roleDark.inkMuted));
     });
 });

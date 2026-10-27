@@ -44,10 +44,17 @@ const COVER_RENAMED = { seafoam: 'steel', coral: 'cream', premium: 'peach' } as 
 const RETIRED = ['honey', 'premium'] as const;
 /**
  * Source custom properties the design session RETUNED after the handoff (the PRO badge, 2026-10-27: grey, not the
- * neutral chip). The fixture keeps the handoff's values byte for byte, so these rows are skipped there and pinned in
+ * neutral chip; and the neutral difficulty badge, `componentFixes.md` §7: paper under inkMuted, not surfaceMuted under ink). The fixture keeps the handoff's values byte for byte, so these rows are skipped there and pinned in
  * the "retuned" block at the foot instead, the way the danger colours and chart series are.
  */
-const RETUNED_AFTER_HANDOFF = new Set(['pro-fill', 'pro-ink']);
+const RETUNED_AFTER_HANDOFF = new Set([
+    'pro-fill',
+    'pro-ink',
+    ...(['easy', 'medium', 'hard'] as const).flatMap((level) => [
+        `difficulty-${level}-fill`,
+        `difficulty-${level}-ink`,
+    ]),
+]);
 
 /** Our name for a source palette key. */
 function ours(key: string): string {
@@ -174,11 +181,16 @@ describe('web: the semantic keys follow the roles in both themes (redesign.css)'
 });
 
 describe('web: difficulty is a neutral chip and PRO a grey one, in both themes (redesign.css, tokens.css)', () => {
-    it.each(['easy', 'medium', 'hard'] as const)('%s is surfaceMuted under ink', (level) => {
-        expect(difficultyTone[level]).toEqual({ fill: role.surfaceMuted, text: role.ink });
-        expect(difficultyToneDark[level]).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink });
-        expect(light.get(`color-difficulty-${level}-fill`)).toBe(norm(role.surfaceMuted));
-        expect(dark.get(`color-difficulty-${level}-ink`)).toBe(norm(roleDark.ink));
+    // REWRITTEN for `componentFixes.md` §7 (2026-10-27): the handoff's surfaceMuted-under-ink fill vanished on a
+    // surfaceMuted parent, so a neutral badge is paper under inkMuted (its 1 px lineDivider edge is the component's).
+    // The six `difficulty-*` source rows moved to the retuned set above and are pinned here instead.
+    it.each(['easy', 'medium', 'hard'] as const)('%s is paper under inkMuted', (level) => {
+        expect(difficultyTone[level]).toEqual({ fill: role.paper, text: role.inkMuted });
+        expect(difficultyToneDark[level]).toEqual({ fill: roleDark.paper, text: roleDark.inkMuted });
+        expect(light.get(`color-difficulty-${level}-fill`)).toBe(norm(role.paper));
+        expect(light.get(`color-difficulty-${level}-ink`)).toBe(norm(role.inkMuted));
+        expect(dark.get(`color-difficulty-${level}-fill`)).toBe(norm(roleDark.paper));
+        expect(dark.get(`color-difficulty-${level}-ink`)).toBe(norm(roleDark.inkMuted));
     });
 
     it('PRO is the retuned grey pair, emitted as pro-fill and pro-ink in each theme', () => {

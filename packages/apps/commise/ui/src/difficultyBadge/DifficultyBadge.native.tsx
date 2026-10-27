@@ -19,10 +19,11 @@ import { DIFFICULTY_METER, METER_DOTS, type DifficultyBadgeProps } from './props
  * @returns The badge.
  */
 export const DifficultyBadge: FC<DifficultyBadgeProps> = ({ level, children }) => {
-    const tone = (useTheme().scheme === 'dark' ? difficultyToneDark : difficultyTone)[level];
+    const theme = useTheme();
+    const tone = (theme.scheme === 'dark' ? difficultyToneDark : difficultyTone)[level];
 
     return (
-        <View style={[styles.badge, { backgroundColor: tone.fill }]}>
+        <View style={[styles.badge, { backgroundColor: tone.fill, borderColor: theme.colors.lineDivider }]}>
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.meter}>
                 {Array.from({ length: METER_DOTS }, (_unused, index) => {
                     const filled = index < DIFFICULTY_METER[level];
@@ -57,6 +58,8 @@ const styles = StyleSheet.create({
         minHeight: 24,
         maxWidth: '100%',
         borderRadius: nativeTokens.radius.sm,
+        // The neutral-badge edge (`componentFixes.md` §7); its colour is the theme's, so only the width is static.
+        borderWidth: 1,
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,
     },

@@ -21,18 +21,24 @@ import { Icon } from '../icon/Icon.js';
 import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
 
 /**
- * Each status's fill and label (§1.4), as roles so they re-theme (D15). The recipe statuses are neutral,
- * `surfaceMuted` and `ink`, never amber; PRO is `premium` under charcoal (5.70:1), FIXED in both themes
- * (`darkTheme.md` §2); a note is `inkMuted` on `surfaceMuted`. ⛔ `attention` is the recorded fallback, an `ink`
+ * A neutral badge (`componentFixes.md` §7): `paper` with a 1 px `lineDivider` edge under `inkMuted`, so it reads on the
+ * canvas, on paper and on `surfaceMuted` alike. A `surfaceMuted` fill vanished on a `surfaceMuted` parent.
+ */
+const NEUTRAL_CLASS = 'border border-line-divider bg-paper text-ink-muted';
+
+/**
+ * Each status's fill and label (§1.4), as roles so they re-theme (D15). The recipe statuses, `soon` and a note are
+ * neutral ({@link NEUTRAL_CLASS}), never amber; PRO is the grey `pro` pair, slate under snow in light and a light grey
+ * under charcoal in dark (`componentFixes.md` §7). ⛔ `attention` is the recorded fallback, an `ink`
  * label on the `attentionTint`: the spec's `attention` text measured below 4.5:1 on its own tint.
  */
 const STATUS_CLASS: Readonly<Record<BadgeStatus, string>> = {
-    draft: 'bg-surface-muted text-ink',
-    private: 'bg-surface-muted text-ink',
-    public: 'bg-surface-muted text-ink',
+    draft: NEUTRAL_CLASS,
+    private: NEUTRAL_CLASS,
+    public: NEUTRAL_CLASS,
     pro: 'bg-pro-fill text-pro-ink',
-    soon: 'bg-surface-muted text-ink',
-    note: 'bg-surface-muted text-ink-muted',
+    soon: NEUTRAL_CLASS,
+    note: NEUTRAL_CLASS,
     attention: 'bg-attention-tint text-ink',
 };
 

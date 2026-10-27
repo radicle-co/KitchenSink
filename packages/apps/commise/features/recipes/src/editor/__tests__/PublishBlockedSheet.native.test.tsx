@@ -13,7 +13,19 @@ import type { PublishBlocked } from '../../hooks/useRecipeEditor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PublishBlockedSheet } from '../PublishBlockedSheet.native.js';
 
-afterEach(cleanup);
+/** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
+const entryPoints = vi.hoisted(() => ({ on: false }));
+
+vi.mock('@commise/features-account', () => ({
+    get SUBSCRIPTION_ENTRY_POINTS_ON() {
+        return entryPoints.on;
+    },
+}));
+
+afterEach(() => {
+    cleanup();
+    entryPoints.on = false;
+});
 
 const NO_SLOT: PublishBlocked = { kind: 'noSlot' };
 const WEB_IMPORT: PublishBlocked = { kind: 'webImport', refusal: 'premium' };
@@ -82,6 +94,13 @@ describe('PublishBlockedSheet (native)', () => {
             expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
             unmount();
         }
+    });
+
+    it('switch on: the slots case adds the Pro line (the other position of the one switch)', () => {
+        entryPoints.on = true;
+        renderSheet(NO_SLOT);
+
+        expect(screen.getByText(/^Pro gives you unlimited private recipes/u)).toBeTruthy();
     });
 
     it('closed, it shows nothing', () => {

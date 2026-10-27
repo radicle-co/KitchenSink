@@ -6,7 +6,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeFilledRecipeFormValues } from '../../__fixtures__/index.js';
-import { EMPTY_LANE, createLaneStore, laneReducer, strongerTrigger, type LaneState } from '../writeLane.js';
+import {
+    EMPTY_LANE,
+    createLaneStore,
+    isSettingVisibility,
+    laneReducer,
+    strongerTrigger,
+    type LaneState,
+} from '../writeLane.js';
 
 const sent = makeFilledRecipeFormValues();
 const queued = (seq: number, finishing = false): LaneState =>
@@ -255,5 +262,17 @@ describe('laneReducer — the visibility write before a first Publish', () => {
         const deferred = laneReducer(sending, { type: 'refusedInFlight', trigger: 'publish' });
 
         expect(laneReducer(deferred, { type: 'visibilityAnswered' })).toStrictEqual({ deferred: 'publish' });
+    });
+});
+
+describe('isSettingVisibility', () => {
+    it('is false for an empty lane and for a lane with only a write on the wire', () => {
+        expect(isSettingVisibility(EMPTY_LANE)).toBe(false);
+        expect(isSettingVisibility(queued(1))).toBe(false);
+    });
+
+    it('is true exactly while the visibility write that precedes a first Publish is out', () => {
+        expect(isSettingVisibility({ settingVisibility: true })).toBe(true);
+        expect(isSettingVisibility({ ...queued(1), settingVisibility: true })).toBe(true);
     });
 });

@@ -19,7 +19,7 @@ import { usePrivateSlots } from '@kitchensink/recipe-service-client/hooks';
 
 import type { PrivateRefusal } from './privateGate.js';
 import {
-    privateRuleOf,
+    privateRuleForDraft,
     recipePrivateRefusalOf,
     slotStandingOf,
     usesSlots,
@@ -51,7 +51,7 @@ export interface RecipePrivate {
  * @sideEffect Subscribes to `GET /api/v1/recipes/private-slots` under the slots rule.
  */
 export function useRecipePrivate(options: UseRecipePrivateOptions): RecipePrivate {
-    const rule = privateRuleOf(options.sourceType);
+    const rule = privateRuleForDraft(options.sourceType);
     const usage = usePrivateSlots({ enabled: usesSlots(rule) });
     const standing = usesSlots(rule) ? slotStandingOf(usage.data, usage.isPending) : ({ kind: 'unknown' } as const);
 

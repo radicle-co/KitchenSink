@@ -11,7 +11,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RecipeUpsellSheetProps } from '../model.js';
 import { RecipeUpsellSheet } from '../RecipeUpsellSheet.js';
 
-afterEach(cleanup);
+/** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
+const entryPoints = vi.hoisted(() => ({ on: false }));
+
+vi.mock('@commise/features-account', () => ({
+    get SUBSCRIPTION_ENTRY_POINTS_ON() {
+        return entryPoints.on;
+    },
+}));
+
+afterEach(() => {
+    cleanup();
+    entryPoints.on = false;
+});
 
 function upsell(over: Partial<RecipeUpsellSheetProps> = {}) {
     const props: RecipeUpsellSheetProps = {
@@ -72,6 +84,7 @@ describe('RecipeUpsellSheet (web)', () => {
     );
 
     it('offers See Pro and Not now as equals: the same tier, side by side, neither the primary', () => {
+        entryPoints.on = true;
         upsell();
         const see = screen.getByRole('button', { name: 'See Pro' });
         const notNow = screen.getByRole('button', { name: 'Not now' });
@@ -81,6 +94,7 @@ describe('RecipeUpsellSheet (web)', () => {
     });
 
     it('reports See Pro, and closes from Not now', async () => {
+        entryPoints.on = true;
         const user = userEvent.setup();
         const props = upsell();
 
@@ -89,6 +103,14 @@ describe('RecipeUpsellSheet (web)', () => {
 
         await user.click(screen.getByRole('button', { name: 'Not now' }));
         expect(props.onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('⛔ switch off: states the fact and offers only a close control - no See Pro, no Pro link', () => {
+        const props = upsell();
+
+        expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: 'Not now' })).toHaveLength(1);
+        expect(props.onSeePremium).not.toHaveBeenCalled();
     });
 
     it('draws nothing while shut', () => {

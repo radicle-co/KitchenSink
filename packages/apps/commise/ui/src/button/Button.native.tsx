@@ -35,20 +35,17 @@ import { touchFloor } from '../layout/touchFloor.native.js';
 import type { Role } from '../tokens/colors.js';
 import { nativeTokens } from '../tokens/native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import type { Theme } from '../theme/themeFor.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
+import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
 
-/** The flat surfaces and the role each one's label and glyph share. */
-type Surface = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructiveInline' | 'destructiveConfirm';
-
 /** Each surface's foreground role — the label AND the glyph AND the spinner, so the three always agree. */
-const FOREGROUND: Readonly<Record<Surface, Role>> = {
+const FOREGROUND: Readonly<Record<ButtonSurface, Role>> = {
     primary: 'onAction',
     secondary: 'ink',
     ghost: 'actionText',
@@ -61,27 +58,7 @@ const FOREGROUND: Readonly<Record<Surface, Role>> = {
  * Each surface's GLYPH and spinner role. Every tier draws them in its label's colour except `quiet`: an `ink` label with
  * an `actionText` glyph (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`.
  */
-const GLYPH: Readonly<Record<Surface, Role>> = { ...FOREGROUND, quiet: 'actionText' };
-
-/**
- * Each surface's paint in the current theme — the native idiom of the web leaf's map (the two change for different
- * reasons, so they are deliberately not merged). Built at render from `useTheme()`: a colour in the static sheet would
- * be baked into one theme at import (D15). Pure.
- */
-function surfacePaint({ colors }: Theme, surface: Surface): ViewStyle {
-    switch (surface) {
-        case 'primary':
-            return { backgroundColor: colors.action, borderWidth: 0 };
-        case 'secondary':
-        case 'destructiveInline':
-            return { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.lineControl };
-        case 'ghost':
-        case 'quiet':
-            return { backgroundColor: 'transparent', borderWidth: 0 };
-        case 'destructiveConfirm':
-            return { backgroundColor: colors.danger, borderWidth: 0 };
-    }
-}
+const GLYPH: Readonly<Record<ButtonSurface, Role>> = { ...FOREGROUND, quiet: 'actionText' };
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
 const resolveAccessibilityLabel = (
@@ -108,7 +85,7 @@ export const Button: FC<ButtonProps> = (props) => {
         onFocusRequestHandled,
     } = props;
     const { variant, tone } = surfaceOf(props);
-    const surface: Surface =
+    const surface: ButtonSurface =
         variant === 'destructive' ? (tone === 'confirm' ? 'destructiveConfirm' : 'destructiveInline') : variant;
     const foreground = FOREGROUND[surface];
     const glyphRole = GLYPH[surface];
@@ -145,7 +122,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const pill = (
         <View
             collapsable={false}
-            style={[styles.base, geometry, surfacePaint(theme, surface), inactive ? styles.inactive : null]}
+            style={[styles.base, geometry, buttonSurfacePaint(theme, surface), inactive ? styles.inactive : null]}
         >
             {content}
         </View>
@@ -170,16 +147,7 @@ export const Button: FC<ButtonProps> = (props) => {
 };
 
 const styles = StyleSheet.create({
-    base: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: nativeTokens.spacing[2],
-        paddingVertical: nativeTokens.spacing[2],
-        // The web surface's base `px-3` (`surfaceClass.ts`): at 24 dp a row of three actions overflowed a 320 dp phone
-        // and clipped the primary. A test holds the two platforms equal.
-        paddingHorizontal: nativeTokens.spacing[3],
-    },
+    base: BUTTON_PILL_LAYOUT,
     hitFrame: { justifyContent: 'center' },
     glyph: { flexShrink: 0 },
     label: nativeTokens.type.cardTitle,

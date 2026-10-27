@@ -19,7 +19,7 @@ import {
     recipeIsPublished,
     refusalWhileDrafting,
     slotStandingForRecipe,
-    privateRuleOf,
+    privateRuleForDraft,
     recipeMakePublicConsequence,
     recipeOffersPrivate,
     recipePrivateChoice,
@@ -84,13 +84,13 @@ describe('slotStandingOf - the server states the number, the client never does',
     });
 });
 
-describe('privateRuleOf - which rule a recipe is under', () => {
+describe('privateRuleForDraft - which rule a recipe is under', () => {
     it('imported public-web recipes still need Pro (and a substantive edit, which the server judges)', () => {
-        expect(privateRuleOf(RecipeSourceType.IMPORTED_PUBLIC)).toBe('premium');
+        expect(privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC)).toBe('premium');
     });
 
     it('a recipe the cook wrote uses a slot, and can go public', () => {
-        expect(privateRuleOf(RecipeSourceType.USER_CREATED)).toBe('slots');
+        expect(privateRuleForDraft(RecipeSourceType.USER_CREATED)).toBe('slots');
     });
 
     // A book or paid-site recipe uses a slot like any other (ADR-0073 section 7) but can NEVER go public (004 FR-014a), so
@@ -99,12 +99,12 @@ describe('privateRuleOf - which rule a recipe is under', () => {
     it.each([RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
         '%s uses a slot but can never go public: its own rule',
         (sourceType) => {
-            expect(privateRuleOf(sourceType)).toBe('privateOnly');
+            expect(privateRuleForDraft(sourceType)).toBe('privateOnly');
         },
     );
 
     it('a recipe never saved is a user_created one: slots', () => {
-        expect(privateRuleOf(undefined)).toBe('slots');
+        expect(privateRuleForDraft(undefined)).toBe('slots');
     });
 });
 

@@ -483,7 +483,8 @@ describe('CollectionDetailScreen — visibility, with Undo and the Pro sheet', (
         pressMenuItem('Dinners', 'Make private');
 
         expect(await screen.findByText('Private collections are part of Pro.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'See Pro' })).toBeTruthy();
+        // The subscription entry points ship off (spec 010 T-035): the sheet states the fact and offers only a close control.
+        expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
         expect(update).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));

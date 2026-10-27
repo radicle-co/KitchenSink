@@ -14,6 +14,7 @@
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { BUTTON_PILL_LAYOUT, buttonToggleSurfacePaint } from '../button/surfacePaint.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -22,43 +23,33 @@ import type { KeepAwakeToggleProps } from './props.js';
 
 /** The native "Screen on" switch. */
 export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label, display }) => {
-    const { colors } = useTheme();
+    const theme = useTheme();
+    const { colors } = theme;
     const height = touchFloor();
 
     return (
         <Pressable role="switch" aria-checked={on} aria-label={label} onPress={() => onChange(!on)} style={styles.hit}>
-            {({ pressed }) => (
-                <View
-                    collapsable={false}
-                    style={[
-                        styles.pill,
-                        {
-                            minHeight: height,
-                            minWidth: height,
-                            borderRadius: height / 2,
-                            backgroundColor: on ? colors.selectedFill : pressed ? colors.surfaceMuted : colors.paper,
-                            borderColor: on ? colors.selectedEdge : colors.lineControl,
-                        },
-                    ]}
-                >
-                    <Icon name="sun" size={20} filled={on} tone="ink" />
-                    {display === 'labelled' ? <Text style={[styles.label, { color: colors.ink }]}>{label}</Text> : null}
-                </View>
-            )}
+            <View
+                collapsable={false}
+                style={[
+                    styles.pill,
+                    {
+                        minHeight: height,
+                        minWidth: height,
+                        borderRadius: height / 2,
+                        ...buttonToggleSurfacePaint(theme, on),
+                    },
+                ]}
+            >
+                <Icon name="sun" size={20} filled={on} tone="ink" />
+                {display === 'labelled' ? <Text style={[styles.label, { color: colors.ink }]}>{label}</Text> : null}
+            </View>
         </Pressable>
     );
 };
 
 const styles = StyleSheet.create({
     hit: { alignSelf: 'flex-start' },
-    pill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: nativeTokens.spacing[2],
-        // Button's inline step (12), so the two pills read as one family.
-        paddingHorizontal: nativeTokens.spacing[3],
-        borderWidth: 1,
-    },
+    pill: BUTTON_PILL_LAYOUT,
     label: nativeTokens.type.cardTitle,
 });

@@ -112,6 +112,18 @@ export type LaneEvent =
 /** A lane with nothing outstanding. */
 export const EMPTY_LANE: LaneState = {};
 
+/**
+ * Whether the visibility write that comes before a first Publish is on the wire. It is no outbox record, so it is no
+ * `outstanding` write, but a draft write or a second Publish sent meanwhile would race it: every checkpoint is deferred
+ * and Publish answers busy. The ONE predicate for that, so the three places that ask cannot disagree.
+ *
+ * @param lane - The lane.
+ * @returns Whether it is busy with that write. Pure.
+ */
+export function isSettingVisibility(lane: LaneState): boolean {
+    return lane.settingVisibility === true;
+}
+
 /** The triggers, weakest first: a deferred trigger keeps the strongest. */
 const TRIGGER_STRENGTH: readonly CheckpointTrigger[] = [
     'typingIdle',

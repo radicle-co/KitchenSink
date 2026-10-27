@@ -16,7 +16,19 @@ import { CollectionDeleteDialog } from '../CollectionDeleteDialog.js';
 import { CollectionUpsellSheet } from '../CollectionUpsellSheet.native.js';
 import type { CollectionDeleteDialogProps, CollectionUpsellSheetProps } from '../detailModel.js';
 
-afterEach(cleanup);
+/** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
+const entryPoints = vi.hoisted(() => ({ on: false }));
+
+vi.mock('@commise/features-account', () => ({
+    get SUBSCRIPTION_ENTRY_POINTS_ON() {
+        return entryPoints.on;
+    },
+}));
+
+afterEach(() => {
+    cleanup();
+    entryPoints.on = false;
+});
 
 function deleteDialog(over: Partial<CollectionDeleteDialogProps> = {}) {
     const props: CollectionDeleteDialogProps = {
@@ -98,6 +110,7 @@ describe('CollectionUpsellSheet (native)', () => {
     });
 
     it('offers See Pro and Not now as equals: the same tier, side by side, neither the primary', () => {
+        entryPoints.on = true;
         upsell();
         const see = screen.getByRole('button', { name: 'See Pro' });
         const notNow = screen.getByRole('button', { name: 'Not now' });
@@ -106,6 +119,7 @@ describe('CollectionUpsellSheet (native)', () => {
     });
 
     it('reports See Pro, and closes from Not now', () => {
+        entryPoints.on = true;
         const props = upsell();
 
         fireEvent.click(screen.getByRole('button', { name: 'See Pro' }));
@@ -113,6 +127,14 @@ describe('CollectionUpsellSheet (native)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
         expect(props.onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('⛔ switch off: states the fact and offers only a close control - no See Pro, no Pro link', () => {
+        const props = upsell();
+
+        expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: 'Not now' })).toHaveLength(1);
+        expect(props.onSeePremium).not.toHaveBeenCalled();
     });
 
     it('draws nothing while shut', () => {

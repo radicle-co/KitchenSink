@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/editor — the words of the dialog a Publish opens when the cook chose Private and cannot
- * keep it (owner ruling 2026-10-26), and the one switch that keeps its Premium line off until there is somewhere to send
- * the cook.
+ * keep it (owner ruling 2026-10-26). Whether it may sell Pro is the one subscription-entry-point switch
+ * (`@commise/features-account`, spec 010 T-035), passed in so both positions are testable.
  *
  * Pure and platform-agnostic.
  *
@@ -11,19 +11,11 @@ import type { PublishBlocked } from '../hooks/useRecipeEditor.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { EditorMessages } from './messages.js';
 
-/**
- * Whether the dialog may sell Premium: the upsell line and "See Premium". ⛔ OFF until feature 010 (the subscription page)
- * exists - owner ruling 2026-10-26: there is no destination for "See Premium" yet, and none may be invented. Off, every
- * dialog reads as its paid-features-hidden variant. Turning it on is this one change, plus giving the dialog a destination
- * and the `{premiumFeatures}` list.
- */
-export const PUBLISH_BLOCKED_PREMIUM_UPSELL = false;
-
 /** What the dialog says. */
 export interface PublishBlockedCopy {
     readonly title: string;
     readonly body: string;
-    /** The Premium line, only while {@link PUBLISH_BLOCKED_PREMIUM_UPSELL} is on. */
+    /** The Premium line, only while the subscription-entry-point switch is on. */
     readonly upsell: string | undefined;
 }
 
@@ -33,12 +25,14 @@ export interface PublishBlockedCopy {
  * @param ask - Which case blocked it.
  * @param slotTotal - The cook's private-slot limit, for the `noSlot` case; `undefined` when it is not known, which says no number.
  * @param messages - The editor's words.
+ * @param sellsPro - The subscription-entry-point switch; off, no variant sells Pro.
  * @param premiumFeatures - What Premium adds, for the upsell line (only read while the switch is on).
  */
 export function publishBlockedCopyOf(
     ask: PublishBlocked,
     slotTotal: number | undefined,
     messages: EditorMessages['publishBlocked'],
+    sellsPro: boolean,
     premiumFeatures = '',
 ): PublishBlockedCopy {
     if (ask.kind === 'noSlot') {
@@ -48,14 +42,12 @@ export function publishBlockedCopyOf(
                 slotTotal === undefined
                     ? messages.noSlot.bodyNoCount
                     : fillTemplate(messages.noSlot.body, { total: slotTotal }),
-            upsell: PUBLISH_BLOCKED_PREMIUM_UPSELL
-                ? fillTemplate(messages.noSlot.upsell, { premiumFeatures })
-                : undefined,
+            upsell: sellsPro ? fillTemplate(messages.noSlot.upsell, { premiumFeatures }) : undefined,
         };
     }
 
     // `final` (paid features hidden) sells nothing, whatever the switch says.
-    const sellsPremium = PUBLISH_BLOCKED_PREMIUM_UPSELL && ask.refusal === 'premium';
+    const sellsPremium = sellsPro && ask.refusal === 'premium';
 
     return {
         title: messages.webImport.title,

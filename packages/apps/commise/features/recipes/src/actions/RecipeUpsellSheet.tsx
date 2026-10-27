@@ -12,6 +12,7 @@
  *
  * @pattern Adapter over the design-system `Sheet`
  */
+import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
@@ -36,11 +37,13 @@ export const RecipeUpsellSheet: FC<RecipeUpsellSheetProps> = ({ open, variant, o
             size="content"
             footer={
                 <div className="flex gap-3">
-                    <div className="flex-1">
-                        <Button variant="secondary" icon="star" width="fill" onPress={onSeePremium}>
-                            {upsell.seePremium}
-                        </Button>
-                    </div>
+                    {SUBSCRIPTION_ENTRY_POINTS_ON ? (
+                        <div className="flex-1">
+                            <Button variant="secondary" icon="star" width="fill" onPress={onSeePremium}>
+                                {upsell.seePremium}
+                            </Button>
+                        </div>
+                    ) : null}
                     <div className="flex-1">
                         <Button variant="secondary" icon="x" width="fill" onPress={() => onOpenChange(false)}>
                             {upsell.notNow}

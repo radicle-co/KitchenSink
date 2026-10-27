@@ -44,7 +44,7 @@ export interface UsePrivateChoiceOptions {
      * read included. REQUIRED, so a host cannot decide a write from the display's fail-closed `hidden`.
      */
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
-    /** Which rule the recipe is under (`privateRuleOf`): the cook's slots, or (an imported public-web recipe) Premium. */
+    /** Which rule the recipe is under (`privateRuleForDraft`): the cook's slots, or (an imported public-web recipe) Premium. */
     readonly rule: PrivateRule;
     /** Where the cook stands on private slots (`slotStandingOf`, from `usePrivateSlots`): the cook's own, whatever the recipe. */
     readonly standing: SlotStanding;

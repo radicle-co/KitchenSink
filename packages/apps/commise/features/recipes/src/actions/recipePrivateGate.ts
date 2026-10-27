@@ -134,7 +134,7 @@ export function usesSlots(rule: PrivateRule): boolean {
  *
  * @param sourceType - The recipe's label; `undefined` for one never saved.
  */
-export function privateRuleOf(sourceType: RecipeSourceType | undefined): PrivateRule {
+export function privateRuleForDraft(sourceType: RecipeSourceType | undefined): PrivateRule {
     return coreRuleOf(sourceType ?? RecipeSourceType.USER_CREATED);
 }
 

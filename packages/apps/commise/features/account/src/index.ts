@@ -56,6 +56,7 @@ export { IMPERSONATION_BLOCK, SUSPENDED_BLOCK, deriveAuthState } from './authSta
 // The ONE profile → paid-features mapping every paid-feature surface on both platforms renders from (plan 2026-10-14-009 D13).
 export { knownPaidFeaturesOf, paidFeatureStateOf } from './paidFeatures.js';
 export type { PaidFeatureState, ProfileQueryState } from './paidFeatures.js';
+export { SUBSCRIPTION_ENTRY_POINTS_ON } from './subscriptionEntryPoints.js';
 export type { AuthBlockReason, AuthState, DeriveAuthStateInput } from './authState.js';
 // The localized words a blocked viewer reads, keyed by the block's code: ONE wording for both gates and the profile banner.
 export { authBlockMessages } from './authBlockMessages.js';
